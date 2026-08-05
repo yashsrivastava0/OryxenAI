@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Python caches
+__pycache__/
+*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local dev artifacts
+*.log
+pgdata/
+postgres-data/
+
+# Tests and docs are excluded from the production image to keep it lean;
+# the project source under src/ is the only application code copied.
+tests/
+docs/
+scripts/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
