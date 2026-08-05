@@ -1,0 +1,176 @@
+/* OryxenAI developer harness — plain responsive CSS, no frameworks/CDNs. */
+:root {
+  --bg: #0a0a0a;
+  --fg: #e5e5e5;
+  --muted: #6b7280;
+  --accent: #3b82f6;
+  --card: #141414;
+  --border: #2e2e2e;
+  --ok: #22c55e;
+  --err: #ef4444;
+  --warn: #f59e0b;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b7280;
+    --card: #f8f9fa;
+    --border: #e5e7eb;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 { margin: 0; font-size: 1.5rem; }
+.subtitle { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.card h2 { margin-top: 0; font-size: 1.125rem; }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  main { padding: 1rem; }
+}
+
+.sub-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.form-group { margin-bottom: 0.75rem; }
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+}
+
+input[type=text], select, textarea {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
+
+button {
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:hover:not(:disabled) { filter: brightness(1.1); }
+
+.pill {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pill.ok { background: var(--ok); color: #000; }
+.pill.err { background: var(--err); color: #fff; }
+.pill.warn { background: var(--warn); color: #000; }
+.pill.unknown { background: var(--muted); color: #fff; }
+
+.result { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
+.result.error { color: var(--err); }
+.result.success { color: var(--ok); }
+
+.select-list { list-style: none; padding: 0; margin: 0.5rem 0; }
+.select-list li {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.select-list li:hover { background: var(--border); }
+.select-list .empty { color: var(--muted); font-style: italic; cursor: default; }
+
+.json-view {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+dl { margin: 0.5rem 0; }
+dt { color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem; }
+dd { margin: 0 0 0.25rem; font-family: monospace; font-size: 0.85rem; }
+.mono-sml { font-family: monospace; font-size: 0.8rem; color: var(--accent); }
+
+.help-text { color: var(--muted); font-size: 0.8rem; }
+.inline-fields { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 0.5rem; }
+.button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.button-row button { margin-top: 0.5rem; }
+.primary-action { background: #7c3aed; font-weight: 700; }
+.question-option { display: block; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); margin: 0.4rem 0; }
+.question-option input { margin-right: 0.5rem; }
+
+@media (max-width: 760px) {
+  .inline-fields { grid-template-columns: 1fr; }
+}

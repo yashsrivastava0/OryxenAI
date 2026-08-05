@@ -1,0 +1,12 @@
+{
+  "summary": "A portfolio website for a freelance photographer showcasing their work.",
+  "goals": [
+    "Display a gallery of photographs",
+    "Provide contact information for potential clients",
+    "Highlight services and pricing"
+  ],
+  "audience": "Potential photography clients",
+  "metadata": {
+    "mock": true
+  }
+}

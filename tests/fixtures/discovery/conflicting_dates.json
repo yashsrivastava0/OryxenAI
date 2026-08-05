@@ -1,0 +1,7 @@
+{
+  "name": "Conflicting employment dates",
+  "main_prompt": "Present an accurate engineering profile.",
+  "resume_source": "pasted_text",
+  "resume_text": "Example Corp, 2020-2022\nExample Corp, 2021-2023",
+  "expected": {"material_conflict_should_surface": true}
+}

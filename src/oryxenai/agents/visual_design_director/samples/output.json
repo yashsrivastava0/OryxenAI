@@ -1,0 +1,14 @@
+{
+  "theme": {
+    "name": "minimal-dark",
+    "mode": "dark",
+    "radius": 8,
+    "spacing": "comfortable"
+  },
+  "palette": ["#0a0a0a", "#ffffff", "#3b82f6", "#64748b"],
+  "typography": {
+    "heading_font": "system-ui",
+    "body_font": "system-ui",
+    "scale": "1.250"
+  }
+}

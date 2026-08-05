@@ -28,13 +28,20 @@ pip-wheel-metadata/
 *.sqlite3
 oryxenai.db
 
-# Testing / coverage
+# Workspace (all generated developer state)
+.workspace/
+
+# Legacy root caches (kept in case a tool runs outside canonical scripts)
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+
+# Testing / coverage
 .coverage
 .coverage.*
 htmlcov/
-.mypy_cache/
-.ruff_cache/
 
 # Editors / OS
 .idea/

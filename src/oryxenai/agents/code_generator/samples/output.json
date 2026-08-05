@@ -1,0 +1,18 @@
+{
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!doctype html><html><head><title>Portfolio</title></head><body><h1>Portfolio</h1></body></html>",
+      "language": "html"
+    },
+    {
+      "path": "styles/main.css",
+      "content": "body{font-family:system-ui;margin:0}",
+      "language": "css"
+    }
+  ],
+  "metadata": {
+    "file_count": 2,
+    "generator": "mock"
+  }
+}

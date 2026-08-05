@@ -2,12 +2,13 @@
 .git
 .gitignore
 
-# Python caches
+# Workspace / caches
+.workspace/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 __pycache__/
 *.py[cod]
-**/.pytest_cache/
-**/.mypy_cache/
-**/.ruff_cache/
 .venv/
 venv/
 
@@ -25,7 +26,9 @@ postgres-data/
 # the project source under src/ is the only application code copied.
 tests/
 docs/
-scripts/
+# scripts/docker-entrypoint.sh is copied explicitly by the Dockerfile;
+# other scripts are not needed in the image.
+scripts/verify_environment.py
 
 # OS / editor
 .DS_Store

@@ -1,0 +1,27 @@
+# Test overlay — loaded after config/app.toml during integration/worker tests.
+# Uses a dedicated test database so tests never touch the application database.
+# Secrets come from .env (POSTGRES_PASSWORD), CI sets POSTGRES_PASSWORD=oryxen_test.
+
+[database]
+database = "oryxenai_test"
+
+[database.pool]
+pool_size = 3          # smaller pool for test isolation
+max_overflow = 5
+
+[worker]
+polling_interval = 0.25    # faster polling for test speed
+heartbeat_interval = 5.0
+claim_batch_size = 10
+concurrency = 2
+shutdown_grace = 3.0
+
+[worker.job]
+handler_timeout = 10.0      # short timeout for deterministic test handlers
+lease_duration = 5.0
+
+[worker.retry]
+max_attempts = 3
+base_delay = 0.01
+max_delay = 0.5
+jitter = false               # deterministic for tests

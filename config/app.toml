@@ -1,0 +1,68 @@
+# OryxenAI application configuration (non-secret, committed).
+# Secrets live ONLY in the root .env file. This file contains no credentials.
+#
+# Overlay files:
+#   config/app.docker.toml  — Docker-specific overrides (loaded after this file)
+#   config/app.test.toml     — test-specific overrides
+
+[app]
+name = "OryxenAI"
+env = "local"          # local | staging | production
+host = "127.0.0.1"     # bind host for direct uv run
+port = 8000
+log_level = "INFO"     # DEBUG | INFO | WARNING | ERROR
+enable_dev_ui = true   # serve the developer testing harness at /
+
+[database]
+# Non-secret connection parameters. The PASSWORD is read from .env
+# (POSTGRES_PASSWORD) and never appears here.
+host = "localhost"
+port = 5433
+database = "oryxenai"
+user = "oryxen"
+# Optional full URL override. When non-empty, it is used verbatim.
+url = ""
+
+[database.pool]
+# Pool settings for the async SQLAlchemy engine.
+pool_size = 5          # number of persistent connections per process
+max_overflow = 10      # additional connections allowed under load
+pool_timeout = 30      # seconds to wait for a connection from the pool
+pool_recycle = 3600    # seconds before a connection is recycled (-1 = never)
+
+[worker]
+# Background job worker settings.
+polling_interval = 2.0        # seconds between poll cycles when idle
+heartbeat_interval = 30.0     # seconds between heartbeat writes
+claim_batch_size = 5           # max jobs claimed per poll
+concurrency = 2                # max concurrent handlers (1 = serial)
+shutdown_grace = 10.0          # seconds to finish active jobs at shutdown
+
+[worker.job]
+# Job execution behaviour.
+handler_timeout = 300.0        # max seconds a handler may run
+lease_duration = 120.0         # seconds before a claimed job is considered stale
+
+[worker.retry]
+# Retry scheduling for transient failures.
+max_attempts = 3               # total attempts (1 initial + 2 retries)
+base_delay = 1.0               # base delay in seconds (doubled each retry)
+max_delay = 60.0               # cap on exponential backoff
+jitter = true                  # add random jitter to retry delays
+
+[api]
+# API-level settings.
+max_input_bytes = 262144       # 256 KB payload limit for request bodies
+
+[diagnostics]
+# Heartbeat monitoring.
+heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is stale
+
+[discovery]
+# Discovery agent input limits.
+max_main_prompt_chars = 10000
+max_resume_chars = 160000
+max_links = 20
+max_answer_chars = 10000
+max_questions = 8
+max_featured_projects = 5

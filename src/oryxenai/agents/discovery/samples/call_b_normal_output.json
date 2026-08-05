@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "target_role": {
+    "title": "Senior Backend Engineer",
+    "domain": "backend",
+    "fact_ids": ["fact-role-1"]
+  },
+  "secondary_strengths": ["API design"],
+  "audience": ["recruiters"],
+  "goal": "Present a backend engineering portfolio for job applications.",
+  "positioning": "Production-focused backend engineer with API design expertise.",
+  "featured_projects": [],
+  "emphasize": [
+    {
+      "area": "System reliability",
+      "description": "Emphasize distributed systems and API design experience.",
+      "fact_ids": ["fact-experience-1"]
+    }
+  ],
+  "omit": [],
+  "tone": {
+    "choice": "technical",
+    "rationale": "Profile targets backend engineering roles.",
+    "source": "auto"
+  },
+  "theme_preference": {
+    "choice": "no preference",
+    "rationale": "Auto-selected default.",
+    "source": "auto"
+  },
+  "motion_preference": {
+    "choice": "balanced",
+    "rationale": "Auto-selected default.",
+    "source": "auto"
+  },
+  "primary_cta": null,
+  "contact_choices": [],
+  "confidentiality_rules": [],
+  "output_language": "en",
+  "downstream_fact_ids": ["fact-identity-1", "fact-experience-1", "fact-skill-1"],
+  "unresolved_conflicts": [],
+  "warnings": []
+}

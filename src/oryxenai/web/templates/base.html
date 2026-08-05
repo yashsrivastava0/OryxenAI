@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_name }} — Developer Harness</title>
+  <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/app.css">
+</head>
+<body>
+  <header>
+    <h1>{{ app_name }}</h1>
+    <p class="subtitle">Developer Testing Harness — Scaffold Phase</p>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>{{ app_name }} — Discovery workflow developer harness. Later agents are not invoked.</p>
+  </footer>
+
+  <script src="{{ request.scope.get('root_path', '') }}/static/app.js"></script>
+</body>
+</html>

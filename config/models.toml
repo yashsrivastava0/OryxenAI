@@ -1,0 +1,35 @@
+# OryxenAI provider-neutral model configuration (non-secret, committed).
+#
+# Discovery uses the configured profile only when a durable real operation is
+# requested. The app and worker can start without any model key.
+#
+# Each profile describes how a ModelClient adapter should talk to an
+# OpenAI-compatible endpoint (vLLM, llama.cpp, TGI, Ollama gateways, hosted
+# open-model providers, ...). Agent code never references provider-specific
+# variable names; it only knows the abstract ModelClient protocol.
+#
+# An API key is resolved INDIRECTLY: the profile names the environment
+# variable that holds the key (api_key_env); the application reads that
+# named secret from .env only when a real model call is eventually made.
+#
+# Set the matching environment variable in .env for real Discovery calls.
+# Changing provider/base_url/model/api_key_env
+# must NOT require edits to agent implementations or business logic.
+
+[profiles.default]
+provider = "openai_compatible"
+model = ""
+base_url = ""
+api_key_env = ""        # e.g. "OPENCODE_GO_API_KEY" — name of the env var
+request_params = {}     # extra request parameters (temperature, max_tokens, ...)
+
+[profiles.discovery]
+provider = "opencode_go"
+model = "deepseek-v4-pro"
+base_url = "https://opencode.ai/zen/go/v1"
+api_key_env = "OPENCODE_GO_API_KEY"
+timeout_seconds = 150
+max_retries = 1
+max_output_tokens = 16000
+reasoning_effort = ""
+store = false

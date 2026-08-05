@@ -1,0 +1,7 @@
+{
+  "name": "Profile without metrics",
+  "main_prompt": "Highlight reliable engineering work without exaggeration.",
+  "resume_source": "pasted_text",
+  "resume_text": "Built internal APIs and maintained services with a small team.",
+  "expected": {"metrics_must_not_be_invented": true}
+}

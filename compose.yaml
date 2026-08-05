@@ -1,0 +1,92 @@
+# Local production-like Docker Compose for OryxenAI.
+# topology: postgres → migrate → app + worker
+#
+# Usage:
+#   docker compose up --build  — build and start the stack
+#   docker compose down -v     — stop, remove containers and volumes
+
+name: oryxenai
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: oryxenai
+      POSTGRES_USER: oryxen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - oryxen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oryxen -d oryxenai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "5433:5432"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DB_HOST_OVERRIDE: postgres
+      DB_PORT_OVERRIDE: "5432"
+      OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST_OVERRIDE: postgres
+      DB_PORT_OVERRIDE: "5432"
+      OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST_OVERRIDE: postgres
+      DB_PORT_OVERRIDE: "5432"
+      OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["python", "-m", "oryxenai.jobs.worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
+      interval: 15s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  oryxen_pgdata:

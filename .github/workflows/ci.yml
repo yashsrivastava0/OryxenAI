@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Lint, type-check, test, audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: oryxenai
+          POSTGRES_USER: oryxen
+          POSTGRES_PASSWORD: oryxen_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oryxen -d oryxenai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_PASSWORD: oryxen_test
+      OryxenAI_CONFIG_OVERLAY: config/app.test.toml
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Sync dependencies from lockfile
+        run: uv sync --frozen --all-groups
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=oryxen_test psql -h localhost -U oryxen -d oryxenai -c "CREATE DATABASE oryxenai_test;" || true
+
+      - name: Run database migrations (application DB)
+        run: uv run alembic upgrade head
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy type check
+        run: uv run mypy src
+
+      - name: Run tests (all, strict integration)
+        run: uv run pytest -v --strict-markers
+        env:
+          OryxenAI_CONFIG_OVERLAY: config/app.test.toml
+
+      - name: Dependency audit
+        run: uv run pip-audit --local
+
+      - name: Secret scan (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --no-git --verbose --redact
+
+      - name: Docker build
+        run: docker compose build
+
+      - name: Docker smoke test
+        run: |
+          docker compose up -d
+          sleep 20
+          curl -fsS http://localhost:8000/health/live
+          curl -fsS http://localhost:8000/health/ready
+          curl -fsS http://localhost:8000/api/v1/system/status
+          docker compose down -t 5

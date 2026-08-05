@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "oryxenai"
 version = "0.1.0"
-description = "OryxenAI scaffold: FastAPI app, PostgreSQL persistence, and deterministic mock agents."
+description = "OryxenAI Discovery workflow: FastAPI, PostgreSQL persistence, and durable model-backed discovery."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = { text = "Proprietary" }
@@ -20,6 +20,7 @@ dependencies = [
     "alembic>=1.13",
     "jinja2>=3.1",
     "uvicorn[standard]>=0.30",
+    "openai>=1.50",
 ]
 
 [dependency-groups]
@@ -29,6 +30,7 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.6",
     "mypy>=1.11",
+    "pip-audit>=2.7",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -46,6 +48,7 @@ packages = ["src/oryxenai"]
 line-length = 100
 target-version = "py313"
 src = ["src", "tests"]
+cache-dir = ".workspace/cache/ruff"
 
 [tool.ruff.lint]
 select = [
@@ -58,10 +61,12 @@ select = [
     "SIM", # simplify
     "C4",  # comprehensions
     "RUF", # ruff-specific
+    "S",   # flake8-bandit (security)
 ]
 ignore = [
     "E501",  # line length handled by formatter
     "B008",  # function-default FastAPI Depends usage is intentional
+    "S101",  # assert is fine in pytest tests, config-assert in non-test code is intentional too
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -80,6 +85,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
 files = ["src"]
+cache_dir = ".workspace/cache/mypy"
 
 [[tool.mypy.overrides]]
 module = "alembic.*"
@@ -96,9 +102,13 @@ init_typed = true
 minversion = "8.3"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+cache_dir = ".workspace/cache/pytest"
 markers = [
     "integration: tests that require a live PostgreSQL database.",
+    "strict_integration: integration tests that must NOT be skipped (CI fails if skipped).",
+    "worker: tests that require a running background worker process.",
 ]
 filterwarnings = [
     "error",

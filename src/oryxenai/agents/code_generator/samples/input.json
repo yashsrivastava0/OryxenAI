@@ -1,0 +1,9 @@
+{
+  "content": {
+    "sections": [{"id": "hero", "title": "Hero"}, {"id": "gallery", "title": "Gallery"}]
+  },
+  "design": {
+    "theme": {"name": "minimal-dark", "mode": "dark"},
+    "palette": ["#0a0a0a", "#ffffff"]
+  }
+}
