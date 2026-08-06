@@ -22,7 +22,11 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.providers.base import BaseProviderAdapter
+from oryxenai.agents.shared.providers.capabilities import DEFAULT_OPENCODE_GO, ModelCapabilities
 from oryxenai.agents.shared.providers.errors import (
+    ModelEmptyOutputError,
+    ModelJsonInvalidError,
+    ModelOutputTruncatedError,
     ProviderBadResponseError,
     ProviderConfigError,
     map_http_error,
@@ -47,6 +51,7 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
     def __init__(self, profile: ModelProfile) -> None:
         super().__init__(profile)
         self._client: Any = None
+        self._capabilities: ModelCapabilities = profile.capabilities or DEFAULT_OPENCODE_GO
 
     # ── BaseProviderAdapter implementation ──────────────────────────────
 
@@ -103,6 +108,7 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
                 response_format={"type": "json_object"},
                 max_tokens=self._profile.max_output_tokens,
                 timeout=self._profile.timeout_seconds,
+                **self._structured_call_kwargs(),
                 **extra,
             )
         except Exception as exc:
@@ -110,13 +116,25 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
 
         latency_ms = (time.monotonic() - call_start) * 1000.0
 
-        raw = response.choices[0].message.content or ""
+        message = response.choices[0].message
+        # reasoning_content must never be captured, persisted, or logged.
+        # Only the final content is read; the reasoning channel is discarded.
+        raw = message.content or ""
         finish_reason = response.choices[0].finish_reason or "unknown"
+
+        if not raw.strip():
+            raise ModelEmptyOutputError(
+                f"Model returned {'empty' if not raw else 'whitespace-only'} content"
+            )
+        if finish_reason == "length":
+            raise ModelOutputTruncatedError(
+                "Model output was truncated by the provider (finish_reason=length)"
+            )
 
         try:
             parsed_output: dict[str, Any] = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise ProviderBadResponseError(f"Model returned invalid JSON: {exc!s}") from exc
+            raise ModelJsonInvalidError(f"Model returned invalid JSON: {exc!s}") from exc
 
         if not isinstance(parsed_output, dict):
             raise ProviderBadResponseError(
@@ -186,10 +204,26 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
         merged = dict(self._profile.request_params)
         if request_params:
             merged.update(request_params)
+        if self._profile.reasoning_effort and self._capabilities.thinking_mode:
+            merged.setdefault("reasoning", {"effort": self._profile.reasoning_effort})
         return merged
+
+    def _structured_call_kwargs(self) -> dict[str, Any]:
+        """Extra kwargs for the structured chat/completions call."""
+        kwargs: dict[str, Any] = {}
+        if not self._profile.store and self._capabilities.supports_store_parameter:
+            kwargs["store"] = False
+        return kwargs
 
     def _map_sdk_error(self, exc: Exception) -> Exception:
         import openai
+
+        # The SDK rejected a parameter (e.g. unsupported 'reasoning' key).
+        # This is a capability mismatch, not a transient network failure.
+        if isinstance(exc, TypeError) and "unexpected keyword argument" in str(exc):
+            from oryxenai.agents.shared.providers.errors import ModelCapabilityUnsupportedError
+
+            return ModelCapabilityUnsupportedError(str(exc))
 
         if isinstance(exc, openai.AuthenticationError):
             status = getattr(exc, "status_code", 401)

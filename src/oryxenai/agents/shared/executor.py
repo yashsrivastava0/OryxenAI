@@ -177,7 +177,13 @@ class AgentExecutor:
                 raise _RevisionConflict()
 
             # 10 — Mark succeeded.
-            await self._run_repo.mark_succeeded(run_id, result.output, state_after)
+            await self._run_repo.mark_succeeded(
+                run_id,
+                result.output,
+                state_after,
+                prompt_version=result.prompt_version,
+                model_metadata=result.model_metadata,
+            )
             return await self._run_repo.get_by_id(run_id)  # type: ignore[return-value]
 
         except Exception as exc:

@@ -62,37 +62,22 @@ def _try_coerce(key: str) -> AgentKey | None:
 def default_registry() -> AgentRegistry:
     """Build and return the registry with all four agents registered.
 
-    DiscoveryAgent gets a real model client when the discovery profile is
-    configured with a valid API key. Otherwise it falls back to its built-in
-    fake client for development/testing.
+    The Discovery agent in the registry is wired to the deterministic fake
+    client so the mock-runs endpoint never makes network calls. The durable
+    worker builds its own agent with the real provider adapter when a key is
+    configured (jobs/handlers/discovery.py).
     """
     from oryxenai.agents.code_generator.agent import CodeGeneratorAgent
     from oryxenai.agents.content_architect.agent import ContentArchitectAgent
     from oryxenai.agents.discovery.agent import DiscoveryAgent
+    from oryxenai.agents.discovery.fake_client import FakeDiscoveryModelClient
     from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorAgent
 
     registry = AgentRegistry()
 
-    discovery_client = _build_discovery_client()
-    registry.register(DiscoveryAgent(model_client=discovery_client))  # type: ignore[arg-type]
+    registry.register(DiscoveryAgent(model_client=FakeDiscoveryModelClient()))
 
     registry.register(ContentArchitectAgent())
     registry.register(VisualDesignDirectorAgent())
     registry.register(CodeGeneratorAgent())
     return registry
-
-
-def _build_discovery_client() -> object | None:
-    """Build a real model client for DiscoveryAgent, or None for mock fallback."""
-    from oryxenai.core.settings import get_settings
-
-    try:
-        settings = get_settings()
-        from oryxenai.agents.shared.model_client import build_provider_client
-
-        return build_provider_client("discovery", settings.models)
-    except Exception:
-        from oryxenai.core.logging import get_logger
-
-        get_logger(__name__).warning("Failed to build Discovery model client, using mock")
-        return None

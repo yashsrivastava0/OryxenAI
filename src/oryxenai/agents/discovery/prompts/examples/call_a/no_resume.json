@@ -1,0 +1,93 @@
+{
+  "schema_version": 2,
+  "operation": "prepare_questions",
+  "source_assessment": {
+    "overall_usability": "sparse",
+    "resume_structure": "missing",
+    "detected_languages": ["en"],
+    "requested_output_language": "en",
+    "compacted": false,
+    "duplicate_content_detected": false,
+    "prompt_injection_detected": false,
+    "warnings": [
+      {
+        "code": "NO_RESUME",
+        "message": "No resume was provided; only the main prompt is available.",
+        "details": {}
+      }
+    ],
+    "ignored_content": []
+  },
+  "profile_overview": {
+    "professional_summary": "No resume was provided. Only a brief statement of intent exists, so a professional identity cannot be established from source evidence.",
+    "career_stage": "unknown",
+    "primary_role_candidates": [],
+    "secondary_capability_candidates": [],
+    "evidence_density": "low"
+  },
+  "normalized_profile": {},
+  "facts": [],
+  "conflicts": [],
+  "uncertainties": [],
+  "questions": [
+    {
+      "local_key": "q-role-1",
+      "category": "target_role",
+      "text": "Which role should this portfolio target first?",
+      "kind": "single_select",
+      "options": [
+        {"id": "backend", "label": "Backend Engineer"},
+        {"id": "frontend", "label": "Frontend Engineer"},
+        {"id": "fullstack", "label": "Full-stack Engineer"},
+        {"id": "other", "label": "Another role"}
+      ],
+      "required": true,
+      "allows_skip": false,
+      "allows_auto": false,
+      "priority": 10,
+      "why_it_matters": "Without a target role the portfolio cannot be positioned."
+    },
+    {
+      "local_key": "q-goal-1",
+      "category": "portfolio_goal",
+      "text": "What should this portfolio achieve for you?",
+      "kind": "single_select",
+      "options": [
+        {"id": "job", "label": "A new job"},
+        {"id": "clients", "label": "Clients or freelance work"},
+        {"id": "admissions", "label": "School or program admissions"},
+        {"id": "other", "label": "Something else"}
+      ],
+      "required": true,
+      "allows_skip": false,
+      "allows_auto": false,
+      "priority": 9,
+      "why_it_matters": "The goal determines the portfolio's primary audience and CTA."
+    },
+    {
+      "local_key": "q-experience-1",
+      "category": "project_selection",
+      "text": "Tell me about one project or experience you are proud of.",
+      "kind": "long_text",
+      "required": true,
+      "allows_skip": false,
+      "allows_auto": false,
+      "priority": 8,
+      "why_it_matters": "At least one meaningful project is needed to build credible content."
+    }
+  ],
+  "auto_decisions": [],
+  "omission_candidates": [],
+  "readiness": {
+    "can_build_brief": false,
+    "recommended_question_count": 3,
+    "blocking_conflict_ids": [],
+    "limitations": ["No source evidence provided."]
+  },
+  "quality_checks": {
+    "all_supported_facts_have_evidence": true,
+    "factual_auto_answer_count": 0,
+    "unsupported_metric_count": 0
+  },
+  "input_warnings": []
+}

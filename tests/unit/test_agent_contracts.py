@@ -91,7 +91,16 @@ async def test_discovery_agent_deterministic_output():
         AgentKey.DISCOVERY,
         {
             "operation": "prepare_questions",
-            "intake": {"main_prompt": "test", "resume_source": "none", "output_language": "en"},
+            "intake": {
+                "main_prompt": "I am mainly looking for backend engineering roles.",
+                "resume_text": (
+                    "Test User\nSoftware Engineer\nExample Corp\n"
+                    "Implemented retry handling and stale-job recovery for the PostgreSQL worker\n"
+                    "observability\nDocker\nPython, PostgreSQL, FastAPI\nmigrations\n"
+                ),
+                "resume_source": "pasted_text",
+                "output_language": "en",
+            },
         },
     )
     result = await agent.run(ctx)

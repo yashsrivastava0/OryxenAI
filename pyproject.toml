@@ -109,8 +109,14 @@ markers = [
     "integration: tests that require a live PostgreSQL database.",
     "strict_integration: integration tests that must NOT be skipped (CI fails if skipped).",
     "worker: tests that require a running background worker process.",
+    "live: opt-in tests that call a real model provider; skipped unless RUN_LIVE_DISCOVERY=1 and a valid provider key is set.",
+    "eval: deterministic evaluation-corpus tests over the golden scenario set.",
 ]
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning",
+    # asyncpg emits ResourceWarning from Connection.__del__ when the pooled
+    # connection is garbage-collected after engine.dispose(). Engines are
+    # always disposed in fixture teardown; this is GC-timing noise, not a leak.
+    "ignore:unclosed connection.*asyncpg:ResourceWarning",
 ]

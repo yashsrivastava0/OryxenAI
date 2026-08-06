@@ -89,18 +89,24 @@ def compact_resume(text: str, max_chars: int) -> tuple[str, bool]:
         return text, False
 
     sections = _split_resume_sections(text)
+    if not sections:
+        # No recognizable section headers: keep the head and record the
+        # compaction decision so long, header-less input is always bounded.
+        return text[:max_chars], True
+
     prioritized = _prioritize_sections(sections)
     result_parts: list[str] = []
     remaining = max_chars
 
     for title, content in prioritized:
         part = f"{title}\n{content}\n"
-        if len(part) <= remaining or not result_parts:
+        if len(part) <= remaining:
             result_parts.append(part)
             remaining -= len(part)
         else:
             truncated = part[:remaining]
-            result_parts.append(truncated)
+            if truncated:
+                result_parts.append(truncated)
             break
 
     compacted = "".join(result_parts)

@@ -344,7 +344,7 @@ async def _apply_persisted_result(
             else:
                 brief = DiscoveryBrief.model_validate(output.get("brief", {}))
                 analysis = DiscoveryAnalysisResult.model_validate(input_payload.get("analysis", {}))
-                fact_ids = {fact.local_key for fact in analysis.fact_candidates}
+                fact_ids = {fact.local_key for fact in analysis.facts}
                 project_ids = {project.title for project in analysis.normalized_profile.projects}
                 validation = validate_call_b_result(brief, fact_ids, project_ids, config)
                 if not validation.is_valid:

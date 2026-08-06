@@ -96,15 +96,15 @@ class TestBriefHash:
     def test_same_brief_same_hash(self):
         from oryxenai.agents.discovery.schemas import DiscoveryBrief
 
-        b1 = DiscoveryBrief(schema_version=1, goal="Test", positioning="Test", output_language="en")
-        b2 = DiscoveryBrief(schema_version=1, goal="Test", positioning="Test", output_language="en")
+        b1 = DiscoveryBrief(schema_version=2, output_language="en")
+        b2 = DiscoveryBrief(schema_version=2, output_language="en")
         assert brief_hash(b1) == brief_hash(b2)
 
     def test_different_brief_different_hash(self):
         from oryxenai.agents.discovery.schemas import DiscoveryBrief
 
-        b1 = DiscoveryBrief(schema_version=1, goal="A", positioning="A", output_language="en")
-        b2 = DiscoveryBrief(schema_version=1, goal="B", positioning="B", output_language="en")
+        b1 = DiscoveryBrief(schema_version=2, output_language="en")
+        b2 = DiscoveryBrief(schema_version=2, output_language="de")
         assert brief_hash(b1) != brief_hash(b2)
 
 

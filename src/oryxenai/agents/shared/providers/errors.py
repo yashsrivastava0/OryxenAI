@@ -119,6 +119,48 @@ class ProviderConfigError(ProviderError):
         super().__init__(message, code="PROVIDER_CONFIG_ERROR", retryable=False)
 
 
+class ModelEmptyOutputError(ProviderError):
+    """Model returned empty or whitespace-only content."""
+
+    def __init__(self, message: str = "Model returned empty content") -> None:
+        super().__init__(message, code="MODEL_EMPTY_OUTPUT", retryable=True)
+
+
+class ModelOutputTruncatedError(ProviderError):
+    """Model output was truncated by the provider (finish_reason=length)."""
+
+    def __init__(self, message: str = "Model output was truncated") -> None:
+        super().__init__(message, code="MODEL_OUTPUT_TRUNCATED", retryable=True)
+
+
+class ModelJsonInvalidError(ProviderError):
+    """Model returned content that is not valid JSON."""
+
+    def __init__(self, message: str = "Model returned invalid JSON") -> None:
+        super().__init__(message, code="MODEL_JSON_INVALID", retryable=True)
+
+
+class ModelSemanticallyInvalidError(ProviderError):
+    """Model output failed deterministic semantic validation after repair."""
+
+    def __init__(self, message: str = "Model output failed semantic validation") -> None:
+        super().__init__(message, code="MODEL_SEMANTICALLY_INVALID", retryable=False)
+
+
+class ModelCapabilityUnsupportedError(ProviderError):
+    """The endpoint does not support a required capability."""
+
+    def __init__(self, message: str = "Model capability is not supported") -> None:
+        super().__init__(message, code="MODEL_CAPABILITY_UNSUPPORTED", retryable=False)
+
+
+class NetworkRetryExhaustedError(ProviderError):
+    """Transport retries were exhausted for a retryable network failure."""
+
+    def __init__(self, message: str = "Network retries exhausted") -> None:
+        super().__init__(message, code="NETWORK_RETRY_EXHAUSTED", retryable=False)
+
+
 # ── HTTP status to error mapping ──────────────────────────────────────────
 
 

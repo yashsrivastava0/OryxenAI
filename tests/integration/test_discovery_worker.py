@@ -27,8 +27,18 @@ async def test_call_a_call_b_and_approval_use_worker_path(db_session, monkeypatc
     session_id = session.id
     service = DiscoveryService(DiscoveryRepository(db_session), JobService(db_session))
     intake = DiscoveryIntake(
-        main_prompt="Find backend engineering opportunities.",
-        resume_text="Test User\nExample Corp\nPython, PostgreSQL, FastAPI",
+        main_prompt="I am mainly looking for backend engineering roles.",
+        resume_text=(
+            "Test User\n"
+            "Software Engineer\n"
+            "Example Corp\n"
+            "Senior Software Engineer\n"
+            "Implemented retry handling and stale-job recovery for the PostgreSQL worker\n"
+            "observability\n"
+            "Docker\n"
+            "Python, PostgreSQL, FastAPI\n"
+            "migrations\n"
+        ),
         resume_source=ResumeSource.PASTED_TEXT,
         output_language="en",
     )

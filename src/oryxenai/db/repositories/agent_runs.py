@@ -82,6 +82,7 @@ class AgentRunRepository:
                 run.prompt_version = prompt_version
             if model_metadata is not None:
                 run.model_metadata = model_metadata
+            self._apply_run_metadata(run, model_metadata)
             run.finished_at = datetime.now(UTC)
             await self._session.flush()
 
@@ -99,5 +100,27 @@ class AgentRunRepository:
             run.error_payload = error_payload
             if model_metadata is not None:
                 run.model_metadata = model_metadata
+            self._apply_run_metadata(run, model_metadata)
             run.finished_at = datetime.now(UTC)
             await self._session.flush()
+
+    @staticmethod
+    def _apply_run_metadata(
+        run: AgentRun,
+        model_metadata: dict[str, object] | None,
+    ) -> None:
+        """Copy provider-observability fields into dedicated columns."""
+        if not model_metadata:
+            return
+        if run.finish_reason is None:
+            value = model_metadata.get("finish_reason")
+            if isinstance(value, str):
+                run.finish_reason = value
+        if run.latency_ms is None:
+            value = model_metadata.get("latency_ms")
+            if isinstance(value, (int, float)):
+                run.latency_ms = float(value)
+        if run.usage is None:
+            value = model_metadata.get("usage")
+            if isinstance(value, dict):
+                run.usage = value

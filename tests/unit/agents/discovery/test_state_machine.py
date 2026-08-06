@@ -8,8 +8,10 @@ from oryxenai.agents.discovery.schemas import DiscoveryState, DiscoveryStatus
 from oryxenai.agents.discovery.state import (
     InvalidTransitionError,
     apply_answer_edit,
+    apply_approval,
     apply_brief_edit,
     apply_brief_queued,
+    apply_needs_attention,
     apply_questions_queued,
     apply_questions_running,
     apply_source_edit,
@@ -168,3 +170,74 @@ class TestInvalidTransitionErrors:
         state = DiscoveryState(status=DiscoveryStatus.APPROVED)
         with pytest.raises(InvalidTransitionError):
             apply_brief_queued(state, "run-id", "job-id")
+
+
+class TestTightenedEditApprovalTransitions:
+    def test_source_edit_rejected_from_brief_running(self):
+        state = DiscoveryState(status=DiscoveryStatus.BRIEF_RUNNING)
+        with pytest.raises(InvalidTransitionError):
+            apply_source_edit(state)
+
+    def test_source_edit_rejected_from_questions_running(self):
+        state = DiscoveryState(status=DiscoveryStatus.QUESTIONS_RUNNING)
+        with pytest.raises(InvalidTransitionError):
+            apply_source_edit(state)
+
+    def test_approval_rejected_from_brief_queued(self):
+        state = DiscoveryState(status=DiscoveryStatus.BRIEF_QUEUED)
+        with pytest.raises(InvalidTransitionError):
+            apply_approval(state, {})
+
+    def test_approval_rejected_from_answers_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.ANSWERS_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_approval(state, {})
+
+    def test_brief_edit_rejected_from_input_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.INPUT_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_brief_edit(state)
+
+    def test_brief_edit_rejected_from_answers_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.ANSWERS_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_brief_edit(state)
+
+    def test_answer_edit_rejected_from_questions_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.QUESTIONS_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_answer_edit(state)
+
+    def test_answer_edit_rejected_from_input_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.INPUT_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_answer_edit(state)
+
+    def test_needs_attention_rejected_from_questions_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.QUESTIONS_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_needs_attention(state, {"code": "X", "message": "y"})
+
+    def test_needs_attention_rejected_from_answers_ready(self):
+        state = DiscoveryState(status=DiscoveryStatus.ANSWERS_READY)
+        with pytest.raises(InvalidTransitionError):
+            apply_needs_attention(state, {"code": "X", "message": "y"})
+
+    def test_approval_allowed_from_brief_review(self):
+        from oryxenai.agents.discovery.schemas import DiscoveryBrief
+
+        state = DiscoveryState(status=DiscoveryStatus.BRIEF_REVIEW)
+        state.brief.draft = DiscoveryBrief(schema_version=2)
+        new_state = apply_approval(state, {})
+        assert new_state.status == DiscoveryStatus.APPROVED
+        assert new_state.brief.approved is not None
+
+    def test_needs_attention_allowed_from_questions_running(self):
+        state = DiscoveryState(status=DiscoveryStatus.QUESTIONS_RUNNING)
+        new_state = apply_needs_attention(state, {"code": "X", "message": "y"})
+        assert new_state.status == DiscoveryStatus.NEEDS_ATTENTION
+
+    def test_needs_attention_allowed_from_brief_running(self):
+        state = DiscoveryState(status=DiscoveryStatus.BRIEF_RUNNING)
+        new_state = apply_needs_attention(state, {"code": "X", "message": "y"})
+        assert new_state.status == DiscoveryStatus.NEEDS_ATTENTION

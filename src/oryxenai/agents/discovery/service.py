@@ -71,8 +71,9 @@ class DiscoveryOperationError(Exception):
 def assign_stable_analysis_ids(analysis: DiscoveryAnalysisResult) -> DiscoveryAnalysisResult:
     """Replace model-provided local identifiers with deterministic app IDs."""
     data = analysis.model_dump(mode="json")
+    facts = data.get("facts") or data.get("fact_candidates") or []
     fact_map: dict[str, str] = {}
-    for fact in data["fact_candidates"]:
+    for fact in facts:
         old = str(fact.get("local_key", ""))
         value = fact.get("normalized_value")
         if value is None:
@@ -91,7 +92,7 @@ def assign_stable_analysis_ids(analysis: DiscoveryAnalysisResult) -> DiscoveryAn
         alternatives = [str(item.get("value")) for item in conflict.get("alternatives", [])]
         conflict_map[old] = conflict_id(str(conflict.get("field", "")), alternatives)
 
-    for fact in data["fact_candidates"]:
+    for fact in facts:
         fact["local_key"] = fact_map.get(str(fact.get("local_key", "")), fact["local_key"])
     for conflict in data["conflicts"]:
         old = str(conflict.get("local_key", ""))
@@ -124,28 +125,57 @@ def _remap_references(
     conflict_map: dict[str, str],
     key: str = "",
 ) -> None:
+    """Recursively remap fact/conflict IDs in every reference position.
+
+    Covers all v2 reference fields (fact_ids, supporting_fact_ids,
+    basis_fact_ids, related_fact_ids, must_use_fact_ids, evidence_to_preserve,
+    related_fact_keys, resolves_conflict_keys, ...) by remapping any string
+    that matches a known old identifier, regardless of the containing key.
+    """
     if isinstance(value, dict):
         for child_key, child_value in value.items():
-            if isinstance(child_value, str) and child_key == "fact_key":
-                value[child_key] = fact_map.get(child_value, child_value)
-            elif isinstance(child_value, str) and child_key == "conflict_key":
-                value[child_key] = conflict_map.get(child_value, child_value)
+            if isinstance(child_value, str):
+                if child_key in {"fact_key", "conflict_key"}:
+                    value[child_key] = fact_map.get(child_value, child_value)
+                else:
+                    value[child_key] = _remap_string_references(child_value, fact_map, conflict_map)
             else:
                 _remap_references(child_value, fact_map, conflict_map, child_key)
     elif isinstance(value, list):
-        for index, child_value in enumerate(value):
-            if key in {"fact_ids", "related_fact_keys", "basis_fact_ids"} and isinstance(
-                child_value, str
-            ):
-                value[index] = fact_map.get(child_value, child_value)
-            elif key in {"resolves_conflict_keys", "conflict_key"} and isinstance(child_value, str):
-                value[index] = conflict_map.get(child_value, child_value)
+        for index, item in enumerate(value):
+            if isinstance(item, str):
+                value[index] = _remap_string_references(item, fact_map, conflict_map)
             else:
-                _remap_references(child_value, fact_map, conflict_map, key)
-    elif isinstance(value, str) and key in {"fact_key", "conflict_key"}:
-        # Parent dictionaries are handled by this helper only for nested values;
-        # list references above cover the common profile and question fields.
-        return
+                _remap_references(item, fact_map, conflict_map)
+
+
+def _remap_string_references(
+    text: str,
+    fact_map: dict[str, str],
+    conflict_map: dict[str, str],
+) -> str:
+    """Remap a string that is either a bare ID or a whitespace-separated ID list."""
+    if not text:
+        return text
+    if text in fact_map:
+        return fact_map[text]
+    if text in conflict_map:
+        return conflict_map[text]
+    parts = text.split()
+    if any(part in fact_map or part in conflict_map for part in parts):
+        return " ".join(fact_map.get(part, conflict_map.get(part, part)) for part in parts)
+    return text
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Deep-merge two dicts, preserving unedited nested brief fields."""
+    merged = dict(base)
+    for key, value in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 class DiscoveryService:
@@ -395,18 +425,29 @@ class DiscoveryService:
 
         if state.status in {DiscoveryStatus.BRIEF_REVIEW, DiscoveryStatus.APPROVED}:
             next_state = apply_answer_edit(state)
+            if not complete:
+                next_state = apply_answers_in_progress(next_state)
         elif state.status in {DiscoveryStatus.QUESTIONS_READY, DiscoveryStatus.ANSWERS_READY}:
             next_state = apply_answers_in_progress(state)
-        else:
+            if complete:
+                next_state.status = DiscoveryStatus.ANSWERS_READY
+        elif state.status == DiscoveryStatus.ANSWERS_IN_PROGRESS:
             next_state = state.model_copy(deep=True)
+            if complete:
+                next_state.status = DiscoveryStatus.ANSWERS_READY
+        else:
+            # BRIEF_QUEUED / BRIEF_RUNNING — documented mid-flight allowance.
+            # The durable worker rejects the in-flight brief result via its
+            # source/answer revision check, so the answers save is safe.
+            next_state = state.model_copy(deep=True)
+            next_state.status = (
+                DiscoveryStatus.ANSWERS_READY if complete else DiscoveryStatus.ANSWERS_IN_PROGRESS
+            )
         next_state.answers.revision += 1
         next_state.answers.question_version = question_version
         next_state.answers.items = answer_map
         next_state.brief.generated_from_answer_revision = None
         next_state.brief.approved = None
-        next_state.status = (
-            DiscoveryStatus.ANSWERS_READY if complete else DiscoveryStatus.ANSWERS_IN_PROGRESS
-        )
 
         updated = await self._repository.save_discovery_state(
             session_id, next_state, session.revision
@@ -540,8 +581,7 @@ class DiscoveryService:
                 details={"fields": sorted(unknown)},
             )
         old_dump = state.brief.draft.model_dump(mode="json")
-        merged = dict(old_dump)
-        merged.update(edits)
+        merged = _deep_merge(old_dump, edits)
         try:
             draft = DiscoveryBrief.model_validate(merged)
         except PydanticValidationError as exc:
@@ -604,7 +644,7 @@ class DiscoveryService:
         analysis_output = (analysis.output_payload or {}).get("analysis", {}) if analysis else {}
         try:
             parsed_analysis = DiscoveryAnalysisResult.model_validate(analysis_output)
-            fact_ids = {fact.local_key for fact in parsed_analysis.fact_candidates}
+            fact_ids = {fact.local_key for fact in parsed_analysis.facts}
             project_ids = {project.title for project in parsed_analysis.normalized_profile.projects}
             validation = validate_call_b_result(
                 draft,
@@ -834,16 +874,19 @@ class DiscoveryService:
 
     def _safe_analysis(self, raw: dict[str, Any]) -> dict[str, Any]:
         safe = json.loads(json.dumps(raw, default=str))
-        for fact in safe.get("fact_candidates", []):
+        facts = safe.get("facts") or safe.get("fact_candidates", [])
+        for fact in facts:
             for evidence in fact.get("evidence", []):
                 excerpt = evidence.get("evidence_excerpt")
                 if isinstance(excerpt, str):
                     evidence["evidence_excerpt"] = excerpt[:160]
         return {
-            "detected_languages": safe.get("detected_languages", []),
+            "source_assessment": safe.get("source_assessment", {}),
+            "profile_overview": safe.get("profile_overview", {}),
             "normalized_profile": safe.get("normalized_profile", {}),
-            "fact_candidates": safe.get("fact_candidates", []),
+            "facts": facts,
             "conflicts": safe.get("conflicts", []),
+            "uncertainties": safe.get("uncertainties", []),
             "input_warnings": safe.get("input_warnings", []),
         }
 

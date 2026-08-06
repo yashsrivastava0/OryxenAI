@@ -1,0 +1,7 @@
+{
+  "main_prompt": "Portfolio please.",
+  "resume_text": "Test User\nBackend Engineer\nExample Corp\nImplemented retry handling and stale-job recovery for the PostgreSQL worker\nobservability\nDocker\nPython, PostgreSQL, FastAPI\nmigrations\n",
+  "links": [],
+  "output_language": "en",
+  "resume_source": "pasted_text"
+}

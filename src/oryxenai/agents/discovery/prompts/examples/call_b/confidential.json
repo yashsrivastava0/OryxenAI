@@ -1,0 +1,120 @@
+{
+  "schema_version": 2,
+  "operation": "build_brief",
+  "executive_summary": {
+    "strategy_summary": "Position the freelance developer with generalized client descriptions; the confidential client identity is omitted from publishable content.",
+    "portfolio_scope": "standard",
+    "readiness": "ready_with_omissions",
+    "main_opportunity": "Freelance credibility with confidential work.",
+    "main_limitation": "Client details cannot be published."
+  },
+  "identity_and_goal": {
+    "primary_target_role": {
+      "label": "Freelance Developer",
+      "basis_fact_ids": ["fact-target_role-1"],
+      "decision_source": "user_answer",
+      "confidence": "high"
+    },
+    "secondary_strengths": [],
+    "audiences": [{"label": "Prospective clients", "priority": "primary"}],
+    "portfolio_goal": {"summary": "Attract new freelance clients.", "basis": "user_answer"},
+    "career_stage": {"value": "mid", "confidence": "medium", "note": "No seniority label."}
+  },
+  "positioning_strategy": {
+    "positioning_direction": "A freelance developer with confidential-but-credible client work.",
+    "differentiators": [
+      {"statement": "Delivered analytics work for retail clients.", "basis_fact_ids": ["fact-experience-1"], "confidence": "high"}
+    ],
+    "evidence_strengths": ["Confidential client work."],
+    "credibility_boundaries": ["Never reveal client names.", "Generalize project scope."]
+  },
+  "content_strategy": {
+    "recommended_section_priority": [
+      {"section": "hero", "priority": 1, "purpose": "Role."},
+      {"section": "featured_projects", "priority": 2, "purpose": "Generalized work."}
+    ],
+    "content_density": {"recommendation": "balanced", "reason": "Medium evidence."},
+    "featured_projects": [
+      {
+        "project_id": "Retail analytics dashboard",
+        "priority": 1,
+        "selection_reason": "Strong client outcome despite confidentiality.",
+        "target_role_relevance": "high",
+        "supported_project_scope": "Analytics dashboard for a confidential retail client.",
+        "supported_personal_contribution": [],
+        "narrative_focus": ["Generalized scope", "Outcome without client identity"],
+        "recommended_content_depth": "balanced",
+        "evidence_to_preserve": ["fact-project-1"],
+        "unknowns_to_omit": ["Client name", "Internal architecture"],
+        "confidentiality": {"level": "confidential", "restrictions": ["Do not reveal the client name."]}
+      }
+    ],
+    "experience_focus": [],
+    "capability_clusters": [],
+    "items_to_omit": [{"item": "Client identity", "reason": "Confidential."}]
+  },
+  "presentation_direction": {
+    "tone": {"value": "confident_professional", "source": "auto", "explanation": "Client audience."},
+    "voice_rules": [],
+    "theme_preference": {"value": "automatic", "source": "user_skip", "explanation": ""},
+    "motion_preference": {"value": "balanced", "source": "auto", "explanation": ""},
+    "visual_density": "balanced",
+    "technical_editorial_balance": "balanced",
+    "patterns_to_avoid": []
+  },
+  "cta_and_contact": {
+    "primary_cta_intent": "Invite freelance project inquiries.",
+    "secondary_cta_intent": null,
+    "publishable_contact_choices": [],
+    "private_or_omitted_contact": []
+  },
+  "confidentiality_and_omissions": {
+    "rules": [
+      {"scope": "Retail analytics dashboard", "rule": "Generalized description only; no client identity.", "applies_to": [], "fact_ids": ["fact-project-1"]}
+    ],
+    "deliberate_omissions": ["Client name", "Internal architecture details."]
+  },
+  "unresolved_items": [
+    {
+      "id": "unresolved-client-identity",
+      "severity": "material",
+      "summary": "Client identity is confidential and cannot be published.",
+      "downstream_behavior": "Use generalized descriptions only."
+    }
+  ],
+  "claim_policy": {
+    "must_use_fact_ids": ["fact-target_role-1"],
+    "allowed_user_asserted_fact_ids": [],
+    "requires_careful_wording": [
+      {"fact_id": "fact-project-1", "guidance": "Describe team scope only; no client identity."}
+    ],
+    "must_not_claim": ["Client names", "Internal architecture", "NDA-covered details."]
+  },
+  "downstream_handoff": {
+    "content_architect": {
+      "central_story": "Freelance developer with credible but confidential client work.",
+      "content_hierarchy": ["Role", "Generalized project"],
+      "evidence_to_preserve": ["fact-project-1"],
+      "writing_constraints": ["Never reveal the client."]
+    },
+    "visual_design_director": {
+      "desired_impression": "Professional and trustworthy.",
+      "content_implications": ["Generalize visuals, no identifiable branding."],
+      "presentation_constraints": []
+    },
+    "universal_constraints": ["Never invent facts.", "Preserve confidentiality.", "Separate team scope from personal contribution."]
+  },
+  "decision_log": [
+    {"decision": "Client identity omitted", "source": "grounding_policy", "related_fact_ids": ["fact-project-1"]}
+  ],
+  "quality_checks": {
+    "all_factual_strategies_reference_facts": true,
+    "unsupported_metrics_included": false,
+    "skipped_facts_converted_to_claims": false,
+    "factual_auto_decisions_included": false,
+    "unresolved_material_conflicts_preserved": true,
+    "final_portfolio_copy_included": false
+  },
+  "output_language": "en",
+  "warnings": []
+}

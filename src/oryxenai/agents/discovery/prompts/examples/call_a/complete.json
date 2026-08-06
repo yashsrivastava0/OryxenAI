@@ -1,0 +1,251 @@
+{
+  "schema_version": 2,
+  "operation": "prepare_questions",
+  "source_assessment": {
+    "overall_usability": "usable",
+    "resume_structure": "clear",
+    "detected_languages": ["en"],
+    "requested_output_language": "en",
+    "compacted": false,
+    "duplicate_content_detected": false,
+    "prompt_injection_detected": false,
+    "warnings": [],
+    "ignored_content": []
+  },
+  "profile_overview": {
+    "professional_summary": "Backend engineer with strong supported evidence in Python APIs, PostgreSQL, and durable job processing.",
+    "career_stage": "early_mid",
+    "primary_role_candidates": [
+      {
+        "label": "Backend Engineer",
+        "supporting_fact_ids": ["fact-target_role-1", "fact-skill-1"],
+        "confidence": "high"
+      }
+    ],
+    "secondary_capability_candidates": [
+      {
+        "label": "Production reliability",
+        "supporting_fact_ids": ["fact-skill-2"]
+      }
+    ],
+    "evidence_density": "high"
+  },
+  "normalized_profile": {
+    "identity": {
+      "name": "Aarav Mehta",
+      "title": "Software Engineer",
+      "fact_ids": ["fact-identity-1"]
+    },
+    "experience_entries": [
+      {
+        "organization": "Example Corp",
+        "title": "Software Engineer",
+        "start_date": "2020-01",
+        "is_current": true,
+        "responsibilities": ["Built durable background-job infrastructure"],
+        "technologies": ["Python", "PostgreSQL"],
+        "fact_ids": ["fact-experience-1"]
+      }
+    ],
+    "projects": [
+      {
+        "title": "Job worker platform",
+        "personal_contribution": "Implemented retry and stale recovery",
+        "fact_ids": ["fact-project-1"]
+      }
+    ],
+    "skills": [
+      {
+        "category": "Backend",
+        "items": ["Python", "PostgreSQL"],
+        "fact_ids": ["fact-skill-1"]
+      },
+      {
+        "category": "Reliability",
+        "items": ["observability", "retries"],
+        "fact_ids": ["fact-skill-2"]
+      }
+    ]
+  },
+  "facts": [
+    {
+      "local_key": "fact-identity-1",
+      "category": "identity",
+      "field": "name",
+      "value": "Aarav Mehta",
+      "evidence": [
+        {
+          "source_id": "resume_text",
+          "source_kind": "resume_text",
+          "evidence_excerpt": "Aarav Mehta",
+          "location_hint": "header"
+        }
+      ],
+      "status": "supported",
+      "sensitivity": "public",
+      "publish_default": true,
+      "origin": "directly_stated"
+    },
+    {
+      "local_key": "fact-experience-1",
+      "category": "experience",
+      "field": "organization",
+      "value": "Example Corp",
+      "evidence": [
+        {
+          "source_id": "resume_text",
+          "source_kind": "resume_text",
+          "evidence_excerpt": "Example Corp",
+          "location_hint": "experience"
+        }
+      ],
+      "status": "supported",
+      "sensitivity": "public",
+      "publish_default": true,
+      "origin": "directly_stated"
+    },
+    {
+      "local_key": "fact-target_role-1",
+      "category": "target_role",
+      "field": "preferred_role",
+      "value": "Backend Engineer",
+      "evidence": [
+        {
+          "source_id": "main_prompt",
+          "source_kind": "main_prompt",
+          "evidence_excerpt": "backend engineering",
+          "location_hint": "main prompt"
+        }
+      ],
+      "status": "supported",
+      "sensitivity": "public",
+      "publish_default": true,
+      "origin": "directly_stated"
+    },
+    {
+      "local_key": "fact-project-1",
+      "category": "project",
+      "field": "personal_contribution",
+      "value": "Implemented retry and stale recovery",
+      "evidence": [
+        {
+          "source_id": "resume_text",
+          "source_kind": "resume_text",
+          "evidence_excerpt": "Implemented retry and stale recovery",
+          "location_hint": "projects"
+        }
+      ],
+      "status": "supported",
+      "sensitivity": "public",
+      "publish_default": true,
+      "origin": "directly_stated"
+    },
+    {
+      "local_key": "fact-skill-1",
+      "category": "skill",
+      "field": "technology",
+      "value": "Python",
+      "evidence": [
+        {
+          "source_id": "resume_text",
+          "source_kind": "resume_text",
+          "evidence_excerpt": "Python",
+          "location_hint": "skills"
+        }
+      ],
+      "status": "supported",
+      "sensitivity": "public",
+      "publish_default": true,
+      "origin": "directly_stated"
+    },
+    {
+      "local_key": "fact-skill-2",
+      "category": "skill",
+      "field": "practice",
+      "value": "observability",
+      "evidence": [
+        {
+          "source_id": "resume_text",
+          "source_kind": "resume_text",
+          "evidence_excerpt": "observability",
+          "location_hint": "skills"
+        }
+      ],
+      "status": "supported",
+      "sensitivity": "public",
+      "publish_default": true,
+      "origin": "directly_stated"
+    }
+  ],
+  "conflicts": [],
+  "uncertainties": [
+    {
+      "id": "uncertainty-metrics",
+      "category": "metric",
+      "summary": "No verified quantitative outcomes.",
+      "related_fact_ids": [],
+      "recommended_action": "omit"
+    }
+  ],
+  "questions": [
+    {
+      "local_key": "q-audience-1",
+      "category": "audience",
+      "text": "Who is the primary audience for this portfolio?",
+      "kind": "single_select",
+      "options": [
+        {"id": "hiring", "label": "Hiring teams"},
+        {"id": "clients", "label": "Clients"},
+        {"id": "peers", "label": "Peers"}
+      ],
+      "required": true,
+      "allows_skip": false,
+      "allows_auto": false,
+      "priority": 3,
+      "why_it_matters": "The audience decides which content leads."
+    },
+    {
+      "local_key": "q-tone-1",
+      "category": "presentation",
+      "text": "Which tone should the portfolio use?",
+      "kind": "single_select",
+      "options": [
+        {"id": "technical", "label": "Technical and direct"},
+        {"id": "conversational", "label": "Conversational"}
+      ],
+      "allows_skip": true,
+      "allows_auto": true,
+      "auto_answer": "technical",
+      "priority": 9,
+      "why_it_matters": "Tone affects presentation, not facts."
+    }
+  ],
+  "auto_decisions": [
+    {
+      "category": "tone",
+      "selected_value": "technical",
+      "explanation": "Backend audience favors direct technical tone.",
+      "basis_fact_ids": ["fact-target_role-1"]
+    }
+  ],
+  "omission_candidates": [
+    {
+      "fact_key": "fact-unsupported-metric",
+      "reason": "No verified metric available.",
+      "reason_code": "unsupported",
+      "severity": "informational"
+    }
+  ],
+  "readiness": {
+    "can_build_brief": true,
+    "recommended_question_count": 2,
+    "blocking_conflict_ids": [],
+    "limitations": ["Quantified outcomes unavailable."]
+  },
+  "quality_checks": {
+    "all_supported_facts_have_evidence": true,
+    "factual_auto_answer_count": 0,
+    "unsupported_metric_count": 0
+  },
+  "input_warnings": []
+}

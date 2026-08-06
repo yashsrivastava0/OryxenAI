@@ -671,20 +671,26 @@
     var state = discoveryResult();
     var brief = state && state.brief ? state.brief.draft : null;
     if (!brief) return;
-    document.getElementById("discovery-brief-role").value = brief.target_role ? brief.target_role.title || "" : "";
-    document.getElementById("discovery-brief-audience").value = (brief.audience || []).join(", ");
-    document.getElementById("discovery-brief-goal").value = brief.goal || "";
-    document.getElementById("discovery-brief-positioning").value = brief.positioning || "";
-    document.getElementById("discovery-brief-tone").value = brief.tone ? brief.tone.choice || "" : "";
-    document.getElementById("discovery-brief-theme").value = brief.theme_preference ? brief.theme_preference.choice || "" : "";
-    document.getElementById("discovery-brief-motion").value = brief.motion_preference ? brief.motion_preference.choice || "" : "";
-    document.getElementById("discovery-brief-cta").value = brief.primary_cta || "";
-    document.getElementById("discovery-brief-projects").value = (brief.featured_projects || []).map(function (p) { return p.project_id || p; }).join("\n");
-    document.getElementById("discovery-brief-emphasize").value = (brief.emphasize || []).map(function (e) { return e.area || e; }).join("\n");
-    document.getElementById("discovery-brief-omit").value = (brief.omit || []).map(function (o) { return o.reason || o.fact_id || o; }).join("\n");
+    var idg = brief.identity_and_goal || {};
+    var pos = brief.positioning_strategy || {};
+    var cs = brief.content_strategy || {};
+    var pd = brief.presentation_direction || {};
+    var cc = brief.cta_and_contact || {};
+    document.getElementById("discovery-brief-role").value = idg.primary_target_role ? idg.primary_target_role.label || "" : "";
+    document.getElementById("discovery-brief-audience").value = (idg.audiences || []).map(function (a) { return a.label || a; }).join(", ");
+    document.getElementById("discovery-brief-goal").value = idg.portfolio_goal ? idg.portfolio_goal.summary || "" : "";
+    document.getElementById("discovery-brief-positioning").value = pos.positioning_direction || "";
+    document.getElementById("discovery-brief-tone").value = pd.tone ? pd.tone.value || "" : "";
+    document.getElementById("discovery-brief-theme").value = pd.theme_preference ? pd.theme_preference.value || "" : "";
+    document.getElementById("discovery-brief-motion").value = pd.motion_preference ? pd.motion_preference.value || "" : "";
+    document.getElementById("discovery-brief-cta").value = cc.primary_cta_intent || "";
+    document.getElementById("discovery-brief-projects").value = (cs.featured_projects || []).map(function (p) { return p.project_id || ""; }).join("\n");
+    document.getElementById("discovery-brief-emphasize").value = (cs.capability_clusters || []).map(function (c) { return c.label || ""; }).join("\n");
+    document.getElementById("discovery-brief-omit").value = (cs.items_to_omit || []).map(function (o) { return o.item || o.reason || ""; }).join("\n");
     document.getElementById("discovery-brief-json").textContent = prettyJson({
-      confidentiality_rules: brief.confidentiality_rules || [],
-      unresolved_conflicts: brief.unresolved_conflicts || [],
+      confidentiality: brief.confidentiality_and_omissions || {},
+      unresolved_items: brief.unresolved_items || [],
+      claim_policy: brief.claim_policy || {},
       warnings: brief.warnings || [],
     });
     var approved = state.status === "approved";
@@ -695,18 +701,30 @@
   function discoveryBriefEdits() {
     var state = discoveryResult();
     var old = state.brief.draft;
+    var idg = old.identity_and_goal || {};
+    var pd = old.presentation_direction || {};
+    var cs = old.content_strategy || {};
+    var cc = old.cta_and_contact || {};
     return {
-      target_role: Object.assign({}, old.target_role || {}, { title: document.getElementById("discovery-brief-role").value }),
-      audience: document.getElementById("discovery-brief-audience").value.split(",").map(function (item) { return item.trim(); }).filter(Boolean),
-      goal: document.getElementById("discovery-brief-goal").value,
-      positioning: document.getElementById("discovery-brief-positioning").value,
-      tone: Object.assign({}, old.tone || {}, { choice: document.getElementById("discovery-brief-tone").value, source: "user_edit" }),
-      theme_preference: Object.assign({}, old.theme_preference || {}, { choice: document.getElementById("discovery-brief-theme").value, source: "user_edit" }),
-      motion_preference: Object.assign({}, old.motion_preference || {}, { choice: document.getElementById("discovery-brief-motion").value, source: "user_edit" }),
-      primary_cta: document.getElementById("discovery-brief-cta").value || null,
-      featured_projects: document.getElementById("discovery-brief-projects").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (old.featured_projects || [])[0] || {}, { project_id: line.trim(), source: "user_edit" }); }),
-      emphasize: document.getElementById("discovery-brief-emphasize").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (old.emphasize || [])[0] || {}, { area: line.trim(), source: "user_edit" }); }),
-      omit: document.getElementById("discovery-brief-omit").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (old.omit || [])[0] || {}, { reason: line.trim(), source: "user_edit" }); }),
+      identity_and_goal: {
+        primary_target_role: Object.assign({}, idg.primary_target_role || {}, { label: document.getElementById("discovery-brief-role").value, decision_source: "user_edit" }),
+        audiences: document.getElementById("discovery-brief-audience").value.split(",").map(function (item) { return { label: item.trim(), priority: "primary" }; }).filter(function (a) { return a.label; }),
+        portfolio_goal: Object.assign({}, idg.portfolio_goal || {}, { summary: document.getElementById("discovery-brief-goal").value, basis: "user_edit" }),
+        secondary_strengths: (idg.secondary_strengths || []),
+        career_stage: (idg.career_stage || {}),
+      },
+      positioning_strategy: Object.assign({}, old.positioning_strategy || {}, { positioning_direction: document.getElementById("discovery-brief-positioning").value }),
+      presentation_direction: Object.assign({}, pd, {
+        tone: Object.assign({}, pd.tone || {}, { value: document.getElementById("discovery-brief-tone").value, source: "user_edit" }),
+        theme_preference: Object.assign({}, pd.theme_preference || {}, { value: document.getElementById("discovery-brief-theme").value, source: "user_edit" }),
+        motion_preference: Object.assign({}, pd.motion_preference || {}, { value: document.getElementById("discovery-brief-motion").value, source: "user_edit" }),
+      }),
+      cta_and_contact: Object.assign({}, cc, { primary_cta_intent: document.getElementById("discovery-brief-cta").value || "" }),
+      content_strategy: Object.assign({}, cs, {
+        featured_projects: document.getElementById("discovery-brief-projects").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (cs.featured_projects || [])[0] || {}, { project_id: line.trim() }); }),
+        capability_clusters: document.getElementById("discovery-brief-emphasize").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (cs.capability_clusters || [])[0] || {}, { label: line.trim() }); }),
+        items_to_omit: document.getElementById("discovery-brief-omit").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (cs.items_to_omit || [])[0] || {}, { item: line.trim() }); }),
+      }),
     };
   }
 

@@ -1,0 +1,162 @@
+{
+  "schema_version": 2,
+  "operation": "build_brief",
+  "executive_summary": {
+    "strategy_summary": "Position the user as a hands-on backend engineer whose strongest evidence is building reliable worker infrastructure, not as a generalist.",
+    "portfolio_scope": "standard",
+    "readiness": "ready_with_omissions",
+    "main_opportunity": "Coherent backend and production-reliability narrative.",
+    "main_limitation": "Quantified outcomes unavailable."
+  },
+  "identity_and_goal": {
+    "primary_target_role": {
+      "label": "Backend Engineer",
+      "basis_fact_ids": ["fact-target_role-1", "fact-skill-1"],
+      "decision_source": "user_answer",
+      "confidence": "high"
+    },
+    "secondary_strengths": [
+      {"label": "Production reliability", "basis_fact_ids": ["fact-skill-2"]}
+    ],
+    "audiences": [
+      {"label": "Engineering hiring teams", "priority": "primary"}
+    ],
+    "portfolio_goal": {
+      "summary": "Make production-oriented implementation evidence easy to evaluate.",
+      "basis": "user_answer"
+    },
+    "career_stage": {
+      "value": "early_mid",
+      "confidence": "medium",
+      "note": "No public seniority label unless explicitly chosen."
+    }
+  },
+  "positioning_strategy": {
+    "positioning_direction": "A backend engineer who builds reliable APIs, PostgreSQL-backed workflows, and operational safeguards.",
+    "differentiators": [
+      {
+        "statement": "Implemented retry and stale recovery in a durable worker.",
+        "basis_fact_ids": ["fact-project-1"],
+        "confidence": "high"
+      }
+    ],
+    "evidence_strengths": ["Clear implementation-level contribution."],
+    "credibility_boundaries": [
+      "No senior title unless confirmed.",
+      "No numeric reliability or performance claims."
+    ]
+  },
+  "content_strategy": {
+    "recommended_section_priority": [
+      {"section": "hero", "priority": 1, "purpose": "Establish the role quickly."},
+      {"section": "featured_projects", "priority": 2, "purpose": "Show implementation depth."},
+      {"section": "capabilities", "priority": 3, "purpose": "Group related skills."}
+    ],
+    "content_density": {
+      "recommendation": "balanced",
+      "reason": "Enough evidence for one deep project story but not a case-study-heavy site."
+    },
+    "featured_projects": [
+      {
+        "project_id": "Job worker platform",
+        "priority": 1,
+        "selection_reason": "Clearest personal contribution and backend relevance.",
+        "target_role_relevance": "high",
+        "supported_project_scope": "A durable background-job system with retries and stale recovery.",
+        "supported_personal_contribution": [
+          {"summary": "Implemented retry and stale recovery.", "basis_fact_ids": ["fact-project-1"]}
+        ],
+        "narrative_focus": ["Why durable work was needed.", "How failures are recovered."],
+        "recommended_content_depth": "deep",
+        "evidence_to_preserve": ["fact-project-1"],
+        "unknowns_to_omit": ["Request volume", "Reliability percentage"],
+        "confidentiality": {"level": "normal", "restrictions": []}
+      }
+    ],
+    "experience_focus": [
+      {"focus": "Backend implementation", "basis_fact_ids": ["fact-skill-1"]}
+    ],
+    "capability_clusters": [
+      {"label": "Backend", "items": ["Python", "PostgreSQL"], "basis_fact_ids": ["fact-skill-1"]}
+    ],
+    "items_to_omit": [
+      {"item": "Unverified metrics", "reason": "No publishable evidence."}
+    ]
+  },
+  "presentation_direction": {
+    "tone": {"value": "technical_direct", "source": "auto", "explanation": "Backend audience."},
+    "voice_rules": ["Evidence-bounded language.", "Keep team outcomes distinct."],
+    "theme_preference": {"value": "automatic", "source": "user_skip", "explanation": ""},
+    "motion_preference": {"value": "balanced", "source": "auto", "explanation": ""},
+    "visual_density": "balanced",
+    "technical_editorial_balance": "technical_with_editorial_clarity",
+    "patterns_to_avoid": ["Invented dashboards.", "Decorative metrics."]
+  },
+  "cta_and_contact": {
+    "primary_cta_intent": "Invite discussion about backend opportunities.",
+    "secondary_cta_intent": null,
+    "publishable_contact_choices": [],
+    "private_or_omitted_contact": [
+      {"kind": "phone", "reason": "Not explicitly approved for publication."}
+    ]
+  },
+  "confidentiality_and_omissions": {
+    "rules": [],
+    "deliberate_omissions": ["Unsupported quantitative results."]
+  },
+  "unresolved_items": [
+    {
+      "id": "unresolved-metrics",
+      "severity": "material",
+      "summary": "Quantified outcomes unavailable.",
+      "downstream_behavior": "Keep claims qualitative."
+    }
+  ],
+  "claim_policy": {
+    "must_use_fact_ids": ["fact-target_role-1", "fact-project-1"],
+    "allowed_user_asserted_fact_ids": [],
+    "requires_careful_wording": [],
+    "must_not_claim": ["Senior title", "Technical leadership", "Numeric performance improvement."]
+  },
+  "downstream_handoff": {
+    "content_architect": {
+      "central_story": "A backend engineer who builds reliable systems with practical failure handling.",
+      "content_hierarchy": ["Role and focus", "Worker project", "Capabilities"],
+      "evidence_to_preserve": ["fact-project-1"],
+      "writing_constraints": ["Do not invent scale or outcomes."]
+    },
+    "visual_design_director": {
+      "desired_impression": "Technically credible and organized.",
+      "content_implications": ["Worker project leads.", "No decorative statistics."],
+      "presentation_constraints": ["No fake screenshots.", "Reduced-motion friendly."]
+    },
+    "universal_constraints": [
+      "Never invent facts.",
+      "Preserve proper nouns.",
+      "Keep output in English.",
+      "Separate team scope from personal contribution."
+    ]
+  },
+  "decision_log": [
+    {
+      "decision": "Primary role set to Backend Engineer",
+      "source": "user_answer",
+      "related_fact_ids": ["fact-target_role-1"]
+    },
+    {
+      "decision": "Unverified metrics omitted",
+      "source": "grounding_policy",
+      "related_fact_ids": []
+    }
+  ],
+  "quality_checks": {
+    "all_factual_strategies_reference_facts": true,
+    "unsupported_metrics_included": false,
+    "skipped_facts_converted_to_claims": false,
+    "factual_auto_decisions_included": false,
+    "unresolved_material_conflicts_preserved": true,
+    "final_portfolio_copy_included": false
+  },
+  "output_language": "en",
+  "warnings": []
+}

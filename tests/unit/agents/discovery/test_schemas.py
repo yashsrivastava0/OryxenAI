@@ -117,13 +117,15 @@ class TestFactCandidate:
 class TestDiscoveryAnalysisResult:
     def test_valid_result(self):
         result = DiscoveryAnalysisResult(
-            schema_version=1,
-            detected_languages=["en"],
+            schema_version=2,
             normalized_profile=NormalizedProfessionalProfile(),
-            fact_candidates=[],
+            facts=[],
             questions=[],
         )
-        assert result.schema_version == 1
+        assert result.schema_version == 2
+        assert result.operation == "prepare_questions"
+        assert result.source_assessment.overall_usability is not None
+        assert result.readiness.can_build_brief is False
 
     def test_too_many_questions_accepted_by_schema(self):
         questions = [
@@ -131,28 +133,56 @@ class TestDiscoveryAnalysisResult:
             for i in range(10)
         ]
         result = DiscoveryAnalysisResult(
-            schema_version=1,
-            detected_languages=["en"],
+            schema_version=2,
             normalized_profile=NormalizedProfessionalProfile(),
-            fact_candidates=[],
+            facts=[],
             questions=questions,
         )
         assert len(result.questions) == 10
+
+    def test_v1_sample_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            DiscoveryAnalysisResult(
+                schema_version=1,
+                detected_languages=["en"],
+                normalized_profile=NormalizedProfessionalProfile(),
+                fact_candidates=[],
+                questions=[],
+            )
+
+    def test_extra_fields_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            DiscoveryAnalysisResult(schema_version=2, unknown_field="bad")
 
 
 class TestDiscoveryBrief:
     def test_valid_brief(self):
         brief = DiscoveryBrief(
-            schema_version=1,
-            goal="Present a backend engineering portfolio.",
-            positioning="Production-focused backend engineer.",
+            schema_version=2,
             output_language="en",
         )
-        assert brief.schema_version == 1
+        assert brief.schema_version == 2
+        assert brief.operation == "build_brief"
+        assert brief.identity_and_goal.primary_target_role.label == ""
+        assert brief.quality_checks.all_factual_strategies_reference_facts is True
 
     def test_extra_fields_rejected(self):
         with pytest.raises(PydanticValidationError):
-            DiscoveryBrief(schema_version=1, goal="test", unknown_field="bad")
+            DiscoveryBrief(schema_version=2, unknown_field="bad")
+
+    def test_no_final_copy_fields_exist(self):
+        fields = set(DiscoveryBrief.model_fields)
+        for banned in ("hero", "about", "case_study", "copy", "component", "layout", "code"):
+            assert banned not in fields
+
+    def test_v1_sample_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            DiscoveryBrief(
+                schema_version=1,
+                goal="test",
+                positioning="test",
+                output_language="en",
+            )
 
 
 class TestDiscoveryQuestion:

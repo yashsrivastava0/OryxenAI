@@ -2,6 +2,20 @@
 
 Never logs secrets, .env contents, model API keys, database passwords,
 full hidden prompts, or internal chain-of-thought.
+
+Privacy allowlist (Discovery, Section 28):
+
+Safe fields that MAY be logged:
+  request_id, session_id (shortened), job_id, agent_run_id, operation,
+  prompt_version, model_profile, model_id, attempt counts, finish_reason,
+  provider response_id, latency, input character count, compaction flag,
+  fact/conflict/question counts, repair reason, validation result, usage.
+
+Fields that MUST NEVER be logged:
+  raw resume, raw main prompt, raw answers, raw brief, reasoning_content,
+  system prompt text, API key, authorization header, provider error body,
+  email, phone number, street address, private URLs, database password,
+  full database URL.
 """
 
 from __future__ import annotations

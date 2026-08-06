@@ -1,43 +1,275 @@
 {
-  "schema_version": 1,
-  "target_role": {
-    "title": "Senior Backend Engineer",
-    "domain": "backend",
-    "fact_ids": ["fact-role-1"]
+  "schema_version": 2,
+  "operation": "build_brief",
+  "executive_summary": {
+    "strategy_summary": "Create a focused one-page portfolio positioning the user as a backend engineer who can implement reliable application and worker infrastructure. Lead with the PostgreSQL-backed job-processing work because it has the clearest personal contribution and strongest production relevance. Avoid unsupported scale, performance, leadership, and business-impact claims.",
+    "portfolio_scope": "standard",
+    "readiness": "ready_with_omissions",
+    "main_opportunity": "The available evidence supports a coherent backend and production-reliability narrative.",
+    "main_limitation": "Quantified outcomes and the user's exact contribution to one team project remain unavailable."
   },
-  "secondary_strengths": ["API design"],
-  "audience": ["recruiters"],
-  "goal": "Present a backend engineering portfolio for job applications.",
-  "positioning": "Production-focused backend engineer with API design expertise.",
-  "featured_projects": [],
-  "emphasize": [
+  "identity_and_goal": {
+    "primary_target_role": {
+      "label": "Backend Engineer",
+      "basis_fact_ids": ["fact-target_role-1", "fact-skill-1", "fact-project-1"],
+      "decision_source": "user_answer",
+      "confidence": "high"
+    },
+    "secondary_strengths": [
+      {
+        "label": "Platform and worker reliability",
+        "basis_fact_ids": ["fact-project-1", "fact-skill-2"]
+      }
+    ],
+    "audiences": [
+      {"label": "Engineering hiring teams", "priority": "primary"},
+      {"label": "Technical recruiters hiring backend engineers", "priority": "secondary"}
+    ],
+    "portfolio_goal": {
+      "summary": "Support applications for backend engineering roles by making production-oriented implementation evidence easy to evaluate.",
+      "basis": "user_answer"
+    },
+    "career_stage": {
+      "value": "early_mid",
+      "confidence": "medium",
+      "note": "Do not translate this into a public seniority label unless the user explicitly chooses one."
+    }
+  },
+  "positioning_strategy": {
+    "positioning_direction": "Present the user as a hands-on backend engineer whose strongest evidence is building reliable APIs, PostgreSQL-backed workflows, and operational safeguards rather than as a generalist claiming equal depth across every technology.",
+    "differentiators": [
+      {
+        "statement": "Experience implementing retry and stale-job recovery in a durable background-worker workflow.",
+        "basis_fact_ids": ["fact-project-1"],
+        "confidence": "high"
+      },
+      {
+        "statement": "Practical use of PostgreSQL for both application state and durable job coordination.",
+        "basis_fact_ids": ["fact-skill-1", "fact-project-1"],
+        "confidence": "high"
+      }
+    ],
+    "evidence_strengths": [
+      "Clear implementation-level contribution on the durable worker.",
+      "Consistent backend technologies across work and projects."
+    ],
+    "credibility_boundaries": [
+      "Do not use 'senior engineer' unless separately confirmed.",
+      "Do not describe the user as technical lead.",
+      "Do not state reliability, latency, throughput, adoption, or revenue improvements numerically.",
+      "Do not imply ownership of the full deployment platform."
+    ]
+  },
+  "content_strategy": {
+    "recommended_section_priority": [
+      {"section": "hero", "priority": 1, "purpose": "Establish backend role and production-reliability direction quickly."},
+      {"section": "featured_projects", "priority": 2, "purpose": "Show implementation decisions and personal contribution."},
+      {"section": "experience", "priority": 3, "purpose": "Support the project evidence with professional context."},
+      {"section": "capabilities", "priority": 4, "purpose": "Group related capabilities rather than displaying an undifferentiated skill list."},
+      {"section": "about", "priority": 5, "purpose": "Provide concise professional context without repeating the hero."},
+      {"section": "contact", "priority": 6, "purpose": "Offer a clear employment-oriented contact action."}
+    ],
+    "content_density": {
+      "recommendation": "balanced",
+      "reason": "There is enough evidence for two meaningful project or systems stories, but not enough verified detail for a long case-study-heavy site."
+    },
+    "featured_projects": [
+      {
+        "project_id": "OryxenAI worker",
+        "priority": 1,
+        "selection_reason": "This project has the strongest combination of personal contribution, backend relevance, failure-handling depth, and evidence quality.",
+        "target_role_relevance": "high",
+        "supported_project_scope": "A PostgreSQL-backed durable background-job system supporting queued work, retries, stale-job recovery, and worker status.",
+        "supported_personal_contribution": [
+          {
+            "summary": "Implemented retry handling.",
+            "basis_fact_ids": ["fact-project-1"]
+          },
+          {
+            "summary": "Implemented stale-job recovery.",
+            "basis_fact_ids": ["fact-project-1"]
+          }
+        ],
+        "narrative_focus": [
+          "Why durable background work was needed.",
+          "How job state and failure recovery were handled.",
+          "What the user personally implemented."
+        ],
+        "recommended_content_depth": "deep",
+        "evidence_to_preserve": ["fact-project-1", "fact-skill-1", "fact-skill-2"],
+        "unknowns_to_omit": [
+          "Production request volume.",
+          "Percentage reliability improvement.",
+          "Number of users.",
+          "Business impact."
+        ],
+        "confidentiality": {
+          "level": "normal",
+          "restrictions": []
+        }
+      }
+    ],
+    "experience_focus": [
+      {
+        "focus": "Backend implementation and reliability responsibilities",
+        "basis_fact_ids": ["fact-project-1", "fact-skill-1"]
+      }
+    ],
+    "capability_clusters": [
+      {
+        "label": "Backend application engineering",
+        "items": ["Python", "API implementation", "validation", "error handling"],
+        "basis_fact_ids": ["fact-skill-1"]
+      },
+      {
+        "label": "Data and durable workflows",
+        "items": ["PostgreSQL", "migrations", "background jobs", "retry handling", "stale recovery"],
+        "basis_fact_ids": ["fact-skill-1", "fact-skill-3", "fact-project-1"]
+      }
+    ],
+    "items_to_omit": [
+      {
+        "item": "Unverified performance metrics",
+        "reason": "No publishable evidence was provided."
+      },
+      {
+        "item": "Generic claims of expertise in every listed technology",
+        "reason": "Technology presence does not establish equal depth."
+      }
+    ]
+  },
+  "presentation_direction": {
+    "tone": {
+      "value": "technical_direct",
+      "source": "auto",
+      "explanation": "The target audience and strongest evidence favor clear technical language over highly promotional copy."
+    },
+    "voice_rules": [
+      "Use confident but evidence-bounded language.",
+      "Prefer concrete responsibilities and decisions over adjectives.",
+      "Avoid exaggerated terms such as expert, world-class, or industry-leading.",
+      "Keep team outcomes distinct from personal actions."
+    ],
+    "theme_preference": {
+      "value": "automatic",
+      "source": "user_skip",
+      "explanation": "Choose a professional technical direction later without assuming dark mode."
+    },
+    "motion_preference": {
+      "value": "balanced",
+      "source": "auto",
+      "explanation": "Motion may support hierarchy but must not delay access to professional content."
+    },
+    "visual_density": "balanced",
+    "technical_editorial_balance": "technical_with_editorial_clarity",
+    "patterns_to_avoid": [
+      "Fake terminal output.",
+      "Invented dashboards.",
+      "Skill-logo carousel.",
+      "Decorative metrics."
+    ]
+  },
+  "cta_and_contact": {
+    "primary_cta_intent": "Invite discussion about backend engineering opportunities.",
+    "secondary_cta_intent": "Offer access to selected public project or source links where available.",
+    "publishable_contact_choices": [],
+    "private_or_omitted_contact": [
+      {
+        "kind": "phone",
+        "reason": "Present in the resume but not explicitly approved for publication."
+      }
+    ]
+  },
+  "confidentiality_and_omissions": {
+    "rules": [],
+    "deliberate_omissions": [
+      "Unsupported quantitative results.",
+      "Unverified leadership scope.",
+      "Private phone number."
+    ]
+  },
+  "unresolved_items": [
     {
-      "area": "System reliability",
-      "description": "Emphasize distributed systems and API design experience.",
-      "fact_ids": ["fact-experience-1"]
+      "id": "unresolved-metrics",
+      "severity": "material",
+      "summary": "Quantified outcomes are unavailable for the portfolio.",
+      "downstream_behavior": "Do not invent numeric results; keep claims qualitative."
     }
   ],
-  "omit": [],
-  "tone": {
-    "choice": "technical",
-    "rationale": "Profile targets backend engineering roles.",
-    "source": "auto"
+  "claim_policy": {
+    "must_use_fact_ids": ["fact-target_role-1", "fact-project-1", "fact-skill-1"],
+    "allowed_user_asserted_fact_ids": [],
+    "requires_careful_wording": [],
+    "must_not_claim": [
+      "Senior-level title.",
+      "Technical leadership.",
+      "Numeric performance improvement.",
+      "Business impact."
+    ]
   },
-  "theme_preference": {
-    "choice": "no preference",
-    "rationale": "Auto-selected default.",
-    "source": "auto"
+  "downstream_handoff": {
+    "content_architect": {
+      "central_story": "A backend engineer building reliable application and worker systems with practical attention to failure handling and data-backed coordination.",
+      "content_hierarchy": [
+        "Role and production focus",
+        "Durable-worker project",
+        "Relevant professional experience",
+        "Grouped backend and reliability capabilities",
+        "Concise professional context",
+        "Employment-oriented CTA"
+      ],
+      "evidence_to_preserve": ["fact-project-1", "fact-skill-1"],
+      "writing_constraints": [
+        "Do not invent scale or outcomes.",
+        "Do not describe team work as personal ownership.",
+        "Do not use unsupported seniority language."
+      ]
+    },
+    "visual_design_director": {
+      "desired_impression": "Technically credible, production-aware, organized, and direct.",
+      "content_implications": [
+        "The worker project deserves the strongest visual and narrative emphasis.",
+        "The content does not support decorative statistics.",
+        "A balanced-density one-page portfolio is appropriate."
+      ],
+      "presentation_constraints": [
+        "Do not rely on fake product screenshots.",
+        "Do not imply unsupported scale.",
+        "Preserve immediate readability and reduced-motion behavior."
+      ]
+    },
+    "universal_constraints": [
+      "Preserve proper nouns and technology names.",
+      "Keep output in English unless the user changes the language.",
+      "Do not publish private contact information.",
+      "Do not introduce claims outside the approved fact registry."
+    ]
   },
-  "motion_preference": {
-    "choice": "balanced",
-    "rationale": "Auto-selected default.",
-    "source": "auto"
+  "decision_log": [
+    {
+      "decision": "Primary target role set to Backend Engineer",
+      "source": "user_answer",
+      "related_fact_ids": ["fact-target_role-1"]
+    },
+    {
+      "decision": "Tone set to technical and direct",
+      "source": "auto",
+      "related_fact_ids": ["fact-target_role-1"]
+    },
+    {
+      "decision": "Unverified metrics omitted",
+      "source": "grounding_policy",
+      "related_fact_ids": []
+    }
+  ],
+  "quality_checks": {
+    "all_factual_strategies_reference_facts": true,
+    "unsupported_metrics_included": false,
+    "skipped_facts_converted_to_claims": false,
+    "factual_auto_decisions_included": false,
+    "unresolved_material_conflicts_preserved": true,
+    "final_portfolio_copy_included": false
   },
-  "primary_cta": null,
-  "contact_choices": [],
-  "confidentiality_rules": [],
   "output_language": "en",
-  "downstream_fact_ids": ["fact-identity-1", "fact-experience-1", "fact-skill-1"],
-  "unresolved_conflicts": [],
   "warnings": []
 }

@@ -13,14 +13,16 @@ import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.contracts import ModelClient
 from oryxenai.agents.shared.providers.errors import ProviderConfigError
 from oryxenai.core.logging import get_logger
-from oryxenai.core.settings import ModelProfile
+
+if TYPE_CHECKING:
+    from oryxenai.core.settings import ModelProfile
 
 logger = get_logger("oryxenai.agents.providers")
 

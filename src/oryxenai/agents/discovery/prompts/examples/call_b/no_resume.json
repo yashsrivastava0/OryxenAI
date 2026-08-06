@@ -1,0 +1,92 @@
+{
+  "schema_version": 2,
+  "operation": "build_brief",
+  "executive_summary": {
+    "strategy_summary": "A brief cannot be produced with meaningful strategy until the user answers the onboarding questions; mark readiness as needs_user_input and keep the brief minimal.",
+    "portfolio_scope": "short",
+    "readiness": "needs_user_input",
+    "main_opportunity": "Fresh start with user-defined direction.",
+    "main_limitation": "No source evidence was provided."
+  },
+  "identity_and_goal": {
+    "primary_target_role": {
+      "label": "",
+      "basis_fact_ids": [],
+      "decision_source": "user_answer",
+      "confidence": "low"
+    },
+    "secondary_strengths": [],
+    "audiences": [],
+    "portfolio_goal": {"summary": "Awaiting user definition.", "basis": "user_answer"},
+    "career_stage": {"value": "unknown", "confidence": "low", "note": "Cannot infer career stage without evidence."}
+  },
+  "positioning_strategy": {
+    "positioning_direction": "Undefined until the user provides a role, goal, and one meaningful project.",
+    "differentiators": [],
+    "evidence_strengths": [],
+    "credibility_boundaries": ["Do not invent an identity.", "No fabricated facts."]
+  },
+  "content_strategy": {
+    "recommended_section_priority": [],
+    "content_density": {"recommendation": "brief", "reason": "No evidence."},
+    "featured_projects": [],
+    "experience_focus": [],
+    "capability_clusters": [],
+    "items_to_omit": []
+  },
+  "presentation_direction": {
+    "tone": {"value": "neutral", "source": "auto", "explanation": "No evidence to tune tone."},
+    "voice_rules": [],
+    "theme_preference": {"value": "automatic", "source": "user_skip", "explanation": ""},
+    "motion_preference": {"value": "balanced", "source": "auto", "explanation": ""},
+    "visual_density": "balanced",
+    "technical_editorial_balance": "balanced",
+    "patterns_to_avoid": []
+  },
+  "cta_and_contact": {
+    "primary_cta_intent": "",
+    "secondary_cta_intent": null,
+    "publishable_contact_choices": [],
+    "private_or_omitted_contact": []
+  },
+  "confidentiality_and_omissions": {"rules": [], "deliberate_omissions": []},
+  "unresolved_items": [
+    {
+      "id": "unresolved-no-input",
+      "severity": "blocking",
+      "summary": "No source input provided; user must answer onboarding questions.",
+      "downstream_behavior": "Do not build portfolio content until input exists."
+    }
+  ],
+  "claim_policy": {
+    "must_use_fact_ids": [],
+    "allowed_user_asserted_fact_ids": [],
+    "requires_careful_wording": [],
+    "must_not_claim": ["Any professional fact", "An identity", "Experience."]
+  },
+  "downstream_handoff": {
+    "content_architect": {
+      "central_story": "",
+      "content_hierarchy": [],
+      "evidence_to_preserve": [],
+      "writing_constraints": ["No content until user provides evidence."]
+    },
+    "visual_design_director": {
+      "desired_impression": "",
+      "content_implications": [],
+      "presentation_constraints": []
+    },
+    "universal_constraints": ["Never invent facts.", "Wait for user input."]
+  },
+  "decision_log": [],
+  "quality_checks": {
+    "all_factual_strategies_reference_facts": true,
+    "unsupported_metrics_included": false,
+    "skipped_facts_converted_to_claims": false,
+    "factual_auto_decisions_included": false,
+    "unresolved_material_conflicts_preserved": true,
+    "final_portfolio_copy_included": false
+  },
+  "output_language": "en",
+  "warnings": [{"code": "NO_INPUT", "message": "No source evidence was provided.", "details": {}}]
+}

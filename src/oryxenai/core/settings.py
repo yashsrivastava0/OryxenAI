@@ -22,13 +22,12 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-if TYPE_CHECKING:
-    pass
+from oryxenai.agents.shared.providers.capabilities import ModelCapabilities
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_CONFIG_DIR = _REPO_ROOT / "config"
@@ -190,6 +189,7 @@ class ModelProfile(BaseModel):
     max_output_tokens: int = 4096
     reasoning_effort: str = ""
     store: bool = False
+    capabilities: ModelCapabilities | None = None
 
 
 class ModelConfig(BaseModel):
@@ -313,10 +313,37 @@ class Settings(BaseSettings):
 _settings: Settings | None = None
 
 
+def _export_dotenv_secrets() -> None:
+    """Export root .env variables into the process environment.
+
+    pydantic-settings reads .env for declared settings fields, but provider
+    adapters resolve API keys via ``os.environ``. To honor the documented
+    contract ("read the named secret from .env only when a real model call
+    is made"), this exports .env key=value pairs that are not already set
+    in the environment.
+    """
+    env_path = _REPO_ROOT / ".env"
+    if not env_path.is_file():
+        return
+    try:
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, _, value = stripped.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except OSError:
+        return
+
+
 def get_settings() -> Settings:
     """Return a cached Settings singleton."""
     global _settings
     if _settings is None:
+        _export_dotenv_secrets()
         _settings = Settings()
     return _settings
 

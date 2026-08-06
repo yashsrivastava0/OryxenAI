@@ -62,8 +62,56 @@ def is_valid_transition(current: DiscoveryStatus, target: DiscoveryStatus) -> bo
     return target in _VALID_TRANSITIONS.get(current, frozenset())
 
 
+# Explicit allowed-source sets for edit/approval transitions. These are
+# deliberate departures from the queue/run map above: they describe
+# user-initiated edits that intentionally invalidate downstream results.
+# The durable worker still guards late results with source/answer revision
+# checks, so these status changes can never be silently overwritten.
+
+# Source edits are allowed from settled states only. In-flight operations
+# (queued/running) must complete or fail first, so a running worker result
+# can never race a new source revision; the durable worker additionally
+# guards late results with revision checks.
+_SOURCE_EDIT_ALLOWED_FROM: frozenset[DiscoveryStatus] = frozenset(
+    {
+        DiscoveryStatus.NOT_STARTED,
+        DiscoveryStatus.INPUT_READY,
+        DiscoveryStatus.QUESTIONS_READY,
+        DiscoveryStatus.ANSWERS_IN_PROGRESS,
+        DiscoveryStatus.ANSWERS_READY,
+        DiscoveryStatus.BRIEF_REVIEW,
+        DiscoveryStatus.APPROVED,
+        DiscoveryStatus.NEEDS_ATTENTION,
+    }
+)
+
+# Editing answers after a brief exists moves back to ANSWERS_READY.
+_ANSWER_EDIT_ALLOWED_FROM: frozenset[DiscoveryStatus] = frozenset(
+    {DiscoveryStatus.BRIEF_REVIEW, DiscoveryStatus.APPROVED}
+)
+
+# Manual brief edits are only meaningful once a draft exists.
+_BRIEF_EDIT_ALLOWED_FROM: frozenset[DiscoveryStatus] = frozenset(
+    {DiscoveryStatus.BRIEF_REVIEW, DiscoveryStatus.APPROVED}
+)
+
+# Approval is only valid from a reviewable brief.
+_APPROVAL_ALLOWED_FROM: frozenset[DiscoveryStatus] = frozenset({DiscoveryStatus.BRIEF_REVIEW})
+
+# Needs-attention is only reachable from an in-flight operation.
+_NEEDS_ATTENTION_ALLOWED_FROM: frozenset[DiscoveryStatus] = frozenset(
+    {DiscoveryStatus.QUESTIONS_RUNNING, DiscoveryStatus.BRIEF_RUNNING}
+)
+
+
 def apply_source_edit(state: DiscoveryState) -> DiscoveryState:
-    """Source edited — invalidate downstream state, return to input_ready."""
+    """Source edited — invalidate downstream state, return to input_ready.
+
+    Allowed only from settled states. In-flight operations (queued/running)
+    reject the edit; the durable worker additionally rejects late results
+    via source/answer revision checks.
+    """
+    _validate_allowed(state.status, _SOURCE_EDIT_ALLOWED_FROM, DiscoveryStatus.INPUT_READY)
     new_state = state.model_copy(deep=True)
     new_state.status = DiscoveryStatus.INPUT_READY
     new_state.questions = type(new_state.questions)()
@@ -76,6 +124,7 @@ def apply_source_edit(state: DiscoveryState) -> DiscoveryState:
 
 def apply_answer_edit(state: DiscoveryState) -> DiscoveryState:
     """Answers edited — mark brief stale, invalidate approval."""
+    _validate_allowed(state.status, _ANSWER_EDIT_ALLOWED_FROM, DiscoveryStatus.ANSWERS_READY)
     new_state = state.model_copy(deep=True)
     new_state.status = DiscoveryStatus.ANSWERS_READY
     new_state.brief.generated_from_answer_revision = None
@@ -85,6 +134,7 @@ def apply_answer_edit(state: DiscoveryState) -> DiscoveryState:
 
 def apply_brief_edit(state: DiscoveryState) -> DiscoveryState:
     """Manual brief edit — increment revision, invalidate approval."""
+    _validate_allowed(state.status, _BRIEF_EDIT_ALLOWED_FROM, DiscoveryStatus.BRIEF_REVIEW)
     new_state = state.model_copy(deep=True)
     new_state.status = DiscoveryStatus.BRIEF_REVIEW
     new_state.brief.version += 1
@@ -95,6 +145,8 @@ def apply_brief_edit(state: DiscoveryState) -> DiscoveryState:
 def apply_approval(state: DiscoveryState, approval_details: dict[str, Any]) -> DiscoveryState:
     """Create immutable approved snapshot."""
     from oryxenai.agents.discovery.schemas import DiscoveryApproval
+
+    _validate_allowed(state.status, _APPROVAL_ALLOWED_FROM, DiscoveryStatus.APPROVED)
 
     now = datetime.now(UTC).isoformat()
     brief_draft = state.brief.draft
@@ -199,6 +251,7 @@ def apply_brief_review(state: DiscoveryState, brief: Any, run_id: str) -> Discov
 def apply_needs_attention(state: DiscoveryState, error: Any) -> DiscoveryState:
     from oryxenai.agents.discovery.schemas import DiscoveryWarning
 
+    _validate_allowed(state.status, _NEEDS_ATTENTION_ALLOWED_FROM, DiscoveryStatus.NEEDS_ATTENTION)
     new_state = state.model_copy(deep=True)
     new_state.status = DiscoveryStatus.NEEDS_ATTENTION
     if isinstance(error, DiscoveryWarning):
@@ -221,6 +274,19 @@ def _validate_transition(current: DiscoveryStatus, target: DiscoveryStatus) -> N
         raise InvalidTransitionError(
             current=current.value,
             target=target.value,
+        )
+
+
+def _validate_allowed(
+    current: DiscoveryStatus,
+    allowed_from: frozenset[DiscoveryStatus],
+    target: DiscoveryStatus,
+) -> None:
+    if current not in allowed_from:
+        raise InvalidTransitionError(
+            current=current.value,
+            target=target.value,
+            reason="operation not allowed from this state",
         )
 
 

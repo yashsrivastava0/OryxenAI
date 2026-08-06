@@ -2,6 +2,11 @@
 grounded structured profile and a user-reviewable portfolio strategy brief.
 
 Supports both mock (fake client) and real (provider) model backends.
+
+Attempt policy (Section 8): one initial model response plus at most one
+completed-response recovery attempt (semantic repair). If the repaired
+output is still semantically invalid, the agent returns ``status=failed``
+with ``MODEL_SEMANTICALLY_INVALID`` — it never returns invalid output.
 """
 
 from __future__ import annotations
@@ -32,6 +37,10 @@ from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
 logger = get_logger("oryxenai.agents.discovery")
+
+_FAILED_STATUS = "failed"
+_MODEL_CALL_FAILED = "model_call_failed"
+_MODEL_SEMANTICALLY_INVALID = "MODEL_SEMANTICALLY_INVALID"
 
 
 class DiscoveryAgent(Agent):
@@ -76,7 +85,7 @@ class DiscoveryAgent(Agent):
             "product_constraints": intake.product_constraints.model_dump(mode="json"),
         }
 
-        system_prompt, task_prompt, version = build_instructions(
+        system_prompt, task_prompt, version, manifest = build_instructions(
             operation="prepare_questions",
             source_packet=source_packet,
             config=constraints,
@@ -85,31 +94,62 @@ class DiscoveryAgent(Agent):
 
         model_client = self._model_client or _get_fake_client()
 
-        try:
-            result: StructuredModelResult = await model_client.generate_structured(
-                operation="prepare_questions",
-                instructions=f"{system_prompt}\n\n{task_prompt}",
-                input_payload=source_packet,
-                output_model=DiscoveryAnalysisResult,
-            )
-        except Exception:
-            return AgentResult(
-                output={
-                    "operation": "prepare_questions",
-                    "status": "failed",
-                },
-                prompt_version=version,
-                model_metadata={"provider": "discovery", "error": "model_call_failed"},
-            )
+        result = await self._generate_or_failed(
+            model_client,
+            operation="prepare_questions",
+            instructions=f"{system_prompt}\n\n{task_prompt}",
+            input_payload=source_packet,
+            output_model=DiscoveryAnalysisResult,
+            version=version,
+        )
+        if isinstance(result, AgentResult):
+            return result
 
         analysis = DiscoveryAnalysisResult(**result.parsed_output)
 
         validation = validate_call_a_result(analysis, source_texts, self._config)
+        repaired = None
         if not validation.is_valid:
             logger.warning(
-                "validation failed for prepare_questions: %s",
+                "prepare_questions validation failed, attempting one repair: %s",
                 validation.errors,
             )
+            repaired = await self._attempt_repair(
+                model_client,
+                analysis.model_dump(),
+                validation.errors,
+                output_model=DiscoveryAnalysisResult,
+                valid_source_ids=sorted(source_texts),
+                valid_fact_ids=[],
+                operation_name="prepare_questions",
+                version=version,
+            )
+            if repaired is not None:
+                analysis = DiscoveryAnalysisResult(**repaired.parsed_output)
+                validation = validate_call_a_result(analysis, source_texts, self._config)
+            if not validation.is_valid:
+                return AgentResult(
+                    output={
+                        "operation": "prepare_questions",
+                        "status": _FAILED_STATUS,
+                        "error": {
+                            "code": _MODEL_SEMANTICALLY_INVALID,
+                            "message": "Discovery analysis failed semantic validation after repair.",
+                            "errors": validation.errors,
+                        },
+                    },
+                    prompt_version=version,
+                    model_metadata={
+                        "provider": result.model,
+                        "model": result.model,
+                        "response_id": result.response_id,
+                        "usage": result.usage,
+                        "latency_ms": result.latency_ms,
+                        "finish_reason": result.finish_reason,
+                        "repair_attempted": True,
+                        "repair_succeeded": False,
+                    },
+                )
 
         return AgentResult(
             output={
@@ -121,6 +161,7 @@ class DiscoveryAgent(Agent):
                     "is_valid": validation.is_valid,
                     "errors": validation.errors,
                     "warnings": validation.warnings,
+                    "repaired": repaired is not None,
                 },
             },
             prompt_version=version,
@@ -130,6 +171,10 @@ class DiscoveryAgent(Agent):
                 "response_id": result.response_id,
                 "usage": result.usage,
                 "latency_ms": result.latency_ms,
+                "finish_reason": result.finish_reason,
+                "prompt_modules": manifest,
+                "repair_attempted": repaired is not None,
+                "repair_succeeded": repaired is not None,
             },
         )
 
@@ -141,7 +186,7 @@ class DiscoveryAgent(Agent):
         analysis = DiscoveryAnalysisResult(**analysis_dict)
         intake = DiscoveryIntake(**intake_dict)
 
-        fact_ids = {f.local_key for f in analysis.fact_candidates}
+        fact_ids = {f.local_key for f in analysis.facts}
         project_ids = {
             p.title
             for p in (analysis.normalized_profile.projects if analysis.normalized_profile else [])
@@ -154,7 +199,7 @@ class DiscoveryAgent(Agent):
             "output_language": intake.output_language,
         }
 
-        system_prompt, task_prompt, version = build_instructions(
+        system_prompt, task_prompt, version, manifest = build_instructions(
             operation="build_brief",
             source_packet=source_packet,
             output_language=intake.output_language,
@@ -162,36 +207,62 @@ class DiscoveryAgent(Agent):
 
         model_client = self._model_client or _get_fake_client()
 
-        try:
-            result: StructuredModelResult = await model_client.generate_structured(
-                operation="build_brief",
-                instructions=f"{system_prompt}\n\n{task_prompt}",
-                input_payload=source_packet,
-                output_model=DiscoveryBrief,
-            )
-        except Exception:
-            return AgentResult(
-                output={
-                    "operation": "build_brief",
-                    "status": "failed",
-                },
-                prompt_version=version,
-                model_metadata={"provider": "discovery", "error": "model_call_failed"},
-            )
+        result = await self._generate_or_failed(
+            model_client,
+            operation="build_brief",
+            instructions=f"{system_prompt}\n\n{task_prompt}",
+            input_payload=source_packet,
+            output_model=DiscoveryBrief,
+            version=version,
+        )
+        if isinstance(result, AgentResult):
+            return result
 
         brief = DiscoveryBrief(**result.parsed_output)
 
         validation = validate_call_b_result(brief, fact_ids, project_ids, self._config)
         repaired = None
         if not validation.is_valid:
+            logger.warning(
+                "build_brief validation failed, attempting one repair: %s",
+                validation.errors,
+            )
             repaired = await self._attempt_repair(
                 model_client,
                 brief.model_dump(),
                 validation.errors,
+                output_model=DiscoveryBrief,
+                valid_source_ids=[],
+                valid_fact_ids=sorted(fact_ids),
+                operation_name="build_brief",
+                version=version,
             )
             if repaired is not None:
                 brief = DiscoveryBrief(**repaired.parsed_output)
                 validation = validate_call_b_result(brief, fact_ids, project_ids, self._config)
+            if not validation.is_valid:
+                return AgentResult(
+                    output={
+                        "operation": "build_brief",
+                        "status": _FAILED_STATUS,
+                        "error": {
+                            "code": _MODEL_SEMANTICALLY_INVALID,
+                            "message": "Discovery brief failed semantic validation after repair.",
+                            "errors": validation.errors,
+                        },
+                    },
+                    prompt_version=version,
+                    model_metadata={
+                        "provider": result.model,
+                        "model": result.model,
+                        "response_id": result.response_id,
+                        "usage": result.usage,
+                        "latency_ms": result.latency_ms,
+                        "finish_reason": result.finish_reason,
+                        "repair_attempted": True,
+                        "repair_succeeded": False,
+                    },
+                )
 
         answer_hash = answer_snapshot_hash(answers_dict)
 
@@ -214,18 +285,78 @@ class DiscoveryAgent(Agent):
                 "response_id": result.response_id,
                 "usage": result.usage,
                 "latency_ms": result.latency_ms,
+                "finish_reason": result.finish_reason,
+                "prompt_modules": manifest,
+                "repair_attempted": repaired is not None,
+                "repair_succeeded": repaired is not None,
             },
         )
+
+    async def _generate_or_failed(
+        self,
+        model_client: ModelClient,
+        *,
+        operation: str,
+        instructions: str,
+        input_payload: dict[str, Any],
+        output_model: type[Any],
+        version: str,
+    ) -> AgentResult | StructuredModelResult:
+        """Generate a structured result, mapping call failures to failed output."""
+        try:
+            from typing import cast
+
+            return cast(
+                StructuredModelResult,
+                await model_client.generate_structured(
+                    operation=operation,
+                    instructions=instructions,
+                    input_payload=input_payload,
+                    output_model=output_model,
+                ),
+            )
+        except Exception as exc:
+            logger.warning(
+                "discovery operation=%s model call failed: %s", operation, type(exc).__name__
+            )
+            return AgentResult(
+                output={
+                    "operation": operation,
+                    "status": _FAILED_STATUS,
+                    "error": {
+                        "code": _MODEL_CALL_FAILED,
+                        "message": "The Discovery model call failed.",
+                    },
+                },
+                prompt_version=version,
+                model_metadata={"provider": "discovery", "error": _MODEL_CALL_FAILED},
+            )
 
     async def _attempt_repair(
         self,
         model_client: ModelClient,
         original_output: dict[str, Any],
         validation_errors: list[str],
+        *,
+        output_model: type[Any],
+        valid_source_ids: list[str],
+        valid_fact_ids: list[str],
+        operation_name: str,
+        version: str,
     ) -> StructuredModelResult | None:
+        """One bounded semantic repair attempt (Section 24).
+
+        The repair payload carries the exact validation errors, valid source
+        and fact IDs, the current schema, and the operation name — never a
+        vague "try again" instruction.
+        """
         try:
             system_prompt, task_prompt, _version = build_repair_instructions(
-                original_output, validation_errors
+                original_output,
+                validation_errors,
+                valid_source_ids=valid_source_ids,
+                valid_fact_ids=valid_fact_ids,
+                operation_name=operation_name,
             )
             from typing import cast
 
@@ -237,8 +368,11 @@ class DiscoveryAgent(Agent):
                     input_payload={
                         "original_output": original_output,
                         "validation_errors": validation_errors,
+                        "valid_source_ids": valid_source_ids,
+                        "valid_fact_ids": valid_fact_ids,
+                        "operation_name": operation_name,
                     },
-                    output_model=DiscoveryBrief,
+                    output_model=output_model,
                 ),
             )
         except Exception:

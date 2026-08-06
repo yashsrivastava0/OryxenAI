@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import DateTime, Double, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,6 +41,9 @@ class AgentRun(Base):
     model_metadata: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     error_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    finish_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    latency_ms: Mapped[float | None] = mapped_column(Double, nullable=True)
+    usage: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

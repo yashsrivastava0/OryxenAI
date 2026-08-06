@@ -9,6 +9,7 @@ import pytest
 
 from oryxenai.agents.discovery.schemas import DiscoveryAnalysisResult
 from oryxenai.agents.shared.providers.errors import (
+    ModelJsonInvalidError,
     ProviderAuthError,
     ProviderBadResponseError,
     ProviderConfigError,
@@ -212,7 +213,7 @@ class TestOpenCodeGoAdapterStructured:
         with patch.object(adapter, "_build_client", return_value=mock_client):
             import asyncio
 
-            with pytest.raises(ProviderBadResponseError, match="invalid JSON"):
+            with pytest.raises(ModelJsonInvalidError, match="invalid JSON"):
                 asyncio.run(
                     adapter.generate_structured(
                         operation="test",
@@ -436,3 +437,198 @@ class TestAdapterFactory:
         assert can_build(_make_profile(provider="openai")) is True
         assert can_build(_make_profile(provider="openai_compatible")) is True
         assert can_build(_make_profile(provider="unknown_provider")) is False
+
+
+class TestOpenCodeGoAdapterCapabilityHandling:
+    def test_store_false_sent_when_capability_supported(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile(store=False))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=DiscoveryAnalysisResult,
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["store"] is False
+
+    def test_store_omitted_when_capability_unsupported(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.capabilities import ModelCapabilities
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        caps = ModelCapabilities(
+            json_object_mode=True,
+            json_schema_mode=False,
+            thinking_mode=True,
+            reasoning_content=True,
+            temperature_control=True,
+            usage_metadata=True,
+            response_id=True,
+            context_cache_metadata=False,
+            supports_store_parameter=False,
+        )
+        adapter = OpenCodeGoAdapter(_make_profile(store=False, capabilities=caps))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=DiscoveryAnalysisResult,
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "store" not in call_kwargs
+
+    def test_thinking_param_sent_only_when_reasoning_effort_set(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile(reasoning_effort="high"))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=DiscoveryAnalysisResult,
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["reasoning"] == {"effort": "high"}
+
+        mock_client.chat.completions.create.reset_mock()
+        adapter_no_thinking = OpenCodeGoAdapter(_make_profile(reasoning_effort=""))
+        with patch.object(adapter_no_thinking, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter_no_thinking.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=DiscoveryAnalysisResult,
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "reasoning" not in call_kwargs
+
+    def test_empty_output_classified(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response("")
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.errors import ModelEmptyOutputError
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            with pytest.raises(ModelEmptyOutputError):
+                asyncio.run(
+                    adapter.generate_structured(
+                        operation="test",
+                        instructions="test",
+                        input_payload={},
+                        output_model=DiscoveryAnalysisResult,
+                    )
+                )
+
+    def test_whitespace_only_output_classified(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response("   \n  \t  ")
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.errors import ModelEmptyOutputError
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            with pytest.raises(ModelEmptyOutputError):
+                asyncio.run(
+                    adapter.generate_structured(
+                        operation="test",
+                        instructions="test",
+                        input_payload={},
+                        output_model=DiscoveryAnalysisResult,
+                    )
+                )
+
+    def test_truncated_output_classified(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"parsed": true}')
+        response.choices[0].finish_reason = "length"
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.errors import ModelOutputTruncatedError
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            with pytest.raises(ModelOutputTruncatedError):
+                asyncio.run(
+                    adapter.generate_structured(
+                        operation="test",
+                        instructions="test",
+                        input_payload={},
+                        output_model=DiscoveryAnalysisResult,
+                    )
+                )
+
+    def test_reasoning_content_never_leaks_into_result(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"parsed": true}')
+        response.choices[0].message.reasoning_content = "SECRET REASONING"
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            result = asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=DiscoveryAnalysisResult,
+                )
+            )
+        assert result.parsed_output == {"parsed": True}
+        assert "reasoning" not in result.parsed_output
+        serialized = result.model_dump_json()
+        assert "SECRET REASONING" not in serialized

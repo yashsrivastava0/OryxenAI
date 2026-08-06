@@ -162,3 +162,70 @@ async def test_jsonb_round_trip(db_session):
     assert fetched is not None
     assert fetched.input_payload == payload
     assert fetched.output_payload == payload
+
+
+async def test_provider_metadata_persisted_on_success(db_session):
+    """finish_reason/latency_ms/usage/prompt_version are persisted (Section 8)."""
+    session, run_repo = await _create_session_and_repo(db_session)
+    run = AgentRun(
+        portfolio_session_id=session.id,
+        agent_key="discovery",
+        status="running",
+        input_payload={},
+        state_before={},
+    )
+    created = await run_repo.create(run)
+    await run_repo.mark_started(created.id)
+    metadata = {
+        "provider": "opencode_go",
+        "model": "deepseek-v4-pro",
+        "response_id": "resp-abc",
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        "latency_ms": 1234.5,
+        "finish_reason": "stop",
+        "repair_attempted": False,
+    }
+    await run_repo.mark_succeeded(
+        created.id,
+        {"operation": "prepare_questions"},
+        {"after": True},
+        prompt_version="discovery.call_a.v2",
+        model_metadata=metadata,
+    )
+    fetched = await run_repo.get_by_id(created.id)
+    assert fetched is not None
+    assert fetched.prompt_version == "discovery.call_a.v2"
+    assert fetched.finish_reason == "stop"
+    assert fetched.latency_ms == 1234.5
+    assert fetched.usage == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+    assert fetched.model_metadata["response_id"] == "resp-abc"
+
+
+async def test_provider_metadata_persisted_on_failure(db_session):
+    """Failed runs also retain provider metadata for observability."""
+    session, run_repo = await _create_session_and_repo(db_session)
+    run = AgentRun(
+        portfolio_session_id=session.id,
+        agent_key="discovery",
+        status="running",
+        input_payload={},
+        state_before={},
+    )
+    created = await run_repo.create(run)
+    await run_repo.mark_started(created.id)
+    metadata = {
+        "finish_reason": "length",
+        "latency_ms": 900.25,
+        "usage": {"total_tokens": 5000},
+    }
+    await run_repo.mark_failed(
+        created.id,
+        {"code": "MODEL_OUTPUT_TRUNCATED", "message": "truncated"},
+        model_metadata=metadata,
+    )
+    fetched = await run_repo.get_by_id(created.id)
+    assert fetched is not None
+    assert fetched.status == "failed"
+    assert fetched.finish_reason == "length"
+    assert fetched.latency_ms == 900.25
+    assert fetched.usage == {"total_tokens": 5000}

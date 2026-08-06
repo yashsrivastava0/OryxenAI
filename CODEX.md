@@ -9,11 +9,19 @@ each responsible for one phase of the transformation.
 
 ## Current development phase
 
-**Discovery complete through Phase 4 (Final Acceptance).** The platform includes
+**Discovery complete through Phase 4 + v2 upgrade.** The platform includes
 durable jobs, worker lifecycle, immutable Discovery source snapshots,
 persistence, API endpoints, and the vanilla-JS Discovery harness. Discovery
 stops after explicit brief approval; later agents remain intentionally out of
-scope. All 54 Definition-of-Done criteria from the implementation plan are met.
+scope. The v2 upgrade (2026-08-06) added: richer Call A/Call B schemas
+(source assessment, profile overview, readiness, strategic brief groups),
+modular versioned prompts with few-shot and anti-examples, schema-first
+contracts with drift tests, 29+24 deterministic semantic checks enforced by
+the agent, bounded repair for both operations, provider capability model,
+total attempt budget, run-metadata persistence (finish_reason/latency_ms/
+usage/prompt_version), a 36-scenario evaluation corpus, metamorphic and
+fuzz tests, HTTP-level flow tests, and a live-verified OpenCode Go profile
+(non-thinking JSON mode; the endpoint rejects the `reasoning` parameter).
 
 ## What is implemented
 
