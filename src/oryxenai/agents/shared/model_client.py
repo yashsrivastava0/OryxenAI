@@ -50,7 +50,83 @@ class MockModelClient:
         model_profile: Any = None,
         request_context: Any = None,
     ) -> Any:
-        return output_model()
+        return _mock_structured_result(output_model)
+
+
+def _mock_structured_result(output_model: type[BaseModel]) -> Any:
+    """Build a deterministic StructuredModelResult for the given output model.
+
+    Discovery output models get a valid minimal envelope so the mock-runs
+    dev harness can execute the Discovery agent without network access.
+    Any other model falls back to an empty instance.
+    """
+    from oryxenai.agents.discovery.schemas import (
+        BriefOutput,
+        DiscoveryQuestion,
+        OperationMode,
+        QuestionKind,
+        QuestionOption,
+        QuestionSetOutput,
+        StructuredModelResult,
+    )
+
+    parsed: BaseModel | None
+    if output_model is QuestionSetOutput:
+        parsed = QuestionSetOutput(
+            mode=OperationMode.ASK_QUESTIONS,
+            assistant_message="I have enough to ask a few focused questions.",
+            questions=[
+                DiscoveryQuestion(
+                    id="target_direction",
+                    text="Should the portfolio lead with backend or full-stack?",
+                    kind=QuestionKind.SINGLE_SELECT,
+                    options=[
+                        QuestionOption(id="backend", label="Backend"),
+                        QuestionOption(id="fullstack", label="Full-stack"),
+                        QuestionOption(id="balanced", label="Balanced"),
+                    ],
+                )
+            ],
+            memory_update={"intent_summary": "Backend engineering roles", "open_items": []},
+        )
+    elif output_model is BriefOutput:
+        parsed = BriefOutput(
+            mode=OperationMode.BRIEF_READY,
+            assistant_message="I prepared the Discovery brief. Review it and change anything before approving.",
+            brief_title="Portfolio Discovery Brief — Mock User",
+            brief_markdown=(
+                "# Portfolio Discovery Brief — Mock User\n\n"
+                "## Portfolio direction at a glance\n\n"
+                "**Primary goal:** Create a portfolio that helps the user move forward.\n\n"
+                "## Approval summary\n\n"
+                "Ready for approval."
+            ),
+            open_items=["no metrics supplied"],
+            memory_update={},
+        )
+    else:
+        try:
+            parsed = output_model()
+        except Exception:
+            parsed = None
+
+    if parsed is None:
+        parsed_output: dict[str, Any] = {}
+    elif isinstance(parsed, StructuredModelResult):
+        return parsed
+    elif isinstance(parsed, BaseModel):
+        parsed_output = parsed.model_dump(mode="json")
+    else:
+        parsed_output = dict(parsed)
+
+    return StructuredModelResult(
+        parsed_output=parsed_output,
+        response_id="mock-response-id",
+        model="mock-model",
+        usage={"prompt_tokens": 10, "completion_tokens": 20},
+        finish_reason="stop",
+        latency_ms=1.0,
+    )
 
 
 def resolve_api_key(profile: ModelProfile) -> str | None:

@@ -1,229 +1,137 @@
 {% extends "base.html" %}
 {% block content %}
-<section id="health" class="card">
-  <h2>Health</h2>
-  <div class="grid-2">
-    <div>
-      <span class="label">Liveness</span>
-      <span id="health-live" class="status pill unknown">checking…</span>
-    </div>
-    <div>
-      <span class="label">Readiness (DB)</span>
-      <span id="health-ready" class="status pill unknown">checking…</span>
-    </div>
+<section id="chat-card" class="card">
+  <div class="chat-header">
+    <h2>Build your portfolio</h2>
+    <p class="subtitle">Tell us about yourself, attach a document, and we will ask a few questions and prepare your portfolio brief.</p>
+  </div>
+
+  <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+
+  <p id="chat-status" class="result" aria-live="polite"></p>
+
+  <div class="composer">
+    <input type="file" id="file-input" hidden multiple>
+    <button id="btn-attach" type="button" title="Attach a document" aria-label="Attach a document">&#128206;</button>
+    <textarea id="composer" rows="2" maxlength="100000" placeholder="Tell me what kind of portfolio you want to create..."></textarea>
+    <button id="btn-send" class="primary-action" type="button">Send</button>
   </div>
 </section>
 
-<section id="sessions" class="card">
-  <h2>Sessions</h2>
-  <div class="grid-2">
-    <div>
-      <h3>Create</h3>
-      <label for="session-name">Name</label>
-      <input type="text" id="session-name" placeholder="Untitled session" maxlength="200">
-      <button id="btn-create-session" type="button">Create Session</button>
-      <p id="create-result" class="result" aria-live="polite"></p>
-    </div>
-    <div>
-      <h3>Recent</h3>
-      <button id="btn-list-sessions" type="button">Refresh</button>
-      <ul id="session-list" class="select-list" aria-live="polite"></ul>
-    </div>
-  </div>
-  <div id="current-session" class="sub-card" hidden>
-    <h3>Current Session</h3>
-    <dl>
-      <dt>ID</dt><dd id="cs-id"></dd>
-      <dt>Name</dt><dd id="cs-name"></dd>
-      <dt>Status</dt><dd id="cs-status"></dd>
-      <dt>Revision</dt><dd id="cs-revision"></dd>
-      <dt>Current State</dt>
-    </dl>
-    <pre id="cs-state" class="json-view"></pre>
-  </div>
-</section>
+<details id="advanced" class="card">
+  <summary>Developer harness (Advanced)</summary>
 
-<section id="discovery" class="card">
-  <h2>Discovery Agent</h2>
-  <p class="subtitle">Grounded intake, focused questions, editable brief, and explicit approval.</p>
-  <p id="discovery-status" class="result" aria-live="polite">Select or create a session to begin.</p>
-
-  <div id="discovery-intake">
-    <div class="form-group">
-      <label for="discovery-prompt">Main goal or prompt</label>
-      <textarea id="discovery-prompt" rows="4" maxlength="10000" placeholder="What should this portfolio help you achieve?"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="discovery-resume">Resume text</label>
-      <textarea id="discovery-resume" rows="10" maxlength="160000" placeholder="Paste resume text here. A resume is optional."></textarea>
-      <small id="discovery-resume-status" class="help-text">No resume supplied. You can continue with your prompt.</small>
-    </div>
+  <section id="health" class="card">
+    <h2>Health</h2>
     <div class="grid-2">
-      <div class="form-group">
-        <label for="discovery-language">Output language</label>
-        <input id="discovery-language" type="text" value="en" maxlength="10">
+      <div>
+        <span class="label">Liveness</span>
+        <span id="health-live" class="status pill unknown">checking…</span>
       </div>
-      <div class="form-group">
-        <label for="discovery-resume-source">Resume source</label>
-        <select id="discovery-resume-source">
-          <option value="none">None</option>
-          <option value="pasted_text">Pasted text</option>
-          <option value="extracted_pdf_text">Extracted PDF text</option>
-          <option value="empty_extraction">Empty extraction</option>
-          <option value="scanned_pdf_suspected">Scanned PDF suspected</option>
-          <option value="corrupt_pdf">Corrupt PDF</option>
-          <option value="password_protected_pdf">Password protected PDF</option>
-        </select>
+      <div>
+        <span class="label">Readiness (DB)</span>
+        <span id="health-ready" class="status pill unknown">checking…</span>
       </div>
     </div>
-    <div class="form-group">
-      <label for="discovery-link-url">Public link (optional)</label>
-      <div class="inline-fields">
-        <input id="discovery-link-url" type="url" placeholder="https://example.com">
-        <input id="discovery-link-label" type="text" maxlength="256" placeholder="Label">
-        <select id="discovery-link-kind">
-          <option value="other">Other</option>
-          <option value="github">GitHub</option>
-          <option value="portfolio">Portfolio</option>
-          <option value="project">Project</option>
-          <option value="article">Article</option>
-          <option value="product">Product</option>
-        </select>
-        <button id="btn-add-discovery-link" type="button">Add link</button>
-      </div>
-      <ul id="discovery-link-list" class="select-list" aria-live="polite"></ul>
-    </div>
-    <button id="btn-discovery-intake" type="button" disabled>Save and Generate Questions</button>
-  </div>
+  </section>
 
-  <div id="discovery-questions" class="sub-card" hidden>
-    <h3>Questions</h3>
-    <p id="discovery-question-progress" class="mono-sml" aria-live="polite"></p>
-    <div id="discovery-question-body"></div>
-    <div class="button-row">
-      <button id="btn-discovery-back" type="button">Back</button>
-      <button id="btn-discovery-next" type="button">Next</button>
-      <button id="btn-discovery-auto" type="button">Choose for me</button>
-      <button id="btn-discovery-skip" type="button">Skip</button>
-    </div>
-    <button id="btn-discovery-autofill" type="button">Auto-fill remaining</button>
-    <button id="btn-discovery-create-brief" type="button" hidden>Create brief</button>
-  </div>
-
-  <div id="discovery-zero" class="sub-card" hidden>
-    <h3>Enough information found</h3>
-    <p>The analysis found enough grounded information to prepare a brief.</p>
-    <pre id="discovery-profile-summary" class="json-view"></pre>
-    <button id="btn-discovery-zero-brief" type="button">Create brief</button>
-  </div>
-
-  <div id="discovery-brief" class="sub-card" hidden>
-    <h3>Brief Review</h3>
-    <p id="discovery-brief-notice" class="result" aria-live="polite"></p>
-    <div class="form-group">
-      <label for="discovery-brief-role">Target role</label>
-      <input id="discovery-brief-role" type="text" maxlength="256">
-    </div>
-    <div class="form-group">
-      <label for="discovery-brief-audience">Audience (comma separated)</label>
-      <input id="discovery-brief-audience" type="text" maxlength="1000">
-    </div>
-    <div class="form-group">
-      <label for="discovery-brief-goal">Goal</label>
-      <textarea id="discovery-brief-goal" rows="3" maxlength="1000"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="discovery-brief-positioning">Positioning</label>
-      <textarea id="discovery-brief-positioning" rows="3" maxlength="1000"></textarea>
-    </div>
+  <section id="sessions" class="card">
+    <h2>Sessions</h2>
     <div class="grid-2">
-      <div class="form-group"><label for="discovery-brief-tone">Tone</label><input id="discovery-brief-tone" type="text" maxlength="128"></div>
-      <div class="form-group"><label for="discovery-brief-theme">Theme</label><input id="discovery-brief-theme" type="text" maxlength="128"></div>
+      <div>
+        <h3>Create</h3>
+        <label for="session-name">Name</label>
+        <input type="text" id="session-name" placeholder="Untitled session" maxlength="200">
+        <button id="btn-create-session" type="button">Create Session</button>
+        <p id="create-result" class="result" aria-live="polite"></p>
+      </div>
+      <div>
+        <h3>Recent</h3>
+        <button id="btn-list-sessions" type="button">Refresh</button>
+        <ul id="session-list" class="select-list" aria-live="polite"></ul>
+      </div>
     </div>
-    <div class="form-group"><label for="discovery-brief-motion">Motion</label><input id="discovery-brief-motion" type="text" maxlength="128"></div>
-    <div class="form-group"><label for="discovery-brief-cta">Primary CTA</label><input id="discovery-brief-cta" type="text" maxlength="500"></div>
-    <div class="form-group"><label for="discovery-brief-projects">Featured projects (one per line)</label><textarea id="discovery-brief-projects" rows="3" maxlength="2000"></textarea></div>
-    <div class="form-group"><label for="discovery-brief-emphasize">Emphasize (one per line)</label><textarea id="discovery-brief-emphasize" rows="3" maxlength="2000"></textarea></div>
-    <div class="form-group"><label for="discovery-brief-omit">Omit (one per line)</label><textarea id="discovery-brief-omit" rows="3" maxlength="2000"></textarea></div>
-    <h4>Strategy snapshot</h4>
-    <pre id="discovery-brief-json" class="json-view"></pre>
-    <div class="button-row">
-      <button id="btn-discovery-change-answers" type="button">Change answers</button>
-      <button id="btn-discovery-regenerate" type="button">Regenerate brief</button>
-      <button id="btn-discovery-save-brief" type="button">Save edits</button>
-      <button id="btn-discovery-approve" class="primary-action" type="button">NEXT: Approve Discovery</button>
+    <div id="current-session" class="sub-card" hidden>
+      <h3>Current Session</h3>
+      <dl>
+        <dt>ID</dt><dd id="cs-id"></dd>
+        <dt>Name</dt><dd id="cs-name"></dd>
+        <dt>Status</dt><dd id="cs-status"></dd>
+        <dt>Revision</dt><dd id="cs-revision"></dd>
+      </dl>
+      <pre id="cs-state" class="json-view"></pre>
     </div>
-  </div>
-</section>
+  </section>
 
-<section id="agents" class="card">
-  <h2>Agent Mock Run</h2>
-  <div class="form-group">
-    <label for="agent-select">Agent</label>
-    <select id="agent-select">
-      <option value="">Select an agent…</option>
-    </select>
-  </div>
-  <div class="form-group">
-    <label for="input-json">Input JSON</label>
-    <textarea id="input-json" rows="8" placeholder="{}"></textarea>
-  </div>
-  <div class="form-group">
-    <label for="idempotency-key">Idempotency Key (optional)</label>
-    <input type="text" id="idempotency-key" placeholder="optional-client-key">
-  </div>
-  <button id="btn-run-mock" type="button" disabled>Execute Mock Run</button>
-  <p id="run-result" class="result" aria-live="polite"></p>
-  <div id="run-detail" class="sub-card" hidden>
-    <h3>Run Result</h3>
+  <section id="agents" class="card">
+    <h2>Agent Mock Run</h2>
+    <div class="form-group">
+      <label for="agent-select">Agent</label>
+      <select id="agent-select">
+        <option value="">Select an agent…</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="input-json">Input JSON</label>
+      <textarea id="input-json" rows="8" placeholder="{}"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="idempotency-key">Idempotency Key (optional)</label>
+      <input type="text" id="idempotency-key" placeholder="optional-client-key">
+    </div>
+    <button id="btn-run-mock" type="button" disabled>Execute Mock Run</button>
+    <p id="run-result" class="result" aria-live="polite"></p>
+    <div id="run-detail" class="sub-card" hidden>
+      <h3>Run Result</h3>
+      <dl>
+        <dt>Run ID</dt><dd id="rd-id"></dd>
+        <dt>Agent</dt><dd id="rd-agent"></dd>
+        <dt>Status</dt><dd id="rd-status"></dd>
+        <dt>Attempt</dt><dd id="rd-attempt"></dd>
+        <dt>Output</dt>
+      </dl>
+      <pre id="rd-output" class="json-view"></pre>
+      <dt>State After</dt>
+      <pre id="rd-state-after" class="json-view"></pre>
+    </div>
+  </section>
+
+  <section id="history" class="card">
+    <h2>Run History</h2>
+    <button id="btn-list-runs" type="button" disabled>Refresh Runs</button>
+    <ul id="run-list" class="select-list" aria-live="polite"></ul>
+  </section>
+
+  <section id="infra" class="card">
+    <h2>Infrastructure Diagnostics</h2>
+    <div class="grid-2">
+      <div>
+        <span class="label">Worker</span>
+        <span id="worker-status" class="status pill unknown">checking…</span>
+      </div>
+      <div>
+        <span class="label">Migration</span>
+        <span id="mig-revision" class="mono-sml">—</span>
+      </div>
+    </div>
     <dl>
-      <dt>Run ID</dt><dd id="rd-id"></dd>
-      <dt>Agent</dt><dd id="rd-agent"></dd>
-      <dt>Status</dt><dd id="rd-status"></dd>
-      <dt>Attempt</dt><dd id="rd-attempt"></dd>
-      <dt>Output</dt>
+      <dt>Heartbeat Age</dt><dd id="hb-age">—</dd>
+      <dt>Worker Instance</dt><dd id="worker-instance">—</dd>
     </dl>
-    <pre id="rd-output" class="json-view"></pre>
-    <dt>State After</dt>
-    <pre id="rd-state-after" class="json-view"></pre>
-  </div>
-</section>
-
-<section id="history" class="card">
-  <h2>Run History</h2>
-  <button id="btn-list-runs" type="button" disabled>Refresh Runs</button>
-  <ul id="run-list" class="select-list" aria-live="polite"></ul>
-</section>
-
-<section id="infra" class="card">
-  <h2>Infrastructure Diagnostics</h2>
-  <div class="grid-2">
-    <div>
-      <span class="label">Worker</span>
-      <span id="worker-status" class="status pill unknown">checking…</span>
+    <button id="btn-probe" type="button">Enqueue Worker Probe</button>
+    <span id="probe-id" class="mono-sml" style="margin-left:1em"></span>
+    <p id="probe-status" class="result" aria-live="polite"></p>
+    <div id="probe-detail" class="sub-card" hidden>
+      <h3>Probe Result</h3>
+      <dl>
+        <dt>Job ID</dt><dd id="pj-id"></dd>
+        <dt>Status</dt><dd id="pj-status"></dd>
+        <dt>Attempt</dt><dd id="pj-attempt"></dd>
+        <dt>Worker</dt><dd id="pj-worker"></dd>
+        <dt>Response</dt>
+      </dl>
+      <pre id="pj-result" class="json-view"></pre>
     </div>
-    <div>
-      <span class="label">Migration</span>
-      <span id="mig-revision" class="mono-sml">—</span>
-    </div>
-  </div>
-  <dl>
-    <dt>Heartbeat Age</dt><dd id="hb-age">—</dd>
-    <dt>Worker Instance</dt><dd id="worker-instance">—</dd>
-  </dl>
-  <button id="btn-probe" type="button">Enqueue Worker Probe</button>
-  <span id="probe-id" class="mono-sml" style="margin-left:1em"></span>
-  <p id="probe-status" class="result" aria-live="polite"></p>
-  <div id="probe-detail" class="sub-card" hidden>
-    <h3>Probe Result</h3>
-    <dl>
-      <dt>Job ID</dt><dd id="pj-id"></dd>
-      <dt>Status</dt><dd id="pj-status"></dd>
-      <dt>Attempt</dt><dd id="pj-attempt"></dd>
-      <dt>Worker</dt><dd id="pj-worker"></dd>
-      <dt>Response</dt>
-    </dl>
-    <pre id="pj-result" class="json-view"></pre>
-  </div>
-</section>
+  </section>
+</details>
 {% endblock %}

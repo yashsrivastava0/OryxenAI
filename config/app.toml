@@ -59,10 +59,7 @@ max_input_bytes = 262144       # 256 KB payload limit for request bodies
 heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is stale
 
 [discovery]
-# Discovery agent input limits.
-max_main_prompt_chars = 10000
-max_resume_chars = 160000
-max_links = 20
-max_answer_chars = 10000
+# Discovery agent output limits. Input is never validated.
 max_questions = 8
-max_featured_projects = 5
+max_projects = 5
+max_answer_chars = 10000

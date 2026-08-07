@@ -1,7 +1,0 @@
-{
-  "name": "Sparse student profile",
-  "main_prompt": "I need an internship portfolio.",
-  "resume_source": "none",
-  "resume_text": "",
-  "expected": {"questions_at_most": 8, "short_brief_allowed": true}
-}

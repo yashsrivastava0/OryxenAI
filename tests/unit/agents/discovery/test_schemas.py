@@ -7,219 +7,131 @@ from pydantic import ValidationError as PydanticValidationError
 
 from oryxenai.agents.discovery.schemas import (
     AnswerMode,
-    AutoDecision,
-    AutoDecisionCategory,
-    ConflictResolutionPolicy,
-    ConflictSeverity,
-    DiscoveryAnalysisResult,
+    BriefOutput,
     DiscoveryAnswer,
-    DiscoveryBrief,
-    DiscoveryConflict,
     DiscoveryIntake,
-    DiscoveryLink,
     DiscoveryQuestion,
     DiscoveryState,
     DiscoveryStatus,
-    EvidenceReference,
-    FactCandidate,
-    FactStatus,
-    NormalizedProfessionalProfile,
-    QuestionCategory,
+    OperationMode,
     QuestionKind,
-    ResumeSource,
-    SourceKind,
+    QuestionOption,
+    QuestionSetOutput,
 )
 
 
 class TestDiscoveryIntake:
-    def test_valid_minimal_intake(self):
+    def test_empty_intake(self):
         intake = DiscoveryIntake()
-        assert intake.resume_source == ResumeSource.NONE
-        assert intake.output_language == "en"
+        assert intake.message == ""
+        assert intake.document_text == ""
+        assert intake.goal == ""
 
-    def test_valid_full_intake(self):
+    def test_accepts_any_input(self):
         intake = DiscoveryIntake(
-            main_prompt="I need a portfolio for backend roles.",
-            resume_text="Test User\nSoftware Engineer\nPython, PostgreSQL, FastAPI",
-            resume_source=ResumeSource.PASTED_TEXT,
-            links=[DiscoveryLink(url="https://github.com/testuser", kind="github")],
-            output_language="en",
-            source_revision=1,
+            message="Create a portfolio for me. I am a software developer.",
+            document_text="lots of free-form text\n" * 10000,
+            goal="get hired",
         )
-        assert intake.main_prompt == "I need a portfolio for backend roles."
-        assert len(intake.links) == 1
+        assert "software developer" in intake.message
 
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryIntake(unknown_field="should fail")
-
-    def test_main_prompt_length_enforced(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryIntake(main_prompt="x" * 30000)
-
-    def test_resume_text_length_enforced(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryIntake(resume_text="x" * 300000)
-
-    def test_links_max_enforced(self):
-        links = [DiscoveryLink(url="https://example.com")] * 50
-        with pytest.raises(PydanticValidationError, match="30"):
-            DiscoveryIntake(links=links)
-
-
-class TestEvidenceReference:
-    def test_valid_evidence(self):
-        ev = EvidenceReference(
-            source_id="resume_text",
-            source_kind=SourceKind.RESUME_TEXT,
-            evidence_excerpt="Python, PostgreSQL",
-        )
-        assert ev.source_id == "resume_text"
-
-    def test_unknown_source_kind_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            EvidenceReference(source_id="x", source_kind="invalid")
-
-
-class TestFactCandidate:
-    def test_supported_fact_requires_evidence(self):
-        fact = FactCandidate(
-            local_key="fact-1",
-            category="skill",
-            field="skill",
-            value="Python",
-            status=FactStatus.SUPPORTED,
-        )
-        assert fact.status == FactStatus.SUPPORTED
-
-    def test_system_default_fact(self):
-        fact = FactCandidate(
-            local_key="fact-1",
-            category="preference",
-            field="tone",
-            value="technical",
-            status=FactStatus.SUPPORTED,
-            evidence=[
-                EvidenceReference(
-                    source_id="system",
-                    source_kind=SourceKind.SYSTEM_DEFAULT,
-                    evidence_excerpt="default",
-                )
-            ],
-        )
-        assert len(fact.evidence) == 1
-
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            FactCandidate(local_key="f1", category="skill", field="skill", value="x", unknown="bad")
-
-
-class TestDiscoveryAnalysisResult:
-    def test_valid_result(self):
-        result = DiscoveryAnalysisResult(
-            schema_version=2,
-            normalized_profile=NormalizedProfessionalProfile(),
-            facts=[],
-            questions=[],
-        )
-        assert result.schema_version == 2
-        assert result.operation == "prepare_questions"
-        assert result.source_assessment.overall_usability is not None
-        assert result.readiness.can_build_brief is False
-
-    def test_too_many_questions_accepted_by_schema(self):
-        questions = [
-            DiscoveryQuestion(local_key=f"q{i}", category="audience", text=f"Q{i}")
-            for i in range(10)
-        ]
-        result = DiscoveryAnalysisResult(
-            schema_version=2,
-            normalized_profile=NormalizedProfessionalProfile(),
-            facts=[],
-            questions=questions,
-        )
-        assert len(result.questions) == 10
-
-    def test_v1_sample_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryAnalysisResult(
-                schema_version=1,
-                detected_languages=["en"],
-                normalized_profile=NormalizedProfessionalProfile(),
-                fact_candidates=[],
-                questions=[],
-            )
-
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryAnalysisResult(schema_version=2, unknown_field="bad")
-
-
-class TestDiscoveryBrief:
-    def test_valid_brief(self):
-        brief = DiscoveryBrief(
-            schema_version=2,
-            output_language="en",
-        )
-        assert brief.schema_version == 2
-        assert brief.operation == "build_brief"
-        assert brief.identity_and_goal.primary_target_role.label == ""
-        assert brief.quality_checks.all_factual_strategies_reference_facts is True
-
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryBrief(schema_version=2, unknown_field="bad")
-
-    def test_no_final_copy_fields_exist(self):
-        fields = set(DiscoveryBrief.model_fields)
-        for banned in ("hero", "about", "case_study", "copy", "component", "layout", "code"):
-            assert banned not in fields
-
-    def test_v1_sample_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryBrief(
-                schema_version=1,
-                goal="test",
-                positioning="test",
-                output_language="en",
-            )
+    def test_unknown_fields_accepted(self):
+        intake = DiscoveryIntake(message="hi", something_else={"nested": True})
+        assert intake.something_else == {"nested": True}
 
 
 class TestDiscoveryQuestion:
-    def test_auto_allowed_on_presentation(self):
-        q = DiscoveryQuestion(
-            local_key="q1",
-            category="presentation",
-            text="What tone?",
-            allows_auto=True,
-            auto_answer="technical",
-        )
-        assert q.allows_auto
+    def test_minimal_question(self):
+        question = DiscoveryQuestion(id="q1", text="What is your role?")
+        assert question.kind == QuestionKind.TEXT
+        assert question.allow_skip is True
+        assert question.allow_auto is False
+        assert question.reason is None
 
-    def test_auto_forbidden_on_factual(self):
-        q = DiscoveryQuestion(
-            local_key="q1",
-            category="target_role",
-            text="What is your role?",
-            allows_auto=False,
-        )
-        assert not q.allows_auto
-
-    def test_single_select_requires_options(self):
-        q = DiscoveryQuestion(
-            local_key="q1",
-            category="audience",
-            text="Who is your audience?",
+    def test_select_question_with_options(self):
+        question = DiscoveryQuestion(
+            id="q1",
+            text="Which role?",
             kind=QuestionKind.SINGLE_SELECT,
-            options=[{"id": "r", "label": "Recruiters"}],
+            options=[QuestionOption(id="backend", label="Backend Engineer")],
         )
-        assert len(q.options) == 1
+        assert question.options[0].label == "Backend Engineer"
 
-    def test_priority_clamped(self):
-        q = DiscoveryQuestion(local_key="q1", category="audience", text="Q", priority=15)
-        assert q.priority == 10
-        q2 = DiscoveryQuestion(local_key="q2", category="audience", text="Q", priority=-5)
-        assert q2.priority == 0
+    def test_extra_fields_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            DiscoveryQuestion(id="q1", text="Q", unknown="bad")
+
+
+class TestOperationMode:
+    def test_four_modes_round_trip(self):
+        assert OperationMode.NEEDS_DETAILS.value == "NEEDS_DETAILS"
+        assert OperationMode.ASK_QUESTIONS.value == "ASK_QUESTIONS"
+        assert OperationMode.READY_FOR_BRIEF.value == "READY_FOR_BRIEF"
+        assert OperationMode.BRIEF_READY.value == "BRIEF_READY"
+        assert OperationMode("NEEDS_DETAILS") is OperationMode.NEEDS_DETAILS
+        assert OperationMode("BRIEF_READY") is OperationMode.BRIEF_READY
+
+
+class TestQuestionSetOutput:
+    def test_empty_questions_valid(self):
+        output = QuestionSetOutput(
+            mode=OperationMode.NEEDS_DETAILS,
+            assistant_message="Tell me more.",
+            questions=[],
+        )
+        assert output.questions == []
+        assert output.memory_update == {}
+
+    def test_mode_and_assistant_message_required(self):
+        with pytest.raises(PydanticValidationError):
+            QuestionSetOutput(questions=[])
+
+    def test_extra_fields_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            QuestionSetOutput(
+                mode=OperationMode.ASK_QUESTIONS,
+                assistant_message="m",
+                unknown="bad",
+            )
+
+
+class TestBriefOutput:
+    def test_brief_output_has_no_rigid_field_contract(self):
+        fields = set(BriefOutput.model_fields)
+        assert fields == {
+            "mode",
+            "assistant_message",
+            "brief_title",
+            "brief_markdown",
+            "open_items",
+            "memory_update",
+        }
+
+    def test_valid_brief(self):
+        output = BriefOutput(
+            mode=OperationMode.BRIEF_READY,
+            assistant_message="Review the brief.",
+            brief_title="Portfolio Discovery Brief — Test",
+            brief_markdown="# Portfolio Discovery Brief\n\nLong readable content.",
+            open_items=["no metrics"],
+            memory_update={"intent_summary": "x"},
+        )
+        assert output.brief_markdown.startswith("# Portfolio Discovery Brief")
+        assert output.open_items == ["no metrics"]
+
+    def test_mode_required(self):
+        with pytest.raises(PydanticValidationError):
+            BriefOutput(assistant_message="m", brief_title="t", brief_markdown="x")
+
+    def test_extra_fields_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            BriefOutput(
+                mode=OperationMode.BRIEF_READY,
+                assistant_message="m",
+                brief_title="t",
+                brief_markdown="x",
+                role="not allowed",
+            )
 
 
 class TestDiscoveryAnswer:
@@ -227,96 +139,25 @@ class TestDiscoveryAnswer:
         ans = DiscoveryAnswer(question_id="q1", mode=AnswerMode.ANSWERED, value="recruiters")
         assert ans.mode == AnswerMode.ANSWERED
 
-    def test_auto_mode(self):
-        ans = DiscoveryAnswer(question_id="q1", mode=AnswerMode.AUTO, value="technical")
-        assert ans.mode == AnswerMode.AUTO
-
     def test_skipped_mode(self):
-        ans = DiscoveryAnswer(question_id="q1", mode=AnswerMode.SKIPPED)
+        ans = DiscoveryAnswer(question_id="q1", mode=AnswerMode.SKIPPED, value=None)
         assert ans.mode == AnswerMode.SKIPPED
+
+    def test_any_value_accepted(self):
+        ans = DiscoveryAnswer(question_id="q1", value={"multi": [1, 2, 3]})
+        assert ans.value == {"multi": [1, 2, 3]}
 
 
 class TestDiscoveryState:
     def test_default_state(self):
         state = DiscoveryState()
-        assert state.schema_version == 1
         assert state.status == DiscoveryStatus.NOT_STARTED
-        assert state.source_revision == 0
-
-    def test_state_with_questions(self):
-        state = DiscoveryState(
-            status=DiscoveryStatus.QUESTIONS_READY,
-            source_revision=3,
-        )
-        assert state.status == DiscoveryStatus.QUESTIONS_READY
+        assert state.max_attempts == 3
+        assert state.operation_a.mode is None
+        assert state.memory == {}
+        assert not hasattr(state, "demo")
+        assert not hasattr(state, "questions")
 
     def test_extra_fields_rejected(self):
         with pytest.raises(PydanticValidationError):
             DiscoveryState(status=DiscoveryStatus.NOT_STARTED, unknown="bad")
-
-
-class TestAutoDecision:
-    def test_valid_auto_decision(self):
-        d = AutoDecision(
-            category=AutoDecisionCategory.TONE,
-            selected_value="technical",
-            explanation="Profile targets backend roles.",
-        )
-        assert d.category == AutoDecisionCategory.TONE
-
-    def test_invalid_category_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            AutoDecision(category="invalid_category", selected_value="x", explanation="x")
-
-
-class TestConflict:
-    def test_blocking_conflict(self):
-        c = DiscoveryConflict(
-            local_key="c1",
-            category="date",
-            field="end_date",
-            severity=ConflictSeverity.BLOCKING,
-            resolution_policy=ConflictResolutionPolicy.ASK_USER,
-            user_visible_summary="Conflicting end dates found.",
-        )
-        assert c.severity == ConflictSeverity.BLOCKING
-
-    def test_invalid_severity_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            DiscoveryConflict(
-                local_key="c1",
-                category="date",
-                field="end_date",
-                severity="critical",
-                user_visible_summary="x",
-            )
-
-
-class TestResumeSource:
-    def test_all_expected_values(self):
-        expected = {
-            "none",
-            "pasted_text",
-            "extracted_pdf_text",
-            "empty_extraction",
-            "scanned_pdf_suspected",
-            "corrupt_pdf",
-            "password_protected_pdf",
-            "truncated_text",
-        }
-        actual = {m.value for m in ResumeSource}
-        assert expected == actual
-
-
-class TestQuestionCategory:
-    def test_factual_categories(self):
-        factual = {
-            QuestionCategory.TARGET_ROLE,
-            QuestionCategory.PROJECT_SELECTION,
-            QuestionCategory.PERSONAL_CONTRIBUTION,
-            QuestionCategory.CONFIDENTIALITY,
-            QuestionCategory.CONTACT,
-            QuestionCategory.CONFLICT_RESOLUTION,
-        }
-        assert QuestionCategory.TARGET_ROLE in factual
-        assert QuestionCategory.PRESENTATION not in factual

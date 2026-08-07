@@ -12,7 +12,7 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectResponse,
 )
 from oryxenai.agents.discovery.agent import DiscoveryAgent
-from oryxenai.agents.discovery.schemas import DiscoveryIntake, ResumeSource
+from oryxenai.agents.discovery.schemas import DiscoveryIntake
 from oryxenai.agents.shared.contracts import (
     AgentContext,
     AgentKey,
@@ -24,6 +24,7 @@ from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorAge
 from oryxenai.agents.visual_design_director.schemas import (
     VisualDesignDirectorResponse,
 )
+from tests.conftest import _MockModelClient
 
 
 def test_agent_key_from_string_valid():
@@ -85,28 +86,31 @@ def _build_context(agent_key: AgentKey, agent_input: dict[str, object]) -> Agent
 
 
 async def test_discovery_agent_deterministic_output():
-    """Discovery agent returns structured output via fake client."""
-    agent = DiscoveryAgent()
+    """Discovery agent returns structured output via the test mock client."""
+    agent = DiscoveryAgent(model_client=_MockModelClient())
     ctx = _build_context(
         AgentKey.DISCOVERY,
         {
-            "operation": "prepare_questions",
+            "operation": "understand_and_question",
             "intake": {
-                "main_prompt": "I am mainly looking for backend engineering roles.",
-                "resume_text": (
+                "message": "Create a portfolio for me. I am a software developer.",
+                "document_text": (
                     "Test User\nSoftware Engineer\nExample Corp\n"
                     "Implemented retry handling and stale-job recovery for the PostgreSQL worker\n"
                     "observability\nDocker\nPython, PostgreSQL, FastAPI\nmigrations\n"
                 ),
-                "resume_source": "pasted_text",
-                "output_language": "en",
+                "goal": "get hired",
             },
         },
     )
     result = await agent.run(ctx)
     assert isinstance(result, AgentResult)
-    assert "analysis" in result.output
-    assert result.output["operation"] == "prepare_questions"
+    assert "questions" in result.output
+    assert "mode" in result.output
+    assert "assistant_message" in result.output
+    assert "memory_update" in result.output
+    assert result.output["operation"] == "understand_and_question"
+    assert result.output["mode"] == "ASK_QUESTIONS"
 
 
 async def test_content_architect_agent_deterministic_output():
@@ -144,10 +148,10 @@ async def test_code_generator_agent_deterministic_output():
 
 async def test_all_agents_return_same_output_for_different_inputs():
     """Deterministic mock: same operation produces the same output."""
-    agent = DiscoveryAgent()
+    agent = DiscoveryAgent(model_client=_MockModelClient())
     input_data = {
-        "operation": "prepare_questions",
-        "intake": {"main_prompt": "first", "resume_source": "none", "output_language": "en"},
+        "operation": "understand_and_question",
+        "intake": {"message": "first", "goal": "get hired"},
     }
     ctx1 = _build_context(AgentKey.DISCOVERY, input_data)
     ctx2 = _build_context(AgentKey.DISCOVERY, input_data)
@@ -157,10 +161,11 @@ async def test_all_agents_return_same_output_for_different_inputs():
 
 
 def test_discovery_schema_validation():
-    """Discovery schemas validate their fields."""
-    intake = DiscoveryIntake(main_prompt="test", resume_source=ResumeSource.NONE)
-    assert intake.main_prompt == "test"
-    assert intake.resume_source == ResumeSource.NONE
+    """Discovery schemas accept any input."""
+    intake = DiscoveryIntake(message="test", document_text="notes", goal="get hired")
+    assert intake.message == "test"
+    assert intake.document_text == "notes"
+    assert intake.goal == "get hired"
 
 
 def test_content_architect_schema_validation():

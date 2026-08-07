@@ -175,8 +175,11 @@ class Worker:
             return
 
         try:
+            payload = dict(job.payload or {})
+            payload["attempt"] = job.attempt
+            payload["max_attempts"] = job.max_attempts
             result = await asyncio.wait_for(
-                handler.execute(job.payload or {}, self._instance_id),
+                handler.execute(payload, self._instance_id),
                 timeout=self._settings.worker_job.handler_timeout,
             )
         except TimeoutError:

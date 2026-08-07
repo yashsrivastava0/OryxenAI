@@ -1,7 +1,0 @@
-{
-  "name": "Complete backend engineer",
-  "main_prompt": "Find senior backend engineering opportunities.",
-  "resume_source": "pasted_text",
-  "resume_text": "Alex Rivera\nSenior Backend Engineer\nPython FastAPI PostgreSQL\nExample Corp 2021-present",
-  "expected": {"questions_at_most": 8, "must_not_invent_metrics": true}
-}

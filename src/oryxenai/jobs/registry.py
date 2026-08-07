@@ -57,10 +57,17 @@ def _register_builtins() -> None:
 def _register_discovery_handlers() -> None:
     from oryxenai.jobs.handlers.discovery import (
         DiscoveryBuildBriefHandler,
+        DiscoveryBuildOrReviseBriefHandler,
         DiscoveryPrepareQuestionsHandler,
+        DiscoveryUnderstandAndQuestionHandler,
     )
 
-    for handler_cls in (DiscoveryPrepareQuestionsHandler, DiscoveryBuildBriefHandler):
+    for handler_cls in (
+        DiscoveryUnderstandAndQuestionHandler,
+        DiscoveryBuildOrReviseBriefHandler,
+        DiscoveryPrepareQuestionsHandler,
+        DiscoveryBuildBriefHandler,
+    ):
         instance = handler_cls()
         if not is_registered(instance.kind):
             register(instance)

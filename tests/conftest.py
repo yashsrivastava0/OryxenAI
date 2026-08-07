@@ -8,13 +8,125 @@ database is never touched.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+# ── Test-only deterministic model client ────────────────────────────────────
+#
+# Not a demo feature: a plain test double (the equivalent of
+# unittest.mock.Mock) so flow tests never make network calls.
+
+
+_DEFAULT_QUESTIONS: dict[str, Any] = {
+    "mode": "ASK_QUESTIONS",
+    "assistant_message": "I have enough to ask a few focused questions.",
+    "questions": [
+        {
+            "id": "target_direction",
+            "text": "Should the portfolio lead with backend or full-stack?",
+            "kind": "single_select",
+            "options": [
+                {"id": "backend", "label": "Backend"},
+                {"id": "fullstack", "label": "Full-stack"},
+                {"id": "balanced", "label": "Balanced"},
+            ],
+            "reason": "changes positioning and project order",
+            "allow_skip": True,
+            "allow_auto": False,
+        }
+    ],
+    "memory_update": {"intent_summary": "Backend engineering roles", "open_items": []},
+}
+
+_DEFAULT_BRIEF: dict[str, Any] = {
+    "mode": "BRIEF_READY",
+    "assistant_message": "I prepared the Discovery brief. Review it and change anything before approving.",
+    "brief_title": "Portfolio Discovery Brief — Mock User",
+    "brief_markdown": (
+        "# Portfolio Discovery Brief — Mock User\n\n"
+        "## Portfolio direction at a glance\n\n"
+        "Primary goal: secure backend engineering opportunities.\n\n"
+        "## Approval summary\n\n"
+        "Ready for approval."
+    ),
+    "open_items": ["no metrics supplied"],
+    "memory_update": {},
+}
+
+_DEFAULT_BRIEF_REVISED: dict[str, Any] = {
+    **_DEFAULT_BRIEF,
+    "brief_title": "Portfolio Discovery Brief — Mock User (revised)",
+    "brief_markdown": (
+        "# Portfolio Discovery Brief — Mock User (revised)\n\n"
+        "## Portfolio direction at a glance\n\n"
+        "Primary goal: secure backend engineering opportunities. QueueGuard leads the story.\n\n"
+        "## Approval summary\n\n"
+        "Ready for approval."
+    ),
+}
+
+
+class _MockModelClient:
+    """Test-only deterministic ModelClient used by flow tests. Not a demo feature."""
+
+    def __init__(
+        self,
+        questions_payload: dict[str, Any] | None = None,
+        brief_payload: dict[str, Any] | None = None,
+        brief_revised_payload: dict[str, Any] | None = None,
+    ) -> None:
+        self.questions_payload = questions_payload or _DEFAULT_QUESTIONS
+        self.brief_payload = brief_payload or _DEFAULT_BRIEF
+        self.brief_revised_payload = brief_revised_payload or _DEFAULT_BRIEF_REVISED
+        self.requests: list[dict[str, Any]] = []
+
+    async def complete(self, *, system: str, task: str, **_kwargs: Any) -> str:
+        self.requests.append({"system": system, "task": task})
+        return "mock complete"
+
+    async def generate_structured(
+        self,
+        *,
+        operation: str,
+        instructions: str,
+        input_payload: dict[str, Any],
+        output_model: Any,
+        **_kwargs: Any,
+    ) -> Any:
+        self.requests.append(
+            {"operation": operation, "instructions": instructions, "input_payload": input_payload}
+        )
+        from oryxenai.agents.discovery.schemas import StructuredModelResult
+
+        if operation in ("understand_and_question", "prepare_questions"):
+            parsed = self.questions_payload
+        else:
+            revision_request = str((input_payload or {}).get("revision_request", "") or "")
+            parsed = self.brief_revised_payload if revision_request else self.brief_payload
+        parsed_output = output_model.model_validate(parsed).model_dump(mode="json")
+        return StructuredModelResult(
+            parsed_output=parsed_output,
+            response_id="mock-response-id",
+            model="mock-model",
+            usage={"prompt_tokens": 10, "completion_tokens": 20},
+            finish_reason="stop",
+            latency_ms=1.0,
+        )
+
+    def reset_requests(self) -> None:
+        self.requests = []
+
+
+@pytest.fixture
+def mock_model_client() -> _MockModelClient:
+    """Deterministic test model client for Discovery flow tests."""
+    return _MockModelClient()
+
 
 # ── Ensure the test overlay is loaded for integration / worker tests. ──────
 

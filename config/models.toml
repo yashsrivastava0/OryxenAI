@@ -25,10 +25,14 @@ request_params = {}     # extra request parameters (temperature, max_tokens, ...
 
 [profiles.discovery]
 provider = "opencode_go"
-model = "deepseek-v4-pro"
+# Fast default for both Discovery operations. Override with ORA_SMOK_MODEL for
+# a smoke comparison without changing committed configuration.
+# Fallbacks: deepseek-v4-flash (fast DeepSeek) and deepseek-v4-pro (slowest,
+# highest-reasoning option).
+model = "gpt-5.6-luna"
 base_url = "https://opencode.ai/zen/go/v1"
 api_key_env = "OPENCODE_GO_API_KEY"
-timeout_seconds = 150
+timeout_seconds = 90
 max_retries = 1
 max_output_tokens = 16000
 reasoning_effort = ""

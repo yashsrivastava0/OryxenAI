@@ -1,18 +1,17 @@
 # Discovery Agent
 
-Discovery is the first complete OryxenAI workflow. It turns a user prompt and
-optional pasted resume text into a grounded, reviewable strategy brief. It
-stops after the user explicitly approves that brief with the `NEXT` action.
+Discovery is the first OryxenAI workflow. It turns a user message, an optional
+attached document, and an optional goal into a detailed Portfolio Discovery
+Brief. It asks only high-value questions along the way, then stops after the
+user explicitly approves the brief.
 
 ## Responsibilities
 
-- Understand who the user is professionally and what role the portfolio
-  should target.
-- Extract atomic, evidence-backed facts with locatable provenance.
-- Detect conflicts, uncertainty, and omission needs.
-- Ask only high-value questions (at most eight, one at a time).
-- Make automatic choices only for presentation decisions.
-- Produce a rich strategic brief that later agents can use.
+- Understand what the user wants and what the portfolio should target.
+- Ask only high-value questions (at most 8, asked one at a time in the chat).
+- Produce a detailed, readable, editable Portfolio Discovery Brief (free
+  Markdown) that hands off context to later content, visual-design, and
+  code-generation work.
 - Stop after explicit approval.
 
 ## Non-responsibilities
@@ -20,207 +19,97 @@ stops after the user explicitly approves that brief with the `NEXT` action.
 Discovery must NOT:
 
 - Write final hero/about/project copy, exact components, layouts, or code.
-- Invoke, enqueue, or simulate the Content Architect, Visual Design
-  Director, or Code Generator.
-- Fetch URLs, scrape GitHub/LinkedIn, OCR, or analyze images.
+- Invoke, enqueue, or simulate the Content Architect, Visual Design Director,
+  or Code Generator.
+- Fetch URLs, scrape the web, OCR, or analyze images.
 - Fabricate employment, education, dates, clients, awards, metrics, or
   personal contributions.
-- Assume every user is a developer, wants employment, or wants a dark theme.
 
 ## Flow
 
-1. `PUT /api/v1/sessions/{id}/discovery/input` normalizes and stores an
-   immutable source revision.
-2. `POST .../discovery/questions` creates an idempotent `agent_run` and durable
-   worker job for Call A.
-3. Call A returns a source assessment, profile overview, normalized profile,
-   evidence-backed facts, conflicts, uncertainties, omissions, safe automatic
-   presentation choices, readiness, and quality checks.
-4. `PUT .../discovery/answers` stores typed answers, skips, and presentation
-   auto decisions under the session's Discovery state.
-5. `POST .../discovery/brief` creates Call B through the worker.
-6. `PATCH .../discovery/brief` applies typed user edits (deep-merged, with
-   `user_edit` provenance) without another model call.
-7. `POST .../discovery/approve` creates an immutable approved brief snapshot.
-   It does not enqueue Content Architect or any later agent.
+1. `POST /api/v1/sessions/{id}/discovery/start` stores the raw input
+   (`message`, `document_text`, `goal`) as-is and enqueues the
+   `discovery.understand_and_question` job. **Input is never validated** —
+   the agent accepts any input and decides how to handle it.
+2. The worker runs Operation A: one model call returns an interaction mode —
+   `NEEDS_DETAILS` (ask the user for material), `ASK_QUESTIONS` (0..7
+   specific questions), or `READY_FOR_BRIEF` (enough material) — plus an
+   `assistant_message`, the questions, and a compact `memory_update`.
+3. `PUT .../discovery/answers` stores the answers as-is; with `complete: true`
+   it enqueues `discovery.build_or_revise_brief`.
+4. `POST .../discovery/revise` re-runs Operation B with a natural-language
+   `revision_request` and the current brief (allowed only while under review).
+5. The worker runs Operation B: one model call produces the full brief as
+   free Markdown inside `brief_markdown`.
+6. `POST .../discovery/approve` snapshots the approved brief by hash.
 
-The current aggregate lives in
-`portfolio_sessions.current_state["discovery"]`. Immutable source revisions
-are stored in `discovery_source_documents`; model inputs, outputs, metadata,
-and stale results remain in `agent_runs`.
+The legacy job kinds `discovery.prepare_questions` / `discovery.build_brief`
+and operation names `prepare_questions` / `build_brief` remain registered as
+aliases so in-flight runs keep working.
 
-## Call A algorithm
+## State machine
 
-1. Assess source usability (usable / usable-with-gaps / sparse / unusable).
-2. Extract atomic facts; normalize without inventing data.
-3. Validate provenance candidates (excerpts must be locatable).
-4. Detect conflicts (dates, titles, ownership, metrics, confidentiality…).
-5. Record uncertainties with recommended actions.
-6. Score and select questions (downstream impact, credibility, conflict
-   value, information gain, already-answered penalty, effort, sensitivity).
-7. Select safe automatic presentation defaults only.
-8. Return `DiscoveryAnalysisResult` v2 with readiness and quality checks.
+Statuses (9): `not_started, questions_queued, questions_running,
+questions_ready, answers_in_progress, brief_running, brief_review, approved,
+needs_attention`. Linear flow; any non-terminal status can fail into
+`needs_attention` with a visible `latest_error`, and retry returns to the
+queue. `brief_review -> brief_running` exists so revision re-runs Operation B.
+The state also carries `attempt`/`max_attempts`/`started_at` so the UI can
+show progress and elapsed time, plus `memory` (compact conversation memory)
+and `operation_a` (last Operation A output for refresh recovery).
 
-## Call B algorithm
+## Output contract
 
-1. Reconcile source facts and user answers.
-2. Resolve only explicitly resolved conflicts; preserve unresolved material
-   conflicts.
-3. Select one primary target role where supported.
-4. Define audience, goal, and evidence-backed positioning with credibility
-   boundaries.
-5. Select featured projects with per-project evidence, depth, unknowns, and
-   confidentiality.
-6. Define content strategy, omissions, tone/theme/motion direction, and CTA.
-7. Build the downstream handoff for later agents.
-8. Run grounding verification and return `DiscoveryBrief` v2.
+Only the transport envelope is validated (`validators.py`), never the brief
+content:
 
-## Grounding and safety
+- Operation A (`QuestionSetOutput`) — `mode` is one of `NEEDS_DETAILS`,
+  `ASK_QUESTIONS`, `READY_FOR_BRIEF`; `assistant_message` non-empty; questions
+  have an `id`, non-empty `text`, a valid `kind`, and options for select
+  kinds; mode-specific question-count rules (NEEDS_DETAILS/READY_FOR_BRIEF
+  must have zero questions, ASK_QUESTIONS at least one).
+- Operation B (`BriefOutput`) — `mode` is `BRIEF_READY`, `assistant_message`,
+  `brief_title`, and `brief_markdown` non-empty; `open_items` and
+  `memory_update` are lists/dicts when present.
 
-- Supported facts require evidence that can be located in the normalized source.
-- Unknown information is omitted or asked about, never fabricated.
-- Material conflicts remain visible until the user resolves them.
-- `auto` is accepted only for presentation choices such as tone, theme, motion,
-  ordering, emphasis, and CTA phrasing.
-- Factual gaps are skipped or omitted by Auto-fill; they are never invented.
-- Resume text, prompts, links, and answers are untrusted data and are serialized
-  in a CDATA-wrapped `<source_packet trust="untrusted">` after all static
-  instructions.
-- URLs are validated but never fetched by Discovery.
-- Deterministic semantic validation runs after every model output for both
-  Call A and Call B; the agent enforces the result (repair once, then fail
-  with `MODEL_SEMANTICALLY_INVALID` — invalid output is never delivered).
+A model output that fails the contract surfaces `MODEL_OPERATION_FAILED` in
+`needs_attention`; the worker retry policy handles transient provider errors.
+
+## Prompts
+
+Three prompt files. The system prompt is loaded first, then the operation
+prompt with the output JSON schema injected and the raw user input appended
+as untrusted CDATA:
+
+- `prompts/system.md`
+- `prompts/understand_and_question.md`
+- `prompts/build_or_revise_brief.md`
+
+How the model produces the output and how detailed the brief should be is the
+prompt's logic; there is no repair loop and no few-shot library.
 
 ## Model integration
 
-The domain depends on the provider-neutral `ModelClient.generate_structured()`
-contract. The configured Discovery profile uses the OpenCode Go adapter with
-`deepseek-v4-pro`, `chat/completions`, and
-`response_format={"type":"json_object"}`.
-
-- **JSON mode:** the Pydantic JSON schema for the operation is injected into
-  the prompt (schema-first; a drift test pins prompt fields to the schema).
-- **Thinking mode:** benchmarked live (2026-08-06). The OpenCode Go endpoint
-  rejects the `reasoning` parameter (`MODEL_CAPABILITY_UNSUPPORTED`), so the
-  production profile uses non-thinking JSON mode (`reasoning_effort=""`).
-- **Capability probe:** `ModelCapabilities` declares what the endpoint
-  supports. `store=false` is sent only when `supports_store_parameter` is true.
-- **reasoning_content** is never captured, persisted, or logged; only the final
-  `message.content` is read.
-- **Retry budget:** one transport retry (SDK), one completed-response recovery
-  (empty/whitespace/truncated/malformed/semantic), one semantic repair, worker
-  `max_attempts` bounded. Total model calls per logical operation ≤ 2.
-- **Observability:** `finish_reason`, `latency_ms`, `usage`, `prompt_version`,
-  and a module-hash manifest are persisted on `agent_runs`.
-
-## Prompt module architecture (v2)
-
-```
-prompts/
-  core_identity.md              identity and professional understanding
-  trust_boundary.md             untrusted-source policy
-  grounding_policy.md           provenance + evidence-first rules
-  source_interpretation.md      content classification + multi-document rules
-  prepare_questions.md          Call A operation
-  question_policy.md            question rubric and writing quality
-  build_brief.md                Call B operation
-  downstream_handoff_policy.md  Content Architect / Visual Director boundaries
-  output_rules_call_a.md        Call A output contract (+ injected schema)
-  output_rules_call_b.md        Call B output contract (+ injected schema)
-  repair.md                     bounded repair instructions
-  examples/call_a|call_b/       golden few-shot examples (tag-selected, ≤2)
-  examples/anti_examples/       contrastive bad/good guidance
-  CHANGELOG.md                  prompt change log
-```
-
-Versions: `discovery.core.v2`, `discovery.call_a.v2`, `discovery.call_b.v2`,
-`discovery.repair.v2`, `discovery.examples.v2`. Assembly order is fixed:
-identity → trust boundary → grounding → source interpretation → operation →
-policy → output contract/schema → examples → dynamic source packet → final
-reminder. Static material always precedes dynamic user data.
-
-## State and concurrency
-
-Discovery has explicit states from `not_started` through `approved`, with
-`needs_attention` for controlled failures. All `apply_*` transitions are
-validated (edits and approval included). API writes use the portfolio session
-revision as an optimistic compare-and-swap token. Worker results carry source
-and answer revisions; a late result is retained in `agent_runs` as stale and
-cannot overwrite newer user work.
-
-Duplicate enqueue requests use a deterministic operation key. Duplicate `NEXT`
-requests return the existing approved state. Editing input, answers, or the
-brief invalidates downstream results and approval.
-
-## API
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| GET | `/api/v1/sessions/{id}/discovery` | User-safe current state and job status |
-| PUT | `/api/v1/sessions/{id}/discovery/input` | Save a new source revision |
-| POST | `/api/v1/sessions/{id}/discovery/questions` | Queue Call A |
-| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save typed answers |
-| POST | `/api/v1/sessions/{id}/discovery/brief` | Queue Call B |
-| PATCH | `/api/v1/sessions/{id}/discovery/brief` | Apply typed manual edits |
-| POST | `/api/v1/sessions/{id}/discovery/approve` | Create immutable approval |
-
-Errors use the existing envelope and safe codes such as
-`DISCOVERY_REVISION_CONFLICT`, `DISCOVERY_QUESTIONS_STALE`,
-`DISCOVERY_BRIEF_STALE`, `DISCOVERY_NOT_READY`, `DISCOVERY_INPUT_INVALID`,
-`DISCOVERY_APPROVAL_INVALIDATED`, `DISCOVERY_SOURCE_TOO_LARGE`,
-`MODEL_OUTPUT_INVALID`, `MODEL_OPERATION_CANCELLED`, `MODEL_EMPTY_OUTPUT`,
-`MODEL_OUTPUT_TRUNCATED`, `MODEL_JSON_INVALID`, `MODEL_SEMANTICALLY_INVALID`,
-`MODEL_CAPABILITY_UNSUPPORTED`, and the `PROVIDER_*` family.
-
-## Sample corpus and evaluation
-
-- 36 golden behavioral scenarios under
-  `tests/fixtures/discovery/scenarios/<name>/` (input, expected Call A,
-  answers, expected Call B, assertions.yaml) covering the Section-21 list.
-- `tests/eval/` runs the application-level assertions in normal CI and the
-  full model-dependent assertions against the live provider under `-m live`.
-- Deterministic metrics: unsupported-claim count, factual-Auto count,
-  evidence validity, conflict detection, private-contact publication, etc.
-- Metamorphic and mutation/fuzz tests guard against irrelevant-input drift
-  and malformed-input crashes.
-- Live eval runner: `scripts/live-discovery-eval.ps1` (opt-in, synthetic only,
-  sanitized reports under `reports/live-discovery/`).
-
-## Privacy behavior
-
-Only safe fields are logged (request ID, job/run ID, operation, prompt
-version, model, attempt counts, finish reason, latency, counts). Raw resume,
-main prompt, answers, brief, `reasoning_content`, system prompt text, API
-keys, and provider error bodies are never logged. The OpenCode Go request is
-sent with `store=false` when the endpoint capability supports it; OpenCode's
-content handling can depend on third-party model providers, so no OpenAI-
-specific retention guarantees are claimed.
+There is no demo mode. The worker always builds the live provider adapter for
+the `[profiles.discovery]` profile in `config/models.toml` (DeepSeek through
+the OpenCode-compatible adapter); missing configuration raises a controlled
+`ProviderConfigError`. The mock-runs dev harness uses the deterministic
+`MockModelClient` fallback so it never makes network calls.
 
 ## Failure behavior
 
-- Missing provider configuration or key → safe `PROVIDER_CONFIG_ERROR`; the
-  app and worker still start.
-- Empty/whitespace output → `MODEL_EMPTY_OUTPUT`.
-- Truncated output → `MODEL_OUTPUT_TRUNCATED`.
-- Malformed JSON → `MODEL_JSON_INVALID`.
-- Semantic failure after one repair → `MODEL_SEMANTICALLY_INVALID`, state
-  moved to `needs_attention`.
-- Worker retries respect the bounded attempt policy; late results are marked
-  stale, never applied over newer state.
+- Provider errors (timeout, rate limit, server) are retried by the worker
+  (default 3 attempts) and the latest attempt is always visible.
+- Permanent failures (invalid output, config errors) set `needs_attention`
+  immediately with the error code and message.
+- The UI shows the error, the attempt counter, and a "Try again" action.
 
-## Tests and commands
+## HTTP surface
 
-Normal tests use `FakeDiscoveryModelClient` and require no credentials. The
-OpenCode adapter is tested at its SDK boundary without network access. Run:
-
-```powershell
-uv run ruff format .
-uv run ruff check .
-uv run mypy src
-uv run pytest tests/unit/ -q
-uv run alembic upgrade head
-```
-
-Integration and worker tests use the configured dedicated PostgreSQL test
-database when available. Live provider tests are opt-in
-(`RUN_LIVE_DISCOVERY=1` + `OPENCODE_GO_API_KEY`) and use synthetic data only.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/sessions/{id}/discovery` | Current state (status, error, attempt, elapsed) |
+| POST | `/api/v1/sessions/{id}/discovery/start` | Store input, enqueue Operation A (202) |
+| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save answers; `complete: true` enqueues Operation B |
+| POST | `/api/v1/sessions/{id}/discovery/revise` | Natural-language brief revision (202) |
+| POST | `/api/v1/sessions/{id}/discovery/approve` | Approve the reviewed brief |

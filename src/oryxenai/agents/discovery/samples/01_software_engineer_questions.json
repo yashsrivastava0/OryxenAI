@@ -1,0 +1,106 @@
+{
+  "mode": "ASK_QUESTIONS",
+  "assistant_message": "I have enough background. I only need a few choices that will change the portfolio.",
+  "questions": [
+    {
+      "id": "q-primary-direction",
+      "text": "Your goal says backend or platform engineering, while your experience also includes React work. Should the portfolio lead with backend/platform engineering and treat frontend as supporting breadth, or present you as a balanced full-stack engineer?",
+      "reason": "This changes the positioning, project order, and visual emphasis.",
+      "kind": "single_select",
+      "options": [
+        {"id": "backend", "label": "Backend / platform engineering"},
+        {"id": "full_stack", "label": "Balanced full-stack engineering"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-audience",
+      "text": "Who should the portfolio persuade first: startup founders/CTOs, engineering managers, technical recruiters, or a mix?",
+      "kind": "single_select",
+      "options": [
+        {"id": "ctos_founders", "label": "Startup founders / CTOs"},
+        {"id": "eng_managers", "label": "Engineering managers"},
+        {"id": "recruiters", "label": "Technical recruiters"},
+        {"id": "mix", "label": "A mix"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-queueguard-ownership",
+      "text": "For QueueGuard, which parts did you personally own beyond the job lifecycle and retries\u2014for example schema design, worker claiming, observability, tests, or deployment? Only include what is accurate.",
+      "kind": "multi_select",
+      "options": [
+        {"id": "schema", "label": "Schema design"},
+        {"id": "claiming", "label": "Worker claiming logic"},
+        {"id": "observability", "label": "Observability"},
+        {"id": "tests", "label": "Tests"},
+        {"id": "deployment", "label": "Deployment / Docker"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-public-proof",
+      "text": "QueueGuard has no public URL. Can its architecture and code concepts be described publicly, or should the portfolio generalize it as an internal durable-job platform?",
+      "kind": "single_select",
+      "options": [
+        {"id": "describe", "label": "Describe it publicly (no internal names)"},
+        {"id": "generalize", "label": "Generalize as an internal durable-job platform"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-devself-role",
+      "text": "Should the personal DevShelf project be a full case study, a smaller supporting project, or omitted so the portfolio stays focused on backend systems?",
+      "kind": "single_select",
+      "options": [
+        {"id": "full_case_study", "label": "Full case study"},
+        {"id": "supporting", "label": "Smaller supporting project"},
+        {"id": "omit", "label": "Omit it"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-cta",
+      "text": "What should the primary action be: contact you about a backend/platform role, view GitHub, or both?",
+      "kind": "single_select",
+      "options": [
+        {"id": "contact", "label": "Contact about a role"},
+        {"id": "github", "label": "View GitHub"},
+        {"id": "both", "label": "Both"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    }
+  ],
+  "memory_update": {
+    "intent_summary": "Backend or platform engineering roles at startups",
+    "person_summary": "Software Engineer at Northstar Systems (2023\u2013present) with prior Junior Software Engineer role at PixelRoute (2021\u20132023)",
+    "confirmed_details": [
+      "Python, FastAPI, PostgreSQL, SQLAlchemy, Docker, GitHub Actions, React, TypeScript, Redis listed",
+      "QueueGuard durable job system (schema, lifecycle, retry behavior; no public URL)",
+      "DevShelf personal React/TypeScript project with GitHub link",
+      "Commerce dashboard team project \u2014 API endpoints and database queries",
+      "Dark technical style preferred, no fake terminal, moderate motion"
+    ],
+    "preferences": [
+      "dark technical style (no fake terminal)",
+      "moderate motion"
+    ],
+    "privacy_choices": [
+      "email and GitHub public",
+      "phone and street address private"
+    ],
+    "open_items": [
+      "no reliable performance metrics",
+      "QueueGuard has no public URL",
+      "PixelRoute responsibilities unspecified",
+      "Redis listed without supporting story",
+      "education not supplied"
+    ]
+  }
+}

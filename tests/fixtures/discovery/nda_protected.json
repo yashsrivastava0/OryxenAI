@@ -1,7 +1,0 @@
-{
-  "name": "NDA protected client",
-  "main_prompt": "Create a publishable but confidential-safe strategy.",
-  "resume_source": "pasted_text",
-  "resume_text": "Built systems for a confidential financial client under NDA.",
-  "expected": {"client_name_requires_permission": true, "generalize_confidential_work": true}
-}

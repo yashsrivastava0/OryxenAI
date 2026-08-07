@@ -46,7 +46,11 @@ async def test_valid_mock_run(client):
     assert body["status"] == "succeeded"
     assert body["agent_key"] == "discovery"
     assert body["output_payload"] is not None
-    assert "summary" in body["output_payload"]
+    assert body["output_payload"].get("operation") in {
+        "understand_and_question",
+        "build_or_revise_brief",
+    }
+    assert "questions" in body["output_payload"]
     assert body["state_before"] == {}
     assert body["state_after"] is not None
     assert body["error_payload"] is None

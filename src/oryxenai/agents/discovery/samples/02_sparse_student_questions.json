@@ -1,0 +1,36 @@
+{
+  "mode": "ASK_QUESTIONS",
+  "assistant_message": "Nice — you already have a clear direction and a couple of real projects, which is more than enough to start. I just need one preference that will shape how the portfolio leads.",
+  "questions": [
+    {
+      "id": "q-direction",
+      "text": "You said you like backend more than frontend, but you only have one backend-style project so far. Should the portfolio position you as a backend-focused student (and lean into databases and systems), or as a generalist computer-science student while you build more backend depth?",
+      "reason": "This decides the headline, project order, and which coursework to feature.",
+      "kind": "single_select",
+      "options": [
+        {"id": "backend_focused", "label": "Backend-focused student"},
+        {"id": "generalist", "label": "Generalist CS student"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    }
+  ],
+  "memory_update": {
+    "intent_summary": "Get an internship for next summer",
+    "person_summary": "Year 3 Computer Science student at State University; no internships yet",
+    "confirmed_details": [
+      "Coursework: Data Structures, Operating Systems, Web Development, Databases, Algorithms",
+      "Weather page project (vanilla HTML/JS)",
+      "SQLite database terminal app for class",
+      "Prefers backend over frontend"
+    ],
+    "preferences": [],
+    "privacy_choices": [],
+    "open_items": [
+      "no internships or work experience yet",
+      "no metrics",
+      "no public links supplied",
+      "projects are small academic exercises"
+    ]
+  }
+}

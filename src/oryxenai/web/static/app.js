@@ -1,4 +1,4 @@
-/* OryxenAI developer harness — vanilla JS, no libraries.
+/* OryxenAI — chat-first Discovery UI, vanilla JS, no libraries.
  * Renders dynamic values with textContent and never stores resume text in
  * browser storage. */
 
@@ -7,18 +7,27 @@
 
   var API = "/api/v1";
   var selectedSessionId = null;
+  var chatState = null;       // state.discovery from the last poll
+  var lastIntake = null;      // {message, document_text, goal} for retries
+  var chatQIndex = 0;         // current question index in the chat
+  var chatAnswers = {};       // local map question_id -> {question_id, mode, value}
+  var pollTimer = null;
+  var elapsedTimer = null;
+  var chatStartedAt = null;
+  var analyzingBubbleId = null;
+  var answeringQuestionId = null;
 
-   function prettyJson(obj) {
-     try {
-       return JSON.stringify(obj, null, 2);
-     } catch (e) {
-       return String(obj);
-     }
-   }
+  var RUNNING_STATUSES = ["questions_queued", "questions_running", "brief_running", "answers_in_progress"];
+  var TERMINAL_STATUSES = ["questions_ready", "brief_review", "approved", "needs_attention"];
+  var lastRenderedOperationRunId = null;
 
-   function clearElement(el) {
-     while (el && el.firstChild) el.removeChild(el.firstChild);
-   }
+  function prettyJson(obj) {
+    try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
+  }
+
+  function clearElement(el) {
+    while (el && el.firstChild) el.removeChild(el.firstChild);
+  }
 
   function setText(id, text) {
     var el = document.getElementById(id);
@@ -40,7 +49,18 @@
   }
 
   async function fetchJson(url, opts) {
-    var resp = await fetch(url, opts);
+    var controller = new AbortController();
+    var timer = window.setTimeout(function () { controller.abort(); }, 30000);
+    var requestOpts = opts || {};
+    requestOpts.signal = controller.signal;
+    var resp = null;
+    try {
+      resp = await fetch(url, requestOpts);
+    } catch (e) {
+      window.clearTimeout(timer);
+      throw { status: 0, message: "Network error — the server did not respond.", body: null };
+    }
+    window.clearTimeout(timer);
     var body = null;
     var ct = resp.headers.get("content-type") || "";
     if (ct.indexOf("application/json") >= 0) {
@@ -55,28 +75,880 @@
     return body;
   }
 
+  // ── Chat rendering ──────────────────────────────────────────────────────
+
+  function chatEl() {
+    return document.getElementById("chat-messages");
+  }
+
+  function addBubble(kind, content) {
+    var bubble = document.createElement("div");
+    bubble.className = "bubble " + kind;
+    bubble.appendChild(content);
+    chatEl().appendChild(bubble);
+    chatEl().scrollTop = chatEl().scrollHeight;
+    return bubble;
+  }
+
+  function textEl(text) {
+    var p = document.createElement("p");
+    p.className = "bubble-text";
+    p.textContent = text;
+    return p;
+  }
+
+  function chatWelcome() {
+    var bubble = addBubble("assistant", textEl("Tell me about yourself. What should the portfolio be about? You can also attach a resume or notes."));
+    bubble.id = "welcome-bubble";
+  }
+
+  function chatUser(text, meta) {
+    var content = textEl(text);
+    if (meta) {
+      var small = document.createElement("small");
+      small.className = "bubble-meta";
+      small.textContent = meta;
+      content.appendChild(document.createElement("br"));
+      content.appendChild(small);
+    }
+    addBubble("user", content);
+  }
+
+  function chatAnalyzing(text) {
+    var content = document.createElement("p");
+    content.className = "bubble-text";
+    var spinner = document.createElement("span");
+    spinner.className = "spinner";
+    content.appendChild(spinner);
+    var label = document.createElement("span");
+    label.className = "analyzing-label";
+    label.textContent = text || "Analyzing your details…";
+    content.appendChild(label);
+    var bubble = addBubble("assistant", content);
+    analyzingBubbleId = bubble.id = "analyzing-bubble";
+    return bubble;
+  }
+
+  function updateAnalyzingBubble() {
+    var bubble = document.getElementById("analyzing-bubble");
+    if (!bubble) return;
+    var label = bubble.querySelector(".analyzing-label");
+    if (!label) return;
+    var status = chatState ? chatState.status : "";
+    var base = status === "brief_running" ? "Preparing your portfolio brief…" : "Analyzing your details…";
+    var parts = [base];
+    if (chatStartedAt) {
+      parts.push(Math.round((Date.now() - chatStartedAt) / 1000) + "s");
+    }
+    if (chatState && chatState.attempt > 1) {
+      parts.push("(attempt " + chatState.attempt + "/" + chatState.max_attempts + ")");
+    }
+    if (chatStartedAt && Date.now() - chatStartedAt > 300000) {
+      label.textContent = parts.join(" — ") + " — still working…";
+    } else {
+      label.textContent = parts.join(" — ");
+    }
+  }
+
+  function chatError(text, retryLabel, retryFn) {
+    var content = textEl(text);
+    content.className = "bubble-text bubble-error";
+    if (retryLabel && retryFn) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "primary-action";
+      button.textContent = retryLabel;
+      button.addEventListener("click", function () { retryFn(); });
+      content.appendChild(document.createElement("br"));
+      content.appendChild(button);
+    }
+    addBubble("assistant", content);
+  }
+
+  function chatDone(text) {
+    addBubble("assistant", textEl(text));
+  }
+
+  // ── Chat flow ───────────────────────────────────────────────────────────
+
+  function composerText() {
+    return document.getElementById("composer").value.trim();
+  }
+
+  function setComposer(text) {
+    document.getElementById("composer").value = text || "";
+  }
+
+  function disableComposer(disabled) {
+    document.getElementById("composer").disabled = !!disabled;
+    document.getElementById("btn-send").disabled = !!disabled;
+  }
+
+  async function sendMessage() {
+    var text = composerText();
+    if (!text) return;
+    if (answeringQuestionId) {
+      submitTextAnswer(text);
+      return;
+    }
+    chatUser(text, null);
+    setComposer("");
+
+    if (!selectedSessionId) {
+      var session = await createSessionQuiet("Portfolio chat");
+      if (!session) {
+        chatError("Could not create a session. Is the API running?", "Try again", sendMessageRetry);
+        return;
+      }
+      selectedSessionId = session.id;
+      sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
+      refreshSessionPanel(session);
+    }
+
+    var attached = window._attachedDocument || "";
+    window._attachedDocument = null;
+    await startDiscovery(text, attached);
+  }
+
+  function sendMessageRetry() {
+    var text = composerText();
+    chatUser(text, null);
+    setComposer("");
+    startDiscovery(text, window._attachedDocument || "");
+  }
+
+  async function createSessionQuiet(name) {
+    try {
+      var body = name ? { name: name } : {};
+      return await fetchJson(API + "/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function startDiscovery(message, documentText) {
+    var goal = "create my portfolio";
+    lastIntake = {
+      message: message,
+      document_text: documentText || "",
+      goal: goal,
+    };
+    chatStartedAt = Date.now();
+    chatAnalyzing("Analyzing your details…");
+    setResult("chat-status", "Running with the live model — this can take a minute or two.");
+    startElapsedTicker();
+    try {
+      await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lastIntake),
+      });
+    } catch (e) {
+      showChatFailure("Could not start Discovery: " + e.message, retryStart);
+      return;
+    }
+    await loadDiscoveryAndPoll();
+  }
+
+  async function retryStart() {
+    chatStartedAt = Date.now();
+    chatAnalyzing("Analyzing your details…");
+    startElapsedTicker();
+    try {
+      await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lastIntake || {}),
+      });
+    } catch (e) {
+      showChatFailure("Could not restart Discovery: " + e.message, retryStart);
+      return;
+    }
+    await loadDiscoveryAndPoll();
+  }
+
+  function showChatFailure(message, retryFn) {
+    stopPolling();
+    chatError(message, "Try again", retryFn);
+  }
+
+  function startElapsedTicker() {
+    if (elapsedTimer) window.clearInterval(elapsedTimer);
+    elapsedTimer = window.setInterval(updateAnalyzingBubble, 1000);
+  }
+
+  function stopElapsedTicker() {
+    if (elapsedTimer) { window.clearInterval(elapsedTimer); elapsedTimer = null; }
+  }
+
+  async function loadDiscoveryAndPoll() {
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery");
+      chatState = data.discovery;
+      renderChatState();
+      pollDiscovery();
+    } catch (e) {
+      showChatFailure("Discovery state unavailable: " + e.message, retryStart);
+    }
+  }
+
+  function pollDiscovery() {
+    if (pollTimer) window.clearTimeout(pollTimer);
+    if (!selectedSessionId || !chatState) return;
+    if (TERMINAL_STATUSES.indexOf(chatState.status) >= 0) {
+      renderChatState();
+      return;
+    }
+    pollTimer = window.setTimeout(async function () {
+      try {
+        var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery");
+        chatState = data.discovery;
+      } catch (e) {
+        stopPolling();
+        chatError("Lost contact with the server while working: " + e.message, "Retry", retryStart);
+        return;
+      }
+      renderChatState();
+      pollDiscovery();
+    }, 1200);
+  }
+
+  function stopPolling() {
+    if (pollTimer) { window.clearTimeout(pollTimer); pollTimer = null; }
+    stopElapsedTicker();
+  }
+
+  function renderChatState() {
+    if (!chatState) return;
+    var status = chatState.status;
+
+    if (status === "questions_ready") {
+      stopPolling();
+      stopElapsedTicker();
+      clearAnalyzingBubble();
+      renderOperationAOutput();
+    } else if (status === "answers_in_progress" || RUNNING_STATUSES.indexOf(status) >= 0) {
+      updateAnalyzingBubble();
+    } else if (status === "brief_review" || status === "approved") {
+      stopPolling();
+      stopElapsedTicker();
+      clearAnalyzingBubble();
+      renderBrief();
+    } else if (status === "needs_attention") {
+      stopPolling();
+      stopElapsedTicker();
+      clearAnalyzingBubble();
+      var error = chatState.latest_error || {};
+      var message = error.message || "Discovery needs attention.";
+      if (chatState.attempt >= chatState.max_attempts && error.retryable) {
+        message += " (all " + chatState.max_attempts + " attempts failed)";
+      }
+      if (status === "needs_attention" && chatState.brief && chatState.brief.run_id) {
+        chatError(message, "Try again", retryBrief);
+      } else {
+        chatError(message, "Try again", retryStart);
+      }
+    }
+  }
+
+  function renderOperationAOutput() {
+    var opA = chatState.operation_a || {};
+    var mode = opA.mode || "";
+    var items = Array.isArray(opA.items) ? opA.items : [];
+
+    if (opA.run_id && opA.run_id !== lastRenderedOperationRunId) {
+      lastRenderedOperationRunId = opA.run_id;
+      chatQIndex = 0;
+      chatAnswers = {};
+    }
+
+    if (mode === "NEEDS_DETAILS") {
+      renderNeedsDetails(opA.assistant_message);
+    } else if (mode === "READY_FOR_BRIEF") {
+      renderReadyForBrief(opA.assistant_message);
+    } else if (mode === "ASK_QUESTIONS" || items.length) {
+      renderQuestions(items);
+    } else {
+      renderReadyForBrief(opA.assistant_message);
+    }
+  }
+
+  function renderNeedsDetails(assistantMessage) {
+    var content = textEl(assistantMessage || "Tell me anything you have about the person or work — you can paste it here or attach a readable document.");
+    var actions = document.createElement("div");
+    actions.className = "needs-details-actions";
+    actions.appendChild(quickActionButton("Attach document", function () {
+      document.getElementById("file-input").click();
+    }));
+    actions.appendChild(quickActionButton("Paste details", function () {
+      document.getElementById("composer").focus();
+    }));
+    actions.appendChild(quickActionButton("Continue with a few questions", forceQuestionsOrBrief));
+    content.appendChild(actions);
+    addBubble("assistant", content);
+  }
+
+  function renderReadyForBrief(assistantMessage) {
+    var content = textEl(assistantMessage || "I have enough information to prepare the portfolio brief.");
+    var actions = document.createElement("div");
+    actions.className = "needs-details-actions";
+    actions.appendChild(quickActionButton("Generate the brief now", generateBriefNow));
+    content.appendChild(actions);
+    addBubble("assistant", content);
+  }
+
+  function quickActionButton(label, onAction) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "choice-btn";
+    button.textContent = label;
+    button.addEventListener("click", onAction);
+    return button;
+  }
+
+  function forceQuestionsOrBrief() {
+    generateBriefNow();
+  }
+
+  async function generateBriefNow() {
+    disableComposer(true);
+    chatStartedAt = Date.now();
+    chatAnalyzing("Preparing your portfolio brief…");
+    startElapsedTicker();
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/answers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complete: true, answers: [] }),
+      });
+      chatState = data.discovery;
+      pollDiscovery();
+    } catch (e) {
+      disableComposer(false);
+      showChatFailure("Could not start the brief: " + e.message, generateBriefNow);
+    }
+  }
+
+  function clearAnalyzingBubble() {
+    var bubble = document.getElementById("analyzing-bubble");
+    if (bubble) bubble.remove();
+    analyzingBubbleId = null;
+  }
+
+  // ── Questions ───────────────────────────────────────────────────────────
+
+  function renderQuestions(questions) {
+    if (chatQIndex >= questions.length) return;
+    var question = questions[chatQIndex];
+    var answered = chatAnswers[question.id];
+
+    var content = document.createElement("div");
+    var heading = document.createElement("p");
+    heading.className = "bubble-text";
+    heading.textContent = question.text;
+    content.appendChild(heading);
+
+    if (question.help_text) {
+      var help = document.createElement("small");
+      help.className = "bubble-meta";
+      help.textContent = question.help_text;
+      content.appendChild(help);
+    }
+
+    if (question.reason) {
+      var reason = document.createElement("small");
+      reason.className = "bubble-meta";
+      reason.textContent = question.reason;
+      content.appendChild(reason);
+    }
+
+    if (question.kind === "single_select") {
+      question.options.forEach(function (option) {
+        content.appendChild(choiceButton(question, option.id, option.label));
+      });
+    } else if (question.kind === "multi_select") {
+      var selected = Array.isArray(answered && answered.value) ? answered.value : [];
+      question.options.forEach(function (option) {
+        var label = document.createElement("label");
+        label.className = "choice-line";
+        var checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = option.id;
+        checkbox.checked = selected.indexOf(option.id) >= 0;
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(" " + option.label));
+        content.appendChild(label);
+      });
+      var submit = document.createElement("button");
+      submit.type = "button";
+      submit.className = "primary-action";
+      submit.textContent = "Submit answer";
+      submit.addEventListener("click", function () {
+        var values = Array.prototype.slice.call(content.querySelectorAll("input[type=checkbox]:checked")).map(function (input) { return input.value; });
+        submitAnswer(question, values);
+      });
+      content.appendChild(submit);
+    } else if (question.kind === "boolean") {
+      content.appendChild(choiceButton(question, "true", "Yes"));
+      content.appendChild(choiceButton(question, "false", "No"));
+    } else {
+      answeringQuestionId = question.id;
+      var prompt = document.createElement("p");
+      prompt.className = "bubble-meta";
+      prompt.textContent = "Type your answer in the box below, then press Send.";
+      content.appendChild(prompt);
+    }
+
+    if (question.allow_skip !== false) {
+      var skip = document.createElement("button");
+      skip.type = "button";
+      skip.className = "choice-btn skip-btn";
+      skip.textContent = "Skip";
+      skip.addEventListener("click", function () { submitAnswer(question, null); });
+      content.appendChild(skip);
+    }
+
+    addBubble("assistant", content);
+  }
+
+  function choiceButton(question, value, label) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "choice-btn";
+    button.textContent = label;
+    button.addEventListener("click", function () { submitAnswer(question, value); });
+    return button;
+  }
+
+  function submitAnswer(question, value) {
+    chatAnswers[question.id] = {
+      question_id: question.id,
+      mode: value === null ? "skipped" : "answered",
+      value: value,
+    };
+    answeringQuestionId = null;
+    chatUser(String(value === true ? "Yes" : value === false ? "No" : (Array.isArray(value) ? value.join(", ") : value)), null);
+    advanceQuestion();
+  }
+
+  function submitTextAnswer(text) {
+    if (!answeringQuestionId) return;
+    var question = currentQuestions()[chatQIndex];
+    chatAnswers[question.id] = { question_id: question.id, mode: "answered", value: text };
+    answeringQuestionId = null;
+    chatUser(text, null);
+    setComposer("");
+    advanceQuestion();
+  }
+
+  function currentQuestions() {
+    return chatState && chatState.operation_a && Array.isArray(chatState.operation_a.items) ? chatState.operation_a.items : [];
+  }
+
+  function advanceQuestion() {
+    chatQIndex += 1;
+    if (chatQIndex < currentQuestions().length) {
+      renderQuestions(currentQuestions());
+      return;
+    }
+    chatDone("All questions answered. Preparing your portfolio brief…");
+    submitAllAnswersAndEnqueueBrief();
+  }
+
+  async function submitAllAnswersAndEnqueueBrief() {
+    disableComposer(true);
+    try {
+      var all = [];
+      currentQuestions().forEach(function (q) {
+        if (chatAnswers[q.id]) all.push(chatAnswers[q.id]);
+      });
+      chatState = null;
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/answers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complete: true, answers: all }),
+      });
+      chatState = data.discovery;
+      chatAnalyzing("Preparing your portfolio brief…");
+      chatStartedAt = Date.now();
+      startElapsedTicker();
+      pollDiscovery();
+    } catch (e) {
+      disableComposer(false);
+      showChatFailure("Could not save answers: " + e.message, retryBrief);
+    }
+  }
+
+  async function retryBrief() {
+    disableComposer(true);
+    chatStartedAt = Date.now();
+    chatAnalyzing("Preparing your portfolio brief…");
+    startElapsedTicker();
+    try {
+      var all = [];
+      currentQuestions().forEach(function (q) {
+        if (chatAnswers[q.id]) all.push(chatAnswers[q.id]);
+      });
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/answers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complete: true, answers: all }),
+      });
+      chatState = data.discovery;
+      pollDiscovery();
+    } catch (e) {
+      disableComposer(false);
+      showChatFailure("Could not restart the brief: " + e.message, retryBrief);
+    }
+  }
+
+  // ── Brief ───────────────────────────────────────────────────────────────
+
+  var localBriefMarkdown = null;   // local edit of the brief (preview only)
+
+  function renderBrief() {
+    var brief = chatState.brief || null;
+    if (!brief) return;
+    if (chatState.status === "approved") {
+      chatDone("Discovery approved — the portfolio brief is ready for the coding engine.");
+      return;
+    }
+    var content = document.createElement("div");
+    content.className = "brief-review";
+
+    var title = document.createElement("h2");
+    title.textContent = brief.title || "Portfolio Discovery Brief";
+    content.appendChild(title);
+
+    var markdownBox = document.createElement("div");
+    markdownBox.className = "brief-markdown";
+    markdownBox.setAttribute("aria-live", "polite");
+    content.appendChild(markdownBox);
+
+    if (Array.isArray(brief.open_items) && brief.open_items.length) {
+      var openDetails = document.createElement("details");
+      openDetails.className = "brief-open-items";
+      var openSummary = document.createElement("summary");
+      openSummary.textContent = "Open items (" + brief.open_items.length + ")";
+      openDetails.appendChild(openSummary);
+      var openList = document.createElement("ul");
+      brief.open_items.forEach(function (item) {
+        var li = document.createElement("li");
+        li.textContent = item;
+        openList.appendChild(li);
+      });
+      openDetails.appendChild(openList);
+      content.appendChild(openDetails);
+    }
+
+    var actions = document.createElement("div");
+    actions.className = "brief-actions";
+    var editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "primary-action";
+    editBtn.textContent = "Edit brief";
+    actions.appendChild(editBtn);
+    var reviseBtn = document.createElement("button");
+    reviseBtn.type = "button";
+    reviseBtn.className = "choice-btn";
+    reviseBtn.textContent = "Ask for a revision";
+    actions.appendChild(reviseBtn);
+    var approveBtn = document.createElement("button");
+    approveBtn.type = "button";
+    approveBtn.className = "primary-action";
+    approveBtn.textContent = "NEXT: Approve";
+    actions.appendChild(approveBtn);
+    content.appendChild(actions);
+
+    var raw = document.createElement("details");
+    var rawSummary = document.createElement("summary");
+    rawSummary.textContent = "Advanced — raw JSON";
+    raw.appendChild(rawSummary);
+    var pre = document.createElement("pre");
+    pre.className = "json-view";
+    pre.textContent = prettyJson(brief);
+    raw.appendChild(pre);
+    content.appendChild(raw);
+
+    var bubble = addBubble("assistant", content);
+    bubble.id = "brief-bubble";
+
+    renderBriefMarkdown(markdownBox);
+    editBtn.addEventListener("click", function () { toggleBriefEdit(markdownBox, editBtn); });
+    reviseBtn.addEventListener("click", function () { openRevisionForm(content); });
+    approveBtn.addEventListener("click", approveDiscovery);
+  }
+
+  function renderBriefMarkdown(markdownBox) {
+    var source = localBriefMarkdown != null
+      ? localBriefMarkdown
+      : (chatState.brief && chatState.brief.markdown) || "";
+    markdownBox.replaceChildren(renderMarkdownToNodes(source));
+  }
+
+  function toggleBriefEdit(markdownBox, editBtn) {
+    if (editBtn.textContent === "Edit brief") {
+      var source = localBriefMarkdown != null
+        ? localBriefMarkdown
+        : (chatState.brief && chatState.brief.markdown) || "";
+      var editor = document.createElement("textarea");
+      editor.className = "brief-editor";
+      editor.value = source;
+      markdownBox.replaceChildren(editor);
+      editBtn.textContent = "Save";
+      editor.focus();
+    } else {
+      var area = markdownBox.querySelector("textarea.brief-editor");
+      if (area) localBriefMarkdown = area.value;
+      renderBriefMarkdown(markdownBox);
+      editBtn.textContent = "Edit brief";
+    }
+  }
+
+  function openRevisionForm(content) {
+    var existing = content.querySelector(".revision-form");
+    if (existing) {
+      existing.querySelector("textarea").focus();
+      return;
+    }
+    var form = document.createElement("div");
+    form.className = "revision-form";
+    var label = document.createElement("p");
+    label.className = "bubble-meta";
+    label.textContent = "Describe what should change in the brief:";
+    form.appendChild(label);
+    var textarea = document.createElement("textarea");
+    textarea.className = "revision-input";
+    textarea.rows = 3;
+    textarea.placeholder = "e.g. Lead with the QueueGuard story and darken the theme.";
+    form.appendChild(textarea);
+    var sendBtn = document.createElement("button");
+    sendBtn.type = "button";
+    sendBtn.className = "primary-action";
+    sendBtn.textContent = "Send revision";
+    sendBtn.addEventListener("click", function () {
+      var value = textarea.value.trim();
+      if (!value) return;
+      sendBtn.disabled = true;
+      requestRevision(value, sendBtn);
+    });
+    form.appendChild(sendBtn);
+    content.insertBefore(form, content.querySelector(".brief-actions").nextSibling);
+    textarea.focus();
+  }
+
+  async function requestRevision(revisionRequest, sendBtn) {
+    disableComposer(true);
+    chatStartedAt = Date.now();
+    clearAnalyzingBubble();
+    chatAnalyzing("Revising the brief…");
+    startElapsedTicker();
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision_request: revisionRequest }),
+      });
+      chatState = data.discovery;
+      localBriefMarkdown = null;
+      pollDiscovery();
+    } catch (e) {
+      disableComposer(false);
+      clearAnalyzingBubble();
+      if (sendBtn) sendBtn.disabled = false;
+      if (e.status === 409) {
+        chatError("Revision not possible: " + e.message, "Reload", loadDiscoveryAndPoll);
+      } else {
+        chatError("Revision failed: " + e.message, "Try again", function () { requestRevision(revisionRequest, sendBtn); });
+      }
+    }
+  }
+
+  async function approveDiscovery() {
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      chatState = data.discovery;
+      chatDone("Discovery approved — the portfolio brief is ready for the coding engine.");
+    } catch (e) {
+      chatError("Approval failed: " + e.message, "Try again", approveDiscovery);
+    }
+  }
+
+  // ── Safe Markdown rendering (DOM nodes only, no HTML injection) ─────────
+
+  function renderMarkdownToNodes(mdText) {
+    var fragment = document.createDocumentFragment();
+    var text = String(mdText || "");
+    if (text.length > 200000) {
+      text = text.slice(0, 200000);
+      var trunc = document.createElement("p");
+      trunc.className = "bubble-meta";
+      trunc.textContent = "Brief output was truncated in the UI.";
+      fragment.appendChild(trunc);
+    }
+
+    var lines = text.split(/\r?\n/);
+    var i = 0;
+    var para = [];
+
+    function flushPara() {
+      if (!para.length) return;
+      var p = document.createElement("p");
+      para.forEach(function (line, idx) {
+        if (idx > 0) p.appendChild(document.createTextNode(" "));
+        appendInline(p, line);
+      });
+      fragment.appendChild(p);
+      para = [];
+    }
+
+    function appendList(items, ordered) {
+      var list = document.createElement(ordered ? "ol" : "ul");
+      items.forEach(function (item) {
+        var li = document.createElement("li");
+        appendInline(li, item);
+        list.appendChild(li);
+      });
+      fragment.appendChild(list);
+    }
+
+    while (i < lines.length) {
+      var line = lines[i];
+      var heading = /^(#{1,4})\s+(.*)$/.exec(line);
+      if (heading) {
+        flushPara();
+        var level = heading[1].length;
+        var h = document.createElement("h" + level);
+        appendInline(h, heading[2]);
+        fragment.appendChild(h);
+        i += 1;
+        continue;
+      }
+      if (/^---+$/.test(line.trim())) {
+        flushPara();
+        fragment.appendChild(document.createElement("hr"));
+        i += 1;
+        continue;
+      }
+      var bullet = /^[-*]\s+(.*)$/.exec(line);
+      if (bullet) {
+        flushPara();
+        var bullets = [bullet[1]];
+        i += 1;
+        while (i < lines.length) {
+          var next = /^[-*]\s+(.*)$/.exec(lines[i]);
+          if (next) { bullets.push(next[1]); i += 1; } else { break; }
+        }
+        appendList(bullets, false);
+        continue;
+      }
+      var ordered = /^\d+\.\s+(.*)$/.exec(line);
+      if (ordered) {
+        flushPara();
+        var items = [ordered[1]];
+        i += 1;
+        while (i < lines.length) {
+          var nextOrdered = /^\d+\.\s+(.*)$/.exec(lines[i]);
+          if (nextOrdered) { items.push(nextOrdered[1]); i += 1; } else { break; }
+        }
+        appendList(items, true);
+        continue;
+      }
+      if (!line.trim()) {
+        flushPara();
+        i += 1;
+        continue;
+      }
+      para.push(line);
+      i += 1;
+    }
+    flushPara();
+    return fragment;
+  }
+
+  function appendInline(parent, text) {
+    var tokens = String(text).split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\((https?:\/\/[^)\s]+)\))/g);
+    tokens.forEach(function (token) {
+      if (!token) return;
+      var bold = /^\*\*([^*]+)\*\*$/.exec(token);
+      var italic = /^\*([^*]+)\*$/.exec(token);
+      var code = /^`([^`]+)`$/.exec(token);
+      var link = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token);
+      if (bold) {
+        var b = document.createElement("strong");
+        b.textContent = bold[1];
+        parent.appendChild(b);
+      } else if (italic) {
+        var em = document.createElement("em");
+        em.textContent = italic[1];
+        parent.appendChild(em);
+      } else if (code) {
+        var c = document.createElement("code");
+        c.textContent = code[1];
+        parent.appendChild(c);
+      } else if (link) {
+        var a = document.createElement("a");
+        a.href = link[2];
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = link[1];
+        parent.appendChild(a);
+      } else {
+        parent.appendChild(document.createTextNode(token));
+      }
+    });
+  }
+
+  // ── File attachment ─────────────────────────────────────────────────────
+
+  function onFileSelected(event) {
+    var file = event.target.files && event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    var name = file.name || "attachment";
+    if (name.toLowerCase().endsWith(".pdf")) {
+      chatDone("PDF attached: " + name + ". PDF text extraction is not available yet — paste the content into the box or continue without it.");
+      return;
+    }
+    if (file.size > 200000) {
+      chatError("The file is larger than 200 KB — paste the text into the box instead.", null, null);
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var text = String(reader.result || "");
+      chatUser("Attached " + name + " (" + text.length + " chars)", null);
+      chatDone("Read " + name + ". Sending it with your next message.");
+      window._attachedDocument = text;
+    };
+    reader.onerror = function () {
+      chatError("Could not read the file. Paste the text into the box instead.", null, null);
+    };
+    reader.readAsText(file);
+  }
+
+  // ── Harness helpers (Advanced section) ──────────────────────────────────
+
   async function checkHealth() {
     setPill("health-live", "unknown");
     setPill("health-ready", "unknown");
-    try {
-      await fetchJson("/health/live");
-      setPill("health-live", "ok");
-    } catch (e) {
-      setPill("health-live", "err");
-    }
-    try {
-      await fetchJson("/health/ready");
-      setPill("health-ready", "ok");
-    } catch (e) {
-      setPill("health-ready", "err");
-    }
+    try { await fetchJson("/health/live"); setPill("health-live", "ok"); } catch (e) { setPill("health-live", "err"); }
+    try { await fetchJson("/health/ready"); setPill("health-ready", "ok"); } catch (e) { setPill("health-ready", "err"); }
   }
 
   async function loadAgents() {
     try {
       var agents = await fetchJson(API + "/agents");
       var select = document.getElementById("agent-select");
-       clearElement(select);
+      clearElement(select);
       agents.forEach(function (a) {
         var opt = document.createElement("option");
         opt.value = a.key;
@@ -84,7 +956,7 @@
         select.appendChild(opt);
       });
     } catch (e) {
-       setResult("run-result", "Failed to load agents: " + e.message, "error");
+      setResult("run-result", "Failed to load agents: " + e.message, "error");
     }
   }
 
@@ -100,17 +972,16 @@
       });
       setResult("create-result", "Created session: " + session.id, "success");
       selectedSessionId = session.id;
-       showSession(session);
-       enableRunControls();
-       loadDiscovery();
-      await listRuns();
+      sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
+      refreshSessionPanel(session);
+      listRuns();
       await listSessions();
     } catch (e) {
-       setResult("create-result", "Error: " + e.message, "error");
+      setResult("create-result", "Error: " + e.message, "error");
     }
   }
 
-  function showSession(session) {
+  function refreshSessionPanel(session) {
     var box = document.getElementById("current-session");
     box.hidden = false;
     setText("cs-id", session.id);
@@ -123,7 +994,7 @@
 
   async function listSessions() {
     var list = document.getElementById("session-list");
-     clearElement(list);
+    clearElement(list);
     try {
       var sessions = await fetchJson(API + "/sessions");
       if (!sessions.length) {
@@ -138,25 +1009,18 @@
         li.textContent = s.name + " — " + s.id.substring(0, 8) + "… (rev " + s.revision + ")";
         li.addEventListener("click", function () {
           selectedSessionId = s.id;
-           showSession(s);
-           enableRunControls();
-           listRuns();
-           loadDiscovery();
+          sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
+          refreshSessionPanel(s);
+          listRuns();
         });
         list.appendChild(li);
       });
     } catch (e) {
       var errLi = document.createElement("li");
       errLi.className = "empty";
-       errLi.textContent = "Error: " + e.message;
+      errLi.textContent = "Error: " + e.message;
       list.appendChild(errLi);
     }
-  }
-
-  function enableRunControls() {
-    document.getElementById("btn-run-mock").disabled = false;
-    document.getElementById("btn-list-runs").disabled = false;
-    document.getElementById("btn-discovery-intake").disabled = false;
   }
 
   async function runMock() {
@@ -169,22 +1033,17 @@
       setResult("run-result", "Select an agent.", "error");
       return;
     }
-    var inputText = document.getElementById("input-json").value.trim() || "{}";
     var inputObj;
     try {
-      inputObj = JSON.parse(inputText);
+      inputObj = JSON.parse(document.getElementById("input-json").value.trim() || "{}");
     } catch (e) {
       setResult("run-result", "Invalid JSON input.", "error");
       return;
     }
     var idempKey = document.getElementById("idempotency-key").value.trim() || null;
-
     setResult("run-result", "Running mock…");
     try {
-      var body = {
-        agentKey: agentKey,
-        input: inputObj,
-      };
+      var body = { agentKey: agentKey, input: inputObj };
       if (idempKey) body.idempotencyKey = idempKey;
       var run = await fetchJson(API + "/sessions/" + selectedSessionId + "/runs/mock", {
         method: "POST",
@@ -193,10 +1052,9 @@
       });
       showRunDetail(run);
       setResult("run-result", "Run " + run.status + ": " + run.id, run.status === "succeeded" ? "success" : "error");
-      await listRuns();
-      await refreshCurrentSession();
+      listRuns();
     } catch (e) {
-       setResult("run-result", "Error: " + e.message, "error");
+      setResult("run-result", "Error: " + e.message, "error");
     }
   }
 
@@ -207,16 +1065,14 @@
     setText("rd-agent", run.agent_key);
     setText("rd-status", run.status);
     setText("rd-attempt", run.attempt);
-    var outEl = document.getElementById("rd-output");
-    outEl.textContent = JSON.stringify(run.output_payload, null, 2);
-    var saEl = document.getElementById("rd-state-after");
-    saEl.textContent = JSON.stringify(run.state_after, null, 2);
+    document.getElementById("rd-output").textContent = JSON.stringify(run.output_payload, null, 2);
+    document.getElementById("rd-state-after").textContent = JSON.stringify(run.state_after, null, 2);
   }
 
   async function listRuns() {
     if (!selectedSessionId) return;
     var list = document.getElementById("run-list");
-     clearElement(list);
+    clearElement(list);
     try {
       var runs = await fetchJson(API + "/sessions/" + selectedSessionId + "/runs");
       if (!runs.length) {
@@ -238,16 +1094,6 @@
       list.appendChild(errLi);
     }
   }
-
-  async function refreshCurrentSession() {
-    if (!selectedSessionId) return;
-    try {
-      var session = await fetchJson(API + "/sessions/" + selectedSessionId);
-      showSession(session);
-    } catch (e) { /* ignore */ }
-  }
-
-  // ── Infrastructure diagnostics ────────────────────────────────────────
 
   var probeJobId = null;
 
@@ -278,7 +1124,7 @@
       setResult("probe-status", "Probe enqueued: " + job.status, "success");
       pollProbe();
     } catch (e) {
-       setResult("probe-status", "Error: " + e.message, "error");
+      setResult("probe-status", "Error: " + e.message, "error");
     }
   }
 
@@ -290,519 +1136,55 @@
       setText("pj-status", job.status);
       setText("pj-attempt", job.attempt);
       setText("pj-worker", job.worker_instance || "—");
-      var resultEl = document.getElementById("pj-result");
-      resultEl.textContent = JSON.stringify(job.result || job.error || {}, null, 2);
+      document.getElementById("pj-result").textContent = JSON.stringify(job.result || job.error || {}, null, 2);
       document.getElementById("probe-detail").hidden = false;
       if (job.status === "succeeded") {
         setResult("probe-status", "Probe succeeded on attempt " + job.attempt, "success");
       } else if (job.status === "failed") {
-        setResult("probe-status", "Probe failed: " + (job.error && job.error.message || "unknown"), "error");
+        setResult("probe-status", "Probe failed: " + ((job.error && job.error.message) || "unknown"), "error");
       } else {
         setResult("probe-status", "Probe " + job.status + " (attempt " + job.attempt + ")");
         setTimeout(pollProbe, 1500);
       }
     } catch (e) {
-       setResult("probe-status", "Error polling: " + e.message, "error");
+      setResult("probe-status", "Error polling: " + e.message, "error");
     }
   }
 
-  // ── Discovery flow ─────────────────────────────────────────────────────
-
-  var discoveryState = null;
-  var discoveryLinks = [];
-  var discoveryIndex = 0;
-  var discoveryPollTimer = null;
-
-  function discoveryResult() {
-    return discoveryState && discoveryState.discovery ? discoveryState.discovery : null;
-  }
-
-  function setDiscoveryStatus(message, kind) {
-    setResult("discovery-status", message, kind);
-  }
-
-  function setDiscoveryVisible(id, visible) {
-    var el = document.getElementById(id);
-    if (el) el.hidden = !visible;
-  }
-
-  function discoveryInputsFromServer(data) {
-    var intake = data && data.intake;
-    if (!intake) return;
-    document.getElementById("discovery-prompt").value = intake.main_prompt || "";
-    document.getElementById("discovery-resume").value = intake.resume_text || "";
-    document.getElementById("discovery-language").value = intake.output_language || "en";
-    document.getElementById("discovery-resume-source").value = intake.resume_source || "none";
-    discoveryLinks = Array.isArray(intake.links) ? intake.links.slice() : [];
-    renderDiscoveryLinks();
-  }
-
-  async function loadDiscovery() {
-    if (!selectedSessionId) return;
-    try {
-      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery");
-      discoveryState = data;
-      discoveryInputsFromServer(data);
-      renderDiscoveryState();
-      sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
-    } catch (e) {
-      setDiscoveryStatus("Discovery state unavailable: " + e.message, "error");
-    }
-  }
-
-  function renderDiscoveryLinks() {
-    var list = document.getElementById("discovery-link-list");
-    clearElement(list);
-    discoveryLinks.forEach(function (link, index) {
-      var item = document.createElement("li");
-      item.textContent = (link.label || link.kind || "link") + " — " + link.url;
-      var remove = document.createElement("button");
-      remove.type = "button";
-      remove.textContent = "Remove";
-      remove.addEventListener("click", function () {
-        discoveryLinks.splice(index, 1);
-        renderDiscoveryLinks();
-      });
-      item.appendChild(remove);
-      list.appendChild(item);
-    });
-  }
-
-  function addDiscoveryLink() {
-    var rawUrl = document.getElementById("discovery-link-url").value.trim();
-    if (!rawUrl) return;
-    try {
-      var parsed = new URL(rawUrl);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Only HTTP and HTTPS links are accepted.");
-      if (discoveryLinks.some(function (link) { return link.url === parsed.toString().replace(/\/$/, ""); })) {
-        setDiscoveryStatus("That link is already listed.", "error");
-        return;
-      }
-      discoveryLinks.push({
-        id: "link-" + String(Date.now()),
-        url: parsed.toString().replace(/\/$/, ""),
-        label: document.getElementById("discovery-link-label").value.trim() || null,
-        kind: document.getElementById("discovery-link-kind").value,
-      });
-      document.getElementById("discovery-link-url").value = "";
-      document.getElementById("discovery-link-label").value = "";
-      renderDiscoveryLinks();
-    } catch (e) {
-      setDiscoveryStatus(e.message || "Enter a valid HTTP or HTTPS link.", "error");
-    }
-  }
-
-  function discoveryIntakePayload() {
-    var resume = document.getElementById("discovery-resume").value;
-    return {
-      expected_revision: discoveryState ? discoveryState.session_revision : 0,
-      main_prompt: document.getElementById("discovery-prompt").value,
-      resume_text: resume || null,
-      resume_source: document.getElementById("discovery-resume-source").value,
-      links: discoveryLinks,
-      output_language: document.getElementById("discovery-language").value.trim() || "en",
-      product_constraints: {},
-      source_revision: discoveryResult() ? discoveryResult().source_revision : 0,
-    };
-  }
-
-  async function saveDiscoveryInputAndQueue() {
-    if (!selectedSessionId) return;
-    var button = document.getElementById("btn-discovery-intake");
-    button.disabled = true;
-    setDiscoveryStatus("Saving intake…");
-    try {
-      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/input", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(discoveryIntakePayload()),
-      });
-      discoveryState = data;
-      setDiscoveryStatus("Intake saved. Queueing analysis…");
-      var queued = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expected_revision: data.session_revision }),
-      });
-      setDiscoveryStatus("Questions " + queued.status + ". The worker is processing the request.");
-      await loadDiscovery();
-      pollDiscovery();
-    } catch (e) {
-      setDiscoveryStatus("Could not start Discovery: " + e.message, "error");
-    } finally {
-      button.disabled = false;
-    }
-  }
-
-  function pollDiscovery() {
-    if (discoveryPollTimer) window.clearTimeout(discoveryPollTimer);
-    if (!selectedSessionId) return;
-    var state = discoveryResult();
-    if (state && ["questions_ready", "answers_in_progress", "answers_ready", "brief_review", "approved", "needs_attention"].indexOf(state.status) >= 0) {
-      renderDiscoveryState();
-      return;
-    }
-    discoveryPollTimer = window.setTimeout(async function () {
-      await loadDiscovery();
-      pollDiscovery();
-    }, 1200);
-  }
-
-  function renderDiscoveryState() {
-    var state = discoveryResult();
-    if (!state) return;
-    var status = state.status;
-    setText("discovery-resume-status", state.latest_error ? state.latest_error.message : (status === "input_ready" ? "Input ready for analysis." : ""));
-    setDiscoveryVisible("discovery-questions", false);
-    setDiscoveryVisible("discovery-zero", false);
-    setDiscoveryVisible("discovery-brief", false);
-    if (status === "needs_attention") {
-      setDiscoveryStatus((state.latest_error && state.latest_error.message) || "Discovery needs attention.", "error");
-    } else if (status === "questions_queued" || status === "questions_running" || status === "brief_queued" || status === "brief_running") {
-      setDiscoveryStatus("Discovery is " + status.replaceAll("_", " ") + "…");
-    } else if (status === "questions_ready" || status === "answers_in_progress" || status === "answers_ready") {
-      var questions = state.questions && state.questions.items ? state.questions.items : [];
-      if (!questions.length) {
-        setDiscoveryVisible("discovery-zero", true);
-        setText("discovery-profile-summary", prettyJson(discoveryState.analysis && discoveryState.analysis.normalized_profile || {}));
-        setDiscoveryStatus("Analysis complete. Review the summary before creating a brief.", "success");
-      } else {
-        setDiscoveryVisible("discovery-questions", true);
-        renderDiscoveryQuestion();
-        setDiscoveryStatus("Answer the focused questions. No model call happens between questions.", "success");
-      }
-    } else if (status === "brief_review" || status === "approved") {
-      setDiscoveryVisible("discovery-brief", true);
-      renderDiscoveryBrief();
-      setDiscoveryStatus(status === "approved" ? "Discovery approved." : "Review the strategic brief, then click NEXT.", status === "approved" ? "success" : "success");
-    } else {
-      setDiscoveryStatus("Add an intake to begin Discovery.");
-    }
-  }
-
-  function currentDiscoveryQuestion() {
-    var state = discoveryResult();
-    return state && state.questions && state.questions.items ? state.questions.items[discoveryIndex] : null;
-  }
-
-  function currentDiscoveryAnswer(question) {
-    var state = discoveryResult();
-    return state && state.answers && state.answers.items ? state.answers.items[question.local_key] : null;
-  }
-
-  function renderDiscoveryQuestion() {
-    var state = discoveryResult();
-    var questions = state && state.questions ? state.questions.items : [];
-    if (!questions.length) return;
-    discoveryIndex = Math.max(0, Math.min(discoveryIndex, questions.length - 1));
-    var question = questions[discoveryIndex];
-    var answer = currentDiscoveryAnswer(question);
-    setText("discovery-question-progress", "Question " + (discoveryIndex + 1) + " of " + questions.length);
-    var body = document.getElementById("discovery-question-body");
-    clearElement(body);
-    var heading = document.createElement("h4");
-    heading.textContent = question.text;
-    body.appendChild(heading);
-    if (question.help_text) {
-      var help = document.createElement("p");
-      help.className = "help-text";
-      help.textContent = question.help_text;
-      body.appendChild(help);
-    }
-    var value = answer ? answer.value : null;
-    if (question.kind === "single_select") {
-      question.options.forEach(function (option) {
-        body.appendChild(questionChoice(question, option, value, "radio"));
-      });
-    } else if (question.kind === "multi_select") {
-      question.options.forEach(function (option) {
-        body.appendChild(questionChoice(question, option, value || [], "checkbox"));
-      });
-    } else if (question.kind === "boolean") {
-      var bool = document.createElement("input");
-      bool.type = "checkbox";
-      bool.id = "discovery-answer-boolean";
-      bool.checked = value === true;
-      body.appendChild(bool);
-      var boolLabel = document.createElement("label");
-      boolLabel.htmlFor = bool.id;
-      boolLabel.textContent = "Yes";
-      body.appendChild(boolLabel);
-    } else {
-      var field = document.createElement(question.kind === "long_text" ? "textarea" : "input");
-      field.id = "discovery-answer-text";
-      field.maxLength = 10000;
-      field.value = value == null ? "" : String(value);
-      if (question.kind === "long_text") field.rows = 6;
-      body.appendChild(field);
-    }
-    setDiscoveryVisible("btn-discovery-auto", !!question.allows_auto);
-    setDiscoveryVisible("btn-discovery-skip", !!question.allows_skip);
-    document.getElementById("btn-discovery-back").disabled = discoveryIndex === 0;
-    document.getElementById("btn-discovery-create-brief").hidden = state.status !== "answers_ready";
-  }
-
-  function questionChoice(question, option, value, type) {
-    var label = document.createElement("label");
-    label.className = "question-option";
-    var input = document.createElement("input");
-    input.type = type;
-    input.name = "discovery-answer-" + question.local_key;
-    input.value = option.id;
-    input.checked = type === "checkbox" ? Array.isArray(value) && value.indexOf(option.id) >= 0 : value === option.id;
-    label.appendChild(input);
-    var text = document.createElement("span");
-    text.textContent = option.label;
-    label.appendChild(text);
-    return label;
-  }
-
-  function readDiscoveryValue(question) {
-    if (question.kind === "single_select") {
-      var selected = document.querySelector("input[name='discovery-answer-" + question.local_key + "']:checked");
-      return selected ? selected.value : null;
-    }
-    if (question.kind === "multi_select") {
-      return Array.prototype.slice.call(document.querySelectorAll("input[name='discovery-answer-" + question.local_key + "']:checked")).map(function (input) { return input.value; });
-    }
-    if (question.kind === "boolean") return document.getElementById("discovery-answer-boolean").checked;
-    return document.getElementById("discovery-answer-text").value;
-  }
-
-  function answerListWith(question, answer) {
-    var map = {};
-    var existing = discoveryResult() && discoveryResult().answers ? discoveryResult().answers.items : {};
-    Object.keys(existing || {}).forEach(function (key) { map[key] = existing[key]; });
-    map[question.local_key] = answer;
-    return Object.keys(map).map(function (key) { return map[key]; });
-  }
-
-  async function saveDiscoveryAnswers(answer, complete) {
-    var state = discoveryResult();
-    var question = currentDiscoveryQuestion();
-    if (!state || !question) return false;
-    try {
-      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/answers", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          expected_revision: discoveryState.session_revision,
-          question_version: state.questions.version,
-          complete: complete,
-          answers: answerListWith(question, answer),
-        }),
-      });
-      discoveryState = data;
-      return true;
-    } catch (e) {
-      setDiscoveryStatus("Could not save answer: " + e.message, "error");
-      await loadDiscovery();
-      return false;
-    }
-  }
-
-  async function nextDiscoveryQuestion() {
-    var question = currentDiscoveryQuestion();
-    if (!question) return;
-    var value = readDiscoveryValue(question);
-    var answer = { question_id: question.local_key, mode: "answered", value: value, answer_revision: 0 };
-    var complete = discoveryIndex === discoveryResult().questions.items.length - 1;
-    if (await saveDiscoveryAnswers(answer, complete)) {
-      if (!complete) {
-        discoveryIndex += 1;
-        renderDiscoveryQuestion();
-      } else {
-        setDiscoveryStatus("Answers saved. Create the brief when ready.", "success");
-        renderDiscoveryState();
-      }
-    }
-  }
-
-  async function chooseDiscoveryAuto() {
-    var question = currentDiscoveryQuestion();
-    if (!question || !question.allows_auto) return;
-    await saveDiscoveryAnswers({ question_id: question.local_key, mode: "auto", value: question.auto_answer, answer_revision: 0 }, discoveryIndex === discoveryResult().questions.items.length - 1);
-    renderDiscoveryQuestion();
-  }
-
-  async function skipDiscoveryQuestion() {
-    var question = currentDiscoveryQuestion();
-    if (!question || !question.allows_skip) return;
-    var complete = discoveryIndex === discoveryResult().questions.items.length - 1;
-    if (await saveDiscoveryAnswers({ question_id: question.local_key, mode: "skipped", value: null, answer_revision: 0 }, complete)) {
-      if (!complete) { discoveryIndex += 1; renderDiscoveryQuestion(); } else { renderDiscoveryState(); }
-    }
-  }
-
-  async function autofillDiscovery() {
-    var state = discoveryResult();
-    if (!state) return;
-    var answers = state.answers.items || {};
-    var completeAnswers = Object.keys(answers).map(function (key) { return answers[key]; });
-    for (var index = 0; index < state.questions.items.length; index += 1) {
-      var question = state.questions.items[index];
-      if (answers[question.local_key]) continue;
-      if (question.allows_auto) completeAnswers.push({ question_id: question.local_key, mode: "auto", value: question.auto_answer, answer_revision: 0 });
-      else if (question.allows_skip) completeAnswers.push({ question_id: question.local_key, mode: "skipped", value: null, answer_revision: 0 });
-    }
-    try {
-      discoveryState = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/answers", {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expected_revision: discoveryState.session_revision, question_version: state.questions.version, complete: true, answers: completeAnswers }),
-      });
-      setDiscoveryStatus("Remaining presentation choices were automated; factual gaps were skipped.", "success");
-      renderDiscoveryState();
-    } catch (e) { setDiscoveryStatus("Could not auto-fill answers: " + e.message, "error"); }
-  }
-
-  async function enqueueDiscoveryBrief() {
-    if (!discoveryState) return;
-    try {
-      var queued = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/brief", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expected_revision: discoveryState.session_revision }),
-      });
-      setDiscoveryStatus("Brief " + queued.status + ". Waiting for the worker…");
-      pollDiscovery();
-    } catch (e) { setDiscoveryStatus("Could not create brief: " + e.message, "error"); }
-  }
-
-  function renderDiscoveryBrief() {
-    var state = discoveryResult();
-    var brief = state && state.brief ? state.brief.draft : null;
-    if (!brief) return;
-    var idg = brief.identity_and_goal || {};
-    var pos = brief.positioning_strategy || {};
-    var cs = brief.content_strategy || {};
-    var pd = brief.presentation_direction || {};
-    var cc = brief.cta_and_contact || {};
-    document.getElementById("discovery-brief-role").value = idg.primary_target_role ? idg.primary_target_role.label || "" : "";
-    document.getElementById("discovery-brief-audience").value = (idg.audiences || []).map(function (a) { return a.label || a; }).join(", ");
-    document.getElementById("discovery-brief-goal").value = idg.portfolio_goal ? idg.portfolio_goal.summary || "" : "";
-    document.getElementById("discovery-brief-positioning").value = pos.positioning_direction || "";
-    document.getElementById("discovery-brief-tone").value = pd.tone ? pd.tone.value || "" : "";
-    document.getElementById("discovery-brief-theme").value = pd.theme_preference ? pd.theme_preference.value || "" : "";
-    document.getElementById("discovery-brief-motion").value = pd.motion_preference ? pd.motion_preference.value || "" : "";
-    document.getElementById("discovery-brief-cta").value = cc.primary_cta_intent || "";
-    document.getElementById("discovery-brief-projects").value = (cs.featured_projects || []).map(function (p) { return p.project_id || ""; }).join("\n");
-    document.getElementById("discovery-brief-emphasize").value = (cs.capability_clusters || []).map(function (c) { return c.label || ""; }).join("\n");
-    document.getElementById("discovery-brief-omit").value = (cs.items_to_omit || []).map(function (o) { return o.item || o.reason || ""; }).join("\n");
-    document.getElementById("discovery-brief-json").textContent = prettyJson({
-      confidentiality: brief.confidentiality_and_omissions || {},
-      unresolved_items: brief.unresolved_items || [],
-      claim_policy: brief.claim_policy || {},
-      warnings: brief.warnings || [],
-    });
-    var approved = state.status === "approved";
-    document.getElementById("discovery-brief-notice").textContent = approved ? "Discovery approved. This is the immutable approved snapshot." : "Manual edits are recorded as user-provided provenance.";
-    document.getElementById("btn-discovery-approve").disabled = approved;
-  }
-
-  function discoveryBriefEdits() {
-    var state = discoveryResult();
-    var old = state.brief.draft;
-    var idg = old.identity_and_goal || {};
-    var pd = old.presentation_direction || {};
-    var cs = old.content_strategy || {};
-    var cc = old.cta_and_contact || {};
-    return {
-      identity_and_goal: {
-        primary_target_role: Object.assign({}, idg.primary_target_role || {}, { label: document.getElementById("discovery-brief-role").value, decision_source: "user_edit" }),
-        audiences: document.getElementById("discovery-brief-audience").value.split(",").map(function (item) { return { label: item.trim(), priority: "primary" }; }).filter(function (a) { return a.label; }),
-        portfolio_goal: Object.assign({}, idg.portfolio_goal || {}, { summary: document.getElementById("discovery-brief-goal").value, basis: "user_edit" }),
-        secondary_strengths: (idg.secondary_strengths || []),
-        career_stage: (idg.career_stage || {}),
-      },
-      positioning_strategy: Object.assign({}, old.positioning_strategy || {}, { positioning_direction: document.getElementById("discovery-brief-positioning").value }),
-      presentation_direction: Object.assign({}, pd, {
-        tone: Object.assign({}, pd.tone || {}, { value: document.getElementById("discovery-brief-tone").value, source: "user_edit" }),
-        theme_preference: Object.assign({}, pd.theme_preference || {}, { value: document.getElementById("discovery-brief-theme").value, source: "user_edit" }),
-        motion_preference: Object.assign({}, pd.motion_preference || {}, { value: document.getElementById("discovery-brief-motion").value, source: "user_edit" }),
-      }),
-      cta_and_contact: Object.assign({}, cc, { primary_cta_intent: document.getElementById("discovery-brief-cta").value || "" }),
-      content_strategy: Object.assign({}, cs, {
-        featured_projects: document.getElementById("discovery-brief-projects").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (cs.featured_projects || [])[0] || {}, { project_id: line.trim() }); }),
-        capability_clusters: document.getElementById("discovery-brief-emphasize").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (cs.capability_clusters || [])[0] || {}, { label: line.trim() }); }),
-        items_to_omit: document.getElementById("discovery-brief-omit").value.split("\n").filter(Boolean).map(function (line) { return Object.assign({}, (cs.items_to_omit || [])[0] || {}, { item: line.trim() }); }),
-      }),
-    };
-  }
-
-  async function saveDiscoveryBriefEdits() {
-    try {
-      discoveryState = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/brief", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expected_revision: discoveryState.session_revision, edits: discoveryBriefEdits() }),
-      });
-      setDiscoveryStatus("Brief edits saved. Approval is invalidated until NEXT is clicked again.", "success");
-      renderDiscoveryBrief();
-    } catch (e) { setDiscoveryStatus("Could not save brief edits: " + e.message, "error"); }
-  }
-
-  async function approveDiscovery() {
-    try {
-      discoveryState = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/approve", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expected_revision: discoveryState.session_revision }),
-      });
-      setDiscoveryStatus("Discovery approved. No later agent was started.", "success");
-      renderDiscoveryState();
-    } catch (e) { setDiscoveryStatus("Approval failed: " + e.message, "error"); }
-  }
+  // ── Boot ────────────────────────────────────────────────────────────────
 
   document.addEventListener("DOMContentLoaded", function () {
+    chatWelcome();
     checkHealth();
     loadAgents();
     listSessions();
     loadSystemStatus();
     setInterval(loadSystemStatus, 15000);
 
+    document.getElementById("btn-send").addEventListener("click", sendMessage);
+    document.getElementById("composer").addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+    document.getElementById("btn-attach").addEventListener("click", function () {
+      document.getElementById("file-input").click();
+    });
+    document.getElementById("file-input").addEventListener("change", onFileSelected);
     document.getElementById("btn-create-session").addEventListener("click", createSession);
     document.getElementById("btn-list-sessions").addEventListener("click", listSessions);
     document.getElementById("btn-run-mock").addEventListener("click", runMock);
     document.getElementById("btn-list-runs").addEventListener("click", listRuns);
-     document.getElementById("btn-probe").addEventListener("click", enqueueProbe);
-     document.getElementById("btn-add-discovery-link").addEventListener("click", addDiscoveryLink);
-     document.getElementById("btn-discovery-intake").addEventListener("click", saveDiscoveryInputAndQueue);
-     document.getElementById("btn-discovery-back").addEventListener("click", function () {
-       discoveryIndex = Math.max(0, discoveryIndex - 1);
-       renderDiscoveryQuestion();
-     });
-     document.getElementById("btn-discovery-next").addEventListener("click", nextDiscoveryQuestion);
-     document.getElementById("btn-discovery-auto").addEventListener("click", chooseDiscoveryAuto);
-     document.getElementById("btn-discovery-skip").addEventListener("click", skipDiscoveryQuestion);
-     document.getElementById("btn-discovery-autofill").addEventListener("click", autofillDiscovery);
-     document.getElementById("btn-discovery-create-brief").addEventListener("click", enqueueDiscoveryBrief);
-     document.getElementById("btn-discovery-zero-brief").addEventListener("click", async function () {
-       var state = discoveryResult();
-       if (state && state.status === "questions_ready") {
-         try {
-           discoveryState = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/answers", {
-             method: "PUT", headers: { "Content-Type": "application/json" },
-             body: JSON.stringify({ expected_revision: discoveryState.session_revision, question_version: state.questions.version, complete: true, answers: [] }),
-           });
-         } catch (e) { setDiscoveryStatus("Could not continue: " + e.message, "error"); return; }
-       }
-       enqueueDiscoveryBrief();
-     });
-     document.getElementById("btn-discovery-change-answers").addEventListener("click", function () {
-       discoveryIndex = 0;
-       setDiscoveryVisible("discovery-brief", false);
-       setDiscoveryVisible("discovery-questions", true);
-       renderDiscoveryQuestion();
-     });
-     document.getElementById("btn-discovery-regenerate").addEventListener("click", enqueueDiscoveryBrief);
-     document.getElementById("btn-discovery-save-brief").addEventListener("click", saveDiscoveryBriefEdits);
-     document.getElementById("btn-discovery-approve").addEventListener("click", approveDiscovery);
+    document.getElementById("btn-probe").addEventListener("click", enqueueProbe);
 
-     var rememberedSession = sessionStorage.getItem("oryxenai.discovery.session");
-     if (rememberedSession) {
-       fetchJson(API + "/sessions/" + rememberedSession).then(function (session) {
-         selectedSessionId = session.id;
-         showSession(session);
-         enableRunControls();
-         return loadDiscovery();
-       }).catch(function () { sessionStorage.removeItem("oryxenai.discovery.session"); });
-     }
+    var rememberedSession = sessionStorage.getItem("oryxenai.discovery.session");
+    if (rememberedSession) {
+      fetchJson(API + "/sessions/" + rememberedSession).then(function (session) {
+        selectedSessionId = session.id;
+        refreshSessionPanel(session);
+        return listRuns();
+      }).catch(function () { sessionStorage.removeItem("oryxenai.discovery.session"); });
+    }
   });
 })();

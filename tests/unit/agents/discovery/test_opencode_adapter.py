@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from oryxenai.agents.discovery.schemas import DiscoveryAnalysisResult
+from oryxenai.agents.discovery.schemas import QuestionSetOutput
 from oryxenai.agents.shared.providers.errors import (
     ModelJsonInvalidError,
     ProviderAuthError,
@@ -81,7 +81,7 @@ class TestOpenCodeGoAdapterInit:
                 operation="test",
                 instructions="test",
                 input_payload={},
-                output_model=DiscoveryAnalysisResult,
+                output_model=QuestionSetOutput,
             )
 
         import asyncio
@@ -99,7 +99,7 @@ class TestOpenCodeGoAdapterInit:
                 operation="test",
                 instructions="test",
                 input_payload={},
-                output_model=DiscoveryAnalysisResult,
+                output_model=QuestionSetOutput,
             )
 
         import asyncio
@@ -117,7 +117,7 @@ class TestOpenCodeGoAdapterInit:
                 operation="test",
                 instructions="test",
                 input_payload={},
-                output_model=DiscoveryAnalysisResult,
+                output_model=QuestionSetOutput,
             )
 
         import asyncio
@@ -158,7 +158,7 @@ class TestOpenCodeGoAdapterStructured:
                     operation="prepare_questions",
                     instructions="Test system\n\nTest task",
                     input_payload={"main_prompt": "test"},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
 
@@ -192,7 +192,7 @@ class TestOpenCodeGoAdapterStructured:
                     operation="test",
                     instructions="Instructions",
                     input_payload={},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
 
@@ -219,7 +219,7 @@ class TestOpenCodeGoAdapterStructured:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -242,7 +242,7 @@ class TestOpenCodeGoAdapterStructured:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -273,7 +273,7 @@ class TestOpenCodeGoAdapterErrors:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -302,7 +302,7 @@ class TestOpenCodeGoAdapterErrors:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -327,7 +327,7 @@ class TestOpenCodeGoAdapterErrors:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -352,7 +352,7 @@ class TestOpenCodeGoAdapterErrors:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -457,7 +457,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                     operation="test",
                     instructions="test",
                     input_payload={},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -492,7 +492,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                     operation="test",
                     instructions="test",
                     input_payload={},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -515,7 +515,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                     operation="test",
                     instructions="test",
                     input_payload={},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -531,7 +531,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                     operation="test",
                     instructions="test",
                     input_payload={},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -556,7 +556,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -579,7 +579,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -603,7 +603,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                         operation="test",
                         instructions="test",
                         input_payload={},
-                        output_model=DiscoveryAnalysisResult,
+                        output_model=QuestionSetOutput,
                     )
                 )
 
@@ -625,7 +625,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                     operation="test",
                     instructions="test",
                     input_payload={},
-                    output_model=DiscoveryAnalysisResult,
+                    output_model=QuestionSetOutput,
                 )
             )
         assert result.parsed_output == {"parsed": True}

@@ -1,24 +1,21 @@
-"""Persistence helpers for the Discovery aggregate and source snapshots."""
+"""Persistence helpers for the Discovery aggregate."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.agents.discovery.schemas import DiscoveryState
 from oryxenai.db.models.agent_run import AgentRun
-from oryxenai.db.models.discovery_source_document import DiscoverySourceDocument
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 
 
 class DiscoveryRepository:
-    """Repository for Discovery state, source documents, and run history.
+    """Repository for Discovery state and run history.
 
     Methods flush but never commit. The owning API or worker service controls
     the transaction boundary.
@@ -39,7 +36,21 @@ class DiscoveryRepository:
         raw = session.current_state.get("discovery")
         if not isinstance(raw, dict):
             return DiscoveryState()
-        return DiscoveryState.model_validate(raw)
+        return DiscoveryState.model_validate(self._migrate_state_shape(raw))
+
+    @staticmethod
+    def _migrate_state_shape(raw: dict[str, Any]) -> dict[str, Any]:
+        """One-time shape migration for in-flight sessions (v1 -> v2).
+
+        Old state stored `questions` and `demo`; new state stores `operation_a`
+        and `memory`. Old rows are adapted in place before validation.
+        """
+        if "operation_a" not in raw and "questions" in raw:
+            questions = raw.get("questions")
+            if isinstance(questions, dict):
+                raw["operation_a"] = {"items": questions.get("items", [])}
+        raw.pop("demo", None)
+        return raw
 
     async def save_discovery_state(
         self,
@@ -54,93 +65,11 @@ class DiscoveryRepository:
         new_state["discovery"] = state.model_dump(mode="json")
         return await self._sessions.update_state(session_id, new_state, expected_revision)
 
-    async def save_source(
-        self,
-        session_id: UUID,
-        source_kind: str,
-        content: str,
-        content_hash: str,
-        revision: int,
-        *,
-        language: str = "en",
-        metadata: dict[str, object] | None = None,
-    ) -> DiscoverySourceDocument:
-        now = datetime.now(UTC)
-        await self._session.execute(
-            update(DiscoverySourceDocument)
-            .where(
-                DiscoverySourceDocument.portfolio_session_id == session_id,
-                DiscoverySourceDocument.source_kind == source_kind,
-                DiscoverySourceDocument.superseded_at.is_(None),
-            )
-            .values(superseded_at=now)
-        )
-        document = DiscoverySourceDocument(
-            portfolio_session_id=session_id,
-            source_kind=source_kind,
-            revision=revision,
-            content=content,
-            content_hash=content_hash,
-            language=language,
-            source_metadata=metadata or {},
-        )
-        self._session.add(document)
-        await self._session.flush()
-        await self._session.refresh(document)
-        return document
-
-    async def get_current_source(
-        self,
-        session_id: UUID,
-        source_kind: str,
-    ) -> DiscoverySourceDocument | None:
-        stmt = (
-            select(DiscoverySourceDocument)
-            .where(
-                DiscoverySourceDocument.portfolio_session_id == session_id,
-                DiscoverySourceDocument.source_kind == source_kind,
-                DiscoverySourceDocument.superseded_at.is_(None),
-            )
-            .order_by(DiscoverySourceDocument.revision.desc())
-        )
-        return (await self._session.execute(stmt)).scalar_one_or_none()
-
-    async def get_sources_at_revision(
-        self,
-        session_id: UUID,
-        revision: int,
-    ) -> list[DiscoverySourceDocument]:
-        stmt = (
-            select(DiscoverySourceDocument)
-            .where(
-                DiscoverySourceDocument.portfolio_session_id == session_id,
-                DiscoverySourceDocument.revision == revision,
-            )
-            .order_by(DiscoverySourceDocument.source_kind)
-        )
-        return list((await self._session.execute(stmt)).scalars().all())
-
-    async def get_latest_source_revision(self, session_id: UUID) -> int:
-        stmt = (
-            select(DiscoverySourceDocument.revision)
-            .where(DiscoverySourceDocument.portfolio_session_id == session_id)
-            .order_by(DiscoverySourceDocument.revision.desc())
-        )
-        value = (await self._session.execute(stmt)).scalar_one_or_none()
-        return int(value or 0)
-
     async def create_run(self, run: AgentRun) -> AgentRun:
         return await self._runs.create(run)
 
     async def get_run(self, run_id: UUID) -> AgentRun | None:
         return await self._runs.get_by_id(run_id)
-
-    async def find_run_by_idempotency(
-        self,
-        session_id: UUID,
-        idempotency_key: str,
-    ) -> AgentRun | None:
-        return await self._runs.find_by_idempotency(session_id, "discovery", idempotency_key)
 
     async def mark_run_started(self, run_id: UUID) -> None:
         await self._runs.mark_started(run_id)

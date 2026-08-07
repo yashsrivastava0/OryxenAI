@@ -1,4 +1,0 @@
-facts_include: [preferred_role Backend Engineer]
-facts_omit: [metric]
-questions_at_most: 8
-no_factual_auto: true

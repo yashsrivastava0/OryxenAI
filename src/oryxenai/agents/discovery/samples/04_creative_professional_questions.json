@@ -1,0 +1,68 @@
+{
+  "mode": "ASK_QUESTIONS",
+  "assistant_message": "Great — your work is clear and the documentary angle is strong. A few decisions will shape how the portfolio presents you to agencies and brands.",
+  "questions": [
+    {
+      "id": "q-showreel",
+      "text": "You mentioned a showreel on Vimeo available on request. Should the portfolio lead with a showreel section, or with a written case study of the documentary series first?",
+      "reason": "Agencies usually decide in the first seconds whether to keep watching.",
+      "kind": "single_select",
+      "options": [
+        {"id": "showreel_first", "label": "Showreel first, then case studies"},
+        {"id": "case_study_first", "label": "Documentary case study first, showreel second"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-project-disclosure",
+      "text": "Which projects are approved for public display? The fashion brand films and the music label edits \u2014 can those be shown with the brand names, or should they be described generically?",
+      "kind": "single_select",
+      "options": [
+        {"id": "named", "label": "Show with brand names"},
+        {"id": "generic", "label": "Describe generically without names"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    },
+    {
+      "id": "q-publishable-contact",
+      "text": "You said to keep your phone private and that you answer email first. What contact method should the portfolio show publicly?",
+      "kind": "single_select",
+      "options": [
+        {"id": "email", "label": "Email only"},
+        {"id": "email_vimeo", "label": "Email plus Vimeo link"},
+        {"id": "contact_form", "label": "A contact form (email forwarded)"}
+      ],
+      "allow_skip": true,
+      "allow_auto": false
+    }
+  ],
+  "memory_update": {
+    "intent_summary": "Get hired by agencies and brands for documentary-style video work",
+    "person_summary": "Freelance video editor and producer since 2022; BA in Film and Media Studies (2021)",
+    "confirmed_details": [
+      "6-part documentary series for a regional broadcaster (2024), edited and co-produced",
+      "Brand films for two fashion labels (2022\u20132023)",
+      "Short-form social edits for a music label (2023)",
+      "Premiere Pro, DaVinci Resolve, After Effects, Pro Tools; sound mixing and color grading",
+      "Showreel on Vimeo available on request; rough cuts of most projects",
+      "Prefers cinematic, editorial feel, dark tones, minimal text; no corporate template look"
+    ],
+    "preferences": [
+      "cinematic editorial feel",
+      "dark tones",
+      "minimal text",
+      "no corporate template look"
+    ],
+    "privacy_choices": [
+      "phone private",
+      "email-first contact"
+    ],
+    "open_items": [
+      "showreel link not yet published (available on request)",
+      "brand name disclosure for fashion and music clients not yet confirmed",
+      "documentary broadcaster name not in the source"
+    ]
+  }
+}

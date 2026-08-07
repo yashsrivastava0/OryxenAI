@@ -50,7 +50,7 @@ async def test_max_attempts_exhausted(db_session):
     job = await repo.enqueue("system.worker_probe", {}, max_attempts=1)
     claimed = await repo.claim_batch("worker-1", 120.0, 1)
     assert len(claimed) == 1
-    assert claimed[0].attempt == 2
+    assert claimed[0].attempt == 1
 
     error = retryable("TEST", "should not retry")
     assert not should_retry(error, claimed[0].attempt, job.max_attempts)

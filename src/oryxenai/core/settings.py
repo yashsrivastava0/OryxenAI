@@ -166,14 +166,11 @@ class DiagnosticsConfig(BaseModel):
 
 
 class DiscoveryConfig(BaseModel):
-    """Discovery agent input limits from [discovery] in config/app.toml."""
+    """Discovery agent output limits from [discovery] in config/app.toml."""
 
-    max_main_prompt_chars: int = 10000
-    max_resume_chars: int = 160000
-    max_links: int = 20
-    max_answer_chars: int = 10000
     max_questions: int = 8
-    max_featured_projects: int = 5
+    max_projects: int = 5
+    max_answer_chars: int = 10000
 
 
 class ModelProfile(BaseModel):

@@ -61,6 +61,7 @@ class JobRepository:
             status=JobStatus.QUEUED.value,
             payload=payload,
             priority=priority,
+            attempt=0,
             max_attempts=max_attempts,
             idempotency_scope=idempotency_scope or None,
             idempotency_key=idempotency_key or None,
