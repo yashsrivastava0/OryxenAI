@@ -56,3 +56,7 @@ Thumbs.db
 # Local database data (never commit)
 pgdata/
 postgres-data/
+
+# Scratch & temporary test artifacts
+scratch_benchmark.json
+scratch/
