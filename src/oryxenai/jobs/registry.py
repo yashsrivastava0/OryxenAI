@@ -52,6 +52,8 @@ def _register_builtins() -> None:
     if not is_registered(SYSTEM_PROBE_KIND):
         register(WorkerProbeHandler())
     _register_discovery_handlers()
+    _register_content_architect_handlers()
+    _register_visual_design_director_handlers()
 
 
 def _register_discovery_handlers() -> None:
@@ -68,6 +70,24 @@ def _register_discovery_handlers() -> None:
         DiscoveryPrepareQuestionsHandler,
         DiscoveryBuildBriefHandler,
     ):
+        instance = handler_cls()
+        if not is_registered(instance.kind):
+            register(instance)
+
+
+def _register_content_architect_handlers() -> None:
+    from oryxenai.jobs.handlers.content_architect import ContentArchitectBuildHandler
+
+    for handler_cls in (ContentArchitectBuildHandler,):
+        instance = handler_cls()
+        if not is_registered(instance.kind):
+            register(instance)
+
+
+def _register_visual_design_director_handlers() -> None:
+    from oryxenai.jobs.handlers.visual_design_director import VisualDesignDirectorBuildHandler
+
+    for handler_cls in (VisualDesignDirectorBuildHandler,):
         instance = handler_cls()
         if not is_registered(instance.kind):
             register(instance)

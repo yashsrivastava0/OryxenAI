@@ -14,6 +14,7 @@ from oryxenai.agents.discovery.schemas import (
     DiscoveryStatus,
     OperationAState,
     OperationMode,
+    StructuredProfile,
 )
 
 
@@ -137,6 +138,8 @@ def apply_brief_review(
     open_items: list[str],
     memory_update: dict[str, Any],
     revision_request: str = "",
+    user_summary: str = "",
+    profile: dict[str, Any] | None = None,
 ) -> DiscoveryState:
     _validate_transition(state.status, DiscoveryStatus.BRIEF_REVIEW)
     new_state = state.model_copy(deep=True)
@@ -145,6 +148,8 @@ def apply_brief_review(
     new_state.brief.run_id = run_id
     new_state.brief.title = title
     new_state.brief.markdown = markdown
+    new_state.brief.user_summary = user_summary
+    new_state.brief.profile = StructuredProfile.model_validate(profile or {})
     new_state.brief.open_items = open_items
     new_state.brief.memory_update = memory_update
     new_state.brief.revision_request = revision_request

@@ -1,0 +1,64 @@
+{
+  "content_architect_content_hash": "sample-content-hash",
+  "content_architect_session_revision": 3,
+  "presentation_mode": "single_page",
+  "site_story_strategy": {
+    "positioning": "Backend engineer who ships durable systems.",
+    "primary_audience": "Hiring managers for backend roles",
+    "presentation_mode": "single_page",
+    "presentation_rationale": "One strong project and a focused profile fit one page."
+  },
+  "route_plan": [
+    {
+      "route_id": "home",
+      "path": "/",
+      "title": "Priya Nandan — Backend Engineer",
+      "purpose": "Single-page portfolio home",
+      "audience_takeaway": "Can ship and operate backend systems reliably.",
+      "priority": "primary",
+      "content_density": "medium",
+      "section_sequence": ["hero", "about", "project", "contact"],
+      "publication_status": "approved"
+    }
+  ],
+  "page_content_packs": [
+    {
+      "route_id": "home",
+      "sections": [
+        {
+          "section_id": "hero",
+          "purpose": "Introduce the positioning.",
+          "content": {"headline": "Backend systems that stay up."},
+          "claim_ids": [],
+          "priority": "primary"
+        },
+        {
+          "section_id": "project",
+          "purpose": "Feature the strongest project.",
+          "content": {"title": "QueueGuard", "summary": "A durable job system."},
+          "claim_ids": ["claim_queueguard"],
+          "priority": "primary"
+        }
+      ],
+      "internal_notes": {}
+    }
+  ],
+  "public_content_manifest": {
+    "nav": [{"label": "Home", "target": "home"}],
+    "contact_cta": "Get in touch"
+  },
+  "media_status": {"screenshots": "unavailable", "diagrams": "unavailable"},
+  "visual_director_handoff": {
+    "content_hierarchy": ["hero", "project", "contact"],
+    "density_guidance": {"home": "medium"},
+    "storytelling_opportunities": ["A retry/backoff flow diagram would strengthen the project story."],
+    "available_media": [],
+    "unavailable_media": ["screenshots", "diagrams"],
+    "diagram_opportunities": ["QueueGuard's retry/backoff flow could be shown as a process diagram."],
+    "confidentiality_restrictions": [],
+    "must_preserve": ["40+ internal services"],
+    "mobile_shortenable": [],
+    "never_fabricate": ["specific latency numbers", "team size"]
+  },
+  "privacy_and_confidentiality": []
+}

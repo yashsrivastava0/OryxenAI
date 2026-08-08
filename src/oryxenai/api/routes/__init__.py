@@ -2,7 +2,16 @@
 
 from fastapi import APIRouter
 
-from oryxenai.api.routes import agents, discovery, health, runs, sessions, system
+from oryxenai.api.routes import (
+    agents,
+    content_architect,
+    discovery,
+    health,
+    runs,
+    sessions,
+    system,
+    visual_design_director,
+)
 
 
 def create_api_router() -> APIRouter:
@@ -13,6 +22,8 @@ def create_api_router() -> APIRouter:
     router.include_router(runs.router)
     router.include_router(system.router)
     router.include_router(discovery.router)
+    router.include_router(content_architect.router)
+    router.include_router(visual_design_director.router)
     return router
 
 

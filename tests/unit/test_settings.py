@@ -15,7 +15,7 @@ def test_settings_load_toml_defaults():
     assert s.app.log_level == "INFO"
     assert s.app.enable_dev_ui is True
     assert s.database.host == "localhost"
-    assert s.database.port == 5433
+    assert s.database.port == 5544
     assert s.database.database == "oryxenai"
     assert s.database.user == "oryxen"
 

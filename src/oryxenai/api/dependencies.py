@@ -8,12 +8,16 @@ from functools import lru_cache
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from oryxenai.agents.content_architect.service import ContentArchitectService
 from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
+from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
+from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
+from oryxenai.db.repositories.visual_design_director import VisualDesignDirectorRepository
 from oryxenai.db.session import reset_engine_cache  # noqa: F401 (re-export for tests)
 from oryxenai.jobs.service import JobService
 from oryxenai.runtime.mock_runner import MockRunner
@@ -66,3 +70,19 @@ def get_discovery_service(
 ) -> DiscoveryService:
     """Build a Discovery service bound to the request transaction."""
     return DiscoveryService(DiscoveryRepository(db), JobService(db), registry)
+
+
+def get_content_architect_service(
+    db: AsyncSession = Depends(get_db_session),
+    registry: AgentRegistry = Depends(get_agent_registry),
+) -> ContentArchitectService:
+    """Build a Content Architect service bound to the request transaction."""
+    return ContentArchitectService(ContentArchitectRepository(db), JobService(db), registry)
+
+
+def get_visual_design_director_service(
+    db: AsyncSession = Depends(get_db_session),
+    registry: AgentRegistry = Depends(get_agent_registry),
+) -> VisualDesignDirectorService:
+    """Build a Visual Design Director service bound to the request transaction."""
+    return VisualDesignDirectorService(VisualDesignDirectorRepository(db), JobService(db), registry)

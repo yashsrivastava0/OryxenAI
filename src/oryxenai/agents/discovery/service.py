@@ -24,9 +24,19 @@ from oryxenai.agents.discovery.state import (
     apply_brief_running,
     apply_start,
 )
+from oryxenai.core.logging import get_logger
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.jobs.service import JobService
+
+logger = get_logger("oryxenai.agents.discovery.service")
+
+# Model/provider choices the home-page dropdown may actually select today.
+# "" is the only enabled value ("use the default discovery profile") — the
+# dropdown's other entries are shown but disabled until a second working
+# provider adapter exists. A non-empty request is logged and ignored rather
+# than rejected, so an unrecognised choice never blocks a session starting.
+_ENABLED_MODEL_PROFILES = frozenset({""})
 
 
 class DiscoveryOperationError(Exception):
@@ -71,6 +81,7 @@ class DiscoveryService:
         document_text: str,
         goal: str,
         *,
+        model_profile: str = "",
         request_id: str = "",
     ) -> dict[str, Any]:
         """Store the raw input and enqueue the understand_and_question job.
@@ -87,6 +98,8 @@ class DiscoveryService:
             DiscoveryStatus.NEEDS_ATTENTION,
         }:
             return await self.get_discovery_state(session_id)
+
+        resolved_profile = self._resolve_model_profile(model_profile, state.model_profile)
 
         intake = DiscoveryIntake(message=message, document_text=document_text, goal=goal)
         intake_payload = intake.model_dump(mode="json")
@@ -114,6 +127,7 @@ class DiscoveryService:
                 "operation": "understand_and_question",
                 "intake": intake_payload,
                 "prior_memory": state.memory,
+                "model_profile": resolved_profile,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -133,6 +147,7 @@ class DiscoveryService:
 
         queued = apply_start(state)
         queued.intake = intake
+        queued.model_profile = resolved_profile
         queued.operation_a.run_id = str(run.id)
         queued.operation_a.job_id = str(job.id)
         queued.attempt = 0
@@ -196,6 +211,7 @@ class DiscoveryService:
                     "prior_memory": next_state.memory,
                     "existing_brief": next_state.brief.markdown,
                     "revision_request": "",
+                    "model_profile": next_state.model_profile,
                 },
                 state_before=dict(session.current_state),
                 idempotency_key=key,
@@ -268,6 +284,7 @@ class DiscoveryService:
                 "prior_memory": state.memory,
                 "existing_brief": state.brief.markdown,
                 "revision_request": revision_request,
+                "model_profile": state.model_profile,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -342,6 +359,20 @@ class DiscoveryService:
             "discovery": discovery,
             "jobs": jobs,
         }
+
+    def _resolve_model_profile(self, requested: str, sticky: str) -> str:
+        """Validate a requested model-profile override against the enabled set.
+
+        An empty request keeps whatever the session already committed to
+        (sticky, set once at the first successful start()). An unrecognised
+        request is logged and ignored — it never blocks the session.
+        """
+        if not requested:
+            return sticky
+        if requested not in _ENABLED_MODEL_PROFILES:
+            logger.warning("requested model_profile '%s' is not enabled — using default", requested)
+            return sticky
+        return requested
 
     async def _require_session(self, session_id: UUID) -> Any:
         session = await self._repository.get_session(session_id)

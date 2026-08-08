@@ -86,14 +86,22 @@ class DiscoveryBuildBriefHandler:
         return await _execute_persisted(payload, instance_id, "build_brief")
 
 
-def _build_discovery_agent() -> Any:
-    """Create a DiscoveryAgent with the live provider adapter."""
+def _build_discovery_agent(override_profile_name: str = "") -> Any:
+    """Create a DiscoveryAgent with the live provider adapter.
+
+    override_profile_name is the user's session-sticky model/provider choice
+    (from the home page dropdown), if any. build_provider_client falls back
+    to the default "discovery" profile on its own if the override isn't
+    usable, so this never fails just because an override was requested.
+    """
     from oryxenai.agents.discovery.agent import DiscoveryAgent
     from oryxenai.agents.shared.model_client import build_provider_client
     from oryxenai.core.settings import get_settings
 
     settings = get_settings()
-    client = build_provider_client("discovery", settings.models)
+    client = build_provider_client(
+        "discovery", settings.models, override_profile_name=override_profile_name
+    )
     if client is None:
         from oryxenai.agents.shared.providers.errors import ProviderConfigError
 
@@ -102,7 +110,7 @@ def _build_discovery_agent() -> Any:
             "Check config/models.toml [profiles.discovery] and ensure "
             "OPENCODE_GO_API_KEY is set in .env"
         )
-    return DiscoveryAgent(model_client=client)
+    return DiscoveryAgent(model_client=client, profile_name=override_profile_name or "discovery")
 
 
 async def _execute_persisted(
@@ -137,7 +145,7 @@ async def _execute_persisted(
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)
 
-    agent = _build_discovery_agent()
+    agent = _build_discovery_agent(str(input_payload.get("model_profile", "") or ""))
     agent_input: dict[str, Any] = {
         "operation": operation,
         "intake": input_payload.get("intake", {}),
@@ -157,10 +165,30 @@ async def _execute_persisted(
         run_id=run_id,
     )
 
+    from oryxenai.agents.discovery.agent import DiscoveryModelOutputError
+
     try:
         result = await agent.run(context)
     except ProviderError as exc:
-        await _persist_failure(sessionmaker, session_id, run_id, payload, exc, attempt)
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, exc, attempt, max_attempts
+        )
+        raise
+    except DiscoveryModelOutputError as exc:
+        # The model produced a response that failed the output contract. This
+        # is almost always a one-off generation-quality issue on the same
+        # input, not a permanent condition — retry it like any other
+        # transient provider error, bounded by the same max_attempts budget.
+        logger.warning("discovery operation=%s produced invalid output: %s", operation, exc)
+        await _persist_failure(
+            sessionmaker,
+            session_id,
+            run_id,
+            payload,
+            ProviderError(code="MODEL_OUTPUT_INVALID", message=str(exc), retryable=True),
+            attempt,
+            max_attempts,
+        )
         raise
     except Exception as exc:
         logger.warning("discovery operation=%s failed with %s", operation, type(exc).__name__)
@@ -175,6 +203,7 @@ async def _execute_persisted(
                 retryable=False,
             ),
             attempt,
+            max_attempts,
         )
         raise
 
@@ -254,6 +283,8 @@ async def _apply_result(
                 open_items=result.output.get("open_items", []) or [],
                 memory_update=result.output.get("memory_update", {}) or {},
                 revision_request=revision_request,
+                user_summary=result.output.get("user_summary", ""),
+                profile=result.output.get("profile", {}) or {},
             )
         next_state.attempt = attempt
 
@@ -279,7 +310,18 @@ async def _persist_failure(
     payload: dict[str, Any],
     error: Any,
     attempt: int,
+    max_attempts: int,
 ) -> None:
+    """Record a failed attempt. Only surface it to the user once it's final.
+
+    The worker (worker.py::_fail_job) independently decides whether to
+    reschedule this same job with backoff, using this exact
+    retryable/attempt/max_attempts combination. When it will reschedule,
+    flipping discovery.status to needs_attention here would be premature —
+    the UI would show a dead-end error and a manual "Try again" while the
+    backend is about to silently retry on its own, racing the two. So this
+    only becomes user-visible once no further automatic retry will happen.
+    """
     async with sessionmaker() as db:
         repo = DiscoveryRepository(db)
         session = await repo.get_session(session_id)
@@ -291,10 +333,14 @@ async def _persist_failure(
             "retryable": bool(getattr(error, "retryable", False)),
         }
         state = await repo.get_discovery_state(session_id)
-        try:
-            next_state = apply_needs_attention(state, safe_error)
-        except Exception:
-            next_state = state
+        is_final = not safe_error["retryable"] or attempt >= max_attempts
+        if is_final:
+            try:
+                next_state = apply_needs_attention(state, safe_error)
+            except Exception:
+                next_state = state
+        else:
+            next_state = state.model_copy(deep=True)
         next_state.attempt = attempt
         await repo.save_discovery_state(session_id, next_state, session.revision)
         await repo.mark_run_failed(run_id, safe_error)

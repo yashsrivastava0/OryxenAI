@@ -62,10 +62,11 @@ def _try_coerce(key: str) -> AgentKey | None:
 def default_registry() -> AgentRegistry:
     """Build and return the registry with all four agents registered.
 
-    The Discovery agent in the registry is wired to the deterministic mock
-    client so the mock-runs endpoint never makes network calls. The durable
-    worker builds its own agent with the real provider adapter
-    (jobs/handlers/discovery.py).
+    Discovery, Content Architect, and Visual Design Director are wired to
+    the deterministic mock client so the mock-runs endpoint never makes
+    network calls. The durable worker builds its own agent with the real
+    provider adapter (jobs/handlers/discovery.py,
+    jobs/handlers/content_architect.py, jobs/handlers/visual_design_director.py).
     """
     from oryxenai.agents.code_generator.agent import CodeGeneratorAgent
     from oryxenai.agents.content_architect.agent import ContentArchitectAgent
@@ -77,7 +78,7 @@ def default_registry() -> AgentRegistry:
 
     registry.register(DiscoveryAgent(model_client=MockModelClient()))
 
-    registry.register(ContentArchitectAgent())
-    registry.register(VisualDesignDirectorAgent())
+    registry.register(ContentArchitectAgent(model_client=MockModelClient()))
+    registry.register(VisualDesignDirectorAgent(model_client=MockModelClient()))
     registry.register(CodeGeneratorAgent())
     return registry

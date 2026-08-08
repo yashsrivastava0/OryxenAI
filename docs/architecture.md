@@ -2,6 +2,9 @@
 
 > This document explains **why** the current Discovery implementation is designed
 > the way it is. It does not describe excluded downstream product stages.
+> For **current implementation status** (what's actually built today), see
+> [`AGENTS.md`](../AGENTS.md) — this document intentionally stays "why", not
+> "what," so it doesn't go stale as implementation status changes.
 
 ## 1. Why the system currently uses explicit Python agents
 
@@ -30,9 +33,11 @@ provider-neutral `ModelClient` contract.
 - The future models will be open-weight or open-code models served via
   OpenAI-compatible endpoints (vLLM, llama.cpp, TGI, Ollama gateways, hosted
   providers). Coupling to one provider now would be premature.
-- The OpenCode Go adapter uses `deepseek-v4-pro` through `chat/completions` with
+- The OpenCode Go adapter talks to `chat/completions` with
   `response_format={"type":"json_object"}`. This is JSON mode, not strict
-  Responses API parsing.
+  Responses API parsing. The specific model is whatever `[profiles.discovery]`
+  names in `config/models.toml` — deliberately not hardcoded here or in
+  agent code, so swapping models needs no code change.
 - API keys are resolved **indirectly**: a profile declares
   `api_key_env = "OPENCODE_GO_API_KEY"` (the name of the env var), and the
   application reads that named secret from `.env` only when a real model call
@@ -68,10 +73,6 @@ The system uses a two-level state model:
   `state_before`, output, `state_after`, status, error, timing, agent
   identity, prompt version, model metadata, and idempotency key. Successful
   runs are never updated.
-
-- **Immutable Discovery sources** (`discovery_source_documents`): each source
-  revision is stored once so a worker can load stable text without putting it
-  in a background-job payload.
 
 **Rationale:**
 - Separating current state from history means the "what is the current
@@ -127,9 +128,13 @@ worker container.
 
 ## 8. Which boundaries may change later
 
-- **Later agents:** Content Architect, Visual Design Director, and Code
-  Generator remain excluded from Discovery and may later consume the approved
-  brief through an explicit product decision.
+- **Later agents:** Content Architect and Visual Design Director now
+  consume their respective upstream approved output through exactly this
+  kind of explicit product decision (each stage requires an explicit
+  `/start` call after the previous stage's approval, never auto-chained).
+  Code Generator remains excluded and undecided; see `AGENTS.md` for
+  current implementation status rather than trusting this "why"-only doc
+  for "what."
 - **Model client:** Additional providers can implement the same contract;
   Discovery currently uses OpenCode Go only.
 - **Agent sequencing:** A future task may add cross-agent sequencing or a

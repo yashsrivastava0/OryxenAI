@@ -22,6 +22,7 @@ class StartRequest(BaseModel):
     message: str = ""
     document_text: str = ""
     goal: str = ""
+    model_profile: str | None = None
 
 
 class AnswersRequest(BaseModel):
@@ -100,6 +101,7 @@ async def start_discovery(
                 body.message,
                 body.document_text,
                 body.goal,
+                model_profile=body.model_profile or "",
             )
         )
     except DiscoveryOperationError as exc:

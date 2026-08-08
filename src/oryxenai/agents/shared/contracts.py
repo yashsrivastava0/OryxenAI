@@ -126,6 +126,7 @@ class ModelClient(Protocol):
         instructions: str,
         input_payload: Mapping[str, object],
         output_model: type[BaseModel],
+        system_prompt: str | None = None,
         model_profile: Any = None,
         request_context: Any = None,
     ) -> Any: ...
