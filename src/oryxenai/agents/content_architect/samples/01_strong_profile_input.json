@@ -1,0 +1,98 @@
+{
+  "operation": "build",
+  "intake": {
+    "approved_brief_title": "Portfolio Discovery Brief — Priya Nandan",
+    "user_summary": "Priya is a senior backend engineer with three well-documented, high-impact projects. The brief is ready for content development.",
+    "profile": {
+      "name": "Priya Nandan",
+      "current_title": "Senior Backend Engineer",
+      "location": "Bengaluru, India",
+      "links": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/priyanandan"
+        },
+        {
+          "label": "LinkedIn",
+          "url": "https://linkedin.com/in/priyanandan"
+        }
+      ],
+      "experience": [
+        {
+          "organization": "Northstar Systems",
+          "role": "Senior Backend Engineer",
+          "dates": "2021-present",
+          "highlights": [
+            "Designed QueueGuard, a durable job queue adopted by 40+ services",
+            "Led the platform reliability working group"
+          ]
+        }
+      ],
+      "education": [
+        {
+          "institution": "IIT Bombay",
+          "credential": "B.Tech, Computer Science",
+          "dates": "2015-2019"
+        }
+      ],
+      "projects": [
+        {
+          "name": "QueueGuard",
+          "summary": "Durable PostgreSQL-backed background job system.",
+          "contribution": "Sole designer of the retry/backoff and stale-job recovery model.",
+          "tech": [
+            "Python",
+            "PostgreSQL",
+            "FastAPI"
+          ],
+          "link": "https://github.com/priyanandan/queueguard"
+        },
+        {
+          "name": "LatencyLens",
+          "summary": "Tracing pipeline for API latency debugging.",
+          "contribution": "Built the sampling and aggregation core.",
+          "tech": [
+            "Go",
+            "ClickHouse"
+          ],
+          "link": "https://github.com/priyanandan/latencylens"
+        },
+        {
+          "name": "Migrate-Safe",
+          "summary": "Zero-downtime schema migration tool.",
+          "contribution": "Sole author, adopted company-wide.",
+          "tech": [
+            "Python",
+            "PostgreSQL"
+          ],
+          "link": "https://github.com/priyanandan/migrate-safe"
+        }
+      ],
+      "skills": [
+        "Python",
+        "Go",
+        "PostgreSQL",
+        "Distributed Systems",
+        "FastAPI"
+      ],
+      "spoken_languages": [
+        "English",
+        "Hindi"
+      ],
+      "private_omitted": [
+        "phone number"
+      ]
+    },
+    "open_items": [],
+    "discovery_brief_hash": "sha256:example-strong-profile",
+    "discovery_session_revision": 4
+  },
+  "preferences": {
+    "goal": "Land a staff backend engineer role",
+    "audience": "Engineering hiring managers and staff-level interviewers",
+    "tone": "confident, technical, precise",
+    "density": "detailed"
+  },
+  "prior_output": {},
+  "revision_request": ""
+}

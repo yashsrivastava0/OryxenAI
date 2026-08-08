@@ -1,0 +1,70 @@
+{
+  "operation": "build",
+  "intake": {
+    "approved_brief_title": "Portfolio Discovery Brief — Jordan Reyes",
+    "user_summary": "Jordan has strong client work but almost everything is under NDA. The brief generalizes client names and avoids any metric Jordan was never given.",
+    "profile": {
+      "name": "Jordan Reyes",
+      "current_title": "Freelance Product Designer & Developer",
+      "location": "Remote",
+      "links": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/jordanreyes"
+        }
+      ],
+      "experience": [],
+      "education": [],
+      "projects": [
+        {
+          "name": "Fintech onboarding redesign (NDA)",
+          "summary": "Redesigned the onboarding flow for a Series B fintech startup.",
+          "contribution": "Owned design and frontend implementation; team of 4.",
+          "tech": [
+            "Figma",
+            "React",
+            "TypeScript"
+          ],
+          "link": ""
+        },
+        {
+          "name": "Healthcare intake system (NDA)",
+          "summary": "Built a patient-intake form system for a healthcare client.",
+          "contribution": "Sole developer on the intake system.",
+          "tech": [
+            "React",
+            "Node.js"
+          ],
+          "link": ""
+        }
+      ],
+      "skills": [
+        "Product Design",
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "spoken_languages": [
+        "English",
+        "Spanish"
+      ],
+      "private_omitted": [
+        "client company names",
+        "client contact details"
+      ]
+    },
+    "open_items": [
+      "no outcome metrics for either engagement — none were shared with Jordan under the NDA"
+    ],
+    "discovery_brief_hash": "sha256:example-nda-confidential",
+    "discovery_session_revision": 3
+  },
+  "preferences": {
+    "goal": "Attract new freelance product-design clients",
+    "audience": "Startup founders and product leads hiring freelance designers",
+    "tone": "professional, discreet",
+    "density": "medium"
+  },
+  "prior_output": {},
+  "revision_request": ""
+}

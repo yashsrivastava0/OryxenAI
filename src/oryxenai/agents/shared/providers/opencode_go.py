@@ -1,12 +1,13 @@
-"""OpenCode Go provider adapter.
+"""Generic OpenAI-protocol provider adapter.
 
-Uses the OpenAI-compatible chat/completions endpoint at
-https://opencode.ai/zen/go/v1 with structured JSON output.
-
-Model support:
-  - deepseek-v4-pro (chat/completions + json_object)
-  - deepseek-v4-flash (chat/completions + json_object)
-  - More models via OpenCode Go subscription
+Despite the module name (kept for import stability), this adapter serves
+every provider registered under "opencode_go", "openai", "openai_compatible",
+and "openai_responses" in providers/factory.py — any endpoint that speaks
+the OpenAI chat/completions protocol with structured JSON output. Provider
+differences (base URL, whether temperature is configurable, whether the
+endpoint wants max_tokens or max_completion_tokens, ...) are expressed as
+per-profile ModelCapabilities in config/models.toml, not as branches on
+provider name here.
 
 The adapter never imports OpenAI-specific types in its public API.
 All responses are normalized to StructuredModelResult.
@@ -42,10 +43,12 @@ _OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1"
 
 
 class OpenCodeGoAdapter(BaseProviderAdapter):
-    """Model client adapter for OpenCode Go subscription.
+    """Model client adapter for any OpenAI-protocol endpoint.
 
-    Talks to the OpenAI-compatible chat/completions endpoint using the
-    standard `openai` SDK (AsyncOpenAI) with a custom base_url.
+    Talks to an OpenAI-compatible chat/completions endpoint using the
+    standard `openai` SDK (AsyncOpenAI). `base_url` and capabilities come
+    from the profile, so the same class serves OpenCode Go, real OpenAI,
+    and any other OpenAI-compatible provider.
     """
 
     def __init__(self, profile: ModelProfile) -> None:
@@ -67,12 +70,18 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": task_prompt})
 
+        token_kwarg = (
+            "max_completion_tokens"
+            if self._capabilities.uses_max_completion_tokens
+            else "max_tokens"
+        )
+
         try:
             response = await self._client.chat.completions.create(
                 model=self._profile.model,
                 messages=messages,
-                max_tokens=self._profile.max_output_tokens,
                 timeout=self._profile.timeout_seconds,
+                **{token_kwarg: self._profile.max_output_tokens},
                 **self._build_extra_params(request_params),
             )
         except Exception as exc:
@@ -88,16 +97,26 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
         input_payload: Mapping[str, object],
         output_model: type[BaseModel],
         request_id: str,
+        system_prompt: str | None = None,
     ) -> Any:
         from oryxenai.agents.discovery.schemas import StructuredModelResult
 
         self._ensure_initialized()
 
         messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": instructions})
 
         extra = self._build_extra_params({})
-        extra.setdefault("temperature", 0.0)
+        if self._capabilities.temperature_control:
+            extra.setdefault("temperature", 0.0)
+
+        token_kwarg = (
+            "max_completion_tokens"
+            if self._capabilities.uses_max_completion_tokens
+            else "max_tokens"
+        )
 
         call_start = time.monotonic()
 
@@ -106,8 +125,8 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
                 model=self._profile.model,
                 messages=messages,
                 response_format={"type": "json_object"},
-                max_tokens=self._profile.max_output_tokens,
                 timeout=self._profile.timeout_seconds,
+                **{token_kwarg: self._profile.max_output_tokens},
                 **self._structured_call_kwargs(),
                 **extra,
             )
@@ -190,10 +209,12 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
     def _build_client(self) -> Any:
         import openai
 
-        base_url = self._profile.base_url or _OPENCODE_GO_BASE_URL
+        base_url = self._profile.base_url
+        if not base_url and self._profile.provider == "opencode_go":
+            base_url = _OPENCODE_GO_BASE_URL
         return openai.AsyncOpenAI(
             api_key=self._api_key,
-            base_url=base_url,
+            base_url=base_url or None,
             max_retries=self._profile.max_retries,
             timeout=self._profile.timeout_seconds,
         )
@@ -205,7 +226,11 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
         if request_params:
             merged.update(request_params)
         if self._profile.reasoning_effort and self._capabilities.thinking_mode:
-            merged.setdefault("reasoning", {"effort": self._profile.reasoning_effort})
+            # A flat top-level param on Chat Completions for reasoning-family
+            # models (confirmed live: none/low/medium/high/xhigh) — NOT the
+            # nested {"reasoning": {"effort": ...}} shape, which the SDK
+            # rejects outright as an unexpected keyword argument.
+            merged.setdefault("reasoning_effort", self._profile.reasoning_effort)
         return merged
 
     def _structured_call_kwargs(self) -> dict[str, Any]:

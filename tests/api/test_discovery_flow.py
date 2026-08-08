@@ -63,7 +63,14 @@ async def _start(client, sid: str, **overrides) -> dict:
     return resp.json()
 
 
-async def _run_worker_job(client, job_id: str) -> None:
+async def _run_worker_job(client, job_id: str, *, attempt: int | None = None) -> None:
+    """Run a job's handler directly, as worker.py::_execute_one would.
+
+    `attempt` mirrors what the real worker injects into the payload from the
+    claimed job row (payload["attempt"] = job.attempt) before invoking the
+    handler — pass the session's max_attempts here to simulate the final,
+    exhausted attempt.
+    """
     from oryxenai.jobs.handlers.discovery import (
         DiscoveryBuildBriefHandler,
         DiscoveryBuildOrReviseBriefHandler,
@@ -77,7 +84,9 @@ async def _run_worker_job(client, job_id: str) -> None:
         job = await JobService(db).get(UUID(job_id))
         assert job is not None
         kind = job.job_kind
-        payload = job.payload
+        payload = dict(job.payload)
+        if attempt is not None:
+            payload["attempt"] = attempt
     handlers = {
         "discovery.understand_and_question": DiscoveryUnderstandAndQuestionHandler(),
         "discovery.build_or_revise_brief": DiscoveryBuildOrReviseBriefHandler(),
@@ -137,6 +146,8 @@ class TestFullHttpFlow:
         brief = review["discovery"]["brief"]
         assert brief["title"]
         assert brief["markdown"]
+        assert brief["user_summary"]
+        assert brief["profile"]["name"]
         assert isinstance(brief["open_items"], list)
 
         resp = await client.post(f"/api/v1/sessions/{sid}/discovery/approve", json={})
@@ -164,6 +175,7 @@ class TestFullHttpFlow:
         review = resp.json()
         assert review["discovery"]["status"] == "brief_review"
         assert "QueueGuard" in review["discovery"]["brief"]["markdown"]
+        assert "QueueGuard" in review["discovery"]["brief"]["user_summary"]
         assert review["discovery"]["brief"]["revision_request"] == "Lead with the QueueGuard story"
 
     async def test_revision_rejected_from_wrong_state(self, client):
@@ -220,9 +232,23 @@ class TestInputAndErrors:
         )
         assert started["discovery"]["status"] == "questions_queued"
 
-    async def test_worker_failure_surfaces_error(self, client, monkeypatch):
+    async def test_transient_worker_failure_does_not_surface_while_retries_remain(
+        self, client, monkeypatch
+    ):
+        """A retryable failure with attempts left must stay invisible to the user.
+
+        The worker (worker.py) silently reschedules retryable failures with
+        backoff. If discovery.status flipped to needs_attention on every
+        attempt regardless of whether more retries are coming, the UI would
+        show a dead-end error while the backend is about to retry on its own
+        — and a user-triggered retry could then collide with that automatic
+        retry once it lands (see test_worker_failure_surfaces_error for the
+        final-attempt case this is contrasted with).
+        """
         sid = await _create_session(client)
         started = await _start(client, sid)
+        max_attempts = started["discovery"]["max_attempts"]
+        assert max_attempts > 1
 
         def failing_agent(*args, **kwargs):
             agent = DiscoveryAgent(model_client=_MockModelClient())
@@ -237,7 +263,35 @@ class TestInputAndErrors:
             "oryxenai.jobs.handlers.discovery._build_discovery_agent", failing_agent
         )
         with pytest.raises(ProviderTimeoutError):
-            await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+            await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"], attempt=1)
+
+        resp = await client.get(f"/api/v1/sessions/{sid}/discovery")
+        state = resp.json()
+        assert state["discovery"]["status"] == "questions_running"
+        assert state["discovery"]["latest_error"] is None
+        assert state["discovery"]["attempt"] == 1
+
+    async def test_worker_failure_surfaces_error(self, client, monkeypatch):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        max_attempts = started["discovery"]["max_attempts"]
+
+        def failing_agent(*args, **kwargs):
+            agent = DiscoveryAgent(model_client=_MockModelClient())
+
+            async def run(context):
+                raise ProviderTimeoutError("simulated timeout")
+
+            agent.run = run
+            return agent
+
+        monkeypatch.setattr(
+            "oryxenai.jobs.handlers.discovery._build_discovery_agent", failing_agent
+        )
+        with pytest.raises(ProviderTimeoutError):
+            await _run_worker_job(
+                client, started["discovery"]["operation_a"]["job_id"], attempt=max_attempts
+            )
 
         resp = await client.get(f"/api/v1/sessions/{sid}/discovery")
         state = resp.json()
@@ -247,6 +301,7 @@ class TestInputAndErrors:
     async def test_retry_after_failure_restarts(self, client, monkeypatch):
         sid = await _create_session(client)
         started = await _start(client, sid)
+        max_attempts = started["discovery"]["max_attempts"]
 
         def failing_agent(*args, **kwargs):
             agent = DiscoveryAgent(model_client=_MockModelClient())
@@ -261,7 +316,9 @@ class TestInputAndErrors:
             "oryxenai.jobs.handlers.discovery._build_discovery_agent", failing_agent
         )
         with pytest.raises(ProviderTimeoutError):
-            await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+            await _run_worker_job(
+                client, started["discovery"]["operation_a"]["job_id"], attempt=max_attempts
+            )
 
         retried = await _start(client, sid)
         assert retried["discovery"]["status"] == "questions_queued"

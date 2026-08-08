@@ -9,6 +9,7 @@ from oryxenai.agents.discovery.schemas import (
     DiscoveryState,
     DiscoveryStatus,
     OperationMode,
+    StructuredProfile,
 )
 from oryxenai.agents.discovery.state import (
     InvalidTransitionError,
@@ -129,14 +130,14 @@ class TestFlowTransitions:
         state = apply_questions_ready(
             DiscoveryState(status=DiscoveryStatus.QUESTIONS_RUNNING),
             items=[question],
-            version="discovery.understand_and_question.v2",
+            version="discovery.understand_and_question.v3",
             run_id="run-1",
             mode=OperationMode.ASK_QUESTIONS,
             assistant_message="Please answer.",
             memory_update={},
         )
         assert state.status == DiscoveryStatus.QUESTIONS_READY
-        assert state.operation_a.version == "discovery.understand_and_question.v2"
+        assert state.operation_a.version == "discovery.understand_and_question.v3"
         assert state.operation_a.run_id == "run-1"
         assert state.operation_a.items[0].id == "q1"
         assert state.operation_a.mode == OperationMode.ASK_QUESTIONS
@@ -170,19 +171,39 @@ class TestFlowTransitions:
     def test_brief_review_stores_markdown(self):
         state = apply_brief_review(
             DiscoveryState(status=DiscoveryStatus.BRIEF_RUNNING),
-            version="discovery.build_or_revise_brief.v2",
+            version="discovery.build_or_revise_brief.v4",
             run_id="run-2",
             title="Portfolio Discovery Brief — Test",
             markdown="# Portfolio Discovery Brief\n\nContent.",
             open_items=["no metrics"],
             memory_update={"intent_summary": "backend"},
+            user_summary="A short friendly summary.",
+            profile={"name": "Test User", "skills": ["Python"]},
         )
         assert state.status == DiscoveryStatus.BRIEF_REVIEW
         assert state.brief.title == "Portfolio Discovery Brief — Test"
         assert state.brief.markdown.startswith("# Portfolio Discovery Brief")
         assert state.brief.open_items == ["no metrics"]
-        assert state.brief.version == "discovery.build_or_revise_brief.v2"
+        assert state.brief.version == "discovery.build_or_revise_brief.v4"
         assert state.brief.run_id == "run-2"
+        assert state.brief.user_summary == "A short friendly summary."
+        assert state.brief.profile.name == "Test User"
+        assert state.brief.profile.skills == ["Python"]
+
+    def test_brief_review_defaults_user_summary_and_profile_when_omitted(self):
+        # Locks in backward compatibility: callers that don't know about the
+        # new fields yet still get a valid, empty StructuredProfile.
+        state = apply_brief_review(
+            DiscoveryState(status=DiscoveryStatus.BRIEF_RUNNING),
+            version="v3",
+            run_id="run-3",
+            title="t",
+            markdown="x",
+            open_items=[],
+            memory_update={},
+        )
+        assert state.brief.user_summary == ""
+        assert state.brief.profile == StructuredProfile()
 
     def test_brief_review_merges_memory(self):
         state = apply_brief_review(

@@ -21,6 +21,7 @@ class ProviderError(Exception):
         details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
+        self.message = message
         self.code = code
         self.retryable = retryable
         self.details = details or {}

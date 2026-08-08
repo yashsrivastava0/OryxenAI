@@ -24,11 +24,102 @@ api_key_env = ""        # e.g. "OPENCODE_GO_API_KEY" — name of the env var
 request_params = {}     # extra request parameters (temperature, max_tokens, ...)
 
 [profiles.discovery]
+# Real OpenAI API (the same "gpt-5.6-luna" model is also reachable through
+# the opencode_go provider/profile below, but that gateway's own monthly
+# quota is a separate pool from this account's OpenAI credit). Override
+# with ORA_SMOK_MODEL for a smoke comparison without changing committed
+# configuration.
+provider = "openai"
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 150
+max_retries = 1
+max_output_tokens = 32000
+# Confirmed live: valid values are none/low/medium/high/xhigh. "low" cut
+# reasoning-token overhead by ~70% in a direct comparison with near-identical
+# visible output length — trims latency without shortening the deliverable
+# content itself. Not "none": Discovery's task has real grounding/consistency
+# requirements worth some reasoning budget.
+reasoning_effort = "low"
+store = false
+
+# gpt-5.6-luna is a reasoning-family model on the real OpenAI endpoint:
+# confirmed live that it rejects a non-default temperature and requires
+# max_completion_tokens instead of max_tokens (OpenCode Go's gateway
+# normalizes both away, which is why this only surfaced here). thinking_mode
+# confirmed live too: reasoning_effort is a real, supported flat parameter.
+[profiles.discovery.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = true
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = false
+supports_store_parameter = true
+uses_max_completion_tokens = true
+
+[profiles.content_architect]
+# Same underlying model as Discovery today, under its own profile name so it
+# can be swapped independently later without touching Discovery's config.
+# reasoning_effort/thinking_mode mirror Discovery's own live-confirmed
+# settings above (same model, same endpoint, same real-provider quirks).
+provider = "openai"
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 150
+max_retries = 1
+max_output_tokens = 32000
+reasoning_effort = "low"
+store = false
+
+[profiles.content_architect.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = true
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = false
+supports_store_parameter = true
+uses_max_completion_tokens = true
+
+[profiles.visual_design_director]
+# Same underlying model as Discovery/Content Architect today, under its own
+# profile name so it can be swapped independently later without touching
+# either of them. reasoning_effort/thinking_mode mirror the other two
+# profiles' own live-confirmed settings (same model, same endpoint, same
+# real-provider quirks).
+provider = "openai"
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 150
+max_retries = 1
+max_output_tokens = 32000
+reasoning_effort = "low"
+store = false
+
+[profiles.visual_design_director.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = true
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = false
+supports_store_parameter = true
+uses_max_completion_tokens = true
+
+# Kept for future comparisons/rollback: the same model via OpenCode Go.
+# Not referenced by any agent unless a profile name is changed to point here.
+[profiles.discovery_opencode_go]
 provider = "opencode_go"
-# Fast default for both Discovery operations. Override with ORA_SMOK_MODEL for
-# a smoke comparison without changing committed configuration.
-# Fallbacks: deepseek-v4-flash (fast DeepSeek) and deepseek-v4-pro (slowest,
-# highest-reasoning option).
 model = "gpt-5.6-luna"
 base_url = "https://opencode.ai/zen/go/v1"
 api_key_env = "OPENCODE_GO_API_KEY"

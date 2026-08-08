@@ -1,0 +1,70 @@
+{
+  "operation": "build",
+  "intake": {
+    "approved_brief_title": "Portfolio Discovery Brief — Sam Okafor",
+    "user_summary": "Sam is a new graduate with two small projects and no available metrics. The brief recommends a single honest page rather than a padded multi-page site.",
+    "profile": {
+      "name": "Sam Okafor",
+      "current_title": "Computer Science Graduate",
+      "location": "",
+      "links": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/samokafor"
+        }
+      ],
+      "experience": [],
+      "education": [
+        {
+          "institution": "State University",
+          "credential": "B.S. Computer Science",
+          "dates": "2021-2025"
+        }
+      ],
+      "projects": [
+        {
+          "name": "Campus Event Finder",
+          "summary": "A group course project to search and filter campus events.",
+          "contribution": "Built the search and filtering feature.",
+          "tech": [
+            "JavaScript",
+            "React"
+          ],
+          "link": ""
+        },
+        {
+          "name": "Habit Tracker",
+          "summary": "A personal habit-tracking app.",
+          "contribution": "Solo-built, not deployed publicly.",
+          "tech": [
+            "Python",
+            "SQLite"
+          ],
+          "link": "https://github.com/samokafor/habit-tracker"
+        }
+      ],
+      "skills": [
+        "JavaScript",
+        "React",
+        "Python",
+        "SQL"
+      ],
+      "spoken_languages": [],
+      "private_omitted": []
+    },
+    "open_items": [
+      "no metrics available for either project",
+      "team scope of Campus Event Finder unclear"
+    ],
+    "discovery_brief_hash": "sha256:example-sparse-no-metrics",
+    "discovery_session_revision": 2
+  },
+  "preferences": {
+    "goal": "Get a first junior developer role",
+    "audience": "Junior/entry-level hiring managers",
+    "tone": "honest, approachable",
+    "density": "light"
+  },
+  "prior_output": {},
+  "revision_request": ""
+}

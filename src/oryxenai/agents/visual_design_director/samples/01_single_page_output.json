@@ -1,0 +1,121 @@
+{
+  "mode": "VISUAL_LANGUAGE_AND_PAGES",
+  "pages_included": true,
+  "integration_needed": false,
+  "user_summary": "A restrained, evidence-first visual direction for a single-page portfolio: a text-dominant hero, one signature diagram illustrating the project's reliability design, and calm typography throughout.",
+  "visual_language": {
+    "creative_thesis": "Reliability engineering as its own aesthetic: restrained, high-contrast, evidence-first.",
+    "visual_metaphor": "Precision instrumentation — clean lines, no ornament, every element earns its place.",
+    "color_behavior": "A single confident accent (used only for evidence and the primary action) against a high-contrast neutral base.",
+    "typography": "A calm, confident display/body hierarchy with generous vertical rhythm; headlines read as statements, not marketing copy.",
+    "grid_and_spacing": "Wide, breathable spacing rhythm; content never crowds the edges.",
+    "motion_character": "Minimal — reserved for the one signature evidence moment.",
+    "accessibility_principles": "WCAG AA contrast minimum; no information exists only inside motion.",
+    "anti_patterns": "No gradients, no glassmorphism, no decorative motion, no stock-photo hero imagery."
+  },
+  "shared_visual_systems": {
+    "card_treatment": "Flat, bordered panels with no drop shadow.",
+    "evidence_framing": "Claims are always paired with their source context, never presented in isolation."
+  },
+  "navigation_direction": {
+    "form": "single in-page anchor nav",
+    "mobile_strategy": "collapses to a menu button"
+  },
+  "motion_system": {
+    "global_character": "minimal",
+    "signature_moments": ["a staged reveal of the retry/backoff diagram as it enters the viewport"]
+  },
+  "interaction_system": {
+    "hover": "subtle lift on the project evidence panel"
+  },
+  "pages": [
+    {
+      "route_id": "home",
+      "path": "/",
+      "purpose": "Single-page portfolio home",
+      "visitor_takeaway": "Priya designs and ships infrastructure that other engineers depend on.",
+      "first_impression": "A confident, text-dominant hero with an abstract diagrammatic accent balancing the headline.",
+      "storyboard": "Hero establishes positioning, then the project evidence with a supporting diagram, then a closing contact action.",
+      "section_rhythm": "hero -> about -> project (with diagram) -> contact",
+      "primary_emphasis": "the project evidence and its supporting diagram",
+      "secondary_emphasis": "the about section's professional identity summary",
+      "responsive_summary": "Single column on mobile; hero becomes centered instead of asymmetric; diagram simplifies to a vertical flow.",
+      "scenes": [
+        {
+          "scene_id": "hero_scene",
+          "route_id": "home",
+          "narrative_goal": "Establish positioning immediately.",
+          "viewport_role": "above the fold",
+          "content_refs": ["hero"],
+          "layout_intent": "Text-dominant asymmetric hero; the visual occupies roughly one-third of the desktop composition.",
+          "background_intent": "A subtle structural grid texture, low contrast.",
+          "responsive_behavior": "Single column, centered, on mobile; asymmetric two-column layout on desktop.",
+          "accessibility_intent": "Headline contrast exceeds WCAG AA; no motion required to read the hero.",
+          "acceptance_criteria": ["Headline and positioning are legible without scrolling on a standard mobile viewport."]
+        },
+        {
+          "scene_id": "project_scene",
+          "route_id": "home",
+          "narrative_goal": "Feature the strongest project as evidence, with a diagram in place of a missing screenshot.",
+          "viewport_role": "primary evidence moment",
+          "content_refs": ["project"],
+          "layout_intent": "Framed evidence panel beside the project narrative; diagram occupies the panel.",
+          "asset_requirements": ["project_diagram"],
+          "resource_candidates": ["diagram_process_flow"],
+          "motion_intent": {
+            "purpose": "draw attention to the diagram as it enters view",
+            "trigger": "scroll into viewport",
+            "intensity": "subtle"
+          },
+          "reduced_motion_behavior": "Diagram appears immediately, fully visible, with no entrance animation.",
+          "responsive_behavior": "Stacks vertically on mobile; diagram simplifies from horizontal to vertical flow.",
+          "performance_risk": "low — the diagram is a lightweight SVG, not raster media.",
+          "failure_safe_static_state": "The diagram is fully legible and meaningful without any motion.",
+          "acceptance_criteria": ["The diagram communicates the retry/backoff flow without requiring the accompanying prose."]
+        }
+      ],
+      "asset_briefs": ["project_diagram"],
+      "resource_candidates": ["diagram_process_flow"],
+      "acceptance_criteria": ["The page reads as complete and confident with zero real project imagery."]
+    }
+  ],
+  "asset_briefs": [
+    {
+      "asset_id": "project_diagram",
+      "purpose": "Illustrate the project's retry/backoff design in place of a missing screenshot.",
+      "content_ref": "project:queueguard",
+      "asset_type": "diagram",
+      "source_status": "needs_acquisition",
+      "source_policy": "generated_local_visual",
+      "importance": "important",
+      "composition_role": "framed_evidence",
+      "desktop_treatment": "framed panel beside the project narrative",
+      "mobile_treatment": "full-width, stacked below the narrative",
+      "visual_treatment": "natural",
+      "fallback_strategy": "Fall back to a short bulleted description of the retry/backoff design if the diagram cannot be produced.",
+      "decorative_vs_informative": "informative",
+      "alt_text_intent": "Describes the retry/backoff flow structure, not just 'diagram'."
+    }
+  ],
+  "resource_candidates": [
+    {
+      "resource_id": "diagram_process_flow",
+      "why_it_matches": "The project's retry/backoff design is naturally a step sequence.",
+      "where_it_may_help": "home/project_scene",
+      "priority": "primary",
+      "possible_use": "Adapt the process-flow pattern to show the retry/backoff decision sequence.",
+      "confidence": "high"
+    }
+  ],
+  "accessibility_and_performance": {
+    "contrast": "WCAG AA minimum for all text.",
+    "reduced_motion": "No motion is load-bearing anywhere on the page.",
+    "performance": "No raster hero image; the only non-text asset is a lightweight SVG diagram."
+  },
+  "must_preserve": ["40+ internal services"],
+  "must_not_fabricate": ["specific latency numbers", "team size"],
+  "conflicts": [],
+  "warnings": [],
+  "compiler_handoff": {},
+  "memory_update": {}
+}

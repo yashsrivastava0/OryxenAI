@@ -67,6 +67,7 @@ class BaseProviderAdapter(ModelClient, ABC):
         instructions: str,
         input_payload: Mapping[str, object],
         output_model: type[BaseModel],
+        system_prompt: str | None = None,
         model_profile: Any = None,
         request_context: Any = None,
     ) -> Any:
@@ -81,16 +82,18 @@ class BaseProviderAdapter(ModelClient, ABC):
                 instructions=instructions,
                 input_payload=input_payload,
                 output_model=output_model,
+                system_prompt=system_prompt,
                 request_id=request_id,
             )
             elapsed_ms = (time.monotonic() * 1000) - start_ms
             logger.info(
-                "provider=%s model=%s operation=%s trace=%s elapsed_ms=%.0f",
+                "provider=%s model=%s operation=%s trace=%s elapsed_ms=%.0f model_profile=%s",
                 self.provider_name,
                 self._profile.model,
                 operation,
                 request_id,
                 elapsed_ms,
+                model_profile or "(default)",
             )
             return result
         except Exception:
@@ -116,6 +119,7 @@ class BaseProviderAdapter(ModelClient, ABC):
         input_payload: Mapping[str, object],
         output_model: type[BaseModel],
         request_id: str,
+        system_prompt: str | None = None,
     ) -> Any:
         """Provider-specific structured generation. Must be implemented."""
         ...

@@ -8,8 +8,9 @@ from oryxenai.agents.code_generator.agent import CodeGeneratorAgent
 from oryxenai.agents.code_generator.schemas import CodeGeneratorResponse
 from oryxenai.agents.content_architect.agent import ContentArchitectAgent
 from oryxenai.agents.content_architect.schemas import (
-    ContentArchitectRequest,
-    ContentArchitectResponse,
+    ContentArchitectIntake,
+    ContentArchitectOutput,
+    ContentPlanMode,
 )
 from oryxenai.agents.discovery.agent import DiscoveryAgent
 from oryxenai.agents.discovery.schemas import DiscoveryIntake
@@ -22,9 +23,14 @@ from oryxenai.agents.shared.contracts import (
 )
 from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorAgent
 from oryxenai.agents.visual_design_director.schemas import (
-    VisualDesignDirectorResponse,
+    VisualDesignDirectorOutput,
+    VisualPlanMode,
 )
-from tests.conftest import _MockModelClient
+from tests.conftest import (
+    _ContentArchitectMockModelClient,
+    _MockModelClient,
+    _VisualDesignDirectorMockModelClient,
+)
 
 
 def test_agent_key_from_string_valid():
@@ -114,25 +120,36 @@ async def test_discovery_agent_deterministic_output():
 
 
 async def test_content_architect_agent_deterministic_output():
-    agent = ContentArchitectAgent()
+    agent = ContentArchitectAgent(model_client=_ContentArchitectMockModelClient())
     ctx = _build_context(
         AgentKey.CONTENT_ARCHITECT,
-        {"discovery": {"summary": "test"}, "preferences": {}},
+        {
+            "operation": "build",
+            "intake": {"approved_brief_title": "Test Brief"},
+            "preferences": {},
+        },
     )
     result = await agent.run(ctx)
-    assert "sections" in result.output
-    assert "outline" in result.output
+    assert "route_plan" in result.output
+    assert "page_content_packs" in result.output
+    assert "claim_grounding" in result.output
+    assert result.output["stages_run"] == ["plan_content"]
 
 
 async def test_visual_design_director_agent_deterministic_output():
-    agent = VisualDesignDirectorAgent()
+    agent = VisualDesignDirectorAgent(model_client=_VisualDesignDirectorMockModelClient())
     ctx = _build_context(
         AgentKey.VISUAL_DESIGN_DIRECTOR,
-        {"content": {}, "brand": {}},
+        {
+            "operation": "build",
+            "intake": {"content_architect_content_hash": "h", "route_plan": [{"route_id": "home"}]},
+            "preferences": {},
+        },
     )
     result = await agent.run(ctx)
-    assert "theme" in result.output
-    assert "palette" in result.output
+    assert "visual_language" in result.output
+    assert "pages" in result.output
+    assert result.output["stages_run"] == ["establish_visual_language"]
 
 
 async def test_code_generator_agent_deterministic_output():
@@ -169,18 +186,21 @@ def test_discovery_schema_validation():
 
 
 def test_content_architect_schema_validation():
-    req = ContentArchitectRequest(discovery={"summary": "s"})
-    assert req.discovery["summary"] == "s"
-    resp = ContentArchitectResponse(sections=[{"id": "hero"}], outline={"title": "T"})
-    assert resp.sections[0]["id"] == "hero"
+    intake = ContentArchitectIntake(approved_brief_title="t", profile={"name": "Test User"})
+    assert intake.profile["name"] == "Test User"
+    output = ContentArchitectOutput(
+        mode=ContentPlanMode.STRATEGY_ONLY,
+        site_story_strategy={"positioning": "x"},
+    )
+    assert output.site_story_strategy["positioning"] == "x"
 
 
 def test_visual_design_schema_validation():
-    resp = VisualDesignDirectorResponse(
-        theme={"name": "dark"}, palette=["#000"], typography={"heading_font": "serif"}
+    output = VisualDesignDirectorOutput(
+        mode=VisualPlanMode.VISUAL_LANGUAGE_ONLY,
+        visual_language={"creative_thesis": "restrained, evidence-first"},
     )
-    assert resp.palette == ["#000"]
-    assert resp.typography["heading_font"] == "serif"
+    assert output.visual_language["creative_thesis"] == "restrained, evidence-first"
 
 
 def test_code_generator_schema_validation():

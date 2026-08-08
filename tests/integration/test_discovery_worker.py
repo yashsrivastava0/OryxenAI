@@ -100,6 +100,12 @@ async def test_full_worker_flow_with_mock_client(db_session, monkeypatch) -> Non
 
 @pytest.mark.asyncio
 async def test_worker_failure_always_surfaces_in_state(db_session, monkeypatch) -> None:
+    """A failure surfaces once retries are exhausted (the final attempt).
+
+    Earlier attempts with retries remaining must NOT surface — the worker
+    retries those with backoff on its own — see
+    test_transient_failure_does_not_surface_while_retries_remain.
+    """
     session = await PortfolioSessionRepository(db_session).create("Failure discovery")
     session_id = session.id
     service = DiscoveryService(DiscoveryRepository(db_session), JobService(db_session))
@@ -111,6 +117,7 @@ async def test_worker_failure_always_surfaces_in_state(db_session, monkeypatch) 
         goal="get hired",
     )
     await db_session.commit()
+    max_attempts = started["discovery"]["max_attempts"]
 
     monkeypatch.setattr(
         "oryxenai.jobs.handlers.discovery._build_discovery_agent",
@@ -120,11 +127,50 @@ async def test_worker_failure_always_surfaces_in_state(db_session, monkeypatch) 
     question_job = await JobService(db_session).get(
         UUID(started["discovery"]["operation_a"]["job_id"])
     )
+    payload = dict(question_job.payload)
+    payload["attempt"] = max_attempts
     with pytest.raises(ProviderTimeoutError):
-        await DiscoveryUnderstandAndQuestionHandler().execute(question_job.payload, "test-worker")
+        await DiscoveryUnderstandAndQuestionHandler().execute(payload, "test-worker")
     await db_session.commit()
 
     db_session.expire_all()
     state_data = await service.get_discovery_state(session_id)
     assert state_data["discovery"]["status"] == "needs_attention"
     assert state_data["discovery"]["latest_error"]["code"] == "PROVIDER_TIMEOUT_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_transient_failure_does_not_surface_while_retries_remain(
+    db_session, monkeypatch
+) -> None:
+    session = await PortfolioSessionRepository(db_session).create("Transient failure discovery")
+    session_id = session.id
+    service = DiscoveryService(DiscoveryRepository(db_session), JobService(db_session))
+
+    started = await service.start(
+        session_id,
+        message="Create my portfolio",
+        document_text="",
+        goal="get hired",
+    )
+    await db_session.commit()
+    assert started["discovery"]["max_attempts"] > 1
+
+    monkeypatch.setattr(
+        "oryxenai.jobs.handlers.discovery._build_discovery_agent",
+        lambda *args, **kwargs: _BoomAgent(),
+    )
+
+    question_job = await JobService(db_session).get(
+        UUID(started["discovery"]["operation_a"]["job_id"])
+    )
+    payload = dict(question_job.payload)
+    payload["attempt"] = 1
+    with pytest.raises(ProviderTimeoutError):
+        await DiscoveryUnderstandAndQuestionHandler().execute(payload, "test-worker")
+    await db_session.commit()
+
+    db_session.expire_all()
+    state_data = await service.get_discovery_state(session_id)
+    assert state_data["discovery"]["status"] == "questions_running"
+    assert state_data["discovery"]["latest_error"] is None

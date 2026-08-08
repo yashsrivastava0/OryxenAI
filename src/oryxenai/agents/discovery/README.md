@@ -39,8 +39,13 @@ Discovery must NOT:
    it enqueues `discovery.build_or_revise_brief`.
 4. `POST .../discovery/revise` re-runs Operation B with a natural-language
    `revision_request` and the current brief (allowed only while under review).
-5. The worker runs Operation B: one model call produces the full brief as
-   free Markdown inside `brief_markdown`.
+5. The worker runs Operation B: one model call produces three complementary
+   outputs — the full detailed brief as free Markdown (`brief_markdown`,
+   persisted and eventually handed to later stages), a short user-facing
+   summary (`user_summary`, what the chat UI shows by default), and a
+   compact structured profile of categorized facts (`profile`: name,
+   experience, education, projects, skills, links). All three are saved to
+   session state; only `user_summary` is the primary rendered view.
 6. `POST .../discovery/approve` snapshots the approved brief by hash.
 
 The legacy job kinds `discovery.prepare_questions` / `discovery.build_brief`
@@ -69,11 +74,21 @@ content:
   kinds; mode-specific question-count rules (NEEDS_DETAILS/READY_FOR_BRIEF
   must have zero questions, ASK_QUESTIONS at least one).
 - Operation B (`BriefOutput`) — `mode` is `BRIEF_READY`, `assistant_message`,
-  `brief_title`, and `brief_markdown` non-empty; `open_items` and
-  `memory_update` are lists/dicts when present.
+  `brief_title`, `brief_markdown`, and `user_summary` non-empty; `open_items`
+  and `memory_update` are lists/dicts when present; `profile` (if present) is
+  checked for SHAPE only against `StructuredProfile` — its field values are
+  never judged for accuracy. `profile.projects` length is NOT a validation
+  error (a resume can genuinely list more than a handful of real projects,
+  and that's a fact about the input, not a model mistake — rejecting and
+  retrying could only ever fail again the same way); `DiscoveryAgent`
+  truncates it to `[discovery].max_projects` after validation instead.
 
-A model output that fails the contract surfaces `MODEL_OPERATION_FAILED` in
-`needs_attention`; the worker retry policy handles transient provider errors.
+A model output that fails the contract raises `DiscoveryModelOutputError`
+(surfaced as `MODEL_OUTPUT_INVALID`, retryable — it's usually a one-off
+generation-quality issue on the same input). Truly unexpected exceptions
+surface as `MODEL_OPERATION_FAILED` (not retryable). Either way the failure
+only reaches `needs_attention` once retries are exhausted — see "Failure
+behavior" below.
 
 ## Prompts
 
@@ -91,18 +106,29 @@ prompt's logic; there is no repair loop and no few-shot library.
 ## Model integration
 
 There is no demo mode. The worker always builds the live provider adapter for
-the `[profiles.discovery]` profile in `config/models.toml` (DeepSeek through
-the OpenCode-compatible adapter); missing configuration raises a controlled
-`ProviderConfigError`. The mock-runs dev harness uses the deterministic
-`MockModelClient` fallback so it never makes network calls.
+the `[profiles.discovery]` profile in `config/models.toml` (currently real
+OpenAI, `gpt-5.6-luna`, via the generic OpenAI-protocol adapter — swapping to
+any other OpenAI-compatible provider is a config change only, never a code
+change: see `ModelCapabilities` in `providers/capabilities.py`); missing
+configuration raises a controlled `ProviderConfigError`. The mock-runs dev
+harness uses the deterministic `MockModelClient` fallback so it never makes
+network calls.
 
 ## Failure behavior
 
-- Provider errors (timeout, rate limit, server) are retried by the worker
-  (default 3 attempts) and the latest attempt is always visible.
-- Permanent failures (invalid output, config errors) set `needs_attention`
-  immediately with the error code and message.
-- The UI shows the error, the attempt counter, and a "Try again" action.
+- Retryable failures (provider timeout/rate-limit/server errors, and
+  `DiscoveryModelOutputError` — invalid model output) are retried silently by
+  the worker with backoff, up to `[worker.retry].max_attempts` (default 3).
+  `discovery.status` stays at its running value and `attempt` increments each
+  try; nothing is shown to the user while retries remain, so a transient hit
+  doesn't produce a dead-end error racing the worker's own automatic retry.
+- Once a failure is non-retryable, or the last attempt is exhausted,
+  `needs_attention` is set with the error code/message and the UI shows a
+  "Try again" action.
+- The worker renews a claimed job's lease while its handler is still running
+  (`Worker._renew_lease_loop`, `jobs/worker.py`) so a legitimately slow
+  generation is never mistaken for an abandoned job and re-dispatched a
+  second, concurrent time.
 
 ## HTTP surface
 

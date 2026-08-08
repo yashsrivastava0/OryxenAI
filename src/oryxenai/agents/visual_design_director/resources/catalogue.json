@@ -1,0 +1,182 @@
+[
+  {
+    "resource_id": "hero_asymmetric_text_dominant",
+    "category": "hero_pattern",
+    "name": "Asymmetric text-dominant hero",
+    "tags": ["hero", "text-dominant", "single_page", "hybrid", "no-media", "asymmetric"],
+    "description": "A hero composition where typography carries most of the visual weight; a small abstract or diagrammatic element balances it rather than a photo.",
+    "when_to_use": "No strong hero image/screenshot exists but the headline and positioning are strong.",
+    "constraints": "Requires a confident, short headline; avoid when hero copy is long or hedging."
+  },
+  {
+    "resource_id": "hero_split_abstract_visual",
+    "category": "hero_pattern",
+    "name": "Split hero with abstract visual",
+    "tags": ["hero", "split", "no-media", "multi_page", "hybrid", "medium"],
+    "description": "A two-column hero: copy on one side, a generated abstract/geometric visual or diagram on the other, in place of a missing photo.",
+    "when_to_use": "The profile has a strong narrative thesis but no real hero image to anchor the composition.",
+    "constraints": "The abstract visual must represent an approved concept, never imply real evidence (e.g. a real screenshot)."
+  },
+  {
+    "resource_id": "hero_centered_minimal",
+    "category": "hero_pattern",
+    "name": "Centered minimal hero",
+    "tags": ["hero", "centered", "minimal", "single_page", "sparse"],
+    "description": "A single centered headline/subhead/CTA block with generous whitespace and no competing visual element.",
+    "when_to_use": "Sparse profiles with limited content where restraint reads as confidence rather than emptiness.",
+    "constraints": "Needs enough vertical rhythm/spacing discipline elsewhere on the page to avoid feeling incomplete."
+  },
+  {
+    "resource_id": "timeline_vertical_career",
+    "category": "timeline_pattern",
+    "name": "Vertical career/experience timeline",
+    "tags": ["timeline", "experience", "vertical", "dense", "multi_page"],
+    "description": "A vertical rail with dated milestones branching left/right, used to narrate a career or project history in sequence.",
+    "when_to_use": "A route needs to show progression over time across multiple roles or project phases.",
+    "constraints": "Long labels need a condensed mobile treatment (single column, shorter dates) — do not keep the branching layout on narrow viewports."
+  },
+  {
+    "resource_id": "timeline_horizontal_milestones",
+    "category": "timeline_pattern",
+    "name": "Horizontal milestone strip",
+    "tags": ["timeline", "milestones", "horizontal", "compact"],
+    "description": "A short, horizontally scannable strip of 3-5 key milestones, used as a compact summary rather than a full history.",
+    "when_to_use": "A brief 'at a glance' progression is useful but a full vertical timeline would be too heavy for the route's density.",
+    "constraints": "Horizontal scroll/overflow on mobile needs an explicit fallback (e.g. collapse to a stacked list)."
+  },
+  {
+    "resource_id": "diagram_before_after",
+    "category": "diagram_primitive",
+    "name": "Before/after comparison diagram",
+    "tags": ["diagram", "comparison", "evidence", "technical"],
+    "description": "A two-state diagram contrasting a prior state and an improved state (e.g. latency, process steps, architecture) to make an outcome legible without real screenshots.",
+    "when_to_use": "A claim references a measurable or structural improvement but no chart/screenshot evidence exists.",
+    "constraints": "Only label states that are grounded in approved claim_grounding — never fabricate specific numbers."
+  },
+  {
+    "resource_id": "diagram_process_flow",
+    "category": "diagram_primitive",
+    "name": "Process/flow diagram",
+    "tags": ["diagram", "process", "flow", "technical", "no-media"],
+    "description": "A step-sequence diagram (boxes/arrows) illustrating a workflow, retry/backoff strategy, or pipeline stage progression.",
+    "when_to_use": "A project's technical contribution is best explained as a sequence of decisions/steps rather than prose alone.",
+    "constraints": "Keep step count low enough to remain legible in a single-column mobile layout; simplify rather than shrink text."
+  },
+  {
+    "resource_id": "diagram_abstract_topology",
+    "category": "diagram_primitive",
+    "name": "Abstract system-topology diagram",
+    "tags": ["diagram", "architecture", "abstract", "technical", "no-media"],
+    "description": "A generalized node-and-edge diagram representing an approved system structure, without claiming to be a real internal architecture document.",
+    "when_to_use": "Illustrating system design depth for a backend/infrastructure-heavy profile with no real diagram available.",
+    "constraints": "Must stay abstract/representative — never presented as a real internal document or exact production topology."
+  },
+  {
+    "resource_id": "gallery_case_study_grid",
+    "category": "gallery_pattern",
+    "name": "Case-study evidence grid",
+    "tags": ["gallery", "grid", "evidence", "rich-media", "multi_page"],
+    "description": "A grid of framed evidence tiles (screenshots, diagrams, or artifacts) supporting a project case study.",
+    "when_to_use": "Multiple approved visual artifacts exist for one route and benefit from being seen together rather than one at a time.",
+    "constraints": "Grid density must collapse to a single column on mobile; never crop a tile in a way that loses its focal point."
+  },
+  {
+    "resource_id": "gallery_single_focus_panel",
+    "category": "gallery_pattern",
+    "name": "Single-focus framed evidence panel",
+    "tags": ["gallery", "framed", "evidence", "single_page"],
+    "description": "One large, framed evidence visual with supporting caption, used when only one strong asset exists for a route.",
+    "when_to_use": "Exactly one strong approved image/diagram exists for a route and deserves emphasis rather than dilution in a grid.",
+    "constraints": "Requires a real focal point/safe-crop region if the asset is a photo; avoid forcing an aspect ratio the source can't support."
+  },
+  {
+    "resource_id": "background_gradient_mesh",
+    "category": "background_system",
+    "name": "Generative abstract gradient-mesh background",
+    "tags": ["background", "abstract", "texture", "no-media", "motion"],
+    "description": "A soft, low-contrast generative gradient or mesh texture used as a background layer, never as foreground content.",
+    "when_to_use": "A scene needs visual depth/atmosphere but has no photographic asset and should not look flat.",
+    "constraints": "Must stay low-contrast enough not to interfere with foreground text legibility; disable/simplify under reduced-motion."
+  },
+  {
+    "resource_id": "background_grid_dot_texture",
+    "category": "background_system",
+    "name": "Subtle grid/dot texture background",
+    "tags": ["background", "texture", "technical", "minimal"],
+    "description": "A faint structural grid or dot-matrix texture, reinforcing a technical/engineering visual personality without imagery.",
+    "when_to_use": "The visual language leans technical/precise and benefits from a structural background motif.",
+    "constraints": "Keep opacity low; texture must never compete with primary content for attention."
+  },
+  {
+    "resource_id": "navigation_sticky_minimal_top",
+    "category": "navigation_pattern",
+    "name": "Sticky minimal top navigation",
+    "tags": ["navigation", "sticky", "multi_page", "hybrid"],
+    "description": "A slim, persistent top navigation bar with a small number of primary destinations plus a primary CTA.",
+    "when_to_use": "A multi-page or hybrid site needs consistent cross-route orientation.",
+    "constraints": "Must define an explicit mobile collapse strategy (e.g. condensed menu) before nav item count grows past a handful."
+  },
+  {
+    "resource_id": "navigation_single_page_anchor",
+    "category": "navigation_pattern",
+    "name": "Single-page anchor nav with scroll progress",
+    "tags": ["navigation", "single_page", "anchor", "scroll"],
+    "description": "In-page anchor navigation (optionally with a scroll-progress indicator) for a single long page instead of route-based navigation.",
+    "when_to_use": "The site is a single scrolling page with clearly delineated sections worth jumping between.",
+    "constraints": "Anchor targets must map to real section_ids from Content Architect; never invent a section that doesn't exist."
+  },
+  {
+    "resource_id": "motion_scroll_reveal_stagger",
+    "category": "motion_pattern",
+    "name": "Staged scroll-reveal entrance",
+    "tags": ["motion", "scroll", "entrance", "signature"],
+    "description": "Content within a scene fades/rises into place in a short staggered sequence as it enters the viewport.",
+    "when_to_use": "A signature moment scene benefits from a controlled entrance without relying on a specific animation library.",
+    "constraints": "Requires an explicit reduced-motion fallback (static, fully visible state) and must never gate critical content behind the animation."
+  },
+  {
+    "resource_id": "motion_hover_lift_card",
+    "category": "motion_pattern",
+    "name": "Hover-lift micro-interaction for cards",
+    "tags": ["motion", "hover", "micro-interaction", "cards"],
+    "description": "A small elevation/scale shift on hover for card-like elements (project index, gallery tiles) to signal interactivity.",
+    "when_to_use": "Card-based navigation elements (e.g. project index, gallery) need a lightweight interactive affordance.",
+    "constraints": "Hover-only interactions need a touch-equivalent (e.g. visible affordance without hover) since touch devices have no hover state."
+  },
+  {
+    "resource_id": "icon_set_line_technical",
+    "category": "icon_set",
+    "name": "Line-weight technical/interface icon set",
+    "tags": ["icon", "technical", "interface", "line", "minimal"],
+    "description": "A consistent-stroke, line-based icon family for interface affordances (navigation, links, states) and simple technology/concept markers.",
+    "when_to_use": "The visual language is restrained/technical and needs interface icons or lightweight concept markers without photographic or brand imagery.",
+    "constraints": "Never substitute for a real technology/brand logo — use a generic line icon or text label when no approved logo exists."
+  },
+  {
+    "resource_id": "icon_set_capability_badges",
+    "category": "icon_set",
+    "name": "Capability/skill-group badge icons",
+    "tags": ["icon", "capability", "skills", "badge", "grouping"],
+    "description": "A small set of abstract badge-style marks used to visually distinguish grouped capability/skill categories from each other.",
+    "when_to_use": "A dense skills/capability inventory needs a scannable visual anchor per group without turning into a decorative wall.",
+    "constraints": "Badges are a grouping aid, not evidence — never imply certification, verification, or an external endorsement that was not supplied."
+  },
+  {
+    "resource_id": "font_pairing_editorial_technical",
+    "category": "font_pairing",
+    "name": "Editorial display + technical body pairing",
+    "tags": ["typography", "font", "editorial", "technical", "restrained"],
+    "description": "A confident, restrained display face for headlines paired with a highly legible, slightly technical body/mono-adjacent face for explanatory and code-adjacent text.",
+    "when_to_use": "The visual personality is calm, technical, and editorial rather than playful or marketing-driven.",
+    "constraints": "Keep the display face restrained — avoid decorative or script faces that undercut a technical/credible tone."
+  },
+  {
+    "resource_id": "font_pairing_warm_approachable",
+    "category": "font_pairing",
+    "name": "Warm approachable display + body pairing",
+    "tags": ["typography", "font", "warm", "approachable", "friendly"],
+    "description": "A slightly rounded, friendly display face paired with a warm, comfortable body face — for profiles whose positioning is approachable rather than austere.",
+    "when_to_use": "The visual personality calls for warmth and approachability without sacrificing legibility or credibility.",
+    "constraints": "Keep contrast and legibility strong even with rounder letterforms; avoid faces that read as informal to the point of undermining credibility."
+  }
+]

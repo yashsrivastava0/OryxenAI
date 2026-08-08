@@ -179,6 +179,41 @@ async def test_recover_stale(db_session):
     assert recovered[0].locked_by == "new-worker"
 
 
+async def test_recover_stale_skips_a_recently_renewed_heartbeat(db_session):
+    """A job whose lease was renewed mid-execution must not be reclaimed.
+
+    worker.py renews a claimed job's heartbeat periodically while its
+    handler is still running (Worker._renew_lease_loop), specifically so a
+    handler that legitimately runs close to the lease_duration (e.g. a
+    slow model generation) never looks abandoned. Without that renewal,
+    recover_stale would redispatch the same job for a second, concurrent
+    execution while the first one is still genuinely in flight.
+    """
+    now = datetime.now(UTC)
+    old_claim_time = now - timedelta(seconds=300)
+
+    long_running_job = BackgroundJob(
+        job_kind="system.worker_probe",
+        status=JobStatus.RUNNING.value,
+        payload={},
+        locked_by="still-alive-worker",
+        heartbeat_at=old_claim_time,
+        started_at=old_claim_time,
+    )
+    db_session.add(long_running_job)
+    await db_session.commit()
+
+    repo = JobRepository(db_session)
+    await repo.update_heartbeat(long_running_job.id)
+
+    recovered = await repo.recover_stale("new-worker", 60.0, 10)
+    assert recovered == []
+
+    fetched = await repo.get_by_id(long_running_job.id)
+    assert fetched is not None
+    assert fetched.locked_by == "still-alive-worker"
+
+
 async def test_list_recent(db_session):
     repo = JobRepository(db_session)
     for i in range(3):

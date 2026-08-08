@@ -96,6 +96,71 @@ class QuestionSetOutput(BaseModel):
 # ── Output: Operation B (build_or_revise_brief) ─────────────────────────────
 
 
+class ProfileLink(BaseModel):
+    """One public link (portfolio, GitHub, LinkedIn, ...)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = ""
+    url: str = ""
+
+
+class ExperienceEntry(BaseModel):
+    """One role in the structured profile. Facts only, never invented."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    organization: str = ""
+    role: str = ""
+    dates: str = ""
+    highlights: list[str] = Field(default_factory=list)
+
+
+class EducationEntry(BaseModel):
+    """One education or certification entry."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    institution: str = ""
+    credential: str = ""
+    dates: str = ""
+
+
+class ProjectEntry(BaseModel):
+    """One project or work sample in the structured profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = ""
+    summary: str = ""
+    contribution: str = ""
+    tech: list[str] = Field(default_factory=list)
+    link: str = ""
+
+
+class StructuredProfile(BaseModel):
+    """Categorized facts extracted from the user's material.
+
+    Facts only — no judgment, grouping labels, provenance, or confidence
+    scores. Positioning, strategy, and skill-grouping stay in brief_markdown.
+    Every field defaults empty and must stay empty when the source does not
+    supply it; nothing here may be invented.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = ""
+    current_title: str = ""
+    location: str = ""
+    links: list[ProfileLink] = Field(default_factory=list)
+    experience: list[ExperienceEntry] = Field(default_factory=list)
+    education: list[EducationEntry] = Field(default_factory=list)
+    projects: list[ProjectEntry] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    spoken_languages: list[str] = Field(default_factory=list)
+    private_omitted: list[str] = Field(default_factory=list)
+
+
 class BriefOutput(BaseModel):
     """Structured output of the build_or_revise_brief model call.
 
@@ -108,6 +173,8 @@ class BriefOutput(BaseModel):
     assistant_message: str
     brief_title: str
     brief_markdown: str
+    user_summary: str = ""
+    profile: StructuredProfile = Field(default_factory=StructuredProfile)
     open_items: list[str] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
 
@@ -167,6 +234,8 @@ class BriefState(BaseModel):
     job_id: str = ""
     title: str = ""
     markdown: str = ""
+    user_summary: str = ""
+    profile: StructuredProfile = Field(default_factory=StructuredProfile)
     open_items: list[str] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
     revision_request: str = ""
@@ -179,6 +248,7 @@ class DiscoveryState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: DiscoveryStatus = DiscoveryStatus.NOT_STARTED
+    model_profile: str = ""
     intake: DiscoveryIntake = Field(default_factory=DiscoveryIntake)
     operation_a: OperationAState = Field(default_factory=OperationAState)
     answers: AnswersState = Field(default_factory=AnswersState)

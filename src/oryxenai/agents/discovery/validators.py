@@ -2,15 +2,18 @@
 
 Transport-level validation: the response must be parseable, the required
 envelope keys must exist, the mode must be known, and question entries must
-contain usable text. The brief content itself is free Markdown and is NOT
-business-validated.
+contain usable text. brief_markdown and user_summary are free text and are
+NOT business-validated. profile is checked for SHAPE only (it must parse as
+StructuredProfile) — its field values are never judged for accuracy.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from oryxenai.agents.discovery.schemas import OperationMode, QuestionKind
+from pydantic import ValidationError
+
+from oryxenai.agents.discovery.schemas import OperationMode, QuestionKind, StructuredProfile
 
 _VALID_MODES_A = {
     OperationMode.NEEDS_DETAILS.value,
@@ -85,10 +88,16 @@ def validate_questions_output(data: dict[str, Any], max_questions: int = 8) -> V
     return ValidationOutcome(len(errors) == 0, errors)
 
 
-def validate_brief_output(data: dict[str, Any], max_projects: int = 5) -> ValidationOutcome:
+def validate_brief_output(data: dict[str, Any]) -> ValidationOutcome:
     """Validate the brief output of the build_or_revise_brief model call.
 
     The brief is free Markdown; only the transport envelope is checked.
+    profile.projects is NOT length-checked here: a real resume can easily
+    list more than a handful of genuine projects, and that count is a fact
+    about the input, not a random model mistake — rejecting the whole brief
+    (and retrying, which can only ever fail again the same way) would throw
+    away a perfectly good generation. The caller truncates instead; see
+    DiscoveryAgent._run_build_or_revise_brief.
     """
     errors: list[str] = []
 
@@ -101,11 +110,23 @@ def validate_brief_output(data: dict[str, Any], max_projects: int = 5) -> Valida
         errors.append("'brief_title' is empty")
     if not str(data.get("brief_markdown", "") or "").strip():
         errors.append("'brief_markdown' is empty")
+    if not str(data.get("user_summary", "") or "").strip():
+        errors.append("'user_summary' is empty")
     open_items = data.get("open_items")
     if open_items is not None and not isinstance(open_items, list):
         errors.append("'open_items' must be a list when present")
     memory_update = data.get("memory_update")
     if memory_update is not None and not isinstance(memory_update, dict):
         errors.append("'memory_update' must be a dict when present")
+
+    profile = data.get("profile")
+    if profile is not None:
+        if not isinstance(profile, dict):
+            errors.append("'profile' must be an object when present")
+        else:
+            try:
+                StructuredProfile.model_validate(profile)
+            except ValidationError as exc:
+                errors.append(f"'profile' failed schema validation: {exc.error_count()} error(s)")
 
     return ValidationOutcome(len(errors) == 0, errors)
