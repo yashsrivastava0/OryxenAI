@@ -29,6 +29,7 @@ class ModelCapabilities(BaseModel):
     response_id: bool
     context_cache_metadata: bool
     supports_store_parameter: bool
+    uses_max_completion_tokens: bool
 
 
 DEFAULT_OPENCODE_GO = ModelCapabilities(
@@ -41,4 +42,5 @@ DEFAULT_OPENCODE_GO = ModelCapabilities(
     response_id=True,
     context_cache_metadata=False,
     supports_store_parameter=True,
+    uses_max_completion_tokens=False,
 )

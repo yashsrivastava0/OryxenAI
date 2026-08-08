@@ -21,7 +21,6 @@ from oryxenai.db.base import Base
 from oryxenai.db.models import (  # noqa: F401
     AgentRun,
     BackgroundJob,
-    DiscoverySourceDocument,
     PortfolioSession,
     ServiceHeartbeat,
 )

@@ -200,6 +200,64 @@ class TestOpenCodeGoAdapterStructured:
         assert call_kwargs["response_format"] == {"type": "json_object"}
         assert call_kwargs["model"] == "deepseek-v4-pro"
 
+    def test_generate_structured_includes_system_message_when_provided(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+
+        mock_response = _mock_chat_response(json.dumps({"questions": []}))
+        mock_client = _make_mock_openai_client(mock_response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    system_prompt="You are trusted system instructions",
+                    instructions="Untrusted task and user data",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                )
+            )
+
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        messages = call_kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert messages[0]["content"] == "You are trusted system instructions"
+        assert messages[1]["role"] == "user"
+        assert messages[1]["content"] == "Untrusted task and user data"
+
+    def test_generate_structured_omits_system_message_when_absent(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+
+        mock_response = _mock_chat_response(json.dumps({"questions": []}))
+        mock_client = _make_mock_openai_client(mock_response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="Just the task",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                )
+            )
+
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        messages = call_kwargs["messages"]
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        assert messages[0]["content"] == "Just the task"
+
     def test_raises_on_invalid_json_response(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
 
@@ -481,6 +539,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
             response_id=True,
             context_cache_metadata=False,
             supports_store_parameter=False,
+            uses_max_completion_tokens=False,
         )
         adapter = OpenCodeGoAdapter(_make_profile(store=False, capabilities=caps))
 
@@ -519,7 +578,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert call_kwargs["reasoning"] == {"effort": "high"}
+        assert call_kwargs["reasoning_effort"] == "high"
 
         mock_client.chat.completions.create.reset_mock()
         adapter_no_thinking = OpenCodeGoAdapter(_make_profile(reasoning_effort=""))
@@ -535,7 +594,7 @@ class TestOpenCodeGoAdapterCapabilityHandling:
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert "reasoning" not in call_kwargs
+        assert "reasoning_effort" not in call_kwargs
 
     def test_empty_output_classified(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")

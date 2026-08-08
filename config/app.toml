@@ -17,7 +17,7 @@ enable_dev_ui = true   # serve the developer testing harness at /
 # Non-secret connection parameters. The PASSWORD is read from .env
 # (POSTGRES_PASSWORD) and never appears here.
 host = "localhost"
-port = 5433
+port = 5544
 database = "oryxenai"
 user = "oryxen"
 # Optional full URL override. When non-empty, it is used verbatim.
@@ -61,5 +61,17 @@ heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is s
 [discovery]
 # Discovery agent output limits. Input is never validated.
 max_questions = 8
-max_projects = 5
+max_projects = 8               # profile.projects is truncated to this, never rejected
 max_answer_chars = 10000
+
+[content_architect]
+# Content Architect agent output limits. Input snapshot is never re-validated
+# for business content — only shape/limits are enforced here.
+max_routes = 12                # route_plan / page_content_packs truncated to this, never rejected
+
+[visual_design_director]
+# Visual Design Director agent output limits. Input snapshot (from Content
+# Architect) is never re-validated for business content — only shape/limits
+# enforced here.
+max_pages = 12                     # pages truncated to this, never rejected
+max_catalogue_candidates = 6       # resource-catalogue shortlist size per model call

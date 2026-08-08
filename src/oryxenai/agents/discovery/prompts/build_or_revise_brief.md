@@ -1,12 +1,13 @@
 <!--
   Operation B — Create or revise the Portfolio Discovery Brief
-  Version: discovery.build_or_revise_brief.v2
+  Version: discovery.build_or_revise_brief.v4
   Output model: BriefOutput (see schema in the task block below)
 -->
 
 <operation>
-Create or revise the complete Portfolio Discovery Brief as a single readable Markdown document.
-Return one JSON object matching BriefOutput. Put the brief itself inside the brief_markdown string.
+Create or revise the complete Portfolio Discovery Brief. This operation produces THREE
+complementary outputs in one JSON object: the full detailed brief_markdown (unchanged from
+before), a new short user_summary, and a new structured profile of categorized facts.
 </operation>
 
 <input_sources>
@@ -94,7 +95,40 @@ padded with generic filler.
     for approval; what NEXT means (approve this exact brief and stop Discovery).
 </brief_content_architecture>
 
+<structured_profile>
+Populate the `profile` object with categorized FACTS only, extracted from the same source
+material used for brief_markdown — never invent a value to fill a field. Leave a field at its
+empty default (empty string / empty list) when the source does not supply it; an empty profile
+section is correct and expected for a sparse source, not an error to paper over.
+
+profile holds facts only: name, current_title, location, links, experience, education, projects,
+skills, spoken_languages, private_omitted. It does NOT hold judgment, strategy, positioning,
+grouping labels, or confidentiality reasoning — that stays exclusively in brief_markdown, exactly
+as today. Do not write a marketing headline into current_title; use the person's actual current or
+most recent title only.
+
+skills is a flat list of individual skills/tools/technologies — do not group or categorize them
+here; meaningful grouping and strength assessment belong in brief_markdown section 7 only, since a
+grouping scheme is a judgment call and should not appear as if it were a stable fact.
+
+private_omitted lists facts that exist in the source but must not be published by default (street
+address, personal phone, confidential employer/client names) — same privacy rules as brief_markdown
+section 13. Do not place a private fact in any other profile field instead of private_omitted.
+</structured_profile>
+
+<user_summary>
+Write user_summary as a short, friendly, standalone summary for the person reviewing it in a chat
+interface — roughly 150–350 words, plain paragraphs only, NO Markdown headings (it renders directly
+under a heading already on the page). Restate the portfolio direction in one or two sentences,
+mention the one or two strongest highlights, note anything still open in plain language, and
+confirm that the full detailed brief has been prepared and is ready for the next stage. Do not
+repeat the entire brief_markdown content — this is a highlights view, not a duplicate.
+</user_summary>
+
 <depth_and_length>
+The word-count guidance below is for brief_markdown specifically; user_summary has its own much
+shorter target above and should never be padded to match this range.
+
 Length adapts to source richness; never pad with generic filler.
 - Very sparse profile: roughly 700–1,200 useful words.
 - Typical resume with several roles/projects: roughly 1,500–3,000 useful words.
@@ -126,18 +160,30 @@ turn "I prefer dark" into "the user has shipped award-winning dark-mode products
 
 <revision_behavior>
 When an existing brief is supplied with a revision_request:
+- If the request names a specific, targeted change, apply exactly that and preserve everything else.
+- If the request is a general expression of dissatisfaction with no specific target ("I don't like
+  it", "try again", "redo this", "can you regenerate"), treat it as a genuine invitation to
+  reconsider positioning, emphasis, and structure — not a request to reword the same brief. Draw on
+  the same supplied material and answers to produce a materially different take, not a cosmetic
+  rewrite.
 - Preserve unaffected factual content.
 - Apply the latest user instruction.
 - Update affected overview, priorities, design signals, CTA, open items, and downstream handoff.
 - Preserve prior privacy/confidentiality choices.
 - Remove superseded active instructions.
 - Regenerate the FULL coherent brief_markdown. Do NOT return a disconnected patch.
+- Regenerate profile fully consistent with the revised brief_markdown and user_summary. You are
+  only shown the prior brief_markdown as context, not a prior profile — rebuild profile from the
+  same underlying source material and answers, reflecting any change the revision caused (for
+  example, if the revision changes which project leads, profile.projects should still list every
+  project but brief_markdown's ordering/emphasis is where that change is expressed).
 </revision_behavior>
 
 <format>
-Return ONE complete JSON object matching BriefOutput. Put the entire brief as a single string in
-brief_markdown, with \n newlines. Use Markdown headings (#, ##, ###) and bullet lists as appropriate.
-NO Markdown outside the JSON object.
+Return ONE complete JSON object matching BriefOutput, containing all three content fields together:
+brief_markdown (the full detailed brief as a single string with \n newlines; Markdown headings and
+bullet lists are appropriate here), user_summary (short plain-paragraph text, no Markdown headings),
+and profile (the structured facts object). NO Markdown outside the JSON object.
 </format>
 
 <output_reminder>

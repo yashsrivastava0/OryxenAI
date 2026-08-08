@@ -174,6 +174,7 @@ class Worker:
             )
             return
 
+        heartbeat_task = asyncio.create_task(self._renew_lease_loop(job_id))
         try:
             payload = dict(job.payload or {})
             payload["attempt"] = job.attempt
@@ -203,6 +204,10 @@ class Worker:
                 error,
             )
             return
+        finally:
+            heartbeat_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
 
         if result.get("status") == "failed":
             await self._fail_job(
@@ -211,6 +216,27 @@ class Worker:
             )
             return
         await self._complete_job(job_id, result)
+
+    async def _renew_lease_loop(self, job_id: Any) -> None:
+        """Keep a claimed job's heartbeat fresh while its handler is running.
+
+        Without this, a handler that legitimately runs longer than
+        worker.job.lease_duration (e.g. a large model generation close to
+        its own provider timeout) looks abandoned to _recover_stale, which
+        re-dispatches the same job for a second, concurrent execution.
+        """
+        interval = max(self._settings.worker_job.lease_duration / 3, 5.0)
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                async with self._sessionmaker() as session:
+                    repo = JobRepository(session)
+                    await repo.update_heartbeat(job_id)
+                    await session.commit()
+            except Exception as exc:
+                logger.warning(
+                    "heartbeat renewal failed job_id=%s error=%s", job_id, type(exc).__name__
+                )
 
     async def _complete_job(self, job_id: Any, result: dict[str, Any]) -> None:
         async with self._sessionmaker() as session:

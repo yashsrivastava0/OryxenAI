@@ -2,10 +2,16 @@
 
 Production-oriented OryxenAI backend and developer testing harness.
 
-> **Discovery is implemented end to end.** It uses the configured OpenCode Go
-> adapter when a real run is requested. Later portfolio-generation agents remain
-> intentionally out of scope. See [docs/architecture.md](docs/architecture.md)
-> for design rationale.
+> **Discovery, Content Architect, and Visual Design Director are all
+> implemented end to end.** Code Generator remains intentionally out of
+> scope for now. See [docs/architecture.md](docs/architecture.md) for design
+> rationale and [docs/frontend-behavior-spec.md](docs/frontend-behavior-spec.md)
+> for the chat/UX contract.
+
+> **AI agents working on this repo:** start with
+> [`AGENTS.md`](AGENTS.md), not this file — it's the canonical, current
+> project context. See also [`CHANGES.md`](CHANGES.md) (change history) and
+> [`DECISIONS.md`](DECISIONS.md) (decisions and open issues).
 
 ## Current purpose
 
@@ -51,7 +57,7 @@ OryxenAI/
 │   │   ├── prompts/{system.md,prepare_questions.md,build_brief.md,repair_output.md}
 │   │   └── samples/{input.json,output.json}
 │   ├── runtime/                   # state_service, mock_runner
-│   ├── api/routes/                # health, agents, sessions, runs, discovery
+│   ├── api/routes/                # health, agents, sessions, runs, discovery, content-architect, visual-design-director
 │   └── web/                       # templates, static (css/js)
 ├── config/                        # committed non-secret TOML config
 ├── migrations/                    # Alembic
@@ -68,7 +74,8 @@ OryxenAI/
 - **Python 3.13** (pinned via `requires-python = ">=3.13,<3.14"`)
 - **uv** — [install](https://docs.astral.sh/uv/getting-started/installation/)
 - **Docker Desktop** (for Docker Compose startup; requires WSL2 on Windows)
-- **PostgreSQL** (provided via Docker Compose, or a local instance on port 5433)
+- **PostgreSQL** (provided via Docker Compose, or a local instance on the port
+  configured in `config/app.toml` `[database] port`, default `5544`)
 
 ## Environment setup
 
@@ -78,7 +85,7 @@ The root `.env` contains **secrets only** — database password and optional API
 Copy `.env.example` and fill in real values:
 
 ```powershell
-PS C:\Users\yashx\Desktop\OryxenAI> Copy-Item .env.example .env
+PS > Copy-Item .env.example .env
 # Edit .env: set POSTGRES_PASSWORD (and optionally API keys)
 ```
 
@@ -86,15 +93,16 @@ Non-secret configuration (app name, host, port, DB host/port, model profiles) li
 committed files under `config/`:
 
 - `config/app.toml` — `[app]` and `[database]` settings
-- `config/models.toml` — provider-neutral model profiles; Discovery uses OpenCode Go/deepseek-v4-pro
+- `config/models.toml` — provider-neutral model profiles; Discovery uses the
+  OpenCode Go provider (see `[profiles.discovery]` for the current model)
 
 ## Windows PowerShell setup
 
 ```powershell
-PS C:\Users\yashx\Desktop\OryxenAI> uv sync
-PS C:\Users\yashx\Desktop\OryxenAI> docker compose up postgres -d
-PS C:\Users\yashx\Desktop\OryxenAI> uv run alembic upgrade head
-PS C:\Users\yashx\Desktop\OryxenAI> uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
+PS > uv sync
+PS > docker compose up postgres -d
+PS > uv run alembic upgrade head
+PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
 ```
 
 Open `http://127.0.0.1:8000` for the developer testing harness.
@@ -122,18 +130,18 @@ uv lock --check             # verify lockfile is up to date
 ## Direct local startup
 
 ```powershell
-PS C:\Users\yashx\Desktop\OryxenAI> uv sync
-PS C:\Users\yashx\Desktop\OryxenAI> docker compose up postgres -d
-PS C:\Users\yashx\Desktop\OryxenAI> uv run alembic upgrade head
-PS C:\Users\yashx\Desktop\OryxenAI> uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000 --reload
+PS > uv sync
+PS > docker compose up postgres -d
+PS > uv run alembic upgrade head
+PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ## Docker Compose startup
 
 ```powershell
-PS C:\Users\yashx\Desktop\OryxenAI> docker compose up --build
-# App at http://localhost:8000, PostgreSQL on localhost:5433
-PS C:\Users\yashx\Desktop\OryxenAI> docker compose down
+PS > docker compose up --build
+# App at http://localhost:8000, PostgreSQL on localhost:5544
+PS > docker compose down
 ```
 
 The Docker Compose stack:
@@ -141,7 +149,7 @@ The Docker Compose stack:
 - Starts PostgreSQL 16.4 (Alpine) with a persistent named volume
 - App waits for DB health, runs `alembic upgrade head`, then starts Uvicorn (no reload)
 - Worker runs as a separate durable PostgreSQL-backed process
-- Exposes app on port 8000 and PostgreSQL on port 5433 (host) → 5432 (container)
+- Exposes app on port 8000 and PostgreSQL on port 5544 (host) → 5432 (container)
 
 ## Migration commands
 
@@ -204,12 +212,18 @@ uv run mypy src                # type check
 | GET | `/api/v1/sessions/{id}/runs` | Run history for a session |
 | POST | `/api/v1/sessions/{id}/runs/mock` | Execute a deterministic mock run |
 | GET | `/api/v1/sessions/{id}/discovery` | Get user-safe Discovery state |
-| PUT | `/api/v1/sessions/{id}/discovery/input` | Save Discovery intake/source revision |
-| POST | `/api/v1/sessions/{id}/discovery/questions` | Queue Discovery Call A |
-| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save typed Discovery answers |
-| POST | `/api/v1/sessions/{id}/discovery/brief` | Queue Discovery Call B |
-| PATCH | `/api/v1/sessions/{id}/discovery/brief` | Save typed brief edits |
+| POST | `/api/v1/sessions/{id}/discovery/start` | Store intake, queue Discovery Call A |
+| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save answers; `complete: true` queues Call B |
+| POST | `/api/v1/sessions/{id}/discovery/revise` | Natural-language brief revision (re-runs Call B) |
 | POST | `/api/v1/sessions/{id}/discovery/approve` | Create immutable approved brief |
+| GET | `/api/v1/sessions/{id}/content-architect` | Get Content Architect state |
+| POST | `/api/v1/sessions/{id}/content-architect/start` | Snapshot approved Discovery, queue build (requires Discovery approved) |
+| POST | `/api/v1/sessions/{id}/content-architect/revise` | Natural-language content revision (re-runs build) |
+| POST | `/api/v1/sessions/{id}/content-architect/approve` | Approve the reviewed content |
+| GET | `/api/v1/sessions/{id}/visual-design-director` | Get Visual Design Director state |
+| POST | `/api/v1/sessions/{id}/visual-design-director/start` | Snapshot approved Content Architect output, queue build (requires Content Architect approved) |
+| POST | `/api/v1/sessions/{id}/visual-design-director/revise` | Natural-language visual-direction revision (re-runs build) |
+| POST | `/api/v1/sessions/{id}/visual-design-director/approve` | Approve the reviewed visual direction |
 
 All errors return a structured envelope:
 
@@ -258,10 +272,11 @@ The harness allows you to:
 - **Transaction:** The executor updates both tables inside a single transaction so a
   successful output and the updated session state cannot diverge.
 
-Discovery additionally stores immutable source revisions in
-`discovery_source_documents`. Its API and worker service use optimistic session
-revisions so late model results are retained as stale history instead of replacing
-newer user work. See `src/oryxenai/agents/discovery/README.md` for the complete flow.
+Discovery stores its intake, answers, memory, and brief directly as JSONB on
+`portfolio_sessions.current_state["discovery"]`. Its API and worker service use
+optimistic session revisions so late model results are retained as stale history
+instead of replacing newer user work. See `src/oryxenai/agents/discovery/README.md`
+for the complete flow.
 
 ## How to add a future agent
 
@@ -279,15 +294,18 @@ newer user work. See `src/oryxenai/agents/discovery/README.md` for the complete 
 ### Database connection refused
 
 - Verify PostgreSQL is running: `docker compose ps`
-- Verify the port: the Docker container maps host **5433** → container **5432**
-  (to avoid conflict with a local PostgreSQL on 5432)
+- Verify the port: the Docker container maps host **5544** → container **5432**
+  (a non-default host port, to avoid conflicts with other local/Docker
+  Postgres instances — see `compose.yaml`)
 - Verify `POSTGRES_PASSWORD` is set in `.env` and matches the Docker container
-- Check `config/app.toml` has `port = 5433` for local dev
+- Check `config/app.toml` `[database] port` matches `compose.yaml`'s host port
 
-### Port conflict (8000 or 5433)
+### Port conflict (8000 or 5544)
 
 - App port 8000: change `APP_PORT` in `config/app.toml` or `--port` flag
-- DB port 5433: change the host mapping in `compose.yaml` (e.g. `"5434:5432"`)
+- DB port 5544: pick another free host port and update it in both
+  `compose.yaml` (`ports:`) and `config/app.toml` (`[database] port`) —
+  they must match
 
 ### `.env` is accidentally missing
 
@@ -306,9 +324,10 @@ newer user work. See `src/oryxenai/agents/discovery/README.md` for the complete 
 
 - Set `enable_dev_ui = true` in `config/app.toml` `[app]` section
 
-### Docker Desktop + asyncpg + SCRAM-SHA-256
+### Postgres host port already in use
 
-- Docker Compose uses `POSTGRES_HOST_AUTH_METHOD: trust` for local development as
-  a workaround for a Docker Desktop + asyncpg + SCRAM-SHA-256 interaction issue
-- **Production MUST use `scram-sha-256`**: remove `POSTGRES_HOST_AUTH_METHOD` and
-  verify asyncpg auth against your production PostgreSQL
+- The committed default host port (`compose.yaml` + `config/app.toml`
+  `[database] port`) may collide with another project's Postgres container
+  on a shared dev machine. Pick a free host port, update both files to
+  match (container-internal port stays `5432`), and re-run
+  `docker compose up postgres -d`.

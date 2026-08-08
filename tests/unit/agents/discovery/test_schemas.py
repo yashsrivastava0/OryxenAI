@@ -13,10 +13,15 @@ from oryxenai.agents.discovery.schemas import (
     DiscoveryQuestion,
     DiscoveryState,
     DiscoveryStatus,
+    EducationEntry,
+    ExperienceEntry,
     OperationMode,
+    ProfileLink,
+    ProjectEntry,
     QuestionKind,
     QuestionOption,
     QuestionSetOutput,
+    StructuredProfile,
 )
 
 
@@ -97,12 +102,23 @@ class TestQuestionSetOutput:
 
 class TestBriefOutput:
     def test_brief_output_has_no_rigid_field_contract(self):
+        """The envelope's field SET is still small and deliberately fixed.
+
+        `profile` is a bounded, intentional addition: flat facts only (name,
+        experience, education, projects, skills, links), no provenance, no
+        confidence scores, no conflict-resolution machinery. That is a
+        materially smaller shape than the fact-graph design this codebase
+        already tore down once — see StructuredProfile's own docstring.
+        brief_markdown remains free, non-business-validated prose.
+        """
         fields = set(BriefOutput.model_fields)
         assert fields == {
             "mode",
             "assistant_message",
             "brief_title",
             "brief_markdown",
+            "user_summary",
+            "profile",
             "open_items",
             "memory_update",
         }
@@ -113,11 +129,25 @@ class TestBriefOutput:
             assistant_message="Review the brief.",
             brief_title="Portfolio Discovery Brief — Test",
             brief_markdown="# Portfolio Discovery Brief\n\nLong readable content.",
+            user_summary="A short friendly summary for the chat UI.",
+            profile=StructuredProfile(name="Test User", skills=["Python"]),
             open_items=["no metrics"],
             memory_update={"intent_summary": "x"},
         )
         assert output.brief_markdown.startswith("# Portfolio Discovery Brief")
+        assert output.user_summary == "A short friendly summary for the chat UI."
+        assert output.profile.name == "Test User"
         assert output.open_items == ["no metrics"]
+
+    def test_profile_and_user_summary_default_empty(self):
+        output = BriefOutput(
+            mode=OperationMode.BRIEF_READY,
+            assistant_message="m",
+            brief_title="t",
+            brief_markdown="x",
+        )
+        assert output.user_summary == ""
+        assert output.profile == StructuredProfile()
 
     def test_mode_required(self):
         with pytest.raises(PydanticValidationError):
@@ -132,6 +162,54 @@ class TestBriefOutput:
                 brief_markdown="x",
                 role="not allowed",
             )
+
+
+class TestStructuredProfile:
+    def test_empty_default_round_trips(self):
+        profile = StructuredProfile()
+        dumped = profile.model_dump()
+        assert dumped["name"] == ""
+        assert dumped["experience"] == []
+        assert dumped["skills"] == []
+        assert StructuredProfile.model_validate(dumped) == profile
+
+    def test_nested_entries(self):
+        profile = StructuredProfile(
+            name="Aarav Mehta",
+            current_title="Software Engineer",
+            links=[ProfileLink(label="GitHub", url="https://github.com/example")],
+            experience=[
+                ExperienceEntry(
+                    organization="Northstar Systems",
+                    role="Software Engineer",
+                    dates="2023-present",
+                    highlights=["Built FastAPI services"],
+                )
+            ],
+            education=[
+                EducationEntry(institution="State University", credential="B.S. Computer Science")
+            ],
+            projects=[ProjectEntry(name="QueueGuard", summary="Durable background job system")],
+            skills=["Python", "FastAPI"],
+            private_omitted=["phone number"],
+        )
+        assert profile.experience[0].organization == "Northstar Systems"
+        assert profile.projects[0].name == "QueueGuard"
+        assert "phone number" in profile.private_omitted
+
+    def test_extra_fields_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            StructuredProfile(name="x", unknown="bad")
+
+    def test_sub_model_extra_fields_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            ExperienceEntry(organization="x", unknown="bad")
+
+    def test_dates_are_free_text_not_typed(self):
+        # Real resumes say things like "2023-present" or "Summer 2022" -
+        # dates must stay a plain string, never a typed date/datetime.
+        entry = ExperienceEntry(organization="x", role="y", dates="2023-present")
+        assert entry.dates == "2023-present"
 
 
 class TestDiscoveryAnswer:

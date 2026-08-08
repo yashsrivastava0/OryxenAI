@@ -1,0 +1,155 @@
+{
+  "site_story_strategy": {
+    "positioning": "Freelance product designer/developer trusted with confidential, high-stakes client work.",
+    "value_proposition": "Owns both design and implementation on client engagements, including regulated/sensitive domains.",
+    "primary_audience": "Startup founders and product leads hiring freelance designers",
+    "secondary_audience": "",
+    "primary_action": "Book an intro call",
+    "narrative_thesis": "Discretion and range: confidential client work described by problem and role, never by name or unshared numbers.",
+    "leading_evidence": ["Fintech onboarding redesign"],
+    "supporting_evidence": ["Healthcare intake system"],
+    "shortened_or_omitted": ["Client company names — generalized per NDA."],
+    "content_risks": ["No outcome metrics were ever shared with Jordan for either engagement."],
+    "presentation_mode": "single_page",
+    "presentation_rationale": "Two engagements, both NDA-restricted to problem/role level, fit comfortably on one page without needing dedicated case-study routes."
+  },
+  "decision_basis": [
+    {
+      "decision": "presentation_mode",
+      "value": "single_page",
+      "basis": "source_derived",
+      "confidence": "high",
+      "rationale": "Both engagements are NDA-restricted to problem/role level, which fits comfortably on one page."
+    },
+    {
+      "decision": "primary_action",
+      "value": "Book an intro call",
+      "basis": "safe_default",
+      "confidence": "medium",
+      "rationale": "No explicit CTA preference was supplied; a freelance-oriented default was chosen."
+    }
+  ],
+  "route_plan": [
+    {
+      "route_id": "home",
+      "path": "/",
+      "title": "Jordan Reyes — Product Designer & Developer",
+      "purpose": "Single-page portfolio home",
+      "audience_takeaway": "Jordan handles confidential, end-to-end product work responsibly.",
+      "priority": "primary",
+      "content_density": "medium",
+      "section_sequence": ["hero", "about", "engagements", "contact"],
+      "mobile_notes": "",
+      "source_refs": ["profile.projects"],
+      "publication_status": "approved"
+    }
+  ],
+  "page_content_packs": [
+    {
+      "route_id": "home",
+      "sections": [
+        {
+          "section_id": "hero",
+          "purpose": "Introduce Jordan.",
+          "content": {"eyebrow": "Freelance Product Designer & Developer", "headline": "Design and code, trusted with confidential work.", "cta": "Book an intro call"},
+          "claim_ids": [],
+          "priority": "primary",
+          "optional": false,
+          "mobile_condensation": "",
+          "link_targets": [{"label": "Book an intro call", "href": "#contact", "kind": "anchor"}]
+        },
+        {
+          "section_id": "about",
+          "purpose": "Summarize professional identity.",
+          "content": {"text": "Jordan is a freelance product designer and developer who owns both design and frontend implementation on client engagements, several of which are confidential."},
+          "claim_ids": [],
+          "priority": "primary",
+          "optional": false,
+          "mobile_condensation": "",
+          "link_targets": []
+        },
+        {
+          "section_id": "engagements",
+          "purpose": "Describe both confidential engagements at problem/role level.",
+          "content": {
+            "items": [
+              {
+                "title": "Fintech onboarding redesign (confidential client)",
+                "text": "Led the redesign of an onboarding flow for a Series B fintech startup, owning both design and frontend implementation on a team of four. Client name withheld under NDA; no usage metrics were shared with Jordan."
+              },
+              {
+                "title": "Healthcare intake system (confidential client)",
+                "text": "Sole developer on a patient-intake form system for a healthcare client. Client name and outcome data withheld under NDA."
+              }
+            ]
+          },
+          "claim_ids": ["claim_fintech_ownership", "claim_healthcare_sole_dev"],
+          "priority": "primary",
+          "optional": false,
+          "mobile_condensation": "",
+          "link_targets": []
+        },
+        {
+          "section_id": "contact",
+          "purpose": "Closing CTA.",
+          "content": {"text": "Available for new freelance engagements — let's talk."},
+          "claim_ids": [],
+          "priority": "primary",
+          "optional": false,
+          "mobile_condensation": "",
+          "link_targets": []
+        }
+      ],
+      "internal_notes": {}
+    }
+  ],
+  "public_content_manifest": {
+    "nav": [{"label": "Home", "target": "home"}],
+    "contact_cta": "Available for new freelance engagements — let's talk."
+  },
+  "claim_grounding": [
+    {
+      "claim_id": "claim_fintech_ownership",
+      "statement": "Jordan owned design and frontend implementation for the fintech onboarding redesign.",
+      "source_reference": "profile.projects[0].contribution",
+      "source_entity_id": "project:fintech-onboarding",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": "This describes only Jordan's specific design+frontend role; the redesign's overall business outcome was a team effort on a team of four, not solely attributable to Jordan."
+    },
+    {
+      "claim_id": "claim_healthcare_sole_dev",
+      "statement": "Jordan was the sole developer on the healthcare intake system.",
+      "source_reference": "profile.projects[1].contribution",
+      "source_entity_id": "project:healthcare-intake",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": ""
+    }
+  ],
+  "omissions": ["Client company names — withheld per NDA, generalized to industry only."],
+  "unresolved_issues": ["No outcome metrics exist for either engagement; public copy stays qualitative."],
+  "privacy_and_confidentiality": [
+    "Both client company names are withheld under NDA and generalized to 'a Series B fintech startup' / 'a healthcare client'.",
+    "Client contact details are never published."
+  ],
+  "media_status": {"screenshots": "unavailable (NDA)", "case_study_assets": "unavailable (NDA)"},
+  "visual_director_handoff": {
+    "content_hierarchy": ["hero", "engagements", "contact"],
+    "density_guidance": {"home": "medium"},
+    "long_copy_risks": [],
+    "storytelling_opportunities": ["A generic process diagram (discovery -> design -> build) could substitute for unavailable NDA screenshots."],
+    "available_media": [],
+    "unavailable_media": ["client screenshots", "case study visuals"],
+    "diagram_opportunities": ["A generalized process diagram not tied to any specific client."],
+    "confidentiality_restrictions": ["Never name either client.", "Never publish an outcome metric Jordan was not given."],
+    "must_preserve": ["client names generalized", "no invented metrics"],
+    "mobile_shortenable": [],
+    "never_fabricate": ["client names", "outcome metrics", "team size details beyond what is stated"]
+  },
+  "warnings": [],
+  "stages_run": ["plan_content"],
+  "memory_update": {}
+}

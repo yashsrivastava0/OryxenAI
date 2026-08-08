@@ -19,8 +19,8 @@ logger = get_logger("oryxenai.agents.discovery.prompt_builder")
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v2"
-PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v2"
+PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v4"
+PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v4"
 PROMPT_VERSION_SYSTEM = "discovery.system.v2"
 
 _OPERATION_VERSION_MAP = {

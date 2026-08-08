@@ -16,6 +16,8 @@
   var chatStartedAt = null;
   var analyzingBubbleId = null;
   var answeringQuestionId = null;
+  var awaitingNextAgentConfirmation = null; // {startFn, label} while a "move to next agent?" prompt is active
+  var selectedModelProfile = ""; // "" = default/enabled profile; other dropdown entries are disabled today
 
   var RUNNING_STATUSES = ["questions_queued", "questions_running", "brief_running", "answers_in_progress"];
   var TERMINAL_STATUSES = ["questions_ready", "brief_review", "approved", "needs_attention"];
@@ -158,7 +160,10 @@
       button.type = "button";
       button.className = "primary-action";
       button.textContent = retryLabel;
-      button.addEventListener("click", function () { retryFn(); });
+      button.addEventListener("click", function () {
+        button.disabled = true;
+        retryFn();
+      });
       content.appendChild(document.createElement("br"));
       content.appendChild(button);
     }
@@ -184,6 +189,32 @@
     document.getElementById("btn-send").disabled = !!disabled;
   }
 
+  // A short, unambiguous "this is fine as-is" message approves directly —
+  // no reason to spend a model call regenerating a brief the user is happy
+  // with. Anything else (a specific change, "I don't like it", vague
+  // dissatisfaction) is a real revision request and goes to the same
+  // /discovery/revise path as the "Ask for a revision" button.
+  var APPROVAL_PATTERNS = [
+    /\b(looks?|sounds?|seems?)\s+(good|great|perfect|nice|fine)\b/,
+    /\b(yes|yeah|yep|yup|sure)\b/,
+    /\b(it'?s|that'?s|this is)\s+(good|great|perfect|fine)\b/,
+    /\b(good|great|perfect|nice|awesome|excellent)\s*[.!]*$/,
+    /\bapprove(d)?\b/,
+    /\blgtm\b/,
+    /\b(all good|no changes?( needed)?|ready to go|go ahead|ship it|works for me|i'?m happy)\b/,
+    /\b(move on|move ahead|next( step)?|let'?s (go|move|continue)|continue|proceed)\b/,
+    /^(ok|okay|fine)\s*[.!]*$/,
+  ];
+  var APPROVAL_NEGATION = /\b(but|however|except|though|not|n't|instead|change|different|add|remove|fix|wrong|issue|problem|actually|rather)\b/;
+
+  function looksLikeApproval(text) {
+    var trimmed = text.trim();
+    if (!trimmed || trimmed.length > 60) return false;
+    var lower = trimmed.toLowerCase();
+    if (APPROVAL_NEGATION.test(lower)) return false;
+    return APPROVAL_PATTERNS.some(function (re) { return re.test(lower); });
+  }
+
   async function sendMessage() {
     var text = composerText();
     if (!text) return;
@@ -193,6 +224,26 @@
     }
     chatUser(text, null);
     setComposer("");
+
+    if (awaitingNextAgentConfirmation) {
+      if (looksLikeApproval(text)) {
+        var pending = awaitingNextAgentConfirmation;
+        awaitingNextAgentConfirmation = null;
+        pending.startFn();
+      } else {
+        chatDone("No problem — let me know when you'd like to move on.");
+      }
+      return;
+    }
+
+    if (chatState && chatState.status === "brief_review") {
+      if (looksLikeApproval(text)) {
+        approveDiscovery();
+      } else {
+        requestRevision(text, null);
+      }
+      return;
+    }
 
     if (!selectedSessionId) {
       var session = await createSessionQuiet("Portfolio chat");
@@ -236,11 +287,14 @@
       message: message,
       document_text: documentText || "",
       goal: goal,
+      model_profile: selectedModelProfile,
     };
     chatStartedAt = Date.now();
     chatAnalyzing("Analyzing your details…");
     setResult("chat-status", "Running with the live model — this can take a minute or two.");
     startElapsedTicker();
+    var providerSelect = document.getElementById("provider-select");
+    if (providerSelect) providerSelect.disabled = true; // the choice is sticky for the session
     try {
       await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/start", {
         method: "POST",
@@ -333,7 +387,13 @@
       renderOperationAOutput();
     } else if (status === "answers_in_progress" || RUNNING_STATUSES.indexOf(status) >= 0) {
       updateAnalyzingBubble();
-    } else if (status === "brief_review" || status === "approved") {
+    } else if (status === "brief_review") {
+      stopPolling();
+      stopElapsedTicker();
+      clearAnalyzingBubble();
+      disableComposer(false);
+      renderBrief();
+    } else if (status === "approved") {
       stopPolling();
       stopElapsedTicker();
       clearAnalyzingBubble();
@@ -467,12 +527,16 @@
     }
 
     if (question.kind === "single_select") {
-      question.options.forEach(function (option) {
+      var singleOptions = guardedOptions(question);
+      singleOptions.forEach(function (option) {
         content.appendChild(choiceButton(question, option.id, option.label));
       });
+      if (!singleOptions.length) content.appendChild(noOptionsNote());
+      content.appendChild(otherAnswerRow(function (text) { submitAnswer(question, text); }).row);
     } else if (question.kind === "multi_select") {
       var selected = Array.isArray(answered && answered.value) ? answered.value : [];
-      question.options.forEach(function (option) {
+      var multiOptions = guardedOptions(question);
+      multiOptions.forEach(function (option) {
         var label = document.createElement("label");
         label.className = "choice-line";
         var checkbox = document.createElement("input");
@@ -483,12 +547,17 @@
         label.appendChild(document.createTextNode(" " + option.label));
         content.appendChild(label);
       });
+      if (!multiOptions.length) content.appendChild(noOptionsNote());
+      var otherField = otherAnswerRow(null);
+      content.appendChild(otherField.row);
       var submit = document.createElement("button");
       submit.type = "button";
       submit.className = "primary-action";
       submit.textContent = "Submit answer";
       submit.addEventListener("click", function () {
         var values = Array.prototype.slice.call(content.querySelectorAll("input[type=checkbox]:checked")).map(function (input) { return input.value; });
+        var otherText = otherField.input.value.trim();
+        if (otherText) values.push(otherText);
         submitAnswer(question, values);
       });
       content.appendChild(submit);
@@ -524,6 +593,51 @@
     return button;
   }
 
+  // At most 3 concrete options are ever rendered — the interface always
+  // offers a free-text alternative (see otherAnswerRow) and a separate Skip
+  // action, so a longer model-returned list is capped rather than dropped.
+  function guardedOptions(question) {
+    return Array.isArray(question.options) ? question.options.slice(0, 3) : [];
+  }
+
+  function noOptionsNote() {
+    var note = document.createElement("small");
+    note.className = "bubble-meta";
+    note.textContent = "No preset options were available — type your own answer below.";
+    return note;
+  }
+
+  // The always-present 4th "something else" affordance for select-kind
+  // questions. If onSubmit is provided (single_select), the row gets its own
+  // submit button/Enter handling; if null (multi_select), the caller reads
+  // .input.value itself alongside the checked boxes.
+  function otherAnswerRow(onSubmit) {
+    var row = document.createElement("div");
+    row.className = "other-answer-row";
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "other-answer-input";
+    input.placeholder = "Something else… (type your own answer)";
+    row.appendChild(input);
+    if (onSubmit) {
+      var fire = function () {
+        var text = input.value.trim();
+        if (!text) return;
+        onSubmit(text);
+      };
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "choice-btn";
+      button.textContent = "Use this answer";
+      button.addEventListener("click", fire);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); fire(); }
+      });
+      row.appendChild(button);
+    }
+    return { row: row, input: input };
+  }
+
   function submitAnswer(question, value) {
     chatAnswers[question.id] = {
       question_id: question.id,
@@ -531,7 +645,10 @@
       value: value,
     };
     answeringQuestionId = null;
-    chatUser(String(value === true ? "Yes" : value === false ? "No" : (Array.isArray(value) ? value.join(", ") : value)), null);
+    var displayText = value === null
+      ? "Skipped"
+      : (value === true ? "Yes" : value === false ? "No" : (Array.isArray(value) ? value.join(", ") : String(value)));
+    chatUser(displayText, null);
     advanceQuestion();
   }
 
@@ -614,7 +731,7 @@
     var brief = chatState.brief || null;
     if (!brief) return;
     if (chatState.status === "approved") {
-      chatDone("Discovery approved — the portfolio brief is ready for the coding engine.");
+      promptNextAgentPrompt("Discovery approved — the portfolio brief is ready for the next stage.", "Start Content Architect", startContentArchitect);
       return;
     }
     var content = document.createElement("div");
@@ -623,6 +740,11 @@
     var title = document.createElement("h2");
     title.textContent = brief.title || "Portfolio Discovery Brief";
     content.appendChild(title);
+
+    var summaryNote = document.createElement("p");
+    summaryNote.className = "bubble-meta";
+    summaryNote.textContent = "Here's a quick summary — the full detailed brief is saved and available under Advanced.";
+    content.appendChild(summaryNote);
 
     var markdownBox = document.createElement("div");
     markdownBox.className = "brief-markdown";
@@ -650,8 +772,13 @@
     var editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "primary-action";
-    editBtn.textContent = "Edit brief";
+    editBtn.textContent = "Edit summary";
     actions.appendChild(editBtn);
+    var viewFullBtn = document.createElement("button");
+    viewFullBtn.type = "button";
+    viewFullBtn.className = "choice-btn";
+    viewFullBtn.textContent = "View full brief";
+    actions.appendChild(viewFullBtn);
     var reviseBtn = document.createElement("button");
     reviseBtn.type = "button";
     reviseBtn.className = "choice-btn";
@@ -679,25 +806,66 @@
 
     renderBriefMarkdown(markdownBox);
     editBtn.addEventListener("click", function () { toggleBriefEdit(markdownBox, editBtn); });
+    viewFullBtn.addEventListener("click", openFullBriefSidebar);
     reviseBtn.addEventListener("click", function () { openRevisionForm(content); });
     approveBtn.addEventListener("click", approveDiscovery);
   }
 
+  // ── Full-brief sidebar (complete brief_markdown + profile, as saved) ────
+
+  function openFullBriefSidebar() {
+    if (!chatState || !chatState.brief) return;
+    var brief = chatState.brief;
+    var box = document.getElementById("brief-sidebar-content");
+    clearElement(box);
+    box.appendChild(renderMarkdownToNodes(brief.markdown || "(no brief content yet)"));
+
+    if (brief.profile) {
+      var p = brief.profile;
+      var hasProfile = !!(p.name || p.current_title || p.location ||
+        (p.links && p.links.length) || (p.experience && p.experience.length) ||
+        (p.education && p.education.length) || (p.projects && p.projects.length) ||
+        (p.skills && p.skills.length) || (p.spoken_languages && p.spoken_languages.length));
+      if (hasProfile) {
+        var hr = document.createElement("hr");
+        box.appendChild(hr);
+        var profHeading = document.createElement("h3");
+        profHeading.textContent = "Structured profile (as saved for the next stage)";
+        box.appendChild(profHeading);
+        var pre = document.createElement("pre");
+        pre.className = "json-view";
+        pre.textContent = prettyJson(brief.profile);
+        box.appendChild(pre);
+      }
+    }
+
+    document.getElementById("brief-sidebar-title").textContent = brief.title || "Full portfolio brief";
+    document.getElementById("brief-sidebar-backdrop").hidden = false;
+    document.getElementById("brief-sidebar").classList.add("open");
+    document.getElementById("brief-sidebar").setAttribute("aria-hidden", "false");
+  }
+
+  function closeFullBriefSidebar() {
+    document.getElementById("brief-sidebar-backdrop").hidden = true;
+    document.getElementById("brief-sidebar").classList.remove("open");
+    document.getElementById("brief-sidebar").setAttribute("aria-hidden", "true");
+  }
+
+  function briefDisplaySource() {
+    if (localBriefMarkdown != null) return localBriefMarkdown;
+    if (!chatState.brief) return "";
+    return chatState.brief.user_summary || chatState.brief.markdown || "";
+  }
+
   function renderBriefMarkdown(markdownBox) {
-    var source = localBriefMarkdown != null
-      ? localBriefMarkdown
-      : (chatState.brief && chatState.brief.markdown) || "";
-    markdownBox.replaceChildren(renderMarkdownToNodes(source));
+    markdownBox.replaceChildren(renderMarkdownToNodes(briefDisplaySource()));
   }
 
   function toggleBriefEdit(markdownBox, editBtn) {
-    if (editBtn.textContent === "Edit brief") {
-      var source = localBriefMarkdown != null
-        ? localBriefMarkdown
-        : (chatState.brief && chatState.brief.markdown) || "";
+    if (editBtn.textContent === "Edit summary") {
       var editor = document.createElement("textarea");
       editor.className = "brief-editor";
-      editor.value = source;
+      editor.value = briefDisplaySource();
       markdownBox.replaceChildren(editor);
       editBtn.textContent = "Save";
       editor.focus();
@@ -705,7 +873,7 @@
       var area = markdownBox.querySelector("textarea.brief-editor");
       if (area) localBriefMarkdown = area.value;
       renderBriefMarkdown(markdownBox);
-      editBtn.textContent = "Edit brief";
+      editBtn.textContent = "Edit summary";
     }
   }
 
@@ -776,9 +944,326 @@
         body: JSON.stringify({}),
       });
       chatState = data.discovery;
-      chatDone("Discovery approved — the portfolio brief is ready for the coding engine.");
+      if (chatState.status === "approved") {
+        promptNextAgentPrompt("Discovery approved — the portfolio brief is ready for the next stage.", "Start Content Architect", startContentArchitect);
+      } else {
+        renderChatState(); // unexpected status; fall back to the normal render instead of assuming approved
+      }
     } catch (e) {
       chatError("Approval failed: " + e.message, "Try again", approveDiscovery);
+    }
+  }
+
+  // ── Content Architect (minimal — testing harness, not the full UI) ──────
+  // Discovery stays fully separate from Content Architect: this is only the
+  // chat's own trigger/view for the next stage, not a Discovery responsibility.
+
+  var caState = null;
+  var caPollTimer = null;
+
+  // Approving a stage never auto-starts the next agent — it only finalizes
+  // the current one. This renders a distinct confirmation prompt; only a
+  // click on its button or a clear natural-language "yes" (handled in
+  // sendMessage via awaitingNextAgentConfirmation) actually starts startFn.
+  function promptNextAgentPrompt(message, buttonLabel, startFn) {
+    awaitingNextAgentConfirmation = { startFn: startFn, label: buttonLabel };
+    var content = textEl(message + " Would you like to move to the next agent?");
+    var actions = document.createElement("div");
+    actions.className = "needs-details-actions";
+    actions.appendChild(quickActionButton(buttonLabel, function () {
+      awaitingNextAgentConfirmation = null;
+      startFn();
+    }));
+    content.appendChild(actions);
+    addBubble("assistant", content);
+  }
+
+  async function startContentArchitect() {
+    chatAnalyzing("Building content strategy and page copy…");
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: {}, model_profile: selectedModelProfile }),
+      });
+      caState = data.content_architect;
+      pollContentArchitect();
+    } catch (e) {
+      clearAnalyzingBubble();
+      chatError("Could not start Content Architect: " + e.message, "Try again", startContentArchitect);
+    }
+  }
+
+  function pollContentArchitect() {
+    if (caPollTimer) window.clearTimeout(caPollTimer);
+    if (!caState) return;
+    if (caState.status === "content_review" || caState.status === "approved" || caState.status === "needs_attention") {
+      clearAnalyzingBubble();
+      renderContentArchitectState();
+      return;
+    }
+    caPollTimer = window.setTimeout(async function () {
+      try {
+        var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect");
+        caState = data.content_architect;
+      } catch (e) {
+        chatError("Lost contact while building content: " + e.message, "Retry", startContentArchitect);
+        return;
+      }
+      pollContentArchitect();
+    }, 1500);
+  }
+
+  function renderContentArchitectState() {
+    if (caState.status === "needs_attention") {
+      var error = caState.latest_error || {};
+      chatError(error.message || "Content Architect needs attention.", "Try again", startContentArchitect);
+      return;
+    }
+
+    var content = document.createElement("div");
+    content.className = "brief-review";
+
+    var title = document.createElement("h2");
+    title.textContent = "Content strategy" + (caState.status === "approved" ? " — approved" : "");
+    content.appendChild(title);
+
+    var strategy = caState.site_story_strategy || {};
+    if (caState.user_summary) {
+      content.appendChild(renderMarkdownToNodes(caState.user_summary));
+    } else if (strategy.positioning) {
+      content.appendChild(textEl(strategy.positioning));
+    }
+
+    var routes = Array.isArray(caState.route_plan) ? caState.route_plan : [];
+    if (routes.length) {
+      var routeList = document.createElement("ul");
+      routes.forEach(function (r) {
+        var li = document.createElement("li");
+        li.textContent = (r.path || "") + " — " + (r.purpose || "");
+        routeList.appendChild(li);
+      });
+      content.appendChild(routeList);
+    }
+
+    var unresolved = Array.isArray(caState.unresolved_issues) ? caState.unresolved_issues : [];
+    if (unresolved.length) {
+      var unresolvedNote = document.createElement("p");
+      unresolvedNote.className = "bubble-meta";
+      unresolvedNote.textContent = "Still open:";
+      content.appendChild(unresolvedNote);
+      var unresolvedList = document.createElement("ul");
+      unresolved.forEach(function (item) {
+        var li = document.createElement("li");
+        li.textContent = item;
+        unresolvedList.appendChild(li);
+      });
+      content.appendChild(unresolvedList);
+    }
+
+    var warningItems = Array.isArray(caState.warnings) ? caState.warnings : [];
+    if (warningItems.length) {
+      var warningsNote = document.createElement("p");
+      warningsNote.className = "bubble-meta bubble-error";
+      warningsNote.textContent = "Warnings:";
+      content.appendChild(warningsNote);
+      var warningsList = document.createElement("ul");
+      warningItems.forEach(function (item) {
+        var li = document.createElement("li");
+        li.textContent = item;
+        warningsList.appendChild(li);
+      });
+      content.appendChild(warningsList);
+    }
+
+    var privacyItems = Array.isArray(caState.privacy_and_confidentiality) ? caState.privacy_and_confidentiality : [];
+    if (privacyItems.length) {
+      content.appendChild(textEl(
+        privacyItems.length + " privacy/confidentiality note" + (privacyItems.length === 1 ? "" : "s") +
+        " were applied — see Advanced for details."
+      ));
+    }
+
+    if (caState.status === "content_review") {
+      var actions = document.createElement("div");
+      actions.className = "brief-actions";
+      var approveBtn = document.createElement("button");
+      approveBtn.type = "button";
+      approveBtn.className = "primary-action";
+      approveBtn.textContent = "Approve content";
+      approveBtn.addEventListener("click", approveContentArchitect);
+      actions.appendChild(approveBtn);
+      content.appendChild(actions);
+    }
+
+    var raw = document.createElement("details");
+    var rawSummary = document.createElement("summary");
+    rawSummary.textContent = "Advanced — raw JSON";
+    raw.appendChild(rawSummary);
+    var pre = document.createElement("pre");
+    pre.className = "json-view";
+    pre.textContent = prettyJson(caState);
+    raw.appendChild(pre);
+    content.appendChild(raw);
+
+    addBubble("assistant", content);
+  }
+
+  async function approveContentArchitect() {
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      caState = data.content_architect;
+      promptNextAgentPrompt("Content Architect approved — the content is ready for the Visual Design Director.", "Start Visual Design Director", startVisualDesignDirector);
+    } catch (e) {
+      chatError("Approval failed: " + e.message, "Try again", approveContentArchitect);
+    }
+  }
+
+  // ── Visual Design Director (minimal — testing harness, not the full UI) ─
+  // Mirrors the Content Architect section above, one stage further down the
+  // pipeline. Code Generation stays out of scope — it remains a deterministic
+  // mock with no durable-job route, so the flow ends after approval here.
+
+  var vddState = null;
+  var vddPollTimer = null;
+
+  async function startVisualDesignDirector() {
+    chatAnalyzing("Establishing the visual direction…");
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/visual-design-director/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: {}, model_profile: selectedModelProfile }),
+      });
+      vddState = data.visual_design_director;
+      pollVisualDesignDirector();
+    } catch (e) {
+      clearAnalyzingBubble();
+      chatError("Could not start Visual Design Director: " + e.message, "Try again", startVisualDesignDirector);
+    }
+  }
+
+  function pollVisualDesignDirector() {
+    if (vddPollTimer) window.clearTimeout(vddPollTimer);
+    if (!vddState) return;
+    if (vddState.status === "design_review" || vddState.status === "approved" || vddState.status === "needs_attention") {
+      clearAnalyzingBubble();
+      renderVisualDesignDirectorState();
+      return;
+    }
+    vddPollTimer = window.setTimeout(async function () {
+      try {
+        var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/visual-design-director");
+        vddState = data.visual_design_director;
+      } catch (e) {
+        chatError("Lost contact while establishing the visual direction: " + e.message, "Retry", startVisualDesignDirector);
+        return;
+      }
+      pollVisualDesignDirector();
+    }, 1500);
+  }
+
+  function renderVisualDesignDirectorState() {
+    if (vddState.status === "needs_attention") {
+      var error = vddState.latest_error || {};
+      chatError(error.message || "Visual Design Director needs attention.", "Try again", startVisualDesignDirector);
+      return;
+    }
+
+    var content = document.createElement("div");
+    content.className = "brief-review";
+
+    var title = document.createElement("h2");
+    title.textContent = "Visual direction" + (vddState.status === "approved" ? " — approved" : "");
+    content.appendChild(title);
+
+    if (vddState.user_summary) {
+      content.appendChild(renderMarkdownToNodes(vddState.user_summary));
+    } else if (vddState.visual_language && vddState.visual_language.creative_thesis) {
+      content.appendChild(textEl(vddState.visual_language.creative_thesis));
+    }
+
+    var pages = Array.isArray(vddState.pages) ? vddState.pages : [];
+    if (pages.length) {
+      var pageList = document.createElement("ul");
+      pages.forEach(function (p) {
+        var li = document.createElement("li");
+        li.textContent = (p.path || p.route_id || "") + " — " + (p.purpose || "");
+        pageList.appendChild(li);
+      });
+      content.appendChild(pageList);
+    }
+
+    var conflictItems = Array.isArray(vddState.conflicts) ? vddState.conflicts : [];
+    if (conflictItems.length) {
+      var conflictsNote = document.createElement("p");
+      conflictsNote.className = "bubble-meta bubble-error";
+      conflictsNote.textContent = "Conflicts:";
+      content.appendChild(conflictsNote);
+      var conflictsList = document.createElement("ul");
+      conflictItems.forEach(function (item) {
+        var li = document.createElement("li");
+        li.textContent = item;
+        conflictsList.appendChild(li);
+      });
+      content.appendChild(conflictsList);
+    }
+
+    var warningItems = Array.isArray(vddState.warnings) ? vddState.warnings : [];
+    if (warningItems.length) {
+      var warningsNote = document.createElement("p");
+      warningsNote.className = "bubble-meta bubble-error";
+      warningsNote.textContent = "Warnings:";
+      content.appendChild(warningsNote);
+      var warningsList = document.createElement("ul");
+      warningItems.forEach(function (item) {
+        var li = document.createElement("li");
+        li.textContent = item;
+        warningsList.appendChild(li);
+      });
+      content.appendChild(warningsList);
+    }
+
+    if (vddState.status === "design_review") {
+      var actions = document.createElement("div");
+      actions.className = "brief-actions";
+      var approveBtn = document.createElement("button");
+      approveBtn.type = "button";
+      approveBtn.className = "primary-action";
+      approveBtn.textContent = "Approve visual direction";
+      approveBtn.addEventListener("click", approveVisualDesignDirector);
+      actions.appendChild(approveBtn);
+      content.appendChild(actions);
+    }
+
+    var raw = document.createElement("details");
+    var rawSummary = document.createElement("summary");
+    rawSummary.textContent = "Advanced — raw JSON";
+    raw.appendChild(rawSummary);
+    var pre = document.createElement("pre");
+    pre.className = "json-view";
+    pre.textContent = prettyJson(vddState);
+    raw.appendChild(pre);
+    content.appendChild(raw);
+
+    addBubble("assistant", content);
+  }
+
+  async function approveVisualDesignDirector() {
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/visual-design-director/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      vddState = data.visual_design_director;
+      chatDone("Visual Design Director approved — the visual direction is ready for Code Generation (not yet implemented).");
+    } catch (e) {
+      chatError("Approval failed: " + e.message, "Try again", approveVisualDesignDirector);
     }
   }
 
@@ -1162,6 +1647,9 @@
     setInterval(loadSystemStatus, 15000);
 
     document.getElementById("btn-send").addEventListener("click", sendMessage);
+    document.getElementById("provider-select").addEventListener("change", function () {
+      selectedModelProfile = this.value;
+    });
     document.getElementById("composer").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
@@ -1177,6 +1665,11 @@
     document.getElementById("btn-run-mock").addEventListener("click", runMock);
     document.getElementById("btn-list-runs").addEventListener("click", listRuns);
     document.getElementById("btn-probe").addEventListener("click", enqueueProbe);
+    document.getElementById("brief-sidebar-close").addEventListener("click", closeFullBriefSidebar);
+    document.getElementById("brief-sidebar-backdrop").addEventListener("click", closeFullBriefSidebar);
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeFullBriefSidebar();
+    });
 
     var rememberedSession = sessionStorage.getItem("oryxenai.discovery.session");
     if (rememberedSession) {

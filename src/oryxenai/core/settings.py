@@ -169,8 +169,22 @@ class DiscoveryConfig(BaseModel):
     """Discovery agent output limits from [discovery] in config/app.toml."""
 
     max_questions: int = 8
-    max_projects: int = 5
+    max_projects: int = 8
     max_answer_chars: int = 10000
+
+
+class ContentArchitectConfig(BaseModel):
+    """Content Architect agent output limits from [content_architect] in config/app.toml."""
+
+    max_routes: int = 12
+
+
+class VisualDesignDirectorConfig(BaseModel):
+    """Visual Design Director agent output limits from [visual_design_director]
+    in config/app.toml."""
+
+    max_pages: int = 12
+    max_catalogue_candidates: int = 6
 
 
 class ModelProfile(BaseModel):
@@ -236,6 +250,10 @@ class Settings(BaseSettings):
     diagnostics: DiagnosticsConfig = Field(default_factory=DiagnosticsConfig)
     models: ModelConfig = Field(default_factory=ModelConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    content_architect: ContentArchitectConfig = Field(default_factory=ContentArchitectConfig)
+    visual_design_director: VisualDesignDirectorConfig = Field(
+        default_factory=VisualDesignDirectorConfig
+    )
 
     @model_validator(mode="after")
     def _load_toml_files(self) -> Settings:
@@ -271,6 +289,12 @@ class Settings(BaseSettings):
             self.diagnostics = DiagnosticsConfig(**app_data["diagnostics"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
+        if "content_architect" in app_data:
+            self.content_architect = ContentArchitectConfig(**app_data["content_architect"])
+        if "visual_design_director" in app_data:
+            self.visual_design_director = VisualDesignDirectorConfig(
+                **app_data["visual_design_director"]
+            )
 
         # Model profiles.
         models_data = _load_toml("models.toml")

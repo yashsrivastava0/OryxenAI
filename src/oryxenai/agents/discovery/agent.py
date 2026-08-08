@@ -49,11 +49,12 @@ class DiscoveryAgent(Agent):
 
     key = AgentKey.DISCOVERY
 
-    def __init__(self, model_client: ModelClient) -> None:
+    def __init__(self, model_client: ModelClient, profile_name: str = "") -> None:
         if model_client is None:
             raise ValueError("DiscoveryAgent requires a model client")
         self._model_client = model_client
         self._config = get_settings().discovery
+        self._profile_name = profile_name
 
     async def run(self, context: AgentContext) -> AgentResult:
         operation = context.agent_input.get("operation", "understand_and_question")
@@ -80,9 +81,11 @@ class DiscoveryAgent(Agent):
 
         result = await self._model_client.generate_structured(
             operation="understand_and_question",
-            instructions=f"{system_prompt}\n\n{task_prompt}",
+            system_prompt=system_prompt,
+            instructions=task_prompt,
             input_payload=source_packet,
             output_model=QuestionSetOutput,
+            model_profile=self._profile_name,
         )
 
         parsed = _parsed_output(result)
@@ -93,6 +96,14 @@ class DiscoveryAgent(Agent):
         mode = OperationMode(parsed.get("mode", OperationMode.ASK_QUESTIONS.value))
         questions = parsed.get("questions") or []
         logger.info("understand_and_question mode=%s questions=%d", mode.value, len(questions))
+        for question in questions:
+            options = question.get("options") if isinstance(question, dict) else None
+            if isinstance(options, list) and len(options) > 3:
+                logger.warning(
+                    "understand_and_question question %r returned %d options (frontend caps at 3)",
+                    question.get("id", ""),
+                    len(options),
+                )
 
         return AgentResult(
             output={
@@ -126,9 +137,11 @@ class DiscoveryAgent(Agent):
 
         result = await self._model_client.generate_structured(
             operation="build_or_revise_brief",
-            instructions=f"{system_prompt}\n\n{task_prompt}",
+            system_prompt=system_prompt,
+            instructions=task_prompt,
             input_payload=source_packet,
             output_model=BriefOutput,
+            model_profile=self._profile_name,
         )
 
         parsed = _parsed_output(result)
@@ -141,6 +154,11 @@ class DiscoveryAgent(Agent):
             len(parsed.get("brief_markdown", "")),
         )
 
+        profile = dict(parsed.get("profile", {}) or {})
+        projects = profile.get("projects")
+        if isinstance(projects, list) and len(projects) > self._config.max_projects:
+            profile["projects"] = projects[: self._config.max_projects]
+
         return AgentResult(
             output={
                 "operation": "build_or_revise_brief",
@@ -148,6 +166,8 @@ class DiscoveryAgent(Agent):
                 "assistant_message": str(parsed.get("assistant_message", "") or ""),
                 "brief_title": str(parsed.get("brief_title", "") or ""),
                 "brief_markdown": str(parsed.get("brief_markdown", "") or ""),
+                "user_summary": str(parsed.get("user_summary", "") or ""),
+                "profile": profile,
                 "open_items": parsed.get("open_items", []) or [],
                 "memory_update": parsed.get("memory_update", {}) or {},
             },

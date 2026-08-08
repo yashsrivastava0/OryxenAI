@@ -47,6 +47,7 @@ class MockModelClient:
         instructions: str,
         input_payload: Mapping[str, object],
         output_model: type[BaseModel],
+        system_prompt: str | None = None,
         model_profile: Any = None,
         request_context: Any = None,
     ) -> Any:
@@ -56,18 +57,41 @@ class MockModelClient:
 def _mock_structured_result(output_model: type[BaseModel]) -> Any:
     """Build a deterministic StructuredModelResult for the given output model.
 
-    Discovery output models get a valid minimal envelope so the mock-runs
-    dev harness can execute the Discovery agent without network access.
-    Any other model falls back to an empty instance.
+    Discovery, Content Architect, and Visual Design Director output models
+    each get a valid minimal envelope so the mock-runs dev harness can
+    execute those agents without network access. Any other model falls back
+    to an empty instance.
     """
+    from oryxenai.agents.content_architect.schemas import (
+        ClaimGrounding,
+        ContentArchitectOutput,
+        ContentPlanMode,
+        ContentSection,
+        DecisionBasis,
+        DecisionRecord,
+        EvidenceStatus,
+        Ownership,
+        PageContentPack,
+        PublicationStatus,
+        RoutePlanEntry,
+    )
     from oryxenai.agents.discovery.schemas import (
         BriefOutput,
         DiscoveryQuestion,
+        ExperienceEntry,
         OperationMode,
+        ProjectEntry,
         QuestionKind,
         QuestionOption,
         QuestionSetOutput,
         StructuredModelResult,
+        StructuredProfile,
+    )
+    from oryxenai.agents.visual_design_director.schemas import (
+        PageVisualDirection,
+        SceneDirection,
+        VisualDesignDirectorOutput,
+        VisualPlanMode,
     )
 
     parsed: BaseModel | None
@@ -101,7 +125,153 @@ def _mock_structured_result(output_model: type[BaseModel]) -> Any:
                 "## Approval summary\n\n"
                 "Ready for approval."
             ),
+            user_summary=(
+                "Here's the direction: a portfolio built around the user's current work. "
+                "The full detailed brief is ready for the next stage."
+            ),
+            profile=StructuredProfile(
+                name="Mock User",
+                current_title="Software Engineer",
+                experience=[
+                    ExperienceEntry(
+                        organization="Mock Company", role="Software Engineer", dates="2023-present"
+                    )
+                ],
+                projects=[ProjectEntry(name="Mock Project", summary="A sample project.")],
+                skills=["Python"],
+            ),
             open_items=["no metrics supplied"],
+            memory_update={},
+        )
+    elif output_model is ContentArchitectOutput:
+        parsed = ContentArchitectOutput(
+            mode=ContentPlanMode.STRATEGY_AND_CONTENT,
+            content_included=True,
+            integration_needed=False,
+            site_story_strategy={
+                "positioning": "Backend engineer who ships durable systems.",
+                "primary_audience": "Hiring managers for backend/platform roles",
+                "primary_action": "Contact for an interview",
+                "narrative_thesis": "Reliability-minded engineering, told through one real project.",
+                "presentation_mode": "single_page",
+                "presentation_rationale": "One strong project and a focused profile fit one page.",
+            },
+            decision_basis=[
+                DecisionRecord(
+                    decision="presentation_mode",
+                    value="single_page",
+                    basis=DecisionBasis.SOURCE_DERIVED,
+                    confidence="high",
+                    rationale="Only one well-documented project exists in the snapshot.",
+                )
+            ],
+            route_plan=[
+                RoutePlanEntry(
+                    route_id="home",
+                    path="/",
+                    title="Mock User — Backend Engineer",
+                    purpose="Single-page portfolio home",
+                    audience_takeaway="Can ship and operate backend systems reliably.",
+                    priority="primary",
+                    content_density="medium",
+                    section_sequence=["hero", "about", "project", "contact"],
+                    publication_status=PublicationStatus.APPROVED,
+                )
+            ],
+            claim_grounding=[
+                ClaimGrounding(
+                    claim_id="claim_queueguard",
+                    statement="Designed the job lifecycle and retry behavior for QueueGuard.",
+                    source_reference="profile.projects[0]",
+                    source_entity_id="project:queueguard",
+                    evidence_status=EvidenceStatus.VERIFIED,
+                    ownership=Ownership.INDIVIDUAL,
+                    publication_status=PublicationStatus.APPROVED,
+                )
+            ],
+            page_content_packs=[
+                PageContentPack(
+                    route_id="home",
+                    sections=[
+                        ContentSection(
+                            section_id="hero",
+                            purpose="Introduce the positioning.",
+                            content={"headline": "Backend systems that stay up."},
+                            claim_ids=[],
+                            priority="primary",
+                        ),
+                        ContentSection(
+                            section_id="project",
+                            purpose="Feature the strongest project.",
+                            content={"title": "QueueGuard", "summary": "A durable job system."},
+                            claim_ids=["claim_queueguard"],
+                            priority="primary",
+                        ),
+                    ],
+                    internal_notes={},
+                )
+            ],
+            public_content_manifest={
+                "nav": [{"label": "Home", "target": "home"}],
+                "contact_cta": "Get in touch",
+            },
+            unresolved_issues=["no metrics supplied"],
+            visual_director_handoff={
+                "content_hierarchy": ["hero", "project", "contact"],
+                "never_fabricate": ["performance metrics"],
+            },
+            memory_update={},
+        )
+    elif output_model is VisualDesignDirectorOutput:
+        parsed = VisualDesignDirectorOutput(
+            mode=VisualPlanMode.VISUAL_LANGUAGE_AND_PAGES,
+            pages_included=True,
+            integration_needed=False,
+            user_summary="A restrained, evidence-first visual direction for a single-page portfolio.",
+            visual_language={
+                "creative_thesis": "Reliability engineering as its own aesthetic: restrained, high-contrast, evidence-first.",
+                "color_behavior": "A single confident accent reserved for evidence and action.",
+                "typography": "A calm, confident display/body hierarchy with generous vertical rhythm.",
+                "motion_character": "Minimal — used only to draw attention to the one signature evidence moment.",
+                "anti_patterns": "No gradients, no glassmorphism, no decorative motion.",
+            },
+            shared_visual_systems={
+                "card_treatment": "Flat, bordered panels with no drop shadow.",
+                "section_dividers": "Generous whitespace instead of visible rule lines.",
+            },
+            navigation_direction={
+                "form": "single anchor nav",
+                "mobile_strategy": "collapse to a menu button",
+            },
+            motion_system={"global_character": "minimal", "signature_moments": []},
+            interaction_system={"hover": "subtle lift on interactive cards"},
+            pages=[
+                PageVisualDirection(
+                    route_id="home",
+                    path="/",
+                    purpose="Single-page portfolio home",
+                    storyboard="Hero establishes positioning, then the project evidence, then contact.",
+                    responsive_summary="Single column on mobile; hero and project sections stack.",
+                    scenes=[
+                        SceneDirection(
+                            scene_id="hero_scene",
+                            route_id="home",
+                            narrative_goal="Establish positioning immediately.",
+                            content_refs=["hero"],
+                            layout_intent="Text-dominant asymmetric hero.",
+                            responsive_behavior=(
+                                "Single column, centered, on mobile; asymmetric two-column on desktop."
+                            ),
+                        )
+                    ],
+                )
+            ],
+            accessibility_and_performance={
+                "contrast": "WCAG AA minimum for all text.",
+                "reduced_motion": "No motion is load-bearing.",
+            },
+            must_preserve=["QueueGuard adoption figure"],
+            must_not_fabricate=["performance metrics"],
             memory_update={},
         )
     else:
@@ -172,13 +342,46 @@ def build_model_client(model_config: ModelConfig) -> ModelClient:
     return MockModelClient()
 
 
-def build_provider_client(profile_name: str, model_config: ModelConfig) -> ModelClient | None:
+def build_provider_client(
+    profile_name: str,
+    model_config: ModelConfig,
+    *,
+    override_profile_name: str | None = None,
+) -> ModelClient | None:
     """Build a provider adapter for a named profile, or None if not possible.
 
-    Returns None when the profile is missing, unrecognised, or has no API key.
-    Callers should fall back to MockModelClient or choose a different profile.
+    If override_profile_name is supplied and differs from profile_name, try it
+    first (e.g. a user-selected model/provider from the frontend dropdown). If
+    the override profile doesn't exist, isn't a supported provider, or has no
+    resolvable API key, this logs a warning and silently falls back to
+    profile_name unchanged — an unknown or disabled override must never break
+    the agent's default, working profile.
+
+    Returns None when the (possibly-defaulted) profile is missing,
+    unrecognised, or has no API key. Callers should fall back to
+    MockModelClient or choose a different profile.
     """
     from oryxenai.agents.shared.providers.factory import build_adapter, can_build
+
+    if override_profile_name and override_profile_name != profile_name:
+        override_profile = model_config.get_profile(override_profile_name)
+        if (
+            override_profile is not None
+            and override_profile.provider
+            and can_build(override_profile)
+            and resolve_api_key(override_profile)
+        ):
+            logger.info(
+                "using override profile '%s' instead of default '%s'",
+                override_profile_name,
+                profile_name,
+            )
+            return build_adapter(override_profile)
+        logger.warning(
+            "override profile '%s' is not usable — falling back to default profile '%s'",
+            override_profile_name,
+            profile_name,
+        )
 
     profile = model_config.get_profile(profile_name)
     if profile is None:

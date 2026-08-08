@@ -25,8 +25,12 @@ async def list_agents(
     """Return registered mock agents with minimal metadata."""
     info_map: dict[str, str] = {
         "discovery": "Gathers user intent and requirements.",
-        "content_architect": "Structures content outline and sections.",
-        "visual_design_director": "Defines visual theme, palette, and typography.",
+        "content_architect": "Turns an approved Discovery brief into final, grounded content and a route plan.",
+        "visual_design_director": (
+            "Turns an approved Content Architect output into a visual-experience "
+            "direction: global visual language, per-route storyboards, scenes, "
+            "motion/interaction system, and asset/resource intent."
+        ),
         "code_generator": "Generates portfolio site source files.",
     }
     result: list[AgentInfo] = []
