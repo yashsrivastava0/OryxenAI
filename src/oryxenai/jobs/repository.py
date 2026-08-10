@@ -183,6 +183,7 @@ class JobRepository:
         if available_at is not None:
             values["status"] = JobStatus.QUEUED.value
             values["available_at"] = available_at
+            values["finished_at"] = None
         stmt = update(BackgroundJob).where(BackgroundJob.id == job_id).values(**values)
         await self._session.execute(stmt)
 

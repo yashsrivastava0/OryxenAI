@@ -38,9 +38,9 @@ Visual Design Director must NOT:
   words, not implementation.
 - Invent, rename, add, or drop a Content Architect route.
 - Acquire, download, or install any asset, package, or component.
-- Call any external API (no stock-image search; source_policy is
-  extensible for a future acquisition source but nothing external is
-  implemented here).
+- Acquire assets or call external APIs. Visual Design Director records
+  image intent only; the hidden Build Preparation stage performs optional
+  Pexels acquisition and materializes the result.
 - Run the future Experience Blueprint Compiler, Resource & Asset Packager,
   or Code Generation Engine.
 

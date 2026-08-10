@@ -2,9 +2,10 @@
 
 Production-oriented OryxenAI backend and developer testing harness.
 
-> **Discovery, Content Architect, and Visual Design Director are all
-> implemented end to end.** Code Generator remains intentionally out of
-> scope for now. See [docs/architecture.md](docs/architecture.md) for design
+> **Discovery, Content Architect, Visual Design Director, and the hidden
+> Portfolio Build Preparation stage are implemented end to end.** Code
+> Generator remains intentionally out of scope for now. See
+> [docs/architecture.md](docs/architecture.md) for design
 > rationale and [docs/frontend-behavior-spec.md](docs/frontend-behavior-spec.md)
 > for the chat/UX contract.
 
@@ -15,12 +16,12 @@ Production-oriented OryxenAI backend and developer testing harness.
 
 ## Current purpose
 
-Prove the end-to-end pipeline works:
+Prove the staged pipeline works:
 
 ```
-Application starts → PostgreSQL connects → Discovery intake saved
-→ Durable Call A questions → persisted answers → durable Call B brief
-→ editable review → explicit immutable approval
+Application starts → PostgreSQL connects → approved Discovery/Content/Visual
+snapshots → explicit Build Preparation start → durable immutable preparation
+pack in temporary object storage
 ```
 
 ## Current non-goals
@@ -28,8 +29,9 @@ Application starts → PostgreSQL connects → Discovery intake saved
 - Portfolio generation, code-generation sandbox, and downstream agent chaining
 - Agent chaining, supervisor agent, LangChain/LangGraph, or any agent framework
 - Queue/worker (Redis, Celery, Temporal, Kafka)
-- Authentication, authorization, billing, Cloudflare, Supabase, GitHub Actions generation
-- React frontend, visual editor, SEO, analytics, object storage
+- Authentication, authorization, billing, Supabase, GitHub Actions generation,
+  or published-portfolio hosting
+- React frontend, visual editor, SEO, analytics, and published-portfolio hosting
 - Vector database, embeddings, prompt-management platform, observability SaaS
 - Multiple microservices, Kubernetes, Terraform
 
@@ -37,6 +39,8 @@ Application starts → PostgreSQL connects → Discovery intake saved
 
 - **Backend:** FastAPI + Pydantic + SQLAlchemy async (asyncpg) + Alembic
 - **Database:** PostgreSQL (JSONB for state and payloads)
+- **Preparation artifacts:** private S3-compatible object storage (Cloudflare
+  R2 by default); PostgreSQL stores metadata and hashes only
 - **Frontend:** Jinja2 templates + vanilla JS/CSS (no framework, no CDN)
 - **Agents:** Ordinary Python protocols + Pydantic models (no agent framework)
 - **Model:** Provider-neutral `ModelClient` protocol with OpenCode Go JSON-mode adapter for Discovery
@@ -56,6 +60,7 @@ OryxenAI/
 │   │   ├── agent.py  schemas.py  README.md
 │   │   ├── prompts/{system.md,prepare_questions.md,build_brief.md,repair_output.md}
 │   │   └── samples/{input.json,output.json}
+│   ├── build_preparation/         # Blueprint, resource pack, context compiler
 │   ├── runtime/                   # state_service, mock_runner
 │   ├── api/routes/                # health, agents, sessions, runs, discovery, content-architect, visual-design-director
 │   └── web/                       # templates, static (css/js)

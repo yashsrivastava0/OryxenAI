@@ -24,6 +24,55 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-10 - Codex (GPT-5 / OpenAI) - build-preparation fixture and temporary frontend
+
+Added a development-only fixture runner that compiles the checked-in Visual
+Design output without touching session state, plus a story-driven
+`/build-preparation-fixture` preview that displays the Blueprint, resource
+decisions, route packets, warnings, and temporary bundle receipt. Why: isolate
+pre-code package debugging from upstream approvals while keeping production
+preparation strict and non-publishable fixture output explicit. The preview
+also accepts pasted/uploaded VDD JSON, exposes request/error events, and lets
+the tester copy or download the exact response.
+
+### 2026-08-10 - Codex (GPT-5) - scripts/docker-entrypoint.sh
+
+Changed the Docker runtime entrypoint to a LF-only POSIX `sh` script. The
+slim Python image does not ship Bash, and CRLF in the original shell script
+also appended a carriage return to the Alembic `head` argument. Docker Compose
+now completes migrations and starts the API and worker successfully.
+
+### 2026-08-10 - Codex (GPT-5) - Pexels resolution and preparation harness
+
+Completed the external-image path: `needs_acquisition` asset briefs now reach
+Pexels even when the policy field keeps its default, and Pexels orientation is
+derived from dimensions when the API omits the orientation field. Added a
+developer-harness action to explicitly start Build Preparation after Visual
+Design approval and display the verified bundle result. Why: image acquisition
+is a first-class preparation responsibility and must be observable in frontend
+testing without adding another approval stage.
+
+### 2026-08-10 - Codex (GPT-5) - config/app.toml, config/app.docker.toml
+
+Wired the configured Cloudflare R2 account endpoint and private preparation
+bucket into the base configuration and Docker overlay used by API and worker
+containers. Verified the effective settings and a temporary
+upload/head/delete probe with lifecycle expiration before removing the probe
+object. Why: the repository configuration still had empty storage coordinates
+even though the deployment secrets were present.
+
+### 2026-08-09 — Codex (GPT-5) — src/oryxenai/build_preparation/, API, worker, config, tests
+
+Implemented the hidden Portfolio Build Preparation stage: deterministic
+Experience Blueprint and route-packet compilation, verified resource/fallback
+resolution, safe ZIP materialization, private S3-compatible/R2 artifact
+storage with configurable TTL, stale-source checks, and explicit start/status
+API plus durable worker registration. Added deterministic fake-provider and
+bundle/security coverage; no database migration or persistent local artifact
+store was introduced. Why: give future Code Generation a self-sufficient,
+scoped build package without re-running discovery, design, registries, Pexels,
+or package installation.
+
 ### 2026-08-08 19:49 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — src/oryxenai/agents/visual_design_director/, src/oryxenai/db/repositories/visual_design_director.py, src/oryxenai/jobs/handlers/visual_design_director.py, src/oryxenai/api/routes/visual_design_director.py, src/oryxenai/api/dependencies.py, src/oryxenai/api/routes/__init__.py, src/oryxenai/jobs/registry.py, src/oryxenai/agents/shared/{registry,model_client}.py, src/oryxenai/core/settings.py, config/models.toml, config/app.toml, tests/, AGENTS.md, README.md, docs/architecture.md
 
 Implemented the Visual Design Director agent (Agent 3) end to end, replacing

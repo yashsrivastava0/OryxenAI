@@ -46,8 +46,9 @@ class AssetSourceStatus(StrEnum):
 
 
 class AssetSourcePolicy(StrEnum):
-    """Extensible for a FUTURE acquisition source. OPTIONAL_EXTERNAL_ACQUISITION
-    is a reserved value only — no external search/API is implemented now.
+    """Policy carried into the hidden Build Preparation acquisition stage.
+
+    Visual Design Director records intent only; it never calls a provider.
     """
 
     APPROVED_USER_MEDIA = "approved_user_media"
@@ -151,15 +152,14 @@ class SceneDirection(BaseModel):
 
 class AssetBrief(BaseModel):
     """Intent for one meaningful image/visual requirement — never a concrete
-    file. The future Resource & Asset Packager resolves actual files;
-    this agent supplies purpose/crop/treatment/fallback intent only.
+    file. The hidden Build Preparation stage resolves actual files; this agent
+    supplies purpose/crop/treatment/fallback intent only.
 
     subject/mood/aspect_ratio_need/color_relationship/negative_concepts are
-    semantic search intent for a FUTURE external-acquisition source (only
+    semantic search intent for the external-acquisition source (only
     meaningful when source_policy is optional_external_acquisition or
-    source_status is needs_acquisition) — no external search is implemented
-    now; these fields exist so the future Resource & Asset Packager doesn't
-    have to re-derive search intent from prose.
+    source_status is needs_acquisition). These fields let Build Preparation
+    search without re-deriving intent from prose.
     """
 
     model_config = ConfigDict(extra="forbid")
