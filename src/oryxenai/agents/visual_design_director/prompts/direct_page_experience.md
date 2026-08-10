@@ -66,7 +66,7 @@ diagrams, or abstract visuals over describing a fabricated photo — this is a g
 shortfall.
 
 When source_status is "needs_acquisition" or source_policy is "optional_external_acquisition" (i.e.
-this asset might one day be filled by a future external search, not implemented now), also fill
+this asset may be filled by the hidden Build Preparation stage's configured external search), also fill
 subject (what the image is literally of), mood, aspect_ratio_need, color_relationship (how it should
 relate to the surrounding palette), and negative_concepts (things it must NOT show or imply) — this
 is semantic search intent for that future stage, not a description for this one. Leave these empty

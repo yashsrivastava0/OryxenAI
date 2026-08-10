@@ -210,9 +210,30 @@ class Worker:
                 await heartbeat_task
 
         if result.get("status") == "failed":
+            raw_error = result.get("error")
+            if isinstance(raw_error, dict):
+                error = (
+                    retryable(
+                        str(raw_error.get("code", "JOB_HANDLER_FAILED")),
+                        str(raw_error.get("message", "The background job handler failed.")),
+                        raw_error.get("details")
+                        if isinstance(raw_error.get("details"), dict)
+                        else None,
+                    )
+                    if bool(raw_error.get("retryable", False))
+                    else permanent(
+                        str(raw_error.get("code", "JOB_HANDLER_FAILED")),
+                        str(raw_error.get("message", "The background job handler failed.")),
+                        raw_error.get("details")
+                        if isinstance(raw_error.get("details"), dict)
+                        else None,
+                    )
+                )
+            else:
+                error = permanent("JOB_HANDLER_FAILED", "The background job handler failed safely.")
             await self._fail_job(
                 job_id,
-                permanent("JOB_HANDLER_FAILED", "The Discovery operation failed safely."),
+                error,
             )
             return
         await self._complete_job(job_id, result)
@@ -252,7 +273,7 @@ class Worker:
                 return
             retry = self._settings.worker_retry
             job_error = error if hasattr(error, "retryable") else permanent("UNKNOWN", str(error))
-            if should_retry(job_error, job.attempt, retry.max_attempts):
+            if should_retry(job_error, job.attempt, job.max_attempts):
                 delay = delay_for_attempt(
                     job.attempt, retry.base_delay, retry.max_delay, retry.jitter
                 )

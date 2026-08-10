@@ -9,6 +9,18 @@ database = "oryxenai_test"
 pool_size = 3          # smaller pool for test isolation
 max_overflow = 5
 
+[artifact_storage]
+# Tests inject MemoryArtifactStore and never contact an object provider.
+provider = "memory"
+require_lifecycle = false
+
+[build_preparation]
+fixture_enabled = true
+fixture_upload = false
+
+[resource_providers]
+registries_enabled = false
+
 [worker]
 polling_interval = 0.25    # faster polling for test speed
 heartbeat_interval = 5.0

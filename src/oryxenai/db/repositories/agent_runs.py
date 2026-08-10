@@ -76,6 +76,7 @@ class AgentRunRepository:
         run = result.scalar_one_or_none()
         if run is not None:
             run.status = "succeeded"
+            run.error_payload = None
             run.output_payload = output_payload
             run.state_after = state_after
             if prompt_version is not None:

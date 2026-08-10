@@ -13,6 +13,7 @@ from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
 from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
+from oryxenai.build_preparation.service import BuildPreparationService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.repositories.discovery import DiscoveryRepository
@@ -86,3 +87,9 @@ def get_visual_design_director_service(
 ) -> VisualDesignDirectorService:
     """Build a Visual Design Director service bound to the request transaction."""
     return VisualDesignDirectorService(VisualDesignDirectorRepository(db), JobService(db), registry)
+
+
+def get_build_preparation_service(
+    db: AsyncSession = Depends(get_db_session),
+) -> BuildPreparationService:
+    return BuildPreparationService(db)

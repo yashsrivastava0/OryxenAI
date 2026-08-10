@@ -187,6 +187,69 @@ class VisualDesignDirectorConfig(BaseModel):
     max_catalogue_candidates: int = 6
 
 
+class BuildPreparationConfig(BaseModel):
+    """Build Preparation limits and lifecycle policy."""
+
+    max_routes: int = 12
+    bundle_ttl_days: int = 3
+    minimum_reuse_hours: int = 24
+    max_bundle_bytes: int = 64 * 1024 * 1024
+    network_timeout_seconds: float = 15.0
+    network_retry_count: int = 2
+    target_contract: str = "react-vite-v1"
+    fixture_enabled: bool = False
+    fixture_input_path: str = "src/oryxenai/output/visual_design_director_Output.md"
+    fixture_upload: bool = True
+
+    @field_validator("fixture_enabled", "fixture_upload", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class ArtifactStorageConfig(BaseModel):
+    """Non-secret S3-compatible artifact storage settings."""
+
+    provider: str = "r2_s3"
+    endpoint_url: str = ""
+    bucket: str = ""
+    region: str = "auto"
+    prefix: str = "temporary"
+    require_lifecycle: bool = True
+    access_key_env: str = "R2_ACCESS_KEY_ID"
+    secret_key_env: str = "R2_SECRET_ACCESS_KEY"  # noqa: S105 - this is an environment-variable name, never a secret value
+
+    @field_validator("require_lifecycle", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class ResourceProviderConfig(BaseModel):
+    """Non-secret registry provider endpoints and feature flags."""
+
+    registries_enabled: bool = True
+    shadcn_catalog_url: str = "https://ui.shadcn.com/r/registry.json"
+    shadcn_item_url_template: str = "https://ui.shadcn.com/r/{name}.json"
+    magicui_catalog_url: str = "https://magicui.design/r/registry.json"
+    magicui_item_url_template: str = "https://magicui.design/r/{name}.json"
+    magicui_enabled: bool = True
+    aceternity_catalog_url: str = "https://ui.aceternity.com/registry/registry.json"
+    aceternity_item_url_template: str = "https://ui.aceternity.com/registry/{name}.json"
+    aceternity_enabled: bool = False
+
+    @field_validator("registries_enabled", "magicui_enabled", "aceternity_enabled", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
 class ModelProfile(BaseModel):
     """A single provider-neutral model profile from config/models.toml."""
 
@@ -254,6 +317,9 @@ class Settings(BaseSettings):
     visual_design_director: VisualDesignDirectorConfig = Field(
         default_factory=VisualDesignDirectorConfig
     )
+    build_preparation: BuildPreparationConfig = Field(default_factory=BuildPreparationConfig)
+    artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
+    resource_providers: ResourceProviderConfig = Field(default_factory=ResourceProviderConfig)
 
     @model_validator(mode="after")
     def _load_toml_files(self) -> Settings:
@@ -295,6 +361,12 @@ class Settings(BaseSettings):
             self.visual_design_director = VisualDesignDirectorConfig(
                 **app_data["visual_design_director"]
             )
+        if "build_preparation" in app_data:
+            self.build_preparation = BuildPreparationConfig(**app_data["build_preparation"])
+        if "artifact_storage" in app_data:
+            self.artifact_storage = ArtifactStorageConfig(**app_data["artifact_storage"])
+        if "resource_providers" in app_data:
+            self.resource_providers = ResourceProviderConfig(**app_data["resource_providers"])
 
         # Model profiles.
         models_data = _load_toml("models.toml")

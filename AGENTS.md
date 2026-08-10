@@ -61,6 +61,18 @@ Content Architect approval; a caller must explicitly
 `src/oryxenai/agents/visual_design_director/README.md` for the full route
 table and state machine.
 
+**Portfolio Build Preparation is implemented as a hidden pre-code stage.** It
+requires approved Content Architect and Visual Design Director state and is
+started explicitly with `POST .../build-preparation/start`. A durable
+`build_preparation.prepare` job compiles a versioned Experience Blueprint,
+resolves verified resources (with safe custom-implementation fallbacks),
+produces route-scoped Build Packets and a Portfolio Build Context, and uploads
+one immutable ZIP to configured temporary S3-compatible object storage (R2 in
+production). PostgreSQL stores only the object metadata and hashes; the pack
+is never persisted on an application/worker filesystem. The GET endpoint
+reports staleness when approved upstream projections, policy, target contract,
+or the temporary object changes. See `src/oryxenai/build_preparation/`.
+
 All three agents call their configured model through the provider-neutral
 `ModelClient` boundary — see `config/models.toml` for the live model/provider
 per profile; never trust a model name written in prose documentation,
@@ -84,7 +96,9 @@ deterministic mock, not a live implementation.
   between agents.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
-- No authentication, billing, Cloudflare, Supabase, R2, or deployment.
+- No authentication, billing, Supabase, or published-portfolio deployment
+  automation. Cloudflare R2 is used only for temporary Build Preparation
+  packs.
 - No Redis, Celery, Kafka, or external queue.
 
 ## Config-driven policy — never hardcode
@@ -151,7 +165,8 @@ scripts/                     cross-platform launcher scripts
 - Stale running jobs are recovered via lease/heartbeat expiry.
 - Registered handlers: `system.worker_probe` (diagnostic, never calls an
   agent or model), `discovery.understand_and_question`, `discovery.build_or_revise_brief`,
-  `content_architect.build`, `visual_design_director.build`, plus two
+  `content_architect.build`, `visual_design_director.build`,
+  `build_preparation.prepare`, plus two
   legacy Discovery aliases (`discovery.prepare_questions`,
   `discovery.build_brief`) kept only so any in-flight pre-rename job payload
   still executes.
@@ -309,9 +324,8 @@ Content Architect's architecture one stage down the pipeline:
 
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
-- **Code Generator remains deferred** — do not auto-chain into it from
-  Visual Design Director approval; check `DECISIONS.md` before starting
-  that work.
+- **Code Generator remains deferred** — Build Preparation does not auto-chain
+  into it; check `DECISIONS.md` before starting its real implementation.
 
 ## Multi-agent collaboration protocol
 
