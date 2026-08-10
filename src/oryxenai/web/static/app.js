@@ -1261,13 +1261,110 @@
         body: JSON.stringify({}),
       });
       vddState = data.visual_design_director;
-      chatDone("Visual Design Director approved — the visual direction is ready for Code Generation (not yet implemented).");
+      promptNextAgentPrompt(
+        "Visual Design Director approved — the hidden Build Preparation stage can now materialize the image, component, and code-generation resources.",
+        "Prepare Build Package",
+        startBuildPreparation
+      );
     } catch (e) {
       chatError("Approval failed: " + e.message, "Try again", approveVisualDesignDirector);
     }
   }
 
   // ── Safe Markdown rendering (DOM nodes only, no HTML injection) ─────────
+
+  // Hidden Build Preparation: explicit developer-harness trigger. There is no
+  // separate review/approval step; this only exposes the durable stage result
+  // while the future Code Generation Engine remains out of scope.
+  var buildPreparationState = null;
+  var buildPreparationPollTimer = null;
+
+  async function startBuildPreparation() {
+    chatAnalyzing("Preparing the build package and materializing resources…");
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/build-preparation/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_profile: selectedModelProfile }),
+      });
+      buildPreparationState = data.build_preparation;
+      pollBuildPreparation();
+    } catch (e) {
+      clearAnalyzingBubble();
+      chatError("Could not start Build Preparation: " + e.message, "Try again", startBuildPreparation);
+    }
+  }
+
+  function pollBuildPreparation() {
+    if (buildPreparationPollTimer) window.clearTimeout(buildPreparationPollTimer);
+    if (!buildPreparationState) return;
+    if (buildPreparationState.status === "ready" || buildPreparationState.status === "needs_attention") {
+      clearAnalyzingBubble();
+      renderBuildPreparationState();
+      return;
+    }
+    buildPreparationPollTimer = window.setTimeout(async function () {
+      try {
+        var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/build-preparation");
+        buildPreparationState = data.build_preparation;
+      } catch (e) {
+        clearAnalyzingBubble();
+        chatError("Lost contact while preparing the build package: " + e.message, "Retry", startBuildPreparation);
+        return;
+      }
+      pollBuildPreparation();
+    }, 1500);
+  }
+
+  function renderBuildPreparationState() {
+    if (!buildPreparationState) return;
+    if (buildPreparationState.status === "needs_attention") {
+      var error = buildPreparationState.latest_error || {};
+      chatError(error.message || "Build Preparation needs attention.", "Try again", startBuildPreparation);
+      return;
+    }
+
+    var content = document.createElement("div");
+    content.className = "brief-review";
+    var title = document.createElement("h2");
+    title.textContent = "Build package ready";
+    content.appendChild(title);
+    content.appendChild(textEl("Verified visual resources, local component references, fallbacks, and scoped route context are ready for the future Code Generation Engine."));
+
+    var ref = buildPreparationState.bundle_ref || {};
+    var metadata = document.createElement("p");
+    metadata.className = "bubble-meta";
+    metadata.textContent = "Bundle " + (ref.sha256 ? ref.sha256.slice(0, 16) + "…" : "verified") +
+      (ref.size_bytes ? " · " + Math.round(ref.size_bytes / 1024) + " KB" : "") +
+      (ref.expires_at ? " · expires " + ref.expires_at : "");
+    content.appendChild(metadata);
+
+    var warningItems = Array.isArray(buildPreparationState.warnings) ? buildPreparationState.warnings : [];
+    if (warningItems.length) {
+      var warningNote = document.createElement("p");
+      warningNote.className = "bubble-meta bubble-error";
+      warningNote.textContent = "Warnings:";
+      content.appendChild(warningNote);
+      var warningList = document.createElement("ul");
+      warningItems.forEach(function (item) {
+        var li = document.createElement("li");
+        li.textContent = item;
+        warningList.appendChild(li);
+      });
+      content.appendChild(warningList);
+    }
+
+    var raw = document.createElement("details");
+    var rawSummary = document.createElement("summary");
+    rawSummary.textContent = "Advanced — preparation state JSON";
+    raw.appendChild(rawSummary);
+    var pre = document.createElement("pre");
+    pre.className = "json-view";
+    pre.textContent = prettyJson(buildPreparationState);
+    raw.appendChild(pre);
+    content.appendChild(raw);
+    addBubble("assistant", content);
+  }
 
   function renderMarkdownToNodes(mdText) {
     var fragment = document.createDocumentFragment();

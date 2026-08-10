@@ -54,6 +54,7 @@ def _register_builtins() -> None:
     _register_discovery_handlers()
     _register_content_architect_handlers()
     _register_visual_design_director_handlers()
+    _register_build_preparation_handlers()
 
 
 def _register_discovery_handlers() -> None:
@@ -91,6 +92,14 @@ def _register_visual_design_director_handlers() -> None:
         instance = handler_cls()
         if not is_registered(instance.kind):
             register(instance)
+
+
+def _register_build_preparation_handlers() -> None:
+    from oryxenai.jobs.handlers.build_preparation import BuildPreparationHandler
+
+    instance = BuildPreparationHandler()
+    if not is_registered(instance.kind):
+        register(instance)
 
 
 _register_builtins()

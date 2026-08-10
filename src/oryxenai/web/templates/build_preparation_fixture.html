@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Temporary Build Preparation fixture preview">
+  <title>{{ app_name }} — From signal to system</title>
+  <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/build-preparation-fixture.css">
+</head>
+<body>
+  <a class="skip-link" href="#fixture-main">Skip to preview</a>
+  <header class="fixture-rail">
+    <a class="wordmark" href="{{ request.scope.get('root_path', '') }}/">{{ app_name }}</a>
+    <span class="rail-label">Temporary preparation studio</span>
+    <span class="rail-status" id="fixture-status">Ready to inspect</span>
+  </header>
+
+  <main id="fixture-main">
+    <section class="fixture-hero" aria-labelledby="fixture-title">
+      <div class="hero-copy">
+        <p class="kicker"><span class="signal-dot" aria-hidden="true"></span> Build Preparation / Fixture 01</p>
+        <h1 id="fixture-title">From models<br><em>to usable systems.</em></h1>
+        <p class="hero-dek">A temporary, non-publishable preview of how the approved visual direction becomes an implementation-ready package.</p>
+        <div class="hero-actions">
+          <button id="run-fixture" class="primary-button" type="button">Run preparation</button>
+          <a class="quiet-link" href="#story">Read the story <span aria-hidden="true">↓</span></a>
+        </div>
+      </div>
+      <div class="signal-map" aria-label="Conceptual flow from signal to system" role="img">
+        <div class="map-line map-line-one"></div>
+        <div class="map-line map-line-two"></div>
+        <div class="map-node node-signal"><span>01</span><strong>Signal</strong><small>language + perception</small></div>
+        <div class="map-node node-orchestration"><span>02</span><strong>Orchestration</strong><small>retrieval + decisions</small></div>
+        <div class="map-node node-system"><span>03</span><strong>System</strong><small>services + workflows</small></div>
+        <p class="diagram-note">Illustrative relationship — never a claimed production architecture.</p>
+      </div>
+    </section>
+
+    <section class="test-console" aria-labelledby="console-title">
+      <div class="console-heading">
+        <div>
+          <p class="section-index">00 / Test console</p>
+          <h2 id="console-title">Give it output. See exactly what happened.</h2>
+          <p>Paste or upload a Visual Design JSON result, or run the checked-in fixture. Nothing entered here is saved to a portfolio session.</p>
+        </div>
+        <span class="ephemeral-badge">Ephemeral test input</span>
+      </div>
+      <div class="console-controls">
+        <label class="file-control" for="fixture-file">Upload VDD JSON <input id="fixture-file" type="file" accept=".json,.md,application/json,text/plain"></label>
+        <button id="use-default-fixture" class="secondary-button" type="button">Use checked-in fixture</button>
+        <button id="run-console" class="primary-button" type="button">Run current input</button>
+      </div>
+      <label class="console-label" for="fixture-json">Input JSON <span id="input-state">Using checked-in fixture</span></label>
+      <textarea id="fixture-json" class="json-input" rows="8" spellcheck="false" placeholder="Paste the complete Visual Design Director JSON output here…"></textarea>
+      <div class="console-meta">
+        <span id="input-size">No browser-provided input</span>
+        <span>POST /api/v1/build-preparation/fixture/run</span>
+      </div>
+      <div class="event-log" id="event-log" aria-live="polite"><div><span>ready</span> Waiting for a fixture run.</div></div>
+    </section>
+
+    <section id="story" class="story-section story-intro" aria-labelledby="story-title">
+      <div class="section-index">01 / The through-line</div>
+      <div>
+        <h2 id="story-title">Engineering the systems around intelligence.</h2>
+        <p>Vanshmani’s direction moves from multimodal assistive communication to enterprise AI workflows: models become connected systems, then usable products. The preparation package keeps that narrative intact while giving a future coding agent room to make the final visual decisions.</p>
+      </div>
+    </section>
+
+    <section class="story-section feature-section" aria-labelledby="defxv-title">
+      <div class="section-index">02 / Featured evidence</div>
+      <div class="feature-grid">
+        <div>
+          <p class="eyebrow">DefXV / AI-ML integrated assistive communication</p>
+          <h2 id="defxv-title">A project that makes the invisible pipeline visible.</h2>
+          <p>Voice-to-Sign and Sign-to-Voice translation anchors the story. The visual is conceptual by design: a readable relationship between multimodal input, inference and orchestration, and output.</p>
+          <div class="tag-row" aria-label="DefXV technologies">
+            <span>Transformers</span><span>CNN + LSTM</span><span>Unity</span><span>Blender</span>
+          </div>
+        </div>
+        <div class="flow-card">
+          <div class="flow-step"><span>Input</span><strong>Voice / gesture</strong></div>
+          <div class="flow-connector" aria-hidden="true">→</div>
+          <div class="flow-step accent-step"><span>Inference</span><strong>Models + orchestration</strong></div>
+          <div class="flow-connector" aria-hidden="true">→</div>
+          <div class="flow-step"><span>Output</span><strong>Sign / voice</strong></div>
+          <p class="diagram-note">Conceptual only. No fabricated system diagram or metric.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="story-section evidence-section" aria-labelledby="evidence-title">
+      <div class="section-index">03 / Supporting arc</div>
+      <div>
+        <h2 id="evidence-title">The portfolio widens without losing its edge.</h2>
+        <div class="timeline">
+          <article><span>2025 — present</span><h3>Agentic AI DB Log Analyzer</h3><p>TCS / LangGraph, RAG, Azure OpenAI, services, evaluation.</p></article>
+          <article><span>2025</span><h3>HR Process Digitization</h3><p>DCM Shriram / intelligent automation and retrieval pipelines.</p></article>
+          <article><span>2024</span><h3>Virtual Interview Simulator</h3><p>SpectoV / speech, LLM inference, and response evaluation.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="inspector-section" aria-labelledby="inspector-title">
+      <div class="inspector-heading">
+        <div>
+          <p class="section-index">04 / The package</p>
+          <h2 id="inspector-title">What Code Generation receives.</h2>
+        </div>
+        <span class="fixture-badge">Fixture preview · not publishable</span>
+      </div>
+      <div id="fixture-summary" class="summary-grid">
+        <div class="summary-card"><span>Input</span><strong>Not run</strong><small>Visual direction fixture</small></div>
+        <div class="summary-card"><span>Blueprint</span><strong>—</strong><small>Routes and scenes</small></div>
+        <div class="summary-card"><span>Resources</span><strong>—</strong><small>Verified or adaptable</small></div>
+        <div class="summary-card"><span>Bundle</span><strong>—</strong><small>Temporary object storage</small></div>
+      </div>
+      <div id="fixture-output" class="fixture-output" aria-live="polite">
+        <p class="empty-state">Run the fixture to compile the story into a Blueprint, Resource Manifest, Context, and page packet.</p>
+      </div>
+      <div class="output-actions">
+        <button id="copy-result" class="secondary-button" type="button" disabled>Copy response JSON</button>
+        <button id="download-result" class="secondary-button" type="button" disabled>Download response JSON</button>
+        <span id="persistence-note">No response yet</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="fixture-footer">
+    <span>Temporary developer fixture</span>
+    <span>Static fallbacks remain readable with reduced motion.</span>
+  </footer>
+  <script src="{{ request.scope.get('root_path', '') }}/static/build-preparation-fixture.js"></script>
+</body>
+</html>

@@ -45,6 +45,39 @@ this header, above the current newest entry):
 
 ---
 
+## D-009 — Deployment-independent temporary Build Preparation packs
+
+- **Date:** 2026-08-09
+- **Status:** decided-implemented
+- **Context:** Build Preparation runs in a separate worker from the API and
+  must hand a future code generator real component/image/source bytes. The
+  deployment target is a small, low-cost, horizontally replaceable service
+  where local disks and shared Docker volumes are not reliable. PostgreSQL
+  must remain metadata/state storage rather than a binary-artifact store.
+- **Decision:** Materialize one immutable, hash-verified ZIP per preparation
+  run and upload it to a private S3-compatible object store (Cloudflare R2 in
+  the default production configuration) under a session/version namespace.
+  Persist only object metadata, hash and configurable expiry in session JSONB;
+  require an object lifecycle rule for the temporary prefix by default. The
+  worker uses a temporary local workspace only while building the ZIP and
+  removes it after upload. Tests use an in-memory fake store. Code generation
+  will download the pack into its own disposable workspace and never contact
+  the original providers.
+- **Rejected alternatives:** A shared Docker named volume or application
+  local disk was rejected because API/worker instances can be replaced or run
+  on different hosts (Vercel/Render-style deployments). PostgreSQL byte
+  storage was rejected because it increases database cost and couples large
+  binary lifecycle to session rows. Provider-specific permanent downloads or
+  signed public URLs were rejected because preparation artifacts are private,
+  short-lived implementation inputs, not published portfolio assets.
+- **Consequence:** Production deployments need an R2/S3 endpoint, bucket,
+  access-key secrets and lifecycle policy; a missing provider configuration is
+  a safe preparation error. Expired packs can be regenerated from the
+  canonical approved upstream artifacts, while successful builds/published
+  portfolios need a separate retention policy.
+
+---
+
 ## D-008 — Visual Design Director's first real implementation mirrors Content Architect's architecture almost exactly
 
 - **Date:** 2026-08-08

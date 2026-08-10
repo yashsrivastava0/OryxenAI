@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from oryxenai.api.routes import (
     agents,
+    build_preparation,
     content_architect,
     discovery,
     health,
@@ -24,6 +25,8 @@ def create_api_router() -> APIRouter:
     router.include_router(discovery.router)
     router.include_router(content_architect.router)
     router.include_router(visual_design_director.router)
+    router.include_router(build_preparation.router)
+    router.include_router(build_preparation.fixture_router)
     return router
 
 
