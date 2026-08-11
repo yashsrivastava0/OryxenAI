@@ -24,6 +24,146 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-11 — Claude Code (Claude Sonnet 5 / Anthropic) — docs/build-preparation-agent-proposal.md finalized for handoff
+
+Finalized the Build Preparation proposal for handoff to a separate
+implementing AI. Evaluated an independent review of the doc
+(`prebuild-output/build-preparation-agent-review.md`) point by point rather
+than adopting it wholesale: kept 4 narrow correct catches (no hardcoded
+provider rate limits, Pexels-vs-Unsplash licensing handling, opaque
+resource IDs, an `inspection_level` honesty field) and explicitly rejected
+its larger rewrites (ZIP-to-individual-R2-objects, pushing component
+fetching onto the still-deferred Code Generator, a new user-media
+subsystem, a 3x3 necessity/enforcement matrix, an 11+-input staleness
+fingerprint list) as unrequested complexity against the project owner's
+own ≤5-user/free-tier brief. Added a temporary local debug-output mirror
+(§15) and a standalone, pipeline-detached test harness (§17) so the new
+agent can be exercised by hand with a manually-fed Visual Design Director
+output before it's wired into the live pipeline. Added a mandatory 3-phase
+implementation plan (§16) — skeleton, then providers/LLM stages, then
+packaging/retirement — each phase gated on its own plan-implement-verify
+cycle, requiring at least one real live model call per LLM stage (not only
+mocked tests) before a phase counts as done.
+
+Mid-task, `src/oryxenai/build_preparation/` (the retired module this
+proposal supersedes) was deleted from the working tree by the project
+owner, which broke the app: `api/dependencies.py`, `api/routes/build_preparation.py`,
+`api/routes/__init__.py`, `jobs/handlers/build_preparation.py`, and
+`jobs/registry.py` all still imported/registered against the now-gone
+package, and `uv run pytest --collect-only` failed with 16 collection
+errors across unrelated test suites (Discovery, Content Architect, Visual
+Design Director, worker) because they transitively import the broken job
+registry. Documented this as a required "Step 0" at the top of §16 with
+the exact file list to clean up, since the implementing AI's first
+`uv run pytest` would otherwise fail for reasons unrelated to its own
+work. No source code was changed by this session — the fix is documented,
+not applied; `src/` still needs Step 0 run before anything else builds.
+
+### 2026-08-11 — Claude Code (Claude Sonnet 5 / Anthropic) — docs/build-preparation-agent-proposal.md, docs/portfolio-production-compiler-proposal.md, DECISIONS.md
+
+Authored a replacement architecture proposal for Build Preparation after the
+existing `src/oryxenai/build_preparation/` compiler was reported as
+producing empty output and not fetching images. Investigation found the
+code itself works — the symptom traced to the fixture harness defaulting to
+offline/no-provider mode and a sample input with no photo requirement, not
+a broken call — but the module was still ~2.2x Visual Design Director's
+size for a non-creative stage and lived outside `src/oryxenai/agents/` with
+no `AgentKey` entry. The new proposal rebuilds Build Preparation from zero
+as agent #4, mirroring the Content Architect/Visual Design Director file
+pattern, keeps Render/Supabase/R2, embraces liberal structured model use
+(including a new LLM-authored screen-by-screen build brief the old design
+never had), adds Unsplash as a Pexels fallback, and replaces the 9-section
+bundle with a 5-section one. Marked the prior proposal doc superseded and
+recorded the decision as D-011 (D-010 marked superseded-by-D-011). Why:
+per the multi-agent collaboration protocol, the architecture decision and
+its rationale needed to be durable across tools/sessions before any
+implementation work starts. No code was changed; implementation is a
+separate, not-yet-started planning pass.
+
+### 2026-08-11 - Codex (GPT-5 / OpenAI) - VDD resource handoff and prompt latency fix
+
+Closed the gap where valid catalogue resources selected inside a page or scene could be missing
+from the top-level registry required by Build Preparation. The agent now promotes only shortlist-
+validated catalogue IDs, while unknown IDs still fail validation. Tightened the VDD prompts for a
+single-route, one-call response with a four-scene budget and compact summaries, and removed a
+concrete resource ID from the example so prompts cannot seed a hard-coded candidate.
+
+### 2026-08-11 — Codex (GPT-5 / OpenAI) — build_preparation fixture/compiler/service, VDD fixture, Content Architect prompt, tests
+
+Added narrow one-opening-brace fixture recovery with explicit warnings, route-aware canonical anchor resolution, iconography alias provenance, and a production gate for legacy VDD handoffs missing `content_architect_visual_input_hash`. The fixture now reports that approved media requires no external image and preserves conceptual visuals as custom implementation opportunities.
+The VDD final-reference check also keeps the standalone empty-upstream mock harness valid while retaining strict checks for real approved projections.
+
+### 2026-08-11 — Codex (GPT-5 / OpenAI) — Simplified Build Preparation fixture harness
+
+Replaced the temporary Build Preparation showcase page with a compact VDD-input
+test harness. Each run now materializes the verified preparation contents under
+`output/build-preparation-<UTC timestamp>-<input hash>/` and writes a result
+JSON there; no ZIP is written to the local output directory. Production R2
+storage and its ZIP contract remain unchanged. Added a safe configurable local
+fixture output directory and an explicit empty-input error.
+
+### 2026-08-11 — Codex (GPT-5 / OpenAI) — Visual Design Director boundary hardening
+
+Added a final cross-reference validation pass after VDD's multi-call
+reconciliation, so dangling scene content, asset, and resource references are
+rejected before review. Expanded VDD approval and Content Architect staleness
+fingerprints to include compiler-relevant visual fields and the complete VDD
+input projection. Added focused regression coverage and documented the
+compiler-facing contract; no VDD files were removed because the package is
+fully live and referenced.
+
+### 2026-08-11 — Codex (GPT-5 / OpenAI) — Build Preparation contract hardening
+
+Closed the remaining compiler-contract gaps: canonical public-data pointers and
+runtime API declarations, license provenance, a truthful local font catalogue,
+bounded image preview renditions, multi-candidate registry selection, and
+post-upload/download hash verification. The fixture can display bounded local
+previews without persisting image bytes in PostgreSQL or requiring provider
+network access during Code Generation.
+
+### 2026-08-10 — Codex (GPT-5 / OpenAI) — Portfolio Production Compiler implementation
+
+Implemented the approved user-visible pre-code compiler boundary. Build
+Preparation now carries creative character and visual specifications into a
+versioned Blueprint, performs bounded provider-neutral planning/selection,
+admits registry source without execution or package installation, creates
+responsive local Pexels renditions, ships the React/Vite target manifest and
+lockfile, and packages self-describing route/context/resource files into a
+hash-verified temporary ZIP. Added coarse persisted progress, explicit
+fixture-only reasoning controls, deterministic source-admission and selection
+tests, and the structured model profile. The production session path remains
+R2-backed; the temporary fixture defaults to deterministic local execution.
+
+### 2026-08-10 — Codex (GPT-5 / OpenAI) — proposed Portfolio Production Compiler architecture
+
+Added, render-verified, and finalized the approved architecture proposal for
+replacing fallback-only Build Preparation internals with one user-visible
+five-operation production compiler. The final shape uses two normal structured
+model calls plus one adaptive cross-route call, hybrid-capable routing,
+optional/adaptable statically admitted resources, accurate responsive Pexels
+renditions, exact local file/import context, semantic visual specifications, a
+dedicated creative-character contract, a self-sufficient atomic R2 ZIP, a
+lockfile-backed React target, and a small Render/Supabase/R2 hobby deployment
+with later Cloudflare Pages publication. Recorded the not-yet-implemented
+decision as D-010.
+
+### 2026-08-10 17:51 +05:30 — Codex (GPT-5 / OpenAI) — build-preparation compiler, resources, fixture, provider config, tests
+
+Bound every route packet to manifest-level resource decisions (requested intent,
+local pack path, hash, dependencies, fallback, and custom-implementation
+opportunity), added fixed system-font/Lucide context, and made fixture live
+resource resolution explicit. Corrected the public shadcn v4 catalog endpoint,
+made registry admission skip unsupported candidates, and removed routine
+custom-composition noise from warnings so fixture output distinguishes real
+provider/approval problems from valid code-generation work.
+
+### 2026-08-10 - Codex (GPT-5 / OpenAI) - build-preparation fixture correctness and bundle download
+
+Fixed VDD-to-Blueprint field mapping, semantic fixture hashing, fallback-resource
+deduplication, and truthful memory/R2 metadata. Added a hash-verified streamed
+fixture ZIP download endpoint and frontend control so testing never treats an
+object key as a local executable path or requires persistent download storage.
+
 ### 2026-08-10 - Codex (GPT-5 / OpenAI) - build-preparation fixture and temporary frontend
 
 Added a development-only fixture runner that compiles the checked-in Visual
