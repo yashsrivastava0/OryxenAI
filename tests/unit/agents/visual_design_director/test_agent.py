@@ -440,3 +440,27 @@ async def test_resource_candidates_stamped_with_catalogue_provenance():
     assert candidate["category"] == "hero_pattern"
     assert candidate["lookup_status"] == "verified"
     assert candidate["resource_library_version"]
+
+
+async def test_page_and_scene_resource_refs_are_promoted_to_handoff_registry():
+    """Valid placement references must not become dangling compiler inputs.
+
+    The model may naturally mention a catalogue pattern where it is used on a
+    page or scene and omit the duplicate top-level object. The agent owns the
+    deterministic registry normalization after shortlist validation.
+    """
+    payload = _language_payload(pages_included=True, route_ids=["r0"])
+    payload["pages"][0]["resource_candidates"] = ["hero_asymmetric_text_dominant"]
+    payload["pages"][0]["scenes"][0]["resource_candidates"] = ["hero_asymmetric_text_dominant"]
+    client = _FakeModelClient({"establish_visual_language": payload})
+    agent = VisualDesignDirectorAgent(model_client=client)
+
+    result = await agent.run(_context(route_count=1))
+
+    assert [item["resource_id"] for item in result.output["resource_candidates"]] == [
+        "hero_asymmetric_text_dominant"
+    ]
+    assert result.output["meta"]["resource_handoff"] == {
+        "top_level_registry_complete": True,
+        "promoted_resource_ids": ["hero_asymmetric_text_dominant"],
+    }

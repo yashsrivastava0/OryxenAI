@@ -1,6 +1,6 @@
 <!--
   Operation: direct_page_experience (only if establish_visual_language deferred pages_included=false)
-  Version: visual_design_director.direct_page_experience.v1
+  Version: visual_design_director.direct_page_experience.v3
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -31,7 +31,9 @@ publication_status is "blocked".
 <scenes>
 Within each page, break the experience into one or more scenes — deliberate visual/interaction
 moments, not a 1:1 mirror of Content Architect's sections. A short page may need only one scene; a
-long or evidence-heavy page needs several. For each scene, provide: a unique scene_id (unique across
+long or evidence-heavy page needs several. For exactly one route, use no more than four scenes by
+combining related sections into deliberate moments rather than mirroring every section. For each
+scene, provide: a unique scene_id (unique across
 the ENTIRE output, not just within the page), route_id (matching the parent page), narrative_goal,
 viewport_role, content_refs (the section_id values from that route's Content Architect page pack
 that this scene realizes — must be real section_ids, never invented), layout_intent,
@@ -82,7 +84,9 @@ route_id/scene_id), priority, possible_use, adaptation_notes, fallback, and conf
 the shortlist genuinely fits, leave resource_candidates (top-level and per scene/page) empty rather
 than inventing or approximating an id — an empty list is always valid and preferred over a wrong one.
 A resource is always adaptable, never mandatory — say so implicitly by describing it as a starting
-point, not a requirement.
+point, not a requirement. The top-level resource_candidates array is the registry: every ID used in
+a page or scene must also appear there exactly once with its explanation, adaptation notes, and
+fallback. If no resource genuinely fits, leave the top-level, page, and scene lists empty.
 </resources>
 
 <revision_behavior>

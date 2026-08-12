@@ -1,6 +1,6 @@
 # Build Preparation Agent — Proposal
 
-> Status: proposed, not yet implemented. Supersedes
+> Status: implemented. Supersedes
 > `docs/portfolio-production-compiler-proposal.md` and the retired
 > `src/oryxenai/build_preparation/` module — its source has already been
 > deleted from the working tree; see §16 "Step 0" for the dangling
@@ -168,6 +168,22 @@ matches) per page and scene — see
 re-decide what's needed; it's to act on what's already been decided
 upstream. Re-deriving needs via a fresh model call, as the retired design
 did, was redundant work against data that already existed.
+
+### Implemented execution order differs from the diagram above
+
+The diagram places deterministic materialization ("write
+resources/manifest.json") between Stage 2 and Stage 3. The actual
+implementation (`agents/build_preparation/agent.py`) runs Stage 3 and the
+conditional Stage 4 immediately after Stage 2's validation, and only
+materializes and packages once, after Stage 4. This is intentional, not a
+bug: each route's `brief.md` is sourced from Stage 3/4's own output, so
+materialization has to follow context-writing rather than precede it —
+Stage 3/4 only ever need Stage 2's selection *metadata* (which resource ID
+was picked per need), never pixel bytes or a written file tree. The
+diagram is kept above as the conceptual stage sequence (what depends on
+what); treat this paragraph, not the diagram's left-to-right ordering, as
+authoritative for *when* the deterministic materialize/package step
+actually runs.
 
 ## 7. Provider module — reusable, not a microservice
 

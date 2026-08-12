@@ -1,8 +1,11 @@
-"""Unit tests for Visual Design Director output validators (transport contract only)."""
+"""Unit tests for Visual Design Director output and reference validators."""
 
 from __future__ import annotations
 
-from oryxenai.agents.visual_design_director.validators import validate_stage_output
+from oryxenai.agents.visual_design_director.validators import (
+    validate_final_references,
+    validate_stage_output,
+)
 
 
 def _route(**overrides: object) -> dict[str, object]:
@@ -430,3 +433,40 @@ class TestValidateEnvelopeShape:
         )
         assert not outcome.is_valid
         assert any("'pages_included' must be a boolean" in error for error in outcome.errors)
+
+
+def test_final_reference_validation_rejects_dangling_scene_and_asset_refs() -> None:
+    outcome = validate_final_references(
+        [
+            _page(
+                scenes=[
+                    _scene(
+                        content_refs=["missing-section"],
+                        asset_requirements=["missing-asset"],
+                        resource_candidates=["missing-resource"],
+                    )
+                ]
+            )
+        ],
+        [{"asset_id": "known-asset", "content_ref": "missing-content"}],
+        [{"resource_id": "known-resource"}],
+        known_route_ids={"home"},
+        known_section_ids={"hero"},
+        known_claim_ids={"claim:hero"},
+    )
+    assert not outcome.is_valid
+    assert any("content_ref" in error for error in outcome.errors)
+    assert any("asset_id" in error for error in outcome.errors)
+    assert any("resource_id" in error for error in outcome.errors)
+
+
+def test_final_reference_validation_allows_route_ids_when_upstream_sets_are_empty() -> None:
+    outcome = validate_final_references(
+        [_page(route_id="home", scenes=[_scene(content_refs=["hero"])])],
+        [],
+        [],
+        known_route_ids=set(),
+        known_section_ids=set(),
+        known_claim_ids=set(),
+    )
+    assert outcome.is_valid

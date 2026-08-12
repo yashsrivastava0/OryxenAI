@@ -76,9 +76,15 @@ async def test_unknown_agent(client):
 
 
 async def test_each_agent_succeeds(client):
-    """All four registered agents execute a mock run."""
+    """All five registered agents execute a mock run."""
     sid = await _create_session(client)
-    for agent_key in ["discovery", "content_architect", "visual_design_director", "code_generator"]:
+    for agent_key in [
+        "discovery",
+        "content_architect",
+        "visual_design_director",
+        "build_preparation",
+        "code_generator",
+    ]:
         resp = await client.post(
             f"/api/v1/sessions/{sid}/runs/mock",
             json={"agentKey": agent_key, "input": {}},

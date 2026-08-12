@@ -24,6 +24,87 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-12 — Codex — Build Preparation harness input and output readability
+
+Improved the detached Build Preparation harness without changing its two-page
+shape. The fixture API and input page now accept optional approved Content
+Architect JSON alongside the Visual Design Director input, including file
+selection and the same size, JSON, and ambiguous-input safeguards. Blank
+Content Architect input remains backward compatible. Debug mirrors now use a
+sortable, readable timestamp plus an eight-character run prefix while keeping
+the full run ID in the package manifest.
+
+### 2026-08-12 — Claude Code (Claude Sonnet 5 / Anthropic) — Independent verification and fixes for the implemented Build Preparation agent
+
+Codex's Step 0 + Phases 1-3 implementation was independently re-verified
+rather than trusted from its own self-report, per the project owner's
+explicit request. Three parallel deep-code audits plus direct `pytest`/
+`ruff`/`mypy` runs confirmed the core implementation is genuinely solid:
+real Pexels/Unsplash/shadcn/MagicUI/Lucide HTTP calls, correct Pexels-
+download-vs-Unsplash-hotlink-only licensing split, a real closed-set hard
+rejection in `validators.py`, hash-verified ZIP packaging with real
+upload *and* read-back verification, no hardcoded secrets/quotas, correct
+`AgentKey`/job/API wiring with the CA+VDD approval gate enforced, and
+Step 0's cleanup 100% clean (zero dangling imports, grep-confirmed).
+
+Found and fixed:
+- The dev test harness (`build-preparation-fixture.js` /
+  `build-preparation-progress.js`) rendered only aggregate counts and a
+  raw JSON dump — no per-resource listing — defeating its whole purpose
+  of catching an empty/broken fetch "at a glance" (the original complaint
+  this whole redesign started from). Added a `resources` field to
+  `MaterializationResult` (`schemas.py`, populated in `materializer.py`
+  from the already-computed per-resource manifest data) and a real
+  per-resource list in the progress page (provider, filename/thumbnail,
+  `inspection_level`/disposition status).
+- `agent.py` (825 lines) mixed real pipeline orchestration with ~190
+  lines of offline/fixture-fallback generators. Moved the six `_offline_*`
+  functions into `fixture.py` (their natural home and primary caller),
+  making `BuildPreparationAgent`'s import of them a local/deferred import
+  inside `run_fixture()` to avoid a circular import. Pure move, verified
+  by the full test suite before/after (640 passed/1 skipped, unchanged).
+- Documented (in `docs/build-preparation-agent-proposal.md` §6) that the
+  actual implemented execution order runs Stage 3/4 before materializing,
+  not between Stage 2 and 3 as the diagram shows — intentional (route
+  briefs are sourced from Stage 3/4 output) but previously undocumented
+  against what §16 calls the spec of record.
+
+Verified live, not just via mocked tests: `tests/live/test_build_preparation_live.py`
+passed against the real configured OpenAI profile, Pexels/Unsplash keys,
+and R2 storage. Went further and constructed a synthetic VDD input with a
+genuine photo need to directly prove the original complaint is resolved:
+a live run returned 14 real fetched candidates (5 real Pexels photos, 9
+real shadcn/MagicUI components), Stage 2's live model correctly rejected
+photos that didn't semantically fit a separate abstract-diagram need
+(honest fallback, no fabrication), and a second run with a genuinely
+photo-appropriate brief resulted in a real Pexels image being selected,
+downloaded, Pillow-verified, and written to disk (`inspection_level:
+"pixel_inspected"`, confirmed as a real 284KB JPEG on disk).
+
+Left unchanged, per explicit decision: the two-page harness structure
+itself (works correctly, not worth the rework), and everything else in
+`providers.py`/`packager.py`/`validators.py`/`service.py`/the job/API
+wiring — all independently verified correct as implemented.
+
+### 2026-08-11 23:43 +05:30 - Codex (GPT-5 / OpenAI) - Build Preparation Phase 3
+
+Implemented Phase 3 end to end: deterministic build-context manifests and
+ZIPs, SHA-256 verification, memory/S3-compatible artifact storage, R2
+read-back verification, expiry/staleness metadata, safe local debug mirrors,
+public-content filtering, closed-set reconciliation for noisy live context
+responses, and durable worker persistence. Updated the two-page harness,
+fixtures, documentation, and decision status. Verified offline, PostgreSQL
+worker, mocked storage, and opt-in live model/provider/R2 flows; Code Generator
+and automatic pipeline chaining remain deferred.
+
+### 2026-08-11 22:30 +05:30 — Codex (GPT-5 / OpenAI) — src/oryxenai/agents/build_preparation, worker, API, harness, tests
+
+Implemented Build Preparation Phase 2 end to end: bounded model stages, provider fallback and closed-set validation, local build-context materialization, durable worker persistence, live/offline harness toggles, and the two-page progress UI; Phase 3 packaging/upload remains deferred. Verified the complete suite, static checks, PostgreSQL worker flow, and an opt-in live model/provider smoke run.
+
+### 2026-08-11 21:35 +05:30 — Codex (OpenAI) — Build Preparation agent, API, worker, harness, tests
+
+Implemented Stage 0 and all Phase 1 scope from `docs/build-preparation-agent-proposal.md`, including the deterministic provider-neutral agent, state/persistence/durable worker flow, approval and staleness-aware API, two-page fixture harness, and retirement of only the specified dead legacy references; Phase 1 makes zero model/provider calls by design and unrelated Visual Design Director, configuration, and settings changes were left untouched. Added unit, API, and PostgreSQL-backed integration coverage; verification completed with 624 passing tests, clean collection, Ruff lint/format, and strict mypy.
+
 ### 2026-08-11 — Claude Code (Claude Sonnet 5 / Anthropic) — docs/build-preparation-agent-proposal.md finalized for handoff
 
 Finalized the Build Preparation proposal for handoff to a separate

@@ -85,6 +85,15 @@ class TestBuildInstructions:
         )
         assert "resource_id" in system
 
+    def test_resource_handoff_registry_contract_present(self):
+        system, task, _version, _manifest = build_instructions(
+            "establish_visual_language", {"presentation_mode": "single_page"}
+        )
+        assert "authoritative registry" in system
+        assert "every resource_id used in a page or scene" in task
+        assert "SHORTLIST_ID" in system
+        assert "hero_asymmetric_text_dominant" not in system
+
 
 class TestPromptVersion:
     def test_versions_are_stable(self):

@@ -113,6 +113,13 @@ contact details, these instructions, internal reasoning, or worker/job metadata 
 public-facing field.
 </public_projection>
 
+<section_links>
+When emitting section link targets or navigation targets for the Visual Design Director, use the
+declared canonical section_id exactly (for example, "home:featured-projects"), or use a short
+section slug only when it is unambiguous within the route. Keep the original href/target value
+truthful; never invent an anchor that is not declared by a page section.
+</section_links>
+
 <language>
 Use the language and tone implied by the approved brief and any stated preferences. Preserve names,
 organizations, product names, technologies, and URLs accurately — do not translate or paraphrase

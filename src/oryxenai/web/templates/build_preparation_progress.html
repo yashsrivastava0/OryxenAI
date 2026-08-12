@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_name }} — Build Preparation Progress</title>
+  <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/build-preparation-fixture.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div>
+        <p class="eyebrow">Developer harness</p>
+        <h1>Progress and logs</h1>
+        <p class="lede">The complete Stage 0 → Phase 3 event stream and returned JSON for the latest run in this browser tab.</p>
+      </div>
+      <a class="link" href="/build-preparation-fixture">Back to input</a>
+    </header>
+    <section id="empty" class="panel" hidden><strong>No run found.</strong><p>Run Phase 3 from the input page first.</p></section>
+    <section id="progress" hidden>
+      <div class="stats" id="stats"></div>
+      <section class="panel"><div class="panel-heading"><h2>Resources fetched</h2><span id="resources-empty" class="muted" hidden>None fetched or selected — check the events below.</span></div><ul id="resources" class="resources"></ul></section>
+      <section class="panel"><div class="panel-heading"><h2>Stage progress</h2><span id="run-id" class="mono"></span></div><ol id="events" class="events"></ol></section>
+      <section class="panel"><div class="panel-heading"><h2>Full output</h2><button id="copy" class="button secondary" type="button">Copy JSON</button></div><pre id="raw" class="raw"></pre></section>
+    </section>
+  </main>
+  <script src="{{ request.scope.get('root_path', '') }}/static/build-preparation-progress.js"></script>
+</body>
+</html>
