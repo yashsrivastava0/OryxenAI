@@ -12,6 +12,7 @@
         <option value="google_gemini" disabled>Google Gemini — coming soon</option>
       </select>
     </div>
+    <button id="open-agent-workspace" class="workspace-launcher" type="button">Open outputs &amp; live activity</button>
   </div>
 
   <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
@@ -29,11 +30,48 @@
 <div id="brief-sidebar-backdrop" class="brief-sidebar-backdrop" hidden></div>
 <aside id="brief-sidebar" class="brief-sidebar" aria-hidden="true">
   <div class="brief-sidebar-header">
-    <h2 id="brief-sidebar-title">Full portfolio brief</h2>
-    <button id="brief-sidebar-close" type="button" aria-label="Close">&#10005;</button>
+    <div>
+      <p class="sidebar-eyebrow">Agent workspace</p>
+      <h2 id="brief-sidebar-title">Full agent output</h2>
+    </div>
+    <div class="sidebar-header-actions">
+      <button id="sidebar-copy-output" class="sidebar-copy-button" type="button" disabled>Copy output</button>
+      <button id="brief-sidebar-close" type="button" aria-label="Close">&#10005;</button>
+    </div>
   </div>
   <p class="bubble-meta">This is the complete brief saved for the next stage — everything below, plus the structured profile, is what gets passed on. The chat only shows a short summary.</p>
-  <div id="brief-sidebar-content" class="brief-markdown"></div>
+  <div class="sidebar-tabs" role="tablist" aria-label="Agent workspace views">
+    <button id="sidebar-tab-output" class="sidebar-tab active" type="button" role="tab" aria-selected="true">Full outputs</button>
+    <button id="sidebar-tab-activity" class="sidebar-tab" type="button" role="tab" aria-selected="false">Live activity <span id="activity-count" class="sidebar-tab-count">0</span></button>
+  </div>
+
+  <section id="sidebar-output-panel" class="sidebar-panel" role="tabpanel" aria-labelledby="sidebar-tab-output">
+    <div class="sidebar-output-heading">
+      <div>
+        <p id="sidebar-output-agent" class="sidebar-eyebrow">Choose an output</p>
+        <p id="sidebar-output-meta" class="bubble-meta">Full stage outputs appear here as they become available.</p>
+      </div>
+      <span id="sidebar-copy-status" class="copy-status" aria-live="polite"></span>
+    </div>
+    <div id="sidebar-output-tabs" class="sidebar-output-tabs" role="tablist" aria-label="Available agent outputs"></div>
+    <div id="brief-sidebar-content" class="brief-markdown sidebar-output-preview"></div>
+    <details class="copy-ready" open>
+      <summary>Copy-ready output</summary>
+      <p class="bubble-meta">Select all or use Copy output. This is the complete payload for the selected stage.</p>
+      <textarea id="sidebar-output-source" class="sidebar-output-source" readonly spellcheck="false" aria-label="Copy-ready full agent output"></textarea>
+    </details>
+  </section>
+
+  <section id="sidebar-activity-panel" class="sidebar-panel" role="tabpanel" aria-labelledby="sidebar-tab-activity" hidden>
+    <div class="sidebar-output-heading">
+      <div>
+        <p class="sidebar-eyebrow">Request and worker timeline</p>
+        <p class="bubble-meta">A simple live log built from the API responses and durable job status.</p>
+      </div>
+      <button id="sidebar-clear-activity" class="sidebar-clear-button" type="button">Clear</button>
+    </div>
+    <ol id="sidebar-activity-log" class="activity-log" aria-live="polite"></ol>
+  </section>
 </aside>
 
 <details id="advanced" class="card">

@@ -76,13 +76,21 @@ def build_source_ref(
 ) -> BuildPreparationSourceRef:
     approved_ca = (content_architect or {}).get("approved") or {}
     approved_vdd = visual_design_director.get("approved") or {}
+    visual_source_ref = visual_design_director.get("source_ref") or {}
     return BuildPreparationSourceRef(
-        content_architect_content_hash=str(approved_ca.get("content_hash", "") or ""),
+        content_architect_content_hash=str(
+            approved_ca.get("content_hash", "")
+            or visual_source_ref.get("content_architect_content_hash", "")
+            or ""
+        ),
         visual_design_director_direction_hash=str(
             approved_vdd.get("visual_direction_hash", "") or ""
         ),
         input_projection_hash=_projection_hash(content_architect, visual_design_director),
-        content_architect_session_revision=content_architect_session_revision,
+        content_architect_session_revision=(
+            content_architect_session_revision
+            or int(visual_source_ref.get("content_architect_session_revision", 0) or 0)
+        ),
         visual_design_director_session_revision=visual_design_director_session_revision,
         snapshotted_at=snapshotted_at or datetime.now(UTC).isoformat(),
     )
@@ -106,6 +114,7 @@ def compile_stage0(
     *,
     source_ref: BuildPreparationSourceRef | None = None,
     max_routes: int = 12,
+    editorial_image_budget: int = 1,
 ) -> Stage0Result:
     """Compile public route scope and resource needs without I/O."""
     validate_visual_input(visual_design_director)
@@ -242,6 +251,53 @@ def compile_stage0(
                     "lookup_status": resource.get("lookup_status", ""),
                 },
             )
+        )
+
+    # The approved default policy permits one purely editorial, non-evidentiary
+    # visual.  It is intentionally introduced by Build Preparation instead of
+    # pretending that a VDD catalogue pattern is an image or registry component.
+    if routes and editorial_image_budget > 0:
+        route = routes[0]
+        source_id = "editorial-hero-image"
+        result_needs.append(
+            ResourceNeed(
+                need_id=_need_id("asset", source_id),
+                kind="asset",
+                source_id=source_id,
+                category="editorial_photo",
+                purpose=(
+                    "A high-quality abstract technical editorial visual that supports the hero "
+                    "without representing a person, project screen, or production evidence."
+                ),
+                route_ids=[route.route_id],
+                scene_ids=route.scene_ids[:1],
+                source_status="build_preparation_policy",
+                source_policy="decorative_non_evidentiary_attributed",
+                importance="optional",
+                required_for_handoff=False,
+                query_terms=["abstract technology", "editorial", "connected light"],
+                fallback=(
+                    "Use the approved custom text-led composition with a small abstract motif "
+                    "or plain tonal surface."
+                ),
+                details={
+                    "orientation": "landscape",
+                    "alt_text_intent": "Decorative abstract technology visual; omit alt text when it conveys no content.",
+                    "placement": "home hero supporting visual",
+                    "forbidden_subjects": [
+                        "portraits",
+                        "faces",
+                        "screenshots",
+                        "dashboards",
+                        "logos",
+                        "product interfaces",
+                    ],
+                },
+            )
+        )
+        warnings.append(
+            "Added one optional policy-approved editorial-image opportunity; provider failure "
+            "must use the approved custom fallback."
         )
 
     events.append(

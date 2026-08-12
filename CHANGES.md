@@ -24,6 +24,32 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-12 20:45 +05:30 — Codex (GPT-5 / OpenAI) — DECISIONS.md, Build Preparation v1 and Code Generator boundary
+
+Recorded D-012: freeze the verified Build Preparation v1 contract, start Code Generator development, and reopen upstream work only for a reproduced admitted-package defect with a clearly identified owner—not for generic downstream visual or implementation quality.
+
+### 2026-08-12 20:36 +05:30 — Codex (GPT-5 / OpenAI) — Build Preparation handoff admission, resource packaging, integrity verification, report.md
+
+Independently audited the four latest build packs and hardened Code Generator admission around upstream approval provenance, public route content, optional image/provider fallback, complete resource planning, registry source/licence/dependency safety, genuine lockfile ownership, ZIP extraction paths, and concurrent fixture diagnostics. Added regression coverage and a production handoff report; the historical packs remain immutable and the repaired offline verification pack correctly blocks until Visual Design Director approval.
+
+### 2026-08-12 16:30 +05:30 — Codex (GPT-5 / OpenAI) — Build Preparation quality handoff, fixture monitor, resource policy
+
+Added a policy-driven editorial-image requirement, deterministic candidate qualification, source/attribution and local-image inspection, and a structured Stage 5 LLM handoff review. Every package now contains `handoff-report.json`; a missing, weak, incompatible, or unmaterialized required resource leaves the durable state at `needs_attention` while retaining the local ZIP/R2 artifact and concise diagnostic issue. The fixture monitor now distinguishes fetched, qualified, selected, and materialized resources, records rejection reasons, and orders materialization before packaging events.
+
+### 2026-08-12 15:42 +05:30 — Codex (GPT-5 / OpenAI) — Build Preparation fixture, artifact packaging, Docker harness
+Added a detached, live-progress Build Preparation fixture that writes an India-local, Windows-safe `HH-MM-DD-MM` timestamped build-context folder, ZIP, result, and concise diagnostics before verifying the same immutable ZIP through configured R2 storage. The refreshed fixture UI exposes R2 preflight, stage activity, local download/details actions, and copy-ready issue reports; Docker now mounts the host `output/` folder for direct testing.
+
+### 2026-08-12 — Codex (GPT-5 / OpenAI) — Shared agent-output workspace and live activity log
+
+Reworked the test frontend's right sidebar into a shared Agent workspace for
+Discovery, Content Architect, Visual Design Director, and Build Preparation.
+Each stage now exposes its persisted full output in a readable preview and a
+copy-ready text area with clipboard support. Added a polling-derived activity
+timeline for API actions, stage/job transitions, approvals, and errors;
+hydration restores the workspace across session refreshes without reading
+fixture output files. Updated the frontend behavior spec to document the
+copy/export and observability contract.
+
 ### 2026-08-12 — Codex — Build Preparation harness input and output readability
 
 Improved the detached Build Preparation harness without changing its two-page
@@ -263,77 +289,16 @@ slim Python image does not ship Bash, and CRLF in the original shell script
 also appended a carriage return to the Alembic `head` argument. Docker Compose
 now completes migrations and starts the API and worker successfully.
 
-### 2026-08-10 - Codex (GPT-5) - Pexels resolution and preparation harness
+## Compacted history
 
-Completed the external-image path: `needs_acquisition` asset briefs now reach
-Pexels even when the policy field keeps its default, and Pexels orientation is
-derived from dimensions when the API omits the orientation field. Added a
-developer-harness action to explicitly start Build Preparation after Visual
-Design approval and display the verified bundle result. Why: image acquisition
-is a first-class preparation responsibility and must be observable in frontend
-testing without adding another approval stage.
+### 2026-08
 
-### 2026-08-10 - Codex (GPT-5) - config/app.toml, config/app.docker.toml
-
-Wired the configured Cloudflare R2 account endpoint and private preparation
-bucket into the base configuration and Docker overlay used by API and worker
-containers. Verified the effective settings and a temporary
-upload/head/delete probe with lifecycle expiration before removing the probe
-object. Why: the repository configuration still had empty storage coordinates
-even though the deployment secrets were present.
-
-### 2026-08-09 — Codex (GPT-5) — src/oryxenai/build_preparation/, API, worker, config, tests
-
-Implemented the hidden Portfolio Build Preparation stage: deterministic
-Experience Blueprint and route-packet compilation, verified resource/fallback
-resolution, safe ZIP materialization, private S3-compatible/R2 artifact
-storage with configurable TTL, stale-source checks, and explicit start/status
-API plus durable worker registration. Added deterministic fake-provider and
-bundle/security coverage; no database migration or persistent local artifact
-store was introduced. Why: give future Code Generation a self-sufficient,
-scoped build package without re-running discovery, design, registries, Pexels,
-or package installation.
-
-### 2026-08-08 19:49 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — src/oryxenai/agents/visual_design_director/, src/oryxenai/db/repositories/visual_design_director.py, src/oryxenai/jobs/handlers/visual_design_director.py, src/oryxenai/api/routes/visual_design_director.py, src/oryxenai/api/dependencies.py, src/oryxenai/api/routes/__init__.py, src/oryxenai/jobs/registry.py, src/oryxenai/agents/shared/{registry,model_client}.py, src/oryxenai/core/settings.py, config/models.toml, config/app.toml, tests/, AGENTS.md, README.md, docs/architecture.md
-
-Implemented the Visual Design Director agent (Agent 3) end to end, replacing
-its static-sample mock: schemas/state machine/envelope-only validators,
-a 3-stage adaptive workflow (`establish_visual_language` ->
-`direct_page_experience` -> `integrate_site_experience`) mirroring Content
-Architect's architecture exactly, a new deterministic local resource
-catalogue (`resource_catalogue.py` + `resources/catalogue.json`, plain
-Python tag-overlap lookup, never a model tool-calling loop), service/
-repository/durable job handler/API routes, and a full unit/API/integration
-test suite. Why: closes `DECISIONS.md` D-006 — Visual Design Director now
-turns an approved Content Architect output into a session-scoped, durable,
-approval-gated visual-experience direction (global visual language,
-per-route storyboards, scenes, motion/interaction system, asset/resource
-intent), the third pipeline stage before the still-deferred Code Generator.
-No new DB table or migration was needed (JSONB on session state, same as
-Discovery/Content Architect).
-
-### 2026-08-08 16:02 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — AGENTS.md, CODEX.md, CLAUDE.md, CHANGES.md, DECISIONS.md, README.md, docs/architecture.md
-
-Restructured AI-agent context docs around a canonical `AGENTS.md` (absorbing
-`CODEX.md`'s content and fixing its Content-Architect-mock contradiction),
-reduced `CODEX.md` to a redirect, added `CLAUDE.md` (`@AGENTS.md` import),
-and introduced this file plus `DECISIONS.md`. Why: multiple AI tools
-(Claude Code, Codex CLI, Antigravity, Cursor) and models (OpenAI, xAI/Grok,
-Zhipu/GLM, Anthropic) now work on this repo across devices and need one
-current, non-hardcoded source of truth instead of a stale/contradictory
-`CODEX.md` with no shared change history.
-
-### 2026-08-08 (retroactive, pre-CHANGES.md history) — unspecified / unspecified — repo-wide
-
-Recorded retroactively from `git log`, since this file didn't exist yet:
-`bdc8822` initialized project scaffolding and configuration; `4e9c087`
-snapshotted a v1 Discovery baseline; `d6b5b90` checkpointed a more elaborate
-v2 Discovery (source-documents table, repair-prompt loop, few-shot library,
-fact/conflict-graph validation) before deliberately simplifying it away (see
-`DECISIONS.md` D-002); `ff291ef` completed the simplified Discovery agent
-with live smoke verification; `73ac183` updated `.gitignore` for scratch/
-benchmark artifacts. Agent/tool/model are unknown for this pre-changelog
-period — do not guess them if extending this entry.
+- 2026-08-10 — Codex (GPT-5) — Pexels resolution and preparation harness
+- 2026-08-10 — Codex (GPT-5) — config/app.toml, config/app.docker.toml
+- 2026-08-09 — Codex (GPT-5) — src/oryxenai/build_preparation/, API, worker, config, tests
+- 2026-08-08 19:49 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — src/oryxenai/agents/visual_design_director/, src/oryxenai/db/repositories/visual_design_director.py, src/oryxenai/jobs/handlers/visual_design_director.py, src/oryxenai/api/routes/visual_design_director.py, src/oryxenai/api/dependencies.py, src/oryxenai/api/routes/__init__.py, src/oryxenai/jobs/registry.py, src/oryxenai/agents/shared/{registry,model_client}.py, src/oryxenai/core/settings.py, config/models.toml, config/app.toml, tests/, AGENTS.md, README.md, docs/architecture.md
+- 2026-08-08 16:02 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — AGENTS.md, CODEX.md, CLAUDE.md, CHANGES.md, DECISIONS.md, README.md, docs/architecture.md
+- 2026-08-08 (retroactive, pre-CHANGES.md history) — unspecified / unspecified — repo-wide
 
 ---
 
@@ -394,9 +359,9 @@ Field notes:
 
 ---
 
-## Summary (as of last compaction — 2026-08-08)
+## Summary (as of last compaction — 2026-08-12)
 
-- Total entries logged: 2
-- By tool: Claude Code (1), unspecified/retroactive (1)
-- By model/provider: Claude Sonnet 5 / Anthropic (1), unspecified/retroactive (1)
-- Last updated: 2026-08-08 16:02 UTC
+- Total entries logged: 26 (20 recent, 6 compacted)
+- By tool: Codex (20), Claude Code (5), unspecified/retroactive (1)
+- By model/provider: GPT-5 / OpenAI (14), GPT-5 (provider unspecified) (4), OpenAI (model unspecified) (1), Claude Sonnet 5 / Anthropic (5), unspecified/retroactive (2)
+- Last updated: 2026-08-12 — Codex (GPT-5 / OpenAI)

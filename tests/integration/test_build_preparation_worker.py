@@ -14,6 +14,8 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectApproval,
     ContentArchitectState,
     ContentArchitectStatus,
+    ContentSection,
+    PageContentPack,
     RoutePlanEntry,
 )
 from oryxenai.agents.visual_design_director.schemas import (
@@ -34,6 +36,18 @@ def _approved_upstream_state() -> dict[str, object]:
     content_architect = ContentArchitectState(
         status=ContentArchitectStatus.APPROVED,
         route_plan=[RoutePlanEntry(route_id="home", path="/", title="Home")],
+        page_content_packs=[
+            PageContentPack(
+                route_id="home",
+                sections=[
+                    ContentSection(
+                        section_id="hero",
+                        purpose="Introduce the portfolio.",
+                        content={"heading": "A grounded portfolio heading"},
+                    )
+                ],
+            )
+        ],
         approved=ContentArchitectApproval(
             approved_at="2026-08-11T00:00:00+00:00",
             content_hash="content-hash",

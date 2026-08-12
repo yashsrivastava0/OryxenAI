@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -17,8 +18,9 @@ from oryxenai.agents.build_preparation.fixture import (
     _offline_trigger,
 )
 from oryxenai.agents.build_preparation.materializer import (
-    TARGET_ALLOWED_DEPENDENCIES,
+    dependencies_allowed,
     materialize_build_context,
+    materialize_handoff_report,
 )
 from oryxenai.agents.build_preparation.packager import package_and_store, staging_directory
 from oryxenai.agents.build_preparation.prompt_builder import (
@@ -26,6 +28,12 @@ from oryxenai.agents.build_preparation.prompt_builder import (
     output_model_for,
 )
 from oryxenai.agents.build_preparation.providers import ProviderLookup
+from oryxenai.agents.build_preparation.quality import (
+    build_handoff_report,
+    normalize_query_plan,
+    qualify_candidates,
+    select_required_candidates,
+)
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationSourceRef,
@@ -36,6 +44,7 @@ from oryxenai.agents.build_preparation.schemas import (
     Stage2SelectionPlan,
     Stage3BuildContextResult,
     Stage4IntegratedContextResult,
+    Stage5HandoffReview,
     StageEvent,
 )
 from oryxenai.agents.build_preparation.validators import (
@@ -50,6 +59,8 @@ from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
 logger = get_logger("oryxenai.agents.build_preparation")
+
+EventSink = Callable[[StageEvent], Awaitable[None]]
 
 
 class BuildPreparationModelOutputError(BuildPreparationValidationError):
@@ -101,6 +112,7 @@ class BuildPreparationAgent(Agent):
         live_model: bool = True,
         live_providers: bool = True,
         settings: Any | None = None,
+        event_sink: EventSink | None = None,
     ) -> None:
         self._model_client = model_client
         self._provider_lookup = provider_lookup
@@ -108,6 +120,11 @@ class BuildPreparationAgent(Agent):
         self._live_model = live_model
         self._live_providers = live_providers
         self._settings = settings or get_settings()
+        self._event_sink = event_sink
+
+    async def _emit_event(self, event: StageEvent) -> None:
+        if self._event_sink is not None:
+            await self._event_sink(event)
 
     async def run(self, context: AgentContext) -> AgentResult:
         operation = str(context.agent_input.get("operation", "stage_0") or "stage_0")
@@ -138,8 +155,22 @@ class BuildPreparationAgent(Agent):
             max_routes=int(
                 payload.get("max_routes", self._settings.build_preparation.max_routes) or 12
             ),
+            editorial_image_budget=int(
+                payload.get(
+                    "editorial_image_budget",
+                    self._settings.build_preparation.editorial_image_budget,
+                )
+                or 0
+            ),
         )
         events = list(stage0.events)
+        for event in events:
+            await self._emit_event(event)
+
+        async def record(event: StageEvent) -> None:
+            events.append(event)
+            await self._emit_event(event)
+
         if not phase2:
             return AgentResult(
                 output=stage0.model_dump(mode="json"),
@@ -160,6 +191,15 @@ class BuildPreparationAgent(Agent):
         prompt_version = "build_preparation.phase2"
         model_calls = 0
 
+        await self._emit_event(
+            _event(
+                "stage_1_started",
+                "stage_1",
+                "Composing resource queries with the configured model."
+                if live_model
+                else "Composing deterministic offline resource queries.",
+            )
+        )
         if live_model:
             query_plan_value, prompt_version, meta = await self._call_stage(
                 "compose_resource_queries",
@@ -177,8 +217,9 @@ class BuildPreparationAgent(Agent):
             stages_meta.append(meta)
         else:
             query_plan = _offline_query_plan(stage0.resource_needs)
+        query_plan = normalize_query_plan(query_plan, stage0.resource_needs)
         validate_query_plan(query_plan, need_ids)
-        events.append(
+        await record(
             _event(
                 "stage_1_complete",
                 "stage_1",
@@ -187,6 +228,15 @@ class BuildPreparationAgent(Agent):
             )
         )
 
+        await self._emit_event(
+            _event(
+                "provider_lookup_started",
+                "providers",
+                "Looking up approved resource candidates from live providers."
+                if live_providers
+                else "Preparing deterministic offline resource candidates.",
+            )
+        )
         lookup = self._provider_lookup or ProviderLookup(self._settings, live=live_providers)
         candidates = (
             await lookup.lookup(query_plan.queries)
@@ -194,16 +244,34 @@ class BuildPreparationAgent(Agent):
             else _offline_candidates(query_plan.queries)
         )
         validate_fetched_candidates(candidates, need_ids)
-        events.append(
+        qualifications = qualify_candidates(stage0.resource_needs, candidates)
+        qualified_ids = {item.resource_id for item in qualifications if item.eligible}
+        await record(
             _event(
                 "provider_lookup_complete",
                 "providers",
                 "Provider lookup completed.",
-                details={"candidate_count": len(candidates)},
+                details={
+                    "candidate_count": len(candidates),
+                    "qualified_count": len(qualified_ids),
+                },
             )
         )
 
-        candidate_payload = [_candidate_prompt(candidate) for candidate in candidates]
+        candidate_payload = [
+            _candidate_prompt(candidate)
+            for candidate in candidates
+            if candidate.resource_id in qualified_ids
+        ]
+        await self._emit_event(
+            _event(
+                "stage_2_started",
+                "stage_2",
+                "Selecting resources from the returned candidate set."
+                if live_model
+                else "Selecting deterministic offline resource fallbacks.",
+            )
+        )
         if live_model:
             selection_plan_value, prompt_version, meta = await self._call_stage(
                 "select_resources",
@@ -245,7 +313,7 @@ class BuildPreparationAgent(Agent):
             if (
                 candidate is not None
                 and candidate.kind == "component"
-                and not set(candidate.dependencies).issubset(TARGET_ALLOWED_DEPENDENCIES)
+                and not dependencies_allowed(candidate.dependencies)
             ):
                 need = next(
                     (item for item in stage0.resource_needs if item.need_id == selection.need_id),
@@ -269,8 +337,19 @@ class BuildPreparationAgent(Agent):
         selection_plan = selection_plan.model_copy(
             update={"selections": normalized_selections, "warnings": selection_warnings}
         )
+        forced_selections, forced_warnings = select_required_candidates(
+            selection_plan.selections,
+            stage0.resource_needs,
+            qualifications,
+        )
+        selection_plan = selection_plan.model_copy(
+            update={
+                "selections": forced_selections,
+                "warnings": [*selection_plan.warnings, *forced_warnings],
+            }
+        )
         validate_selection_plan(selection_plan, need_ids, candidates)
-        events.append(
+        await record(
             _event(
                 "stage_2_complete", "stage_2", "Resources selected or assigned explicit fallbacks."
             )
@@ -286,6 +365,15 @@ class BuildPreparationAgent(Agent):
             "content_architect": content or {},
             "visual_design_director": visual,
         }
+        await self._emit_event(
+            _event(
+                "stage_3_started",
+                "stage_3",
+                "Writing route-scoped build context."
+                if live_model
+                else "Writing deterministic route-scoped build context.",
+            )
+        )
         if live_model:
             stage3, prompt_version, meta = await self._call_context_stage(
                 "write_build_context", context_packet, model_profile, route_ids, selection_plan
@@ -298,7 +386,7 @@ class BuildPreparationAgent(Agent):
                 _selected_ids(selection_plan),
             )
             if reconciliation_warnings:
-                events.append(
+                await record(
                     _event(
                         "stage_3_context_reconciled",
                         "stage_3",
@@ -312,7 +400,7 @@ class BuildPreparationAgent(Agent):
                 stage0.routes, stage0.resource_needs, selection_plan, content or {}, visual
             )
         validate_build_context(build_context, route_ids, _selected_ids(selection_plan))
-        events.append(_event("stage_3_complete", "stage_3", "Route-scoped build context written."))
+        await record(_event("stage_3_complete", "stage_3", "Route-scoped build context written."))
 
         threshold = int(
             payload.get(
@@ -326,6 +414,15 @@ class BuildPreparationAgent(Agent):
                 **context_packet,
                 "build_context": build_context.model_dump(mode="json"),
             }
+            await self._emit_event(
+                _event(
+                    "stage_4_started",
+                    "stage_4",
+                    "Integrating cross-route build constraints."
+                    if live_model
+                    else "Applying deterministic cross-route build constraints.",
+                )
+            )
             if live_model:
                 stage4, prompt_version, meta = await self._call_context_stage(
                     "integrate_cross_route",
@@ -343,7 +440,7 @@ class BuildPreparationAgent(Agent):
                     fallback=build_context,
                 )
                 if reconciliation_warnings:
-                    events.append(
+                    await record(
                         _event(
                             "stage_4_context_reconciled",
                             "stage_4",
@@ -352,7 +449,7 @@ class BuildPreparationAgent(Agent):
                             details={"warning_count": len(reconciliation_warnings)},
                         )
                     )
-            events.append(_event("stage_4_complete", "stage_4", "Cross-route context integrated."))
+            await record(_event("stage_4_complete", "stage_4", "Cross-route context integrated."))
             validate_build_context(build_context, route_ids, _selected_ids(selection_plan))
 
         output_dir = str(
@@ -363,8 +460,16 @@ class BuildPreparationAgent(Agent):
         debug_mirror = bool(
             payload.get("debug_mirror", self._settings.build_preparation.debug_mirror_enabled)
         )
+        local_result_root = payload.get("local_result_root")
         with staging_directory(output_dir) as staging_path:
             staging_root = Path(staging_path) / "build-context"
+            await self._emit_event(
+                _event(
+                    "materialization_started",
+                    "materialize",
+                    "Materializing the local build-context tree.",
+                )
+            )
             materialization = await materialize_build_context(
                 output_dir=output_dir,
                 run_id=context.run_id,
@@ -379,6 +484,100 @@ class BuildPreparationAgent(Agent):
                 trigger_download=_offline_trigger if not live_providers else None,
                 root_override=staging_root,
             )
+            await record(
+                _event(
+                    "materialization_complete",
+                    "materialize",
+                    "Build-context staging tree materialized.",
+                    details={
+                        "root_path": materialization.relative_root,
+                        "file_count": len(materialization.files),
+                    },
+                )
+            )
+            handoff_report = build_handoff_report(
+                source_ref=stage0.source_ref,
+                routes=stage0.routes,
+                build_context=build_context,
+                content_architect=content or {},
+                needs=stage0.resource_needs,
+                selections=selection_plan.selections,
+                qualifications=qualifications,
+                materialization=materialization,
+            )
+            await self._emit_event(
+                _event(
+                    "stage_5_started",
+                    "stage_5",
+                    "Reviewing the package for Code Generator handoff."
+                    if live_model
+                    else "Applying deterministic Code Generator handoff checks.",
+                )
+            )
+            if live_model:
+                review, prompt_version, meta = await self._call_handoff_stage(
+                    {
+                        "handoff_report": handoff_report.model_dump(mode="json"),
+                        "resource_needs": [
+                            need.model_dump(mode="json") for need in stage0.resource_needs
+                        ],
+                        "selections": [
+                            selection.model_dump(mode="json")
+                            for selection in selection_plan.selections
+                        ],
+                        "materialized_resources": materialization.resources,
+                    },
+                    model_profile,
+                )
+                model_calls += 1
+                stages_meta.append(meta)
+                handoff_report = handoff_report.model_copy(
+                    update={"model_review": review.model_dump(mode="json")}
+                )
+            else:
+                handoff_report = handoff_report.model_copy(
+                    update={
+                        "model_review": {
+                            "stage": "stage_5",
+                            "mode": "deterministic_offline",
+                            "summary": "No live model was requested for the handoff review.",
+                        }
+                    }
+                )
+            materialization = materialize_handoff_report(
+                staging_root,
+                materialization,
+                handoff_report.model_dump(mode="json"),
+            )
+            await record(
+                _event(
+                    "stage_5_complete",
+                    "stage_5",
+                    "Code Generator handoff is eligible."
+                    if handoff_report.handoff_eligible
+                    else "Code Generator handoff is blocked; package retained for review.",
+                    level="info" if handoff_report.handoff_eligible else "warning",
+                    details={
+                        "handoff_eligible": handoff_report.handoff_eligible,
+                        "issue_count": len(handoff_report.issues),
+                    },
+                )
+            )
+            await self._emit_event(
+                _event(
+                    "package_started",
+                    "phase_3",
+                    "Verifying the local ZIP and preparing artifact storage.",
+                )
+            )
+            if artifact_upload:
+                await self._emit_event(
+                    _event(
+                        "artifact_upload_started",
+                        "artifact_storage",
+                        "Uploading the verified ZIP to configured artifact storage.",
+                    )
+                )
             package, materialization = await package_and_store(
                 staging_root=staging_root,
                 output_dir=output_dir,
@@ -391,21 +590,15 @@ class BuildPreparationAgent(Agent):
                 artifact_store=self._artifact_store,
                 upload_enabled=artifact_upload,
                 mirror_enabled=debug_mirror,
+                local_result_root=(
+                    local_result_root
+                    if isinstance(local_result_root, str) and local_result_root
+                    else None
+                ),
                 expires_at=str(payload.get("bundle_expires_at", "") or "") or None,
             )
             prompt_version = "build_preparation.phase3"
-        events.append(
-            _event(
-                "materialization_complete",
-                "materialize",
-                "Build-context staging tree materialized.",
-                details={
-                    "root_path": materialization.relative_root,
-                    "file_count": len(materialization.files),
-                },
-            )
-        )
-        events.append(
+        await record(
             _event(
                 "package_verified",
                 "phase_3",
@@ -419,7 +612,7 @@ class BuildPreparationAgent(Agent):
             )
         )
         if package.mirror_root:
-            events.append(
+            await record(
                 _event(
                     "debug_mirror_restored",
                     "phase_3",
@@ -428,7 +621,7 @@ class BuildPreparationAgent(Agent):
                 )
             )
         if materialization.warnings:
-            events.append(
+            await record(
                 _event(
                     "materialization_warnings",
                     "materialize",
@@ -437,18 +630,19 @@ class BuildPreparationAgent(Agent):
                     details={"warning_count": len(materialization.warnings)},
                 )
             )
-        events.append(_event("phase_3_complete", "phase_3", "Build Preparation Phase 3 completed."))
+        await record(_event("phase_3_complete", "phase_3", "Build Preparation Phase 3 completed."))
         warnings = (
             list(stage0.warnings)
             + list(query_plan.warnings)
             + list(selection_plan.warnings)
             + list(build_context.warnings)
             + list(materialization.warnings)
+            + [issue.message for issue in handoff_report.issues]
         )
         return AgentResult(
             output={
                 "stage": "phase_3",
-                "status": "ready",
+                "status": "ready" if handoff_report.handoff_eligible else "needs_attention",
                 "scope_hash": stage0.scope_hash,
                 "source_ref": stage0.source_ref.model_dump(mode="json"),
                 "routes": [route.model_dump(mode="json") for route in stage0.routes],
@@ -458,9 +652,13 @@ class BuildPreparationAgent(Agent):
                     candidate.model_dump(mode="json") for candidate in candidates
                 ],
                 "selection_plan": selection_plan.model_dump(mode="json"),
+                "candidate_qualifications": [
+                    qualification.model_dump(mode="json") for qualification in qualifications
+                ],
                 "build_context": build_context.model_dump(mode="json"),
                 "materialization": materialization.model_dump(mode="json"),
                 "package": package.model_dump(mode="json"),
+                "handoff_report": handoff_report.model_dump(mode="json"),
                 "warnings": warnings,
                 "events": [event.model_dump(mode="json") for event in events],
                 "model_calls": model_calls,
@@ -494,6 +692,29 @@ class BuildPreparationAgent(Agent):
         model = output_model_for(operation).model_validate(parsed)
         if not isinstance(model, (Stage1QueryPlan, Stage2SelectionPlan)):
             raise BuildPreparationModelOutputError(f"Unexpected output model for {operation}.")
+        return model, version, _metadata(result, manifest, operation)
+
+    async def _call_handoff_stage(
+        self, packet: dict[str, Any], model_profile: str
+    ) -> tuple[Stage5HandoffReview, str, dict[str, Any]]:
+        operation = "review_handoff_quality"
+        system, task, version, manifest = build_instructions(operation, packet)
+        if self._model_client is None:
+            raise BuildPreparationModelOutputError(
+                "A live Build Preparation model client is required."
+            )
+        result = await self._model_client.generate_structured(
+            operation=operation,
+            system_prompt=system,
+            instructions=task,
+            input_payload=packet,
+            output_model=output_model_for(operation),
+            model_profile=model_profile,
+        )
+        parsed = _parsed(result)
+        model = output_model_for(operation).model_validate(parsed)
+        if not isinstance(model, Stage5HandoffReview):
+            raise BuildPreparationModelOutputError("Unexpected output model for handoff review.")
         return model, version, _metadata(result, manifest, operation)
 
     async def _call_context_stage(

@@ -1,8 +1,3 @@
-"""Integration tests for the worker shutdown flow."""
-
-from __future__ import annotations
-
-from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker

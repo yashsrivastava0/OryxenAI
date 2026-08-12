@@ -1,75 +1,33 @@
 (function () {
   "use strict";
-  var raw = sessionStorage.getItem("oryxenai.buildPreparationRun");
+  var query = new URLSearchParams(window.location.search);
+  var runId = query.get("run");
   var empty = document.getElementById("empty");
   var progress = document.getElementById("progress");
-  if (!raw) { empty.hidden = false; return; }
-  var data;
-  try { data = JSON.parse(raw); } catch (error) { empty.hidden = false; return; }
-  progress.hidden = false;
-  var result = data.result || data;
-  document.getElementById("run-id").textContent = data.run_id || "";
-  var stats = document.getElementById("stats");
-  function stat(value, label) { var node = document.createElement("div"); node.className = "stat"; var strong = document.createElement("strong"); strong.textContent = value; node.appendChild(strong); var span = document.createElement("span"); span.textContent = label; node.appendChild(span); stats.appendChild(node); }
-  var materialization = data.materialization || result.materialization || {};
-  var packageResult = data.package || result.package || {};
-  stat(data.status || "ready", "status"); stat((data.events || []).length, "events"); stat((data.routes || []).length, "routes"); stat((data.resource_needs || []).length, "resource needs"); stat((data.fetched_candidates || []).length, "provider candidates"); stat((materialization.files || []).length, "materialized files");
-  stat(packageResult.archive_sha256 ? "verified" : "missing", "ZIP");
-
-  var candidatesById = {};
-  (data.fetched_candidates || []).forEach(function (candidate) { candidatesById[candidate.resource_id] = candidate; });
-  var resourceList = document.getElementById("resources");
-  var resourceEntries = materialization.resources || [];
-  if (!resourceEntries.length) {
-    document.getElementById("resources-empty").hidden = false;
-  } else {
-    resourceEntries.forEach(function (entry) {
-      var candidate = candidatesById[entry.id] || {};
-      var item = document.createElement("li");
-      item.className = "resource-item";
-
-      var thumbSrc = candidate.preview_url || (entry.inspection_level === "metadata_only" ? entry.hotlink_url : "");
-      if (thumbSrc) {
-        var img = document.createElement("img");
-        img.className = "resource-thumb"; img.src = thumbSrc; img.alt = candidate.title || entry.id; img.loading = "lazy";
-        item.appendChild(img);
-      } else {
-        var placeholder = document.createElement("div");
-        placeholder.className = "resource-thumb placeholder";
-        placeholder.textContent = (entry.kind || "?").slice(0, 3);
-        item.appendChild(placeholder);
-      }
-
-      var main = document.createElement("div");
-      main.className = "resource-main";
-      var title = document.createElement("strong");
-      title.textContent = (candidate.title || candidate.icon_name || entry.id) + " · " + (entry.provider || "unknown provider");
-      main.appendChild(title);
-      var detail = document.createElement("span");
-      detail.textContent = entry.local_path || entry.hotlink_url || entry.local_directory || (entry.fallback ? ("fallback: " + entry.fallback) : entry.need_id);
-      main.appendChild(detail);
-      item.appendChild(main);
-
-      var status = document.createElement("span");
-      var label = entry.inspection_level === "pixel_inspected" ? "pixel-verified"
-        : entry.inspection_level === "metadata_only" ? "hotlink only"
-        : entry.disposition === "adaptable_source" ? "component fetched"
-        : entry.disposition === "custom_implementation_required" ? "dependency blocked"
-        : entry.kind === "icon" ? "icon resolved"
-        : "materialization failed";
-      var statusClass = entry.inspection_level || entry.disposition === "adaptable_source" || entry.kind === "icon" ? "ok"
-        : entry.disposition === "custom_implementation_required" ? "warn"
-        : "fail";
-      status.className = "resource-status " + statusClass;
-      status.textContent = label;
-      item.appendChild(status);
-
-      resourceList.appendChild(item);
-    });
+  if (!runId) { empty.hidden = false; return; }
+  function add(parent, tag, text, className) { var node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; parent.appendChild(node); return node; }
+  function stat(parent, value, label) { var node = add(parent, "div", undefined, "stat"); add(node, "strong", value); add(node, "span", label); }
+  function render(record) {
+    progress.hidden = false;
+    var stats = document.getElementById("stats"); while (stats.firstChild) stats.removeChild(stats.firstChild);
+    var summary = record.summary || {}; var result = record.result || {}; var materialization = result.materialization || {};
+    stat(stats, record.status || "unknown", "status"); stat(stats, (record.events || []).length, "events"); stat(stats, summary.route_count || 0, "routes"); stat(stats, summary.resource_need_count || 0, "resource needs"); stat(stats, summary.candidate_count || 0, "fetched"); stat(stats, summary.qualified_candidate_count || 0, "qualified"); stat(stats, summary.selected_resource_count || 0, "selected"); stat(stats, summary.materialized_file_count || 0, "files"); stat(stats, summary.handoff_eligible ? "eligible" : "blocked", "handoff"); stat(stats, summary.archive_sha256 ? "verified" : "pending", "ZIP");
+    document.getElementById("run-id").textContent = record.run_id || "";
+    var local = record.local_result || {}; var localDetail = document.getElementById("local-detail"); while (localDetail.firstChild) localDetail.removeChild(localDetail.firstChild);
+    [["Result folder", local.result_folder], ["Extracted context", local.build_context_folder], ["ZIP", local.archive_path], ["R2", (record.storage || {}).r2 && (record.storage || {}).r2.message]].forEach(function (pair) { if (pair[1]) { var item = add(localDetail, "div"); add(item, "strong", pair[0]); add(item, "span", pair[1], "mono"); } });
+    var actions = document.getElementById("detail-actions"); while (actions.firstChild) actions.removeChild(actions.firstChild); if (record.download_url) { var link = add(actions, "a", "Download ZIP", "button secondary"); link.href = record.download_url; }
+    var issueSection = document.getElementById("detail-issue"); var issueDetail = document.getElementById("issue-detail"); while (issueDetail.firstChild) issueDetail.removeChild(issueDetail.firstChild); if (record.issue) { issueSection.hidden = false; add(issueDetail, "p", record.issue.code || "FIXTURE_RUN_FAILED", "mono"); add(issueDetail, "p", record.issue.message || ""); add(issueDetail, "p", record.issue.next_action || "", "muted"); } else { issueSection.hidden = true; }
+    var candidatesById = {}; (result.fetched_candidates || []).forEach(function (candidate) { candidatesById[candidate.resource_id] = candidate; });
+    var resourceList = document.getElementById("resources"); while (resourceList.firstChild) resourceList.removeChild(resourceList.firstChild); var resources = materialization.resources || []; document.getElementById("resources-empty").hidden = !!resources.length;
+    resources.forEach(function (entry) { var candidate = candidatesById[entry.id] || {}; var item = add(resourceList, "li", undefined, "resource-item"); if (candidate.kind === "photo" && candidate.preview_url) { var image = add(item, "img", undefined, "resource-thumb"); image.src = candidate.preview_url; image.alt = ""; image.loading = "lazy"; } else { add(item, "div", (entry.kind || "?").slice(0, 3), "resource-thumb placeholder"); } var main = add(item, "div", undefined, "resource-main"); add(main, "strong", (candidate.title || candidate.icon_name || entry.id) + " · " + (entry.provider || "unknown provider")); add(main, "span", entry.local_path || entry.local_directory || entry.hotlink_url || entry.need_id || ""); add(item, "span", entry.disposition || entry.inspection_level || "materialized", "resource-status ok"); });
+    var events = document.getElementById("events"); while (events.firstChild) events.removeChild(events.firstChild); (record.events || []).forEach(function (event) { var item = add(events, "li"); add(item, "time", event.timestamp || ""); add(item, "span", (event.stage || "") + " · " + (event.message || ""), event.level || "info"); });
+    document.getElementById("raw").textContent = JSON.stringify(record, null, 2);
+    document.getElementById("copy").onclick = async function () { await navigator.clipboard.writeText(JSON.stringify(record, null, 2)); this.textContent = "Copied"; };
+    var rejected = (result.candidate_qualifications || []).filter(function (entry) { return !entry.eligible; });
+    rejected.forEach(function (entry) { var candidate = candidatesById[entry.resource_id] || {}; var item = add(resourceList, "li", undefined, "resource-item"); add(item, "div", (candidate.kind || "?").slice(0, 3), "resource-thumb placeholder"); var main = add(item, "div", undefined, "resource-main"); add(main, "strong", (candidate.title || candidate.resource_id || entry.resource_id) + " / " + (candidate.provider || "provider")); add(main, "span", (entry.issue_codes || []).join(", ") || (entry.reasons || []).join(" ")); add(item, "span", "rejected", "resource-status rejected"); });
+    if (rejected.length) document.getElementById("resources-empty").hidden = false;
+    document.getElementById("copy-issue").onclick = async function () { await navigator.clipboard.writeText(JSON.stringify({run_id: record.run_id, issue: record.issue, local_result: record.local_result}, null, 2)); this.textContent = "Copied"; };
   }
-
-  var events = document.getElementById("events");
-  (data.events || []).forEach(function (event) { var item = document.createElement("li"); var time = document.createElement("time"); time.textContent = event.timestamp || ""; item.appendChild(time); var message = document.createElement("span"); message.className = event.level || "info"; message.textContent = (event.stage || "") + " · " + (event.message || ""); item.appendChild(message); events.appendChild(item); });
-  document.getElementById("raw").textContent = JSON.stringify(data, null, 2);
-  document.getElementById("copy").addEventListener("click", async function () { await navigator.clipboard.writeText(JSON.stringify(data, null, 2)); this.textContent = "Copied"; });
-})();
+  async function load() { try { var response = await fetch("/api/v1/build-preparation/fixture/runs/" + encodeURIComponent(runId)); var data = await response.json(); if (!response.ok) throw new Error(); render(data); if (data.status === "running") window.setTimeout(load, 900); } catch (error) { empty.hidden = false; } }
+  load();
+}());

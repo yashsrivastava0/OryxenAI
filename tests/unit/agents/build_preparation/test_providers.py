@@ -94,7 +94,6 @@ async def test_registry_component_lookup_collects_safe_dependency_source() -> No
                 ],
                 "dependencies": ["react"],
                 "registryDependencies": [],
-                "license": "MIT",
                 "version": "1.0.0",
             },
             request=request,
@@ -106,3 +105,5 @@ async def test_registry_component_lookup_collects_safe_dependency_source() -> No
     assert len(candidates) == 1
     assert candidates[0].source_files["card.tsx"].startswith("export function")
     assert candidates[0].dependencies == ["react"]
+    assert candidates[0].license == "MIT"
+    assert candidates[0].license_reference.endswith("LICENSE.md")

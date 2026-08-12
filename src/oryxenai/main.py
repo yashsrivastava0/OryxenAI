@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from oryxenai.agents.build_preparation.fixture_runs import FixtureRunManager
 from oryxenai.api.errors import AppError, app_error_handler, unhandled_error_handler
 from oryxenai.api.routes import create_api_router, create_health_router
 from oryxenai.core.lifecycle import dispose_engine
@@ -87,10 +88,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.is_dev_ui_enabled,
     )
     logger.info("database engine initialised")
-    yield
-    logger.info("shutting down %s", settings.app.name)
-    await dispose_engine(app.state.engine)
-    logger.info("shutdown complete")
+    try:
+        yield
+    finally:
+        logger.info("shutting down %s", settings.app.name)
+        await app.state.fixture_run_manager.close()
+        await dispose_engine(app.state.engine)
+        logger.info("shutdown complete")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -109,6 +113,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = s
     app.state.engine = get_engine(s)
     app.state.sessionmaker = get_sessionmaker(s)
+    app.state.fixture_run_manager = FixtureRunManager(s)
 
     # Middleware (order: outer to inner; last added runs first).
     app.add_middleware(SecurityHeadersMiddleware)

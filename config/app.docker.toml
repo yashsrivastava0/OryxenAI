@@ -19,7 +19,9 @@ require_lifecycle = true
 
 [build_preparation]
 # Render disks are ephemeral; the verified ZIP remains the only deployment
-# artifact and no local debug tree is retained in containers.
+# artifact in normal session/worker execution.
 debug_mirror_enabled = false
-# The isolated validation service uses disposable container storage only.
-fixture_output_dir = "/tmp/oryxenai-build-preparation"
+# The detached developer fixture writes timestamped local results into the
+# ignored host-mounted output/ directory.
+fixture_output_dir = "/app/output"
+fixture_debug_mirror_enabled = true

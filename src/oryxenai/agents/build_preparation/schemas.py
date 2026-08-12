@@ -69,6 +69,7 @@ class ResourceNeed(BaseModel):
     source_status: str = ""
     source_policy: str = ""
     importance: str = ""
+    required_for_handoff: bool = False
     query_terms: list[str] = Field(default_factory=list)
     fallback: str = ""
     details: dict[str, Any] = Field(default_factory=dict)
@@ -100,6 +101,8 @@ class ResourceQuery(BaseModel):
     orientation: str = ""
     icon_name: str = ""
     fallback: str = ""
+    required_for_handoff: bool = False
+    allowed_providers: list[str] = Field(default_factory=list)
 
 
 class Stage1QueryPlan(BaseModel):
@@ -144,6 +147,7 @@ class FetchedResource(BaseModel):
     dependencies: list[str] = Field(default_factory=list)
     registry_dependencies: list[str] = Field(default_factory=list)
     license: str = ""
+    license_reference: str = ""
     source_version: str = ""
     fallback: str = ""
     warnings: list[str] = Field(default_factory=list)
@@ -166,6 +170,49 @@ class Stage2SelectionPlan(BaseModel):
     status: Literal["ready"] = "ready"
     selections: list[ResourceSelection] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+
+class CandidateQualification(BaseModel):
+    """Deterministic admission decision for one provider candidate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    resource_id: str
+    need_id: str
+    eligible: bool
+    relevance_score: int = 0
+    quality_score: int = 0
+    policy_status: str = "not_checked"
+    technical_status: str = "not_checked"
+    reasons: list[str] = Field(default_factory=list)
+    issue_codes: list[str] = Field(default_factory=list)
+
+
+class HandoffIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    need_id: str = ""
+    next_action: str = ""
+
+
+class HandoffQualityReport(BaseModel):
+    """The Code Generator admission record for a packaged build context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = "build-preparation-handoff-v1"
+    handoff_eligible: bool = False
+    upstream_approval_verified: bool = False
+    status: Literal["ready_for_handoff", "needs_attention"] = "needs_attention"
+    summary: str = ""
+    required_need_ids: list[str] = Field(default_factory=list)
+    selected_resource_ids: list[str] = Field(default_factory=list)
+    materialized_resource_ids: list[str] = Field(default_factory=list)
+    qualifications: list[CandidateQualification] = Field(default_factory=list)
+    issues: list[HandoffIssue] = Field(default_factory=list)
+    model_review: dict[str, Any] = Field(default_factory=dict)
 
 
 class RouteBuildContext(BaseModel):
@@ -207,6 +254,17 @@ class Stage4IntegratedContextResult(BaseModel):
     context: BuildContextDraft
 
 
+class Stage5HandoffReview(BaseModel):
+    """Structured model review that supplements deterministic admission checks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage: Literal["stage_5"] = "stage_5"
+    status: Literal["ready"] = "ready"
+    summary: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+
 class MaterializedFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -226,10 +284,12 @@ class MaterializationResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     licenses: list[dict[str, Any]] = Field(default_factory=list)
     manifest_path: str = ""
+    resource_plan_path: str = ""
     # Same per-resource entries written to resources/manifest.json (id,
     # provider, inspection_level, local_path/hotlink_url, warnings), exposed
     # here so a caller can see exactly what was fetched without unzipping.
     resources: list[dict[str, Any]] = Field(default_factory=list)
+    handoff_report_path: str = ""
 
 
 class PackageResult(BaseModel):
@@ -246,6 +306,8 @@ class PackageResult(BaseModel):
     artifact: ArtifactReference | None = None
     mirror_root: str = ""
     mirror_relative_root: str = ""
+    local_archive_path: str = ""
+    local_archive_relative_path: str = ""
 
 
 class BuildPreparationState(BaseModel):
@@ -269,6 +331,7 @@ class BuildPreparationState(BaseModel):
     build_context: BuildContextDraft | None = None
     materialization: MaterializationResult | None = None
     package: PackageResult | None = None
+    handoff_report: HandoffQualityReport | None = None
     model_calls: int = 0
     provider_calls: int = 0
     warnings: list[str] = Field(default_factory=list)

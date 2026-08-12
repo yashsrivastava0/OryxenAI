@@ -23,6 +23,42 @@
   var TERMINAL_STATUSES = ["questions_ready", "brief_review", "approved", "needs_attention"];
   var lastRenderedOperationRunId = null;
 
+  // The workspace is deliberately client-side. The existing stage endpoints
+  // already return durable state and job snapshots, so the UI can provide a
+  // useful live timeline without inventing a second event-stream backend.
+  var agentStates = {
+    discovery: null,
+    content_architect: null,
+    visual_design_director: null,
+    build_preparation: null,
+  };
+  var activeSidebarOutput = "discovery";
+  var sidebarView = "output";
+  var activityEvents = [];
+  var activityKeys = Object.create(null);
+  var observedStageSignatures = Object.create(null);
+  var observedJobSignatures = Object.create(null);
+  var stageJobs = {
+    discovery: [],
+    content_architect: [],
+    visual_design_director: [],
+    build_preparation: [],
+  };
+
+  var STAGE_LABELS = {
+    discovery: "Discovery",
+    content_architect: "Content Architect",
+    visual_design_director: "Visual Design Director",
+    build_preparation: "Build Preparation",
+  };
+
+  var STAGE_ORDER = [
+    "discovery",
+    "content_architect",
+    "visual_design_director",
+    "build_preparation",
+  ];
+
   function prettyJson(obj) {
     try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
   }
@@ -48,6 +84,320 @@
     if (!el) return;
     el.className = "status pill " + status;
     el.textContent = status === "ok" ? "up" : status === "err" ? "down" : "checking…";
+  }
+
+  function stageStatusMessage(agent, state) {
+    var status = String((state && state.status) || "unknown");
+    var messages = {
+      questions_queued: "Discovery request queued for the worker.",
+      questions_running: "Discovery is analyzing the intake and preparing questions.",
+      questions_ready: "Discovery returned its questions.",
+      answers_in_progress: "Discovery is waiting for the next answer.",
+      brief_running: "Discovery is writing the full portfolio brief.",
+      brief_review: "The full Discovery brief is ready for review.",
+      approved: "The stage was approved.",
+      build_running: "The agent is building its complete output.",
+      content_review: "The full Content Architect output is ready for review.",
+      design_review: "The full Visual Design Director output is ready for review.",
+      running: "Build Preparation is assembling the handoff package.",
+      preparing: "Build Preparation is assembling the handoff package.",
+      ready: "The build package is ready.",
+      needs_attention: "The stage needs attention and can be retried.",
+    };
+    if (agent === "build_preparation" && state && state.current_stage) {
+      return "Build Preparation is working on " + String(state.current_stage).replace(/_/g, " ") + ".";
+    }
+    return messages[status] || "Status changed to " + status.replace(/_/g, " ") + ".";
+  }
+
+  function activityKindForStatus(status) {
+    if (["approved", "brief_review", "content_review", "design_review", "ready", "questions_ready", "succeeded"].indexOf(status) >= 0) return "success";
+    if (["needs_attention", "failed", "error"].indexOf(status) >= 0) return "error";
+    if (["warning", "stale"].indexOf(status) >= 0) return "warning";
+    return "info";
+  }
+
+  function recordActivity(agent, message, kind, dedupeKey) {
+    if (dedupeKey && activityKeys[dedupeKey]) return;
+    if (dedupeKey) activityKeys[dedupeKey] = true;
+    activityEvents.push({
+      agent: agent || "system",
+      message: message,
+      kind: kind || "info",
+      timestamp: new Date(),
+    });
+    if (activityEvents.length > 200) activityEvents.shift();
+    renderActivityLog();
+  }
+
+  function renderActivityLog() {
+    var log = document.getElementById("sidebar-activity-log");
+    var count = document.getElementById("activity-count");
+    if (count) count.textContent = String(activityEvents.length);
+    if (!log) return;
+    clearElement(log);
+    if (!activityEvents.length) {
+      var empty = document.createElement("li");
+      empty.className = "activity-empty";
+      empty.textContent = "No activity yet. Start a stage to watch the API and worker timeline.";
+      log.appendChild(empty);
+      return;
+    }
+    activityEvents.forEach(function (event) {
+      var item = document.createElement("li");
+      item.className = "activity-item " + (event.kind || "info");
+      var time = document.createElement("time");
+      time.className = "activity-time";
+      time.textContent = event.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      item.appendChild(time);
+      var message = document.createElement("div");
+      message.className = "activity-message";
+      var stage = document.createElement("span");
+      stage.className = "activity-stage";
+      stage.textContent = STAGE_LABELS[event.agent] || "System";
+      message.appendChild(stage);
+      message.appendChild(document.createTextNode(event.message));
+      item.appendChild(message);
+      log.appendChild(item);
+    });
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function observeStageState(agent, state, jobs) {
+    if (!state) return;
+    var status = String(state.status || "unknown");
+    var runId = state.run_id || state.job_id || (state.brief && (state.brief.run_id || state.brief.job_id)) || "";
+    var signature = status + "|" + runId + "|" + String(state.current_stage || "");
+    if (status !== "not_started" && observedStageSignatures[agent] !== signature) {
+      observedStageSignatures[agent] = signature;
+      recordActivity(agent, stageStatusMessage(agent, state), activityKindForStatus(status), "stage|" + agent + "|" + signature);
+    }
+
+    var error = state.latest_error || null;
+    if (error && error.message) {
+      var errorKey = "error|" + agent + "|" + String(error.code || "") + "|" + String(error.message);
+      recordActivity(agent, error.message, "error", errorKey);
+    }
+
+    (Array.isArray(jobs) ? jobs : []).forEach(function (job) {
+      var jobId = job.id || job.job_id || "unknown";
+      var jobStatus = String(job.status || "unknown");
+      var jobSignature = jobStatus + "|" + String(job.attempt || job.attempts || "");
+      var jobKey = "job|" + jobId;
+      if (observedJobSignatures[jobKey] === jobSignature) return;
+      observedJobSignatures[jobKey] = jobSignature;
+      var kind = jobStatus === "succeeded" ? "success" : jobStatus === "failed" ? "error" : "info";
+      var label = job.kind || "durable job";
+      recordActivity(agent, label + " is " + jobStatus.replace(/_/g, " ") + ".", kind, jobKey + "|" + jobSignature);
+    });
+  }
+
+  function rememberAgentState(agent, state, jobs) {
+    if (!state) return;
+    var previousSignature = observedStageSignatures[agent];
+    agentStates[agent] = state;
+    observeStageState(agent, state, jobs);
+    renderSidebarOutputTabs();
+    var sidebar = document.getElementById("brief-sidebar");
+    if (sidebarView === "output" && sidebar && sidebar.classList.contains("open") &&
+        previousSignature !== observedStageSignatures[agent]) {
+      renderSidebarOutput();
+    }
+  }
+
+  function outputIsAvailable(agent, state) {
+    if (!state || !state.status || state.status === "not_started") return false;
+    if (agent === "discovery") {
+      return !!((state.brief && (state.brief.markdown || state.brief.user_summary || state.brief.profile)) ||
+        (state.operation_a && (state.operation_a.mode || state.operation_a.assistant_message)));
+    }
+    return !!(state.user_summary || state.run_id || state.job_id || state.status === "ready" || state.status === "approved");
+  }
+
+  function outputPayload(agent, state) {
+    if (agent === "discovery") {
+      var brief = (state && state.brief) || {};
+      return {
+        operation_a: {
+          mode: (state.operation_a && state.operation_a.mode) || "",
+          assistant_message: (state.operation_a && state.operation_a.assistant_message) || "",
+          items: (state.operation_a && state.operation_a.items) || [],
+          memory_update: (state.operation_a && state.operation_a.memory_update) || {},
+        },
+        brief_title: brief.title || "",
+        brief_markdown: brief.markdown || "",
+        user_summary: brief.user_summary || "",
+        profile: brief.profile || {},
+        open_items: brief.open_items || [],
+        memory_update: brief.memory_update || {},
+      };
+    }
+    return state || {};
+  }
+
+  function outputCopyText(agent, state) {
+    var payload = outputPayload(agent, state);
+    if (agent === "discovery") {
+      var markdown = String(payload.brief_markdown || "").trim();
+      var profile = prettyJson(payload.profile || {});
+      var interaction = payload.operation_a && payload.operation_a.mode
+        ? "## Discovery interaction\n\n```json\n" + prettyJson(payload.operation_a) + "\n```\n\n"
+        : "";
+      return interaction + (markdown || "# Portfolio Discovery Brief") + "\n\n---\n\n## Structured profile\n\n```json\n" + profile + "\n```";
+    }
+    return prettyJson(payload);
+  }
+
+  function renderSidebarOutputTabs() {
+    var tabs = document.getElementById("sidebar-output-tabs");
+    if (!tabs) return;
+    clearElement(tabs);
+    var firstAvailable = null;
+    STAGE_ORDER.forEach(function (agent) {
+      var available = outputIsAvailable(agent, agentStates[agent]);
+      if (available && !firstAvailable) firstAvailable = agent;
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "sidebar-output-tab" + (activeSidebarOutput === agent ? " active" : "");
+      button.textContent = STAGE_LABELS[agent];
+      button.disabled = !available;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-selected", activeSidebarOutput === agent ? "true" : "false");
+      if (available) {
+        button.addEventListener("click", function () {
+          activeSidebarOutput = agent;
+          renderSidebarOutput();
+        });
+      }
+      tabs.appendChild(button);
+    });
+    if (!outputIsAvailable(activeSidebarOutput, agentStates[activeSidebarOutput]) && firstAvailable) {
+      activeSidebarOutput = firstAvailable;
+      renderSidebarOutputTabs();
+    }
+  }
+
+  function renderSidebarOutput() {
+    renderSidebarOutputTabs();
+    var agent = activeSidebarOutput;
+    var state = agentStates[agent];
+    var title = document.getElementById("brief-sidebar-title");
+    var agentLabel = document.getElementById("sidebar-output-agent");
+    var meta = document.getElementById("sidebar-output-meta");
+    var preview = document.getElementById("brief-sidebar-content");
+    var source = document.getElementById("sidebar-output-source");
+    var copyButton = document.getElementById("sidebar-copy-output");
+    if (!title || !agentLabel || !meta || !preview || !source || !copyButton) return;
+    clearElement(preview);
+
+    if (!outputIsAvailable(agent, state)) {
+      title.textContent = "Full agent output";
+      agentLabel.textContent = "Choose an output";
+      meta.textContent = "This stage has not returned a full output yet.";
+      source.value = "";
+      copyButton.disabled = true;
+      var empty = document.createElement("p");
+      empty.className = "activity-empty";
+      empty.textContent = "Start this stage to make its complete output available here.";
+      preview.appendChild(empty);
+      return;
+    }
+
+    var payload = outputPayload(agent, state);
+    var copyText = outputCopyText(agent, state);
+    title.textContent = STAGE_LABELS[agent] + " output";
+    agentLabel.textContent = STAGE_LABELS[agent];
+    meta.textContent = agent === "discovery" && payload.brief_markdown
+      ? "Complete brief Markdown plus the structured profile."
+      : agent === "discovery"
+        ? "Complete Discovery interaction output, ready to copy."
+      : "Complete structured stage payload, ready to paste into the next AI or review tool.";
+    source.value = copyText;
+    copyButton.disabled = false;
+
+    if (agent === "discovery") {
+      if (payload.brief_markdown) {
+        preview.appendChild(renderMarkdownToNodes(payload.brief_markdown));
+      } else if (payload.operation_a && payload.operation_a.mode) {
+        var interactionHeading = document.createElement("h3");
+        interactionHeading.textContent = "Discovery questions";
+        preview.appendChild(interactionHeading);
+        var interactionPre = document.createElement("pre");
+        interactionPre.className = "json-view";
+        interactionPre.textContent = prettyJson(payload.operation_a);
+        preview.appendChild(interactionPre);
+      } else {
+        preview.appendChild(renderMarkdownToNodes("(no brief content yet)"));
+      }
+      if (payload.profile && Object.keys(payload.profile).length) {
+        var profileHeading = document.createElement("h3");
+        profileHeading.textContent = "Structured profile";
+        preview.appendChild(profileHeading);
+        var profilePre = document.createElement("pre");
+        profilePre.className = "json-view";
+        profilePre.textContent = prettyJson(payload.profile);
+        preview.appendChild(profilePre);
+      }
+    } else {
+      if (state.user_summary) preview.appendChild(renderMarkdownToNodes(state.user_summary));
+      var fullNote = document.createElement("p");
+      fullNote.className = "bubble-meta";
+      fullNote.textContent = "The full JSON output is in the copy-ready box below.";
+      preview.appendChild(fullNote);
+    }
+  }
+
+  function setSidebarView(view) {
+    sidebarView = view === "activity" ? "activity" : "output";
+    var outputTab = document.getElementById("sidebar-tab-output");
+    var activityTab = document.getElementById("sidebar-tab-activity");
+    var outputPanel = document.getElementById("sidebar-output-panel");
+    var activityPanel = document.getElementById("sidebar-activity-panel");
+    if (!outputTab || !activityTab || !outputPanel || !activityPanel) return;
+    var isOutput = sidebarView === "output";
+    outputTab.classList.toggle("active", isOutput);
+    activityTab.classList.toggle("active", !isOutput);
+    outputTab.setAttribute("aria-selected", isOutput ? "true" : "false");
+    activityTab.setAttribute("aria-selected", isOutput ? "false" : "true");
+    outputPanel.hidden = !isOutput;
+    activityPanel.hidden = isOutput;
+    if (isOutput) renderSidebarOutput();
+    else renderActivityLog();
+  }
+
+  function openAgentOutputSidebar(agent) {
+    if (agent && agentStates[agent]) activeSidebarOutput = agent;
+    setSidebarView("output");
+    document.getElementById("brief-sidebar-backdrop").hidden = false;
+    var sidebar = document.getElementById("brief-sidebar");
+    sidebar.classList.add("open");
+    sidebar.setAttribute("aria-hidden", "false");
+    sidebar.scrollTop = 0;
+    renderSidebarOutput();
+  }
+
+  async function copySidebarOutput() {
+    var source = document.getElementById("sidebar-output-source");
+    var status = document.getElementById("sidebar-copy-status");
+    if (!source || !source.value) return;
+    var copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(source.value);
+        copied = true;
+      }
+    } catch (e) {
+      copied = false;
+    }
+    if (!copied) {
+      source.focus();
+      source.select();
+      try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
+    }
+    if (status) {
+      status.textContent = copied ? "Copied" : "Select the text above to copy it.";
+      window.setTimeout(function () { status.textContent = ""; }, 2200);
+    }
   }
 
   async function fetchJson(url, opts) {
@@ -295,12 +645,14 @@
     startElapsedTicker();
     var providerSelect = document.getElementById("provider-select");
     if (providerSelect) providerSelect.disabled = true; // the choice is sticky for the session
+    recordActivity("discovery", "Sending intake to the API.");
     try {
       await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(lastIntake),
       });
+      recordActivity("discovery", "API accepted the Discovery request and queued a durable job.");
     } catch (e) {
       showChatFailure("Could not start Discovery: " + e.message, retryStart);
       return;
@@ -312,12 +664,14 @@
     chatStartedAt = Date.now();
     chatAnalyzing("Analyzing your details…");
     startElapsedTicker();
+    recordActivity("discovery", "Retrying the Discovery request.");
     try {
       await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(lastIntake || {}),
       });
+      recordActivity("discovery", "API accepted the Discovery retry.");
     } catch (e) {
       showChatFailure("Could not restart Discovery: " + e.message, retryStart);
       return;
@@ -343,6 +697,7 @@
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery");
       chatState = data.discovery;
+      stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
       renderChatState();
       pollDiscovery();
     } catch (e) {
@@ -361,6 +716,7 @@
       try {
         var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery");
         chatState = data.discovery;
+        stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
       } catch (e) {
         stopPolling();
         chatError("Lost contact with the server while working: " + e.message, "Retry", retryStart);
@@ -378,6 +734,7 @@
 
   function renderChatState() {
     if (!chatState) return;
+    rememberAgentState("discovery", chatState, stageJobs.discovery);
     var status = chatState.status;
 
     if (status === "questions_ready") {
@@ -476,6 +833,7 @@
 
   async function generateBriefNow() {
     disableComposer(true);
+    recordActivity("discovery", "Sending the request to build the full brief.");
     chatStartedAt = Date.now();
     chatAnalyzing("Preparing your portfolio brief…");
     startElapsedTicker();
@@ -486,6 +844,8 @@
         body: JSON.stringify({ complete: true, answers: [] }),
       });
       chatState = data.discovery;
+      stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
+      recordActivity("discovery", "The brief build was queued by the API.");
       pollDiscovery();
     } catch (e) {
       disableComposer(false);
@@ -678,6 +1038,7 @@
 
   async function submitAllAnswersAndEnqueueBrief() {
     disableComposer(true);
+    recordActivity("discovery", "Saving answers and asking the API to build the brief.");
     try {
       var all = [];
       currentQuestions().forEach(function (q) {
@@ -690,6 +1051,8 @@
         body: JSON.stringify({ complete: true, answers: all }),
       });
       chatState = data.discovery;
+      stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
+      recordActivity("discovery", "The brief build was queued after answers were saved.");
       chatAnalyzing("Preparing your portfolio brief…");
       chatStartedAt = Date.now();
       startElapsedTicker();
@@ -702,6 +1065,7 @@
 
   async function retryBrief() {
     disableComposer(true);
+    recordActivity("discovery", "Retrying the full brief build.");
     chatStartedAt = Date.now();
     chatAnalyzing("Preparing your portfolio brief…");
     startElapsedTicker();
@@ -716,6 +1080,8 @@
         body: JSON.stringify({ complete: true, answers: all }),
       });
       chatState = data.discovery;
+      stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
+      recordActivity("discovery", "The brief retry was queued by the API.");
       pollDiscovery();
     } catch (e) {
       disableComposer(false);
@@ -743,7 +1109,7 @@
 
     var summaryNote = document.createElement("p");
     summaryNote.className = "bubble-meta";
-    summaryNote.textContent = "Here's a quick summary — the full detailed brief is saved and available under Advanced.";
+    summaryNote.textContent = "Here's a quick summary. Open the workspace to view and copy the complete output.";
     content.appendChild(summaryNote);
 
     var markdownBox = document.createElement("div");
@@ -777,7 +1143,7 @@
     var viewFullBtn = document.createElement("button");
     viewFullBtn.type = "button";
     viewFullBtn.className = "choice-btn";
-    viewFullBtn.textContent = "View full brief";
+    viewFullBtn.textContent = "View full output";
     actions.appendChild(viewFullBtn);
     var reviseBtn = document.createElement("button");
     reviseBtn.type = "button";
@@ -814,6 +1180,8 @@
   // ── Full-brief sidebar (complete brief_markdown + profile, as saved) ────
 
   function openFullBriefSidebar() {
+    openAgentOutputSidebar("discovery");
+    return;
     if (!chatState || !chatState.brief) return;
     var brief = chatState.brief;
     var box = document.getElementById("brief-sidebar-content");
@@ -849,6 +1217,41 @@
     document.getElementById("brief-sidebar-backdrop").hidden = true;
     document.getElementById("brief-sidebar").classList.remove("open");
     document.getElementById("brief-sidebar").setAttribute("aria-hidden", "true");
+  }
+
+  async function hydrateSessionState() {
+    if (!selectedSessionId) return;
+    var routes = [
+      { agent: "discovery", path: "/sessions/" + selectedSessionId + "/discovery" },
+      { agent: "content_architect", path: "/sessions/" + selectedSessionId + "/content-architect" },
+      { agent: "visual_design_director", path: "/sessions/" + selectedSessionId + "/visual-design-director" },
+      { agent: "build_preparation", path: "/sessions/" + selectedSessionId + "/build-preparation" },
+    ];
+    var responses = await Promise.all(routes.map(function (route) {
+      return fetchJson(API + route.path).catch(function () { return null; });
+    }));
+    responses.forEach(function (data, index) {
+      if (!data) return;
+      var route = routes[index];
+      var state = data[route.agent];
+      if (!state) return;
+      stageJobs[route.agent] = Array.isArray(data.jobs) ? data.jobs : [];
+      if (route.agent === "discovery") chatState = state;
+      if (route.agent === "content_architect") caState = state;
+      if (route.agent === "visual_design_director") vddState = state;
+      if (route.agent === "build_preparation") buildPreparationState = state;
+      rememberAgentState(route.agent, state, stageJobs[route.agent]);
+    });
+    renderSidebarOutputTabs();
+    recordActivity("system", "Restored the current session state from the API.", "success", "session|restored|" + selectedSessionId);
+
+    if (chatState && chatState.status && chatState.status !== "not_started") {
+      renderChatState();
+      if (RUNNING_STATUSES.indexOf(chatState.status) >= 0) pollDiscovery();
+    }
+    if (caState && ["build_running"].indexOf(caState.status) >= 0) pollContentArchitect();
+    if (vddState && ["build_running"].indexOf(vddState.status) >= 0) pollVisualDesignDirector();
+    if (buildPreparationState && ["ready", "needs_attention", "not_started"].indexOf(buildPreparationState.status) < 0) pollBuildPreparation();
   }
 
   function briefDisplaySource() {
@@ -911,6 +1314,7 @@
 
   async function requestRevision(revisionRequest, sendBtn) {
     disableComposer(true);
+    recordActivity("discovery", "Sending the brief revision request to the API.");
     chatStartedAt = Date.now();
     clearAnalyzingBubble();
     chatAnalyzing("Revising the brief…");
@@ -922,6 +1326,8 @@
         body: JSON.stringify({ revision_request: revisionRequest }),
       });
       chatState = data.discovery;
+      stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
+      recordActivity("discovery", "The revised brief was queued by the API.");
       localBriefMarkdown = null;
       pollDiscovery();
     } catch (e) {
@@ -937,6 +1343,7 @@
   }
 
   async function approveDiscovery() {
+    recordActivity("discovery", "Sending the approval request to the API.");
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/discovery/approve", {
         method: "POST",
@@ -944,6 +1351,9 @@
         body: JSON.stringify({}),
       });
       chatState = data.discovery;
+      stageJobs.discovery = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("discovery", chatState, stageJobs.discovery);
+      recordActivity("discovery", "Discovery approval was saved.", "success");
       if (chatState.status === "approved") {
         promptNextAgentPrompt("Discovery approved — the portfolio brief is ready for the next stage.", "Start Content Architect", startContentArchitect);
       } else {
@@ -979,6 +1389,7 @@
   }
 
   async function startContentArchitect() {
+    recordActivity("content_architect", "Sending the Content Architect start request to the API.");
     chatAnalyzing("Building content strategy and page copy…");
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect/start", {
@@ -987,6 +1398,9 @@
         body: JSON.stringify({ preferences: {}, model_profile: selectedModelProfile }),
       });
       caState = data.content_architect;
+      stageJobs.content_architect = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("content_architect", caState, stageJobs.content_architect);
+      recordActivity("content_architect", "API accepted the Content Architect request and queued a durable job.");
       pollContentArchitect();
     } catch (e) {
       clearAnalyzingBubble();
@@ -997,6 +1411,7 @@
   function pollContentArchitect() {
     if (caPollTimer) window.clearTimeout(caPollTimer);
     if (!caState) return;
+    rememberAgentState("content_architect", caState, stageJobs.content_architect);
     if (caState.status === "content_review" || caState.status === "approved" || caState.status === "needs_attention") {
       clearAnalyzingBubble();
       renderContentArchitectState();
@@ -1006,6 +1421,7 @@
       try {
         var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect");
         caState = data.content_architect;
+        stageJobs.content_architect = Array.isArray(data.jobs) ? data.jobs : [];
       } catch (e) {
         chatError("Lost contact while building content: " + e.message, "Retry", startContentArchitect);
         return;
@@ -1015,6 +1431,7 @@
   }
 
   function renderContentArchitectState() {
+    rememberAgentState("content_architect", caState, stageJobs.content_architect);
     if (caState.status === "needs_attention") {
       var error = caState.latest_error || {};
       chatError(error.message || "Content Architect needs attention.", "Try again", startContentArchitect);
@@ -1084,17 +1501,23 @@
       ));
     }
 
+    var actions = document.createElement("div");
+    actions.className = "brief-actions";
+    var viewFullBtn = document.createElement("button");
+    viewFullBtn.type = "button";
+    viewFullBtn.className = "choice-btn";
+    viewFullBtn.textContent = "View full output";
+    viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("content_architect"); });
+    actions.appendChild(viewFullBtn);
     if (caState.status === "content_review") {
-      var actions = document.createElement("div");
-      actions.className = "brief-actions";
       var approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "primary-action";
       approveBtn.textContent = "Approve content";
       approveBtn.addEventListener("click", approveContentArchitect);
       actions.appendChild(approveBtn);
-      content.appendChild(actions);
     }
+    content.appendChild(actions);
 
     var raw = document.createElement("details");
     var rawSummary = document.createElement("summary");
@@ -1110,6 +1533,7 @@
   }
 
   async function approveContentArchitect() {
+    recordActivity("content_architect", "Sending the Content Architect approval request to the API.");
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect/approve", {
         method: "POST",
@@ -1117,6 +1541,9 @@
         body: JSON.stringify({}),
       });
       caState = data.content_architect;
+      stageJobs.content_architect = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("content_architect", caState, stageJobs.content_architect);
+      recordActivity("content_architect", "Content Architect approval was saved.", "success");
       promptNextAgentPrompt("Content Architect approved — the content is ready for the Visual Design Director.", "Start Visual Design Director", startVisualDesignDirector);
     } catch (e) {
       chatError("Approval failed: " + e.message, "Try again", approveContentArchitect);
@@ -1132,6 +1559,7 @@
   var vddPollTimer = null;
 
   async function startVisualDesignDirector() {
+    recordActivity("visual_design_director", "Sending the Visual Design Director start request to the API.");
     chatAnalyzing("Establishing the visual direction…");
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/visual-design-director/start", {
@@ -1140,6 +1568,9 @@
         body: JSON.stringify({ preferences: {}, model_profile: selectedModelProfile }),
       });
       vddState = data.visual_design_director;
+      stageJobs.visual_design_director = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("visual_design_director", vddState, stageJobs.visual_design_director);
+      recordActivity("visual_design_director", "API accepted the Visual Design Director request and queued a durable job.");
       pollVisualDesignDirector();
     } catch (e) {
       clearAnalyzingBubble();
@@ -1150,6 +1581,7 @@
   function pollVisualDesignDirector() {
     if (vddPollTimer) window.clearTimeout(vddPollTimer);
     if (!vddState) return;
+    rememberAgentState("visual_design_director", vddState, stageJobs.visual_design_director);
     if (vddState.status === "design_review" || vddState.status === "approved" || vddState.status === "needs_attention") {
       clearAnalyzingBubble();
       renderVisualDesignDirectorState();
@@ -1159,6 +1591,7 @@
       try {
         var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/visual-design-director");
         vddState = data.visual_design_director;
+        stageJobs.visual_design_director = Array.isArray(data.jobs) ? data.jobs : [];
       } catch (e) {
         chatError("Lost contact while establishing the visual direction: " + e.message, "Retry", startVisualDesignDirector);
         return;
@@ -1168,6 +1601,7 @@
   }
 
   function renderVisualDesignDirectorState() {
+    rememberAgentState("visual_design_director", vddState, stageJobs.visual_design_director);
     if (vddState.status === "needs_attention") {
       var error = vddState.latest_error || {};
       chatError(error.message || "Visual Design Director needs attention.", "Try again", startVisualDesignDirector);
@@ -1228,17 +1662,23 @@
       content.appendChild(warningsList);
     }
 
+    var actions = document.createElement("div");
+    actions.className = "brief-actions";
+    var viewFullBtn = document.createElement("button");
+    viewFullBtn.type = "button";
+    viewFullBtn.className = "choice-btn";
+    viewFullBtn.textContent = "View full output";
+    viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("visual_design_director"); });
+    actions.appendChild(viewFullBtn);
     if (vddState.status === "design_review") {
-      var actions = document.createElement("div");
-      actions.className = "brief-actions";
       var approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "primary-action";
       approveBtn.textContent = "Approve visual direction";
       approveBtn.addEventListener("click", approveVisualDesignDirector);
       actions.appendChild(approveBtn);
-      content.appendChild(actions);
     }
+    content.appendChild(actions);
 
     var raw = document.createElement("details");
     var rawSummary = document.createElement("summary");
@@ -1254,6 +1694,7 @@
   }
 
   async function approveVisualDesignDirector() {
+    recordActivity("visual_design_director", "Sending the Visual Design Director approval request to the API.");
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/visual-design-director/approve", {
         method: "POST",
@@ -1261,6 +1702,9 @@
         body: JSON.stringify({}),
       });
       vddState = data.visual_design_director;
+      stageJobs.visual_design_director = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("visual_design_director", vddState, stageJobs.visual_design_director);
+      recordActivity("visual_design_director", "Visual Design Director approval was saved.", "success");
       promptNextAgentPrompt(
         "Visual Design Director approved — the hidden Build Preparation stage can now materialize the image, component, and code-generation resources.",
         "Prepare Build Package",
@@ -1280,6 +1724,7 @@
   var buildPreparationPollTimer = null;
 
   async function startBuildPreparation() {
+    recordActivity("build_preparation", "Sending the Build Preparation start request to the API.");
     chatAnalyzing("Preparing the build package and materializing resources…");
     try {
       var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/build-preparation/start", {
@@ -1288,6 +1733,9 @@
         body: JSON.stringify({ model_profile: selectedModelProfile }),
       });
       buildPreparationState = data.build_preparation;
+      stageJobs.build_preparation = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("build_preparation", buildPreparationState, stageJobs.build_preparation);
+      recordActivity("build_preparation", "API accepted Build Preparation and queued a durable job.");
       pollBuildPreparation();
     } catch (e) {
       clearAnalyzingBubble();
@@ -1298,6 +1746,7 @@
   function pollBuildPreparation() {
     if (buildPreparationPollTimer) window.clearTimeout(buildPreparationPollTimer);
     if (!buildPreparationState) return;
+    rememberAgentState("build_preparation", buildPreparationState, stageJobs.build_preparation);
     if (buildPreparationState.status === "ready" || buildPreparationState.status === "needs_attention") {
       clearAnalyzingBubble();
       renderBuildPreparationState();
@@ -1307,6 +1756,7 @@
       try {
         var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/build-preparation");
         buildPreparationState = data.build_preparation;
+        stageJobs.build_preparation = Array.isArray(data.jobs) ? data.jobs : [];
       } catch (e) {
         clearAnalyzingBubble();
         chatError("Lost contact while preparing the build package: " + e.message, "Retry", startBuildPreparation);
@@ -1318,6 +1768,7 @@
 
   function renderBuildPreparationState() {
     if (!buildPreparationState) return;
+    rememberAgentState("build_preparation", buildPreparationState, stageJobs.build_preparation);
     if (buildPreparationState.status === "needs_attention") {
       var error = buildPreparationState.latest_error || {};
       chatError(error.message || "Build Preparation needs attention.", "Try again", startBuildPreparation);
@@ -1353,6 +1804,16 @@
       });
       content.appendChild(warningList);
     }
+
+    var actions = document.createElement("div");
+    actions.className = "brief-actions";
+    var viewFullBtn = document.createElement("button");
+    viewFullBtn.type = "button";
+    viewFullBtn.className = "choice-btn";
+    viewFullBtn.textContent = "View full output";
+    viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("build_preparation"); });
+    actions.appendChild(viewFullBtn);
+    content.appendChild(actions);
 
     var raw = document.createElement("details");
     var rawSummary = document.createElement("summary");
@@ -1594,6 +2055,7 @@
           sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
           refreshSessionPanel(s);
           listRuns();
+          hydrateSessionState();
         });
         list.appendChild(li);
       });
@@ -1737,6 +2199,8 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     chatWelcome();
+    renderSidebarOutputTabs();
+    renderActivityLog();
     checkHealth();
     loadAgents();
     listSessions();
@@ -1762,6 +2226,23 @@
     document.getElementById("btn-run-mock").addEventListener("click", runMock);
     document.getElementById("btn-list-runs").addEventListener("click", listRuns);
     document.getElementById("btn-probe").addEventListener("click", enqueueProbe);
+    document.getElementById("open-agent-workspace").addEventListener("click", function () {
+      openAgentOutputSidebar(activeSidebarOutput);
+    });
+    document.getElementById("sidebar-tab-output").addEventListener("click", function () { setSidebarView("output"); });
+    document.getElementById("sidebar-tab-activity").addEventListener("click", function () {
+      setSidebarView("activity");
+      document.getElementById("brief-sidebar-backdrop").hidden = false;
+      var sidebar = document.getElementById("brief-sidebar");
+      sidebar.classList.add("open");
+      sidebar.setAttribute("aria-hidden", "false");
+      sidebar.scrollTop = 0;
+    });
+    document.getElementById("sidebar-copy-output").addEventListener("click", copySidebarOutput);
+    document.getElementById("sidebar-clear-activity").addEventListener("click", function () {
+      activityEvents = [];
+      renderActivityLog();
+    });
     document.getElementById("brief-sidebar-close").addEventListener("click", closeFullBriefSidebar);
     document.getElementById("brief-sidebar-backdrop").addEventListener("click", closeFullBriefSidebar);
     document.addEventListener("keydown", function (event) {
@@ -1774,6 +2255,8 @@
         selectedSessionId = session.id;
         refreshSessionPanel(session);
         return listRuns();
+      }).then(function () {
+        return hydrateSessionState();
       }).catch(function () { sessionStorage.removeItem("oryxenai.discovery.session"); });
     }
   });
