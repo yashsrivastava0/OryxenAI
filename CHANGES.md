@@ -24,6 +24,10 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-12 21:43 +05:30 — Codex (GPT-5 / OpenAI) — docs/code-generator-architecture/
+
+Added a research-only Code Generator architecture covering admitted Build Preparation intake, bounded structured model calls, deterministic scaffold/package/resource ownership, durable R2 checkpoints, isolated preview promotion, browser and visual-quality gates, and a privacy-safe golden-reference evaluation corpus. The proposal records contract gaps and owner decisions required before implementation without changing runtime code or `DECISIONS.md`.
+
 ### 2026-08-12 20:45 +05:30 — Codex (GPT-5 / OpenAI) — DECISIONS.md, Build Preparation v1 and Code Generator boundary
 
 Recorded D-012: freeze the verified Build Preparation v1 contract, start Code Generator development, and reopen upstream work only for a reproduced admitted-package defect with a clearly identified owner—not for generic downstream visual or implementation quality.
