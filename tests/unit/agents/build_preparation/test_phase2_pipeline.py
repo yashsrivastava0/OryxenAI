@@ -9,11 +9,14 @@ import pytest
 from oryxenai.agents.build_preparation.agent import BuildPreparationAgent
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
+    ResourceQuery,
+    ResourceSelection,
     RouteBuildContext,
     Stage1QueryPlan,
     Stage2SelectionPlan,
     Stage3BuildContextResult,
     Stage4IntegratedContextResult,
+    Stage5HandoffReview,
 )
 from oryxenai.agents.discovery.schemas import StructuredModelResult
 from oryxenai.agents.shared.context import build_context
@@ -23,12 +26,18 @@ from oryxenai.core.settings import Settings
 
 def _visual() -> dict[str, object]:
     return {
+        "approved": {"visual_direction_hash": "visual-hash"},
+        "source_ref": {"content_architect_content_hash": "content-hash"},
         "pages": [
             {"route_id": "home", "path": "/", "publication_status": "approved", "scenes": []}
         ],
         "asset_briefs": [],
         "resource_candidates": [],
     }
+
+
+def _content() -> dict[str, object]:
+    return {"page_content_packs": [{"route_id": "home", "sections": [{"section_id": "hero"}]}]}
 
 
 def _context() -> BuildContextDraft:
@@ -54,13 +63,43 @@ class _Phase2Model:
     async def generate_structured(self, *, operation, output_model, **kwargs):
         self.operations.append(operation)
         if output_model is Stage1QueryPlan:
-            parsed = Stage1QueryPlan()
+            parsed = Stage1QueryPlan(
+                queries=[
+                    ResourceQuery(
+                        need_id=need["need_id"],
+                        kind="photo" if need.get("required_for_handoff") else "custom",
+                        query="abstract technology editorial",
+                        orientation="landscape",
+                        fallback=need.get("fallback", ""),
+                    )
+                    for need in kwargs["input_payload"]["resource_needs"]
+                ]
+            )
         elif output_model is Stage2SelectionPlan:
-            parsed = Stage2SelectionPlan()
+            candidates = kwargs["input_payload"]["candidate_resources"]
+            parsed = Stage2SelectionPlan(
+                selections=[
+                    ResourceSelection(
+                        need_id=need["need_id"],
+                        selected_resource_id=next(
+                            (
+                                candidate["resource_id"]
+                                for candidate in candidates
+                                if candidate["need_id"] == need["need_id"]
+                            ),
+                            None,
+                        ),
+                        fallback=need.get("fallback", ""),
+                    )
+                    for need in kwargs["input_payload"]["resource_needs"]
+                ]
+            )
         elif output_model is Stage3BuildContextResult:
             parsed = Stage3BuildContextResult(context=_context())
         elif output_model is Stage4IntegratedContextResult:
             parsed = Stage4IntegratedContextResult(context=_context())
+        elif output_model is Stage5HandoffReview:
+            parsed = Stage5HandoffReview(summary="Structured handoff review complete.")
         else:
             raise AssertionError(output_model)
         return StructuredModelResult(
@@ -118,6 +157,7 @@ async def test_offline_phase2_runs_all_deterministic_stages_and_materializes() -
             agent_input={
                 "operation": "build",
                 "visual_design_director": _visual(),
+                "content_architect": _content(),
                 "live_model": False,
                 "live_providers": False,
                 "output_dir": str(output_dir),
@@ -139,7 +179,7 @@ async def test_offline_phase2_runs_all_deterministic_stages_and_materializes() -
 
 
 @pytest.mark.asyncio
-async def test_live_model_path_is_bounded_to_four_calls_when_integration_is_needed() -> None:
+async def test_live_model_path_uses_structured_handoff_review_when_integration_is_needed() -> None:
     output_dir = _output_dir()
     try:
         settings = Settings()
@@ -153,6 +193,7 @@ async def test_live_model_path_is_bounded_to_four_calls_when_integration_is_need
             agent_input={
                 "operation": "build",
                 "visual_design_director": _visual(),
+                "content_architect": _content(),
                 "live_model": True,
                 "live_providers": False,
                 "output_dir": str(output_dir),
@@ -164,13 +205,15 @@ async def test_live_model_path_is_bounded_to_four_calls_when_integration_is_need
             model_client=model, live_model=True, live_providers=False, settings=settings
         ).run(context)
 
-        assert result.output["model_calls"] == 4
+        assert result.output["model_calls"] == 5
         assert model.operations == [
             "compose_resource_queries",
             "select_resources",
             "write_build_context",
             "integrate_cross_route",
+            "review_handoff_quality",
         ]
+        assert result.output["handoff_report"]["handoff_eligible"] is True
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
@@ -190,6 +233,7 @@ async def test_live_context_output_is_reconciled_to_approved_route_and_resource_
             agent_input={
                 "operation": "build",
                 "visual_design_director": _visual(),
+                "content_architect": _content(),
                 "live_model": True,
                 "live_providers": False,
                 "output_dir": str(output_dir),

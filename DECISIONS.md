@@ -25,6 +25,17 @@ Every AI agent (Codex CLI, Claude Code, Cursor, OpenCode, Google Antigravity, or
 
 ## Active Decisions
 
+## D-012 — Freeze Build Preparation v1 and validate it through Code Generator consumption
+
+- **Date & Time:** 2026-08-12 20:45 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Independent production-handoff review found and fixed concrete Build Preparation admission, provenance, resource-planning, dependency, path-safety, and fixture-concurrency defects. The repaired contract now gives Code Generator approved route content, visual direction, local/provenanced resources, exclusive fallbacks/later-fetch rules, target constraints, and a deterministic `handoff-report.json`. Continuing to refine Build Preparation without a real consumer would be speculative and would delay Code Generator; conversely, declaring every future integration problem the fault of either stage would hide genuine contract defects.
+- **Decision:** Freeze the Build Preparation v1 contract and begin Code Generator development. Treat an admitted, freshly regenerated pack as Code Generator's authoritative input; the currently reviewed historical packs remain immutable and are not production inputs when their handoff report or upstream approval is incomplete. Generic composition, repetitive sections/cards, weak responsive execution, poor animation, or failure to follow valid package instructions belong to Code Generator. Reopen Build Preparation or an upstream agent only when a reproducible consumer-contract failure shows that the admitted package omitted, contradicted, corrupted, or falsely admitted required facts, routes, visual direction, resources, provenance, paths, fallbacks, or target constraints.
+- **Rejected alternatives:** Indefinitely polishing Build Preparation before Code Generator exists (rejected because no consumer evidence can justify further changes); treating every Code Generator problem as proof that Build Preparation failed (rejected because implementation quality belongs downstream); declaring every package/contract problem a Code Generator bug (rejected because admission and package correctness remain Build Preparation's responsibility).
+- **Consequence:** Code Generator work may start immediately against the frozen contract and approved test fixtures. Before the first production build, approve the current Visual Design Director direction and regenerate so the package passes deterministic admission and R2 read-back verification. The first end-to-end build is a consumer-contract validation, but it does not reopen Build Preparation by default; any proposed upstream change must cite a reproduced package defect and its correct owner.
+
+---
+
 ## D-011 — Rebuild Build Preparation as a real agent, from zero, superseding D-010
 
 - **Date & Time:** 2026-08-11 (local) — Claude Code (Claude Sonnet 5 / Anthropic)

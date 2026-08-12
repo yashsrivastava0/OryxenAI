@@ -2,471 +2,476 @@
   "status": "design_review",
   "model_profile": "visual_design_director",
   "source_ref": {
-    "content_architect_content_hash": "4c4050f6b203e8163c2e0b917b1a53b34b4b3b1a8dc73884206bc19c50f662ba",
+    "content_architect_content_hash": "ed241dfc132ad92e8d65cd43cc484a68874addc7b46c9fe7656f7b2825fc45aa",
+    "content_architect_visual_input_hash": "f34d54f8ec64e180b041a4acc456709c8f7e3d97b700c2ade6a329aa3e38f401",
     "content_architect_session_revision": 10,
-    "route_publication_hash": "a101396d4e6cb9c35347d1d5a2566473801f712038ee9c44f543cf1c6e00f3f8",
-    "snapshotted_at": "2026-08-10T04:23:03.181696+00:00"
+    "route_publication_hash": "c87e6f9b0ca28df5af3c122314a9ece5d4748d976e3eb6306666704070adbeca",
+    "snapshotted_at": "2026-08-12T09:32:19.430071+00:00"
   },
   "intake": {
-    "content_architect_content_hash": "4c4050f6b203e8163c2e0b917b1a53b34b4b3b1a8dc73884206bc19c50f662ba",
+    "content_architect_content_hash": "ed241dfc132ad92e8d65cd43cc484a68874addc7b46c9fe7656f7b2825fc45aa",
     "content_architect_session_revision": 10,
-    "presentation_mode": "single_page",
+    "presentation_mode": "",
     "site_story_strategy": {
-      "positioning": "Generative AI and Agentic AI engineer who designs and builds production-oriented AI systems spanning model orchestration, RAG, multi-agent workflows, APIs, evaluation, and deployment.",
+      "positioning": "Arjun Mehta is an AI Engineer who builds practical Generative AI and LLM applications, combining retrieval, agents, structured outputs, APIs, and backend engineering into usable software.",
       "content_risks": [
-        "Enterprise project publication scope is not confirmed.",
-        "Individual versus team contribution is unresolved for enterprise work.",
-        "DefXV metric evaluation context is missing.",
-        "The exact target job title and preferred hiring audience are unspecified."
+        "Project outcomes and scale are not quantified; copy must describe implemented scope without implying business impact.",
+        "Employer publication permission and individual ownership of employer work remain unresolved.",
+        "Repository URLs are supplied as approved links but should be verified before launch."
       ],
-      "evidence_lead": [
-        "DefXV as the strongest independent end-to-end project",
-        "Agentic AI DB Log Analyzer as the strongest enterprise technical example",
-        "Specific technologies and responsibilities grounded in the profile",
-        "Career progression across TCS, DCM Shriram Ltd., and SpectoV"
+      "evidence_to_lead": [
+        "DocuMind AI's document ingestion, retrieval, source references, conversation history, and FastAPI implementation.",
+        "AgentFlow's graph-based tool orchestration, validation, retries, session state, logs, and streaming.",
+        "The recurring combination of AI system design and backend implementation across the four named projects."
       ],
-      "evidence_omit": [
-        "Phone number",
-        "Certification details",
-        "Unverified enterprise business-impact metrics",
-        "Unconfirmed detailed client or proprietary project information"
+      "evidence_to_omit": [
+        "Employer names and employer-related project details until publication permission is confirmed.",
+        "Phone number, which Discovery marked as private and omitted.",
+        "Metrics, scale indicators, testimonials, screenshots, demos, and architecture diagrams because none were supplied as verified material."
       ],
-      "evidence_shorten": [
-        "Long technology inventory should be grouped by capability rather than displayed as an exhaustive list.",
-        "School education should be compact and secondary to project and experience evidence."
-      ],
-      "evidence_support": [
-        "Virtual Interview Simulator",
-        "HR Process Digitization & Intelligent Automation",
-        "Education and technical capability groups"
-      ],
-      "primary_audience": "Hiring managers and technical interviewers evaluating early-career Generative AI and Agentic AI engineering candidates.",
+      "primary_audience": "Hiring managers and technical interviewers seeking an early-career Generative AI, LLM, or backend engineer.",
       "unresolved_facts": [
-        "Approved public detail for TCS/Enbridge and other enterprise work",
-        "Contribution boundaries for enterprise projects",
-        "Business-impact metrics",
-        "Evaluation context for DefXV metrics",
-        "Project-specific DefXV repository URL"
+        "Whether Nexora Technologies Pvt. Ltd., CloudSprint Digital Solutions, and DataNova Labs may be named.",
+        "Which employer accomplishments are individually attributable to Arjun versus team outcomes.",
+        "Verified project metrics, screenshots, demos, and architecture evidence.",
+        "Preferred visual direction, motion level, CTA wording, deadline, and target employer context."
       ],
-      "presentation_mode": "single_page",
-      "secondary_audience": "Engineering leaders and collaborators looking for practical experience with RAG, LangGraph, LangChain, AI microservices, and responsible AI.",
-      "main_visitor_action": "Review the projects and contact Vanshmani through LinkedIn or GitHub.",
-      "presentation_rationale": "The profile has one well-supported independent project and several related experience projects, but the enterprise material lacks enough cleared detail for separate case-study routes. A single page can create a stronger, coherent narrative without padding the site with thin project pages.",
-      "central_narrative_thesis": "From multimodal assistive communication to enterprise AI workflows, Vanshmani turns language and perception models into usable systems with orchestration, retrieval, service interfaces, evaluation, and deployment in mind.",
-      "truthful_value_proposition": "Vanshmani combines hands-on AI engineering with experience delivering end-to-end pipelines and modular services across assistive communication, database-log analysis, interview simulation, and HR automation."
+      "secondary_audience": "Engineers and collaborators evaluating practical experience with RAG, AI agents, APIs, data systems, and production-oriented development workflows.",
+      "evidence_to_shorten": [
+        "The full technology inventory should be grouped into capability areas rather than displayed as an exhaustive list.",
+        "Education and certifications should remain concise and secondary to project evidence.",
+        "LeetCode should be presented as an optional supporting signal rather than a headline achievement."
+      ],
+      "evidence_to_support": [
+        "HireLens as applied NLP and structured resume-to-job matching.",
+        "DevTrack as full-stack, permissions, persistence, containerization, and CI/CD evidence.",
+        "Skills, education, certifications, and approved professional links."
+      ],
+      "main_visitor_action": "Review the project work and open the GitHub repositories, then connect through LinkedIn.",
+      "presentation_rationale": "The profile has four named projects with enough implementation detail to tell a coherent story, but no verified metrics or extended case-study outcomes that justify multiple dedicated routes. A single page can give DocuMind AI and AgentFlow prominence while grouping HireLens and DevTrack as supporting evidence without creating thin pages.",
+      "central_narrative_thesis": "Arjun's work shows a progression from software and backend foundations toward increasingly capable AI systems: first grounding language models in documents, then coordinating tools and state, and finally applying AI to resume analysis while retaining full-stack engineering discipline.",
+      "chosen_presentation_mode": "single_page",
+      "truthful_value_proposition": "Builds grounded AI applications and backend systems, from document understanding and semantic retrieval to tool orchestration and full-stack delivery."
     },
     "route_plan": [
       {
         "path": "/",
-        "title": "Vanshmani — Generative AI & Agentic AI Engineer",
-        "purpose": "Present the professional positioning, selected project work, experience, capabilities, education, and contact paths in one coherent portfolio journey.",
+        "title": "Arjun Mehta — Generative AI and LLM Engineer",
+        "purpose": "Present a concise professional position and the strongest evidence of practical AI and backend engineering.",
         "priority": "primary",
-        "route_id": "route:home",
+        "route_id": "home",
         "source_refs": [
           "profile.name",
           "profile.current_title",
           "profile.projects",
-          "profile.experience",
           "profile.skills",
           "profile.education",
           "profile.links"
         ],
-        "mobile_notes": "Lead with positioning and DefXV; collapse secondary project details and group capabilities into short categories.",
-        "content_density": "medium",
+        "mobile_notes": "Keep the hero and DocuMind AI/AgentFlow summaries prominent; condense capability groups, experience context, and education into shorter stacked summaries.",
+        "content_density": "moderate",
         "section_sequence": [
           "home:hero",
-          "home:positioning",
-          "home:featured-project",
-          "home:experience-projects",
+          "home:featured-projects",
+          "home:project-grid",
           "home:capabilities",
+          "home:experience-context",
           "home:education",
           "home:contact"
         ],
-        "audience_takeaway": "Vanshmani builds practical AI systems across agentic workflows, RAG, multimodal interaction, APIs, evaluation, and deployment.",
+        "audience_takeaway": "Arjun builds document-grounded AI systems, agent workflows, and dependable backend applications.",
         "publication_status": "approved"
       }
     ],
     "page_content_packs": [
       {
-        "route_id": "route:home",
+        "route_id": "home",
         "sections": [
           {
             "content": {
-              "body": "I design and build AI systems across agentic workflows, retrieval, multimodal interaction, APIs, evaluation, and deployment.",
-              "eyebrow": "Generative AI & Agentic AI Engineering",
-              "headline": "Building AI systems that move from models to usable products.",
+              "body": "I build practical applications with LLMs, retrieval, AI agents, and reliable backend services—from document understanding to tool orchestration and full-stack delivery.",
+              "eyebrow": "AI Engineer",
+              "headline": "Generative AI systems grounded in real software engineering.",
+              "location": "Bengaluru, Karnataka, India",
               "primary_cta": {
-                "href": "#featured-work",
+                "href": "#featured-projects",
                 "kind": "internal",
-                "label": "Explore selected work"
+                "label": "Explore projects"
               },
               "secondary_cta": {
-                "href": "https://linkedin.com/in/vanshmanijha",
+                "href": "https://linkedin.com/in/arjunmehta-ai",
                 "kind": "external",
                 "label": "Connect on LinkedIn"
-              },
-              "supporting_line": "Based in Kolkata, India."
+              }
             },
-            "purpose": "Establish the professional identity and strongest value proposition.",
+            "purpose": "Establish professional positioning and direct visitors toward project evidence.",
             "optional": false,
             "priority": "primary",
-            "claim_ids": [],
+            "claim_ids": [
+              "claim:technical_focus"
+            ],
             "section_id": "home:hero",
             "link_targets": [
               {
-                "href": "#featured-work",
+                "href": "#featured-projects",
                 "kind": "internal",
-                "label": "Explore selected work"
+                "label": "Explore projects"
               },
               {
-                "href": "https://linkedin.com/in/vanshmanijha",
+                "href": "https://linkedin.com/in/arjunmehta-ai",
                 "kind": "external",
                 "label": "Connect on LinkedIn"
               }
             ],
-            "mobile_condensation": "Keep the headline and one-sentence value proposition; move location below the actions."
+            "mobile_condensation": "Keep the headline, one-sentence value proposition, and one primary action; move location below the actions."
           },
           {
             "content": {
-              "heading": "Engineering the systems around intelligence",
-              "paragraphs": [
-                "My work focuses on making AI capabilities useful in real workflows: connecting models to data, tools, services, and evaluation.",
-                "Across independent and professional projects, I have worked with RAG pipelines, LangChain, LangGraph, multimodal models, speech systems, AI microservices, and responsible AI practices.",
-                "The common thread is end-to-end thinking—from model and workflow decisions through integration and deployment."
-              ]
-            },
-            "purpose": "Explain the narrative connecting the projects and experience.",
-            "optional": false,
-            "priority": "primary",
-            "claim_ids": [],
-            "section_id": "home:positioning",
-            "link_targets": [],
-            "mobile_condensation": "Use the first and third paragraphs; present the technology list as a short supporting phrase."
-          },
-          {
-            "content": {
-              "id": "featured-work",
-              "cta": {
-                "href": "https://github.com/Vanshmani",
-                "kind": "external",
-                "label": "View GitHub profile"
-              },
-              "label": "Featured project",
-              "story": {
-                "approach": "DefXV brings together transformer models, CNN and LSTM approaches, and an inference and orchestration pipeline designed for multimodal translation.",
-                "challenge": "Assistive communication can require translation between spoken language and sign-based interaction in real time.",
-                "technology": [
-                  "Python",
-                  "Transformer Models",
-                  "CNN",
-                  "LSTM",
-                  "Unity",
-                  "Blender",
-                  "Unreal Engine"
-                ],
-                "contribution": "I architected and owned the end-to-end AI/ML inference and orchestration pipeline, driving technical decisions from model architecture through production deployment."
-              },
-              "title": "DefXV — AI/ML-Integrated Assistive Communication System",
-              "summary": "An AI/ML system for real-time Voice-to-Sign and Sign-to-Voice translation."
-            },
-            "purpose": "Lead with the strongest independent project and show end-to-end contribution.",
-            "optional": false,
-            "priority": "primary",
-            "claim_ids": [
-              "claim:defxv_contribution",
-              "claim:defxv_scope"
-            ],
-            "section_id": "home:featured-project",
-            "link_targets": [
-              {
-                "href": "https://github.com/Vanshmani",
-                "kind": "external",
-                "label": "View GitHub profile"
-              }
-            ],
-            "mobile_condensation": "Show the summary, contribution, and a compact technology line; shorten the challenge and approach into one paragraph."
-          },
-          {
-            "content": {
-              "entries": [
+              "intro": "Two projects that show how I approach retrieval, orchestration, state, and API design.",
+              "projects": [
                 {
-                  "title": "Agentic AI DB Log Analyzer",
-                  "context": "Tata Consultancy Services",
-                  "description": "An agentic AI system for structured database-log analysis and retrieval-based remediation recommendations. Work included LangGraph workflows, RAG pipelines using Azure OpenAI, AI-powered microservices, REST APIs, and LLM evaluation and testing.",
-                  "technologies": [
+                  "link": {
+                    "href": "https://github.com/arjunmehta-dev/documind-ai",
+                    "kind": "external",
+                    "label": "View DocuMind AI on GitHub"
+                  },
+                  "name": "DocuMind AI",
+                  "story": "I implemented document parsing, cleaning, chunking, embeddings, vector indexing, metadata-aware retrieval, source references, conversation history, fallback behavior, FastAPI endpoints, and Docker containerization.",
+                  "summary": "A RAG-based knowledge assistant for document upload and natural-language question answering.",
+                  "technology": [
+                    "Python",
+                    "FastAPI",
+                    "LangChain",
+                    "FAISS",
+                    "PostgreSQL",
+                    "React"
+                  ]
+                },
+                {
+                  "link": {
+                    "href": "https://github.com/arjunmehta-dev/agentflow",
+                    "kind": "external",
+                    "label": "View AgentFlow on GitHub"
+                  },
+                  "name": "AgentFlow",
+                  "story": "I implemented graph-based tool workflows, retries, validation, Redis-backed session state, execution logs, streaming responses, and a FastAPI service.",
+                  "summary": "A multi-tool AI agent workflow that selects tools based on user intent.",
+                  "technology": [
+                    "Python",
                     "LangGraph",
-                    "LangChain",
-                    "Azure OpenAI",
-                    "RAG Pipelines",
-                    "REST APIs"
-                  ]
-                },
-                {
-                  "title": "Virtual Interview Simulator",
-                  "context": "SpectoV",
-                  "description": "An AI-powered simulator combining question generation, speech processing, LLM inference, and response evaluation. Work included orchestration and modular microservices for speech, LLM, and evaluation components.",
-                  "technologies": [
-                    "LangChain",
-                    "Speech-to-Text",
-                    "Text-to-Speech",
-                    "LLM Inference",
-                    "Microservices"
-                  ]
-                },
-                {
-                  "title": "HR Process Digitization & Intelligent Automation",
-                  "context": "DCM Shriram Ltd.",
-                  "description": "Generative AI and agentic AI workflows for HR data processing, reporting, documentation, and structured insights. Work included custom data processing and retrieval pipelines over HR datasets.",
-                  "technologies": [
-                    "Generative AI",
-                    "LangChain",
-                    "Data Processing",
-                    "Retrieval Pipelines"
+                    "FastAPI",
+                    "LLM APIs",
+                    "Redis"
                   ]
                 }
               ],
-              "heading": "Selected experience",
-              "role_timeline": [
-                "Co-Lead Generative AI Developer · Tata Consultancy Services · Jul 2025–Present",
-                "Generative AI Developer Intern · DCM Shriram Ltd. · Jan 2025–Jul 2025",
-                "AI Developer Intern · SpectoV · Jul 2024–Dec 2024"
-              ]
+              "section_title": "Selected AI systems"
             },
-            "purpose": "Show professional breadth while keeping unresolved enterprise details neutral.",
+            "purpose": "Lead with the two strongest Generative AI projects.",
             "optional": false,
             "priority": "primary",
             "claim_ids": [
-              "claim:tcs_role",
-              "claim:db_log_analyzer_work",
-              "claim:interview_simulator_work",
-              "claim:hr_automation_work"
+              "claim:documind_scope",
+              "claim:agentflow_scope"
             ],
-            "section_id": "home:experience-projects",
-            "link_targets": [],
-            "mobile_condensation": "Prioritize the DB Log Analyzer and reduce each other project to one or two sentences plus technologies."
+            "section_id": "home:featured-projects",
+            "link_targets": [
+              {
+                "href": "https://github.com/arjunmehta-dev/documind-ai",
+                "kind": "external",
+                "label": "View DocuMind AI on GitHub"
+              },
+              {
+                "href": "https://github.com/arjunmehta-dev/agentflow",
+                "kind": "external",
+                "label": "View AgentFlow on GitHub"
+              }
+            ],
+            "mobile_condensation": "Show each project as a compact summary followed by contribution highlights and technology tags; keep repository links visible."
+          },
+          {
+            "content": {
+              "projects": [
+                {
+                  "link": {
+                    "href": "https://github.com/arjunmehta-dev/hirelens",
+                    "kind": "external",
+                    "label": "View HireLens on GitHub"
+                  },
+                  "name": "HireLens",
+                  "details": "Information extraction, semantic and rule-based matching, structured explanations, a React dashboard, PostgreSQL models, asynchronous processing, validation, and error handling.",
+                  "summary": "An AI resume analysis platform matching resumes against job descriptions.",
+                  "technology": [
+                    "Python",
+                    "FastAPI",
+                    "React",
+                    "PostgreSQL",
+                    "NLP",
+                    "LLM API"
+                  ]
+                },
+                {
+                  "link": {
+                    "href": "https://github.com/arjunmehta-dev/devtrack",
+                    "kind": "external",
+                    "label": "View DevTrack on GitHub"
+                  },
+                  "name": "DevTrack",
+                  "details": "Authentication, project workspaces, task assignment, status tracking, comments, activity history, REST APIs, PostgreSQL persistence, responsive dashboards, permissions, Docker, and GitHub Actions.",
+                  "summary": "A full-stack project and task management application for small software teams.",
+                  "technology": [
+                    "React",
+                    "TypeScript",
+                    "Node.js",
+                    "Express",
+                    "PostgreSQL",
+                    "Docker"
+                  ]
+                }
+              ],
+              "section_title": "More work"
+            },
+            "purpose": "Add supporting evidence of applied NLP and full-stack engineering breadth.",
+            "optional": false,
+            "priority": "supporting",
+            "claim_ids": [
+              "claim:hirelens_scope",
+              "claim:devtrack_scope"
+            ],
+            "section_id": "home:project-grid",
+            "link_targets": [
+              {
+                "href": "https://github.com/arjunmehta-dev/hirelens",
+                "kind": "external",
+                "label": "View HireLens on GitHub"
+              },
+              {
+                "href": "https://github.com/arjunmehta-dev/devtrack",
+                "kind": "external",
+                "label": "View DevTrack on GitHub"
+              }
+            ],
+            "mobile_condensation": "Use short project summaries with expandable or visually secondary implementation details."
           },
           {
             "content": {
               "groups": [
                 {
+                  "name": "Generative AI",
+                  "items": [
+                    "LLMs",
+                    "RAG",
+                    "AI agents",
+                    "Prompt engineering",
+                    "Embeddings",
+                    "NLP",
+                    "Structured outputs"
+                  ]
+                },
+                {
+                  "name": "AI application development",
                   "items": [
                     "LangChain",
                     "LangGraph",
-                    "LangSmith",
-                    "RAG Pipelines",
-                    "Multi-Agent Workflows",
-                    "Prompt Engineering",
-                    "LLM Orchestration",
-                    "Azure OpenAI",
-                    "Vector Databases",
-                    "Conversational AI"
-                  ],
-                  "label": "Generative and agentic AI"
+                    "LlamaIndex",
+                    "OpenAI API",
+                    "Gemini API",
+                    "FAISS",
+                    "ChromaDB"
+                  ]
                 },
                 {
-                  "items": [
-                    "Transformer Models",
-                    "CNN",
-                    "LSTM",
-                    "Speech Synthesis",
-                    "Gesture Recognition",
-                    "Predictive Modeling",
-                    "TensorFlow",
-                    "PyTorch"
-                  ],
-                  "label": "Machine learning and multimodal systems"
-                },
-                {
+                  "name": "Backend and data",
                   "items": [
                     "Python",
-                    "SQL",
-                    "Pandas",
-                    "NumPy",
-                    "Custom Data Pipelines",
-                    "Large-scale Dataset Processing",
-                    "REST APIs",
                     "FastAPI",
-                    "Microservice Architecture",
-                    "Production Deployment",
-                    "Low-latency Systems"
-                  ],
-                  "label": "Data and application engineering"
+                    "Flask",
+                    "Node.js",
+                    "REST APIs",
+                    "PostgreSQL",
+                    "MongoDB",
+                    "Redis"
+                  ]
                 },
                 {
+                  "name": "Delivery and interfaces",
                   "items": [
-                    "Microsoft Azure",
-                    "AI Foundry",
-                    "Azure Data Science",
+                    "React",
+                    "Next.js",
+                    "TypeScript",
+                    "Docker",
                     "AWS",
-                    "Bedrock",
-                    "Google Cloud Platform",
-                    "Git",
-                    "GitHub",
-                    "Azure DevOps"
-                  ],
-                  "label": "Cloud and development"
+                    "GitHub Actions",
+                    "CI/CD"
+                  ]
                 }
               ],
-              "heading": "Capabilities"
+              "section_title": "Capabilities"
             },
-            "purpose": "Organize the technical breadth into readable capability groups.",
+            "purpose": "Summarize the technical toolkit without overwhelming the project narrative.",
             "optional": false,
-            "priority": "secondary",
-            "claim_ids": [],
+            "priority": "supporting",
+            "claim_ids": [
+              "claim:technical_focus"
+            ],
             "section_id": "home:capabilities",
             "link_targets": [],
-            "mobile_condensation": "Display the first two groups fully and collapse the remaining tools into shorter grouped lists."
+            "mobile_condensation": "Show the four capability groups as compact lists and avoid displaying the complete raw skills inventory."
           },
           {
             "content": {
-              "items": [
-                "B.Tech., Computer Science Engineering · Vellore Institute of Technology · 2025 · CGPA 8.93",
-                "Senior Secondary, CBSE · 2021 · 8.4",
-                "Secondary, CBSE · 2019 · 9.1"
-              ],
-              "heading": "Education"
+              "body": "My experience spans AI engineering, backend services, and machine-learning and NLP prototypes. Across these areas, I have worked with Python, APIs, databases, authentication, dashboards, Docker-based environments, retrieval workflows, agent systems, structured outputs, evaluation datasets, and CI/CD contributions.",
+              "section_title": "Professional foundation"
             },
-            "purpose": "Provide concise academic context.",
+            "purpose": "Provide concise professional context without publishing employer-specific details before review.",
             "optional": true,
-            "priority": "secondary",
+            "priority": "supporting",
+            "claim_ids": [],
+            "section_id": "home:experience-context",
+            "link_targets": [],
+            "mobile_condensation": "Reduce to one sentence beneath the capabilities section."
+          },
+          {
+            "content": {
+              "education": [
+                {
+                  "dates": "2020–2024",
+                  "detail": "CGPA 8.4/10",
+                  "credential": "Bachelor of Technology in Computer Science and Engineering",
+                  "institution": "Rajasthan Institute of Technology, Jaipur, Rajasthan"
+                }
+              ],
+              "section_title": "Education and learning",
+              "certifications": [
+                "Machine Learning Specialization — Coursera, 2024",
+                "Generative AI with Large Language Models — Coursera, 2025",
+                "AWS Cloud Practitioner Essentials — AWS Skill Builder, 2025",
+                "Python for Data Science — IBM Skills Network, 2024"
+              ]
+            },
+            "purpose": "Close the evidence narrative with education and selected certifications.",
+            "optional": true,
+            "priority": "supporting",
             "claim_ids": [
               "claim:education"
             ],
             "section_id": "home:education",
             "link_targets": [],
-            "mobile_condensation": "Keep only the B.Tech. entry visible initially; place school education in a compact secondary line."
+            "mobile_condensation": "Keep the degree and most relevant Generative AI certification visible; place the remaining certifications in a compact list."
           },
           {
             "content": {
-              "body": "For conversations about Generative AI, Agentic AI, and practical AI engineering, connect with me through LinkedIn or explore my work on GitHub.",
+              "body": "Interested in Generative AI, LLM engineering, and backend systems? Explore the code or connect with me online.",
               "links": [
                 {
-                  "href": "https://linkedin.com/in/vanshmanijha",
+                  "href": "https://github.com/arjunmehta-dev",
+                  "kind": "external",
+                  "label": "GitHub"
+                },
+                {
+                  "href": "https://linkedin.com/in/arjunmehta-ai",
                   "kind": "external",
                   "label": "LinkedIn"
                 },
                 {
-                  "href": "https://github.com/Vanshmani",
+                  "href": "https://leetcode.com/u/arjunmehta-dev",
                   "kind": "external",
-                  "label": "GitHub"
+                  "label": "LeetCode"
                 }
               ],
-              "heading": "Let’s connect"
+              "section_title": "Let's connect"
             },
-            "purpose": "Give visitors approved public paths to connect.",
+            "purpose": "Offer approved ways to continue the conversation.",
             "optional": false,
             "priority": "primary",
             "claim_ids": [],
             "section_id": "home:contact",
             "link_targets": [
               {
-                "href": "https://linkedin.com/in/vanshmanijha",
+                "href": "https://github.com/arjunmehta-dev",
+                "kind": "external",
+                "label": "GitHub"
+              },
+              {
+                "href": "https://linkedin.com/in/arjunmehta-ai",
                 "kind": "external",
                 "label": "LinkedIn"
               },
               {
-                "href": "https://github.com/Vanshmani",
+                "href": "https://leetcode.com/u/arjunmehta-dev",
                 "kind": "external",
-                "label": "GitHub"
+                "label": "LeetCode"
               }
             ],
-            "mobile_condensation": "Keep the short invitation and two link actions."
+            "mobile_condensation": "Use a short closing sentence and a simple vertical list of approved links."
           }
         ],
         "internal_notes": {}
       }
     ],
     "public_content_manifest": {
-      "routes": [
-        {
-          "path": "/",
-          "route_id": "route:home",
-          "sections": [
-            "home:hero",
-            "home:positioning",
-            "home:featured-project",
-            "home:experience-projects",
-            "home:capabilities",
-            "home:education",
-            "home:contact"
-          ]
-        }
+      "route": "/",
+      "title": "Arjun Mehta — Generative AI and LLM Engineer",
+      "sections": [
+        "home:hero",
+        "home:featured-projects",
+        "home:project-grid",
+        "home:capabilities",
+        "home:experience-context",
+        "home:education",
+        "home:contact"
       ],
-      "site_title": "Vanshmani — Generative AI & Agentic AI Engineer",
-      "primary_cta": "Explore selected work",
-      "external_links": [
-        "https://linkedin.com/in/vanshmanijha",
-        "https://github.com/Vanshmani"
+      "primary_links": [
+        "https://github.com/arjunmehta-dev",
+        "https://linkedin.com/in/arjunmehta-ai"
       ]
     },
     "media_status": {
-      "project_demos": "unknown",
-      "approved_media": [],
-      "project_images": "unknown",
-      "unavailable_or_unconfirmed": [
-        "No project-specific screenshots, videos, diagrams, or DefXV repository URL were supplied."
-      ]
+      "demos": "unknown",
+      "screenshots": "unavailable",
+      "testimonials": "unavailable",
+      "profile_photo": "unknown",
+      "project_links": "approved",
+      "architecture_diagrams": "unavailable"
     },
     "visual_director_handoff": {
-      "must_preserve": [
-        "Generative AI and Agentic AI positioning",
-        "DefXV name and its Voice-to-Sign and Sign-to-Voice scope",
-        "The statement that Vanshmani owned the DefXV inference and orchestration pipeline",
-        "Accurate organization names, role titles, dates, technologies, and public URLs"
-      ],
-      "available_media": [
-        "Approved public LinkedIn URL",
-        "Approved public GitHub profile URL"
-      ],
-      "density_guidance": "Use focused medium density. Preserve meaningful project descriptions, but avoid presenting the full skills inventory as an undifferentiated wall of tools.",
-      "content_hierarchy": [
-        "Lead with the concise Generative AI and Agentic AI positioning.",
-        "Give DefXV the strongest visual and narrative emphasis.",
-        "Use the enterprise and internship projects as supporting evidence rather than separate case-study pages.",
-        "Keep capabilities scannable and education secondary.",
-        "End with LinkedIn and GitHub connection paths."
-      ],
-      "mobile_shortening": [
-        "Shorten the positioning section to one paragraph.",
-        "Condense the three experience entries while keeping the DB Log Analyzer first.",
-        "Group capabilities and deprioritize school education."
-      ],
-      "unavailable_media": [
-        "No confirmed project-specific images, demos, diagrams, or DefXV repository URL."
-      ],
+      "available_media": "Approved GitHub, LinkedIn, portfolio, and LeetCode URLs.",
+      "density_guidance": "Use moderate density with readable project narratives and grouped technologies. Avoid presenting the entire skills inventory as a long undifferentiated list.",
+      "unavailable_media": "No approved screenshots, demos, architecture diagrams, testimonials, or project outcome visuals were supplied.",
       "must_never_be_fabricated": [
-        "Metrics or business outcomes",
-        "Patent attribution or evaluation context",
-        "Project-specific repository links",
-        "Client details, testimonials, awards, certifications, or additional media",
-        "Exact ownership of unresolved enterprise outcomes"
+        "Metrics",
+        "Business outcomes",
+        "Production scale",
+        "Employer permissions",
+        "Individual ownership of unresolved employer work",
+        "Screenshots, demos, testimonials, awards, or client names"
       ],
-      "storytelling_opportunities": [
-        "Show the progression from multimodal inference and orchestration to agentic enterprise workflows.",
-        "Make the recurring engineering pattern visible: models connected to data, tools, services, evaluation, and deployment.",
-        "Use the project sequence to communicate increasing applied AI breadth."
+      "may_be_shortened_on_mobile": [
+        "Capability lists",
+        "Certification list",
+        "Professional foundation paragraph",
+        "Secondary project implementation details"
       ],
-      "confidentiality_restrictions": [
-        "Do not expose unapproved TCS, Enbridge, DCM Shriram, or other enterprise details.",
-        "Do not publish private phone information or omitted certifications.",
-        "Do not turn team or unresolved enterprise outcomes into individual achievement claims."
+      "storytelling_opportunities": "The project sequence can communicate a progression from grounding LLM responses in documents, to coordinating tools and state, to applying AI to resume analysis, with full-stack engineering as the supporting foundation.",
+      "confidentiality_restrictions": "Do not expose employer names or employer-specific work until publication permission and ownership are confirmed.",
+      "content_hierarchy_and_emphasis": "Lead with the positioning statement, then give DocuMind AI and AgentFlow the strongest emphasis. Follow with HireLens and DevTrack as supporting project evidence, then capabilities, concise professional context, education, and contact links.",
+      "long_copy_and_responsive_risks": "DocuMind AI and AgentFlow contain the longest implementation descriptions. Preserve their key systems concepts on larger screens and condense details into shorter summaries on mobile.",
+      "must_preserve_facts_and_wording": [
+        "AI Engineer",
+        "Generative AI and LLM engineering",
+        "DocuMind AI",
+        "AgentFlow",
+        "HireLens",
+        "DevTrack",
+        "Bengaluru, Karnataka, India",
+        "Approved external URLs"
       ],
-      "diagram_process_opportunities": [
-        "A conceptual word-based flow could explain DefXV as voice input, AI/ML inference and orchestration, and sign or voice output.",
-        "A second conceptual flow could connect enterprise logs or datasets to RAG, agentic workflows, APIs, evaluation, and recommendations.",
-        "These should remain illustrative and must not imply unconfirmed architecture details."
-      ],
-      "long_copy_and_responsive_risks": [
-        "The capabilities section may become long on small screens.",
-        "The experience section contains three projects and should preserve hierarchy when condensed.",
-        "The DefXV story should retain its contribution statement even if supporting context is shortened."
-      ]
+      "diagram_process_visual_opportunities": "A conceptual process could show document ingestion through retrieval and response in DocuMind AI; another could show intent, tool selection, validation, state, and streaming in AgentFlow. These should be based only on the written project scope."
     },
     "privacy_and_confidentiality": [
-      "Personal phone number is excluded from all public content.",
-      "Certification details are excluded at the user's request.",
-      "Enterprise work is described at a general technical level until approved publication depth and confidentiality boundaries are confirmed.",
-      "No unapproved client, proprietary implementation, or private business information is included."
+      "Phone number was not published.",
+      "Employer-specific names and work were generalized or omitted until publication permission is confirmed.",
+      "No private contact details or confidential employer information were added."
     ]
   },
   "preferences": {
@@ -475,516 +480,381 @@
     "density_preference": "",
     "accessibility_notes": ""
   },
-  "version": "visual_design_director.establish_visual_language.v1",
-  "run_id": "26aca997-767d-4df3-91d5-5a153ebeb1f7",
-  "job_id": "ef5d59a7-3eed-44c3-8e20-0dfa2b98ccac",
-  "user_summary": "The portfolio is directed as a calm, technically confident journey from models to usable AI systems. A text-led opening establishes Vanshmani’s Generative AI and Agentic AI positioning, while a restrained system-flow motif makes the recurring pattern of models, data, tools, services, evaluation, and deployment visible without pretending to show a real production architecture. DefXV receives the strongest visual emphasis, with the enterprise and internship projects arranged as supporting evidence rather than separate case studies. Capabilities remain grouped and scannable, education stays secondary, and LinkedIn and GitHub close the experience with clear connection paths. Motion is intentionally quiet: a single abstract pipeline gradually resolves as the visitor enters the featured-project story, with a complete static fallback and reduced-motion alternative. The visual direction is ready for review.",
+  "version": "visual_design_director.establish_visual_language.v3",
+  "run_id": "736a8029-afb0-4205-a4da-af97f2f06616",
+  "job_id": "8ebf8f50-795b-4f38-89d2-e7666145469b",
+  "user_summary": "The portfolio will use a calm, technically confident visual language that makes the project work the evidence center. A text-led opening establishes Arjun’s positioning, while abstract process visuals clarify retrieval and agent orchestration without pretending to be screenshots or production architecture. DocuMind AI and AgentFlow receive the strongest emphasis, with HireLens, DevTrack, capabilities, education, and approved links following in a measured rhythm. Motion is limited to a subtle staged reveal and restrained process emphasis. The complete visual direction is ready for review.",
   "meta": {
-    "operation": "establish_visual_language",
     "stages_run": [
       "establish_visual_language"
     ],
+    "route_count": 1,
     "model_profile": "visual_design_director",
-    "prompt_version": "visual_design_director.establish_visual_language.v1",
+    "prompt_version": "visual_design_director.establish_visual_language.v3",
     "final_operation": "establish_visual_language",
-    "visual_direction_status": "visual_language_and_pages_established"
+    "resource_handoff": {
+      "promoted_resource_ids": [],
+      "top_level_registry_complete": true
+    },
+    "visual_direction_status": "visual_language_and_single_route_pages_established"
   },
   "source_refs": {
     "route_ids_covered": [
-      "route:home"
+      "home"
     ],
-    "content_architect_content_hash": "4c4050f6b203e8163c2e0b917b1a53b34b4b3b1a8dc73884206bc19c50f662ba",
+    "content_architect_content_hash": "ed241dfc132ad92e8d65cd43cc484a68874addc7b46c9fe7656f7b2825fc45aa",
     "content_architect_session_revision": 10
   },
   "visual_language": {
-    "typography": "Pair a distinctive but disciplined display face with a highly legible body face. Headlines should be concise, sentence-like statements; body text should support medium density through short paragraphs, compact labels, and clear grouping. Technology names should read as evidence tags, not decoration.",
     "anti_patterns": [
-      "Do not use fabricated dashboards, screenshots, analytics, metrics, logos, testimonials, or client evidence.",
-      "Avoid neon cyberpunk styling, excessive gradients, glassmorphism, and technology-logo mosaics.",
-      "Avoid repeating the same card grid or hero composition for every content group.",
-      "Avoid long uninterrupted skill inventories and diagram text that becomes unreadable on mobile.",
-      "Avoid autoplay video, perpetual particle fields, parallax-heavy scenes, and motion that competes with technical reading."
+      "Do not use fabricated screenshots, metrics, scale indicators, testimonials, awards, client logos, or employer evidence.",
+      "Avoid glassmorphism, neon cyberpunk styling, busy gradients, excessive badges, and dashboard-like skill inventories.",
+      "Avoid repeating the same card composition or signature diagram treatment for every project.",
+      "Do not make motion imply latency, throughput, reliability, or production performance that has not been verified."
     ],
-    "color_behavior": "Use a quiet neutral foundation with strong text contrast and one restrained accent reserved for active states, key transitions, and the DefXV pathway. Supporting tones should separate stages and surfaces without becoming a rainbow technology map.",
-    "spacing_rhythm": "Use a generous vertical cadence between narrative chapters, with tighter internal spacing for related labels, technologies, dates, and links. DefXV receives the largest breathing room; education receives the least.",
-    "creative_thesis": "Treat the portfolio as a visible passage from intelligence to implementation: abstract signals become connected systems, then become usable workflows. The visual language should make engineering judgment feel tangible without presenting invented product evidence.",
-    "grid_philosophy": "Use an editorial grid that alternates text-dominant compositions with contained technical diagrams and evidence groupings. Favor asymmetric emphasis while maintaining a recurring reading edge for section headings and body copy.",
-    "image_treatment": "No real project imagery is available. Favor generated-local abstract visuals or diagrams with quiet contrast, ample text-safe space, and no interface-like details that could imply screenshots.",
-    "visual_metaphor": "A restrained network-to-workflow motif: lines, nodes, and staged transitions suggest orchestration, retrieval, services, evaluation, and deployment while remaining clearly conceptual.",
-    "motion_character": "Low-amplitude, progressive, and purposeful. Motion should reveal relationships between stages rather than decorate the page or continuously animate in the background.",
-    "background_system": "Move through subtly differentiated neutral surfaces as the page progresses. Use faint abstract line or node textures only where they clarify the systems metaphor; never use them as a dense wallpaper.",
-    "contrast_strategy": "Keep primary text and interactive controls strongly contrasted against their surfaces. Use muted tones only for secondary metadata, never for essential claims, dates, or action labels.",
-    "container_behavior": "Keep the reading column controlled and let selected visual motifs extend beyond it slightly on larger screens. Preserve generous outer breathing room on wide displays instead of stretching content across the viewport.",
-    "visual_personality": "Calm, precise, curious, and production-minded rather than flashy or sales-led. Confidence comes from hierarchy, spacing, and specific approved language.",
-    "alignment_character": "Mostly left-aligned and editorial, with occasional offset diagram elements creating forward movement. Avoid centered layouts except for brief transitional labels or the final invitation.",
-    "interaction_character": "Clear, tactile, and understated. Links and grouped capability items should respond through contrast, underline or border changes, and focus visibility rather than dramatic transforms.",
-    "responsive_philosophy": "Preserve narrative order and emphasis across sizes. On touch and narrow screens, simplify diagrams and condense secondary content rather than shrinking dense compositions. Tablet and laptop layouts may use asymmetric pairings; wide desktop may add breathing room and larger diagram relationships.",
-    "performance_philosophy": "Prefer lightweight generated linework and scalable vector-like treatment over large raster backgrounds, video, or complex 3D scenes. Load decorative visuals only when they support comprehension.",
-    "accessibility_principles": "Every conceptual visual has a text explanation or caption. Reading order remains logical without visual positioning. Focus states are prominent, targets are comfortably tappable, and no information depends on color, hover, or animation.",
-    "iconography_and_diagrams": "Prefer simple geometric marks, directional connectors, and restrained line icons. Conceptual diagrams may represent approved ideas such as multimodal input, orchestration, retrieval, APIs, evaluation, and output, but must be labeled as illustrative when architecture could be misconstrued.",
-    "shape_border_shadow_language": "Use modestly rounded surfaces, fine borders, and shallow separation rather than floating cards. Shadows should be rare and soft; hierarchy should come from contrast, grouping, and negative space."
+    "color_behavior": "Use a quiet neutral foundation with one controlled accent reserved for links, active states, key system nodes, and calls to action. Use tonal surfaces to distinguish primary evidence from supporting context; avoid multicolor project coding that makes the page feel like a dashboard.",
+    "spacing_rhythm": "Use a deliberate rhythm of compact labels, readable text blocks, and larger transitions between narrative stages. Give the featured-project sequence more vertical space than education or contact.",
+    "creative_thesis": "Treat practical AI engineering as a progression from grounded inputs to dependable decisions: the interface should feel like a clear technical field guide rather than a futuristic product advertisement. Typography and structured relationships carry the experience, while restrained abstract flows suggest retrieval, orchestration, state, and delivery without fabricating evidence.",
+    "grid_philosophy": "Use a flexible editorial grid: asymmetry establishes hierarchy, and repeated alignment lines connect project evidence across the page. The grid should support both wide compositions and a single-column reading path.",
+    "visual_metaphor": "A signal moving through increasingly capable layers: source material becomes retrieved context, context informs tools and state, and the result becomes usable software.",
+    "motion_character": "Restrained and purposeful. Motion should clarify sequence and hierarchy, not simulate system performance or create a futuristic effect.",
+    "background_system": "Move from a calm introductory surface into slightly more structured tonal layers around the project evidence, then return to a lighter or quieter closing field. Abstract texture may sit behind content at low contrast, never behind dense text at distracting intensity.",
+    "contrast_strategy": "Maintain strong text-to-surface contrast and use the accent sparingly enough that it retains informational meaning. Secondary text may be quieter but must remain comfortably readable.",
+    "container_behavior": "Keep reading measure controlled and let visual diagrams or background layers extend beyond the text measure without competing with it. Preserve consistent outer breathing room while allowing featured project scenes to feel broader than supporting sections.",
+    "visual_personality": "Calm, precise, curious, and early-career credible. The work should feel authored and technically literate without implying scale, commercial outcomes, or institutional authority.",
+    "alignment_character": "Favor strong shared starts for headings, project names, and evidence labels, with occasional offset panels or diagram nodes to express systems thinking.",
+    "interaction_character": "Links and project actions should feel direct and dependable, with visible focus, clear pressed states, and modest emphasis on touch. Expandable secondary detail is acceptable only if the static summary remains complete.",
+    "responsive_philosophy": "Preserve the narrative order and evidence hierarchy across mobile, tablet, laptop/desktop, and wide desktop. Touch-only users must receive the same information without hover. Wider screens may use asymmetry and layered diagrams; narrow screens simplify diagrams and stack content rather than shrinking it.",
+    "text_density_behavior": "Use moderate density with generous breathing room around the two featured projects. Long implementation stories should be broken into readable highlights, while supporting projects and capability groups become progressively more compact.",
+    "typographic_character": "Pair a distinctive but restrained display treatment with a highly legible body face. Headlines should be compact statements, not oversized slogans; project names and system concepts receive clear emphasis, while technology labels remain subordinate.",
+    "performance_philosophy": "Favor lightweight CSS-like surfaces, compact vector or generated-local diagrams, and deferred decorative effects. Avoid background video, large raster textures, and unnecessary continuous animation.",
+    "accessibility_principles": "Never rely on color, motion, or spatial position alone to communicate meaning. Keep reading order logical, maintain visible keyboard focus, provide descriptive labels for external links, and ensure diagrams have nearby textual explanations.",
+    "shape_border_shadow_language": "Use mostly crisp or gently softened rectangular surfaces, subtle borders, and minimal depth. Any rounding should feel quiet and functional; avoid floating glossy cards, heavy shadows, and ornamental containers.",
+    "iconography_illustration_diagram_image_treatment": "Prefer simple line icons and custom abstract diagrams derived from approved project concepts. Process visuals may show document input, retrieval, tool choice, validation, state, and response as representative flows. No screenshots, portraits, dashboards, logos, or realistic evidence imagery."
   },
   "shared_visual_systems": {
-    "panel_treatment": "Use framed, lightly separated surfaces for project evidence and capability groups. The featured project may occupy a larger continuous panel; supporting projects should be more compact and editorial.",
-    "evidence_framing": "Frame approved contribution statements, technologies, roles, and dates as explicit evidence. Label conceptual diagrams as illustrative and keep unresolved enterprise scope neutral.",
-    "background_layers": "Use a stable base surface with occasional local tonal shifts. Abstract connectors may cross a section boundary once to imply continuity, but should not dominate content.",
-    "section_divider_language": "Separate chapters with quiet rules, changing surface tone, or a small process marker that echoes the network motif. Dividers should clarify progression, not become ornamental separators.",
-    "recurring_content_behavior": "Pair a short explanatory paragraph with a visible structure: a flow, grouped list, timeline, or compact evidence panel. Keep the structure subordinate to the approved copy."
+    "evidence_framing": "Frame approved implementation scope as contribution statements and representative system concepts. Keep claims close to the relevant project and avoid visual treatments that resemble verified analytics or production documentation.",
+    "card_panel_treatment": "Featured projects use spacious evidence panels with a clear project title, concise summary, contribution highlights, technology grouping, and repository action. Supporting projects use lighter-weight panels or rows so they do not compete with DocuMind AI and AgentFlow.",
+    "section_divider_language": "Use changes in surface tone, short eyebrow labels, and thin structural rules to mark transitions. Dividers should feel like stages in a technical narrative rather than decorative ornaments.",
+    "technology_label_behavior": "Group technologies by project relevance and capability area; use compact, readable labels rather than an undifferentiated inventory.",
+    "recurring_background_behavior": "Use one quiet atmospheric layer in the opening and selected project transitions, with mostly solid surfaces behind dense reading content. The atmosphere should recede as evidence becomes more detailed."
   },
   "navigation_direction": {
-    "form": "A compact single-page navigation using only the approved internal section targets and the approved external LinkedIn and GitHub paths.",
-    "states": "Active state uses the accent and a clear marker; hover changes contrast or underline; keyboard focus is visibly distinct and never suppressed.",
-    "density": "Low density: prioritize selected work and the final connection paths, with the remaining approved sections available without crowding.",
-    "placement": "Persistent near the top on larger screens, with a compact sticky treatment that does not obscure section headings. On wide screens it may sit as a quiet framing rail or header element.",
-    "cta_hierarchy": "Explore selected work is the primary journey action. LinkedIn and GitHub are secondary but prominent connection actions, with no invented destination.",
-    "route_behavior": "Because the approved topology contains only route:home, navigation scrolls within the page rather than simulating route changes.",
-    "mobile_strategy": "Use a compact disclosure or horizontal action row suited to touch. Keep primary navigation short and place external links in a clearly labeled secondary group."
+    "form": "A compact site-level navigation can remain minimal because the approved topology contains one route. Provide direct in-page access to project evidence and the approved LinkedIn destination without inventing destinations.",
+    "placement": "Keep navigation visually quiet near the top, with the primary action receiving stronger emphasis than secondary links.",
+    "cta_hierarchy": "Make Explore projects the primary action, Connect on LinkedIn the secondary professional action, and repository links the local evidence actions.",
+    "mobile_strategy": "Keep the one-route navigation simple and immediately usable; if space is constrained, prioritize the project anchor and LinkedIn action while keeping all approved destinations available.",
+    "sticky_behavior": "A persistent header is optional; if used, it should remain visually light and never obscure anchored section headings.",
+    "active_hover_focus": "Use accent contrast and an understated underline or border shift for hover and active states; keyboard focus must be clearly visible and not depend on hover."
   },
   "motion_system": {
-    "global_character": "Motion is sparse, short, and tied to reading progression. It should clarify section entry, hierarchy, or system relationships and stop once the meaning is communicated.",
+    "motion_budget": "No continuous animation and no more than one simultaneous decorative transition. Motion must remain optional and lightweight.",
+    "global_character": "Use short, low-amplitude entrance transitions and occasional sequential emphasis as content enters view. Avoid continuous loops, parallax dependence, and motion that suggests real-time system telemetry.",
     "signature_moments": [
-      {
-        "name": "From signal to system",
-        "fallback": "Show the complete labeled relationship statically.",
-        "description": "Near the transition from positioning into DefXV, a conceptual sequence of input, inference/orchestration, and output resolves in stages as the visitor enters the featured-project story. It represents the approved concept, not a real architecture."
-      }
+      "A restrained opening reveal can move the headline and abstract signal motif into alignment, with the complete static composition visible if motion is unavailable.",
+      "A representative process diagram may reveal its stages in reading order as the featured-project narrative is encountered, without implying live execution."
     ],
-    "global_failure_safe": "All headings, claims, project descriptions, technologies, dates, and calls to action remain fully readable in the initial static layout.",
-    "global_reduced_motion": "Replace entrance movement with immediate visibility and use only non-animated state changes such as contrast or focus indication."
+    "system_reduced_motion": "Replace all staged reveals with immediate, stable rendering. Keep diagrams fully visible, remove decorative movement, and preserve every explanatory relationship in the static layout."
   },
   "interaction_system": {
-    "focus_behavior": "Maintain a consistent, high-visibility focus treatment around links, disclosure controls, and any diagram explanation controls.",
-    "links_and_ctas": "Use clear text labels, strong contrast, visible focus, and a restrained hover emphasis. External destinations should be recognizable through labeling rather than icon-only cues.",
-    "touch_behavior": "Do not depend on hover. Tap states should provide immediate pressed feedback without moving surrounding content.",
-    "project_evidence": "The DefXV panel may expose challenge, approach, contribution, and technologies through progressive disclosure only if the complete content remains available without interaction. Supporting projects should not require hover to reveal meaning.",
-    "capability_groups": "Allow compact expansion for lower-priority groups on narrow screens, with an accessible expanded/collapsed state and all content available to keyboard and touch users."
+    "focus_states": "Every actionable link has a strong, persistent focus indication that remains visible against every surface.",
+    "project_links": "Use clear external-link labeling and a modest accent treatment. Hover may increase contrast or reveal a small directional cue; touch receives an equivalent pressed state.",
+    "diagram_behavior": "Diagrams are explanatory rather than interactive by default. Any optional node emphasis must have a static equivalent and must not hide content.",
+    "expandable_detail": "If secondary project details are condensed, the summary and project identity remain visible before expansion; expansion must be keyboard and touch accessible.",
+    "external_navigation": "Approved GitHub, LinkedIn, and LeetCode links retain their supplied destinations and labels; no additional destinations are introduced."
   },
   "pages": [
     {
-      "route_id": "route:home",
+      "route_id": "home",
       "publication_status": "approved",
       "compilable": true,
       "path": "/",
-      "purpose": "Present the professional positioning, selected project work, experience, capabilities, education, and contact paths in one coherent portfolio journey.",
-      "visitor_takeaway": "Vanshmani builds practical AI systems across agentic workflows, RAG, multimodal interaction, APIs, evaluation, and deployment.",
-      "first_impression": "A text-dominant, high-confidence introduction with a small conceptual system motif that makes the move from models to usable products feel concrete.",
-      "storyboard": "Open with positioning and the primary action, establish the recurring engineering pattern, give DefXV a spacious featured chapter, follow with compact experience evidence, then narrow into grouped capabilities and secondary education before ending on LinkedIn and GitHub connection paths.",
-      "section_rhythm": "Use seven chapters matching the approved sequence: concise hero, explanatory positioning, expanded featured project, supporting experience, grouped capabilities, compact education, and a clear closing invitation.",
-      "primary_emphasis": "The Generative AI and Agentic AI positioning and the DefXV contribution statement.",
-      "secondary_emphasis": "The Agentic AI DB Log Analyzer first, followed by the Virtual Interview Simulator, HR automation, grouped capabilities, and concise academic context.",
-      "background_evolution": "Begin on the calmest neutral surface, introduce faint connected linework around the positioning and DefXV chapters, quiet the motif through supporting evidence, and end on a clean, open contact surface.",
-      "main_evidence_moment": "A conceptual DefXV flow connecting spoken or sign-based input, AI/ML inference and orchestration, and voice or sign output, accompanied by the approved contribution and approach copy. It must remain illustrative.",
-      "main_interaction_moment": "The Explore selected work action moves the visitor to the featured-project chapter; the DefXV and capability structures may use accessible disclosure on narrow screens without hiding essential meaning.",
-      "closing_action": "Invite visitors to connect through LinkedIn or explore the approved GitHub profile.",
-      "relationship_to_next_route": "There is no next route in the approved topology; the closing section completes the single-page narrative.",
-      "navigation_behavior": "Use approved in-page section targets for the portfolio journey and the approved LinkedIn and GitHub external links. Keep the active section indication subtle and accessible.",
-      "responsive_summary": "On wide desktop, use asymmetric text and diagram relationships with generous outer space. On laptop, preserve the reading column while reducing diagram spread. On tablet, pair text and visual elements only where both remain legible. On mobile, use a single-column narrative, simplify the DefXV flow to a short vertical sequence, condense the three experience entries, group capabilities with optional disclosure, and keep B.Tech. ahead of school education. On touch-only devices, provide all interactions through tap and focus-equivalent states with no hover dependency.",
+      "purpose": "Present a concise professional position and the strongest evidence of practical AI and backend engineering.",
+      "visitor_takeaway": "Arjun builds document-grounded AI systems, agent workflows, and dependable backend applications.",
+      "first_impression": "A text-dominant, technically assured opening presents Arjun as an AI Engineer and points directly toward project evidence, balanced by a small abstract signal motif rather than a portrait or product image.",
+      "storyboard": "The page moves from positioning to the two strongest AI systems, then broadens into applied NLP and full-stack work, capability groups, professional foundation, education, and approved ways to connect.",
+      "section_rhythm": "Use a spacious hero, a high-attention featured-project sequence, a more compact supporting-project section, then increasingly concise capability, foundation, education, and contact sections.",
+      "primary_emphasis": "DocuMind AI and AgentFlow as evidence of grounded retrieval, orchestration, validation, state, and API implementation.",
+      "secondary_emphasis": "HireLens, DevTrack, grouped capabilities, concise professional context, education, and approved links.",
+      "background_evolution": "Begin with a quiet atmospheric field, introduce more structured tonal surfaces around featured projects, use a calmer compact treatment for supporting evidence, and close with a clear open surface for contact.",
+      "main_evidence_moment": "Two contrasting representative process diagrams or diagrammatic treatments clarify the progression from document ingestion and retrieval to intent-based tool orchestration and stateful responses, without being presented as exact architecture documents.",
+      "main_interaction_moment": "Repository links act as direct evidence exits from each project; secondary implementation detail may condense on narrow screens but never removes the project summary or link.",
+      "closing_action": "End with the approved GitHub, LinkedIn, and LeetCode links, with GitHub and LinkedIn visually prioritized.",
+      "relationship_to_next_route": "There is no next route in the approved topology; the page closes as a complete professional introduction.",
+      "navigation_behavior": "Use in-page movement to featured projects and the approved external LinkedIn action, with repository links attached to their respective project evidence.",
+      "responsive_summary": "On touch-only phones, stack all content, keep hero actions and featured project links prominent, simplify diagrams to a readable vertical flow, and condense capability and certification detail. Tablet layouts may use two-column project evidence where it remains comfortable. Laptop and desktop layouts can use asymmetric hero and paired featured projects. Wide desktop may extend atmosphere and diagram space without widening reading measure or increasing copy density.",
       "scenes": [
         {
-          "scene_id": "home-hero",
-          "route_id": "route:home",
-          "narrative_goal": "Establish Vanshmani's approved professional identity and invite exploration.",
-          "viewport_role": "Opening anchor and orientation point.",
+          "scene_id": "home-hero-positioning",
+          "route_id": "home",
+          "narrative_goal": "Establish the professional position and invite visitors into the strongest evidence.",
+          "viewport_role": "Opening orientation and primary action moment.",
           "content_refs": [
             "home:hero"
           ],
-          "layout_intent": "Use a text-dominant asymmetric hero. The headline and value proposition carry most of the composition while a small abstract connector motif balances the open side.",
-          "alignment_relationships": "Align the eyebrow, headline, supporting line, and primary action to one strong reading edge; keep the secondary LinkedIn action visually subordinate.",
-          "relative_proportions": "Text occupies roughly two-thirds of the large-screen composition, with the abstract visual occupying the remaining third. On narrow screens the text becomes full-width and the motif recedes below it.",
-          "layer_stack": "Quiet base surface, subtle line-and-node motif, text hierarchy, then actions.",
-          "background_intent": "Clean and calm, with only a faint suggestion of connected systems.",
+          "layout_intent": "Use a text-dominant asymmetric composition with the headline and value proposition carrying most of the visual weight. A small abstract signal or system motif balances the composition without resembling a screenshot.",
+          "alignment_relationships": "Align eyebrow, headline, supporting copy, and actions along one confident reading edge; let the abstract motif offset that edge without interrupting reading order.",
+          "relative_proportions": "Text occupies roughly two-thirds of the wide composition and the abstract element roughly one-third; both become a single ordered stack on narrow screens.",
+          "layer_stack": "Quiet base surface, low-contrast atmospheric texture, foreground typography, then actions with the accent reserved for priority.",
+          "background_intent": "Use a restrained abstract field suggesting connected signals, never a literal interface or data visualization.",
           "asset_requirements": [],
           "resource_candidates": [
-            "hero_asymmetric_text_dominant"
+            "hero_asymmetric_text_dominant",
+            "background_gradient_mesh"
           ],
           "motion_intent": {
-            "type": "quiet_reveal",
-            "intensity": "low",
-            "description": "Reveal the headline and actions in a short reading-order sequence; allow the abstract motif to settle once.",
-            "failure_safe_static_state": "All hero copy and actions are visible immediately."
+            "type": "subtle_staged_reveal",
+            "description": "Headline, supporting copy, actions, and motif settle into their final relationships in reading order."
           },
           "interaction_states": {
-            "primary_cta": "Hover and focus strengthen contrast and underline or border emphasis; pressed state is brief and does not shift layout.",
-            "secondary_cta": "Remain visually quieter while retaining the same focus visibility."
+            "primary_action": "Accent-led hover and pressed treatment with clear focus.",
+            "secondary_action": "Quiet contrast shift with equivalent touch feedback."
           },
-          "transition_in": "Enter as a stable first view with no required preloader.",
-          "transition_out": "The primary action provides a direct, smooth in-page move to the featured-project chapter.",
-          "responsive_behavior": "Wide desktop uses the asymmetric balance; laptop reduces motif prominence; tablet keeps a compact side relationship if legible; mobile and touch-only layouts stack copy and actions with the motif below or omitted.",
-          "accessibility_intent": "Use one clear heading hierarchy, logical reading order, descriptive link labels, and no meaning conveyed solely by the motif.",
-          "reduced_motion_behavior": "Show the complete hero immediately; retain only focus and pressed-state changes.",
-          "performance_risk": "Decorative linework can become costly if overly detailed; keep it lightweight and static-capable.",
-          "failure_safe_static_state": "The positioning, location, primary action, and LinkedIn action communicate the page purpose without any visual animation.",
+          "transition_in": "Immediate stable composition with optional short entrance reveal.",
+          "transition_out": "A gentle shift in surface tone toward the project evidence.",
+          "responsive_behavior": "Phone and touch layouts stack the headline, copy, actions, and location with generous readable spacing. Tablet preserves a modest offset motif. Laptop, desktop, and wide desktop may retain asymmetry while keeping the text measure controlled.",
+          "accessibility_intent": "The headline, value proposition, location, and actions remain fully readable without the motif or motion; external destinations are labeled.",
+          "reduced_motion_behavior": "Render all content and the motif immediately with no movement or staged delay.",
+          "performance_risk": "Atmospheric texture and entrance effects could become unnecessary overhead if layered heavily; keep them lightweight and static-capable.",
+          "failure_safe_static_state": "A clear text-led hero with both approved actions communicates the professional position even if decorative layers fail.",
           "acceptance_criteria": [
-            "The Generative AI and Agentic AI positioning is immediately legible.",
-            "Explore selected work is the strongest action.",
-            "No invented portrait, logo, screenshot, or project evidence appears."
+            "The hero clearly prioritizes the approved AI Engineer positioning.",
+            "No portrait, screenshot, metric, or fabricated evidence is implied.",
+            "Explore projects is visibly primary and LinkedIn remains available."
           ]
         },
         {
-          "scene_id": "home-positioning",
-          "route_id": "route:home",
-          "narrative_goal": "Explain the engineering thread connecting models, data, tools, services, evaluation, and deployment.",
-          "viewport_role": "Narrative bridge into project evidence.",
+          "scene_id": "home-featured-ai-systems",
+          "route_id": "home",
+          "narrative_goal": "Make DocuMind AI and AgentFlow the central proof of practical AI engineering.",
+          "viewport_role": "Primary evidence scene.",
           "content_refs": [
-            "home:positioning"
+            "home:featured-projects"
           ],
-          "layout_intent": "Use a broad explanatory text block paired with a restrained abstract progression of connected stages.",
-          "alignment_relationships": "Keep the explanatory paragraphs on the primary reading edge and let the conceptual stages echo that edge rather than becoming a competing diagram.",
-          "relative_proportions": "Text should occupy slightly more than half the composition; the conceptual progression should remain compact and secondary.",
-          "layer_stack": "Changed surface tone, explanatory copy, then low-contrast conceptual connectors.",
-          "background_intent": "Introduce the system motif more clearly while maintaining a quiet reading surface.",
+          "layout_intent": "Present two substantial project narratives with distinct visual emphasis: DocuMind AI as a grounded document-to-answer flow and AgentFlow as a tool-and-state coordination flow.",
+          "alignment_relationships": "Share a common project information edge while allowing each project’s abstract process treatment to differ in direction or emphasis.",
+          "relative_proportions": "Featured project content receives most of the scene height; explanatory diagrams remain secondary to readable contribution text and repository actions.",
+          "layer_stack": "Structured surface, project heading and summary, contribution highlights, representative process visual, technology grouping, and external repository action.",
+          "background_intent": "Use a more structured tonal field than the hero, with subtle transitions that distinguish the two systems without assigning unsupported performance meaning.",
           "asset_requirements": [],
           "resource_candidates": [
+            "diagram_process_flow",
             "diagram_abstract_topology"
           ],
           "motion_intent": {
-            "type": "progressive_stage_reveal",
-            "intensity": "low",
-            "description": "Allow the conceptual stages to appear in reading order as the chapter enters, without continuous movement.",
-            "failure_safe_static_state": "All stages and explanatory copy remain visible."
+            "type": "reading_order_emphasis",
+            "description": "Representative flow stages may receive a restrained sequential emphasis as the scene enters view."
           },
           "interaction_states": {
-            "text": "No essential paragraph depends on interaction.",
-            "diagram": "If explanatory labels are interactive, focus and tap reveal the same text that is otherwise available in a static caption."
+            "diagram_nodes": "Optional emphasis may follow focus or pointer but cannot be required to understand the process.",
+            "repository_links": "Visible contrast change on hover, strong keyboard focus, and pressed feedback on touch."
           },
-          "transition_in": "A quiet tonal shift from the hero signals the start of the narrative explanation.",
-          "transition_out": "The final explanatory line visually leads into the larger DefXV chapter.",
-          "responsive_behavior": "Desktop may place copy beside the motif; tablet narrows the motif; mobile converts the progression into a simple vertical or inline sequence; touch devices use no hover.",
-          "accessibility_intent": "Provide a text equivalent for the conceptual structure and preserve paragraph order in the document flow.",
-          "reduced_motion_behavior": "Render the complete progression without staged movement.",
-          "performance_risk": "Node-and-edge detail may become visually dense; limit the number of nodes and avoid continuous effects.",
-          "failure_safe_static_state": "The three positioning paragraphs alone explain the engineering thread.",
+          "transition_in": "Project surface enters with a quiet structural reveal.",
+          "transition_out": "The evidence surface relaxes into the compact supporting-work scene.",
+          "responsive_behavior": "Phone layouts stack each project and convert process visuals into short vertical flows with readable labels. Tablet may place summary and visual side by side when legible. Laptop and desktop can pair or offset projects. Wide desktop may increase separation, never shrink text to preserve a side-by-side arrangement.",
+          "accessibility_intent": "Each diagram is accompanied by textual explanation; project names, scope, technologies, and repository links remain available in reading order.",
+          "reduced_motion_behavior": "Show both complete project treatments and all process stages immediately, with no sequential emphasis.",
+          "performance_risk": "Multiple diagrams can add visual and rendering complexity; use lightweight representative primitives and avoid animated or oversized assets.",
+          "failure_safe_static_state": "Readable project summaries and contribution statements independently convey the approved scope if diagrams do not render.",
           "acceptance_criteria": [
-            "The section reads as a bridge rather than a technology inventory.",
-            "The motif is clearly conceptual and not an internal architecture claim."
+            "DocuMind AI and AgentFlow receive clearly stronger emphasis than the other projects.",
+            "Diagrams remain abstract and representative, never real screenshots or exact production architecture.",
+            "No metrics, outcomes, or scale claims are introduced."
           ]
         },
         {
-          "scene_id": "home-featured-project",
-          "route_id": "route:home",
-          "narrative_goal": "Make DefXV the strongest proof of end-to-end AI/ML inference and orchestration work.",
-          "viewport_role": "Primary evidence chapter.",
+          "scene_id": "home-supporting-engineering",
+          "route_id": "home",
+          "narrative_goal": "Show breadth in applied NLP, full-stack delivery, and grouped technical capabilities without overwhelming the evidence narrative.",
+          "viewport_role": "Supporting breadth scene.",
           "content_refs": [
-            "home:featured-project"
+            "home:project-grid",
+            "home:capabilities",
+            "home:experience-context"
           ],
-          "layout_intent": "Give the project a spacious framed composition: challenge and summary establish context, the conceptual flow provides visual structure, and contribution and technologies anchor the evidence.",
-          "alignment_relationships": "Align the project title and summary with the main reading edge; let the flow span beside or beneath the copy; place the contribution statement where it is encountered before the technology list.",
-          "relative_proportions": "The project chapter should receive materially more vertical space than supporting projects. The conceptual flow may occupy about one-third of the large-screen composition and become a full-width compact sequence on mobile.",
-          "layer_stack": "Distinct featured surface, project label and title, conceptual flow, approved narrative, contribution emphasis, technology tags, GitHub profile action.",
-          "background_intent": "Use the strongest but still restrained accent treatment here to signal the central case without implying performance evidence.",
-          "asset_requirements": [
-            "asset:defxv_conceptual_flow"
-          ],
-          "resource_candidates": [
-            "diagram_process_flow"
-          ],
-          "motion_intent": {
-            "type": "signal_to_system",
-            "intensity": "low_to_moderate",
-            "description": "As the visitor enters, a conceptual input-to-inference-to-output path resolves once, making orchestration the visual hinge of the project story.",
-            "failure_safe_static_state": "The full labeled flow is visible from the start."
-          },
-          "interaction_states": {
-            "github_action": "Use clear external-link labeling with visible hover, focus, and pressed states.",
-            "technology_tags": "Remain static evidence markers; do not animate them as a decorative cascade."
-          },
-          "transition_in": "Position the chapter as a visual expansion from the preceding engineering thread.",
-          "transition_out": "Reduce the featured surface and pass the recurring connector motif toward selected experience.",
-          "responsive_behavior": "Wide desktop supports copy beside the flow; laptop keeps the flow compact; tablet may place the flow below the story; mobile simplifies it to a legible vertical sequence with summary, contribution, and technologies prioritized. Touch-only layouts expose all labels without hover.",
-          "accessibility_intent": "Label the flow as conceptual, provide a concise text description, retain the contribution statement in normal reading order, and ensure the GitHub action is keyboard accessible.",
-          "reduced_motion_behavior": "Display the complete flow and all labels immediately, with no positional animation.",
-          "performance_risk": "Diagram detail and repeated redraws could add cost; use lightweight static linework and avoid real-time simulation.",
-          "failure_safe_static_state": "The approved challenge, summary, approach, contribution, and technology list remain sufficient without the diagram.",
-          "acceptance_criteria": [
-            "DefXV receives the strongest visual emphasis.",
-            "The statement that Vanshmani owned the end-to-end AI/ML inference and orchestration pipeline is preserved accurately.",
-            "The flow does not imply a real internal architecture, metric, demo, or repository URL."
-          ]
-        },
-        {
-          "scene_id": "home-experience-projects",
-          "route_id": "route:home",
-          "narrative_goal": "Show professional breadth while keeping enterprise scope and ownership appropriately neutral.",
-          "viewport_role": "Supporting evidence sequence.",
-          "content_refs": [
-            "home:experience-projects"
-          ],
-          "layout_intent": "Use a vertical editorial sequence with the DB Log Analyzer first and the two internship projects following as smaller but distinct entries.",
-          "alignment_relationships": "Share a timeline-like reading edge for roles and dates, while allowing each project description and technology line to sit as a compact evidence unit.",
-          "relative_proportions": "The DB Log Analyzer receives the largest supporting entry; the other two entries are shorter and more compressed.",
-          "layer_stack": "Subtle chapter surface, role/date markers, project descriptions, technology labels, restrained separators.",
-          "background_intent": "Quiet the featured-project accent and return to neutral evidence framing.",
+          "layout_intent": "Use lighter project treatments for HireLens and DevTrack, followed by compact capability groups and a concise professional foundation statement.",
+          "alignment_relationships": "Keep supporting project names aligned with their repository actions, then transition to capability groups through shared labels and restrained dividers.",
+          "relative_proportions": "Supporting projects occupy more space than capabilities; capabilities and foundation remain compact and easy to scan.",
+          "layer_stack": "Quiet surface, supporting project summaries, implementation details, technology groups, capability groups, and foundation copy.",
+          "background_intent": "Reduce atmospheric decoration and favor calm surfaces so breadth does not compete with featured evidence.",
           "asset_requirements": [],
           "resource_candidates": [],
           "motion_intent": {
-            "type": "sequential_entry",
-            "intensity": "low",
-            "description": "Reveal each approved experience entry in order as the visitor reads downward.",
-            "failure_safe_static_state": "All three entries are present without movement."
+            "type": "minimal",
+            "description": "Optional low-amplitude entrance transition for project rows and capability groups."
           },
           "interaction_states": {
-            "entries": "Use subtle focus or border emphasis only if an entry is made interactive; otherwise keep the evidence continuously visible.",
-            "technology_labels": "No hover-only information."
+            "project_links": "Clear external-link affordance with hover, focus, and touch states.",
+            "secondary_details": "Details may be visually condensed on mobile but remain accessible without hover."
           },
-          "transition_in": "Carry one quiet connector line from the featured chapter into the first supporting entry.",
-          "transition_out": "Use the final entry's neutral divider to introduce grouped capabilities.",
-          "responsive_behavior": "Desktop may use a side timeline relationship; tablet keeps dates and descriptions aligned in a narrower editorial grid; mobile becomes a single column with DB Log Analyzer first and each secondary project condensed. Touch-only devices receive identical static evidence.",
-          "accessibility_intent": "Keep role, organization, and date associations understandable in linear reading order. Avoid implying unapproved client details or outcomes.",
-          "reduced_motion_behavior": "Render all entries immediately with static separators.",
-          "performance_risk": "Low; avoid animated timeline drawing and excessive nested panels.",
-          "failure_safe_static_state": "Role timeline and project descriptions communicate breadth without animation.",
+          "transition_in": "Compact surface follows the featured evidence without a dramatic reset.",
+          "transition_out": "A simpler tonal divider leads into education and contact.",
+          "responsive_behavior": "Phone and touch layouts use stacked project summaries, optional expandable details, compact capability groups, and a shortened foundation paragraph. Tablet can use paired supporting projects. Laptop, desktop, and wide desktop may use a modest grid while preserving readable text measures.",
+          "accessibility_intent": "Group labels and project summaries remain understandable in linear order; no capability is communicated only through visual grouping or color.",
+          "reduced_motion_behavior": "Render all rows and groups in their final positions without entrance movement.",
+          "performance_risk": "A large raw technology inventory could increase density and scanning cost; use only the approved grouped capability presentation.",
+          "failure_safe_static_state": "Project names, summaries, and grouped capabilities remain complete without animation or expansion.",
           "acceptance_criteria": [
-            "Agentic AI DB Log Analyzer remains the first supporting project.",
-            "Organization names, role titles, dates, and approved technologies remain accurate.",
-            "No enterprise metrics, client details, or individual ownership beyond approved claims is introduced."
+            "HireLens and DevTrack are clearly supporting evidence rather than headline achievements.",
+            "The full raw skills inventory is not presented as an undifferentiated wall.",
+            "Employer names and employer-specific details remain absent."
           ]
         },
         {
-          "scene_id": "home-capabilities",
-          "route_id": "route:home",
-          "narrative_goal": "Make technical breadth scannable without creating an undifferentiated wall of tools.",
-          "viewport_role": "Capability index.",
+          "scene_id": "home-credentials-contact",
+          "route_id": "home",
+          "narrative_goal": "Close with concise learning context and approved ways to continue the conversation.",
+          "viewport_role": "Trust and conversion close.",
           "content_refs": [
-            "home:capabilities"
-          ],
-          "layout_intent": "Present four capability groups as an editorial matrix on larger screens, with clear labels and compact item clusters.",
-          "alignment_relationships": "Align group labels consistently while allowing group lengths to vary naturally; avoid forcing equal-height cards.",
-          "relative_proportions": "The first two groups receive the strongest visual weight; data/application and cloud/development groups remain available but quieter.",
-          "layer_stack": "Clean surface, section heading, group labels, grouped technology items, optional disclosure affordances on narrow screens.",
-          "background_intent": "Use the calmest mid-page surface and minimal decoration so the list remains readable.",
-          "asset_requirements": [],
-          "resource_candidates": [],
-          "motion_intent": {
-            "type": "none",
-            "description": ""
-          },
-          "interaction_states": {
-            "items": "Items remain static and do not rely on hover.",
-            "disclosure": "On narrow screens, expanded and collapsed states are clearly labeled, keyboard operable, and never required for the primary capability meaning."
-          },
-          "transition_in": "Enter through a clean divider from the experience evidence.",
-          "transition_out": "Compress the visual rhythm before the secondary education chapter.",
-          "responsive_behavior": "Wide desktop uses a loose multi-column grouping; laptop and tablet reduce columns while preserving labels; mobile shows the first two groups fully and makes lower-priority groups compactly expandable. Touch-only users receive explicit tap controls.",
-          "accessibility_intent": "Use semantic group headings, readable item spacing, and disclosure states announced clearly to assistive technology.",
-          "reduced_motion_behavior": "Disclosure changes occur without animated height transitions.",
-          "performance_risk": "Low, though excessive item decoration can increase visual density.",
-          "failure_safe_static_state": "Grouped text lists remain fully understandable without any interaction.",
-          "acceptance_criteria": [
-            "Capabilities are grouped by capability rather than displayed as a flat inventory.",
-            "The section remains readable on small screens."
-          ]
-        },
-        {
-          "scene_id": "home-education",
-          "route_id": "route:home",
-          "narrative_goal": "Provide concise academic context without competing with project evidence.",
-          "viewport_role": "Secondary credibility note.",
-          "content_refs": [
-            "home:education"
-          ],
-          "layout_intent": "Use a compact, quiet evidence strip with the B.Tech. entry leading and school education visually subordinate.",
-          "alignment_relationships": "Align the degree, institution, year, and CGPA as one readable unit; place school entries in a smaller secondary continuation.",
-          "relative_proportions": "Keep this chapter substantially shorter than DefXV and experience.",
-          "layer_stack": "Neutral surface, heading, primary degree line, compact secondary education line.",
-          "background_intent": "Minimal, with no diagram or accent treatment.",
-          "asset_requirements": [],
-          "resource_candidates": [],
-          "motion_intent": {
-            "type": "none",
-            "description": ""
-          },
-          "interaction_states": {},
-          "transition_in": "A simple divider marks the change from capabilities.",
-          "transition_out": "Open into the more generous final contact surface.",
-          "responsive_behavior": "Desktop and tablet may keep entries on one compact line where legible; mobile shows B.Tech. first and school education as a secondary line. Touch-only behavior is static.",
-          "accessibility_intent": "Keep all academic text readable and do not hide the content behind hover or motion.",
-          "reduced_motion_behavior": "No motion is used.",
-          "performance_risk": "Negligible.",
-          "failure_safe_static_state": "All approved education entries remain readable in the static layout.",
-          "acceptance_criteria": [
-            "Education remains secondary to project and experience evidence.",
-            "The approved education wording and values are preserved."
-          ]
-        },
-        {
-          "scene_id": "home-contact",
-          "route_id": "route:home",
-          "narrative_goal": "End with a direct, welcoming invitation to connect through approved public paths.",
-          "viewport_role": "Closing conversion and endpoint.",
-          "content_refs": [
+            "home:education",
             "home:contact"
           ],
-          "layout_intent": "Use an open, text-led closing composition with a concise invitation and two clearly separated external actions.",
-          "alignment_relationships": "Keep the invitation on the main reading edge; let LinkedIn and GitHub form a balanced action pair beneath or beside it.",
-          "relative_proportions": "Text and actions occupy a compact central portion of a generous closing surface.",
-          "layer_stack": "Open background, closing heading, invitation body, LinkedIn and GitHub actions.",
-          "background_intent": "Return to the cleanest surface, with the network motif resolved or absent.",
+          "layout_intent": "Use a quieter closing composition: education and selected certifications provide context, followed by a direct contact invitation and approved links.",
+          "alignment_relationships": "Align credential information and contact actions to the same page rhythm while giving GitHub and LinkedIn clearer emphasis than LeetCode.",
+          "relative_proportions": "Education and certifications remain a smaller closing block; contact actions receive the final visual focus.",
+          "layer_stack": "Open surface, concise credential block, closing statement, and link group.",
+          "background_intent": "Return to a calm, low-decoration surface that makes the final actions feel accessible.",
           "asset_requirements": [],
           "resource_candidates": [],
-          "motion_intent": {
-            "type": "quiet_emphasis",
-            "intensity": "low",
-            "description": "A single subtle emphasis may draw attention to the connection actions when the section enters, without looping.",
-            "failure_safe_static_state": "Both actions are immediately visible and clearly labeled."
-          },
+          "motion_intent": {},
           "interaction_states": {
-            "external_links": "Use strong focus, restrained hover contrast, and clear pressed feedback. Do not use icon-only controls."
+            "links": "Use clear labels, strong focus visibility, modest hover contrast, and touch pressed feedback."
           },
-          "transition_in": "Arrive through increased whitespace and reduced visual complexity.",
-          "transition_out": "No further route transition; external links leave the approved portfolio experience.",
-          "responsive_behavior": "Desktop may place actions in a balanced pair; tablet preserves the pair if comfortable; mobile stacks or wraps them with ample touch space. Touch-only devices rely on tap states.",
-          "accessibility_intent": "Use descriptive external-link labels, clear focus visibility, and sufficient contrast for the final actions.",
-          "reduced_motion_behavior": "Show the complete closing section immediately and remove emphasis animation.",
-          "performance_risk": "Negligible.",
-          "failure_safe_static_state": "The invitation and both approved public links remain fully usable without motion.",
+          "transition_in": "A quiet divider separates supporting work from credentials.",
+          "transition_out": "No further route transition; external links leave the approved page experience.",
+          "responsive_behavior": "Phone and touch layouts stack credentials and links, keeping the degree, relevant certification, GitHub, and LinkedIn prominent. Tablet may place education and contact side by side. Laptop, desktop, and wide desktop can use a balanced closing composition without expanding copy density.",
+          "accessibility_intent": "All links are keyboard reachable and labeled; link priority is not conveyed by color alone.",
+          "reduced_motion_behavior": "No motion is required; render the complete closing state immediately.",
+          "performance_risk": "Low; keep the closing scene text-led and avoid adding decorative media.",
+          "failure_safe_static_state": "The approved education context and all approved contact links remain visible in a simple linear layout.",
           "acceptance_criteria": [
-            "The page ends with LinkedIn and GitHub connection paths.",
-            "No phone number or unapproved contact method is introduced."
+            "GitHub and LinkedIn are prioritized as approved next actions.",
+            "LeetCode remains supporting rather than headline evidence.",
+            "No unapproved contact details are introduced."
           ]
         }
       ],
-      "asset_briefs": [
-        "asset:defxv_conceptual_flow"
-      ],
+      "asset_briefs": [],
       "resource_candidates": [
         "hero_asymmetric_text_dominant",
-        "diagram_abstract_topology",
-        "diagram_process_flow"
+        "background_gradient_mesh",
+        "diagram_process_flow",
+        "diagram_abstract_topology"
       ],
       "acceptance_criteria": [
-        "The page follows the approved single-route section sequence.",
-        "DefXV is the central visual and narrative evidence moment.",
-        "The design remains medium-density and avoids a flat technology wall.",
-        "All conceptual visuals are clearly non-evidentiary and contain no fabricated architecture or metrics."
+        "All seven approved sections are represented in the route storyboard.",
+        "The visual hierarchy follows hero, featured AI systems, supporting work, capabilities, foundation, education, and contact.",
+        "The page remains credible without screenshots, demos, metrics, testimonials, or employer-specific evidence.",
+        "Every scene works on mobile, tablet, laptop/desktop, wide desktop, and touch-only devices."
       ]
     }
   ],
-  "asset_briefs": [
-    {
-      "asset_id": "asset:defxv_conceptual_flow",
-      "purpose": "Illustrate the approved DefXV concept as a readable relationship between multimodal input, AI/ML inference and orchestration, and sign or voice output.",
-      "content_ref": "home:featured-project",
-      "asset_type": "generated conceptual diagram",
-      "source_status": "optional",
-      "source_policy": "generated_local_visual",
-      "importance": "important",
-      "orientation": "Horizontal on larger screens; vertical sequence on narrow screens.",
-      "focal_point": "The central inference and orchestration stage.",
-      "safe_crop_region": "Keep all three stages and their labels within the primary safe region.",
-      "text_safe_region": "Leave a quiet area beside or below the diagram for the approved project copy.",
-      "composition_role": "Primary supporting visual for the featured project.",
-      "desktop_treatment": "Use a restrained process flow with three or a small number of clearly labeled stages and modest directional connectors.",
-      "mobile_treatment": "Convert to a simplified vertical flow; shorten labels only where the approved meaning remains intact.",
-      "fit_intent": "Contain the complete relationship without cropping or implying a photographic source.",
-      "cropping_tolerance": "Low; all conceptual stages must remain present.",
-      "visual_treatment": "Flat, lightweight, abstract, and diagrammatic; no dashboard chrome, screenshots, fabricated metrics, or proprietary topology.",
-      "quality_requirement": "Labels must remain legible at narrow widths and work in high contrast.",
-      "fallback_strategy": "Replace with a text-led three-stage explanation if the visual is unavailable or adds excessive density.",
-      "decorative_vs_informative": "Informative illustration supporting, but not replacing, the approved prose.",
-      "alt_text_intent": "Conceptual diagram showing DefXV's multimodal input, AI/ML inference and orchestration, and sign or voice output.",
-      "attribution_requirement": "None for a generated local visual.",
-      "subject": "Abstract DefXV multimodal translation flow",
-      "mood": "Precise, calm, assistive, and engineering-focused",
-      "aspect_ratio_need": "Wide adaptable composition with a clear vertical fallback",
-      "color_relationship": "Neutral base with one restrained accent marking the central orchestration relationship",
-      "negative_concepts": [
-        "real screenshot",
-        "production dashboard",
-        "fabricated metrics",
-        "client branding",
-        "photorealistic interface",
-        "complex unreadable topology"
-      ]
-    }
-  ],
+  "asset_briefs": [],
   "resource_candidates": [
     {
       "resource_id": "hero_asymmetric_text_dominant",
       "category": "hero_pattern",
-      "why_it_matches": "The approved headline and positioning are strong, while no approved hero image exists.",
-      "where_it_may_help": "route:home hero scene",
-      "priority": "important",
-      "possible_use": "Text-led opening balanced by a small abstract systems motif.",
-      "adaptation_notes": "Keep the visual subordinate and preserve the single-page reading path.",
-      "fallback": "Use the same text-led composition without the motif.",
-      "confidence": "high",
-      "resource_library_version": "65c4f40e5084",
+      "why_it_matches": "The approved positioning is strong and no hero image is available.",
+      "where_it_may_help": "home / home-hero-positioning",
+      "priority": "optional",
+      "possible_use": "Adapt the text-led opening composition.",
+      "adaptation_notes": "Keep the headline readable and pair it with only a small abstract motif.",
+      "fallback": "Custom text-led composition without the catalogue pattern.",
+      "confidence": "catalogue_verified",
+      "resource_library_version": "03ce83369dfc",
       "lookup_status": "verified"
     },
     {
-      "resource_id": "diagram_abstract_topology",
-      "category": "diagram_primitive",
-      "why_it_matches": "The profile benefits from showing relationships among models, data, tools, services, evaluation, and deployment without a real architecture document.",
-      "where_it_may_help": "route:home positioning scene",
+      "resource_id": "background_gradient_mesh",
+      "category": "background_system",
+      "why_it_matches": "A low-contrast atmosphere can add depth without requiring unavailable media.",
+      "where_it_may_help": "home / home-hero-positioning",
       "priority": "optional",
-      "possible_use": "A generalized conceptual network supporting the engineering narrative.",
-      "adaptation_notes": "Keep it sparse and explicitly illustrative; do not reproduce an alleged internal system.",
-      "fallback": "Use a short text sequence with subtle separators.",
-      "confidence": "medium",
-      "resource_library_version": "65c4f40e5084",
+      "possible_use": "Adapt as a restrained background layer.",
+      "adaptation_notes": "Keep it low contrast, static-capable, and subordinate to text.",
+      "fallback": "Plain tonal surface.",
+      "confidence": "catalogue_verified",
+      "resource_library_version": "03ce83369dfc",
       "lookup_status": "verified"
     },
     {
       "resource_id": "diagram_process_flow",
       "category": "diagram_primitive",
-      "why_it_matches": "DefXV's approved concept is most clearly communicated as a small sequence from multimodal input through inference and orchestration to output.",
-      "where_it_may_help": "route:home featured-project scene",
-      "priority": "important",
-      "possible_use": "A conceptual three-stage DefXV flow.",
-      "adaptation_notes": "Use representative labels only and simplify aggressively on mobile.",
-      "fallback": "Present the relationship as ordered text in the project narrative.",
-      "confidence": "high",
-      "resource_library_version": "65c4f40e5084",
+      "why_it_matches": "DocuMind AI and AgentFlow both have approved sequential system concepts.",
+      "where_it_may_help": "home / home-featured-ai-systems",
+      "priority": "optional",
+      "possible_use": "Adapt for representative retrieval or orchestration flows.",
+      "adaptation_notes": "Use few legible stages and never imply live telemetry or verified architecture.",
+      "fallback": "Textual contribution highlights.",
+      "confidence": "catalogue_verified",
+      "resource_library_version": "03ce83369dfc",
+      "lookup_status": "verified"
+    },
+    {
+      "resource_id": "diagram_abstract_topology",
+      "category": "diagram_primitive",
+      "why_it_matches": "The profile benefits from showing system relationships without approved architecture diagrams.",
+      "where_it_may_help": "home / home-featured-ai-systems",
+      "priority": "optional",
+      "possible_use": "Adapt as an abstract system relationship visual.",
+      "adaptation_notes": "Label it as representative and keep it distinct from a real internal document.",
+      "fallback": "No diagram; retain prose evidence.",
+      "confidence": "catalogue_verified",
+      "resource_library_version": "03ce83369dfc",
       "lookup_status": "verified"
     }
   ],
   "accessibility_and_performance": {
-    "performance": "Prefer static lightweight linework and generated local visuals. Avoid background video, large raster textures, continuous particle effects, and unnecessary animation. Keep diagrams simple enough to render efficiently.",
-    "color_contrast": "Use strong contrast for all primary copy, dates, project names, technologies, and actions. Accent color is supplementary and never the sole indicator of state.",
-    "reduced_motion": "Remove staged reveals, diagram resolution, and emphasis movement when reduced motion is requested. Preserve static hierarchy and state contrast.",
-    "keyboard_and_focus": "All in-page and external links, disclosure controls, and any diagram explanations have a clearly visible focus treatment and logical tab order.",
-    "responsive_accessibility": "Maintain readable line lengths, adequate touch target size, logical source order, and no hover-only information across mobile, tablet, laptop, wide desktop, and touch-only devices."
+    "performance": "Prefer lightweight generated-local diagrams and simple surfaces; avoid background video, large raster backgrounds, continuous animation, and unnecessary decorative assets.",
+    "color_contrast": "Use strong contrast for primary and action text, with the single accent never carrying meaning alone.",
+    "reduced_motion": "Disable staged reveals, sequential diagram emphasis, and decorative movement; show complete static content immediately.",
+    "keyboard_and_focus": "All links, optional disclosures, and any diagram focus targets must have persistent, clearly visible keyboard focus.",
+    "responsive_accessibility": "Preserve reading order, readable text measures, touch-sized actions, and equivalent non-hover states across every device class."
   },
   "must_preserve": [
-    "Generative AI and Agentic AI positioning",
-    "DefXV name and its Voice-to-Sign and Sign-to-Voice scope",
-    "The statement that Vanshmani owned the DefXV inference and orchestration pipeline",
-    "Accurate organization names, role titles, dates, technologies, and public URLs"
+    "AI Engineer",
+    "Generative AI and LLM engineering",
+    "DocuMind AI",
+    "AgentFlow",
+    "HireLens",
+    "DevTrack",
+    "Bengaluru, Karnataka, India",
+    "Approved external URLs"
   ],
   "must_not_fabricate": [
-    "Metrics or business outcomes",
-    "Patent attribution or evaluation context",
-    "Project-specific repository links",
-    "Client details, testimonials, awards, certifications, or additional media",
-    "Exact ownership of unresolved enterprise outcomes",
-    "Screenshots, dashboards, production architectures, or diagrams presented as real evidence",
-    "Phone number or private contact information"
+    "Metrics",
+    "Business outcomes",
+    "Production scale",
+    "Employer permissions",
+    "Individual ownership of unresolved employer work",
+    "Screenshots, demos, testimonials, awards, or client names",
+    "Portraits, analytics, or exact production architecture diagrams"
   ],
   "conflicts": [],
   "warnings": [
-    "The capabilities inventory remains long; mobile direction must use grouping and optional disclosure to avoid excessive density.",
-    "The DefXV conceptual flow is useful but optional; it should be removed or replaced with text if its labels become difficult to read.",
-    "The signature system motif must not be repeated identically in every section."
+    "The featured project narratives are relatively long; preserve their key systems concepts on larger screens and condense secondary detail on mobile.",
+    "Abstract diagrams must remain representative and must not be styled like verified screenshots or production evidence."
   ],
   "compiler_handoff": {
     "pages_compilable": {
-      "route:home": true
+      "home": true
     }
   },
   "stages_run": [
     "establish_visual_language"
   ],
   "memory": {
-    "route_count": 1,
     "pages_included": true,
-    "signature_moment": "A conceptual DefXV signal-to-system flow from multimodal input through inference and orchestration to output.",
-    "visual_direction_status": "visual_language_and_pages_established"
+    "route_ids_directed": [
+      "home"
+    ],
+    "visual_direction_status": "visual_language_and_pages_ready"
   },
   "revision_request": "",
   "approved": null,
   "latest_error": null,
   "attempt": 1,
   "max_attempts": 3,
-  "started_at": "2026-08-10T04:23:03.200907+00:00",
-  "elapsed_seconds": 61.187084
+  "started_at": "2026-08-12T09:32:19.444039+00:00",
+  "elapsed_seconds": 50.105475
 }

@@ -91,10 +91,13 @@ fixture_input_path = "src/oryxenai/output/visual_design_director_Output.md"
 fixture_output_dir = "output"
 fixture_upload = true
 fixture_reasoning_enabled = false
+fixture_debug_mirror_enabled = true
 debug_mirror_enabled = true
 model_profile = "build_preparation"
 reasoning_enabled = true
 integration_route_threshold = 2
+# Optional non-evidentiary editorial candidates; provider failure never blocks handoff.
+editorial_image_budget = 1
 
 [artifact_storage]
 # Non-secret coordinates for the configured private preparation bucket.

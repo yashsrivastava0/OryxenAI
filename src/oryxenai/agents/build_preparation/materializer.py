@@ -7,7 +7,7 @@ import io
 import json
 import re
 from collections.abc import Awaitable, Callable
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 
 from PIL import Image
@@ -55,6 +55,33 @@ TARGET_ALLOWED_DEPENDENCIES = frozenset(
         "@radix-ui/react-visually-hidden",
     }
 )
+
+
+def _dependency_name(value: str) -> str:
+    dependency = value.strip()
+    if dependency.startswith("@"):
+        slash = dependency.find("/")
+        version_at = dependency.find("@", slash + 1) if slash >= 0 else -1
+        return dependency[:version_at] if version_at > 0 else dependency
+    return dependency.split("@", 1)[0]
+
+
+def dependencies_allowed(values: list[str]) -> bool:
+    for value in values:
+        dependency = value.strip()
+        name = _dependency_name(dependency)
+        if not name or name not in TARGET_ALLOWED_DEPENDENCIES:
+            return False
+        specifier = dependency[len(name) :].removeprefix("@").lower()
+        if specifier and (
+            any(
+                token in specifier
+                for token in ("npm:", "file:", "git+", "://", "workspace:", "link:")
+            )
+            or any(character.isspace() for character in specifier)
+        ):
+            return False
+    return True
 
 
 def _safe_name(value: str, fallback: str = "route") -> str:
@@ -127,7 +154,7 @@ def _route_data(content: dict[str, Any], route_id: str) -> dict[str, Any]:
     )
 
 
-def _target_package_files(target: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _target_package_file(target: dict[str, Any]) -> dict[str, Any]:
     versions = {
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -153,20 +180,113 @@ def _target_package_files(target: dict[str, Any]) -> tuple[dict[str, Any], dict[
             name: versions[name] for name in target["allowed_dependencies"] if name in versions
         },
     }
-    lock = {
-        "name": package["name"],
-        "version": package["version"],
-        "lockfileVersion": 3,
-        "requires": True,
-        "packages": {
-            "": {
-                "name": package["name"],
-                "version": package["version"],
-                "dependencies": package["dependencies"],
-            }
-        },
+    return package
+
+
+def _safe_component_source_path(value: str) -> str:
+    raw = value.replace("\\", "/")
+    if raw.startswith("/") or PureWindowsPath(value).drive:
+        raise ValueError("component source path must be relative")
+    normalized = raw.strip("/")
+    path = PurePosixPath(normalized)
+    if not normalized or path.is_absolute() or ".." in path.parts or "." in path.parts:
+        raise ValueError("component source path is unsafe")
+    return path.as_posix()
+
+
+def _later_fetch_providers(settings: Any, need: ResourceNeed) -> list[str]:
+    if need.kind != "resource":
+        return []
+    category = f"{need.category} {need.purpose}".lower()
+    if "icon" in category:
+        return ["lucide"]
+    if not bool(getattr(settings.resource_providers, "registries_enabled", True)):
+        return []
+    providers: list[str] = []
+    for provider in getattr(settings.resource_providers, "registry_order", []):
+        if provider == "shadcn" or bool(
+            getattr(settings.resource_providers, f"{provider}_enabled", False)
+        ):
+            providers.append(str(provider))
+    return list(dict.fromkeys(providers))
+
+
+def _resource_plan(
+    *,
+    needs: list[ResourceNeed],
+    selections: list[ResourceSelection],
+    candidates: list[FetchedResource],
+    materialized_resources: list[dict[str, Any]],
+    settings: Any,
+) -> dict[str, Any]:
+    selection_by_need = {selection.need_id: selection for selection in selections}
+    candidate_by_id = {candidate.resource_id: candidate for candidate in candidates}
+    materialized_by_id = {
+        str(entry.get("id", "")): entry for entry in materialized_resources if entry.get("id")
     }
-    return package, lock
+    usable_dispositions = {"adaptable_source", "local_file", "package_import"}
+    entries: list[dict[str, Any]] = []
+    for need in needs:
+        selection = selection_by_need.get(need.need_id)
+        selected_id = selection.selected_resource_id if selection else None
+        materialized = materialized_by_id.get(selected_id or "", {})
+        candidate = candidate_by_id.get(selected_id or "")
+        disposition = str(
+            materialized.get(
+                "disposition",
+                "selected_not_materialized" if selected_id else "custom_fallback",
+            )
+        )
+        selected_is_usable = disposition in usable_dispositions
+        later_providers = [] if selected_is_usable else _later_fetch_providers(settings, need)
+        later_allowed = bool(later_providers) and not need.required_for_handoff
+        entries.append(
+            {
+                "need_id": need.need_id,
+                "source_id": need.source_id,
+                "kind": need.kind,
+                "category": need.category,
+                "purpose": need.purpose,
+                "importance": need.importance,
+                "required_for_handoff": need.required_for_handoff,
+                "route_ids": need.route_ids,
+                "scene_ids": need.scene_ids,
+                "source_status": need.source_status,
+                "source_policy": need.source_policy,
+                "disposition": disposition,
+                "selected_resource_id": selected_id,
+                "selected_provider": candidate.provider if candidate else "",
+                "why_selected": selection.why_selected if selection else "",
+                "adaptation_notes": selection.adaptation_notes if selection else "",
+                "fallback": (
+                    selection.fallback if selection and selection.fallback else need.fallback
+                ),
+                "later_fetch": {
+                    "allowed": later_allowed,
+                    "phase": "code_generation_only" if later_allowed else "not_allowed",
+                    "providers": later_providers,
+                    "must_replace_not_duplicate": True,
+                    "requirements": (
+                        [
+                            "Fetch source during Code Generation only; never at portfolio runtime.",
+                            "Recheck license, dependencies, source paths, accessibility, and target compatibility.",
+                            "Use the fetched equivalent instead of, never in addition to, the recorded fallback for this need.",
+                        ]
+                        if later_allowed
+                        else []
+                    ),
+                },
+            }
+        )
+    return {
+        "schema_version": "build-preparation-resource-plan-v1",
+        "policy": {
+            "runtime_network_fetch_allowed": False,
+            "selected_resource_and_fallback_are_exclusive": True,
+            "unlisted_resource_ids_are_forbidden": True,
+        },
+        "needs": entries,
+    }
 
 
 def _overview_text(context: BuildContextDraft) -> str:
@@ -247,11 +367,19 @@ async def materialize_build_context(
             "package-installation",
             "secret-environment-access",
         ],
+        "dependency_resolution": {
+            "allowed_dependency_set_is_ceiling": True,
+            "code_generator_must_generate_lockfile": True,
+            "installation_phase": "code_generation_build_only",
+            "lockfile_included": False,
+            "merge_selected_resource_dependencies": True,
+            "package_manifest_is_starter": True,
+            "runtime_installation_allowed": False,
+        },
     }
     files.append(_write(root, "target/target-contract.json", _json_bytes(target), "text"))
-    package, lock = _target_package_files(target)
+    package = _target_package_file(target)
     files.append(_write(root, "target/package.json", _json_bytes(package), "text"))
-    files.append(_write(root, "target/package-lock.json", _json_bytes(lock), "text"))
 
     selected_ids: list[str] = []
     for route in routes:
@@ -278,7 +406,8 @@ async def materialize_build_context(
             )
         )
         route_selected: list[str] = []
-        for need_id in [need.need_id for need in needs if route.route_id in need.route_ids]:
+        route_need_ids = [need.need_id for need in needs if route.route_id in need.route_ids]
+        for need_id in route_need_ids:
             selection = selection_by_need.get(need_id)
             if selection and selection.selected_resource_id:
                 route_selected.append(selection.selected_resource_id)
@@ -288,7 +417,13 @@ async def materialize_build_context(
             _write(
                 root,
                 f"routes/{route_name}/resources.json",
-                _json_bytes({"route_id": route.route_id, "resource_ids": route_selected}),
+                _json_bytes(
+                    {
+                        "route_id": route.route_id,
+                        "need_ids": route_need_ids,
+                        "resource_ids": route_selected,
+                    }
+                ),
                 "text",
             )
         )
@@ -317,6 +452,10 @@ async def materialize_build_context(
             "fallback": selection.fallback or candidate.fallback,
             "dependencies": candidate.dependencies,
             "license": candidate.license,
+            "license_reference": candidate.license_reference,
+            "required_for_handoff": bool(need.required_for_handoff) if need else False,
+            "placement": str(need.details.get("placement", "")) if need else "",
+            "disposition": "selected_not_materialized",
         }
         if candidate.kind == "photo" and candidate.provider == "pexels":
             try:
@@ -324,7 +463,14 @@ async def materialize_build_context(
                 image_bytes = await downloader(candidate)
                 try:
                     with Image.open(io.BytesIO(image_bytes)) as image:
-                        image.verify()
+                        image.load()
+                        pixel_width, pixel_height = image.size
+                    if (
+                        need
+                        and need.required_for_handoff
+                        and (pixel_width < 1200 or pixel_height < 700)
+                    ):
+                        raise ValueError("image dimensions are below the 1200x700 handoff minimum")
                 except Exception as exc:
                     raise ValueError("image bytes failed verification") from exc
                 extension = "jpg"
@@ -339,6 +485,13 @@ async def materialize_build_context(
                     "source": candidate.source_reference,
                     "photographer": candidate.photographer,
                     "photographer_url": candidate.photographer_url,
+                    "attribution_url": candidate.attribution_url,
+                    "license": candidate.license,
+                    "license_reference": candidate.license_reference,
+                    "placement": need.details.get("placement", "") if need else "",
+                    "decorative": True,
+                    "pixel_width": pixel_width,
+                    "pixel_height": pixel_height,
                     "inspection_level": "pixel_inspected",
                     "local_path": image_path,
                 }
@@ -350,11 +503,23 @@ async def materialize_build_context(
                         "metadata",
                     )
                 )
-                base_entry.update({"local_path": image_path, "inspection_level": "pixel_inspected"})
+                base_entry.update(
+                    {
+                        "local_path": image_path,
+                        "inspection_level": "pixel_inspected",
+                        "pixel_width": pixel_width,
+                        "pixel_height": pixel_height,
+                        "attribution_url": candidate.attribution_url,
+                        "disposition": "local_file",
+                    }
+                )
             except Exception as exc:
                 warnings.append(f"Could not materialize Pexels resource {resource_id}: {exc}")
                 base_entry.update(
-                    {"fallback": selection.fallback or (need.fallback if need else "")}
+                    {
+                        "disposition": "custom_implementation_required",
+                        "fallback": selection.fallback or (need.fallback if need else ""),
+                    }
                 )
         elif candidate.kind == "photo" and candidate.provider == "unsplash":
             try:
@@ -380,12 +545,16 @@ async def materialize_build_context(
                 )
             )
             base_entry.update(
-                {"hotlink_url": candidate.hotlink_url, "inspection_level": "metadata_only"}
+                {
+                    "hotlink_url": candidate.hotlink_url,
+                    "inspection_level": "metadata_only",
+                    "disposition": "reference_only",
+                }
             )
         elif candidate.kind == "component":
             component_root = f"resources/components/{_safe_name(candidate.provider)}/{resource_id}"
-            dependencies_allowed = set(candidate.dependencies).issubset(TARGET_ALLOWED_DEPENDENCIES)
-            if not dependencies_allowed:
+            component_dependencies_allowed = dependencies_allowed(candidate.dependencies)
+            if not component_dependencies_allowed:
                 warnings.append(
                     f"Component {resource_id} has dependencies outside the target contract."
                 )
@@ -397,21 +566,54 @@ async def materialize_build_context(
                     }
                 )
             else:
-                for source_path, content in candidate.source_files.items():
-                    relative = (
-                        f"{component_root}/{_safe_name(source_path, 'source')}-"
-                        f"{_safe_name(Path(source_path).stem, 'file')}{Path(source_path).suffix}"
+                resolved_sources: list[tuple[str, str, str]] = []
+                seen_paths: set[str] = set()
+                try:
+                    for source_path, content in candidate.source_files.items():
+                        safe_source_path = _safe_component_source_path(source_path)
+                        collision_key = safe_source_path.lower()
+                        if collision_key in seen_paths:
+                            raise ValueError("component source paths collide after extraction")
+                        seen_paths.add(collision_key)
+                        relative = f"{component_root}/source/{safe_source_path}"
+                        resolved_sources.append((source_path, relative, content))
+                except ValueError as exc:
+                    warnings.append(f"Component {resource_id} has unsafe source paths: {exc}.")
+                    base_entry.update(
+                        {
+                            "dependencies_allowed": True,
+                            "local_directory": "",
+                            "disposition": "custom_implementation_required",
+                        }
                     )
-                    files.append(_write(root, relative, content.encode("utf-8"), "text"))
-                base_entry.update(
-                    {
-                        "dependencies_allowed": True,
-                        "local_directory": component_root,
-                        "disposition": "adaptable_source",
-                    }
-                )
+                else:
+                    source_entries: list[dict[str, Any]] = []
+                    for source_path, relative, content in resolved_sources:
+                        item = _write(root, relative, content.encode("utf-8"), "text")
+                        files.append(item)
+                        source_entries.append(
+                            {
+                                "original_path": source_path,
+                                "local_path": relative,
+                                "sha256": item.sha256,
+                            }
+                        )
+                    base_entry.update(
+                        {
+                            "dependencies_allowed": True,
+                            "local_directory": f"{component_root}/source",
+                            "source_files": source_entries,
+                            "disposition": "adaptable_source",
+                        }
+                    )
         elif candidate.kind == "icon":
             icon_names.append(candidate.icon_name)
+            base_entry.update(
+                {
+                    "disposition": "package_import",
+                    "package_import": f"lucide-react:{candidate.icon_name}",
+                }
+            )
         resource_manifest.append(base_entry)
     if icon_names:
         files.append(
@@ -429,13 +631,32 @@ async def materialize_build_context(
                 "resource_id": entry["id"],
                 "provider": entry["provider"],
                 "license": entry.get("license", ""),
+                "license_reference": entry.get("license_reference", ""),
                 "source_reference": entry.get("source_reference", ""),
             }
         )
     files.append(_write(root, "provenance/licenses.json", _json_bytes(licenses), "text"))
+    resource_plan_path = "resources/plan.json"
+    files.append(
+        _write(
+            root,
+            resource_plan_path,
+            _json_bytes(
+                _resource_plan(
+                    needs=needs,
+                    selections=selections,
+                    candidates=candidates,
+                    materialized_resources=resource_manifest,
+                    settings=settings,
+                )
+            ),
+            "text",
+        )
+    )
     manifest = {
         "phase": "phase3",
         "run_id": run_id,
+        "plan_path": resource_plan_path,
         "resources": resource_manifest,
         "files": [item.model_dump(mode="json") for item in files],
         "warnings": warnings,
@@ -452,5 +673,22 @@ async def materialize_build_context(
         warnings=warnings,
         licenses=licenses,
         manifest_path="resources/manifest.json",
+        resource_plan_path=resource_plan_path,
         resources=resource_manifest,
+    )
+
+
+def materialize_handoff_report(
+    root: Path,
+    materialization: MaterializationResult,
+    report: dict[str, Any],
+) -> MaterializationResult:
+    """Write the Code Generator admission decision into the staged tree."""
+    relative = "handoff-report.json"
+    item = _write(root, relative, _json_bytes(report), "metadata")
+    return materialization.model_copy(
+        update={
+            "files": [*materialization.files, item],
+            "handoff_report_path": relative,
+        }
     )

@@ -10,8 +10,8 @@ import shutil
 import zipfile
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
-from pathlib import Path, PurePosixPath
+from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -25,6 +25,8 @@ from oryxenai.storage.artifacts import (
     MemoryArtifactStore,
     create_artifact_store,
 )
+
+_INDIA_TIME = timezone(timedelta(hours=5, minutes=30), name="IST")
 
 
 class PackageError(ValueError):
@@ -48,6 +50,7 @@ def _safe_relative(path: str) -> str:
     if (
         not normalized
         or candidate.is_absolute()
+        or bool(PureWindowsPath(path).drive)
         or ".." in candidate.parts
         or any(part == "" for part in candidate.parts)
     ):
@@ -193,7 +196,9 @@ def verify_bundle_bytes(data: bytes, *, max_bytes: int) -> dict[str, Any]:
 
 
 def _mirror_path(output_dir: Path, run_id: str) -> Path:
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
+    # Windows folder names cannot include ':'. This is the safe equivalent
+    # of the fixture's human-local "HH:MM-DD-MM" display format.
+    timestamp = datetime.now(_INDIA_TIME).strftime("%H-%M-%d-%m")
     run_prefix = _safe_segment(run_id[:8], "run")
     base = output_dir / "build-preparation" / f"{timestamp}-{run_prefix}"
     candidate = base / "build-context"
@@ -240,6 +245,7 @@ async def package_and_store(
     artifact_store: ArtifactStore | None = None,
     upload_enabled: bool = True,
     mirror_enabled: bool = True,
+    local_result_root: str | Path | None = None,
     expires_at: str | None = None,
 ) -> tuple[PackageResult, MaterializationResult]:
     """Build, verify, store, read back, and optionally mirror one pack."""
@@ -290,6 +296,33 @@ async def package_and_store(
         )
         if part
     )
+    mirror_root = ""
+    mirror_relative_root = ""
+    local_archive_path = ""
+    local_archive_relative_path = ""
+    if mirror_enabled:
+        result_root = Path(local_result_root) if local_result_root is not None else None
+        destination = (
+            result_root / "build-context"
+            if result_root is not None
+            else _mirror_path(Path(output_dir), run_id)
+        )
+        restore_verified_bundle(archive_bytes, destination, max_bytes=max_bundle_bytes)
+        mirror_root = str(destination)
+        mirror_relative_root = (
+            str(destination.relative_to(Path.cwd())).replace("\\", "/")
+            if destination.is_relative_to(Path.cwd())
+            else str(destination)
+        )
+        archive_path = destination.parent / "build-pack.zip"
+        archive_path.write_bytes(archive_bytes)
+        local_archive_path = str(archive_path)
+        local_archive_relative_path = (
+            str(archive_path.relative_to(Path.cwd())).replace("\\", "/")
+            if archive_path.is_relative_to(Path.cwd())
+            else str(archive_path)
+        )
+
     store = artifact_store
     if store is None:
         store = create_artifact_store(settings) if upload_enabled else MemoryArtifactStore()
@@ -306,18 +339,6 @@ async def package_and_store(
         )
     verify_bundle_bytes(restored_bytes, max_bytes=max_bundle_bytes)
 
-    mirror_root = ""
-    mirror_relative_root = ""
-    if mirror_enabled:
-        destination = _mirror_path(Path(output_dir), run_id)
-        restore_verified_bundle(restored_bytes, destination, max_bytes=max_bundle_bytes)
-        mirror_root = str(destination)
-        mirror_relative_root = (
-            str(destination.relative_to(Path.cwd())).replace("\\", "/")
-            if destination.is_relative_to(Path.cwd())
-            else str(destination)
-        )
-
     package = PackageResult(
         archive_sha256=archive_hash,
         archive_size_bytes=len(archive_bytes),
@@ -326,6 +347,8 @@ async def package_and_store(
         artifact=reference,
         mirror_root=mirror_root,
         mirror_relative_root=mirror_relative_root,
+        local_archive_path=local_archive_path,
+        local_archive_relative_path=local_archive_relative_path,
     )
     mirrored_materialization = materialization.model_copy(
         update={

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ app_name }} — Build Preparation Progress</title>
+  <title>{{ app_name }} — Build Preparation Details</title>
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/build-preparation-fixture.css">
 </head>
 <body>
@@ -11,17 +11,19 @@
     <header class="header">
       <div>
         <p class="eyebrow">Developer harness</p>
-        <h1>Progress and logs</h1>
-        <p class="lede">The complete Stage 0 → Phase 3 event stream and returned JSON for the latest run in this browser tab.</p>
+        <h1>Run details</h1>
+        <p class="lede">Timestamped local result, R2 status, stage log, and safe diagnostics for one Build Preparation run.</p>
       </div>
       <a class="link" href="/build-preparation-fixture">Back to input</a>
     </header>
-    <section id="empty" class="panel" hidden><strong>No run found.</strong><p>Run Phase 3 from the input page first.</p></section>
+    <section id="empty" class="panel" hidden><strong>No run found.</strong><p>Start a Build Preparation run from the input page first.</p></section>
     <section id="progress" hidden>
-      <div class="stats" id="stats"></div>
-      <section class="panel"><div class="panel-heading"><h2>Resources fetched</h2><span id="resources-empty" class="muted" hidden>None fetched or selected — check the events below.</span></div><ul id="resources" class="resources"></ul></section>
-      <section class="panel"><div class="panel-heading"><h2>Stage progress</h2><span id="run-id" class="mono"></span></div><ol id="events" class="events"></ol></section>
-      <section class="panel"><div class="panel-heading"><h2>Full output</h2><button id="copy" class="button secondary" type="button">Copy JSON</button></div><pre id="raw" class="raw"></pre></section>
+      <div id="stats" class="stats"></div>
+      <section class="panel"><div class="panel-heading"><h2>Local result</h2><div id="detail-actions" class="compact-actions"></div></div><div id="local-detail" class="detail-grid"></div></section>
+      <section id="detail-issue" class="panel error" hidden><div class="panel-heading"><h2>Issue</h2><button id="copy-issue" class="button secondary" type="button">Copy issue report</button></div><div id="issue-detail"></div></section>
+      <section class="panel"><div class="panel-heading"><h2>Resource decisions</h2><span id="resources-empty" class="muted" hidden>No resources were selected.</span></div><ul id="resources" class="resources"></ul></section>
+      <section class="panel"><div class="panel-heading"><h2>Stage log</h2><span id="run-id" class="mono"></span></div><ol id="events" class="events"></ol></section>
+      <section class="panel"><div class="panel-heading"><h2>Diagnostics</h2><button id="copy" class="button secondary" type="button">Copy JSON</button></div><pre id="raw" class="raw"></pre></section>
     </section>
   </main>
   <script src="{{ request.scope.get('root_path', '') }}/static/build-preparation-progress.js"></script>

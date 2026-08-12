@@ -39,6 +39,18 @@ class ResourceProviderError(ProviderError):
         )
 
 
+_REGISTRY_LICENSES: dict[str, tuple[str, str]] = {
+    "shadcn": (
+        "MIT",
+        "https://github.com/shadcn-ui/ui/blob/main/LICENSE.md",
+    ),
+    "magicui": (
+        "MIT",
+        "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+    ),
+}
+
+
 def _stable_id(prefix: str, value: str) -> str:
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:20]
     return f"resource-{prefix}-{digest}"
@@ -137,7 +149,7 @@ async def search_pexels(
     try:
         params: dict[str, str | int] = {
             "query": query.query[:180],
-            "per_page": min(max(limit, 1), 5),
+            "per_page": min(max(limit, 1), 12),
         }
         if query.orientation in {"landscape", "portrait", "square"}:
             params["orientation"] = query.orientation
@@ -157,7 +169,12 @@ async def search_pexels(
             if not isinstance(photo, dict) or not isinstance(photo.get("src"), dict):
                 continue
             source = photo["src"]
-            image_url = str(source.get("large2x") or source.get("large") or "")
+            # Preserve the original provider asset for local inspection and
+            # controlled packaging; delivery sizing remains Code Generator's
+            # responsibility after the image has passed the handoff gate.
+            image_url = str(
+                source.get("original") or source.get("large2x") or source.get("large") or ""
+            )
             photo_id = str(photo.get("id", "") or "")
             if not photo_id or not image_url.startswith("https://"):
                 continue
@@ -186,6 +203,7 @@ async def search_pexels(
                     mime_type="image/*",
                     image_url=image_url,
                     license="Pexels license",
+                    license_reference="https://www.pexels.com/legal-pages/license/",
                 )
             )
         return result
@@ -273,6 +291,7 @@ async def search_unsplash(
                     ),
                     mime_type="image/*",
                     license="Unsplash license",
+                    license_reference="https://unsplash.com/license",
                 )
             )
         return result
@@ -353,6 +372,15 @@ async def _registry_item(
         child_files, child_deps, _, _, _ = await _registry_item(
             provider, child_name, template, settings, client, seen=seen
         )
+        conflicting_paths = {
+            path for path in set(files) & set(child_files) if files[path] != child_files[path]
+        }
+        if conflicting_paths:
+            raise ResourceProviderError(
+                "Registry dependencies contain conflicting source paths",
+                provider=provider,
+                retryable=False,
+            )
         files.update(child_files)
         dependencies.extend(child_deps)
     seen.remove(name)
@@ -440,7 +468,8 @@ async def search_components(
                             source_files=files,
                             dependencies=dependencies,
                             registry_dependencies=registry_dependencies,
-                            license=license_name,
+                            license=license_name or _REGISTRY_LICENSES.get(provider, ("", ""))[0],
+                            license_reference=_REGISTRY_LICENSES.get(provider, ("", ""))[1],
                             source_version=version,
                             fallback=query.fallback,
                         )
@@ -493,6 +522,7 @@ async def resolve_icon(
                 source_reference=str(response.url),
                 icon_name=name,
                 license="ISC",
+                license_reference="https://github.com/lucide-icons/lucide/blob/main/LICENSE",
             )
         ]
     finally:
@@ -582,7 +612,9 @@ class ProviderLookup:
                     found = await search_pexels(query, self.settings, client=self.client)
                 except ResourceProviderError:
                     found = []
-                if not found:
+                # Unsplash requires hotlinking and cannot satisfy a required
+                # local resource while the static target forbids remote assets.
+                if not found and not query.required_for_handoff:
                     try:
                         found = await search_unsplash(query, self.settings, client=self.client)
                     except ResourceProviderError:
