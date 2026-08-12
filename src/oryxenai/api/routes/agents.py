@@ -31,6 +31,10 @@ async def list_agents(
             "direction: global visual language, per-route storyboards, scenes, "
             "motion/interaction system, and asset/resource intent."
         ),
+        "build_preparation": (
+            "Compiles approved content and visual direction into a deterministic "
+            "scope and resource-needs handoff."
+        ),
         "code_generator": "Generates portfolio site source files.",
     }
     result: list[AgentInfo] = []

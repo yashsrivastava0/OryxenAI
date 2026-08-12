@@ -116,6 +116,29 @@ context_cache_metadata = false
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
+[profiles.build_preparation]
+provider = "openai"
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 120
+max_retries = 1
+max_output_tokens = 16000
+reasoning_effort = "low"
+store = false
+
+[profiles.build_preparation.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = true
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = false
+supports_store_parameter = true
+uses_max_completion_tokens = true
+
 # Kept for future comparisons/rollback: the same model via OpenCode Go.
 # Not referenced by any agent unless a profile name is changed to point here.
 [profiles.discovery_opencode_go]

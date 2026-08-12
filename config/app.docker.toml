@@ -16,3 +16,10 @@ bucket = "oryxenai-build-preparation"
 region = "auto"
 prefix = "temporary"
 require_lifecycle = true
+
+[build_preparation]
+# Render disks are ephemeral; the verified ZIP remains the only deployment
+# artifact and no local debug tree is retained in containers.
+debug_mirror_enabled = false
+# The isolated validation service uses disposable container storage only.
+fixture_output_dir = "/tmp/oryxenai-build-preparation"

@@ -199,9 +199,22 @@ class BuildPreparationConfig(BaseModel):
     target_contract: str = "react-vite-v1"
     fixture_enabled: bool = False
     fixture_input_path: str = "src/oryxenai/output/visual_design_director_Output.md"
+    fixture_output_dir: str = "output"
     fixture_upload: bool = True
+    fixture_reasoning_enabled: bool = False
+    debug_mirror_enabled: bool = True
+    model_profile: str = "build_preparation"
+    reasoning_enabled: bool = True
+    integration_route_threshold: int = 2
 
-    @field_validator("fixture_enabled", "fixture_upload", mode="before")
+    @field_validator(
+        "fixture_enabled",
+        "fixture_upload",
+        "fixture_reasoning_enabled",
+        "debug_mirror_enabled",
+        "reasoning_enabled",
+        mode="before",
+    )
     @classmethod
     def _coerce_bool(cls, value: Any) -> Any:
         if isinstance(value, str):
@@ -233,14 +246,20 @@ class ResourceProviderConfig(BaseModel):
     """Non-secret registry provider endpoints and feature flags."""
 
     registries_enabled: bool = True
-    shadcn_catalog_url: str = "https://ui.shadcn.com/r/registry.json"
-    shadcn_item_url_template: str = "https://ui.shadcn.com/r/{name}.json"
+    shadcn_catalog_url: str = "https://ui.shadcn.com/r/styles/new-york-v4/registry.json"
+    shadcn_item_url_template: str = "https://ui.shadcn.com/r/styles/new-york-v4/{name}.json"
     magicui_catalog_url: str = "https://magicui.design/r/registry.json"
     magicui_item_url_template: str = "https://magicui.design/r/{name}.json"
     magicui_enabled: bool = True
     aceternity_catalog_url: str = "https://ui.aceternity.com/registry/registry.json"
     aceternity_item_url_template: str = "https://ui.aceternity.com/registry/{name}.json"
     aceternity_enabled: bool = False
+    registry_order: list[str] = Field(default_factory=lambda: ["shadcn", "magicui", "aceternity"])
+    pexels_api_key_env: str = "PEXELS_API_KEY"
+    unsplash_access_key_env: str = "UNSPLASH_ACCESS_KEY"
+    lucide_icon_url_template: str = (
+        "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"
+    )
 
     @field_validator("registries_enabled", "magicui_enabled", "aceternity_enabled", mode="before")
     @classmethod

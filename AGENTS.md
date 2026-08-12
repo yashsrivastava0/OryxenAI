@@ -64,16 +64,16 @@ table and state machine.
 **Portfolio Build Preparation is implemented as a hidden pre-code stage.** It
 requires approved Content Architect and Visual Design Director state and is
 started explicitly with `POST .../build-preparation/start`. A durable
-`build_preparation.prepare` job compiles a versioned Experience Blueprint,
-resolves verified resources (with safe custom-implementation fallbacks),
-produces route-scoped Build Packets and a Portfolio Build Context, and uploads
-one immutable ZIP to configured temporary S3-compatible object storage (R2 in
-production). PostgreSQL stores only the object metadata and hashes; the pack
-is never persisted on an application/worker filesystem. The GET endpoint
-reports staleness when approved upstream projections, policy, target contract,
-or the temporary object changes. See `src/oryxenai/build_preparation/`.
+`build_preparation.prepare` job compiles public scope, resolves verified
+resources with explicit fallbacks, writes route-scoped build context, creates
+one deterministic ZIP, verifies it through configured temporary
+S3-compatible object storage (R2 in production), and restores a local debug
+mirror when enabled. PostgreSQL stores only the object metadata and hashes;
+the staged tree is disposable. The GET endpoint reports staleness when
+approved upstream projections or the temporary object changes. See
+`src/oryxenai/agents/build_preparation/`.
 
-All three agents call their configured model through the provider-neutral
+All model-backed agents call their configured model through the provider-neutral
 `ModelClient` boundary — see `config/models.toml` for the live model/provider
 per profile; never trust a model name written in prose documentation,
 including this one, since it changes independently of any doc.

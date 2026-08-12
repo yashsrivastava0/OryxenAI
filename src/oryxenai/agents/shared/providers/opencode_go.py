@@ -56,6 +56,12 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
         self._client: Any = None
         self._capabilities: ModelCapabilities = profile.capabilities or DEFAULT_OPENCODE_GO
 
+    async def aclose(self) -> None:
+        """Close the lazy SDK client when a caller owns this adapter."""
+        if self._client is not None:
+            await self._client.close()
+            self._client = None
+
     # ── BaseProviderAdapter implementation ──────────────────────────────
 
     async def complete(

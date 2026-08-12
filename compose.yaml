@@ -88,5 +88,19 @@ services:
       start_period: 10s
       retries: 3
 
+  # This service is intentionally outside the default main workflow. Run it
+  # explicitly with the build-validation profile for a detached, session-free
+  # Build Preparation validation run.
+  build-validation:
+    profiles: ["build-validation"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
+    command: ["python", "-m", "oryxenai.agents.build_preparation.cli"]
+
 volumes:
   oryxen_pgdata:

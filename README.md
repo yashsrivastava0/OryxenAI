@@ -60,7 +60,7 @@ OryxenAI/
 │   │   ├── agent.py  schemas.py  README.md
 │   │   ├── prompts/{system.md,prepare_questions.md,build_brief.md,repair_output.md}
 │   │   └── samples/{input.json,output.json}
-│   ├── build_preparation/         # Blueprint, resource pack, context compiler
+│   ├── agents/build_preparation/  # Stage 0 through Phase 3 preparation agent
 │   ├── runtime/                   # state_service, mock_runner
 │   ├── api/routes/                # health, agents, sessions, runs, discovery, content-architect, visual-design-director
 │   └── web/                       # templates, static (css/js)
@@ -144,6 +144,7 @@ PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000 --reload
 ## Docker Compose startup
 
 ```powershell
+# Main workflow: PostgreSQL, migrations, FastAPI/UI, and durable worker.
 PS > docker compose up --build
 # App at http://localhost:8000, PostgreSQL on localhost:5544
 PS > docker compose down
@@ -155,6 +156,30 @@ The Docker Compose stack:
 - App waits for DB health, runs `alembic upgrade head`, then starts Uvicorn (no reload)
 - Worker runs as a separate durable PostgreSQL-backed process
 - Exposes app on port 8000 and PostgreSQL on port 5544 (host) → 5432 (container)
+
+Build Preparation validation is deliberately a separate run and is not
+started by the main stack:
+
+```powershell
+# Offline/deterministic validation using the checked-in VDD fixture.
+PS > docker compose --profile build-validation run --rm build-validation
+
+# Optional live model/provider validation; requires the relevant .env keys
+# and configured temporary artifact storage credentials.
+PS > docker compose --profile build-validation run --rm build-validation --live-model --live-providers
+```
+
+The validation service exits after one detached Stage 0 → Phase 3 run. It does
+not start the API, worker, migrations, or a portfolio session. For a local
+non-Docker run, use the same entry point:
+
+```powershell
+PS > uv run python -m oryxenai.agents.build_preparation.cli
+PS > uv run python -m oryxenai.agents.build_preparation.cli --live-model --live-providers
+```
+
+The two-page browser harness remains available from the main app at
+`/build-preparation-fixture` and `/build-preparation-fixture/progress`.
 
 ## Migration commands
 

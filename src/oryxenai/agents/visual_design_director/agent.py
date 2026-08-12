@@ -24,7 +24,10 @@ from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, Agen
 from oryxenai.agents.visual_design_director.prompt_builder import build_instructions
 from oryxenai.agents.visual_design_director.resource_catalogue import find_candidates
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorOutput
-from oryxenai.agents.visual_design_director.validators import validate_stage_output
+from oryxenai.agents.visual_design_director.validators import (
+    validate_final_references,
+    validate_stage_output,
+)
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
@@ -240,7 +243,39 @@ class VisualDesignDirectorAgent(Agent):
         # particular are the authoritative signal a future Blueprint
         # Compiler must gate on instead of trusting prose.
         pages, page_compilability = _stamp_page_compilability(pages, route_plan)
+        resource_candidates, promoted_resource_ids = _normalize_resource_handoff(
+            pages, resource_candidates
+        )
         resource_candidates = _stamp_resource_candidates(resource_candidates)
+
+        section_ids: set[str] = set()
+        claim_ids: set[str] = set()
+        for pack in intake.get("page_content_packs", []) or []:
+            if not isinstance(pack, dict):
+                continue
+            for section in pack.get("sections", []) or []:
+                if not isinstance(section, dict):
+                    continue
+                section_id = str(section.get("section_id", "") or "")
+                if section_id:
+                    section_ids.add(section_id)
+                claim_ids.update(
+                    str(claim_id) for claim_id in section.get("claim_ids", []) or [] if claim_id
+                )
+        final_validation = validate_final_references(
+            pages,
+            asset_briefs,
+            resource_candidates,
+            known_route_ids={
+                str(route.get("route_id", ""))
+                for route in route_plan
+                if isinstance(route, dict) and route.get("route_id")
+            },
+            known_section_ids=section_ids,
+            known_claim_ids=claim_ids,
+        )
+        if not final_validation.is_valid:
+            raise VisualDesignDirectorModelOutputError("build", final_validation.errors)
 
         compiler_handoff = dict(compiler_handoff)
         compiler_handoff["pages_compilable"] = page_compilability
@@ -250,6 +285,10 @@ class VisualDesignDirectorAgent(Agent):
         meta["stages_run"] = list(stages_run)
         meta["model_profile"] = self._profile_name
         meta["prompt_version"] = version
+        meta["resource_handoff"] = {
+            "top_level_registry_complete": True,
+            "promoted_resource_ids": promoted_resource_ids,
+        }
 
         # source_refs is always deterministically overwritten here, never
         # trusted from the model — see schemas.py's VisualDesignDirectorOutput
@@ -392,6 +431,76 @@ def _stamp_page_compilability(
         if route_id:
             compilability[route_id] = new_page["compilable"]
     return stamped, compilability
+
+
+def _normalize_resource_handoff(
+    pages: list[Any], resource_candidates: list[Any]
+) -> tuple[list[Any], list[str]]:
+    """Complete the top-level resource registry from valid page/scene refs.
+
+    The model is allowed to express a catalogue choice at the page or scene
+    where it is useful. Build Preparation, however, needs one authoritative
+    top-level object for every referenced resource. Stage validation has
+    already proved that each reference came from this run's shortlist, so
+    promotion is safe and deterministic: it only uses the checked-in
+    catalogue and never turns an unknown model-authored ID into a valid one.
+    """
+    from oryxenai.agents.visual_design_director.resource_catalogue import get_entry
+
+    normalized = list(resource_candidates)
+    registered_ids = {
+        str(candidate.get("resource_id", "") or "")
+        for candidate in normalized
+        if isinstance(candidate, dict) and candidate.get("resource_id")
+    }
+    referenced_ids: list[str] = []
+    seen_references: set[str] = set()
+
+    def collect(values: Any) -> None:
+        if not isinstance(values, list):
+            return
+        for value in values:
+            resource_id = str(value or "")
+            if resource_id and resource_id not in seen_references:
+                seen_references.add(resource_id)
+                referenced_ids.append(resource_id)
+
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        collect(page.get("resource_candidates"))
+        for scene in page.get("scenes") or []:
+            if isinstance(scene, dict):
+                collect(scene.get("resource_candidates"))
+
+    promoted: list[str] = []
+    for resource_id in referenced_ids:
+        if resource_id in registered_ids:
+            continue
+        entry = get_entry(resource_id)
+        if entry is None:
+            # The existing final validator remains responsible for reporting
+            # an unknown ID. This branch must never synthesize one.
+            continue
+        normalized.append(
+            {
+                "resource_id": resource_id,
+                "why_it_matches": str(entry.get("description", "") or ""),
+                "where_it_may_help": "Use at the page/scene references that selected this candidate.",
+                "priority": "optional",
+                "possible_use": str(entry.get("description", "") or ""),
+                "adaptation_notes": str(entry.get("constraints", "") or ""),
+                "fallback": (
+                    "Use a custom implementation of the same visual intent if this optional "
+                    "reference is not used."
+                ),
+                "confidence": "catalogue_verified",
+            }
+        )
+        registered_ids.add(resource_id)
+        promoted.append(resource_id)
+
+    return normalized, promoted
 
 
 def _stamp_resource_candidates(resource_candidates: list[Any]) -> list[dict[str, Any]]:
