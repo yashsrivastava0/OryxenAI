@@ -100,7 +100,8 @@ JSON-object-mode structured generation, not a function-calling agent.
 
 1. `POST /api/v1/sessions/{id}/visual-design-director/start` requires
    Content Architect to be `approved`. It snapshots the approved output +
-   the approved content hash, then enqueues `visual_design_director.build`.
+   the approved Content Architect projection hashes, then enqueues
+   `visual_design_director.build`.
 2. The worker runs the build (1-3 model calls as above) and moves the state
    to `design_review`.
 3. `POST .../visual-design-director/revise` re-runs the build with a
@@ -113,9 +114,10 @@ JSON-object-mode structured generation, not a function-calling agent.
 
 Every `start`/`revise` call — and the job handler again, immediately before
 persisting a successful build — compares the live Content Architect
-approval's content hash against the hash snapshotted when this Visual
-Design Director run began. If Content Architect has since been re-approved
-with different content, the operation is rejected with
+approval's content hash, route-publication hash, and full VDD-input
+projection hash against the snapshots taken when this Visual Design Director
+run began. If story strategy, media availability, privacy/handoff guidance,
+route intent, or public content has changed, the operation is rejected with
 `VISUAL_DESIGN_DIRECTOR_STALE_SOURCE` rather than silently building on
 outdated content.
 
@@ -128,8 +130,9 @@ queued/running pair or per-stage status.
 
 ## Output contract
 
-Only the transport envelope is validated (`validators.py`), never the
-direction's prose: `mode` matches the operation and is consistent with
+The direction's prose remains intentionally flexible, but final
+compiler-facing references are validated (`validators.py`) after all model
+calls are reconciled. `mode` matches the operation and is consistent with
 `pages_included`; every page's `route_id` echoes a real, non-blocked
 Content Architect route (never invented); `direct_page_experience`/
 `integrate_site_experience` must cover every non-blocked route exactly
@@ -139,6 +142,9 @@ once; every `scene_id`/`asset_id`/`resource_id` is unique; every scene has
 `source_status` and `fallback_strategy`; every referenced `resource_id`
 was actually in the catalogue shortlist given to that call;
 `compiler_handoff` is required non-empty only for `integrate_site_experience`.
+The final pass also rejects dangling scene `content_refs`, asset references,
+asset-brief `content_ref` values, and page/scene resource references before
+the output can reach review.
 `asset_briefs`/`resource_candidates` are never required non-empty — a
 text/diagram-only site with zero real assets and zero catalogue references
 is a valid, celebrated outcome, not incompleteness. Subjective quality

@@ -16,7 +16,11 @@ require_lifecycle = false
 
 [build_preparation]
 fixture_enabled = true
+fixture_output_dir = "output"
 fixture_upload = false
+fixture_reasoning_enabled = false
+debug_mirror_enabled = true
+reasoning_enabled = false
 
 [resource_providers]
 registries_enabled = false

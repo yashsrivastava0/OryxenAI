@@ -20,6 +20,7 @@ from oryxenai.agents.visual_design_director.service import (
     VisualDesignDirectorService,
     _elapsed_seconds,
     _visual_direction_hash,
+    compute_content_architect_visual_input_hash,
     compute_route_publication_hash,
 )
 
@@ -56,6 +57,27 @@ class TestVisualDirectionHash:
         assert _visual_direction_hash([{"a": 1}], {}, {}, []) != _visual_direction_hash(
             [{"a": 2}], {}, {}, []
         )
+
+    def test_includes_compiler_relevant_direction_fields(self):
+        base = _visual_direction_hash(
+            [],
+            {},
+            {},
+            [],
+            navigation_direction={"placement": "top"},
+            motion_system={"global_character": "quiet"},
+            resource_candidates=[{"resource_id": "hero"}],
+        )
+        changed = _visual_direction_hash(
+            [],
+            {},
+            {},
+            [],
+            navigation_direction={"placement": "rail"},
+            motion_system={"global_character": "quiet"},
+            resource_candidates=[{"resource_id": "hero"}],
+        )
+        assert base != changed
 
 
 class TestIdempotencyKey:
@@ -119,6 +141,19 @@ class TestComputeRoutePublicationHash:
         approved = compute_route_publication_hash(_route_plan_dump(publication_status="approved"))
         pending = compute_route_publication_hash(_route_plan_dump(publication_status="pending"))
         assert approved != pending
+
+
+class TestComputeContentArchitectVisualInputHash:
+    def test_changes_when_visual_input_changes(self):
+        content = ContentArchitectState(
+            approved=ContentArchitectApproval(content_hash="hash1"),
+            site_story_strategy={"presentation_mode": "single_page"},
+        )
+        changed = content.model_copy(deep=True)
+        changed.media_status = {"project_images": "approved"}
+        assert compute_content_architect_visual_input_hash(content) != (
+            compute_content_architect_visual_input_hash(changed)
+        )
 
 
 class TestCheckContentArchitectNotStale:

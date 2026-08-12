@@ -1,0 +1,18 @@
+{
+  "pages": [
+    {
+      "route_id": "home",
+      "path": "/",
+      "purpose": "Introduce the portfolio owner and selected work.",
+      "publication_status": "approved",
+      "compilable": true,
+      "scenes": [],
+      "asset_briefs": [],
+      "resource_candidates": [],
+      "acceptance_criteria": ["The approved public introduction is visible."],
+      "responsive_summary": "Stack sections on narrow screens."
+    }
+  ],
+  "asset_briefs": [],
+  "resource_candidates": []
+}

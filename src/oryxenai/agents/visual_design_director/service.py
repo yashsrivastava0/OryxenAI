@@ -59,6 +59,36 @@ def compute_route_publication_hash(route_plan: list[dict[str, Any]]) -> str:
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
+def compute_content_architect_visual_input_hash(
+    content_architect: ContentArchitectState,
+) -> str:
+    """Fingerprint every approved Content Architect field consumed by VDD.
+
+    ``ContentArchitectApproval.content_hash`` intentionally covers only the
+    public page packs and manifest. VDD also consumes the story strategy,
+    route intent, media availability, handoff/privacy boundaries, and the
+    complete route plan. Keeping a second projection hash here prevents those
+    changes from silently leaving an old visual direction looking current.
+    """
+    projection = {
+        "approved_content_hash": (
+            content_architect.approved.content_hash if content_architect.approved else ""
+        ),
+        "site_story_strategy": content_architect.site_story_strategy,
+        "route_plan": [route.model_dump(mode="json") for route in content_architect.route_plan],
+        "page_content_packs": [
+            _strip_internal_notes(pack.model_dump(mode="json"))
+            for pack in content_architect.page_content_packs
+        ],
+        "public_content_manifest": content_architect.public_content_manifest,
+        "media_status": content_architect.media_status,
+        "visual_director_handoff": content_architect.visual_director_handoff,
+        "privacy_and_confidentiality": content_architect.privacy_and_confidentiality,
+    }
+    combined = json.dumps(projection, sort_keys=True, default=str)
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+
 def _strip_internal_notes(pack: dict[str, Any]) -> dict[str, Any]:
     """Drop Content Architect's internal-only QA notes before they become
     part of Visual Design Director's own persisted intake snapshot.
@@ -171,6 +201,9 @@ class VisualDesignDirectorService:
         prefs = VisualDesignDirectorPreferences(**(preferences or {}))
         source_ref = VisualDesignDirectorSourceRef(
             content_architect_content_hash=content_architect.approved.content_hash,
+            content_architect_visual_input_hash=compute_content_architect_visual_input_hash(
+                content_architect
+            ),
             content_architect_session_revision=session.revision,
             route_publication_hash=compute_route_publication_hash(route_plan_dump),
             snapshotted_at=datetime.now(UTC).isoformat(),
@@ -321,6 +354,16 @@ class VisualDesignDirectorService:
             state.visual_language,
             state.shared_visual_systems,
             asset_briefs_payload,
+            navigation_direction=state.navigation_direction,
+            motion_system=state.motion_system,
+            interaction_system=state.interaction_system,
+            accessibility_and_performance=state.accessibility_and_performance,
+            resource_candidates=[
+                resource.model_dump(mode="json") for resource in state.resource_candidates
+            ],
+            must_preserve=state.must_preserve,
+            must_not_fabricate=state.must_not_fabricate,
+            compiler_handoff=state.compiler_handoff,
         )
         approved = apply_approval(state, visual_direction_hash)
         updated = await self._repository.save_visual_design_director_state(
@@ -384,9 +427,15 @@ class VisualDesignDirectorService:
         current_route_publication_hash = compute_route_publication_hash(
             [route.model_dump(mode="json") for route in content_architect.route_plan]
         )
+        current_visual_input_hash = compute_content_architect_visual_input_hash(content_architect)
         if (
             current_hash != state.source_ref.content_architect_content_hash
             or current_route_publication_hash != state.source_ref.route_publication_hash
+            or (
+                state.source_ref.content_architect_visual_input_hash
+                and current_visual_input_hash
+                != state.source_ref.content_architect_visual_input_hash
+            )
         ):
             raise VisualDesignDirectorOperationError(
                 "VISUAL_DESIGN_DIRECTOR_STALE_SOURCE",
@@ -399,6 +448,10 @@ class VisualDesignDirectorService:
                     "actual_content_architect_content_hash": current_hash,
                     "expected_route_publication_hash": state.source_ref.route_publication_hash,
                     "actual_route_publication_hash": current_route_publication_hash,
+                    "expected_content_architect_visual_input_hash": (
+                        state.source_ref.content_architect_visual_input_hash
+                    ),
+                    "actual_content_architect_visual_input_hash": current_visual_input_hash,
                 },
             )
 
@@ -458,13 +511,39 @@ def _visual_direction_hash(
     visual_language: Any,
     shared_visual_systems: Any,
     asset_briefs: Any,
+    *,
+    navigation_direction: Any = None,
+    motion_system: Any = None,
+    interaction_system: Any = None,
+    accessibility_and_performance: Any = None,
+    resource_candidates: Any = None,
+    must_preserve: Any = None,
+    must_not_fabricate: Any = None,
+    compiler_handoff: Any = None,
 ) -> str:
+    """Hash the complete approved visual contract.
+
+    The original approval hash covered only pages, visual language, shared
+    systems, and asset briefs. That allowed a change to navigation, motion,
+    accessibility, resource choices, or compiler handoff to leave an approval
+    looking current. The optional keyword fields preserve compatibility with
+    older callers/tests while making new approvals sensitive to every
+    compiler-relevant VDD field.
+    """
     combined = json.dumps(
         {
             "pages": pages,
             "visual_language": visual_language,
             "shared_visual_systems": shared_visual_systems,
             "asset_briefs": asset_briefs,
+            "navigation_direction": navigation_direction,
+            "motion_system": motion_system,
+            "interaction_system": interaction_system,
+            "accessibility_and_performance": accessibility_and_performance,
+            "resource_candidates": resource_candidates,
+            "must_preserve": must_preserve,
+            "must_not_fabricate": must_not_fabricate,
+            "compiler_handoff": compiler_handoff,
         },
         sort_keys=True,
         default=str,

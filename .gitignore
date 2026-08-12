@@ -60,3 +60,4 @@ postgres-data/
 # Scratch & temporary test artifacts
 scratch_benchmark.json
 scratch/
+output/

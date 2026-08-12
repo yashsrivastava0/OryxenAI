@@ -77,8 +77,8 @@ max_pages = 12                     # pages truncated to this, never rejected
 max_catalogue_candidates = 6       # resource-catalogue shortlist size per model call
 
 [build_preparation]
-# Hidden pre-code stage. Bundles live in private object storage, never on a
-# shared application/worker filesystem.
+# User-visible pre-code stage. Bundles live in private object storage, never on
+# a shared application/worker filesystem.
 max_routes = 12
 bundle_ttl_days = 3
 minimum_reuse_hours = 24
@@ -88,7 +88,13 @@ network_retry_count = 2
 target_contract = "react-vite-v1"
 fixture_enabled = true
 fixture_input_path = "src/oryxenai/output/visual_design_director_Output.md"
+fixture_output_dir = "output"
 fixture_upload = true
+fixture_reasoning_enabled = false
+debug_mirror_enabled = true
+model_profile = "build_preparation"
+reasoning_enabled = true
+integration_route_threshold = 2
 
 [artifact_storage]
 # Non-secret coordinates for the configured private preparation bucket.
@@ -105,11 +111,17 @@ secret_key_env = "R2_SECRET_ACCESS_KEY"
 
 [resource_providers]
 registries_enabled = true
-shadcn_catalog_url = "https://ui.shadcn.com/r/registry.json"
-shadcn_item_url_template = "https://ui.shadcn.com/r/{name}.json"
+# The public shadcn catalog is style-versioned.  The root /r/registry.json
+# endpoint is not a public catalog.
+shadcn_catalog_url = "https://ui.shadcn.com/r/styles/new-york-v4/registry.json"
+shadcn_item_url_template = "https://ui.shadcn.com/r/styles/new-york-v4/{name}.json"
 magicui_catalog_url = "https://magicui.design/r/registry.json"
 magicui_item_url_template = "https://magicui.design/r/{name}.json"
 magicui_enabled = true
 aceternity_catalog_url = "https://ui.aceternity.com/registry/registry.json"
 aceternity_item_url_template = "https://ui.aceternity.com/registry/{name}.json"
 aceternity_enabled = false
+registry_order = ["shadcn", "magicui", "aceternity"]
+pexels_api_key_env = "PEXELS_API_KEY"
+unsplash_access_key_env = "UNSPLASH_ACCESS_KEY"
+lucide_icon_url_template = "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"

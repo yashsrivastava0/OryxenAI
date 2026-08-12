@@ -1,6 +1,6 @@
 <!--
   Operation: establish_visual_language (always runs first)
-  Version: visual_design_director.establish_visual_language.v1
+  Version: visual_design_director.establish_visual_language.v3
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -20,11 +20,16 @@ second, batched operation will write them from the language you establish here.
 <mode_and_pages_included>
 Set mode="VISUAL_LANGUAGE_AND_PAGES" together with pages_included=true, or
 mode="VISUAL_LANGUAGE_ONLY" together with pages_included=false. These two fields must always agree.
+For exactly one route, pages_included MUST be true and mode MUST be VISUAL_LANGUAGE_AND_PAGES. Finish
+that route in this call; never defer a single route to direct_page_experience.
 Prefer VISUAL_LANGUAGE_AND_PAGES whenever you can write genuinely complete, specific direction for
 every route in this one call — most single-page and hybrid portfolios qualify. Only defer to
 VISUAL_LANGUAGE_ONLY when a real multi-page plan has more routes than you can direct well in one
 response.
 </mode_and_pages_included>
+
+For a single route, combine related sections into no more than four scenes; do not mirror every
+Content Architect section as a separate scene.
 
 <visual_language>
 Populate visual_language with a genuine creative thesis for THIS profile, not a generic style label.
@@ -59,7 +64,7 @@ active/touch treatment for recurring interactive elements).
 
 <user_facing_summary>
 Write user_summary as a short, friendly, standalone summary for the person reviewing this stage's
-output in a chat interface — roughly 120-250 words, plain paragraphs only, NO Markdown headings.
+output in a chat interface — roughly 60-120 words, plain paragraphs only, NO Markdown headings.
 Describe the visual direction in plain language (e.g. "a restrained dark, evidence-first look with
 one accent color reserved for outcomes" rather than field names), name the signature motion moment
 if any, and confirm the visual direction is ready for review. This is a highlights view for a human,
@@ -74,6 +79,12 @@ Leave compiler_handoff as an empty object {} regardless (see the system prompt's
 compiler_handoff_rule) — only integrate_site_experience populates it, even when you inline full pages
 here.
 </pages_when_included>
+
+For every resource_id used in a page or scene, add one matching object to the top-level
+resource_candidates registry. Copy the ID exactly from the shortlist; never rely on a page/scene
+string alone. If media_status and visual_director_handoff say that no approved media exists, keep
+asset_briefs empty unless a genuine non-media visual requirement needs an intent brief; diagrams
+and abstract visuals should be described as custom implementation opportunities, not external stock.
 
 <memory_accuracy>
 If you write a status flag into memory_update (e.g. a "visual_direction_status"-style key), it must

@@ -324,13 +324,17 @@ class VisualDesignDirectorSourceRef(BaseModel):
     computed only from page_content_packs/public_content_manifest, NOT from
     route_plan's publication_status values — so a route flipping from
     pending to approved (or vice versa) with no other content change would
-    otherwise go undetected. This closes that edge case without touching
-    Content Architect's own already-verified hash computation.
+    otherwise go undetected. content_architect_visual_input_hash additionally
+    covers every other Content Architect projection consumed by VDD (story
+    strategy, route intent, media, handoff, privacy, and page packs). This
+    closes those edge cases without touching Content Architect's own
+    already-verified hash computation.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     content_architect_content_hash: str = ""
+    content_architect_visual_input_hash: str = ""
     content_architect_session_revision: int = 0
     route_publication_hash: str = ""
     snapshotted_at: str = ""

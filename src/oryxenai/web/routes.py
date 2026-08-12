@@ -44,5 +44,17 @@ def create_web_router() -> APIRouter:
             },
         )
 
+    @router.get("/build-preparation-fixture/progress", response_class=HTMLResponse)
+    async def build_preparation_fixture_progress(request: Request) -> Any:
+        settings = request.app.state.settings
+        return templates.TemplateResponse(
+            request=request,
+            name="build_preparation_progress.html",
+            context={
+                "app_name": settings.app.name,
+                "fixture_enabled": settings.build_preparation.fixture_enabled,
+            },
+        )
+
     router.mount("/static", app=StaticFiles(directory=str(_STATIC_DIR)), name="static")
     return router

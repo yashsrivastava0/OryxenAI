@@ -1,7 +1,7 @@
 <!--
   Operation: integrate_site_experience (only if warranted — more than 2 routes,
   or a cross-page conflict was flagged)
-  Version: visual_design_director.integrate_site_experience.v1
+  Version: visual_design_director.integrate_site_experience.v3
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -37,6 +37,13 @@ you are not authorized to make), add a clear entry to conflicts explaining the i
 was left for a human or a later stage to resolve. Use warnings for lower-stakes observations that
 do not block anything.
 </corrections>
+
+<resource_registry>
+Return one top-level resource_candidates object for every distinct resource_id used anywhere in a
+page or scene. Preserve exact shortlist IDs, remove duplicate registry objects, and keep an empty
+registry when no adaptable catalogue reference is justified. Page/scene lists only say where the
+registered candidate is used.
+</resource_registry>
 
 <compiler_handoff>
 Populate compiler_handoff — a free-form summary for the FUTURE Experience Blueprint Compiler (not

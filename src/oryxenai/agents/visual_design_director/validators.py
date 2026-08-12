@@ -342,3 +342,87 @@ def _find_duplicates(ids: list[str]) -> set[str]:
 
 def _is_nonempty_dict(value: Any) -> bool:
     return isinstance(value, dict) and len(value) > 0
+
+
+def validate_final_references(
+    pages: list[Any],
+    asset_briefs: list[Any],
+    resource_candidates: list[Any],
+    *,
+    known_route_ids: set[str],
+    known_section_ids: set[str],
+    known_claim_ids: set[str],
+) -> ValidationOutcome:
+    """Validate cross-object references after all VDD calls are reconciled.
+
+    Stage-level validation intentionally stays envelope-oriented, but the
+    final output is a compiler input. This pass catches the concrete dangling
+    page/scene/content/asset/resource references that can otherwise survive a
+    multi-call integration response and fail much later in Build Preparation.
+    """
+    errors: list[str] = []
+    asset_ids = {
+        str(item.get("asset_id", "") or "")
+        for item in asset_briefs
+        if isinstance(item, dict) and item.get("asset_id")
+    }
+    resource_ids = {
+        str(item.get("resource_id", "") or "")
+        for item in resource_candidates
+        if isinstance(item, dict) and item.get("resource_id")
+    }
+    for page_index, page in enumerate(pages):
+        if not isinstance(page, dict):
+            continue
+        route_id = str(page.get("route_id", "") or "")
+        if known_route_ids and route_id not in known_route_ids:
+            errors.append(f"final page {page_index} references unknown route_id {route_id!r}")
+        for asset_id in page.get("asset_briefs") or []:
+            if str(asset_id) not in asset_ids:
+                errors.append(
+                    f"final page {route_id or page_index} references unknown asset_id {asset_id!r}"
+                )
+        for resource_id in page.get("resource_candidates") or []:
+            if str(resource_id) not in resource_ids:
+                errors.append(
+                    f"final page {route_id or page_index} references unknown resource_id {resource_id!r}"
+                )
+        for scene_index, scene in enumerate(page.get("scenes") or []):
+            if not isinstance(scene, dict):
+                continue
+            scene_label = str(scene.get("scene_id", scene_index))
+            for content_ref in scene.get("content_refs") or []:
+                # A very small contract-level harness may omit the upstream
+                # content packs entirely. In that case VDD cannot prove a
+                # content reference either way; Build Preparation remains the
+                # authoritative compiler boundary. Real approved runs always
+                # provide these sets, so dangling refs are rejected there.
+                if (known_section_ids or known_claim_ids) and str(content_ref) not in (
+                    known_section_ids | known_claim_ids
+                ):
+                    errors.append(
+                        f"final scene {scene_label} references unknown content_ref {content_ref!r}"
+                    )
+            for asset_id in scene.get("asset_requirements") or []:
+                if str(asset_id) not in asset_ids:
+                    errors.append(
+                        f"final scene {scene_label} references unknown asset_id {asset_id!r}"
+                    )
+            for resource_id in scene.get("resource_candidates") or []:
+                if str(resource_id) not in resource_ids:
+                    errors.append(
+                        f"final scene {scene_label} references unknown resource_id {resource_id!r}"
+                    )
+    for index, asset in enumerate(asset_briefs):
+        if not isinstance(asset, dict):
+            continue
+        content_ref = str(asset.get("content_ref", "") or "")
+        if (
+            content_ref
+            and (known_section_ids or known_claim_ids)
+            and content_ref not in known_section_ids | known_claim_ids
+        ):
+            errors.append(
+                f"final asset brief {index} references unknown content_ref {content_ref!r}"
+            )
+    return ValidationOutcome(not errors, errors)
