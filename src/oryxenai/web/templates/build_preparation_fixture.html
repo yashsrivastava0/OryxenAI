@@ -3,48 +3,92 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ app_name }} — Build Preparation Phase 3</title>
+  <title>{{ app_name }} — Build Preparation</title>
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/build-preparation-fixture.css">
 </head>
 <body>
-  <main class="shell">
-    <header class="header">
-      <div>
-        <p class="eyebrow">Developer harness</p>
-        <h1>Build Preparation · Phase 3</h1>
-        <p class="lede">Compile approved visual direction into verified resources, a deterministic ZIP, and a local debug mirror.</p>
-      </div>
-      <a class="link" href="/build-preparation-fixture/progress">Open progress and logs</a>
-    </header>
+  <main class="fixture-layout">
+    <section class="fixture-content">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Developer harness</p>
+          <h1>Build Preparation</h1>
+          <p class="lede">Compile approved content and visual direction into a verified local build pack, then upload the same ZIP to R2 when configured.</p>
+        </div>
+      </header>
 
-    {% if not fixture_enabled %}
-    <section class="panel error"><strong>Harness disabled.</strong><p>Enable the development UI and the Build Preparation fixture flag to use this page.</p></section>
-    {% else %}
-    <section class="panel">
-      <div class="panel-heading"><h2>Input</h2><span class="badge">Detached · no session required</span></div>
-      <p class="muted">Leave the box empty to use the checked-in Visual Design Director fixture. Offline mode is deterministic and is used by default.</p>
-      <div class="actions">
-        <label class="button secondary">Choose JSON<input id="fixture-file" type="file" accept="application/json,.json"></label>
-        <button id="use-default" class="button secondary" type="button">Use checked-in fixture</button>
-      </div>
-      <textarea id="fixture-input" rows="18" spellcheck="false" placeholder="Paste a Visual Design Director JSON object here…"></textarea>
-      <div class="input-heading"><h3>2 / Content Architect JSON <span class="optional">optional</span></h3><span class="muted">Leave blank to run without approved page content.</span></div>
-      <div class="actions">
-        <label class="button secondary">Choose Content Architect JSON<input id="content-architect-file" type="file" accept="application/json,.json"></label>
-      </div>
-      <textarea id="content-architect-input" rows="12" spellcheck="false" placeholder="Paste an approved Content Architect JSON object here…"></textarea>
-      <div class="options">
-        <label><input id="live-model" type="checkbox"> Use configured live model</label>
-        <label><input id="live-providers" type="checkbox"> Use live resource providers</label>
-      </div>
-      <div class="actions"><button id="run-phase2" class="button primary" type="button">Run Phase 3</button><span id="status" class="muted" aria-live="polite"></span></div>
+      {% if not fixture_enabled %}
+      <section class="panel error"><strong>Harness disabled.</strong><p>Enable the development UI and the Build Preparation fixture flag to use this page.</p></section>
+      {% else %}
+      <section class="panel">
+        <div class="panel-heading"><h2>Input</h2><span class="badge">Detached · no session required</span></div>
+        <p class="muted">Paste or choose a Visual Design Director JSON object. Content Architect JSON is optional for this fixture, but recommended when it is available.</p>
+        <div class="actions">
+          <label class="button secondary">Choose VDD JSON<input id="fixture-file" type="file" accept="application/json,.json"></label>
+          <button id="use-default" class="button secondary" type="button">Use checked-in VDD fixture</button>
+        </div>
+        <textarea id="fixture-input" rows="18" spellcheck="false" placeholder="Paste a Visual Design Director JSON object here…"></textarea>
+        <div class="input-heading"><h3>Content Architect JSON <span class="optional">optional</span></h3><span class="muted">Approved content produces fuller per-route build context.</span></div>
+        <div class="actions">
+          <label class="button secondary">Choose Content Architect JSON<input id="content-architect-file" type="file" accept="application/json,.json"></label>
+        </div>
+        <textarea id="content-architect-input" rows="12" spellcheck="false" placeholder="Paste an approved Content Architect JSON object here…"></textarea>
+        <div class="options">
+          <label><input id="live-model" type="checkbox"> Use configured live model</label>
+          <label><input id="live-providers" type="checkbox"> Use live resource providers</label>
+        </div>
+        <div class="actions"><button id="run-phase3" class="button primary" type="button">Run Phase 3</button><span id="status" class="muted" aria-live="polite"></span></div>
+      </section>
+
+      <section id="summary" class="panel" hidden>
+        <div class="panel-heading"><h2>Compiled result</h2><a id="summary-details" class="link" href="/build-preparation-fixture/progress">View full details</a></div>
+        <div id="summary-body"></div>
+      </section>
+      {% endif %}
     </section>
 
-    <section id="summary" class="panel" hidden>
-      <div class="panel-heading"><h2>Compiled result</h2><a class="link" href="/build-preparation-fixture/progress">View every log</a></div>
-      <div id="summary-body"></div>
-    </section>
-    {% endif %}
+    <aside class="run-sidebar" aria-label="Build Preparation run monitor">
+      <div class="sidebar-heading"><div><p class="eyebrow">Live monitor</p><h2>Run status</h2></div><span id="run-status" class="status-badge">Waiting</span></div>
+      <section class="monitor-section">
+        <h3>Readiness</h3>
+        <ul id="preflight" class="check-list"><li>Checking configuration…</li></ul>
+      </section>
+      <section class="monitor-section">
+        <h3>Stages</h3>
+        <ol id="stage-list" class="stage-list">
+          <li data-stage="stage_0">Stage 0 · Scope</li>
+          <li data-stage="stage_1">Stage 1 · Queries</li>
+          <li data-stage="providers">Providers · Candidates</li>
+          <li data-stage="stage_2">Stage 2 · Selection</li>
+          <li data-stage="stage_3">Stage 3 · Build context</li>
+          <li data-stage="stage_4">Stage 4 · Integration</li>
+          <li data-stage="materialize">Local result</li>
+          <li data-stage="stage_5">Stage 5 &middot; Handoff gate</li>
+          <li data-stage="artifact_storage">R2 storage</li>
+          <li data-stage="phase_3">Phase 3 · Verification</li>
+        </ol>
+      </section>
+      <section class="monitor-section">
+        <h3>Local result</h3>
+        <p id="local-result" class="muted">A timestamped folder will be created in output/build-preparation/.</p>
+        <div id="local-actions" class="compact-actions" hidden>
+          <a id="view-details" class="button secondary" href="/build-preparation-fixture/progress">View details</a>
+          <a id="download-zip" class="button secondary" href="#">Download ZIP</a>
+          <button id="copy-path" class="button secondary" type="button">Copy folder path</button>
+        </div>
+      </section>
+      <section class="monitor-section">
+        <h3>Latest activity</h3>
+        <ol id="live-events" class="live-events"><li class="muted">No run started.</li></ol>
+      </section>
+      <section id="issue-card" class="issue-card" hidden>
+        <p class="eyebrow">Needs attention</p>
+        <strong id="issue-code"></strong>
+        <p id="issue-message"></p>
+        <p id="issue-action" class="muted"></p>
+        <button id="copy-issue" class="button secondary" type="button">Copy issue report</button>
+      </section>
+    </aside>
   </main>
   <script src="{{ request.scope.get('root_path', '') }}/static/build-preparation-fixture.js"></script>
 </body>

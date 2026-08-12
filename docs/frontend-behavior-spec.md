@@ -22,6 +22,14 @@ machines persisted server-side (`DiscoveryStatus`, `ContentArchitectStatus`).
 The frontend polls `GET .../discovery` / `GET .../content-architect` and
 renders based on `status` alone — there is no separate event stream.
 
+The right-side Agent workspace adds two lightweight views on top of that
+state: **Full outputs** and **Live activity**. Full outputs are selected from
+the persisted Discovery, Content Architect, Visual Design Director, and Build
+Preparation projections. Live activity is a client-derived timeline: it
+records user/API actions and adds an entry only when a polled stage or durable
+job changes. It is intentionally not a token-level model trace or a separate
+backend event stream.
+
 Discovery: `not_started → questions_queued → questions_running →
 questions_ready → answers_in_progress → brief_running → brief_review →
 approved`, with `needs_attention` reachable from any non-terminal state on
@@ -91,23 +99,25 @@ showing. These two uses never overlap in practice, since a next-agent prompt
 only appears after a stage has already reached its terminal `approved`
 status.
 
-Content Architect has no next agent implemented yet (Visual Design Director
-does not exist), so its approval currently ends in a static confirmation
-message. The same `promptNextAgentPrompt` pattern used for Discovery →
-Content Architect is the intended call site once that agent ships — see the
-`TODO` at `approveContentArchitect()` in `app.js`.
+Content Architect approval offers the explicit Visual Design Director start
+action. Visual Design Director approval offers the explicit Build Preparation
+start action. Approval still never auto-starts the next stage; each transition
+is a separate user action.
 
 ## 5. What's shown vs. hidden per agent
 
-Both agents' full output is always available to the user (nothing is
-withheld), but the chat surfaces a **curated subset by default**, with the
-complete structured payload available under a collapsed "Advanced — raw
-JSON" panel.
+Every implemented stage's full output is available to the user (nothing is
+withheld), but the chat surfaces a **curated subset by default**. The Agent
+workspace is the single place to inspect and copy the complete output for a
+stage. It includes a readable preview and a readonly copy-ready text area,
+plus a one-click clipboard action with a select-all fallback.
 
 Discovery: the chat shows `brief.user_summary` (a ~150–350 word, plain-
 paragraph summary the model writes specifically for this purpose) in
-preference to the full `brief.markdown`; a "View full brief" button opens a
-sidebar with the complete markdown and structured profile.
+preference to the full `brief.markdown`; a "View full output" button opens the
+workspace with the complete markdown, operation envelope, and structured
+profile. The copy-ready value combines those parts without including the raw
+resume/document intake.
 
 Content Architect: mirrors the same pattern. `user_summary` (a ~120–250 word
 summary produced by the `plan_content` stage) is the primary display,
@@ -117,6 +127,14 @@ non-empty `unresolved_issues` and `warnings` are surfaced as short bullet
 lists, and a one-line count is shown for `privacy_and_confidentiality` notes
 — these were previously only visible in the raw-JSON panel, which is why
 Content Architect's chat output initially read as "too little."
+
+Visual Design Director and Build Preparation use the same workspace. Their
+persisted stage state is exposed as a full JSON copy-ready output, while the
+preview shows the human-facing summary when one exists. The UI reads these
+values from the stage API responses; it does not read checked-in fixture
+files such as `src/oryxenai/output/visual_design_director_Output.md`. Future
+full-content agents should persist their complete output in their stage state
+so this generic workspace can expose it without another frontend rewrite.
 
 Deliberately never surfaced in the curated view for either agent: internal
 review annotations (`PageContentPack.internal_notes` in Content Architect),
@@ -172,12 +190,18 @@ shapes were kept structured JSON per poll (not collapsed into an opaque
 string) specifically so a future SSE/WebSocket layer could push the same
 JSON shape incrementally without a breaking schema change.
 
+The current Live activity view is the small amount of observability available
+before push events exist. It shows stage transitions, durable job transitions,
+queued requests, approvals, and errors. Refreshing a session rebuilds the
+timeline from the current persisted state and the actions observed in that
+browser tab; it does not imply that every server-side event was captured.
+
 ## 8. Known limitations
 
 - Document attachment only accepts plain text files up to 200KB; PDF
   extraction is explicitly rejected with a message, not silently dropped.
-- Content Architect has no next-agent prompt after approval yet, because
-  Visual Design Director doesn't exist as an implemented agent.
+- The activity view is polling-based and best-effort until a server-side event
+  stream is added; it does not show token-level model progress.
 - The provider dropdown only has one functioning value; the other entries
   are visible but disabled until a second real provider adapter (e.g.
   Anthropic, Gemini) is built — those providers don't speak the same

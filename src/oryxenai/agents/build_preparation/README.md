@@ -4,7 +4,8 @@ Build Preparation is the fourth explicit pipeline stage. Stage 0 deterministical
 compiles approved Content Architect and Visual Design Director projections into
 public route scope and resource needs. Phase 2 then runs a bounded workflow:
 
-1. compose one provider query per deterministic need;
+1. compose one provider query per deterministic need, including an optional,
+   policy-approved non-evidentiary editorial-image opportunity when configured;
 2. search Pexels first for photos, with Unsplash fallback, and resolve registry
    components and Lucide icons;
 3. select only from the returned closed candidate set, or record an explicit
@@ -12,7 +13,24 @@ public route scope and resource needs. Phase 2 then runs a bounded workflow:
 4. write route-scoped Build Context, optionally integrating cross-route
    constraints when the configured route threshold is reached; and
 5. materialize a local `build-context` tree with provenance, licenses, safe
-   component source, image inspection metadata, and a resources manifest.
+   component source, image inspection metadata, a complete resource decision
+   plan, and a resources manifest.
+
+Before packaging, the agent writes `handoff-report.json`. Code Generator may
+consume a pack only when `handoff_eligible` is true, which requires both
+approved upstream hashes. Detached or unapproved fixture packages remain
+downloadable for review but are never production-eligible. A selected Pexels
+image is locally materialized and pixel-inspected; provider failure uses the
+approved custom visual fallback and does not block the handoff. Unsplash stays
+a metadata-only reference and cannot be used by the static target.
+
+`resources/plan.json` records every selected and unselected need, its routes
+and scenes, fallback, adaptation guidance, and whether Code Generator may fetch
+one equivalent during Code Generation. Such a fetch must replace—not duplicate—
+the recorded fallback and is never permitted at portfolio runtime. The target
+ships a dependency ceiling and starter `package.json`, not a synthetic lockfile;
+Code Generator generates the real lockfile after choosing its final dependency
+subset.
 
 Phase 3 packages the staged tree into one deterministic ZIP, verifies it
 through the configured artifact store, and restores the verified bytes to a

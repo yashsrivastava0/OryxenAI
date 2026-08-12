@@ -11,9 +11,11 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from PIL import Image
 
@@ -25,6 +27,7 @@ from oryxenai.agents.build_preparation.schemas import (
     RouteBuildContext,
     Stage1QueryPlan,
     Stage2SelectionPlan,
+    StageEvent,
 )
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey, ModelClient
@@ -40,6 +43,66 @@ class FixturePreparationError(Exception):
         self.code = code
         self.details = details or {}
         super().__init__(message)
+
+
+EventSink = Callable[[StageEvent], Awaitable[None]]
+
+
+def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
+    """Return fixture dependency readiness without revealing credential values."""
+    config = settings.artifact_storage
+    requested = bool(settings.build_preparation.fixture_upload)
+    provider = str(config.provider or "")
+    r2: dict[str, Any] = {
+        "requested": requested,
+        "provider": provider,
+        "status": "not_requested",
+        "message": "R2 upload is disabled for this fixture.",
+        "missing": [],
+    }
+    pexels_env = str(settings.resource_providers.pexels_api_key_env or "PEXELS_API_KEY")
+    resources = {
+        "pexels": {
+            "status": "ready" if os.getenv(pexels_env, "") else "not_configured",
+            "message": (
+                "Optional editorial-image lookup is ready."
+                if os.getenv(pexels_env, "")
+                else "Pexels is unavailable; the approved custom visual fallback will be used."
+            ),
+            "missing": [] if os.getenv(pexels_env, "") else [pexels_env],
+        }
+    }
+    if not requested:
+        return {"local": {"status": "ready"}, "r2": r2, "resources": resources}
+    if provider not in {"r2_s3", "s3"}:
+        r2.update(
+            {
+                "status": "not_configured",
+                "message": "Configured artifact storage is not S3-compatible.",
+            }
+        )
+        return {"local": {"status": "ready"}, "r2": r2, "resources": resources}
+    missing = [
+        name for name in (config.access_key_env, config.secret_key_env) if not os.getenv(name, "")
+    ]
+    if not config.endpoint_url or not config.bucket:
+        missing.append("artifact_storage_configuration")
+    if missing:
+        r2.update(
+            {
+                "status": "not_configured",
+                "message": "R2 upload is unavailable until its artifact storage configuration is complete.",
+                "missing": missing,
+            }
+        )
+    else:
+        r2.update(
+            {
+                "status": "ready",
+                "message": "R2 upload and read-back verification are ready.",
+            }
+        )
+    return {"local": {"status": "ready"}, "r2": r2, "resources": resources}
 
 
 def _fixture_path(settings: Settings) -> Path:
@@ -80,14 +143,19 @@ async def run_fixture(
     model_profile: str = "",
     model_client: ModelClient | None = None,
     artifact_store: ArtifactStore | None = None,
+    event_sink: EventSink | None = None,
+    run_id: str | None = None,
+    local_result_root: str | None = None,
 ) -> dict[str, Any]:
     from oryxenai.agents.build_preparation.agent import BuildPreparationAgent
 
     raw = raw_override if raw_override is not None else _load_default(settings)
     if isinstance(raw.get("visual_design_director"), dict):
         raw = raw["visual_design_director"]
-    run_uuid = uuid4()
-    run_id = str(run_uuid)
+    run_uuid = uuid4() if run_id is None else UUID(run_id)
+    resolved_run_id = str(run_uuid)
+    storage = fixture_storage_preflight(settings)
+    created_model_client = False
     if live_model and model_client is None:
         # The provider factory intentionally resolves API keys from the
         # process environment. Ensure the canonical settings loader has
@@ -107,12 +175,14 @@ async def run_fixture(
                 "Live model mode requires a configured Build Preparation model profile and API key.",
                 code="FIXTURE_MODEL_UNAVAILABLE",
             )
+        created_model_client = True
     agent = BuildPreparationAgent(
         model_client=model_client,
         live_model=live_model,
         live_providers=live_providers,
         settings=settings,
         artifact_store=artifact_store,
+        event_sink=event_sink,
     )
     context = build_context(
         portfolio_session_id=uuid4(),
@@ -122,19 +192,18 @@ async def run_fixture(
             "operation": "build",
             "model_profile": model_profile or settings.build_preparation.model_profile,
             "max_routes": settings.build_preparation.max_routes,
+            "editorial_image_budget": settings.build_preparation.editorial_image_budget,
             "visual_design_director": raw,
             "content_architect": content_architect_override or {},
             "live_model": live_model,
             "live_providers": live_providers,
             "output_dir": settings.build_preparation.fixture_output_dir,
             "integration_route_threshold": settings.build_preparation.integration_route_threshold,
-            # Offline harness runs still exercise the complete package and
-            # read-back flow through MemoryArtifactStore.  An external upload
-            # is opt-in with a live model/provider run.
-            "artifact_upload": bool(
-                settings.build_preparation.fixture_upload and (live_model or live_providers)
-            ),
-            "debug_mirror": settings.build_preparation.debug_mirror_enabled,
+            # Fixture runs always materialize a local result. R2 upload is
+            # attempted independently whenever its configured credentials are ready.
+            "artifact_upload": storage["r2"]["status"] == "ready",
+            "debug_mirror": settings.build_preparation.fixture_debug_mirror_enabled,
+            "local_result_root": local_result_root or "",
         },
         run_id=run_uuid,
     )
@@ -146,9 +215,21 @@ async def run_fixture(
             code=getattr(exc, "code", "FIXTURE_INPUT_INVALID"),
             details=getattr(exc, "details", {}),
         ) from exc
+    finally:
+        if created_model_client and model_client is not None:
+            close = getattr(model_client, "aclose", None)
+            if close is not None:
+                await close()
     output = dict(result.output)
+    if storage["r2"]["status"] == "ready":
+        storage["r2"] = {
+            **storage["r2"],
+            "status": "verified",
+            "message": "R2 upload and read-back verification completed.",
+            "artifact": output.get("package", {}).get("artifact"),
+        }
     return {
-        "run_id": run_id,
+        "run_id": resolved_run_id,
         "stage": output.get("stage", "phase_3"),
         "status": output.get("status", "ready"),
         "result": output,
@@ -157,15 +238,18 @@ async def run_fixture(
         "query_plan": output.get("query_plan"),
         "fetched_candidates": output.get("fetched_candidates", []),
         "selection_plan": output.get("selection_plan"),
+        "candidate_qualifications": output.get("candidate_qualifications", []),
         "build_context": output.get("build_context"),
         "materialization": output.get("materialization"),
         "package": output.get("package"),
+        "handoff_report": output.get("handoff_report", {}),
         "warnings": output.get("warnings", []),
         "events": output.get("events", []),
         "model_calls": output.get("model_calls", 0),
         "provider_calls": output.get("provider_calls", 0),
         "live_model": live_model,
         "live_providers": live_providers,
+        "storage": storage,
     }
 
 
@@ -173,13 +257,18 @@ def _offline_query_plan(needs: list[Any]) -> Stage1QueryPlan:
     queries: list[ResourceQuery] = []
     for need in needs:
         category = f"{need.category} {need.purpose} {' '.join(need.query_terms)}".lower()
-        if need.kind == "asset" and any(
-            token in category for token in ("photo", "portrait", "editorial", "image")
+        if bool(getattr(need, "required_for_handoff", False)) or (
+            need.kind == "asset"
+            and any(token in category for token in ("photo", "portrait", "editorial", "image"))
         ):
             kind = "photo"
         elif need.kind == "resource" and "icon" in category:
             kind = "icon"
-        elif need.kind == "resource":
+        elif need.kind == "resource" and str(need.category or "") not in {
+            "hero_pattern",
+            "background_system",
+            "diagram_primitive",
+        }:
             kind = "component"
         else:
             kind = "custom"
@@ -192,6 +281,10 @@ def _offline_query_plan(needs: list[Any]) -> Stage1QueryPlan:
                 orientation=str(need.details.get("orientation", "") or ""),
                 icon_name=(need.query_terms[0] if kind == "icon" and need.query_terms else ""),
                 fallback=need.fallback or "Use an explicit custom implementation.",
+                required_for_handoff=bool(getattr(need, "required_for_handoff", False)),
+                allowed_providers=["pexels"]
+                if bool(getattr(need, "required_for_handoff", False))
+                else [],
             )
         )
     return Stage1QueryPlan(queries=queries)
@@ -215,11 +308,15 @@ def _offline_candidates(queries: list[ResourceQuery]) -> list[FetchedResource]:
                     preview_url="https://images.pexels.com/",
                     image_url=f"https://images.pexels.com/mock/{digest}.jpg",
                     title="Mock abstract portfolio image",
-                    width=640,
-                    height=400,
+                    photographer="Fixture photographer",
+                    photographer_url="https://www.pexels.com/",
+                    attribution_url="https://www.pexels.com/",
+                    width=1600,
+                    height=1000,
                     orientation="landscape",
                     mime_type="image/png",
                     license="Pexels license",
+                    license_reference="https://www.pexels.com/legal-pages/license/",
                 )
             )
         elif query.kind == "icon":
@@ -234,6 +331,7 @@ def _offline_candidates(queries: list[ResourceQuery]) -> list[FetchedResource]:
                     source_reference="https://lucide.dev/",
                     icon_name=icon,
                     license="ISC",
+                    license_reference="https://github.com/lucide-icons/lucide/blob/main/LICENSE",
                 )
             )
         else:
@@ -251,6 +349,7 @@ def _offline_candidates(queries: list[ResourceQuery]) -> list[FetchedResource]:
                     },
                     dependencies=["react"],
                     license="MIT",
+                    license_reference="https://github.com/shadcn-ui/ui/blob/main/LICENSE.md",
                 )
             )
     return result
@@ -352,7 +451,7 @@ def _offline_context(
 
 async def _offline_download(_candidate: FetchedResource) -> bytes:
     buffer = io.BytesIO()
-    Image.new("RGB", (640, 400), "#1f2937").save(buffer, format="PNG")
+    Image.new("RGB", (1600, 1000), "#1f2937").save(buffer, format="PNG")
     return buffer.getvalue()
 
 

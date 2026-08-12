@@ -202,15 +202,18 @@ class BuildPreparationConfig(BaseModel):
     fixture_output_dir: str = "output"
     fixture_upload: bool = True
     fixture_reasoning_enabled: bool = False
+    fixture_debug_mirror_enabled: bool = True
     debug_mirror_enabled: bool = True
     model_profile: str = "build_preparation"
     reasoning_enabled: bool = True
     integration_route_threshold: int = 2
+    editorial_image_budget: int = 1
 
     @field_validator(
         "fixture_enabled",
         "fixture_upload",
         "fixture_reasoning_enabled",
+        "fixture_debug_mirror_enabled",
         "debug_mirror_enabled",
         "reasoning_enabled",
         mode="before",

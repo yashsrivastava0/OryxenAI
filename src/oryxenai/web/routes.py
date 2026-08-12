@@ -16,6 +16,14 @@ _STATIC_DIR = Path(__file__).resolve().parent / "static"
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 
 
+def _asset_version(filename: str) -> str:
+    """Return a cheap dev-friendly cache key for a checked-in static asset."""
+    try:
+        return str((_STATIC_DIR / filename).stat().st_mtime_ns)
+    except OSError:
+        return "0"
+
+
 def create_web_router() -> APIRouter:
     """Return a router serving the developer testing harness and static assets."""
     router = APIRouter()
@@ -29,6 +37,8 @@ def create_web_router() -> APIRouter:
             context={
                 "app_name": settings.app.name,
                 "dev_ui": settings.is_dev_ui_enabled,
+                "app_js_version": _asset_version("app.js"),
+                "app_css_version": _asset_version("app.css"),
             },
         )
 

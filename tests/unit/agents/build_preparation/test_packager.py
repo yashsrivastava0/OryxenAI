@@ -79,7 +79,7 @@ async def test_package_is_verified_stored_and_restored() -> None:
         assert package.file_count >= 4
         mirror = Path(materialization.root_path)
         mirror_folder = mirror.parent.name
-        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-[0-9a-f]{8}", mirror_folder)
+        assert re.fullmatch(r"\d{2}-\d{2}-\d{2}-\d{2}-[0-9a-f]{8}", mirror_folder)
         assert (mirror / "manifest.json").is_file()
         assert (mirror / "overview.md").read_text(encoding="utf-8") == "# Prepared"
         manifest = json.loads((mirror / "manifest.json").read_text(encoding="utf-8"))
@@ -119,3 +119,27 @@ def test_bundle_verification_rejects_manifest_tampering() -> None:
     with pytest.raises(PackageError) as exc_info:
         verify_bundle_bytes(output.getvalue(), max_bytes=1024 * 1024)
     assert exc_info.value.code == "BUILD_PACK_MANIFEST_INVALID"
+
+
+def test_bundle_verification_rejects_windows_drive_paths() -> None:
+    content = b"escape"
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "files": [
+                        {
+                            "path": "C:/escape.txt",
+                            "size_bytes": len(content),
+                            "sha256": hashlib.sha256(content).hexdigest(),
+                        }
+                    ]
+                }
+            ),
+        )
+        archive.writestr("C:/escape.txt", content)
+    with pytest.raises(PackageError) as exc_info:
+        verify_bundle_bytes(output.getvalue(), max_bytes=1024 * 1024)
+    assert exc_info.value.code == "BUILD_PACK_UNSAFE_PATH"

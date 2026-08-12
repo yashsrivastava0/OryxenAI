@@ -15,6 +15,7 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationStatus,
     FetchedResource,
+    HandoffQualityReport,
     MaterializationResult,
     PackageResult,
     ResourceNeed,
@@ -114,7 +115,11 @@ async def _execute_persisted(
                 "Build Preparation run or session was not found.",
             )
         state = await repo.get_state(session_id)
-        if state.status is BuildPreparationStatus.READY and state.run_id == str(run_id):
+        if (
+            state.status in {BuildPreparationStatus.READY, BuildPreparationStatus.NEEDS_ATTENTION}
+            and state.run_id == str(run_id)
+            and state.package is not None
+        ):
             # A lease can expire after the result was committed but before the
             # queue acknowledgement. Replaying the same run is a no-op.
             return {"status": "succeeded", "run_id": str(run_id), "operation": "build"}
@@ -278,6 +283,11 @@ async def _apply_result(
             model_calls = int(output.get("model_calls", 0))
             provider_calls = int(output.get("provider_calls", 0))
             if output.get("package") is not None:
+                handoff_report = (
+                    HandoffQualityReport.model_validate(output["handoff_report"])
+                    if isinstance(output.get("handoff_report"), dict)
+                    else None
+                )
                 next_state = apply_phase3_result(
                     state,
                     scope_hash=str(output["scope_hash"]),
@@ -293,6 +303,7 @@ async def _apply_result(
                     events=events,
                     model_calls=model_calls,
                     provider_calls=provider_calls,
+                    handoff_report=handoff_report,
                 )
             else:
                 next_state = apply_phase2_result(

@@ -14,6 +14,7 @@ _PROMPT_FILES = {
     "select_resources": "select_resources.md",
     "write_build_context": "write_build_context.md",
     "integrate_cross_route": "integrate_cross_route.md",
+    "review_handoff_quality": "review_handoff_quality.md",
 }
 
 _PROMPT_VERSIONS = {
@@ -21,6 +22,7 @@ _PROMPT_VERSIONS = {
     "select_resources": "build_preparation.select_resources.v1",
     "write_build_context": "build_preparation.write_build_context.v1",
     "integrate_cross_route": "build_preparation.integrate_cross_route.v1",
+    "review_handoff_quality": "build_preparation.review_handoff_quality.v1",
 }
 
 
@@ -38,6 +40,7 @@ def output_model_for(operation: str) -> type[Any]:
         Stage2SelectionPlan,
         Stage3BuildContextResult,
         Stage4IntegratedContextResult,
+        Stage5HandoffReview,
     )
 
     models: dict[str, type[Any]] = {
@@ -45,6 +48,7 @@ def output_model_for(operation: str) -> type[Any]:
         "select_resources": Stage2SelectionPlan,
         "write_build_context": Stage3BuildContextResult,
         "integrate_cross_route": Stage4IntegratedContextResult,
+        "review_handoff_quality": Stage5HandoffReview,
     }
     try:
         return models[operation]

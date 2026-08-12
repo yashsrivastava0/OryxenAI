@@ -65,7 +65,16 @@ def test_stage0_compiles_routes_and_resource_needs_without_model_calls() -> None
     result = compile_stage0(content, visual)
 
     assert [route.route_id for route in result.routes] == ["home"]
-    assert {need.source_id for need in result.resource_needs} == {"hero-photo", "hero-card"}
+    assert {need.source_id for need in result.resource_needs} == {
+        "editorial-hero-image",
+        "hero-photo",
+        "hero-card",
+    }
+    editorial = next(
+        need for need in result.resource_needs if need.source_id == "editorial-hero-image"
+    )
+    assert editorial.required_for_handoff is False
+    assert "custom text-led composition" in editorial.fallback
     assert result.model_calls == 0
     assert result.source_ref.content_architect_content_hash == "ca-hash"
     assert result.source_ref.visual_design_director_direction_hash == "vdd-hash"

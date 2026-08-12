@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from oryxenai.main import create_app
 
 def _fixture_input() -> dict[str, object]:
     return {
+        "approved": {"visual_direction_hash": "visual-hash"},
+        "source_ref": {"content_architect_content_hash": "content-hash"},
         "pages": [
             {"route_id": "home", "path": "/", "publication_status": "approved", "scenes": []}
         ],
@@ -39,6 +42,25 @@ def _content_architect_input() -> dict[str, object]:
     }
 
 
+def _fixture_app(tmp_path: Path):
+    app = create_app()
+    app.state.settings.build_preparation.fixture_enabled = True
+    app.state.settings.build_preparation.fixture_upload = False
+    app.state.settings.build_preparation.fixture_output_dir = str(tmp_path)
+    return app
+
+
+async def _completed_run(client: httpx.AsyncClient, run_id: str) -> dict[str, object]:
+    for _ in range(40):
+        response = await client.get(f"/api/v1/build-preparation/fixture/runs/{run_id}")
+        assert response.status_code == 200
+        result = response.json()
+        if result["status"] != "running":
+            return result
+        await asyncio.sleep(0.05)
+    raise AssertionError("Fixture run did not finish in time.")
+
+
 @pytest.mark.asyncio
 async def test_build_preparation_routes_are_exposed() -> None:
     app = create_app()
@@ -50,15 +72,17 @@ async def test_build_preparation_routes_are_exposed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fixture_run_is_detached_and_deterministic() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+async def test_fixture_run_is_detached_and_deterministic(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.post(
             "/api/v1/build-preparation/fixture/run",
-            json={"output": _fixture_input()},
+            json={
+                "output": _fixture_input(),
+                "content_architect": _content_architect_input(),
+            },
         )
     assert response.status_code == 200
     body = response.json()
@@ -70,9 +94,8 @@ async def test_fixture_run_is_detached_and_deterministic() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fixture_rejects_ambiguous_input() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+async def test_fixture_rejects_ambiguous_input(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -85,9 +108,8 @@ async def test_fixture_rejects_ambiguous_input() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fixture_accepts_optional_content_architect_json() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+async def test_fixture_accepts_optional_content_architect_json(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -114,9 +136,8 @@ async def test_fixture_accepts_optional_content_architect_json() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fixture_rejects_ambiguous_content_architect_input() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+async def test_fixture_rejects_ambiguous_content_architect_input(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -133,9 +154,8 @@ async def test_fixture_rejects_ambiguous_content_architect_input() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fixture_rejects_invalid_content_architect_json() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+async def test_fixture_rejects_invalid_content_architect_json(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -148,9 +168,8 @@ async def test_fixture_rejects_invalid_content_architect_json() -> None:
 
 
 @pytest.mark.asyncio
-async def test_two_harness_pages_are_available() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+async def test_two_harness_pages_are_available(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -161,4 +180,38 @@ async def test_two_harness_pages_are_available() -> None:
     assert "Content Architect JSON" in input_page.text
     assert "content-architect-input" in input_page.text
     assert progress_page.status_code == 200
-    assert "Full output" in progress_page.text
+    assert "Diagnostics" in progress_page.text
+
+
+@pytest.mark.asyncio
+async def test_fixture_run_api_persists_local_package_and_offers_download(tmp_path: Path) -> None:
+    app = _fixture_app(tmp_path)
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        preflight = await client.get("/api/v1/build-preparation/fixture/preflight")
+        assert preflight.status_code == 200
+        assert preflight.json()["local"]["status"] == "ready"
+        assert preflight.json()["r2"]["status"] == "not_requested"
+        start = await client.post(
+            "/api/v1/build-preparation/fixture/runs",
+            json={
+                "output": _fixture_input(),
+                "content_architect": _content_architect_input(),
+            },
+        )
+        assert start.status_code == 202
+        run_id = start.json()["run_id"]
+        result = await _completed_run(client, run_id)
+        assert result["status"] == "ready_for_handoff"
+        assert result["summary"]["handoff_eligible"] is True
+        assert result["local_result"]["archive_available"] is True
+        assert (
+            Path(result["local_result"]["result_folder"])
+            .resolve()
+            .is_relative_to(tmp_path.resolve())
+        )
+        download = await client.get(result["download_url"])
+    assert download.status_code == 200
+    assert download.content.startswith(b"PK")
+    assert (tmp_path / "build-preparation").is_dir()

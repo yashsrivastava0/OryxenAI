@@ -58,6 +58,8 @@ services:
         condition: service_completed_successfully
     ports:
       - "8000:8000"
+    volumes:
+      - ./output:/app/output
     command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')\""]
@@ -100,6 +102,8 @@ services:
       - .env
     environment:
       OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
+    volumes:
+      - ./output:/app/output
     command: ["python", "-m", "oryxenai.agents.build_preparation.cli"]
 
 volumes:
