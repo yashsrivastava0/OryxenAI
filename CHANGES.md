@@ -24,6 +24,18 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-13 12:35 +05:30 — Codex (model/provider intentionally omitted) — docs/code-generator-architecture/implementation-phases.md, docs/code-generator-architecture/README.md
+
+Added the four-phase, approval-gated Code Generator execution guide: standalone admission/planning and developer UI, controlled acquisition, progressive generation, then verification/repair/preview. The guide keeps Build Preparation integration deferred, defines per-phase completion gates, and includes copy-ready plan and implementation requests.
+
+### 2026-08-13 12:09 +05:30 — Codex (GPT-5 / OpenAI) — AGENTS.md, docs/code-generator-architecture/, docs/architecture.md, docs/build-preparation-agent-proposal.md, DECISIONS.md, CHANGES.md, SUGGESTIONS.md
+
+Superseded the screenshot/vision-review Code Generator draft with D-015's progressive text-only generation pipeline. Added planning-time and emergent image/font/icon/component/style acquisition through trusted provenance and dependency adapters, explicit React/Vite workspace and `node_modules` behavior, three lean source/build/DOM gates, and compiler/runtime-guided finite repair.
+
+### 2026-08-13 10:36 +05:30 — Codex (GPT-5 / OpenAI) — docs/code-generator-architecture/, DECISIONS.md, CHANGES.md, SUGGESTIONS.md
+
+Replaced the exploratory Code Generator proposal with a decision-complete v1 handoff covering the narrowly versioned Build Preparation boundary repair, bounded generation and phase-scoped repair, exact verification, and single-current-preview promotion; isolated non-MVP ideas in a deliberately unlinked, non-authoritative holding file. No runtime code or configuration changed.
+
 ### 2026-08-13 09:48 +05:30 — Codex (GPT-5 / OpenAI) — docs/code-generator-architecture/
 
 Refined the Code Generator proposal around the ordered product pillars, deterministic orchestration and resource completeness, adaptive model-call and toolchain policy, and the production worker topology. Added a dedicated live-preview and future-deployment design that separates best-effort Build Theater from gated preview promotion while keeping local and cloud preview behavior behind one protocol.

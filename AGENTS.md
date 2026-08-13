@@ -88,9 +88,9 @@ deterministic mock, not a live implementation.
 
 - Code Generator remains a deterministic mock — it conforms to the shared
   `Agent` protocol but is not wired to a real model, service layer, or
-  durable job (see `DECISIONS.md` D-006, superseded in part now that Visual
-  Design Director is implemented; Code Generator's own first real
-  implementation remains undecided).
+  durable job. Its real implementation architecture is decided but not yet
+  implemented; see `DECISIONS.md` D-015 and
+  `docs/code-generator-architecture/`.
 - Normal tests use checked-in fixtures; live model calls are opt-in.
 - No portfolio generation, publishing, web research, or automatic chaining
   between agents.
@@ -324,8 +324,9 @@ Content Architect's architecture one stage down the pipeline:
 
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
-- **Code Generator remains deferred** — Build Preparation does not auto-chain
-  into it; check `DECISIONS.md` before starting its real implementation.
+- **Code Generator remains unimplemented** — its D-015 implementation handoff
+  is under `docs/code-generator-architecture/`, and Build Preparation does not
+  auto-chain into it.
 
 ## Multi-agent collaboration protocol
 
