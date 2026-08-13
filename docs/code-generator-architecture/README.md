@@ -10,19 +10,47 @@ Generator. Its job is to turn one admitted Build Preparation archive into a
 working, visually intentional, previewable static portfolio. In this proposal,
 "Code Generator" and "Portfolio Design Engine" mean the same stage.
 
-The proposal optimizes for three outcomes, in this order:
+This proposal is organized around three product pillars, stated by the
+project owner in exactly this priority order:
 
-1. never show a broken preview;
-2. produce a coherent, distinctive, high-quality portfolio rather than a
-   generic collection of generated sections; and
-3. keep the implementation small enough to debug and operate for a low-traffic
-   deployment.
+1. **No errors while generating.** The generation process itself must be
+   robust: transient failures retry, structural failures fail closed, and a
+   failed attempt never corrupts or silently replaces a session's prior good
+   state.
+2. **The generated portfolio looks advanced.** A deliberate, distinctive,
+   content-specific design with a normal, domain-appropriate number of
+   pages/sections/screens, real imagery, and purposeful motion — not a
+   generic template assembled from interchangeable blocks.
+3. **No errors in the generated portfolio itself.** No broken routes, no
+   runtime exceptions, no dead links or fake interactions, on every declared
+   route and viewport.
 
-"Error-free generation" cannot be guaranteed by an LLM. It can be made a
-product invariant: a generation is visible to the user only after deterministic
-and browser-level gates pass. A failed candidate remains an internal diagnostic
-artifact and the session enters `needs_attention`; it never becomes the active
-preview.
+"Error-free generation" cannot be guaranteed by an LLM by itself — a
+probabilistic model will sometimes produce a defective candidate. What this
+architecture *can* guarantee is the product invariant that makes pillars 1 and
+3 true regardless of what any single model call produces: a generation is
+visible to the user only after deterministic and browser-level gates pass. A
+failed candidate remains an internal diagnostic artifact and the session
+enters `needs_attention`; it never becomes the active preview. Pillar 2 is a
+different kind of problem — gates can stop a broken portfolio from shipping,
+but only the planning/generation protocol below (the `SitePlan`'s creative
+thesis and anti-generic rules, the visual-quality prompting, and the visual
+review gate) can make a *working* portfolio a *distinctive* one.
+
+A fourth, subordinate engineering principle governs *how* the above three are
+achieved, and it is two distinct ideas that should not be conflated: **easy,
+reliable deployment** and **minimal model/token cost** are not the same
+constraint. The project owner has been explicit that cost is not a current
+constraint — build correctness and quality first, optimize spend later — so
+this document does not economize model calls, reasoning effort, or profile
+count for cost's own sake. What remains a real, standing goal is operational
+simplicity: an implementation small enough to debug, a deployment topology
+that matches how this project already runs
+([`compose.yaml`](../../compose.yaml)'s real service split), and a system
+that works correctly the first time it is deployed, not one trimmed to fit a
+minimal budget. Where this document recommends against something (a queue
+product, a resident browser process, an orchestration framework), the reason
+is operational complexity, not spend.
 
 ## Decision anchors
 
@@ -64,6 +92,21 @@ batches after the shared contracts are frozen. Deterministic code owns the
 scaffold, dependencies, file permissions, builds, tests, storage, and preview
 promotion.
 
+**Is there an orchestrator?** Yes, exactly one, and it is not itself a model.
+The orchestrator is ordinary deterministic Python — `agent.py`/`service.py` in
+the repository structure below — the same shape Content Architect and Visual
+Design Director already use for their own bounded, 1–3-call internal
+workflows (see `AGENTS.md`). It decides which structured call runs next, what
+context that call receives, whether its output is admissible, and when to
+stop. No separate "manager" or "planner" LLM supervises other LLMs, and no
+model holds tool-calling or shell access that could drive this sequence
+itself. This repository has deliberately never added a cross-agent supervisor
+(`docs/architecture.md` §7) — Discovery, Content Architect, Visual Design
+Director, Build Preparation, and Code Generator remain explicitly, separately
+started by a caller, with no auto-chaining between them. Code Generator's
+internal orchestrator is scoped entirely *inside* this one stage; it does not
+reopen that boundary.
+
 ```mermaid
 flowchart LR
     U[Explicit start request] --> A[Admission gate]
@@ -96,7 +139,7 @@ without weakening consistency.
 | Admission reader | fresh R2 download, archive safety, hashes, handoff eligibility, target/resource policy | design interpretation |
 | Generation orchestrator | prompt construction, context slices, structured-call sequence, checkpoints | shell access, arbitrary network access |
 | Deterministic scaffold | configs, boot code, router, error boundary, preview bridge, generated types | portfolio-specific art direction |
-| Resource resolver | allowlisted registry fetch, source/schema/license/dependency checks, fallback replacement | open-ended web browsing, runtime fetches |
+| Resource resolver | allowlisted registry/provider fetch, one-time pre-freeze completeness top-up, source/schema/license/dependency checks, fallback replacement | open-ended web browsing, runtime fetches, model-invoked tool calls |
 | Source assembler | path ownership, atomic file application, import/dependency closure | free-form model decisions |
 | Build verifier | static policy, type-check, production build, artifact inspection | visual taste |
 | Browser verifier | route loading, runtime errors, interactions, accessibility and viewport checks | source generation |
@@ -106,6 +149,23 @@ without weakening consistency.
 All components are ordinary Python protocols/services or isolated infrastructure
 adapters. The agent itself receives data, not a database session or HTTP request,
 matching the rest of OryxenAI.
+
+**Why not give the model direct — including MCP — tool access during
+generation?** Model Context Protocol is a fine *transport*; nothing here
+objects to a deterministic adapter internally being an MCP client against a
+component registry or icon server, the same way it might internally be a
+plain HTTPS client. What this architecture rejects is letting a *generation
+call itself* decide, mid-response, to invoke a tool — MCP or otherwise. That
+would turn prompt injection hidden in portfolio content into live network and
+tool access, make two runs of the "same" input non-reproducible, break the
+single consistency ledger the `SitePlan` is supposed to be, and reintroduce
+the unbounded cost/latency risk the rest of this design works to bound. Every
+fetch in this proposal — resource resolution, completeness top-ups, anything
+else — is decided and executed by orchestrator code before or between model
+calls, never by a model holding a tool it can call itself. If a registry
+naturally speaks MCP, the resource resolver may use it as an implementation
+detail behind the same schema/license/path checks every other provider goes
+through.
 
 ## End-to-end flow
 
@@ -131,27 +191,49 @@ The phase writes an immutable `InputReceipt` containing the archive hash,
 upstream hashes, target-contract hash, resource-plan hash, generator version,
 and target-profile version. Every later output echoes this receipt.
 
-### 2. Resolve resources before creative generation
+### 2. Close every resource gap before creative generation — the Resource Completeness Gate
 
-The resource resolver follows `resources/plan.json`, in this order:
+Build Preparation has already resolved almost everything: it runs its own
+provider search (Pexels-first photo resolution with Unsplash fallback,
+shadcn-compatible component/icon registries) and records a decision for every
+need it detected. Code Generator's job here is deliberately narrow: **use what
+was prepared, and close only the remaining gaps, once, deterministically,
+before the plan is frozen.**
 
-1. use the prepared local resource;
-2. if and only if `later_fetch.allowed` is true, fetch one equivalent from a
-   listed provider through a deterministic adapter and replace the fallback;
-3. otherwise implement the recorded local fallback; and
-4. never fetch a resource from the generated portfolio at runtime.
+This one gate — detailed in [Generation pipeline](generation-pipeline.md) —
+replaces two things a naive design would otherwise build as separate
+mechanisms: "top up whatever Build Preparation under-provided" and "fetch
+something a route discovers it needs mid-generation." Both are the same
+problem — a gap between the frozen plan's needs and what is already on disk —
+and collapsing them into one pre-freeze step keeps every fetch deterministic,
+loggable, and impossible to trigger from inside a model call:
+
+- a gap in a **`required_for_handoff`** need is never Code Generator's to
+  solve — it fails the run closed to `needs_attention` with an
+  upstream-contract diagnostic, per [D-012](../../DECISIONS.md);
+- a gap in an **optional** need with `later_fetch.allowed` true is closed by a
+  deterministic provider adapter that *replaces*, never duplicates, the
+  recorded fallback;
+- everything else uses the recorded local fallback; and
+- every top-up is logged as a completeness diagnostic — recurring gaps are the
+  evidence that justifies revisiting Build Preparation, not a standing license
+  for Code Generator to improvise.
 
 The model cannot invoke a package manager, CLI, arbitrary URL, image search, or
-registry. It may request a resource by `need_id`; deterministic code decides
-whether the request is admissible. Registry responses are schema-, path-,
-dependency-, license-, and target-checked before their source is exposed to a
-generation call.
+registry. It may request a resource only by `need_id`; deterministic code
+decides whether the request is admissible, and registry/provider responses are
+schema-, path-, dependency-, license-, and target-checked before their source
+is ever exposed to a generation call. A resource is never fetched from the
+generated portfolio at runtime, under any circumstance.
 
-The current Build Preparation contract grants later-fetch permission to certain
-component/icon needs, not to arbitrary image needs. Code Generator must use a
-materialized image or the prepared CSS/SVG/typographic fallback. Adding image
-search here would be a versioned upstream-contract change, not an implementation
-shortcut.
+The current Build Preparation contract computes `later_fetch` only for
+component/icon needs, never image needs — a missing image always falls back to
+the recorded CSS/SVG/typographic treatment today. Granting a narrow, same-shape
+exception for *optional, non-required* imagery (so a missing decorative photo
+can become a real photo instead of always degrading to a fallback) is a
+legitimate, explicitly requested product need, but it is a versioned Build
+Preparation contract change, not a Code Generator-side shortcut — it is its
+own item in the decision checklist below, not silently assumed here.
 
 ### 3. Freeze one site-wide plan
 
@@ -172,6 +254,18 @@ The planning call receives the verified invariant context and emits a strict
 Planning is the last moment at which global composition may change freely.
 Route generation may interpret a route, but it may not invent a new palette,
 font stack, navigation system, motion language, or incompatible component API.
+
+The number of routes, pages, and sections is not Code Generator's decision.
+Content Architect already decided what structure this person's story needs — a
+compact case-study set implies a different page count than a dense
+multi-project portfolio — and Visual Design Director already decided how that
+structure reads per breakpoint. The admitted pack's route graph is
+authoritative on *count and identity*. Planning may change how many *model
+calls* implement that graph (batching, per the adaptive call shape in
+[Generation pipeline](generation-pipeline.md)), never the graph itself:
+merging two admitted routes into one generation call is an internal efficiency
+decision; merging them into one user-facing page is not Code Generator's to
+make.
 
 ### 4. Generate inside a trusted scaffold
 
@@ -258,8 +352,14 @@ progress, and safe error summaries—not source trees, binaries, screenshots, or
 model transcripts.
 
 For the expected low concurrency, one active generation globally is a sensible
-default. Route-call parallelism should be a small config-driven limit. A second
-generation can queue rather than compete for memory on a free-tier service.
+default regardless of which deployment topology below is in use — an
+always-on worker still runs real `npm`/`tsc`/`vite`/Playwright subprocesses
+with real CPU/memory cost, and unbounded parallel generations would make
+failures harder to reproduce even where memory isn't the binding limit.
+Route-call parallelism should be a small config-driven limit. A second
+generation should queue rather than compete for the same build resources; see
+the [decision checklist](#pre-implementation-decision-checklist) on whether
+Code Generator warrants a dedicated worker pool as load grows.
 
 ## Proposed API surface
 
@@ -328,7 +428,7 @@ src/oryxenai/agents/code_generator/
   service.py                  session-facing stage orchestration
   state.py                    transitions, CAS, staleness projection
   admission.py                archive download and validation
-  resources.py                permitted later-fetch resolution
+  resources.py                completeness gate + permitted later-fetch resolution
   scaffold.py                 versioned trusted frontend scaffold
   assembler.py                file ownership and atomic change application
   dependencies.py             approved package subset and lockfile resolution
@@ -399,14 +499,27 @@ This mismatch must be resolved explicitly before implementation: either accept
 the dependency-free scaffold router or version the target contract. The
 generator must not silently install an undeclared package.
 
-## Deployment recommendation for low traffic
+## Deployment recommendation
+
+The project's actual local/CI topology already exists and already works:
+`compose.yaml` at the repository root runs `postgres`, a one-shot `migrate`,
+`app` (`uvicorn`), and `worker` (`python -m oryxenai.jobs.worker`) as four
+separate services built from the same `Dockerfile` with different `command:`
+entries — the exact one-process-per-container split
+[`docs/architecture.md` §6-7](../architecture.md) already gives the rationale
+for. The primary recommendation below is that same split, carried into
+production, not a new shape invented for Code Generator.
+
+### Primary: split web service and worker
 
 ```mermaid
 flowchart TB
-    subgraph Render[One low-cost application service]
+    subgraph RenderAPI[Render web service]
       API[FastAPI]
+    end
+    subgraph RenderWorker[Render Background Worker — always-on]
       JR[Durable job runner]
-      BT[Trusted Node build toolchain]
+      BT["Trusted Node build toolchain\n(scoped to this service only)"]
     end
     DB[(Supabase PostgreSQL\nmetadata + jobs)]
     R2[(Private R2\ninput/checkpoints/builds)]
@@ -424,24 +537,113 @@ flowchart TB
     UI --> PW
 ```
 
-For a handful of users, do not add a queue product, orchestration framework,
-dedicated build farm, or always-on browser container. Retain PostgreSQL durable
-jobs and R2. Run the trusted Node toolchain in the application image, one build
-at a time. Use a Cloudflare browser binding for Playwright-compatible verification
-instead of attempting to keep Chromium resident in a memory-constrained free
-web service. Keep a local Playwright adapter for development and CI.
+This is now the primary recommendation, not the free-tier fallback further
+below, for three concrete reasons:
+
+1. It matches `compose.yaml`'s real, already-working `app`/`worker` split
+   instead of introducing a Code Generator-specific combined shape that
+   diverges from it.
+2. Code Generator's jobs are long-running and resource-heavier than any
+   existing agent's (`npm ci`, `tsc`, `vite build`, multi-route/multi-viewport
+   Playwright, plus a visual-review model call, potentially with a higher
+   `reasoning_effort` than existing agents use — see
+   [Generation pipeline](generation-pipeline.md#model-roles-and-call-graph)).
+   Sharing one small combined service with the API risks starving both the
+   build and ordinary API responsiveness under the same process.
+3. The project owner has stated cost is not the current constraint — the
+   combined-service shape below exists specifically to survive a free-tier
+   budget, which is no longer the binding condition. An **always-on
+   Background Worker** is the straightforward recommendation now, reserving
+   the free-tier shape as an explicit fallback if that framing ever reverses,
+   not as the default to design around today.
+
+The Node/npm build toolchain belongs on the worker service only — never on
+the `app`/`migrate` processes, which never run a build. Playwright itself
+needs no Node at all: it ships a pure-Python package
+(`playwright`, installable via `uv`, `playwright install chromium`), so the
+Cloudflare browser binding described below (or a local Playwright adapter for
+development/CI) covers verification without touching Node. Node exists in
+this design for exactly one reason — building generated portfolios
+(`npm ci`/`tsc`/`vite build`) — which is worth stating plainly so the
+addition stays legible rather than looking like unexplained toolchain sprawl.
+See [Generation pipeline](generation-pipeline.md#package-and-toolchain-policy)
+for the concrete Dockerfile approach.
+
+Use a Cloudflare browser binding for Playwright-compatible verification
+instead of attempting to keep Chromium resident in a memory-constrained web
+service — this holds for both the primary topology above and the fallback
+below.
+
+### Fallback: combined service for a strict free-tier budget
+
+```mermaid
+flowchart TB
+    subgraph Render["One low-cost application service (free-tier fallback)"]
+      API2[FastAPI]
+      JR2[Durable job runner]
+      BT2[Trusted Node build toolchain]
+    end
+    DB2[(Supabase PostgreSQL\nmetadata + jobs)]
+    R22[(Private R2\ninput/checkpoints/builds)]
+    PW2[Preview + QA Worker\nR2 binding + browser binding]
+    UI2[User browser]
+
+    API2 <--> DB2
+    JR2 <--> DB2
+    JR2 <--> R22
+    JR2 --> BT2
+    BT2 --> R22
+    PW2 <--> R22
+    JR2 --> PW2
+    UI2 --> API2
+    UI2 --> PW2
+```
 
 Render's free web services can spin down and have ephemeral filesystems, and
-free background workers are not generally available; the exact plan limits can
-change and must be checked at deployment time. The existing combined
-web-service/job-runner proposal is therefore the practical low-traffic shape,
-while the normal split worker remains valid locally or on a paid service.
+free background workers are not generally available; exact plan limits change
+and must be checked at deployment time. If a strict free-tier budget ever
+becomes binding again, this combined shape remains valid — one build at a
+time, no queue product, no orchestration framework, no dedicated build farm —
+exactly as it was originally proposed. It is kept here deliberately rather
+than deleted, so reverting to it is a documented option, not a rediscovery.
 
-Supabase PostgreSQL should hold only compact state and durable job rows. Use the
-connection mode appropriate to the deployed persistent service and keep the
-application pool intentionally small. Free projects may pause when inactive, so
-startup/retry behavior must tolerate a cold database rather than treating it as
-data loss.
+Supabase PostgreSQL should hold only compact state and durable job rows in
+either topology. Use the connection mode appropriate to the deployed
+persistent service and keep the application pool intentionally small. Free
+projects may pause when inactive, so startup/retry behavior must tolerate a
+cold database rather than treating it as data loss.
+
+## Where does a finished portfolio actually get deployed?
+
+Two different deployment questions exist here and must not be conflated:
+
+1. **Where OryxenAI itself runs** — the FastAPI app, the durable worker, the
+   trusted Node build toolchain, PostgreSQL, and the preview/QA gateway. This
+   is the Render + Supabase + Cloudflare (R2 + Worker) shape described above,
+   already the live stack for Build Preparation ([D-009](../../DECISIONS.md),
+   [D-011](../../DECISIONS.md)). Code Generator adds no new infrastructure
+   product to this list — only new object prefixes and one more Worker route.
+2. **Where a *generated portfolio* eventually gets published** for its owner
+   to use as a real, independently hosted site — a separate, explicitly
+   future stage this proposal does not implement. It can safely stay future
+   without blocking anything here because the verified `build_artifact` (the
+   static `dist.zip` behind Gate 2 in
+   [Preview, quality, and evaluation](preview-quality-and-evaluation.md)) is,
+   by construction, a plain static site: no server runtime, no
+   OryxenAI-specific asset host, nothing that only works behind this
+   project's own preview gateway. Any static host can serve it. Vercel — the
+   platform the project owner named alongside Render and Supabase — is one
+   such target, alongside Render's own static-site product, Cloudflare Pages,
+   and Netlify. Publishing then becomes a small per-target *upload* adapter,
+   not a regeneration. See
+   [Live preview and deployment](live-preview-and-deployment.md) for the
+   compatibility contract this depends on; like the rest of this document, it
+   is a research/system-design proposal, not authorized for implementation
+   now.
+
+Supabase's role does not change for any of this: PostgreSQL metadata and
+durable job rows, never portfolio hosting or portfolio object storage, unless
+a future decision explicitly says otherwise.
 
 ## Explicitly rejected shapes
 
@@ -450,7 +652,7 @@ data loss.
 | One prompt that returns an entire repository | weak consistency, output truncation risk, difficult repair, no file ownership |
 | One model call per section/component | excessive latency/cost and cross-call design drift |
 | A free-running multi-agent swarm | unnecessary coordination state, nondeterministic ownership, harder replay/debugging |
-| Model shell/tool access | turns prompt injection into dependency, filesystem, and network risk |
+| Model shell/tool access, including a live MCP tool-calling loop during generation | turns prompt injection into dependency, filesystem, and network risk; breaks reproducibility and the single-consistency-ledger guarantee |
 | Browser-side package installation/WebContainer as the primary builder | licensing/compatibility complexity and divergence from the production verifier |
 | A giant durable job | a restart repeats expensive planning, generation, build, and browser work |
 | Unbounded generate-test-repair loops | unpredictable cost and can hide architecture defects |
@@ -464,12 +666,18 @@ These points need owner acceptance or a new ADR before code begins:
 
 1. Accept a dependency-free trusted router, or version the target contract to
    include a router dependency.
-2. Keep v1 later image fetching prohibited, or version Build Preparation's
-   resource-plan contract to permit it.
+2. Accept extending `later_fetch` to optional, non-`required_for_handoff`
+   image needs (a versioned Build Preparation resource-plan contract change,
+   admitted through the same Resource Completeness Gate as component/icon
+   top-ups — see "Close every resource gap before creative generation"
+   above), or keep v1 image fetching prohibited entirely.
 3. Confirm the preview/QA Worker and browser-binding products are available in
-   the deployment account and within the live low-traffic budget.
-4. Confirm the production deployment overlay that runs the durable job runner
-   with the web service while preserving the existing split local topology.
+   the deployment account and within its plan's usage limits.
+4. Confirm the production deployment overlay for whichever topology is
+   actually provisioned — the split web-service/Background-Worker primary
+   recommendation (consistent with the existing local `compose.yaml` split)
+   or the combined-service free-tier fallback — since the two need different
+   overlay configuration and only one should be live at a time.
 5. Choose and pin a target-profile/toolchain image and an exact lockfile
    derivation policy; the starter dependency ranges alone are not a reproducible
    build contract.
@@ -478,6 +686,51 @@ These points need owner acceptance or a new ADR before code begins:
 7. Resolve the static React target's no-JavaScript behavior: the recommended v1
    baseline is a deterministic public-content `<noscript>` fallback, with full
    prerendering deferred unless product requirements demand it.
+8. Accept a versioned font-provenance pipeline (self-hosted font files admitted
+   like images, with license/hash checks) alongside images/components — see
+   "Fonts" in [Generation pipeline](generation-pipeline.md) — or keep v1
+   restricted to a fixed system-font stack.
+9. Decide whether a v1 "Build Theater" live-progress view ships alongside the
+   gated preview, and whether a future live dev-container preview is ever
+   pursued — see [Live preview and deployment](live-preview-and-deployment.md).
+10. Choose the first publish-target adapter, if any, once a publishing stage is
+    actually scheduled — Vercel, Render static sites, Cloudflare Pages, and
+    Netlify are all compatible with the verified build artifact and none is
+    presently chosen.
+11. Set a per-session regenerate quota/cooldown (config-driven) so the explicit
+    `/regenerate` endpoint cannot let one session monopolize the shared
+    generation-concurrency slot(s) other sessions are waiting on — a fairness
+    and capacity control, not a cost control, now that cost is not the
+    binding constraint.
+12. Confirm or override the worker's per-job-type `handler_timeout`,
+    `lease_duration`, and `concurrency` before Code Generator jobs share the
+    existing global worker pool. `config/app.toml` currently sets these
+    generically (`handler_timeout = 300.0`, `lease_duration = 120.0`,
+    `concurrency = 2`) for lightweight agents; a cold
+    `code_generator.verify_and_preview` job — uncached `npm ci`, `tsc`,
+    `vite build`, multi-route/multi-viewport Playwright, plus a
+    visual-review model call — can plausibly exceed these, especially if
+    checklist item 13 below raises reasoning effort and therefore latency.
+13. Decide whether Code Generator gets a dedicated worker service/pool rather
+    than sharing the generic pool with lightweight agents. Today's worker
+    `concurrency` setting is job-weight-blind — a heavy build job costs the
+    same pool slot as a Discovery call — so co-locating them risks the
+    heavier job starving the lighter ones, independent of the timeout
+    question above.
+14. Confirm the configured model's actual `max_output_tokens` ceiling
+    empirically before finalizing `code_generator_builder`'s profile and
+    route-batch-size defaults. Existing profiles cap this at 16000-32000, but
+    that reflects what those agents happened to need, not a confirmed hard
+    limit — and `FileChangeSet` responses carrying full file contents are a
+    materially larger output shape than any existing agent produces.
+15. Accept the concrete Dockerfile approach for adding Node to the worker
+    image (pinned `node:20-bookworm-slim`, full binary + library tree copy,
+    build-time smoke check — see
+    [Generation pipeline](generation-pipeline.md#package-and-toolchain-policy)),
+    and commit to writing a `render.yaml` (or equivalent IaC) once Code
+    Generator deployment work actually begins, so the split-service topology
+    above is declarative rather than manually configured — neither exists
+    today.
 
 ## Document map
 
@@ -485,7 +738,11 @@ These points need owner acceptance or a new ADR before code begins:
   protocol, file ownership, package/resource handling, concurrency, and repair.
 - [Preview, quality, and evaluation](preview-quality-and-evaluation.md): browser
   verification, preview security, quality gates, visual rubric, and the proposed
-  reference corpus.
+  reference corpus — the correctness contract behind the *promoted* preview.
+- [Live preview and deployment](live-preview-and-deployment.md): the
+  in-progress "Build Theater" viewing experience, local-vs-deployed preview
+  serving symmetry, and future publish-target compatibility (Vercel, Render
+  static, Cloudflare Pages, Netlify).
 
 ## Primary research references
 
