@@ -132,9 +132,10 @@ worker container.
   consume their respective upstream approved output through exactly this
   kind of explicit product decision (each stage requires an explicit
   `/start` call after the previous stage's approval, never auto-chained).
-  Code Generator remains excluded and undecided; see `AGENTS.md` for
-  current implementation status rather than trusting this "why"-only doc
-  for "what."
+  Code Generator remains an unimplemented mock, but its explicit-start,
+  progressive text-only generation boundary is decided in D-015; see
+  `AGENTS.md` for current implementation status and
+  `docs/code-generator-architecture/` for its implementation handoff.
 - **Model client:** Additional providers can implement the same contract;
   Discovery currently uses OpenCode Go only.
 - **Agent sequencing:** A future task may add cross-agent sequencing or a
