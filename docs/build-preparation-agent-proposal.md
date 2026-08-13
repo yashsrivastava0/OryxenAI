@@ -7,6 +7,14 @@
 > references that deletion left behind, which must be cleaned up before
 > anything else here can be built or verified. See `DECISIONS.md` for the
 > formal record.
+>
+> **Later boundary update:** D-015 now defines Code Generator as a progressive,
+> text-only stage with controlled supplemental resource acquisition. References
+> below to Code Generator being deferred, untouched, or not receiving registry
+> fetching describe this proposal's original Build Preparation scope, not the
+> later Code Generator contract. Build Preparation still performs its own
+> planned acquisition; Code Generator's supplemental path does not move or
+> remove that implemented responsibility.
 
 ## 1. Decision in one paragraph
 
