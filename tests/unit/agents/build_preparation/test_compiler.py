@@ -101,3 +101,36 @@ def test_stage0_rejects_dangling_structured_references() -> None:
 def test_stage0_scope_hash_is_deterministic() -> None:
     content, visual = _inputs()
     assert compile_stage0(content, visual).scope_hash == compile_stage0(content, visual).scope_hash
+
+
+def test_stage0_marks_critical_optional_external_asset_as_required_for_handoff() -> None:
+    content, visual = _inputs()
+    visual["asset_briefs"][0]["importance"] = "critical"
+    result = compile_stage0(content, visual)
+    hero = next(need for need in result.resource_needs if need.source_id == "hero-photo")
+    assert hero.required_for_handoff is True
+
+
+def test_stage0_rejects_approved_user_media_without_an_honest_fallback() -> None:
+    content, visual = _inputs()
+    visual["asset_briefs"][0].update(
+        {"source_policy": "approved_user_media", "fallback_strategy": ""}
+    )
+    with pytest.raises(BuildPreparationValidationError, match="honest local fallback"):
+        compile_stage0(content, visual)
+
+
+def test_stage0_drops_routes_ca_marked_pending_with_status_diagnostic() -> None:
+    content, visual = _inputs()
+    # Content Architect marks the only route pending; VDD page stays approved.
+    content["route_plan"] = [{"route_id": "home", "path": "/", "publication_status": "pending"}]
+    result = compile_stage0(content, visual)
+    assert result.routes == []
+    assert any(
+        "publication_status='pending'" in warning and "did not approve it" in warning
+        for warning in result.warnings
+    )
+    scope_compiled = next(event for event in result.events if event.event_id == "scope_compiled")
+    assert scope_compiled.details["dropped_routes"] == [
+        {"route_id": "home", "publication_status": "pending"}
+    ]

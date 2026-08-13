@@ -22,6 +22,7 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectStatus,
     DecisionRecord,
     PageContentPack,
+    PublicationStatus,
     RoutePlanEntry,
 )
 
@@ -36,6 +37,34 @@ class InvalidTransitionError(Exception):
         super().__init__(
             f"Cannot transition from '{current}' to '{target}'{': ' + reason if reason else ''}"
         )
+
+
+class NoPublishableRoutesError(ValueError):
+    """Approval attempted with no route cleared for public output.
+
+    `publication_status` is a first-class, cross-agent gating invariant: a
+    Content Architect run may plan `pending`/`blocked` content (it still gets
+    written, just gated), but APPROVED state must always carry at least one
+    route the model cleared for publication. Build Preparation's v2 pack
+    contract relies on this precondition downstream, so the state machine is
+    the authoritative place to refuse approval when it would otherwise produce
+    a state with zero publishable routes.
+    """
+
+    def __init__(
+        self,
+        *,
+        route_statuses: dict[str, str],
+        route_count: int,
+        message: str = "",
+    ) -> None:
+        self.route_statuses = route_statuses
+        self.route_count = route_count
+        self.message = message or (
+            "Cannot approve: no publishable routes. At least one route_plan "
+            "entry must have publication_status 'approved'."
+        )
+        super().__init__(self.message)
 
 
 _TERMINAL = frozenset({ContentArchitectStatus.APPROVED})
@@ -162,6 +191,15 @@ def apply_build_result(
 
 def apply_approval(state: ContentArchitectState, content_hash: str) -> ContentArchitectState:
     _validate_transition(state.status, ContentArchitectStatus.APPROVED)
+    if not any(
+        route.publication_status == PublicationStatus.APPROVED for route in state.route_plan
+    ):
+        raise NoPublishableRoutesError(
+            route_statuses={
+                route.route_id: str(route.publication_status) for route in state.route_plan
+            },
+            route_count=len(state.route_plan),
+        )
     new_state = state.model_copy(deep=True)
     new_state.status = ContentArchitectStatus.APPROVED
     new_state.approved = ContentArchitectApproval(

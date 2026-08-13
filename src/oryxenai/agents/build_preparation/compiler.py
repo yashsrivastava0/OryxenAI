@@ -15,6 +15,7 @@ from oryxenai.agents.build_preparation.schemas import (
     StageEvent,
 )
 from oryxenai.agents.build_preparation.validators import (
+    BuildPreparationValidationError,
     validate_stage0_result,
     validate_visual_input,
 )
@@ -127,8 +128,34 @@ def compile_stage0(
         for item in (visual_design_director.get("resource_candidates") or [])
     }
     allowed_routes = _public_route_ids(content_architect)
+    ca_status_by_route: dict[str, str] = {}
+    if content_architect and content_architect.get("route_plan"):
+        for route in content_architect.get("route_plan", []) or []:
+            if isinstance(route, dict):
+                route_id = str(route.get("route_id", "") or "")
+                if route_id:
+                    ca_status_by_route[route_id] = str(
+                        route.get("publication_status", "approved") or "approved"
+                    )
+    public_route_count = (
+        len(allowed_routes)
+        if allowed_routes is not None
+        else sum(
+            1
+            for page in pages
+            if isinstance(page, dict)
+            and str(page.get("publication_status", "approved") or "approved") == "approved"
+            and page.get("compilable", True) is not False
+        )
+    )
+    if public_route_count > max(1, max_routes):
+        raise BuildPreparationValidationError(
+            "Approved route scope exceeds the configured Build Preparation ceiling; it was not truncated.",
+            details={"max_routes": max(1, max_routes)},
+        )
     events = [_event("input_validated", "Validated the Visual Design Director structure.")]
     warnings: list[str] = []
+    dropped_routes: list[dict[str, str]] = []
     routes: list[RouteScope] = []
     result_needs: list[ResourceNeed] = []
     asset_usage: dict[str, tuple[set[str], set[str]]] = {}
@@ -138,17 +165,21 @@ def compile_stage0(
         route_id = str(page.get("route_id", ""))
         publication_status = str(page.get("publication_status", "approved") or "approved")
         if allowed_routes is not None and route_id not in allowed_routes:
+            ca_status = ca_status_by_route.get(route_id, "approved")
             warnings.append(
-                f"Excluded route '{route_id}' because Content Architect did not approve it."
+                f"Excluded route '{route_id}' because Content Architect did not "
+                f"approve it (route_plan publication_status='{ca_status}')."
             )
+            dropped_routes.append({"route_id": route_id, "publication_status": ca_status})
             continue
         if publication_status != "approved" or page.get("compilable", True) is False:
-            warnings.append(f"Excluded route '{route_id}' because it is not public and compilable.")
+            reason = "not approved" if publication_status != "approved" else "not compilable"
+            warnings.append(
+                f"Excluded route '{route_id}' because it is not public and "
+                f"compilable (publication_status='{publication_status}', {reason})."
+            )
+            dropped_routes.append({"route_id": route_id, "publication_status": publication_status})
             continue
-        if len(routes) >= max(1, max_routes):
-            warnings.append(f"Excluded route '{route_id}' because max_routes was reached.")
-            continue
-
         scene_ids: list[str] = []
         asset_ids = [str(item) for item in (page.get("asset_briefs") or [])]
         resource_ids = [str(item) for item in (page.get("resource_candidates") or [])]
@@ -186,6 +217,13 @@ def compile_stage0(
         used_route_ids &= known_route_ids
         if not used_route_ids:
             continue
+        source_policy = str(asset.get("source_policy", "") or "")
+        fallback = str(asset.get("fallback_strategy", "") or "")
+        if source_policy == "approved_user_media" and not fallback.strip():
+            raise BuildPreparationValidationError(
+                "Approved user media must declare an honest local fallback.",
+                details={"asset_id": asset_id},
+            )
         query_terms = _unique(
             [
                 str(asset.get("subject", "") or ""),
@@ -203,10 +241,14 @@ def compile_stage0(
             route_ids=sorted(used_route_ids),
             scene_ids=sorted(used_scene_ids),
             source_status=str(asset.get("source_status", "") or ""),
-            source_policy=str(asset.get("source_policy", "") or ""),
+            source_policy=source_policy,
             importance=str(asset.get("importance", "") or ""),
+            required_for_handoff=(
+                source_policy == "optional_external_acquisition"
+                and str(asset.get("importance", "") or "") == "critical"
+            ),
             query_terms=query_terms,
-            fallback=str(asset.get("fallback_strategy", "") or ""),
+            fallback=fallback,
             details={
                 "orientation": asset.get("orientation", ""),
                 "focal_point": asset.get("focal_point", ""),
@@ -304,7 +346,11 @@ def compile_stage0(
         _event(
             "scope_compiled",
             "Compiled approved route scope and structured resource needs.",
-            details={"route_count": len(routes), "resource_need_count": len(result_needs)},
+            details={
+                "route_count": len(routes),
+                "resource_need_count": len(result_needs),
+                "dropped_routes": dropped_routes,
+            },
         )
     )
     if warnings:
