@@ -13,10 +13,12 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectStatus,
     DecisionRecord,
     PageContentPack,
+    PublicationStatus,
     RoutePlanEntry,
 )
 from oryxenai.agents.content_architect.state import (
     InvalidTransitionError,
+    NoPublishableRoutesError,
     apply_approval,
     apply_build_result,
     apply_build_running,
@@ -179,11 +181,64 @@ class TestFlowTransitions:
         assert result.latest_error is None
 
     def test_approval_snapshot(self):
-        state = ContentArchitectState(status=ContentArchitectStatus.CONTENT_REVIEW)
+        state = ContentArchitectState(
+            status=ContentArchitectStatus.CONTENT_REVIEW,
+            route_plan=[
+                RoutePlanEntry(
+                    route_id="home", path="/", publication_status=PublicationStatus.APPROVED
+                )
+            ],
+        )
         approved = apply_approval(state, "abc123")
         assert approved.status == ContentArchitectStatus.APPROVED
         assert approved.approved is not None
         assert approved.approved.content_hash == "abc123"
+        assert approved.route_plan[0].publication_status == PublicationStatus.APPROVED
+
+    def test_approval_rejected_when_no_publishable_routes(self):
+        state = ContentArchitectState(
+            status=ContentArchitectStatus.CONTENT_REVIEW,
+            route_plan=[
+                RoutePlanEntry(
+                    route_id="home", path="/", publication_status=PublicationStatus.PENDING
+                ),
+                RoutePlanEntry(
+                    route_id="about", path="/about", publication_status=PublicationStatus.BLOCKED
+                ),
+            ],
+        )
+        with pytest.raises(NoPublishableRoutesError) as exc_info:
+            apply_approval(state, "abc123")
+        assert exc_info.value.route_count == 2
+        assert exc_info.value.route_statuses == {"home": "pending", "about": "blocked"}
+
+    def test_approval_rejected_when_route_plan_empty(self):
+        state = ContentArchitectState(status=ContentArchitectStatus.CONTENT_REVIEW, route_plan=[])
+        with pytest.raises(NoPublishableRoutesError) as exc_info:
+            apply_approval(state, "abc123")
+        assert exc_info.value.route_count == 0
+        assert exc_info.value.route_statuses == {}
+
+    def test_approval_allows_mixed_approved_and_pending(self):
+        state = ContentArchitectState(
+            status=ContentArchitectStatus.CONTENT_REVIEW,
+            route_plan=[
+                RoutePlanEntry(
+                    route_id="home", path="/", publication_status=PublicationStatus.APPROVED
+                ),
+                RoutePlanEntry(
+                    route_id="secret", path="/secret", publication_status=PublicationStatus.PENDING
+                ),
+            ],
+        )
+        approved = apply_approval(state, "abc123")
+        assert approved.status == ContentArchitectStatus.APPROVED
+        # The gating invariant is preserved: the pending route is NOT promoted.
+        statuses = {route.route_id: route.publication_status for route in approved.route_plan}
+        assert statuses == {
+            "home": PublicationStatus.APPROVED,
+            "secret": PublicationStatus.PENDING,
+        }
 
     def test_needs_attention_records_error(self):
         state = apply_needs_attention(

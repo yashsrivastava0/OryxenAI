@@ -23,6 +23,7 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectStatus,
 )
 from oryxenai.agents.content_architect.state import (
+    NoPublishableRoutesError,
     apply_approval,
     apply_revision_requested,
     apply_start,
@@ -255,7 +256,18 @@ class ContentArchitectService:
 
         packs_payload = [pack.model_dump(mode="json") for pack in state.page_content_packs]
         content_hash = _content_hash(packs_payload, state.public_content_manifest)
-        approved = apply_approval(state, content_hash)
+        try:
+            approved = apply_approval(state, content_hash)
+        except NoPublishableRoutesError as exc:
+            raise ContentArchitectOperationError(
+                "CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES",
+                "Cannot approve: no publishable routes. Revise/re-run Content "
+                "Architect so at least one route has publication_status 'approved'.",
+                details={
+                    "route_count": exc.route_count,
+                    "route_statuses": exc.route_statuses,
+                },
+            ) from exc
         updated = await self._repository.save_content_architect_state(
             session_id, approved, session.revision
         )
