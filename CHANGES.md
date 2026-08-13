@@ -24,6 +24,30 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-13 19:41 +05:30 — OpenCode (gpt-5.6-luna / OpenCode Go) — src/oryxenai/agents/build_preparation/service.py
+
+Fixed the session Build Preparation projection so the pack-v2 compiler receives
+approved Content Architect claim grounding, story/handoff data, and the
+Visual Design Director's shared visual systems. This prevents the durable
+session path from failing with `PackContractError` even when the detached
+approved-input fixture succeeds.
+
+### 2026-08-13 19:22 +05:30 — OpenCode (glm-5.2) — Content Architect approval guard + Build Preparation route diagnostics
+
+Added a producer-side guard so Content Architect approval refuses to enter APPROVED when no `route_plan` entry is `publication_status="approved"` (state machine `NoPublishableRoutesError`; service 409 `CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES`), preventing the dead Build Preparation pack that previously surfaced as `BUILD_PACK_V2_CONTENT_ROUTES_MISSING`. Split that Build Preparation pack-v2 failure into `BUILD_PACK_V2_CONTENT_ROUTES_EMPTY` vs `BUILD_PACK_V2_CONTENT_ROUTES_NONE_APPROVED` and propagate the dropped route_ids + their statuses into the issue `details`; enriched Stage 0 `scope_compiled` with `dropped_routes` and named the per-route status in exclusion warnings. `route_plan` entries are never mutated, preserving the cross-agent pending-is-gated invariant. See D-016.
+
+### 2026-08-13 16:17 +05:30 — OpenCode (GPT-5.6 / OpenAI) — Code Generator Phase 2 acquisition, migrations, API, frontend, tests
+
+Implemented the standalone Phase 2 resource/dependency acquisition boundary: strict request, candidate, receipt, ledger, delta, adapter, and dependency contracts; safe offline-testable materialization; durable `code_generator.acquire` execution with idempotent redelivery; feature-gated API/UI projections; node_modules lifecycle policy; and Phase 1 completion-gate backfill. Corrected the overlong Phase 1 Alembic revision so the complete migration chain applies to PostgreSQL.
+
+### 2026-08-13 15:10 +05:30 â€” Codex (GPT-5 / OpenAI) â€” Build Preparation pack-v2 contracts, VDD validation, config, tests
+
+Implemented D-013's versioned pack-v2 boundary: deterministic site/visual/provenance projections, hash-covered packaging, exact consumer admission, source-policy safeguards, and diagnostic-only compatibility for incomplete legacy harness inputs.
+
+### 2026-08-13 15:10 +05:30 â€” Codex (GPT-5 / OpenAI) â€” Code Generator Phase 1 standalone planning, persistence, API, developer UI, tests
+
+Implemented the feature-gated fixture/upload admission and durable `code_generator.plan` workflow with independent run/event persistence, strict structured `SitePlan`/`WorkGraph` validation, safe receipts/issues, and a Jinja/vanilla-JS planning page; no source generation, resource acquisition, preview, or session-flow integration was added.
+
 ### 2026-08-13 12:35 +05:30 — Codex (model/provider intentionally omitted) — docs/code-generator-architecture/implementation-phases.md, docs/code-generator-architecture/README.md
 
 Added the four-phase, approval-gated Code Generator execution guide: standalone admission/planning and developer UI, controlled acquisition, progressive generation, then verification/repair/preview. The guide keeps Build Preparation integration deferred, defines per-phase completion gates, and includes copy-ready plan and implementation requests.

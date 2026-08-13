@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from oryxenai.agents.build_preparation.contracts import (
+    PACK_VERSION,
+    PackContractError,
+    compile_v2_projections,
+)
 from oryxenai.agents.build_preparation.schemas import (
     ResourceQuery,
     ResourceSelection,
@@ -32,3 +37,121 @@ def test_selection_plan_is_closed_over_candidates_and_needs() -> None:
         selections=[ResourceSelection(need_id="need-1", fallback="Build it locally.")]
     )
     assert validate_selection_plan(plan, {"need-1"}, []) == plan
+
+
+def _approved_content() -> dict[str, object]:
+    return {
+        "approved": {"content_hash": "content-hash"},
+        "route_plan": [
+            {
+                "route_id": "home",
+                "path": "/",
+                "publication_status": "approved",
+                "section_sequence": ["hero"],
+            }
+        ],
+        "page_content_packs": [
+            {
+                "route_id": "home",
+                "sections": [
+                    {
+                        "section_id": "hero",
+                        "claim_ids": ["fact-1"],
+                        "content": {"headline": "Evidence"},
+                    }
+                ],
+            }
+        ],
+        "claim_grounding": [
+            {
+                "claim_id": "fact-1",
+                "statement": "A grounded fact.",
+                "source_reference": "fixture",
+                "evidence_status": "verified",
+            }
+        ],
+        "visual_director_handoff": {"offline": True},
+        "site_story_strategy": {"composition": "adaptable"},
+    }
+
+
+def _approved_visual() -> dict[str, object]:
+    return {
+        "approved": {"visual_direction_hash": "visual-hash"},
+        "pages": [
+            {
+                "route_id": "home",
+                "path": "/",
+                "publication_status": "approved",
+                "compilable": True,
+                "acceptance_criteria": ["Keep the evidence hierarchy."],
+            }
+        ],
+    }
+
+
+def test_pack_v2_compiles_authoritative_route_content_and_visual_direction() -> None:
+    projections = compile_v2_projections(
+        content_architect=_approved_content(),
+        visual_design_director=_approved_visual(),
+        source_ref={"input_projection_hash": "projection-hash"},
+        target_contract={"target_id": "react-vite-v1"},
+        max_routes=12,
+    )
+    assert projections["site"]["pack_version"] == PACK_VERSION
+    assert projections["site"]["routes"][0]["files"]["content"].startswith("routes/home-")
+    assert projections["visual"]["routes"][0]["route_id"] == "home"
+    assert projections["site"]["runtime_requirements"][0]["runtime_id"]
+    assert projections["site"]["freedoms"][0]["freedom_id"]
+
+
+def test_pack_v2_rejects_missing_compilable_visual_route() -> None:
+    with pytest.raises(PackContractError, match="must match exactly"):
+        compile_v2_projections(
+            content_architect=_approved_content(),
+            visual_design_director={
+                "approved": {"visual_direction_hash": "visual-hash"},
+                "pages": [],
+            },
+            source_ref={"input_projection_hash": "projection-hash"},
+            target_contract={"target_id": "react-vite-v1"},
+            max_routes=12,
+        )
+
+
+def test_pack_v2_rejects_all_pending_routes_with_status_details() -> None:
+    content = _approved_content()
+    content["route_plan"] = [
+        {"route_id": "home", "path": "/", "publication_status": "pending"},
+        {"route_id": "about", "path": "/about", "publication_status": "blocked"},
+    ]
+    with pytest.raises(PackContractError, match="No approved public") as exc_info:
+        compile_v2_projections(
+            content_architect=content,
+            visual_design_director=_approved_visual(),
+            source_ref={"input_projection_hash": "projection-hash"},
+            target_contract={"target_id": "react-vite-v1"},
+            max_routes=12,
+        )
+    assert exc_info.value.code == "BUILD_PACK_V2_CONTENT_ROUTES_NONE_APPROVED"
+    assert exc_info.value.details["route_count"] == 2
+    assert exc_info.value.details["route_statuses"] == {
+        "home": "pending",
+        "about": "blocked",
+    }
+
+
+def test_pack_v2_rejects_empty_route_plan() -> None:
+    content = _approved_content()
+    content["route_plan"] = []
+    with pytest.raises(
+        PackContractError, match="Approved Content Architect routes are required"
+    ) as exc_info:
+        compile_v2_projections(
+            content_architect=content,
+            visual_design_director=_approved_visual(),
+            source_ref={"input_projection_hash": "projection-hash"},
+            target_contract={"target_id": "react-vite-v1"},
+            max_routes=12,
+        )
+    assert exc_info.value.code == "BUILD_PACK_V2_CONTENT_ROUTES_EMPTY"

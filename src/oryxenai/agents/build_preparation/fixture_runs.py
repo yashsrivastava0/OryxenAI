@@ -83,6 +83,13 @@ def _issue_from_error(exc: Exception) -> dict[str, Any]:
         ),
         "FIXTURE_INPUT_INVALID": "Confirm the pasted Visual Design Director and Content Architect values are JSON objects.",
         "FIXTURE_INPUT_TOO_LARGE": "Reduce the pasted fixture payload to the configured input-size limit.",
+        "BUILD_PACK_V2_CONTENT_ROUTES_NONE_APPROVED": (
+            "Content Architect approved no publishable routes. Revise or re-run Content Architect so at "
+            "least one route has publication_status 'approved', re-approve it, then re-run Build Preparation."
+        ),
+        "BUILD_PACK_V2_CONTENT_ROUTES_EMPTY": (
+            "Content Architect produced no route_plan. Re-run Content Architect before Build Preparation."
+        ),
     }
     return {
         "code": code,
