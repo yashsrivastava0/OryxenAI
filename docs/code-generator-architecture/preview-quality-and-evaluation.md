@@ -4,6 +4,13 @@ This document defines how a generated portfolio becomes a user-visible preview
 and how OryxenAI evaluates "working" and "visually advanced" without relying on
 an unlimited self-repair loop.
 
+**Scope note.** This document is about the *promoted* preview only — the one
+artifact the product is allowed to call finished, and everything that must be
+true before it earns that status. It intentionally says nothing about what the
+user watches *while* a generation is still running; that in-progress viewing
+experience, and how it relates to (and never substitutes for) the gates below,
+is [Live preview and deployment](live-preview-and-deployment.md).
+
 ## Product invariant
 
 The user sees the newest **promoted** generation, never the newest attempted
@@ -541,6 +548,13 @@ When verification fails, the user-facing state should be honest and calm:
 - mark stale output when upstream approval or Build Preparation object changes;
 - retain report/source hashes for developer diagnostics; and
 - never expose the candidate QA URL or an erroring iframe.
+
+While a generation is still in progress — before any of the above applies —
+the user is watching Build Theater, not this preview; see
+[Live preview and deployment](live-preview-and-deployment.md). Build Theater
+may show transient, in-progress state (including a phase that later fails)
+without violating the invariant above, because it is never presented as the
+finished product and never reuses this preview's origin or promotion path.
 
 Developer diagnostics may show gate IDs, route/viewport, safe stack summary,
 source file locations, model operation/profile key, and artifact receipts. Raw

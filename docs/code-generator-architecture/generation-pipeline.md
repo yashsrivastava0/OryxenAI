@@ -53,10 +53,17 @@ resources/
   images/...
   components/...
   icons/...
+  fonts/...
 provenance/
   licenses.json
   checksums.json
 ```
+
+`resources/fonts/` is a proposed addition, not a claim about the currently live Build
+Preparation pack — today the pack declares only a fixed system-font stack and the
+target contract forbids `remote-fonts` outright. See "Fonts" under "Component and
+image strategy" below for the proposed shape; it needs its own acceptance, listed
+in the [README's decision checklist](README.md#pre-implementation-decision-checklist).
 
 Authority order inside the pack is explicit:
 
@@ -186,9 +193,89 @@ for capabilities through profiles:
 | `code_generator_reviewer` | screenshots + plan adherence + visual defects | vision and aesthetic judgment |
 | `code_generator_corrector` | tightly scoped source correction | coding reliability; may map to builder or planner profile |
 
-This permits a cost-optimized model for most source generation and a stronger
-profile only where global planning or visual judgment pays for itself. No agent
-code branches on provider or model name.
+This permits a cost-optimized default for most of the workflow and a
+genuinely different, stronger model only where a real capability gap demands
+it. In practice — see the reasoning-effort and vision discussion below — that
+usually means `code_generator_planner` stays on the same default model as
+everything else, just with a different *parameter* (reasoning effort), while
+`code_generator_reviewer` is the profile most likely to need an actually
+different model, because vision is a capability the default model may
+simply not have, not a depth-of-reasoning setting. No agent code branches on
+provider or model name.
+
+Every other agent in `config/models.toml` today (Discovery, Content Architect,
+Visual Design Director, Build Preparation) uses exactly one
+`[profiles.<agent_key>]` entry, because each has one dominant capability shape.
+Precisely: each of those four currently happens to converge on the same
+underlying model, but that is four independent per-agent choices, not one
+model structurally shared through the literal (and currently inert,
+unconfigured) `[profiles.default]` block — a future reader should not assume
+profiles are shared by construction. Code Generator is deliberately different
+regardless: planning is a reasoning/adherence workload, bulk route generation
+is a coding workload where speed matters more than reasoning depth, and
+visual review is a vision workload — three genuinely different capability
+shapes inside one stage, not a stylistic preference for more profiles. If a
+single model proves strong enough across all three for the chosen provider,
+collapsing to one `[profiles.code_generator]` entry is a config change, not an
+architecture change; the workflow asks for a role, never a model name, either
+way.
+
+**Reasoning effort and cost.** Every existing agent profile currently sets
+`reasoning_effort` to its lowest supported level, deliberately, for cost and
+latency. The project owner has stated cost is not a current constraint for
+Code Generator — build correctness and quality first, optimize spend later —
+so this proposal does not inherit that same low-effort default uncritically.
+`code_generator_planner` and `code_generator_reviewer` should default to a
+higher reasoning effort than the existing agents' cost-tuned baseline: a
+planning defect or a missed visual regression is expensive to catch later,
+and pillars 1 and 2 both depend on these two calls specifically.
+`code_generator_builder` can reasonably stay at the cost-tuned baseline
+regardless, not because cost matters more there, but because it already sits
+inside the deterministic gate/correction safety net — a low-effort response
+that fails a gate gets one bounded correction, which is a cheaper and more
+reliable way to raise its quality than raising its own reasoning effort
+would be. `code_generator_corrector` inherits whichever profile it is mapped
+to (builder or planner), rather than needing its own setting. Raising
+reasoning effort raises latency, not just cost — this interacts directly with
+worker job timeouts; see the [architecture overview's decision
+checklist](README.md#pre-implementation-decision-checklist).
+
+**Vision is a policy-consistent escalation, not an exception.** The project
+owner's stated policy — default to one model everywhere, escalate only where
+a requirement strictly demands it — already anticipates exactly this case.
+`code_generator_reviewer` cannot function without image input; if the model
+everything else defaults to lacks vision support, escalating only that one
+profile is precisely what "strictly demands it" means, not a deviation from
+defaulting. What "strictly demands it" rules out is escalating
+`code_generator_planner` or `code_generator_builder` merely because a
+stronger model would plausibly help — those stay on the default unless a
+concrete, structural gap (not a general quality hope) shows up.
+
+Confirming whether the currently configured model actually supports image
+input is a real, empirical unknown, not something to assume either way from
+its name or generation. Supporting it — once confirmed necessary — is a
+three-layer change, not a config toggle, and all three layers are currently
+absent:
+
+1. `ModelCapabilities` (`agents/shared/providers/capabilities.py`) is a
+   strict schema with a fixed set of boolean fields, none of them
+   vision-related; a profile cannot declare image support without a field
+   being added first. This is not a new kind of change — the schema was
+   already extended once before for exactly this reason (a
+   provider-specific quirk, `uses_max_completion_tokens`, added because a
+   real agent needed to express it — see `DECISIONS.md`), so this is the
+   established mechanism doing what it already did once, not a novel risk.
+2. The `ModelClient` protocol's structured-generation method has no image
+   parameter today — only text input is expressible at the protocol level.
+3. The concrete adapter constructs request messages as plain text content
+   today; emitting an image alongside text needs multi-part message
+   construction, an adapter-level change below the protocol, not just above
+   it.
+
+None of this is Code Generator's code to carry — it belongs in the shared
+`agents/shared/providers/` boundary precisely because every future agent
+needing image input benefits from it once, matching why that boundary exists
+at all.
 
 The provider-neutral `ModelClient` boundary should expose structured generation,
 optional image inputs, usage metadata, and a non-persistent request policy.
@@ -196,6 +283,16 @@ Provider-specific Responses/Structured Outputs details stay inside the adapter.
 Other agents do not need to migrate merely because Code Generator needs image
 review. For the OpenAI adapter, Code Generator requests should explicitly set
 `store: false` unless a separately approved data policy says otherwise.
+
+**Route-batch sizing depends on an unconfirmed ceiling.** Existing profiles
+cap `max_output_tokens` at 16000-32000, but that reflects what those agents'
+JSON/Markdown envelope outputs happened to need, not a confirmed hard limit
+for the model itself — and a `FileChangeSet` response carrying full file
+contents for a route batch is a materially larger output shape than any
+existing agent produces. Route-batch sizing (see "Adaptive call shape" below)
+must be computed against `code_generator_builder`'s actual configured
+`max_output_tokens`, and that ceiling should be confirmed empirically before
+being relied on, not inherited from existing agents' unrelated envelopes.
 
 ### Prompt contract by operation
 
@@ -294,9 +391,27 @@ Every call participates in one state machine and one canonical plan. There is no
 peer negotiation, supervisor, long-lived chat memory, or autonomous tool loop.
 The orchestrator knows the call graph, owns all retries, and can replay any call
 from its receipt. This preserves the useful part of specialization without
-adding coordination infrastructure.
+adding coordination infrastructure. The orchestrator itself is ordinary
+deterministic Python, not a model — see "Is there an orchestrator?" in the
+[architecture overview](README.md) for the full answer and its precedent.
 
 ## Context protocol
+
+"Memory" here means two different things, answered two different ways, and
+both are deliberate:
+
+- **Across agents**, memory is *not* shared — it is deliberately narrowed at
+  every stage boundary. Code Generator receives only the compact, approved
+  Build Preparation projection described under "Production input" above; it
+  never sees Discovery's raw resume/documents, Content Architect's reasoning,
+  or Visual Design Director's reasoning. This is not a new choice — it is the
+  same compact-projection-only pattern Content Architect already applies to
+  Discovery's output and Visual Design Director already applies to Content
+  Architect's output (`AGENTS.md`, [D-008](../../DECISIONS.md)). Code
+  Generator is simply the fourth stage applying the same rule to Build
+  Preparation's output.
+- **Within this one stage**, memory means the durable context ledger below —
+  explicit, versioned, and replayable — not a growing conversation.
 
 ### No conversational memory
 
@@ -463,6 +578,63 @@ The admitted target is a Node frontend with a starter `package.json`; npm and a
 real `package-lock.json` are the least surprising generated-project contract.
 Changing OryxenAI's Python environment or replacing uv would solve nothing.
 
+Node is needed in this design for exactly one reason: building generated
+portfolios (`npm ci`/`tsc`/`vite build`). It is not needed for verification —
+Playwright ships a pure-Python package (`playwright` on PyPI, installable
+through `uv`, `playwright install chromium`), so the browser-verification
+gate in [Preview, quality, and evaluation](preview-quality-and-evaluation.md)
+runs with no Node dependency at all, whether through the Cloudflare browser
+binding or a local Playwright adapter. Stating this narrows what the Node
+addition below actually is: one toolchain, for one step, on one service —
+not general frontend tooling creeping into a Python application.
+
+### Node toolchain in the OryxenAI runtime image
+
+Today's root `Dockerfile` is Python-only (`python:3.13-slim-bookworm`,
+uv-based) with no Node anywhere, and no `package.json` exists in the
+repository outside generated output. Adding Node needs a concrete, decided
+approach, not just "run the trusted Node toolchain in the application image"
+as an abstraction:
+
+1. **Copy Node from a pinned official image, matching the Debian release
+   exactly** — a multi-stage `COPY --from=node:20-bookworm-slim`, not
+   `apt-get install nodejs` (Debian's own package trails current Node LTS)
+   and not a NodeSource curl-pipe-bash install (mutates apt sources, adds
+   curl/gnupg surface, harder to pin precisely). The source image's Debian
+   release must match the app image's (`bookworm`) — copying a binary built
+   against a different base risks a glibc/ABI mismatch.
+2. **Copy the full toolchain, not just the `node` binary.** `npm`/`npx` are
+   Node scripts under `/usr/local/lib/node_modules/npm/` with shim entry
+   points in `/usr/local/bin/`, not standalone binaries — copy both the
+   `/usr/local/bin` and `/usr/local/lib/node_modules` trees. Add a
+   build-time `RUN node --version && npm --version` smoke check so a broken
+   copy fails the image build, not a live generation.
+3. **Give the existing non-root runtime user a writable npm cache.** The
+   runtime stage already drops to a non-root `oryxen` user; `npm ci` writes
+   to `$HOME/.npm` by default, and if `HOME` is not an owned, writable path
+   for that user, the failure only surfaces the first time a build is
+   actually attempted, not at image-build time. Set and own this
+   deliberately rather than discovering it live.
+4. **Scope Node to the worker only.** Per the split topology in the
+   [architecture overview](README.md#primary-split-web-service-and-worker),
+   the API and migration processes never run a build and should not carry
+   Node at all. Either build a distinct worker-only stage/target from the
+   same `Dockerfile`, or explicitly accept and document the image-size
+   trade-off if the image stays unified — don't leave this implicit.
+
+**Bake a warm npm cache into the worker image, matching an existing
+precedent.** `config/app.docker.toml` already establishes that Render disks
+are ephemeral and the verified build ZIP is the only artifact that has to
+survive — the same reasoning extends cleanly to the npm dependency cache: for
+the pinned target/toolchain profile's lockfile, resolve and cache
+dependencies once at OryxenAI image-build time (not at generation time), so
+a generation's `npm ci` resolves from the local cache in the common case and
+only touches the npm registry when the target-profile version itself
+changes. This turns "an admitted cache... where practical" from an aspiration
+into a concrete build step tied to a specific, versioned input (the target
+profile's lockfile), consistent with how this project already treats
+ephemeral compute and durable artifacts everywhere else.
+
 The dependency resolver—not the model—does this:
 
 1. derive the minimal dependency subset from scaffold needs and admitted
@@ -509,39 +681,142 @@ selection and provenance process. The generator adapts it according to the
 recorded notes, design tokens, component API, and accessibility requirements.
 It does not copy a demo page wholesale.
 
-### Permitted later component fetch
+### The Resource Completeness Gate
 
-When `resources/plan.json` grants `later_fetch`:
+Every resource need Build Preparation recorded — component, icon, image, or
+(proposed) font — falls into exactly one of three buckets by the time
+generation calls begin: **already usable**, **topped up**, or **explicit
+fallback**. Deciding which bucket applies is deterministic Python, runs
+**once, as pre-processing on the admitted pack, strictly before the planning
+call is issued** — never inside `generate_routes`, never as a mid-response
+model decision, and never repeated per route:
 
 ```mermaid
-flowchart LR
-    N[Resource need] --> P{Allowed provider?}
-    P -->|no| F[Use recorded fallback]
-    P -->|yes| D[Deterministic provider adapter]
-    D --> J[Validate registry schema]
-    J --> L[License + dependency + path checks]
-    L -->|pass| A[Admit source and replace fallback]
-    L -->|fail| F
+flowchart TD
+    F["Every need in resources/manifest.json + plan.json"] --> G{Materialized\nand usable?}
+    G -->|yes| U[Bind to the prepared source]
+    G -->|no| R{required_for_handoff?}
+    R -->|yes| X["Fail closed: needs_attention\n+ upstream-contract diagnostic"]
+    R -->|no| L{later_fetch.allowed\nfor this need?}
+    L -->|no| FB[Bind to the recorded fallback]
+    L -->|"yes, kind=resource\n(component/icon — live today)"| RA["Registry adapter\n(shadcn-compatible / Lucide)"]
+    L -->|"yes, kind=asset\n(image — proposed extension, see below)"| IA["Image provider adapter\n(Pexels-first, Unsplash fallback)"]
+    RA --> V{Schema + license +\ndependency + path checks pass?}
+    IA --> V
+    V -->|pass| E["Replace the fallback binding\n+ write a completeness diagnostic"]
+    V -->|fail or provider unavailable| FB
+    U --> P["Complete resource state handed\nto the planning call as input"]
+    FB --> P
+    E --> P
+    X --> Q[(Session: needs_attention)]
 ```
 
-Adapters use configured, allowlisted registry endpoints. For a shadcn-compatible
-registry, validate the published registry-item schema, normalize every file
-path, and ensure registry dependencies fit the target ceiling. Magic UI or
-other configured registries follow the same local normalized representation.
-No `npx`, registry CLI, arbitrary URL, or model tool-calling loop is needed.
+Because this runs before planning rather than during or after it, the
+planning call never decides *whether* to fetch anything — by the time it
+runs, every need already has a final, resolved disposition. The model's only
+job in `plan_site.md` is to decide *how to use* what is already resolved
+(placement, adaptation notes, `resource_bindings[]`), exactly as the existing
+consistency rule already states: "resource `need_id`s have exactly one active
+disposition. A fetched equivalent replaces its fallback rather than being
+added alongside it."
 
-If a provider is unavailable, the recorded fallback is the successful path—not
-an automatic generation failure. A required-for-handoff resource should already
-have been resolved upstream.
+This single gate deliberately answers two scenarios with one mechanism, because
+they are the same underlying problem viewed at two different moments:
+
+- **Build Preparation under-provided a need.** The gap is visible immediately
+  from the admitted pack, with no generation attempted yet.
+- **Code Generator would otherwise "discover" a gap while writing a route.**
+  Because the gate already closed every gap before any route call starts, this
+  scenario cannot occur — there is nothing left for a route-generation call to
+  discover. A route call either has a bound resource or a bound fallback; it
+  never has a missing resource.
+
+**Registry adapters (components/icons — live today).** Adapters use configured,
+allowlisted registry endpoints. For a shadcn-compatible registry, validate the
+published registry-item schema, normalize every file path, and ensure registry
+dependencies fit the target ceiling. Magic UI or other configured registries
+follow the same local normalized representation. No `npx`, registry CLI,
+arbitrary URL, or model tool-calling loop is needed. If a provider is
+unavailable, the recorded fallback is the successful path — not an automatic
+generation failure. A `required_for_handoff` resource should already have been
+resolved upstream, so it never reaches this branch at all.
+
+**Image provider adapters (proposed extension).** The current Build Preparation
+contract computes `later_fetch` only for `kind == "resource"` needs
+(`materializer.py`'s `_later_fetch_providers`); an image (`kind == "asset"`)
+need never receives fetch permission today, so a missing image always falls
+back to the recorded CSS/SVG/typographic treatment, however important that
+image is to the design. The project owner has asked for a narrower, real
+capability: when a route calls for a *decorative, non-required* photo and none
+was materialized, let the same kind of deterministic adapter Build Preparation
+itself already uses for Pexels/Unsplash close that gap with a real photo
+instead of always degrading to a fallback.
+
+This is achievable without weakening any invariant above, by extending
+`later_fetch` computation to also cover `kind == "asset"` needs under the exact
+same `not need.required_for_handoff` restriction already enforced for
+components — so it can only ever affect optional/editorial imagery, never a
+required hero image or a fact-bearing photo (a person's headshot, a screenshot
+of real work), which must still already be guaranteed present by Build
+Preparation's own completeness contract. Concretely, this needs:
+
+1. a new `resources/plan.json` schema version that computes `later_fetch` for
+   eligible asset needs the same way it already does for resource needs;
+2. a `code_generator_image_topup` adapter that composes a provider query from
+   the need's recorded `query_terms`/purpose (the same "intelligent query"
+   step Build Preparation's own Stage 1 already performs), calls the
+   configured Pexels-first/Unsplash-fallback provider chain, and downloads
+   exactly one selected image through the same inspection/hash/license path
+   Build Preparation's materializer already uses; and
+3. the same completeness-diagnostic logging as the component/icon path, so a
+   recurring image gap becomes evidence for improving Build Preparation's own
+   completeness rather than a standing excuse to keep patching downstream.
+
+This is a versioned Build Preparation contract change, not a Code
+Generator-side shortcut — it is its own line item in the
+[decision checklist](README.md#pre-implementation-decision-checklist), not
+silently assumed by this document.
 
 ### Images
 
 Use admitted local images at their inspected dimensions and provenance. Generate
 responsive local variants only through deterministic tooling if policy permits;
 preserve focal intent, alt intent, aspect-ratio reservation, and license data.
-For missing images under the current contract, use the prepared CSS/SVG/type
-fallback. Do not browse for an image merely because a model thinks one would
-look better.
+For a missing image, the Resource Completeness Gate above has already decided,
+before generation starts, whether that need became a topped-up photo (if the
+extension is accepted and the need is eligible) or the prepared CSS/SVG/type
+fallback. Route-generation calls never choose between the two, and never browse
+for an image merely because a model thinks one would look better.
+
+### Fonts
+
+Fonts are a distinct concern from images and components, and the current
+contract handles them the narrowest way possible: a fixed, self-hosted
+system-font stack, with `remote-fonts` explicitly forbidden by the target
+contract's `forbidden_runtime_capabilities`. That remains a completely valid
+v1 choice — a well-chosen system-font stack is not a visual downgrade — but it
+is a real product constraint worth stating plainly rather than leaving
+implicit: **every generation currently shares the same typeface family.**
+
+If distinct per-generation typography becomes a product requirement, the
+extension is small and follows the images/components precedent exactly rather
+than inventing a new pattern:
+
+- a small, curated, license-cleared self-hostable font catalogue (the same
+  shape as Visual Design Director's own local `catalogue.json` resource
+  lookup — deterministic tag-overlap selection, never a live Google
+  Fonts-style search);
+- font files admitted into `resources/fonts/` with the same
+  hash/license/provenance treatment images already receive;
+- `@font-face` declarations permitted only inside the shared token file
+  (`tokens.css`), never inside route source, so a route cannot silently
+  introduce an unrelated typeface; and
+- the same static-policy-scanner prohibition on remote font URLs stays in
+  force — self-hosted only, always.
+
+This is proposed, not decided; see the decision checklist. Until accepted, the
+fixed system-font stack is authoritative and route generation must not
+reference any other font family.
 
 ## Visual-quality prompting
 
@@ -600,6 +875,21 @@ Failure classes determine the response:
 | contradictory/missing admitted contract | `needs_attention`; report upstream-contract evidence |
 | unresolved second failure | `needs_attention`; preserve artifacts and diagnostics |
 
+This table is a *new* mechanism for this codebase, not a reuse of an
+existing, proven one, and should be built with that in mind. No current
+agent (Discovery, Content Architect, Visual Design Director) actually
+catches and retries a malformed structured response today — the
+error types an adapter can raise for this
+(`ModelJsonInvalidError`/`ModelEmptyOutputError`/`ModelOutputTruncatedError`)
+have no catch site anywhere in any existing agent. What every existing
+profile's `max_retries` actually configures is the provider SDK's own
+transport-level retry (network failures, 5xx responses) — a lower, unrelated
+layer this table does not need to duplicate or reason about. Code Generator would
+be the first agent to implement application-level retry on a malformed
+*structured* response, so this table should be validated carefully against
+real malformed-output cases during implementation rather than assumed
+correct by analogy to something already battle-tested elsewhere in the repo.
+
 The correction set itself is validated before use. A repair may not add a
 dependency/resource, change fixed facts, mutate global art direction, or touch
 files outside its scope unless the defect is explicitly global.
@@ -656,8 +946,21 @@ hardcoded in prompts:
 - provider registry order and endpoint allowlist;
 - correction allowance and blocking/advisory quality thresholds;
 - browser viewports, interaction timeout, and reduced-motion modes;
-- artifact prefixes, retention classes, and preview origin; and
-- local versus cloud browser-verifier adapter.
+- artifact prefixes, retention classes, and preview origin;
+- local versus cloud browser-verifier adapter;
+- whether the image-topup extension to the Resource Completeness Gate is
+  enabled, and its own provider order/allowlist if so;
+- per-session `/regenerate` quota and cooldown, so explicit re-runs cannot let
+  one session monopolize the shared generation-concurrency slot(s) other
+  sessions are waiting on;
+- per-job-type worker `handler_timeout`, `lease_duration`, and `concurrency`
+  overrides for `code_generator.*` job kinds, distinct from the generic
+  `[worker.job]` defaults every lightweight agent currently shares — those
+  defaults were sized for agents that never run a build or a browser gate;
+  and
+- the npm dependency-cache baking policy (which target-profile
+  lockfile/version the worker image's cache is built from, and when it is
+  refreshed).
 
 Secrets remain indirect environment references resolved only by infrastructure
 adapters. They are never placed in model context, generated workspace, preview,

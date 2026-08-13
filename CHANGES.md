@@ -24,6 +24,10 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-13 09:48 +05:30 — Codex (GPT-5 / OpenAI) — docs/code-generator-architecture/
+
+Refined the Code Generator proposal around the ordered product pillars, deterministic orchestration and resource completeness, adaptive model-call and toolchain policy, and the production worker topology. Added a dedicated live-preview and future-deployment design that separates best-effort Build Theater from gated preview promotion while keeping local and cloud preview behavior behind one protocol.
+
 ### 2026-08-12 21:43 +05:30 — Codex (GPT-5 / OpenAI) — docs/code-generator-architecture/
 
 Added a research-only Code Generator architecture covering admitted Build Preparation intake, bounded structured model calls, deterministic scaffold/package/resource ownership, durable R2 checkpoints, isolated preview promotion, browser and visual-quality gates, and a privacy-safe golden-reference evaluation corpus. The proposal records contract gaps and owner decisions required before implementation without changing runtime code or `DECISIONS.md`.
