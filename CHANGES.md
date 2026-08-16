@@ -24,6 +24,25 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 
 ## Recent changes
 
+### 2026-08-16 11:51 +05:30 — Codex (GPT-5 / OpenAI) — Code Generator Phases 1-4, Build Preparation, provider configuration, preview workflow, tests
+Completed the standalone Code Generator development workflow through admission, planning, controlled acquisition, progressive source generation, verification, finite repair, and preview promotion, while aligning Build Preparation, model/provider configuration, durable jobs, migrations, developer UI, fixtures, and regression coverage with the new contracts. Production session integration and automatic pipeline chaining remain deferred.
+
+### 2026-08-14 13:35 +05:30 — Codex (GPT-5 / OpenAI) — Code Generator core, shared provider, prompts, toolchain, developer UI, fixtures, tests
+Refactored the live standalone Code Generator into core/, replaced weak/free-form planning contracts with typed, enforceable design and acceptance contracts, and corrected the provider path so canonical structured input is actually sent separately from trusted prompts. Reworked generation prompts for grounded advanced portfolio implementation, removed scaffold and simulated dependency installs, added real package-manager lockfile policy, readiness reporting, a rich privacy-safe v3 fixture, semantic source evidence checks, and focused regression coverage while preserving the registry mock and standalone Build Preparation boundary.
+
+### 2026-08-14 10:47 +05:30 — OpenCode (GPT-5.6 / OpenCode Go) — Code Generator Phase 4 verification, preview, hardening, and toolchain
+Implemented the standalone Phase 4 workflow: clean receipt-bound builds, source/build/DOM-runtime gates, finite diagnostic repair, immutable candidate storage, crash-safe idempotent preview promotion, isolated preview gateway, worker lease fencing, developer route/viewport preview controls, Docker/CI toolchain setup, and verification API/UI coverage. Production session integration and automatic chaining remain deferred.
+
+### 2026-08-14 00:51 +05:30 — OpenCode (GPT-5.6 / OpenCode Go) — Code Generator Phase 3 source generation
+Implemented standalone Phase 3 progressive source generation on top of the completed Phase 1/2 workflow: trusted React/Vite/TypeScript scaffold, isolated workspaces, source manifests and policy checks, immutable checkpoints, strict foundation/route/composition/integration operations, emergent receipt-bound acquisition, source/type repair, durable generation job, API, developer UI, migration, and completion-gate tests. Phase 4 verification/preview and production session integration remain deferred.
+
+### 2026-08-13 22:30 +05:30 — Codex (GPT-5 / OpenAI) — Build Preparation pack-v3, standalone Code Generator admission, configuration, fixtures, documentation
+Replaced the Code Generator handoff with pack-v3: canonical route storage, hash-covered execution slots, resource ledger/recipes, readiness diagnostics, and strict v3 fixture/upload admission now prevent prose-only or ambiguous resource decisions. Added constrained provider policy/pins and privacy-safe recipe bindings while keeping source generation, main-flow wiring, and emergent acquisition outside this work; see D-018.
+
+### 2026-08-13 20:22 +05:30 — Codex (GPT-5 / OpenAI) — Content Architect, Visual Design Director, Build Preparation, frontend, tests
+
+Defined and enforced a safe public-scope handoff: Content Architect now defaults ordinary supplied portfolio facts to neutral publishable copy while retaining explicit restrictions, rejects incomplete approved routes, and offers an in-context revision action. Visual Design Director receives and emits only CA-approved routes with canonical identity, and Build Preparation tests cover mixed review/public scope plus canonical route metadata; see D-017.
+
 ### 2026-08-13 19:41 +05:30 — OpenCode (gpt-5.6-luna / OpenCode Go) — src/oryxenai/agents/build_preparation/service.py
 
 Fixed the session Build Preparation projection so the pack-v2 compiler receives

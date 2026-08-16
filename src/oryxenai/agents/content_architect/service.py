@@ -24,6 +24,7 @@ from oryxenai.agents.content_architect.schemas import (
 )
 from oryxenai.agents.content_architect.state import (
     NoPublishableRoutesError,
+    PublicScopeIncompleteError,
     apply_approval,
     apply_revision_requested,
     apply_start,
@@ -266,6 +267,15 @@ class ContentArchitectService:
                 details={
                     "route_count": exc.route_count,
                     "route_statuses": exc.route_statuses,
+                },
+            ) from exc
+        except PublicScopeIncompleteError as exc:
+            raise ContentArchitectOperationError(
+                "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE",
+                str(exc),
+                details={
+                    "approved_route_ids": exc.route_ids,
+                    "errors": exc.errors,
                 },
             ) from exc
         updated = await self._repository.save_content_architect_state(

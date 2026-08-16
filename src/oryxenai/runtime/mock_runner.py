@@ -22,6 +22,26 @@ if TYPE_CHECKING:
 logger = get_logger("oryxenai.runtime.mock_runner")
 
 
+def _mock_input_for_agent(agent_key: str, agent_input: dict[str, Any]) -> dict[str, Any]:
+    """Provide the minimal upstream-shaped context needed by mock agents."""
+    if agent_key != "visual_design_director" or "intake" in agent_input:
+        return agent_input
+    return {
+        **agent_input,
+        "intake": {
+            "route_plan": [
+                {
+                    "route_id": "home",
+                    "path": "/",
+                    "purpose": "Single-page portfolio home",
+                    "publication_status": "approved",
+                }
+            ],
+            "page_content_packs": [{"route_id": "home", "sections": [{"section_id": "hero"}]}],
+        },
+    }
+
+
 class MockRunner:
     """Facade that runs a deterministic mock agent and persists the result."""
 
@@ -54,7 +74,7 @@ class MockRunner:
             db_session=db_session,
             session_id=session_id,
             agent_key=agent_key,
-            agent_input=agent_input,
+            agent_input=_mock_input_for_agent(agent_key, agent_input),
             request_id=request_id,
         )
 

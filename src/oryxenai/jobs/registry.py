@@ -55,6 +55,7 @@ def _register_builtins() -> None:
     _register_content_architect_handlers()
     _register_visual_design_director_handlers()
     _register_build_preparation_handlers()
+    _register_code_generator_handlers()
 
 
 def _register_discovery_handlers() -> None:
@@ -100,6 +101,25 @@ def _register_build_preparation_handlers() -> None:
     instance = BuildPreparationHandler()
     if not is_registered(instance.kind):
         register(instance)
+
+
+def _register_code_generator_handlers() -> None:
+    from oryxenai.jobs.handlers.code_generator import (
+        CodeGeneratorAcquisitionHandler,
+        CodeGeneratorGenerationHandler,
+        CodeGeneratorPlanningHandler,
+    )
+    from oryxenai.jobs.handlers.code_generator_verification import CodeGeneratorVerificationHandler
+
+    for handler_cls in (
+        CodeGeneratorPlanningHandler,
+        CodeGeneratorAcquisitionHandler,
+        CodeGeneratorGenerationHandler,
+        CodeGeneratorVerificationHandler,
+    ):
+        instance = handler_cls()
+        if not is_registered(instance.kind):
+            register(instance)
 
 
 _register_builtins()

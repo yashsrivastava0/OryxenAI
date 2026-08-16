@@ -19,6 +19,7 @@ from oryxenai.agents.content_architect.schemas import (
 from oryxenai.agents.content_architect.state import (
     InvalidTransitionError,
     NoPublishableRoutesError,
+    PublicScopeIncompleteError,
     apply_approval,
     apply_build_result,
     apply_build_running,
@@ -31,6 +32,47 @@ from oryxenai.agents.content_architect.state import (
 
 def _source_ref() -> ContentArchitectSourceRef:
     return ContentArchitectSourceRef(discovery_brief_hash="hash1", discovery_session_revision=1)
+
+
+def _public_review_state(*, include_pending: bool = False) -> ContentArchitectState:
+    routes = [
+        RoutePlanEntry(
+            route_id="home",
+            path="/",
+            title="Home",
+            purpose="Present the professional profile.",
+            section_sequence=["hero"],
+            publication_status=PublicationStatus.APPROVED,
+        )
+    ]
+    if include_pending:
+        routes.append(
+            RoutePlanEntry(
+                route_id="secret",
+                path="/secret",
+                title="Restricted work",
+                purpose="Review-only material.",
+                publication_status=PublicationStatus.PENDING,
+            )
+        )
+    return ContentArchitectState(
+        status=ContentArchitectStatus.CONTENT_REVIEW,
+        route_plan=routes,
+        page_content_packs=[
+            PageContentPack(
+                route_id="home",
+                sections=[
+                    {
+                        "section_id": "hero",
+                        "purpose": "Establish the positioning.",
+                        "content": {"headline": "Grounded portfolio"},
+                    }
+                ],
+            )
+        ],
+        public_content_manifest={"nav": [{"label": "Home", "target": "home"}]},
+        visual_director_handoff={"content_hierarchy": ["hero"]},
+    )
 
 
 class TestValidTransitions:
@@ -181,14 +223,7 @@ class TestFlowTransitions:
         assert result.latest_error is None
 
     def test_approval_snapshot(self):
-        state = ContentArchitectState(
-            status=ContentArchitectStatus.CONTENT_REVIEW,
-            route_plan=[
-                RoutePlanEntry(
-                    route_id="home", path="/", publication_status=PublicationStatus.APPROVED
-                )
-            ],
-        )
+        state = _public_review_state()
         approved = apply_approval(state, "abc123")
         assert approved.status == ContentArchitectStatus.APPROVED
         assert approved.approved is not None
@@ -220,17 +255,7 @@ class TestFlowTransitions:
         assert exc_info.value.route_statuses == {}
 
     def test_approval_allows_mixed_approved_and_pending(self):
-        state = ContentArchitectState(
-            status=ContentArchitectStatus.CONTENT_REVIEW,
-            route_plan=[
-                RoutePlanEntry(
-                    route_id="home", path="/", publication_status=PublicationStatus.APPROVED
-                ),
-                RoutePlanEntry(
-                    route_id="secret", path="/secret", publication_status=PublicationStatus.PENDING
-                ),
-            ],
-        )
+        state = _public_review_state(include_pending=True)
         approved = apply_approval(state, "abc123")
         assert approved.status == ContentArchitectStatus.APPROVED
         # The gating invariant is preserved: the pending route is NOT promoted.
@@ -239,6 +264,46 @@ class TestFlowTransitions:
             "home": PublicationStatus.APPROVED,
             "secret": PublicationStatus.PENDING,
         }
+
+    def test_approval_rejects_incomplete_public_scope(self):
+        state = _public_review_state()
+        state.page_content_packs[0].sections[0].content = {}
+        with pytest.raises(PublicScopeIncompleteError) as exc_info:
+            apply_approval(state, "abc123")
+        assert exc_info.value.route_ids == ["home"]
+        assert any("has no content" in error for error in exc_info.value.errors)
+
+    def test_approval_rejects_paths_that_collide_after_pack_normalization(self):
+        state = _public_review_state()
+        state.route_plan.append(
+            RoutePlanEntry(
+                route_id="about",
+                path="/",
+                title="About",
+                purpose="Provide concise context.",
+                section_sequence=["about"],
+                publication_status=PublicationStatus.APPROVED,
+            )
+        )
+        state.page_content_packs.append(
+            PageContentPack(
+                route_id="about",
+                sections=[
+                    {
+                        "section_id": "about",
+                        "purpose": "Provide concise context.",
+                        "content": {"body": "Grounded detail."},
+                    }
+                ],
+            )
+        )
+        state.route_plan[1].path = "/home/"
+        state.route_plan[0].path = "/home"
+
+        with pytest.raises(PublicScopeIncompleteError) as exc_info:
+            apply_approval(state, "abc123")
+
+        assert any("collides" in error for error in exc_info.value.errors)
 
     def test_needs_attention_records_error(self):
         state = apply_needs_attention(

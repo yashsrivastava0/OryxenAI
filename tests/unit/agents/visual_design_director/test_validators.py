@@ -334,6 +334,60 @@ class TestValidateDirectPageExperience:
         )
         assert outcome.is_valid
 
+    def test_external_asset_requires_complete_search_intent_and_fallback(self):
+        outcome = validate_stage_output(
+            self._valid_payload(
+                asset_briefs=[
+                    _asset(
+                        source_policy="optional_external_acquisition",
+                        source_status="needs_acquisition",
+                        fallback_strategy="Use a text-led composition.",
+                        subject="abstract technical light",
+                        mood="restrained",
+                        aspect_ratio_need="landscape",
+                        color_relationship="single accent",
+                        negative_concepts=["portraits", "screenshots"],
+                    )
+                ]
+            ),
+            "direct_page_experience",
+        )
+        assert outcome.is_valid
+
+    def test_external_asset_without_search_intent_is_rejected(self):
+        outcome = validate_stage_output(
+            self._valid_payload(
+                asset_briefs=[
+                    _asset(
+                        source_policy="optional_external_acquisition",
+                        source_status="needs_acquisition",
+                        fallback_strategy="Use a text-led composition.",
+                    )
+                ]
+            ),
+            "direct_page_experience",
+        )
+        assert not outcome.is_valid
+        assert any("no subject" in error for error in outcome.errors)
+        assert any("no negative_concepts" in error for error in outcome.errors)
+
+    def test_approved_user_media_cannot_request_external_search(self):
+        outcome = validate_stage_output(
+            self._valid_payload(
+                asset_briefs=[
+                    _asset(
+                        source_policy="approved_user_media",
+                        source_status="approved_existing",
+                        fallback_strategy="Use the approved abstract fallback.",
+                        subject="portrait",
+                    )
+                ]
+            ),
+            "direct_page_experience",
+        )
+        assert not outcome.is_valid
+        assert any("must not carry external-search intent" in error for error in outcome.errors)
+
     def test_duplicate_asset_id_rejected(self):
         outcome = validate_stage_output(
             self._valid_payload(asset_briefs=[_asset(), _asset()]), "direct_page_experience"
@@ -470,3 +524,16 @@ def test_final_reference_validation_allows_route_ids_when_upstream_sets_are_empt
         known_claim_ids=set(),
     )
     assert outcome.is_valid
+
+
+def test_final_reference_validation_requires_every_approved_route() -> None:
+    outcome = validate_final_references(
+        [_page(route_id="home")],
+        [],
+        [],
+        known_route_ids={"home", "projects"},
+        known_section_ids=set(),
+        known_claim_ids=set(),
+    )
+    assert not outcome.is_valid
+    assert any("projects" in error for error in outcome.errors)

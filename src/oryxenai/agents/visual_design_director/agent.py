@@ -72,7 +72,25 @@ class VisualDesignDirectorAgent(Agent):
         prior_output = dict(agent_input.get("prior_output", {}) or {})
         revision_request = str(agent_input.get("revision_request", "") or "")
 
-        route_plan = list(intake.get("route_plan", []) or [])
+        route_plan = [
+            route
+            for route in intake.get("route_plan", []) or []
+            if isinstance(route, dict) and route.get("publication_status", "approved") == "approved"
+        ]
+        public_route_ids = {
+            str(route.get("route_id", "") or "") for route in route_plan if route.get("route_id")
+        }
+        intake["route_plan"] = route_plan
+        intake["page_content_packs"] = [
+            pack
+            for pack in intake.get("page_content_packs", []) or []
+            if isinstance(pack, dict) and str(pack.get("route_id", "") or "") in public_route_ids
+        ]
+        if not route_plan:
+            raise VisualDesignDirectorModelOutputError(
+                "build",
+                ["Content Architect supplied no approved public routes for visual direction."],
+            )
 
         # Resource catalogue shortlist is computed ONCE, before stage 1, and
         # reused unchanged across every stage of this run — a resource_id a
@@ -233,7 +251,13 @@ class VisualDesignDirectorAgent(Agent):
 
         max_pages = self._config.max_pages
         if len(pages) > max_pages:
-            pages = pages[:max_pages]
+            raise VisualDesignDirectorModelOutputError(
+                "build",
+                [
+                    "Approved visual direction exceeds the configured page ceiling; "
+                    "the route scope was not truncated."
+                ],
+            )
 
         # Every field set below is deterministically owned by agent.py, never
         # trusted from the model — this is what closes the class of bug where
@@ -270,6 +294,13 @@ class VisualDesignDirectorAgent(Agent):
                 str(route.get("route_id", ""))
                 for route in route_plan
                 if isinstance(route, dict) and route.get("route_id")
+            },
+            required_route_ids={
+                str(route.get("route_id", ""))
+                for route in route_plan
+                if isinstance(route, dict)
+                and route.get("route_id")
+                and route.get("publication_status", "approved") == "approved"
             },
             known_section_ids=section_ids,
             known_claim_ids=claim_ids,
@@ -395,21 +426,26 @@ class VisualDesignDirectorAgent(Agent):
 def _stamp_page_compilability(
     pages: list[Any], route_plan: list[dict[str, Any]]
 ) -> tuple[list[dict[str, Any]], dict[str, bool]]:
-    """Deterministically stamp publication_status/compilable onto every page
-    from the known Content Architect route_plan — never trusting the model
-    to describe this itself. A page for a route CA marked "pending" keeps
-    its full scene-level content (mirrors CA's own precedent of planning
-    pending content, just gated) but is marked compilable=False. Returns the
-    stamped pages plus a route_id -> compilable map for compiler_handoff.
+    """Stamp the public route identity owned by Content Architect.
+
+    The service and build entrypoint already filter the intake to Content
+    Architect's approved public scope. This helper makes that scope's path,
+    purpose, publication status, and compilability deterministic instead of
+    trusting model echoes. It returns stamped pages plus a route_id ->
+    compilable map for compiler_handoff.
     """
-    status_by_route: dict[str, str] = {}
+    canonical_by_route: dict[str, dict[str, str]] = {}
     for route in route_plan:
         if isinstance(route, dict):
             route_id = str(route.get("route_id", "") or "")
             if route_id:
-                status_by_route[route_id] = str(
-                    route.get("publication_status", "approved") or "approved"
-                )
+                canonical_by_route[route_id] = {
+                    "publication_status": str(
+                        route.get("publication_status", "approved") or "approved"
+                    ),
+                    "path": str(route.get("path", "") or ""),
+                    "purpose": str(route.get("purpose", "") or ""),
+                }
 
     stamped: list[dict[str, Any]] = []
     compilability: dict[str, bool] = {}
@@ -418,13 +454,20 @@ def _stamp_page_compilability(
             stamped.append(page)
             continue
         route_id = str(page.get("route_id", "") or "")
-        status = status_by_route.get(route_id, "approved")
+        canonical = canonical_by_route.get(route_id, {})
+        status = canonical.get("publication_status", "approved")
         if status not in {"approved", "pending"}:
             # "blocked" routes never reach this point (validators.py hard-
             # rejects them first); anything else unrecognized is treated as
             # not-yet-compilable rather than silently assumed approved.
             status = "pending"
         new_page = dict(page)
+        # CA owns route identity and semantics.  VDD owns the creative
+        # direction only, so canonical values are stamped rather than trusted
+        # from a model echo that could drift before Build Preparation sees it.
+        if canonical:
+            new_page["path"] = canonical["path"]
+            new_page["purpose"] = canonical["purpose"]
         new_page["publication_status"] = status
         new_page["compilable"] = status == "approved"
         stamped.append(new_page)

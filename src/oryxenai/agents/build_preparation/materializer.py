@@ -12,6 +12,12 @@ from typing import Any, cast
 
 from PIL import Image
 
+from oryxenai.agents.build_preparation.contracts import (
+    PACK_VERSION,
+    compile_v3_projections,
+    projection_hash,
+)
+from oryxenai.agents.build_preparation.execution import compile_execution_contract
 from oryxenai.agents.build_preparation.providers import (
     download_pexels,
     trigger_unsplash_download,
@@ -238,8 +244,10 @@ def _resource_plan(
             )
         )
         selected_is_usable = disposition in usable_dispositions
+        # v2 allowed known needs to escape upstream as a vague later-fetch
+        # instruction.  v3 resolves each one into a local item, dependency
+        # binding, typed recipe, or explicit execution gap instead.
         later_providers = [] if selected_is_usable else _later_fetch_providers(settings, need)
-        later_allowed = bool(later_providers) and not need.required_for_handoff
         entries.append(
             {
                 "need_id": need.need_id,
@@ -261,31 +269,18 @@ def _resource_plan(
                 "fallback": (
                     selection.fallback if selection and selection.fallback else need.fallback
                 ),
-                "later_fetch": {
-                    "allowed": later_allowed,
-                    "phase": "code_generation_only" if later_allowed else "not_allowed",
-                    "providers": later_providers,
-                    "must_replace_not_duplicate": True,
-                    "requirements": (
-                        [
-                            "Fetch source during Code Generation only; never at portfolio runtime.",
-                            "Recheck license, dependencies, source paths, accessibility, and target compatibility.",
-                            "Use the fetched equivalent instead of, never in addition to, the recorded fallback for this need.",
-                        ]
-                        if later_allowed
-                        else []
-                    ),
-                },
+                "legacy_provider_diagnostics": later_providers,
             }
         )
     return {
-        "schema_version": "build-preparation-resource-plan-v1",
+        "schema_version": "build-preparation-resource-ledger-v3",
+        "pack_version": PACK_VERSION,
         "policy": {
             "runtime_network_fetch_allowed": False,
-            "selected_resource_and_fallback_are_exclusive": True,
+            "known_needs_require_execution_slot_coverage": True,
             "unlisted_resource_ids_are_forbidden": True,
         },
-        "needs": entries,
+        "resource_decisions": entries,
     }
 
 
@@ -323,6 +318,29 @@ def _route_brief_text(route_context: Any) -> str:
     return "\n\n".join(section for section in sections if section) + "\n"
 
 
+def _synthetic_visual_direction(routes: list[RouteScope]) -> dict[str, Any]:
+    """Compatibility projection for direct materializer callers only.
+
+    Live Build Preparation always supplies the approved VDD output.  This
+    small fallback preserves the isolated materializer utility while keeping
+    its synthetic origin obvious in the resulting projection.
+    """
+    return {
+        "approved": {"visual_direction_hash": "materializer-compatibility-only"},
+        "pages": [
+            {
+                "route_id": route.route_id,
+                "path": route.path or "/",
+                "publication_status": "approved",
+                "compilable": True,
+            }
+            for route in routes
+        ],
+        "asset_briefs": [],
+        "resource_candidates": [],
+    }
+
+
 async def materialize_build_context(
     *,
     output_dir: str | Path,
@@ -334,10 +352,68 @@ async def materialize_build_context(
     context: BuildContextDraft,
     content_architect: dict[str, Any],
     settings: Any,
+    visual_design_director: dict[str, Any] | None = None,
+    legacy_route_layout: bool = False,
     download_image: DownloadImage | None = None,
     trigger_download: TriggerDownload | None = None,
     root_override: str | Path | None = None,
 ) -> MaterializationResult:
+    compatibility_mode = visual_design_director is None or (
+        legacy_route_layout and not content_architect.get("route_plan")
+    )
+    legacy_content = content_architect
+    if compatibility_mode:
+        route_contexts = {item.route_id: item for item in context.routes}
+        route_briefs = {
+            route_id: route_context.brief_markdown
+            for route_id, route_context in route_contexts.items()
+        }
+        compatibility_packs = []
+        for route in routes:
+            raw = _route_data(content_architect, route.route_id)
+            sections = []
+            for index, section in enumerate(raw.get("sections", []) or []):
+                if isinstance(section, dict):
+                    sections.append(
+                        {
+                            **section,
+                            "section_id": str(
+                                section.get("section_id")
+                                or section.get("id")
+                                or f"compatibility-{index}"
+                            ),
+                        }
+                    )
+            compatibility_packs.append({"route_id": route.route_id, "sections": sections})
+        content_architect = {
+            **content_architect,
+            "approved": content_architect.get("approved")
+            or {"content_hash": "materializer-compatibility-only"},
+            "route_plan": content_architect.get("route_plan")
+            or [
+                {
+                    "route_id": route.route_id,
+                    "path": route.path or "/",
+                    "title": route.title,
+                    "publication_status": "approved",
+                }
+                for route in routes
+            ],
+            "page_content_packs": compatibility_packs
+            or [
+                {
+                    "route_id": route.route_id,
+                    "sections": [
+                        {
+                            "section_id": "compatibility",
+                            "purpose": route_briefs.get(route.route_id, ""),
+                            "content": {},
+                        }
+                    ],
+                }
+                for route in routes
+            ],
+        }
     root = (
         Path(root_override)
         if root_override is not None
@@ -381,6 +457,31 @@ async def materialize_build_context(
     package = _target_package_file(target)
     files.append(_write(root, "target/package.json", _json_bytes(package), "text"))
 
+    projections = compile_v3_projections(
+        content_architect=content_architect,
+        visual_design_director=(
+            _synthetic_visual_direction(routes)
+            if compatibility_mode
+            else visual_design_director or _synthetic_visual_direction(routes)
+        ),
+        source_ref=(content_architect.get("_build_preparation_source_ref") or {}),
+        target_contract=target,
+        max_routes=int(settings.build_preparation.max_routes),
+    )
+    projection_hashes = {name: projection_hash(value) for name, value in projections.items()}
+    files.append(_write(root, "site/contract.json", _json_bytes(projections["site"]), "text"))
+    files.append(
+        _write(root, "design/visual-direction.json", _json_bytes(projections["visual"]), "text")
+    )
+    files.append(
+        _write(root, "provenance/approvals.json", _json_bytes(projections["approvals"]), "text")
+    )
+    files.append(
+        _write(root, "provenance/targets.json", _json_bytes(projections["targets"]), "text")
+    )
+    contract_routes = {item["route_id"]: item for item in projections["site"]["routes"]}
+    contract_content = {item["route_id"]: item for item in projections["site"]["public_content"]}
+
     selected_ids: list[str] = []
     for route in routes:
         route_context = next(
@@ -388,7 +489,11 @@ async def materialize_build_context(
         )
         if route_context is None:
             continue
-        route_name = _safe_name(route.route_id)
+        route_name = (
+            _safe_name(route.route_id)
+            if compatibility_mode
+            else str(contract_routes[route.route_id]["storage_key"]).removeprefix("routes/")
+        )
         files.append(
             _write(
                 root,
@@ -397,11 +502,29 @@ async def materialize_build_context(
                 "text",
             )
         )
+        if legacy_route_layout:
+            legacy_name = _safe_name(route.route_id)
+            files.append(
+                _write(
+                    root,
+                    f"routes/{legacy_name}/data.json",
+                    _json_bytes(_route_data(content_architect, route.route_id)),
+                    "text",
+                )
+            )
         files.append(
             _write(
                 root,
                 f"routes/{route_name}/data.json",
-                _json_bytes(_route_data(content_architect, route.route_id)),
+                _json_bytes(
+                    _route_data(legacy_content, route.route_id)
+                    if compatibility_mode
+                    else {
+                        "route_id": route.route_id,
+                        "sections": contract_content[route.route_id]["sections"],
+                        "public_content_manifest": projections["site"]["public_content_manifest"],
+                    }
+                ),
                 "text",
             )
         )
@@ -427,6 +550,21 @@ async def materialize_build_context(
                 "text",
             )
         )
+        if legacy_route_layout:
+            files.append(
+                _write(
+                    root,
+                    f"routes/{_safe_name(route.route_id)}/resources.json",
+                    _json_bytes(
+                        {
+                            "route_id": route.route_id,
+                            "need_ids": route_need_ids,
+                            "resource_ids": route_selected,
+                        }
+                    ),
+                    "text",
+                )
+            )
 
     resource_manifest: list[dict[str, Any]] = []
     icon_names: list[str] = []
@@ -636,25 +774,124 @@ async def materialize_build_context(
             }
         )
     files.append(_write(root, "provenance/licenses.json", _json_bytes(licenses), "text"))
-    resource_plan_path = "resources/plan.json"
+    # Direct utility callers without an approved VDD projection retain the
+    # historical diagnostic plan name.  Production materialization writes the
+    # v3 ledger and is the only form Code Generator can admit.
+    resource_plan_path = "resources/plan.json" if compatibility_mode else "resources/ledger.json"
+    ledger = _resource_plan(
+        needs=needs,
+        selections=selections,
+        candidates=candidates,
+        materialized_resources=resource_manifest,
+        settings=settings,
+    )
+    if compatibility_mode:
+        # Direct utility callers are diagnostic-only and keep the legacy
+        # shape so their tests and old fixture review tooling remain useful.
+        # This tree is emitted as phase3 and is never a v3 admission input.
+        legacy_needs = ledger["resource_decisions"]
+        for entry in legacy_needs:
+            providers = list(entry.pop("legacy_provider_diagnostics", []))
+            usable = entry.get("disposition") in {
+                "adaptable_source",
+                "local_file",
+                "package_import",
+            }
+            entry["later_fetch"] = {
+                "allowed": bool(providers) and not bool(entry.get("required_for_handoff")),
+                "phase": "code_generation_only"
+                if providers and not entry.get("required_for_handoff")
+                else "not_allowed",
+                "providers": providers,
+                "must_replace_not_duplicate": True,
+                "requirements": [] if usable else ["Diagnostic-only legacy fallback."],
+            }
+        ledger = {
+            "schema_version": "build-preparation-resource-plan-v1",
+            "policy": {
+                "runtime_network_fetch_allowed": False,
+                "selected_resource_and_fallback_are_exclusive": True,
+                "unlisted_resource_ids_are_forbidden": True,
+            },
+            "needs": legacy_needs,
+        }
+    execution_contract, local_recipes, execution_slots, execution_gaps = compile_execution_contract(
+        routes=routes,
+        needs=needs,
+        materialized_resources=resource_manifest,
+        site=projections["site"],
+        visual=projections["visual"],
+        target=target,
+    )
+    slot_ids_by_route: dict[str, list[str]] = {}
+    for slot in execution_slots:
+        if slot.route_id:
+            slot_ids_by_route.setdefault(slot.route_id, []).append(slot.resource_slot_id)
+    for recipe in local_recipes:
+        files.append(
+            _write(root, recipe.local_path, _json_bytes(recipe.model_dump(mode="json")), "text")
+        )
+    recipe_manifest = {
+        "schema_version": "build-preparation-recipe-manifest-v1",
+        "pack_version": PACK_VERSION,
+        "recipes": [recipe.model_dump(mode="json") for recipe in local_recipes],
+    }
     files.append(
         _write(
             root,
-            resource_plan_path,
-            _json_bytes(
-                _resource_plan(
-                    needs=needs,
-                    selections=selections,
-                    candidates=candidates,
-                    materialized_resources=resource_manifest,
-                    settings=settings,
-                )
-            ),
+            "resources/recipes/manifest.json",
+            _json_bytes(recipe_manifest),
             "text",
         )
     )
+    if not compatibility_mode:
+        # Rewrite the canonical resource maps after deriving the final slot
+        # inventory.  There are no legacy route aliases in a v3 tree.
+        for route in routes:
+            route_name = str(contract_routes[route.route_id]["storage_key"]).removeprefix("routes/")
+            route_need_ids = [need.need_id for need in needs if route.route_id in need.route_ids]
+            route_resource_ids = [
+                str(resource.get("id", ""))
+                for resource in resource_manifest
+                if str(resource.get("need_id", "")) in route_need_ids
+                and str(resource.get("id", ""))
+            ]
+            files.append(
+                _write(
+                    root,
+                    f"routes/{route_name}/resources.json",
+                    _json_bytes(
+                        {
+                            "route_id": route.route_id,
+                            "need_ids": route_need_ids,
+                            "resource_ids": sorted(set(route_resource_ids)),
+                            "slot_ids": sorted(slot_ids_by_route.get(route.route_id, [])),
+                        }
+                    ),
+                    "text",
+                )
+            )
+        ledger["slots"] = [slot.model_dump(mode="json") for slot in execution_slots]
+        ledger["execution_contract_path"] = "execution/contract.json"
+    files.append(_write(root, resource_plan_path, _json_bytes(ledger), "text"))
+    projection_hashes["ledger"] = projection_hash(ledger)
+    projection_hashes["recipes"] = projection_hash(recipe_manifest)
+    resource_projection = {
+        "schema_version": projections["site"]["schema_version"],
+        "pack_version": PACK_VERSION,
+        "resources": resource_manifest,
+        "resource_needs": [need.model_dump(mode="json") for need in needs],
+    }
+    projection_hashes["resources"] = projection_hash(resource_projection)
+    files.append(
+        _write(root, "resources/projection.json", _json_bytes(resource_projection), "text")
+    )
+    projection_hashes["execution"] = projection_hash(execution_contract)
+    execution_contract_path = "execution/contract.json"
+    files.append(_write(root, execution_contract_path, _json_bytes(execution_contract), "text"))
     manifest = {
-        "phase": "phase3",
+        "phase": "pack-v3" if not compatibility_mode else "diagnostic-phase3",
+        "pack_version": PACK_VERSION,
         "run_id": run_id,
         "plan_path": resource_plan_path,
         "resources": resource_manifest,
@@ -675,6 +912,13 @@ async def materialize_build_context(
         manifest_path="resources/manifest.json",
         resource_plan_path=resource_plan_path,
         resources=resource_manifest,
+        pack_version=PACK_VERSION if not compatibility_mode else "phase3",
+        projection_hashes=projection_hashes,
+        execution_slots=execution_slots,
+        local_recipes=local_recipes,
+        execution_gaps=execution_gaps,
+        execution_contract_path=execution_contract_path,
+        resource_ledger_path=(resource_plan_path if not compatibility_mode else ""),
     )
 
 

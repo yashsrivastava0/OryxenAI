@@ -216,22 +216,13 @@ async def test_internal_note_key_leaked_into_content_is_rejected():
         await agent.run(_context())
 
 
-async def test_route_plan_truncated_to_configured_max():
-    """A route plan longer than max_routes is truncated, never rejected.
-
-    Mirrors DiscoveryAgent's own profile.projects truncation: a large plan is
-    a fact about the input the validator accepts, and ContentArchitectAgent
-    truncates it afterward instead of throwing the whole generation away.
-    """
-    # route_count stays at/under the integration-heuristic threshold (2) so
-    # this test exercises truncation in isolation, without also triggering
-    # an integrate_content call.
+async def test_route_plan_over_configured_max_is_rejected_without_truncation():
+    """A public route plan cannot silently lose content at the configured ceiling."""
     client = _FakeModelClient({"plan_content": _plan_payload(content_included=True, route_count=2)})
     agent = ContentArchitectAgent(model_client=client)
     agent._config.max_routes = 1
 
-    result = await agent.run(_context())
+    with pytest.raises(ContentArchitectModelOutputError, match="not truncated"):
+        await agent.run(_context())
 
     assert client.calls == ["plan_content"]
-    assert len(result.output["route_plan"]) == 1
-    assert len(result.output["page_content_packs"]) == 1

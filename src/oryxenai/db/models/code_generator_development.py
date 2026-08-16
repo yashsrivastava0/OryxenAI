@@ -1,0 +1,103 @@
+"""Standalone persistence for Code Generator development runs."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from oryxenai.db.base import Base
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+class CodeGeneratorDevelopmentRun(Base):
+    """A session-independent, optimistic-concurrency Phase 1 run."""
+
+    __tablename__ = "code_generator_development_runs"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="created")
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    current_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_reference: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    input_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    context_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    planner_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    plan: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    plan_summary: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    issues: Mapped[list[dict[str, object]]] = mapped_column(JSONB, nullable=False, default=list)
+    admitted_identity: Mapped[str | None] = mapped_column(Text, nullable=True)
+    background_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    acquire_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    generation_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    resource_ledger: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    dependency_ledger: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    acquire_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    acquire_summary: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    plan_delta_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    generation_projection: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    source_checkpoint: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    source_summary: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    verification_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    verification_projection: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    candidate_artifact: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    pending_promotion: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    active_preview: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    terminal_failure: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    preview_host: Mapped[str | None] = mapped_column(Text, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (
+        Index("ix_codegen_development_runs_status_created", "status", "created_at"),
+        Index(
+            "ux_codegen_development_runs_idempotency",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
+    )
+
+
+class CodeGeneratorDevelopmentEvent(Base):
+    """Append-only safe event stream for a standalone development run."""
+
+    __tablename__ = "code_generator_development_events"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    run_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("code_generator_development_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    level: Mapped[str] = mapped_column(Text, nullable=False, default="info")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    details: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence", name="ux_codegen_development_event_sequence"),
+        Index("ix_codegen_development_events_run_sequence", "run_id", "sequence"),
+    )

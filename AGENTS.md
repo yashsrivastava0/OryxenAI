@@ -86,10 +86,12 @@ deterministic mock, not a live implementation.
 
 ## What is deliberately still mocked or excluded
 
-- Code Generator remains a deterministic mock — it conforms to the shared
-  `Agent` protocol but is not wired to a real model, service layer, or
-  durable job. Its real implementation architecture is decided but not yet
-  implemented; see `DECISIONS.md` D-015 and
+- The registry-compatible Code Generator agent remains a deterministic mock,
+  but its feature-gated standalone development workflow now implements Phases
+  1-4: v3 admission, planning, controlled acquisition, progressive source
+  generation, checkpoints, clean build/runtime verification, finite repair,
+  atomic preview promotion, and source/preview API/UI. Production session
+  integration remains deferred; see `DECISIONS.md` D-015 and
   `docs/code-generator-architecture/`.
 - Normal tests use checked-in fixtures; live model calls are opt-in.
 - No portfolio generation, publishing, web research, or automatic chaining
@@ -324,8 +326,9 @@ Content Architect's architecture one stage down the pipeline:
 
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
-- **Code Generator remains unimplemented** — its D-015 implementation handoff
-  is under `docs/code-generator-architecture/`, and Build Preparation does not
+- **Code Generator production integration remains unimplemented** — the
+  standalone Phases 1-4 workflow is under
+  `docs/code-generator-architecture/`, and Build Preparation does not
   auto-chain into it.
 
 ## Multi-agent collaboration protocol

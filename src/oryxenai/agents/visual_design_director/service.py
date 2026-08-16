@@ -180,7 +180,23 @@ class VisualDesignDirectorService:
             model_profile or content_architect.model_profile or "visual_design_director"
         )
 
-        route_plan_dump = [route.model_dump(mode="json") for route in content_architect.route_plan]
+        all_route_plan_dump = [
+            route.model_dump(mode="json") for route in content_architect.route_plan
+        ]
+        public_route_ids = {
+            str(route["route_id"])
+            for route in all_route_plan_dump
+            if route.get("route_id") and route.get("publication_status") == "approved"
+        }
+        # The approved Content Architect public scope is the only route graph
+        # Visual Design Director is allowed to turn into public direction.
+        # Pending routes stay in CA review state and source fingerprints, but
+        # never become VDD pages that would violate pack-v2 exact-set equality.
+        route_plan_dump = [
+            route
+            for route in all_route_plan_dump
+            if str(route.get("route_id", "") or "") in public_route_ids
+        ]
         intake = VisualDesignDirectorIntake(
             content_architect_content_hash=content_architect.approved.content_hash,
             content_architect_session_revision=session.revision,
@@ -192,6 +208,7 @@ class VisualDesignDirectorService:
             page_content_packs=[
                 _strip_internal_notes(pack.model_dump(mode="json"))
                 for pack in content_architect.page_content_packs
+                if pack.route_id in public_route_ids
             ],
             public_content_manifest=content_architect.public_content_manifest,
             media_status=content_architect.media_status,
@@ -205,7 +222,7 @@ class VisualDesignDirectorService:
                 content_architect
             ),
             content_architect_session_revision=session.revision,
-            route_publication_hash=compute_route_publication_hash(route_plan_dump),
+            route_publication_hash=compute_route_publication_hash(all_route_plan_dump),
             snapshotted_at=datetime.now(UTC).isoformat(),
         )
 

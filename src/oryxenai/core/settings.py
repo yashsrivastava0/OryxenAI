@@ -225,6 +225,189 @@ class BuildPreparationConfig(BaseModel):
         return value
 
 
+class CodeGeneratorDevelopmentConfig(BaseModel):
+    """Development-only admission and planning limits for Code Generator Phase 1."""
+
+    enabled: bool = True
+    input_root: str = ".workspace/code-generator-development"
+    fixture_map: dict[str, str] = Field(default_factory=dict)
+    pack_version: str = "build-preparation-pack-v3"
+    schema_version: str = "build-preparation-contract-v3"
+    target_contract: str = "react-vite-v1"
+    planner_profile: str = "code_generator_planner"
+    max_upload_bytes: int = 16 * 1024 * 1024
+    max_uncompressed_bytes: int = 64 * 1024 * 1024
+    max_entries: int = 256
+    max_compression_ratio: float = 100.0
+    max_routes: int = 12
+    max_work_units: int = 64
+    max_events_page_size: int = 100
+
+    @field_validator("enabled", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class CodeGeneratorGenerationConfig(BaseModel):
+    """Standalone Phase 3 source-generation limits and trusted commands."""
+
+    scaffold_profile: str = "react-vite-v1"
+    scaffold_root: str = "src/oryxenai/agents/code_generator/scaffolds"
+    workspace_root: str = ".workspace/code-generator-generation"
+    checkpoint_root: str = ".workspace/code-generator-checkpoints"
+    foundation_profile: str = "code_generator_foundation_builder"
+    route_profile: str = "code_generator_route_builder"
+    compose_profile: str = "code_generator_route_composer"
+    integration_profile: str = "code_generator_integrator"
+    repair_profile: str = "code_generator_repairer"
+    max_file_bytes: int = 256 * 1024
+    max_response_bytes: int = 2 * 1024 * 1024
+    max_source_bytes: int = 8 * 1024 * 1024
+    max_request_rounds: int = 4
+    max_repair_rounds_per_unit: int = 2
+    max_repair_rounds_total: int = 6
+    max_route_batch_sections: int = 8
+    max_concurrency: int = 1
+    typecheck_timeout_seconds: float = 120.0
+    typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
+    format_command: list[str] = Field(default_factory=list)
+    use_real_typecheck: bool = True
+
+    @field_validator("use_real_typecheck", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class CodeGeneratorAcquisitionConfig(BaseModel):
+    """Trusted Code Generator resource-acquisition policy."""
+
+    allowlist_image_providers: list[str] = Field(default_factory=lambda: ["pexels", "unsplash"])
+    allowlist_font_formats: list[str] = Field(default_factory=lambda: ["woff2", "woff"])
+    allowlist_icon_package: str = "lucide"
+    allowlist_component_registries: list[str] = Field(default_factory=lambda: ["shadcn", "magicui"])
+    allowlist_style_kinds: list[str] = Field(
+        default_factory=lambda: ["pattern", "token_preset", "helper"]
+    )
+    forbidden_subject_terms: list[str] = Field(default_factory=list)
+    user_media_substitution_allowed: bool = False
+    max_request_rounds: int = 4
+    image_max_bytes: int = 4 * 1024 * 1024
+    font_max_bytes: int = 2 * 1024 * 1024
+    icon_svg_max_bytes: int = 384 * 1024
+    component_max_bytes: int = 512 * 1024
+    style_max_bytes: int = 256 * 1024
+    materials_root: str = ".workspace/code-generator-materials"
+    offline_resource_root: str = ""
+    prefer_resource_scout_model: bool = False
+    supported_packages: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    @field_validator(
+        "user_media_substitution_allowed", "prefer_resource_scout_model", mode="before"
+    )
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class CodeGeneratorDependenciesConfig(BaseModel):
+    """Trusted package and disposable workspace policy for Code Generator."""
+
+    workspaces_root: str = ".workspace/code-generator-workspaces"
+    npm_executable: str = ""
+    npm_cache_root: str = ""
+    allow_network_install: bool = False
+    allow_install_scripts: bool = False
+    supported_packages: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    @field_validator("allow_network_install", "allow_install_scripts", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class CodeGeneratorVerificationConfig(BaseModel):
+    """Final build, browser, artifact, and repair policy."""
+
+    enabled: bool = True
+    profile_id: str = "code-generator-verification-v1"
+    browser_name: str = "chromium"
+    browser_executable: str = ""
+    browser_headless: bool = True
+    browser_timeout_ms: int = 15000
+    install_timeout_seconds: float = 180.0
+    typecheck_timeout_seconds: float = 180.0
+    format_timeout_seconds: float = 60.0
+    build_timeout_seconds: float = 180.0
+    runtime_timeout_ms: int = 15000
+    max_output_bytes: int = 65536
+    max_artifact_bytes: int = 32 * 1024 * 1024
+    reject_source_maps: bool = True
+    install_command: list[str] = Field(
+        default_factory=lambda: [
+            "npm",
+            "ci",
+            "--ignore-scripts",
+            "--offline",
+            "--no-audit",
+            "--no-fund",
+        ]
+    )
+    typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
+    format_command: list[str] = Field(default_factory=list)
+    build_command: list[str] = Field(default_factory=lambda: ["npm", "run", "build"])
+    source_check_ids: list[str] = Field(
+        default_factory=lambda: ["source.paths", "source.coverage", "source.policy"]
+    )
+    build_check_ids: list[str] = Field(
+        default_factory=lambda: [
+            "build.install",
+            "build.typecheck",
+            "build.production",
+            "build.closure",
+        ]
+    )
+    runtime_check_ids: list[str] = Field(
+        default_factory=lambda: [
+            "runtime.routes",
+            "runtime.navigation",
+            "runtime.interactions",
+            "runtime.accessibility",
+            "runtime.requests",
+        ]
+    )
+    viewport_profiles: dict[str, dict[str, int]] = Field(
+        default_factory=lambda: {
+            "mobile": {"width": 390, "height": 844},
+            "tablet": {"width": 768, "height": 1024},
+            "desktop": {"width": 1440, "height": 900},
+        }
+    )
+    preview_root: str = ".workspace/code-generator-preview"
+    preview_base_url: str = "http://127.0.0.1:4174/preview"
+    preview_host: str = "127.0.0.1"
+    preview_port: int = 4174
+    preview_parent_origin: str = "http://127.0.0.1:8000"
+    preview_retention_days: int = 3
+    preview_route_prefix: str = "/preview"
+
+    @field_validator("enabled", "browser_headless", "reject_source_maps", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
 class ArtifactStorageConfig(BaseModel):
     """Non-secret S3-compatible artifact storage settings."""
 
@@ -258,13 +441,47 @@ class ResourceProviderConfig(BaseModel):
     aceternity_item_url_template: str = "https://ui.aceternity.com/registry/{name}.json"
     aceternity_enabled: bool = False
     registry_order: list[str] = Field(default_factory=lambda: ["shadcn", "magicui", "aceternity"])
+    execution_provider_order: list[str] = Field(
+        default_factory=lambda: [
+            "fontsource",
+            "shadcn",
+            "magicui",
+            "motion_primitives",
+            "lucide",
+            "pexels",
+        ]
+    )
+    provider_cache_policy: str = "content_hash"
+    licence_policy: str = "permissive-local-vendoring-only"
+    fontsource_enabled: bool = True
+    fontsource_api_base_url: str = "https://api.fontsource.org/v1"
+    fontsource_format: str = "woff2"
+    fontsource_latin_only: bool = True
+    font_profiles: dict[str, dict[str, str]] = Field(default_factory=dict)
+    shadcn_release_pin: str = ""
+    magicui_release_pin: str = ""
+    shadcn_allowed_components: list[str] = Field(default_factory=list)
+    magicui_allowed_components: list[str] = Field(default_factory=list)
+    motion_primitives_enabled: bool = True
+    motion_primitives_commit: str = ""
+    motion_primitives_allowed_components: list[str] = Field(default_factory=list)
+    animate_ui_enabled: bool = False
     pexels_api_key_env: str = "PEXELS_API_KEY"
     unsplash_access_key_env: str = "UNSPLASH_ACCESS_KEY"
     lucide_icon_url_template: str = (
         "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"
     )
 
-    @field_validator("registries_enabled", "magicui_enabled", "aceternity_enabled", mode="before")
+    @field_validator(
+        "registries_enabled",
+        "magicui_enabled",
+        "aceternity_enabled",
+        "fontsource_enabled",
+        "fontsource_latin_only",
+        "motion_primitives_enabled",
+        "animate_ui_enabled",
+        mode="before",
+    )
     @classmethod
     def _coerce_bool(cls, value: Any) -> Any:
         if isinstance(value, str):
@@ -340,6 +557,21 @@ class Settings(BaseSettings):
         default_factory=VisualDesignDirectorConfig
     )
     build_preparation: BuildPreparationConfig = Field(default_factory=BuildPreparationConfig)
+    code_generator_development: CodeGeneratorDevelopmentConfig = Field(
+        default_factory=CodeGeneratorDevelopmentConfig
+    )
+    code_generator_generation: CodeGeneratorGenerationConfig = Field(
+        default_factory=CodeGeneratorGenerationConfig
+    )
+    code_generator_acquisition: CodeGeneratorAcquisitionConfig = Field(
+        default_factory=CodeGeneratorAcquisitionConfig
+    )
+    code_generator_dependencies: CodeGeneratorDependenciesConfig = Field(
+        default_factory=CodeGeneratorDependenciesConfig
+    )
+    code_generator_verification: CodeGeneratorVerificationConfig = Field(
+        default_factory=CodeGeneratorVerificationConfig
+    )
     artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
     resource_providers: ResourceProviderConfig = Field(default_factory=ResourceProviderConfig)
 
@@ -385,6 +617,26 @@ class Settings(BaseSettings):
             )
         if "build_preparation" in app_data:
             self.build_preparation = BuildPreparationConfig(**app_data["build_preparation"])
+        if "code_generator_development" in app_data:
+            self.code_generator_development = CodeGeneratorDevelopmentConfig(
+                **app_data["code_generator_development"]
+            )
+        if "code_generator_generation" in app_data:
+            self.code_generator_generation = CodeGeneratorGenerationConfig(
+                **app_data["code_generator_generation"]
+            )
+        if "code_generator_acquisition" in app_data:
+            self.code_generator_acquisition = CodeGeneratorAcquisitionConfig(
+                **app_data["code_generator_acquisition"]
+            )
+        if "code_generator_dependencies" in app_data:
+            self.code_generator_dependencies = CodeGeneratorDependenciesConfig(
+                **app_data["code_generator_dependencies"]
+            )
+        if "code_generator_verification" in app_data:
+            self.code_generator_verification = CodeGeneratorVerificationConfig(
+                **app_data["code_generator_verification"]
+            )
         if "artifact_storage" in app_data:
             self.artifact_storage = ArtifactStorageConfig(**app_data["artifact_storage"])
         if "resource_providers" in app_data:

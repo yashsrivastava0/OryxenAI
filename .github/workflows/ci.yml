@@ -48,6 +48,9 @@ jobs:
       - name: Sync dependencies from lockfile
         run: uv sync --frozen --all-groups
 
+      - name: Install verifier browser
+        run: uv run playwright install --with-deps chromium
+
       - name: Create test database
         run: |
           PGPASSWORD=oryxen_test psql -h localhost -U oryxen -d oryxenai -c "CREATE DATABASE oryxenai_test;" || true

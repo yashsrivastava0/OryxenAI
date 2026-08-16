@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from oryxenai.agents.build_preparation.contracts import PACK_VERSION
 from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationSourceRef,
     MaterializationResult,
@@ -147,7 +148,11 @@ def verify_bundle_bytes(data: bytes, *, max_bytes: int) -> dict[str, Any]:
                 "BUILD_PACK_CORRUPT_ZIP", "The generated build pack contains corrupt data."
             )
         names = archive.namelist()
-        if len(names) != len(set(names)) or any(_safe_relative(name) != name for name in names):
+        if (
+            len(names) != len(set(names))
+            or len({name.casefold() for name in names}) != len(names)
+            or any(_safe_relative(name) != name for name in names)
+        ):
             raise PackageError(
                 "BUILD_PACK_UNSAFE_PATH", "The build pack contains duplicate or unsafe paths."
             )
@@ -192,7 +197,76 @@ def verify_bundle_bytes(data: bytes, *, max_bytes: int) -> dict[str, Any]:
             raise PackageError(
                 "BUILD_PACK_MANIFEST_INVALID", "The build-pack manifest does not cover every file."
             )
+        if manifest.get("pack_version") == PACK_VERSION:
+            required = {
+                "site/contract.json",
+                "design/visual-direction.json",
+                "provenance/approvals.json",
+                "provenance/targets.json",
+                "provenance/checksums.json",
+                "resources/projection.json",
+                "resources/ledger.json",
+                "resources/recipes/manifest.json",
+                "execution/contract.json",
+                "handoff-report.json",
+            }
+            missing = required - set(names)
+            if missing:
+                raise PackageError(
+                    "BUILD_PACK_V3_PROJECTION_MISSING",
+                    "A v3 build pack is missing a mandatory consumer projection.",
+                    details={"paths": sorted(missing)},
+                )
+            _verify_v3_route_layout(archive, names)
         return cast(dict[str, Any], manifest)
+
+
+def _verify_v3_route_layout(archive: zipfile.ZipFile, names: list[str]) -> None:
+    """Reject legacy route aliases and data outside canonical contract keys."""
+    try:
+        site = json.loads(archive.read("site/contract.json"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PackageError(
+            "BUILD_PACK_V3_SITE_INVALID", "The v3 site contract is invalid JSON."
+        ) from exc
+    routes = site.get("routes") if isinstance(site, dict) else None
+    if not isinstance(routes, list):
+        raise PackageError("BUILD_PACK_V3_SITE_INVALID", "The v3 site contract has no routes.")
+    expected_files: set[str] = set()
+    route_ids: set[str] = set()
+    for route in routes:
+        if not isinstance(route, dict):
+            raise PackageError("BUILD_PACK_V3_SITE_INVALID", "A v3 site route is invalid.")
+        route_id = str(route.get("route_id", "") or "")
+        storage_key = str(route.get("storage_key", "") or "")
+        files = route.get("files")
+        if not route_id or route_id.casefold() in route_ids or not isinstance(files, dict):
+            raise PackageError(
+                "BUILD_PACK_V3_ROUTE_ALIAS", "The v3 site contract has ambiguous route identifiers."
+            )
+        route_ids.add(route_id.casefold())
+        if not storage_key.startswith("routes/") or storage_key.count("/") != 1:
+            raise PackageError(
+                "BUILD_PACK_V3_ROUTE_ALIAS", "A v3 route does not have one canonical storage key."
+            )
+        for key in ("content", "resources", "brief"):
+            path = str(files.get(key, "") or "")
+            if not path.startswith(f"{storage_key}/"):
+                raise PackageError(
+                    "BUILD_PACK_V3_ROUTE_ALIAS",
+                    "A route file is outside its canonical storage key.",
+                )
+            expected_files.add(path)
+    actual_route_files = {name for name in names if name.startswith("routes/")}
+    if actual_route_files != expected_files:
+        raise PackageError(
+            "BUILD_PACK_V3_ROUTE_ALIAS",
+            "The v3 pack contains an unreferenced, duplicate, or missing route file.",
+            details={
+                "unexpected": sorted(actual_route_files - expected_files),
+                "missing": sorted(expected_files - actual_route_files),
+            },
+        )
 
 
 def _mirror_path(output_dir: Path, run_id: str) -> Path:
@@ -260,12 +334,15 @@ async def package_and_store(
             "The staging tree already contains a top-level manifest.",
         )
     base_files = _manifest_files(existing_entries)
+    is_v3 = materialization.pack_version == PACK_VERSION and "site/contract.json" in {
+        path for path, _ in existing_entries
+    }
     checksums = {entry["path"]: entry["sha256"] for entry in base_files}
     checksums_bytes = _json_bytes({"algorithm": "sha256", "files": checksums})
     _write(staging_root, "provenance/checksums.json", checksums_bytes)
     entries_with_checksums = _read_tree(staging_root)
     manifest = {
-        "pack_version": "phase3",
+        "pack_version": PACK_VERSION if is_v3 else "phase3",
         "run_id": run_id,
         "scope_hash": scope_hash,
         "source_ref": source_ref.model_dump(mode="json"),
@@ -340,6 +417,7 @@ async def package_and_store(
     verify_bundle_bytes(restored_bytes, max_bytes=max_bundle_bytes)
 
     package = PackageResult(
+        pack_version=PACK_VERSION if is_v3 else "phase3",
         archive_sha256=archive_hash,
         archive_size_bytes=len(archive_bytes),
         file_count=len(verified_manifest["files"]) + 1,

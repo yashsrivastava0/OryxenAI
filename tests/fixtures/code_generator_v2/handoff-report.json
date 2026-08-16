@@ -1,0 +1,14 @@
+{
+  "schema_version": "build-preparation-handoff-v2",
+  "pack_version": "build-preparation-pack-v2",
+  "projection_hashes": {},
+  "handoff_eligible": true,
+  "upstream_approval_verified": true,
+  "status": "ready_for_handoff",
+  "summary": "Privacy-safe fixture admitted.",
+  "required_need_ids": [],
+  "selected_resource_ids": [],
+  "materialized_resource_ids": [],
+  "qualifications": [],
+  "issues": []
+}

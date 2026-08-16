@@ -1,0 +1,13 @@
+{
+  "candidate_id": "fixture-heart",
+  "provider_key": "fixture",
+  "provider_resource_id": "heart",
+  "category": "icon",
+  "title": "Heart",
+  "description": "A simple outline icon.",
+  "tags": ["heart", "icon"],
+  "canonical_source": "fixture://heart",
+  "licence": "ISC",
+  "attribution": "OryxenAI fixture",
+  "vendoring_policy": "download and vendor"
+}

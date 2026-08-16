@@ -247,15 +247,8 @@ async def test_blocked_route_referenced_in_pages_is_rejected():
         await agent.run(context)
 
 
-async def test_pages_truncated_to_configured_max():
-    """A page count longer than max_pages is truncated, never rejected —
-    mirrors ContentArchitectAgent's own route_plan truncation precedent.
-
-    agent._config is the process-wide cached settings singleton (shared
-    across every VisualDesignDirectorAgent instance in this test session),
-    so mutating it here must be restored — otherwise this leaks into every
-    later test in the file.
-    """
+async def test_pages_over_configured_max_are_rejected_without_truncation():
+    """A compilable public route must never be silently removed at the ceiling."""
     route_ids = ["r0", "r1"]
     client = _FakeModelClient(
         {"establish_visual_language": _language_payload(pages_included=True, route_ids=route_ids)}
@@ -264,12 +257,12 @@ async def test_pages_truncated_to_configured_max():
     original_max_pages = agent._config.max_pages
     agent._config.max_pages = 1
     try:
-        result = await agent.run(_context(route_count=2))
+        with pytest.raises(VisualDesignDirectorModelOutputError, match="not truncated"):
+            await agent.run(_context(route_count=2))
     finally:
         agent._config.max_pages = original_max_pages
 
     assert client.calls == ["establish_visual_language"]
-    assert len(result.output["pages"]) == 1
 
 
 async def test_resource_catalogue_shortlist_identical_across_stages():
@@ -312,25 +305,17 @@ async def test_revision_forwards_prior_output_and_revision_request():
     assert sent["prior_output"]["visual_language"]["creative_thesis"] == "old"
 
 
-async def test_pending_route_page_is_stamped_not_compilable():
-    """A page for a pending route keeps full scene content but is
-    deterministically marked not compilable — never trusting the model's
-    own narrative claims about deferral/compilability (the bug a live
-    review caught: the model can produce full page content while its own
-    prose still claims the route was deferred)."""
+async def test_pending_only_input_is_rejected_before_direction():
+    """VDD only owns CA's approved public route graph."""
     client = _FakeModelClient(
         {"establish_visual_language": _language_payload(pages_included=True, route_ids=["r0"])}
     )
     agent = VisualDesignDirectorAgent(model_client=client)
 
-    result = await agent.run(
-        _context(route_count=1, route_plan=[_route("r0", publication_status="pending")])
-    )
-
-    page = result.output["pages"][0]
-    assert page["publication_status"] == "pending"
-    assert page["compilable"] is False
-    assert result.output["compiler_handoff"]["pages_compilable"] == {"r0": False}
+    with pytest.raises(VisualDesignDirectorModelOutputError, match="no approved public routes"):
+        await agent.run(
+            _context(route_count=1, route_plan=[_route("r0", publication_status="pending")])
+        )
 
 
 async def test_approved_route_page_is_stamped_compilable():
@@ -350,12 +335,10 @@ async def test_approved_route_page_is_stamped_compilable():
 
 
 async def test_mixed_publication_status_stamped_independently_per_page():
-    route_ids = ["r0", "r1", "r2"]
     client = _FakeModelClient(
         {
             "establish_visual_language": _language_payload(pages_included=False),
-            "direct_page_experience": _pages_payload(route_ids),
-            "integrate_site_experience": _integrate_payload(route_ids),
+            "direct_page_experience": _pages_payload(["r0", "r2"]),
         }
     )
     agent = VisualDesignDirectorAgent(model_client=client)
@@ -372,7 +355,33 @@ async def test_mixed_publication_status_stamped_independently_per_page():
     )
 
     compilable_by_route = {page["route_id"]: page["compilable"] for page in result.output["pages"]}
-    assert compilable_by_route == {"r0": True, "r1": False, "r2": True}
+    assert compilable_by_route == {"r0": True, "r2": True}
+    assert result.output["compiler_handoff"]["pages_compilable"] == {"r0": True, "r2": True}
+
+
+async def test_canonical_route_path_and_purpose_are_stamped_from_content_architect():
+    payload = _language_payload(pages_included=True, route_ids=["r0"])
+    payload["pages"][0]["path"] = "/model-drift"
+    payload["pages"][0]["purpose"] = "Model-authored purpose"
+    client = _FakeModelClient({"establish_visual_language": payload})
+    agent = VisualDesignDirectorAgent(model_client=client)
+
+    result = await agent.run(
+        _context(
+            route_count=1,
+            route_plan=[
+                {
+                    "route_id": "r0",
+                    "path": "/canonical",
+                    "purpose": "Canonical Content Architect purpose",
+                    "publication_status": "approved",
+                }
+            ],
+        )
+    )
+
+    assert result.output["pages"][0]["path"] == "/canonical"
+    assert result.output["pages"][0]["purpose"] == "Canonical Content Architect purpose"
 
 
 async def test_meta_operation_reflects_final_stage_not_stage_one():

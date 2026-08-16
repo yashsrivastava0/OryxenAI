@@ -83,12 +83,34 @@ services:
       migrate:
         condition: service_completed_successfully
     command: ["python", "-m", "oryxenai.jobs.worker"]
+    volumes:
+      - oryxen_codegen_preview:/app/.workspace/code-generator-preview
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
       interval: 15s
       timeout: 10s
       start_period: 10s
       retries: 3
+
+  # Opt-in stable preview boundary for the standalone Code Generator workflow.
+  # It shares only immutable preview objects with the worker; the default stack
+  # does not start this service and production session integration remains off.
+  preview-gateway:
+    profiles: ["codegen"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
+    ports:
+      - "4174:4174"
+    volumes:
+      - oryxen_codegen_preview:/app/.workspace/code-generator-preview
+    command: ["python", "-m", "oryxenai.preview.gateway"]
+    depends_on:
+      worker:
+        condition: service_started
 
   # This service is intentionally outside the default main workflow. Run it
   # explicitly with the build-validation profile for a detached, session-free
@@ -108,3 +130,4 @@ services:
 
 volumes:
   oryxen_pgdata:
+  oryxen_codegen_preview:

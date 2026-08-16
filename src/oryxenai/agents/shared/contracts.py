@@ -130,4 +130,5 @@ class ModelClient(Protocol):
         system_prompt: str | None = None,
         model_profile: Any = None,
         request_context: Any = None,
+        strict_schema: bool = False,
     ) -> Any: ...

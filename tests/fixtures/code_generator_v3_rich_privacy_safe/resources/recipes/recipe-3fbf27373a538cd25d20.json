@@ -1,0 +1,6 @@
+{
+  "recipe_id": "recipe-3fbf27373a538cd25d20", "slot_id": "slot-fa09c3c4a6256f2edce6", "category": "typographic_composition",
+  "description": "Text-led hero composition using approved public copy only; no personal or project imagery.", "allowed_labels": ["text-led-hero"],
+  "forbidden_concepts": ["personal portrait", "project screenshot", "dashboard", "invented metric", "invented client or outcome"],
+  "reduced_motion_state": "static", "local_path": "resources/recipes/recipe-3fbf27373a538cd25d20.json"
+}

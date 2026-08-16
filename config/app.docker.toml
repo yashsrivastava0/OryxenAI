@@ -25,3 +25,24 @@ debug_mirror_enabled = false
 # ignored host-mounted output/ directory.
 fixture_output_dir = "/app/output"
 fixture_debug_mirror_enabled = true
+
+[code_generator_development]
+enabled = false
+
+[code_generator_acquisition]
+materials_root = "/app/.workspace/code-generator-materials"
+
+[code_generator_dependencies]
+workspaces_root = "/app/.workspace/code-generator-workspaces"
+
+[code_generator_generation]
+workspace_root = "/app/.workspace/code-generator-generation"
+checkpoint_root = "/app/.workspace/code-generator-checkpoints"
+
+[code_generator_verification]
+enabled = false
+preview_root = "/app/.workspace/code-generator-preview"
+preview_base_url = "http://localhost:4174/preview"
+preview_host = "0.0.0.0"
+preview_port = 4174
+browser_executable = "/usr/bin/chromium"

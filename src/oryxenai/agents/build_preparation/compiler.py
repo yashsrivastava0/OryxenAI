@@ -109,6 +109,18 @@ def _public_route_ids(content_architect: dict[str, Any] | None) -> set[str] | No
     }
 
 
+def _public_routes_by_id(content_architect: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not content_architect:
+        return {}
+    return {
+        str(route.get("route_id", "") or ""): route
+        for route in content_architect.get("route_plan", []) or []
+        if isinstance(route, dict)
+        and route.get("route_id")
+        and route.get("publication_status", "approved") == "approved"
+    }
+
+
 def compile_stage0(
     content_architect: dict[str, Any] | None,
     visual_design_director: dict[str, Any],
@@ -128,6 +140,7 @@ def compile_stage0(
         for item in (visual_design_director.get("resource_candidates") or [])
     }
     allowed_routes = _public_route_ids(content_architect)
+    canonical_routes = _public_routes_by_id(content_architect)
     ca_status_by_route: dict[str, str] = {}
     if content_architect and content_architect.get("route_plan"):
         for route in content_architect.get("route_plan", []) or []:
@@ -180,6 +193,7 @@ def compile_stage0(
             )
             dropped_routes.append({"route_id": route_id, "publication_status": publication_status})
             continue
+        canonical_route = canonical_routes.get(route_id, {})
         scene_ids: list[str] = []
         asset_ids = [str(item) for item in (page.get("asset_briefs") or [])]
         resource_ids = [str(item) for item in (page.get("resource_candidates") or [])]
@@ -201,9 +215,14 @@ def compile_stage0(
         routes.append(
             RouteScope(
                 route_id=route_id,
-                path=str(page.get("path", "") or ""),
-                title=str(page.get("purpose", "") or ""),
-                purpose=str(page.get("purpose", "") or ""),
+                path=str(canonical_route.get("path", page.get("path", "")) or ""),
+                title=str(
+                    canonical_route.get(
+                        "title", canonical_route.get("purpose", page.get("purpose", ""))
+                    )
+                    or ""
+                ),
+                purpose=str(canonical_route.get("purpose", page.get("purpose", "")) or ""),
                 publication_status=publication_status,
                 scene_ids=_unique(scene_ids),
                 asset_ids=_unique(asset_ids),

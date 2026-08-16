@@ -120,8 +120,14 @@ class Worker:
     async def _poll_loop(self) -> None:
         while self._running:
             try:
-                await self._recover_stale()
-                claimed = await self._claim_due()
+                capacity = max(0, int(self._settings.worker.concurrency) - len(self._active_tasks))
+                if capacity <= 0:
+                    await asyncio.sleep(self._settings.worker.polling_interval)
+                    continue
+                recovered = await self._recover_stale(capacity)
+                claimed = await self._claim_due(max(0, capacity - len(recovered)))
+                for job in recovered:
+                    self._dispatch(job)
                 for job in claimed:
                     self._dispatch(job)
             except Exception as exc:
@@ -129,29 +135,37 @@ class Worker:
             finally:
                 await asyncio.sleep(self._settings.worker.polling_interval)
 
-    async def _claim_due(self) -> list[Any]:
+    async def _claim_due(self, limit: int | None = None) -> list[Any]:
+        if limit == 0:
+            return []
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
             jobs = await repo.claim_batch(
                 self._instance_id,
                 self._settings.worker_job.lease_duration,
-                self._settings.worker.claim_batch_size,
+                min(
+                    limit or self._settings.worker.claim_batch_size,
+                    self._settings.worker.claim_batch_size,
+                ),
             )
             await session.commit()
         return jobs
 
-    async def _recover_stale(self) -> None:
+    async def _recover_stale(self, limit: int | None = None) -> list[Any]:
+        if limit == 0:
+            return []
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
             stale = await repo.recover_stale(
                 self._instance_id,
                 self._settings.worker_job.lease_duration,
-                self._settings.worker.claim_batch_size,
+                min(
+                    limit or self._settings.worker.claim_batch_size,
+                    self._settings.worker.claim_batch_size,
+                ),
             )
-            if stale:
-                for job in stale:
-                    self._dispatch(job)
             await session.commit()
+        return stale
 
     # ── dispatch ───────────────────────────────────────────────────────────
 
@@ -161,12 +175,11 @@ class Worker:
         task.add_done_callback(self._active_tasks.discard)
 
     async def _execute_one(self, job: Any) -> None:
-        job_id = job.id
         kind = job.job_kind
         handler = get_handler(kind)
         if handler is None:
             await self._fail_job(
-                job_id,
+                job,
                 permanent(
                     "UNKNOWN_JOB_KIND",
                     f"No handler registered for '{kind}'.",
@@ -174,7 +187,7 @@ class Worker:
             )
             return
 
-        heartbeat_task = asyncio.create_task(self._renew_lease_loop(job_id))
+        heartbeat_task = asyncio.create_task(self._renew_lease_loop(job))
         try:
             payload = dict(job.payload or {})
             payload["attempt"] = job.attempt
@@ -185,7 +198,7 @@ class Worker:
             )
         except TimeoutError:
             await self._fail_job(
-                job_id,
+                job,
                 retryable(
                     "JOB_TIMEOUT",
                     f"Handler exceeded {self._settings.worker_job.handler_timeout}s timeout.",
@@ -200,7 +213,7 @@ class Worker:
                 logger.warning("job handler failed kind=%s error=%s", kind, type(exc).__name__)
                 error = retryable("HANDLER_ERROR", "The background job handler failed.")
             await self._fail_job(
-                job_id,
+                job,
                 error,
             )
             return
@@ -232,13 +245,13 @@ class Worker:
             else:
                 error = permanent("JOB_HANDLER_FAILED", "The background job handler failed safely.")
             await self._fail_job(
-                job_id,
+                job,
                 error,
             )
             return
-        await self._complete_job(job_id, result)
+        await self._complete_job(job, result)
 
-    async def _renew_lease_loop(self, job_id: Any) -> None:
+    async def _renew_lease_loop(self, job: Any) -> None:
         """Keep a claimed job's heartbeat fresh while its handler is running.
 
         Without this, a handler that legitimately runs longer than
@@ -252,25 +265,33 @@ class Worker:
             try:
                 async with self._sessionmaker() as session:
                     repo = JobRepository(session)
-                    await repo.update_heartbeat(job_id)
+                    await repo.update_heartbeat(
+                        job.id,
+                        worker_instance=self._instance_id,
+                        attempt=job.attempt,
+                        lease_token=job.lease_token,
+                    )
                     await session.commit()
             except Exception as exc:
                 logger.warning(
-                    "heartbeat renewal failed job_id=%s error=%s", job_id, type(exc).__name__
+                    "heartbeat renewal failed job_id=%s error=%s", job.id, type(exc).__name__
                 )
 
-    async def _complete_job(self, job_id: Any, result: dict[str, Any]) -> None:
+    async def _complete_job(self, job: Any, result: dict[str, Any]) -> None:
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
-            await repo.mark_succeeded(job_id, result)
+            await repo.mark_succeeded(
+                job.id,
+                result,
+                worker_instance=self._instance_id,
+                attempt=job.attempt,
+                lease_token=job.lease_token,
+            )
             await session.commit()
 
-    async def _fail_job(self, job_id: Any, error: Any) -> None:
+    async def _fail_job(self, job: Any, error: Any) -> None:
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
-            job = await repo.get_by_id(job_id)
-            if job is None:
-                return
             retry = self._settings.worker_retry
             job_error = error if hasattr(error, "retryable") else permanent("UNKNOWN", str(error))
             if should_retry(job_error, job.attempt, job.max_attempts):
@@ -282,22 +303,28 @@ class Worker:
 
                 available_at = available_at + timedelta(seconds=delay)
                 await repo.mark_failed(
-                    job_id,
+                    job.id,
                     {
                         "code": job_error.code,
                         "message": job_error.message,
                         "retryable": job_error.retryable,
                     },
                     available_at=available_at,
+                    worker_instance=self._instance_id,
+                    attempt=job.attempt,
+                    lease_token=job.lease_token,
                 )
             else:
                 await repo.mark_failed(
-                    job_id,
+                    job.id,
                     {
                         "code": job_error.code,
                         "message": job_error.message,
                         "retryable": False,
                     },
+                    worker_instance=self._instance_id,
+                    attempt=job.attempt,
+                    lease_token=job.lease_token,
                 )
             await session.commit()
 

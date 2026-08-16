@@ -32,7 +32,7 @@ def _content_architect_input() -> dict[str, object]:
                 "sections": [
                     {
                         "section_id": "intro",
-                        "heading": "A public heading",
+                        "content": {"heading": "A public heading"},
                         "internal_notes": "must not be emitted",
                     }
                 ],
@@ -123,15 +123,15 @@ async def test_fixture_accepts_optional_content_architect_json(tmp_path: Path) -
     assert response.status_code == 200
     body = response.json()
     assert [route["route_id"] for route in body["routes"]] == ["home"]
-    assert "routes/home/data.json" in {
+    assert "routes/home-4ea140588150/data.json" in {
         item["relative_path"] for item in body["materialization"]["files"]
     }
     route_data = json.loads(
-        (Path(body["materialization"]["root_path"]) / "routes/home/data.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(body["materialization"]["root_path"]) / "routes/home-4ea140588150/data.json"
+        ).read_text(encoding="utf-8")
     )
-    assert route_data["sections"][0]["heading"] == "A public heading"
+    assert route_data["sections"][0]["content"]["heading"] == "A public heading"
     assert "internal_notes" not in route_data["sections"][0]
 
 

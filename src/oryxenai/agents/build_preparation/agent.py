@@ -478,7 +478,13 @@ class BuildPreparationAgent(Agent):
                 selections=selection_plan.selections,
                 candidates=candidates,
                 context=build_context,
-                content_architect=content or {},
+                content_architect={
+                    **(content or {}),
+                    "_build_preparation_source_ref": stage0.source_ref.model_dump(mode="json"),
+                },
+                visual_design_director=visual,
+                legacy_route_layout=bool(payload.get("legacy_route_layout", False))
+                or not bool((content or {}).get("route_plan")),
                 settings=self._settings,
                 download_image=_offline_download if not live_providers else None,
                 trigger_download=_offline_trigger if not live_providers else None,

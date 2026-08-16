@@ -70,6 +70,7 @@ class BaseProviderAdapter(ModelClient, ABC):
         system_prompt: str | None = None,
         model_profile: Any = None,
         request_context: Any = None,
+        strict_schema: bool = False,
     ) -> Any:
         """Structured output via the provider's native mechanism."""
         self._ensure_initialized()
@@ -84,6 +85,7 @@ class BaseProviderAdapter(ModelClient, ABC):
                 output_model=output_model,
                 system_prompt=system_prompt,
                 request_id=request_id,
+                strict_schema=strict_schema,
             )
             elapsed_ms = (time.monotonic() * 1000) - start_ms
             logger.info(
@@ -120,6 +122,7 @@ class BaseProviderAdapter(ModelClient, ABC):
         output_model: type[BaseModel],
         request_id: str,
         system_prompt: str | None = None,
+        strict_schema: bool = False,
     ) -> Any:
         """Provider-specific structured generation. Must be implemented."""
         ...

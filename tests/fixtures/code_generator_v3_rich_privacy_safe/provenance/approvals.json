@@ -1,0 +1,8 @@
+{
+  "schema_version": "build-preparation-contract-v3",
+  "pack_version": "build-preparation-pack-v3",
+  "content_architect_content_hash": "fixture-content-hash",
+  "visual_design_director_direction_hash": "fixture-visual-hash",
+  "source_projection_hash": "fixture-projection-hash",
+  "approved": true
+}
