@@ -140,21 +140,23 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_planner]
-# Configure this independently before a manual Phase 1 planner run. Automated
-# tests inject a deterministic planner and never require a credential.
+# Same live-confirmed endpoint/model family as the other agents (see
+# [profiles.discovery] notes). Automated tests inject a deterministic planner
+# and never require this credential.
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 150
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 24000
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_planner.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -165,18 +167,19 @@ uses_max_completion_tokens = true
 
 [profiles.code_generator_resource_scout]
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 120
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 180
 max_retries = 1
 max_output_tokens = 4096
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_resource_scout.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -187,18 +190,19 @@ uses_max_completion_tokens = true
 
 [profiles.code_generator_foundation_builder]
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 150
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_foundation_builder.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -209,18 +213,19 @@ uses_max_completion_tokens = true
 
 [profiles.code_generator_route_builder]
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 150
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_route_builder.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -231,18 +236,19 @@ uses_max_completion_tokens = true
 
 [profiles.code_generator_route_composer]
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 150
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 16000
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_route_composer.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -253,18 +259,19 @@ uses_max_completion_tokens = true
 
 [profiles.code_generator_integrator]
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 150
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 20000
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_integrator.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -275,18 +282,19 @@ uses_max_completion_tokens = true
 
 [profiles.code_generator_repairer]
 provider = "openai"
-model = ""
-base_url = ""
-api_key_env = ""
-timeout_seconds = 120
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 12000
+reasoning_effort = "low"
 store = false
 
 [profiles.code_generator_repairer.capabilities]
 json_object_mode = true
 json_schema_mode = true
-thinking_mode = false
+thinking_mode = true
 reasoning_content = false
 temperature_control = false
 usage_metadata = true

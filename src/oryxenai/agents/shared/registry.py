@@ -82,5 +82,5 @@ def default_registry() -> AgentRegistry:
     registry.register(ContentArchitectAgent(model_client=MockModelClient()))
     registry.register(VisualDesignDirectorAgent(model_client=MockModelClient()))
     registry.register(BuildPreparationAgent(live_model=False, live_providers=False))
-    registry.register(CodeGeneratorAgent())
+    registry.register(CodeGeneratorAgent(model_client=MockModelClient()))
     return registry

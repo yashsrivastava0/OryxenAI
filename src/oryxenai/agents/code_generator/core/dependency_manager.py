@@ -224,7 +224,9 @@ async def _run_npm(command: list[str], repo_dir: Path, settings: Any, *, stage: 
             environment.pop(key, None)
     cache_root = str(getattr(config, "npm_cache_root", "") or "")
     if cache_root:
-        environment["npm_config_cache"] = cache_root
+        # Absolute: npm resolves a relative cache against repo_dir, which
+        # would silently create a fresh empty cache per workspace.
+        environment["npm_config_cache"] = str(Path(cache_root).resolve())
     try:
         result = await asyncio.to_thread(
             subprocess.run,

@@ -16,6 +16,13 @@
   </section>
   <section class="cg-dev__controls" aria-labelledby="input-heading">
     <h2 id="input-heading">Input</h2>
+    <div class="cg-dev__bp">
+      <h3>Build Preparation output</h3>
+      <p data-pack-status>Checking the local Build Preparation mirror…</p>
+      <label>Pack <select data-pack aria-label="Build Preparation pack" disabled></select></label>
+      <button type="button" data-start-build-preparation disabled>Generate portfolio</button>
+      <label class="cg-dev__auto-advance"><input type="checkbox" data-auto-advance checked> Auto-advance through acquire, generate, and verify</label>
+    </div>
     <label>Stable fixture <select data-fixture aria-label="Stable fixture"></select></label>
     <button type="button" data-start-fixture>Start planning</button>
     <label>ZIP upload <input data-upload type="file" accept="application/zip,.zip"></label>

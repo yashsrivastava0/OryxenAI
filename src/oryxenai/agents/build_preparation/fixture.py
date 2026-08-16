@@ -133,6 +133,68 @@ def _load_default(settings: Settings) -> dict[str, Any]:
     return parsed
 
 
+def _fixture_direction_hash(visual: dict[str, Any]) -> str:
+    """Deterministic stand-in for the approval hash production stamps on VDD approval."""
+    import hashlib
+
+    encoded = json.dumps(visual, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _fixture_inputs(
+    settings: Settings,
+    raw: dict[str, Any],
+    content_architect_override: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve the (CA, VDD) pair the detached fixture compiles from.
+
+    Preference order: an explicit CA override, the configured Content
+    Architect snapshot on disk (reuniting the real pair the VDD output came
+    from), then the VDD output's own ``intake``. The pair gets the approval
+    stamps the production session flow would have on an approved stage, so
+    the default fixture run produces a canonical v3 handoff-eligible pack
+    instead of a legacy review-only one.
+    """
+
+    visual = dict(raw)
+    if content_architect_override is not None:
+        return content_architect_override, visual
+    content = _load_content_snapshot(settings)
+    if not content:
+        intake = raw.get("intake") if isinstance(raw.get("intake"), dict) else {}
+        content = (
+            dict(intake)
+            if isinstance(intake.get("route_plan"), list) and intake["route_plan"]
+            else {}
+        )
+    ca_hash = str((raw.get("source_ref") or {}).get("content_architect_content_hash", "") or "")
+    if content and not isinstance(content.get("approved"), dict):
+        stamped = dict(content)
+        stamped["approved"] = {"content_hash": ca_hash} if ca_hash else {}
+        content = stamped
+    if content and not isinstance(visual.get("approved"), dict):
+        visual["approved"] = {"visual_direction_hash": _fixture_direction_hash(raw)}
+    return content, visual
+
+
+def _load_content_snapshot(settings: Settings) -> dict[str, Any]:
+    import json as _json
+
+    configured = Path(settings.build_preparation.fixture_content_input_path)
+    path = configured if configured.is_absolute() else Path.cwd() / configured
+    if not path.is_file():
+        return {}
+    try:
+        parsed = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, _json.JSONDecodeError):
+        return {}
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("route_plan"), list):
+        return {}
+    if not parsed["route_plan"]:
+        return {}
+    return parsed
+
+
 async def run_fixture(
     settings: Settings,
     *,
@@ -152,6 +214,7 @@ async def run_fixture(
     raw = raw_override if raw_override is not None else _load_default(settings)
     if isinstance(raw.get("visual_design_director"), dict):
         raw = raw["visual_design_director"]
+    content_override, raw = _fixture_inputs(settings, raw, content_architect_override)
     run_uuid = uuid4() if run_id is None else UUID(run_id)
     resolved_run_id = str(run_uuid)
     storage = fixture_storage_preflight(settings)
@@ -194,7 +257,7 @@ async def run_fixture(
             "max_routes": settings.build_preparation.max_routes,
             "editorial_image_budget": settings.build_preparation.editorial_image_budget,
             "visual_design_director": raw,
-            "content_architect": content_architect_override or {},
+            "content_architect": content_override,
             # The detached fixture follows the same canonical v3 route layout
             # as production. Historical mirrors remain archive diagnostics and
             # are not generated here because v3 admission rejects aliases.

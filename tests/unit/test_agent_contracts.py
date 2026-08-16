@@ -152,15 +152,17 @@ async def test_visual_design_director_agent_deterministic_output():
     assert result.output["stages_run"] == ["establish_visual_language"]
 
 
-async def test_code_generator_agent_deterministic_output():
-    agent = CodeGeneratorAgent()
+async def test_code_generator_agent_structured_planner_output():
+    agent = CodeGeneratorAgent(model_client=_MockModelClient())
     ctx = _build_context(
         AgentKey.CODE_GENERATOR,
-        {"content": {}, "design": {}},
+        {"planner_context": {"site": {"routes": []}}},
     )
     result = await agent.run(ctx)
-    assert "files" in result.output
-    assert "metadata" in result.output
+    assert result.output["plan_id"] == "plan-mock"
+    assert result.output["plan"]["plan_id"] == "plan-mock"
+    assert result.prompt_version.startswith("code_generator.planner.")
+    assert result.model_metadata["operation"] == "code_generator.plan"
 
 
 async def test_all_agents_return_same_output_for_different_inputs():
@@ -204,5 +206,6 @@ def test_visual_design_schema_validation():
 
 
 def test_code_generator_schema_validation():
-    resp = CodeGeneratorResponse(files=[{"path": "index.html"}], metadata={"file_count": 1})
-    assert resp.files[0]["path"] == "index.html"
+    resp = CodeGeneratorResponse(plan={"plan_id": "plan-1"}, plan_id="plan-1", route_ids=["home"])
+    assert resp.plan["plan_id"] == "plan-1"
+    assert resp.route_ids == ["home"]

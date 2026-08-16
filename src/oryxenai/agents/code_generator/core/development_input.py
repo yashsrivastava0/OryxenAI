@@ -127,6 +127,140 @@ class DevelopmentInputAdapter:
             mode="upload", source_id=_sha256(data), filename=filename, data=data
         )
 
+    def list_build_preparation_packs(self) -> list[dict[str, Any]]:
+        """Newest-first summary of local Build Preparation debug-mirror packs."""
+
+        packs: list[dict[str, Any]] = []
+        for entry in self._mirror_entries():
+            info = self._mirror_pack_info(entry)
+            if info is not None:
+                packs.append(info)
+        packs.sort(key=lambda item: (item["modified_at"], item["pack_dir"]), reverse=True)
+        return packs
+
+    def from_build_preparation_mirror(self, pack: str = "latest") -> AdmittedInputReference:
+        """Store an immutable copy of a local Build Preparation mirror pack.
+
+        Selection is advisory only (name, expiry, handoff flag read from the
+        mirror's extracted manifest); full admission re-verifies every hash and
+        projection when the planning job runs.
+        """
+
+        entries = self._mirror_entries()
+        if not entries:
+            raise DevelopmentInputError(
+                "PACK_MIRROR_UNAVAILABLE",
+                "The Build Preparation mirror has no packs. Run Build Preparation first.",
+            )
+        if pack == "latest":
+            candidates = sorted(
+                entries, key=lambda entry: (entry.stat().st_mtime_ns, entry.name), reverse=True
+            )
+            infos = [(entry, self._mirror_pack_info(entry)) for entry in candidates]
+            selected = next((entry for entry, info in infos if info["eligible"]), None)
+            if selected is None:
+                reason = infos[0][1].get("issue", "unknown") if infos else "unknown"
+                raise DevelopmentInputError(
+                    "PACK_MIRROR_NO_ELIGIBLE",
+                    f"No eligible pack in the mirror (newest issue: {reason}).",
+                )
+        else:
+            if Path(pack).name != pack:
+                raise DevelopmentInputError(
+                    "PACK_DIR_INVALID", "The pack directory name is not a safe directory name."
+                )
+            selected = next((entry for entry in entries if entry.name == pack), None)
+            if selected is None:
+                raise DevelopmentInputError(
+                    "PACK_DIR_NOT_FOUND", "The requested pack directory is not in the mirror."
+                )
+        info = self._mirror_pack_info(selected)
+        if not info["eligible"]:
+            raise DevelopmentInputError(
+                "PACK_NOT_ADMISSIBLE",
+                f"The selected pack is not admissible ({info.get('issue', 'unknown')}).",
+            )
+        data = (selected / "build-pack.zip").read_bytes()
+        if len(data) > int(self._config.max_uncompressed_bytes):
+            raise DevelopmentInputError(
+                "UPLOAD_TOO_LARGE", "The mirror pack exceeds the configured size limit."
+            )
+        return self._store_source(
+            mode="build_preparation_mirror",
+            source_id=selected.name,
+            filename=f"{selected.name}-build-pack.zip",
+            data=data,
+        )
+
+    def _mirror_entries(self) -> list[Path]:
+        root = Path(self._config.build_preparation_mirror_root).resolve()
+        if not root.is_dir():
+            return []
+        return sorted(
+            (
+                entry
+                for entry in root.iterdir()
+                if entry.is_dir() and (entry / "build-pack.zip").is_file()
+            ),
+            key=lambda entry: entry.name,
+        )
+
+    def _mirror_pack_info(self, entry: Path) -> dict[str, Any]:
+        """Eligibility summary for one mirror entry; ``eligible`` is False with
+        an ``issue`` reason when the pack cannot be selected."""
+
+        zip_path = entry / "build-pack.zip"
+        stat = zip_path.stat()
+        manifest: dict[str, Any] = {}
+        handoff: dict[str, Any] = {}
+        issue = ""
+        context_dir = entry / "build-context"
+        manifest_path = context_dir / "manifest.json"
+        handoff_path = context_dir / "handoff-report.json"
+        try:
+            if manifest_path.is_file():
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            else:
+                with zipfile.ZipFile(zip_path) as archive:
+                    manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+            if handoff_path.is_file():
+                handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+            else:
+                with zipfile.ZipFile(zip_path) as archive:
+                    handoff = json.loads(archive.read("handoff-report.json").decode("utf-8"))
+        except (OSError, ValueError, UnicodeDecodeError, zipfile.BadZipFile, KeyError) as exc:
+            manifest, handoff = {}, {}
+            issue = f"unreadable pack: {type(exc).__name__}"
+        pack_version = str(manifest.get("pack_version", ""))
+        expires_at = str(manifest.get("expires_at", ""))
+        expired = False
+        if not issue:
+            if pack_version != self._config.pack_version:
+                issue = f"pack version {pack_version or 'unknown'} is not admissible"
+            else:
+                try:
+                    expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                    expired = expiry.tzinfo is None or expiry.astimezone(UTC) <= datetime.now(UTC)
+                except ValueError:
+                    expired, issue = True, "pack has no valid expiry marker"
+                if expired and not issue:
+                    issue = f"pack expired at {expires_at}"
+                elif not issue and not bool(handoff.get("handoff_eligible", False)):
+                    issue = "handoff report is not eligible"
+        info: dict[str, Any] = {
+            "pack_dir": entry.name,
+            "size_bytes": stat.st_size,
+            "modified_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
+            "pack_version": pack_version,
+            "expires_at": expires_at,
+            "handoff_eligible": bool(handoff.get("handoff_eligible", False)),
+            "expired": expired,
+            "eligible": not issue,
+        }
+        if issue:
+            info["issue"] = issue
+        return info
+
     def read(self, reference: AdmittedInputReference) -> bytes:
         candidate = (self._root / reference.stored_relative_path).resolve()
         if not candidate.is_relative_to(self._root) or not candidate.is_file():

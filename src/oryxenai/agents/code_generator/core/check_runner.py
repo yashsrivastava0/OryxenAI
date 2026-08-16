@@ -32,6 +32,13 @@ async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnosti
     for key in tuple(environment):
         if key.upper().endswith(("_TOKEN", "_PASSWORD", "_SECRET", "_KEY")):
             environment.pop(key, None)
+    # Offline installs read the repo's warmed npm cache; the path must be
+    # absolute because npm resolves a relative cache against repo_dir.
+    cache_root = str(
+        getattr(settings.code_generator_dependencies, "npm_cache_root", "") or ""
+    )
+    if cache_root:
+        environment["npm_config_cache"] = str(Path(cache_root).resolve())
     try:
         result = await asyncio.to_thread(
             subprocess.run,

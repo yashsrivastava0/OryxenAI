@@ -9,6 +9,32 @@ export function createCodeGeneratorDevelopmentController({
   let activeRun =
     new URLSearchParams(location.search).get("run") ||
     storage.getItem("oryxenai.codegen.run");
+  let autoAdvance =
+    (storage.getItem("oryxenai.codegen.autoAdvance") ?? "true") !== "false";
+  let advancing = false;
+
+  const setAutoAdvance = (enabled) => {
+    autoAdvance = Boolean(enabled);
+    storage.setItem("oryxenai.codegen.autoAdvance", String(autoAdvance));
+    if (autoAdvance && activeRun && !advancing) return loadRun();
+  };
+
+  const maybeAdvance = async (run) => {
+    if (!autoAdvance || !activeRun || advancing || !run) return;
+    if (run.status === "needs_attention") return;
+    advancing = true;
+    try {
+      if (run.status === "planned" && api.runAcquire) await api.runAcquire(activeRun);
+      else if (run.status === "acquired" && api.runGenerate) await api.runGenerate(activeRun);
+      else if (run.status === "source_ready" && api.runVerify) await api.runVerify(activeRun);
+      else { advancing = false; return; }
+      await loadRun();
+    } catch {
+      // Stage POSTs conflict while another is in flight; polling will reschedule.
+    } finally {
+      advancing = false;
+    }
+  };
 
   const activate = async (run) => {
     activeRun = run.run_id;
@@ -46,14 +72,19 @@ export function createCodeGeneratorDevelopmentController({
     const result = { run, events: eventResponse.events || [], plan, acquisition, dependencies, planDeltas, generation, verification, preview };
     render(result);
     if (!["planned", "acquired", "source_ready", "ready", "needs_attention"].includes(run.status)) schedule(loadRun, 1200);
+    else if (run.status !== "ready") maybeAdvance(run);
     return result;
   };
 
   return {
     activeRun: () => activeRun,
+    autoAdvance: () => autoAdvance,
+    setAutoAdvance,
     loadRun,
+    loadPacks: async () => (await api.getBuildPreparationPacks()).packs || [],
     startFixture: async (fixtureId) => activate(await api.createFixture(fixtureId)),
     startUpload: async (file) => activate(await api.createUpload(file)),
+    startBuildPreparation: async (pack) => activate(await api.createBuildPreparation(pack)),
     acquire: async () => {
       if (!activeRun || !api.runAcquire) return null;
       const run = await api.runAcquire(activeRun);

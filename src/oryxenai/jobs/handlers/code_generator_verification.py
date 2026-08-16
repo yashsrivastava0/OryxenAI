@@ -194,7 +194,9 @@ async def _execute(
         checkpoint_store.restore(checkpoint)
         workspace.materialize_acquisition_resources(
             run.resource_ledger,
-            Path(settings.code_generator_acquisition.materials_root).resolve() / str(run_id),
+            # Receipt local_paths are relative to the configured materials
+            # root (already prefixed with the run id).
+            Path(settings.code_generator_acquisition.materials_root).resolve(),
         )
         workspace.synchronize_dependency_manifest(
             Path(settings.code_generator_dependencies.workspaces_root).resolve()

@@ -3,11 +3,12 @@ import test from 'node:test';
 
 import { createCodeGeneratorDevelopmentController } from '../../src/oryxenai/web/static/code-generator-development-controller.mjs';
 
-function harness({ search = '', storedRun = null, status = 'planned' } = {}) {
+function harness({ search = '', storedRun = null, status = 'planned', autoAdvance = 'false' } = {}) {
   const calls = [];
   const renders = [];
   const scheduled = [];
   const storage = new Map(storedRun ? [['oryxenai.codegen.run', storedRun]] : []);
+  if (autoAdvance !== null) storage.set('oryxenai.codegen.autoAdvance', autoAdvance);
   const api = {
     getRun: async (id) => {
       calls.push(['getRun', id]);
@@ -64,6 +65,19 @@ function harness({ search = '', storedRun = null, status = 'planned' } = {}) {
     createUpload: async (file) => {
       calls.push(['createUpload', file.name]);
       return { run_id: 'upload-run', status: 'queued' };
+    },
+    getBuildPreparationPacks: async () => {
+      calls.push(['getBuildPreparationPacks']);
+      return {
+        packs: [
+          { pack_dir: 'newest', eligible: true, expires_at: '2026-08-18T00:00:00Z' },
+          { pack_dir: 'older', eligible: false, issue: 'pack expired' },
+        ],
+      };
+    },
+    createBuildPreparation: async (pack) => {
+      calls.push(['createBuildPreparation', pack]);
+      return { run_id: 'bp-run', status: 'queued' };
     },
   };
   return {
@@ -177,4 +191,46 @@ test('verify action invokes the durable verification endpoint', async () => {
   const subject = harness({ storedRun: 'source-ready-run', status: 'source_ready' });
   await subject.controller.verify();
   assert.equal(subject.calls[0][0], 'runVerify');
+});
+
+test('build-preparation start uses the mirror endpoint and activates the run', async () => {
+  const subject = harness({ status: 'queued' });
+  await subject.controller.startBuildPreparation('13-49-14-08-65fc8e47');
+  assert.equal(subject.controller.activeRun(), 'bp-run');
+  assert.deepEqual(subject.calls.slice(0, 3), [
+    ['createBuildPreparation', '13-49-14-08-65fc8e47'],
+    ['replaceState', '?run=bp-run'],
+    ['getRun', 'bp-run'],
+  ]);
+});
+
+test('loadPacks returns the mirror pack list newest-first from the API', async () => {
+  const subject = harness();
+  const packs = await subject.controller.loadPacks();
+  assert.equal(packs.length, 2);
+  assert.equal(packs[0].pack_dir, 'newest');
+  assert.equal(packs[1].issue, 'pack expired');
+});
+
+test('auto-advance chains the next durable stage when a run lands on a stage boundary', async () => {
+  const subject = harness({ search: '?run=auto-run', status: 'planned', autoAdvance: 'true' });
+  await subject.controller.loadRun();
+  const kinds = subject.calls.map((call) => call[0]);
+  assert.equal(kinds.indexOf('runAcquire') > kinds.indexOf('getPlan'), true);
+  assert.equal(kinds.filter((kind) => kind === 'runGenerate').length, 0);
+});
+
+test('auto-advance stops on needs_attention instead of retrying a failing stage', async () => {
+  const subject = harness({ search: '?run=attention-run', status: 'needs_attention', autoAdvance: 'true' });
+  await subject.controller.loadRun();
+  assert.equal(subject.calls.some((call) => call[0].startsWith('run')), false);
+});
+
+test('setAutoAdvance persists the preference without firing a stage twice', async () => {
+  const subject = harness({ search: '?run=pref-run', status: 'planned', autoAdvance: 'false' });
+  await subject.controller.loadRun();
+  assert.equal(subject.controller.autoAdvance(), false);
+  await subject.controller.setAutoAdvance(true);  assert.equal(subject.controller.autoAdvance(), true);
+  const acquires = subject.calls.filter((call) => call[0] === 'runAcquire');
+  assert.equal(acquires.length, 1);
 });
