@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
@@ -71,6 +72,8 @@ class CodeGeneratorDevelopmentService:
             )
         npm = str(self._settings.code_generator_dependencies.npm_executable or "")
         npm_available = bool(npm and shutil.which(npm))
+        packs = self.build_preparation_packs()
+        latest_pack = next((pack for pack in packs if pack.get("eligible")), None)
         return {
             "planning_ready": profiles["planner"],
             "generation_ready": all(
@@ -83,6 +86,9 @@ class CodeGeneratorDevelopmentService:
                 self._settings.code_generator_dependencies.allow_network_install
             ),
             "fixture_ids": [item["fixture_id"] for item in self.fixtures()],
+            "build_preparation_pack_ready": latest_pack is not None,
+            "build_preparation_latest": latest_pack,
+            "browser_ready": _browser_ready(self._settings.code_generator_verification),
         }
 
     async def create_fixture(
@@ -90,6 +96,16 @@ class CodeGeneratorDevelopmentService:
     ) -> DevelopmentRunProjection:
         return await self._create(
             self._inputs.from_fixture(fixture_id), idempotency_key=idempotency_key
+        )
+
+    def build_preparation_packs(self) -> list[dict[str, Any]]:
+        return self._inputs.list_build_preparation_packs()
+
+    async def create_from_build_preparation(
+        self, pack: str, *, idempotency_key: str
+    ) -> DevelopmentRunProjection:
+        return await self._create(
+            self._inputs.from_build_preparation_mirror(pack), idempotency_key=idempotency_key
         )
 
     async def create_upload(
@@ -544,6 +560,26 @@ class CodeGeneratorDevelopmentService:
                 "SOURCE_MANIFEST_INVALID", "The source manifest could not be read.", status_code=409
             ) from exc
         return {"checkpoint": dict(run.source_checkpoint), "manifest": payload}
+
+
+def _browser_ready(verification: Any) -> bool:
+    """Honest cheap probe: Playwright importable AND a browser build present.
+
+    Deliberately does not launch the driver — the sync driver's teardown is
+    unreliable on Windows; the verification path itself launches async.
+    """
+
+    try:
+        import playwright  # noqa: F401
+    except Exception:
+        return False
+    root = Path(
+        os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")
+        or Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ms-playwright"
+    )
+    if not root.is_dir():
+        return False
+    return any(root.glob(f"{str(verification.browser_name)}-*"))
 
 
 def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:

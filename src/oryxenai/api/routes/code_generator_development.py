@@ -8,7 +8,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, status
 
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputError
-from oryxenai.agents.code_generator.core.development_schemas import FixtureRunRequest
+from oryxenai.agents.code_generator.core.development_schemas import (
+    BuildPreparationRunRequest,
+    FixtureRunRequest,
+)
 from oryxenai.agents.code_generator.core.development_service import (
     CodeGeneratorDevelopmentService,
     DevelopmentRunError,
@@ -63,6 +66,31 @@ async def create_fixture_run(
         return (
             await service.create_fixture(
                 body.fixture_id, idempotency_key=request.headers.get("Idempotency-Key", "")
+            )
+        ).model_dump(mode="json")
+    except (DevelopmentRunError, DevelopmentInputError) as exc:
+        _error(exc)
+
+
+@router.get("/build-preparation-packs")
+async def build_preparation_packs(
+    service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
+) -> dict[str, Any]:
+    """Newest-first local Build Preparation debug-mirror packs."""
+
+    return {"packs": service.build_preparation_packs()}
+
+
+@router.post("/runs/from-build-preparation", status_code=status.HTTP_202_ACCEPTED)
+async def create_build_preparation_run(
+    request: Request,
+    body: BuildPreparationRunRequest,
+    service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
+) -> dict[str, Any]:
+    try:
+        return (
+            await service.create_from_build_preparation(
+                body.pack, idempotency_key=request.headers.get("Idempotency-Key", "")
             )
         ).model_dump(mode="json")
     except (DevelopmentRunError, DevelopmentInputError) as exc:

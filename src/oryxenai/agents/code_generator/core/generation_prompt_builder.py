@@ -16,12 +16,12 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
-    "planner": "code_generator.planner.v2",
-    "foundation": "code_generator.foundation.v2",
-    "route_batch": "code_generator.route_batch.v2",
-    "route_compose": "code_generator.route_compose.v2",
-    "integrate": "code_generator.integrate.v2",
-    "repair": "code_generator.repair.v2",
+    "planner": "code_generator.planner.v5",
+    "foundation": "code_generator.foundation.v4",
+    "route_batch": "code_generator.route_batch.v4",
+    "route_compose": "code_generator.route_compose.v3",
+    "integrate": "code_generator.integrate.v3",
+    "repair": "code_generator.repair.v3",
 }
 _FILES = {
     "planner": "planner.md",
@@ -48,7 +48,9 @@ def build_instructions(
     task = (
         f"{operation_prompt}\n\n"
         "Return exactly one JSON object. The transport enforces the declared output schema; "
-        "do not include prose, Markdown, or reasoning outside that object."
+        "do not include prose, Markdown, or reasoning outside that object.\n"
+        "Copy the input's context_receipt_hash value EXACTLY, unchanged, into "
+        "based_on_context_receipt."
     )
     context_hash = _hash(context)
     schema_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()

@@ -6,6 +6,11 @@
 .cg-dev__readiness, .cg-dev__controls, .cg-dev__rail, .cg-dev__summary, .cg-dev__acquire, .cg-dev__resources, .cg-dev__dependencies, .cg-dev__generate, .cg-dev__verify, .cg-dev__preview { border: 1px solid #35445c; border-radius: .65rem; padding: 1rem; margin-top: 1rem; background: #121a27; }
 .cg-dev__readiness { border-color: #496f73; color: #c6e7e2; }
 .cg-dev__controls { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; }
+.cg-dev__bp { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; padding: .75rem; border: 1px dashed #496f73; border-radius: .45rem; background: #0e1723; }
+.cg-dev__bp h3 { margin: 0; flex: 1 1 100%; font-size: .9rem; color: #c6e7e2; }
+.cg-dev__bp p { flex: 1 1 100%; margin: 0; color: #9aa8bb; font-size: .85rem; }
+.cg-dev__auto-advance { display: flex; flex-direction: row; align-items: center; gap: .45rem; min-height: 2.4rem; }
+.cg-dev__auto-advance input { min-height: 1.1rem; width: 1.1rem; }
 .cg-dev label { display: grid; gap: .35rem; }
 .cg-dev button, .cg-dev select, .cg-dev input { min-height: 2.4rem; padding: .35rem .6rem; border-radius: .35rem; border: 1px solid #53647e; background: #0c1420; color: inherit; }
 .cg-dev button { cursor: pointer; background: #255fc4; border-color: #4380e5; }

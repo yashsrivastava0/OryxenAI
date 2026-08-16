@@ -17,7 +17,32 @@ if (root) {
     const generation = readiness.generation_ready ? 'generation profiles ready' : 'generation profile configuration required';
     const packageManager = readiness.package_manager_ready ? 'package manager ready' : 'package manager unavailable';
     const offline = readiness.offline_install_policy ? 'offline installs enforced' : 'network installs enabled by policy';
-    view('readiness').textContent = planner + '; ' + generation + '; ' + packageManager + '; ' + offline + '.';
+    const browser = readiness.browser_ready ? 'verification browser ready' : 'verification browser missing';
+    const pack = readiness.build_preparation_pack_ready
+      ? `Build Preparation pack ready (${readiness.build_preparation_latest.pack_dir})`
+      : 'no eligible Build Preparation pack';
+    view('readiness').textContent = planner + '; ' + generation + '; ' + packageManager + '; ' + offline + '; ' + browser + '; ' + pack + '.';
+  };
+  const renderPacks = (packs) => {
+    const select = view('pack');
+    const eligible = packs.filter((pack) => pack.eligible);
+    const ineligible = packs.filter((pack) => !pack.eligible);
+    const option = (pack, suffix) => new Option(
+      `${pack.pack_dir}${suffix ? ` — ${suffix}` : ''}`,
+      pack.eligible ? pack.pack_dir : ''
+    );
+    select.replaceChildren(
+      ...eligible.map((pack) => option(pack, `expires ${String(pack.expires_at || '').slice(0, 16).replace('T', ' ')}`)),
+      ...ineligible.map((pack) => option(pack, pack.issue || 'not eligible'))
+    );
+    select.disabled = eligible.length === 0;
+    const newest = eligible[0] || packs[0];
+    view('pack-status').textContent = packs.length === 0
+      ? 'No Build Preparation output found in the local mirror. Run Build Preparation first.'
+      : newest && newest.eligible
+        ? `${eligible.length} eligible pack(s); newest ${newest.pack_dir} expires ${String(newest.expires_at || '').slice(0, 16).replace('T', ' ')}.`
+        : `Newest pack is not eligible: ${newest ? newest.issue : 'unknown'}. Re-run Build Preparation.`;
+    view('start-build-preparation').disabled = eligible.length === 0;
   };
   const viewportSizes = {
     mobile: { width: '390px', height: '844px' },
@@ -129,6 +154,8 @@ if (root) {
       runVerify: (id) => request(`/runs/${id}/verify`, { method: 'POST', headers: { 'Idempotency-Key': requestKey() } }),
       createFixture: (fixture_id) => request('/runs', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ fixture_id }) }),
       createUpload: (file) => request('/runs/upload', { method: 'POST', headers: { 'content-type': 'application/zip', 'X-Upload-Filename': file.name, 'Idempotency-Key': requestKey() }, body: file }),
+      getBuildPreparationPacks: () => request('/build-preparation-packs'),
+      createBuildPreparation: (pack) => request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'latest' }) }),
     },
     storage: localStorage,
     location,
@@ -140,6 +167,12 @@ if (root) {
   request('/readiness').then(renderReadiness).catch(() => {
     view('readiness').textContent = 'Readiness could not be loaded. Review the server diagnostics before starting a run.';
   });
+  controller.loadPacks().then(renderPacks).catch(() => {
+    view('pack-status').textContent = 'Build Preparation packs could not be loaded.';
+  });
+  view('auto-advance').checked = controller.autoAdvance();
+  view('auto-advance').addEventListener('change', (event) => controller.setAutoAdvance(event.target.checked));
+  view('start-build-preparation').addEventListener('click', () => controller.startBuildPreparation(view('pack').value || 'latest'));
   view('start-fixture').addEventListener('click', () => controller.startFixture(view('fixture').value));
   view('start-upload').addEventListener('click', () => { const file = view('upload').files[0]; if (file) controller.startUpload(file); });
   view('acquire').addEventListener('click', () => controller.acquire());

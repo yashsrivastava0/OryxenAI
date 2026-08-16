@@ -43,6 +43,16 @@ shutdown_grace = 10.0          # seconds to finish active jobs at shutdown
 handler_timeout = 300.0        # max seconds a handler may run
 lease_duration = 120.0         # seconds before a claimed job is considered stale
 
+[worker.job.kind_timeouts]
+# Per-kind overrides for handlers that legitimately run long: Code Generator
+# stages drive multiple sequential structured model calls (24k-token ceilings)
+# plus clean npm installs and Playwright journeys inside one job. Keys are
+# quoted so TOML keeps them flat instead of nesting on the dot.
+"code_generator.plan" = 900.0                 # 15 min: admission + one planner call
+"code_generator.acquire" = 1200.0             # 20 min: provider searches + npm resolution
+"code_generator.generate" = 5400.0            # 90 min: several builder/integrator calls + typechecks
+"code_generator.verify_and_preview" = 3600.0  # 60 min: clean build + Playwright journeys + repair
+
 [worker.retry]
 # Retry scheduling for transient failures.
 max_attempts = 3               # total attempts (1 initial + 2 retries)
@@ -88,6 +98,8 @@ network_retry_count = 2
 target_contract = "react-vite-v1"
 fixture_enabled = true
 fixture_input_path = "src/oryxenai/output/visual_design_director_Output.md"
+# Matching Content Architect snapshot that reunites the fixture (CA, VDD) pair.
+fixture_content_input_path = "src/oryxenai/output/content-architect"
 fixture_output_dir = "output"
 fixture_upload = true
 fixture_reasoning_enabled = false
@@ -115,6 +127,9 @@ max_compression_ratio = 100.0
 max_routes = 12
 max_work_units = 64
 max_events_page_size = 100
+# Local Build Preparation debug mirror consumed by the "from Build Preparation"
+# run source (newest eligible build-pack.zip wins).
+build_preparation_mirror_root = "output/build-preparation"
 
 [code_generator_acquisition]
 allowlist_image_providers = ["pexels", "unsplash"]
@@ -131,7 +146,9 @@ icon_svg_max_bytes = 393216
 component_max_bytes = 524288
 style_max_bytes = 262144
 materials_root = ".workspace/code-generator-materials"
-prefer_resource_scout_model = false
+# Model-assisted candidate selection through the code_generator_resource_scout
+# profile; falls back to the deterministic scorer when the profile is unusable.
+prefer_resource_scout_model = true
 
 [code_generator_generation]
 scaffold_profile = "react-vite-v1"

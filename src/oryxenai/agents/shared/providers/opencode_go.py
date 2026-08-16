@@ -42,6 +42,39 @@ logger = get_logger("oryxenai.agents.providers.opencode_go")
 _OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go/v1"
 
 
+def _strict_json_schema(output_model: type[BaseModel]) -> dict[str, Any]:
+    """Normalize a pydantic schema for OpenAI strict structured outputs.
+
+    Strict mode requires every object schema to list ALL of its properties in
+    ``required`` and to set ``additionalProperties: false``. Pydantic marks
+    defaulted fields as optional, so they are made mandatory here — the model
+    must emit them explicitly — and unsupported ``default`` markers are
+    stripped. Free-form dict fields cannot be expressed in strict mode and
+    must not appear on model-facing output models.
+    """
+
+    schema = json.loads(json.dumps(output_model.model_json_schema()))
+    _strictify(schema)
+    return schema
+
+
+def _strictify(node: Any) -> None:
+    if isinstance(node, dict):
+        node.pop("default", None)
+        properties = node.get("properties")
+        if isinstance(properties, dict) and properties:
+            for child in properties.values():
+                _strictify(child)
+            node["required"] = list(properties.keys())
+            node["additionalProperties"] = False
+        for key, value in node.items():
+            if key != "properties" and isinstance(value, (dict, list)):
+                _strictify(value)
+    elif isinstance(node, list):
+        for item in node:
+            _strictify(item)
+
+
 class OpenCodeGoAdapter(BaseProviderAdapter):
     """Model client adapter for any OpenAI-protocol endpoint.
 
@@ -147,7 +180,7 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
                 "json_schema": {
                     "name": output_model.__name__.lower(),
                     "strict": True,
-                    "schema": output_model.model_json_schema(),
+                    "schema": _strict_json_schema(output_model),
                 },
             }
         try:

@@ -194,14 +194,14 @@ class Worker:
             payload["max_attempts"] = job.max_attempts
             result = await asyncio.wait_for(
                 handler.execute(payload, self._instance_id),
-                timeout=self._settings.worker_job.handler_timeout,
+                timeout=self._settings.worker_job.timeout_for(kind),
             )
         except TimeoutError:
             await self._fail_job(
                 job,
                 retryable(
                     "JOB_TIMEOUT",
-                    f"Handler exceeded {self._settings.worker_job.handler_timeout}s timeout.",
+                    f"Handler exceeded {self._settings.worker_job.timeout_for(kind)}s timeout.",
                 ),
             )
             return

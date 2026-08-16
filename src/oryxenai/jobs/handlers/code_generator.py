@@ -32,7 +32,6 @@ from oryxenai.agents.code_generator.core.development_planner import (
     canonical_json,
     context_hash,
     plan_summary,
-    validate_site_plan,
 )
 from oryxenai.agents.code_generator.core.development_schemas import (
     AcquireCallReceipt,
@@ -58,12 +57,14 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SafeIssue,
     SitePlan,
 )
-from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.planner_operation import run_planner_operation
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     ResourceProviderError,
     default_adapters,
 )
+from oryxenai.agents.code_generator.core.resource_scout import select_candidate_with_scout
+from oryxenai.agents.shared.model_client import build_provider_client
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
 
@@ -195,24 +196,11 @@ async def _execute(
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
     try:
-        system_prompt, instructions, prompt_receipt = build_instructions(
-            "planner",
-            context,
-            output_model=SitePlan,
-        )
-        result = await planner.generate_structured(
-            operation="code_generator.plan",
-            instructions=instructions,
-            input_payload=context,
-            output_model=SitePlan,
-            system_prompt=system_prompt,
-            model_profile=settings.code_generator_development.planner_profile,
-            strict_schema=True,
-        )
-        parsed = getattr(result, "parsed_output", result)
-        plan = validate_site_plan(
-            SitePlan.model_validate(parsed),
-            projections,
+        plan, _prompt_version, prompt_receipt, result = await run_planner_operation(
+            planner,
+            context=context,
+            profile_name=settings.code_generator_development.planner_profile,
+            projections=projections,
             max_work_units=int(settings.code_generator_development.max_work_units),
         )
     except Exception as exc:
@@ -391,6 +379,9 @@ async def _execute_acquisition(
             else DependencyManager(resource_receipts)
         )
         selector = selector_factory() if selector_factory is not None else None
+        scout: Any = None
+        if selector is None and settings.code_generator_acquisition.prefer_resource_scout_model:
+            scout = build_provider_client("code_generator_resource_scout", settings.models)
         for request in requests:
             existing = next(
                 (
@@ -447,14 +438,17 @@ async def _execute_acquisition(
                     resource_receipts.append(receipt)
                     bindings.append(_binding_for(request, receipt))
                     continue
-                selected_id, _ = select_candidate(
-                    request,
-                    filtered,
-                    prefer_model=bool(
-                        settings.code_generator_acquisition.prefer_resource_scout_model
-                    ),
-                    model_callable=selector,
-                )
+                if selector is not None:
+                    selected_id, _ = select_candidate(
+                        request,
+                        filtered,
+                        prefer_model=True,
+                        model_callable=selector,
+                    )
+                elif scout is not None:
+                    selected_id, _ = await select_candidate_with_scout(scout, request, filtered)
+                else:
+                    selected_id, _ = select_candidate(request, filtered)
                 candidate = next(item for item in filtered if item.candidate_id == selected_id)
                 materialized = await adapter.materialize(
                     candidate,
@@ -569,7 +563,7 @@ async def _execute_acquisition(
             attempt_hash=attempt_hash,
             profile=(
                 "code_generator_resource_scout"
-                if settings.code_generator_acquisition.prefer_resource_scout_model
+                if (selector is not None or scout is not None)
                 else ""
             ),
             total_request_count=len(requests),

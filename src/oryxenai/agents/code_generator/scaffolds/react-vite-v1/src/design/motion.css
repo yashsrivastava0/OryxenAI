@@ -1,3 +1,47 @@
+/* Motion vocabulary: entrance reveals, staggered choreography, and hover
+   lift. Everything is defined ONLY under prefers-reduced-motion: no-preference
+   so reduced-motion users never see frozen/hidden content. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes reveal-up {
+    from { opacity: 0; translate: 0 1.25rem; }
+    to { opacity: 1; translate: 0 0; }
+  }
+  @keyframes reveal-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes reveal-scale {
+    from { opacity: 0; scale: 0.96; }
+    to { opacity: 1; scale: 1; }
+  }
+  @keyframes reveal-left {
+    from { opacity: 0; translate: 1.25rem 0; }
+    to { opacity: 1; translate: 0 0; }
+  }
+
+  .reveal {
+    animation: reveal-up var(--duration-slow) var(--ease-out) both;
+    animation-delay: calc(var(--stagger, 0) * 90ms);
+  }
+  .reveal--fade { animation-name: reveal-fade; }
+  .reveal--scale { animation-name: reveal-scale; }
+  .reveal--left { animation-name: reveal-left; }
+  .reveal--slow { animation-duration: calc(var(--duration-slow) * 1.5); }
+
+  /* Stagger helpers: children inherit an incremental delay. */
+  .stagger > * { --stagger: 0; }
+  .stagger > :nth-child(2) { --stagger: 1; }
+  .stagger > :nth-child(3) { --stagger: 2; }
+  .stagger > :nth-child(4) { --stagger: 3; }
+  .stagger > :nth-child(5) { --stagger: 4; }
+  .stagger > :nth-child(6) { --stagger: 5; }
+  .stagger > :nth-child(7) { --stagger: 6; }
+  .stagger > :nth-child(8) { --stagger: 7; }
+  .stagger > :nth-child(9) { --stagger: 8; }
+  .stagger > :nth-child(10) { --stagger: 9; }
+  .stagger > :nth-child(n + 11) { --stagger: 10; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }

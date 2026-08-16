@@ -5,12 +5,28 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
+
+from oryxenai.core.logging import get_logger
+
+logger = get_logger("oryxenai.agents.code_generator.generation")
+
+
+def _unit_dir_slug(unit_id: str) -> str:
+    """Filesystem-safe workspace suffix for a work-unit id.
+
+    Unit ids follow the colon-namespaced convention (``unit:route:home``);
+    Windows forbids colons (and other reserved characters) in paths.
+    """
+
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", unit_id).strip("._")
+    return slug or "unit"
 
 from oryxenai.agents.code_generator.core.acquisition_validators import (
     AcquisitionValidationError,
@@ -164,10 +180,11 @@ class CodeGeneratorGenerationOrchestrator:
                 projections,
                 plan,
                 acquisition_ledger=run.resource_ledger,
+                # Receipt local_paths are recorded relative to the configured
+                # materials root (already prefixed with the run id).
                 acquisition_materials_root=Path(
                     settings.code_generator_acquisition.materials_root
-                ).resolve()
-                / str(run_id),
+                ).resolve(),
             )
             dependency_repo = (
                 Path(settings.code_generator_dependencies.workspaces_root).resolve()
@@ -255,6 +272,12 @@ class CodeGeneratorGenerationOrchestrator:
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         except Exception as exc:
+            logger.error(
+                "code generator generation failed run_id=%s error=%s",
+                run_id,
+                type(exc).__name__,
+                exc_info=exc,
+            )
             await self._fail(
                 sessionmaker,
                 run_id,
@@ -465,7 +488,7 @@ class CodeGeneratorGenerationOrchestrator:
                 operation = "repair"
                 role_profile = str(settings.code_generator_generation.repair_profile)
                 continue
-            return CheckpointStore(workspace, generation_id=workspace.root.name).accept(
+            return checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
                 parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
             )
@@ -489,7 +512,8 @@ class CodeGeneratorGenerationOrchestrator:
             )
         owners = _owned_paths(unit, plan, projections)
         original = workspace.repo_dir
-        candidate = workspace.root / f"candidate-{unit.unit_id.replace('/', '_')}"
+        unit_slug = _unit_dir_slug(unit.unit_id)
+        candidate = workspace.root / f"candidate-{unit_slug}"
         if candidate.exists():
             shutil.rmtree(candidate)
         _copy_without_disposables(original, candidate)
@@ -506,7 +530,7 @@ class CodeGeneratorGenerationOrchestrator:
             target = (candidate / change.path).resolve()
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(change.complete_utf8_content, encoding="utf-8", newline="\n")
-        old = workspace.root / f"repo-{unit.unit_id.replace('/', '_')}-old"
+        old = workspace.root / f"repo-{unit_slug}-old"
         if old.exists():
             shutil.rmtree(old)
         os.replace(original, old)
@@ -531,8 +555,13 @@ class CodeGeneratorGenerationOrchestrator:
         unit_id: str,
         request_round: int,
     ) -> tuple[GenerationResult, GenerationCallReceipt]:
+        # The cache key binds the prompt text (via the operation-prompt hash)
+        # so a prompt change invalidates previously cached model calls.
+        prompt_hash = str(
+            (context_receipt.prompt_versions or {}).get("operation_hash", "")
+        )
         key = hashlib.sha256(
-            f"{generation_id}:{unit_id}:{operation}:{context_receipt.context_hash}:{request_round}".encode()
+            f"{generation_id}:{unit_id}:{operation}:{prompt_hash}:{context_receipt.context_hash}:{request_round}".encode()
         ).hexdigest()
         result_path = workspace.ledger_dir / "calls" / f"{key}.json"
         if result_path.is_file():
@@ -937,6 +966,49 @@ def _operation_context(
     }
     route_ids = set(unit.route_ids) or ({unit.route_id} if unit.route_id else set())
     route_slices = [routes[route_id] for route_id in route_ids if route_id in routes]
+    existing_files = sorted(
+        path.relative_to(workspace.repo_dir).as_posix()
+        for path in workspace.repo_dir.rglob("*")
+        if path.is_file() and not any(part in {"node_modules", "dist"} for part in path.parts)
+    )[:500]
+    # Frozen source this unit builds against (scaffold app layer, foundation
+    # shared files, generated manifest shapes) — the checkpoint's file hashes
+    # alone are not enough to author compatible imports.
+    shared_source: dict[str, str] = {}
+    if unit.kind != "foundation":
+        for path in sorted(workspace.repo_dir.rglob("*")):
+            if (
+                not path.is_file()
+                or path.suffix.lower() not in {".ts", ".tsx", ".css", ".html"}
+                or any(part in {"node_modules", "dist"} for part in path.parts)
+            ):
+                continue
+            relative = path.relative_to(workspace.repo_dir).as_posix()
+            try:
+                shared_source[relative] = path.read_text(encoding="utf-8")[:20_000]
+            except (OSError, UnicodeDecodeError):
+                continue
+            if len(shared_source) >= 24:
+                break
+    # The rejected files from a prior attempt, when its candidate tree is
+    # still on disk — the repairer needs the exact content it must correct.
+    previous_attempt_files: dict[str, str] = {}
+    candidate_dir = workspace.root / f"candidate-{_unit_dir_slug(unit.unit_id)}"
+    if candidate_dir.is_dir():
+        for path in sorted(candidate_dir.rglob("*")):
+            if (
+                not path.is_file()
+                or path.suffix.lower() not in {".ts", ".tsx", ".css"}
+                or any(part in {"node_modules", "dist"} for part in path.parts)
+            ):
+                continue
+            relative = path.relative_to(candidate_dir).as_posix()
+            try:
+                previous_attempt_files[relative] = path.read_text(encoding="utf-8")[:20_000]
+            except (OSError, UnicodeDecodeError):
+                continue
+            if len(previous_attempt_files) >= 12:
+                break
     return {
         "role_profile": role_profile,
         "operation": operation,
@@ -945,6 +1017,13 @@ def _operation_context(
             "routes": route_slices,
             "criteria": site.get("criteria", []),
             "facts": site.get("facts", []),
+            # The approved copy this unit renders — without it the builder can
+            # only see metadata and must refuse to fabricate content.
+            "public_content": [
+                item
+                for item in site.get("public_content", [])
+                if isinstance(item, dict) and str(item.get("route_id", "")) in route_ids
+            ],
         },
         "visual_direction": visual,
         "plan": plan.model_dump(mode="json"),
@@ -952,6 +1031,13 @@ def _operation_context(
         "execution_contract": projections.get("execution/contract.json", {}),
         "prior_checkpoint": checkpoint.model_dump(mode="json") if checkpoint else {},
         "owned_paths": _owned_paths(unit, plan, projections),
+        # Ground truth for create-vs-replace: files present in the current
+        # candidate tree (disposables excluded).
+        "existing_files": existing_files,
+        # The frozen shared foundation source this unit builds against.
+        "shared_source": shared_source,
+        # Rejected files from the prior attempt of this unit, when present.
+        "previous_attempt_files": previous_attempt_files,
         "input_hashes": [
             str(projections.get("handoff-report.json", {}).get("projection_hashes", {})),
             checkpoint.checkpoint_hash if checkpoint else "",
@@ -971,22 +1057,28 @@ def _operation_context(
 def _owned_paths(
     unit: WorkUnit, plan: SitePlan, projections: dict[str, dict[str, Any]]
 ) -> list[str]:
+    if unit.kind in {"route", "route_batch", "route_compose"}:
+        # Route ownership is fully determined by the trusted route-registry
+        # wiring: the site contract's storage key, never the plan's prose.
+        route_id = unit.route_id or (unit.route_ids[0] if unit.route_ids else "route")
+        storage_key = route_id
+        for route in projections.get("site/contract.json", {}).get("routes", []):
+            if isinstance(route, dict) and str(route.get("route_id", "")) == route_id:
+                storage_key = str(route.get("storage_key", route_id))
+                storage_key = storage_key.replace("\\", "/").strip("/")
+                if storage_key.startswith("routes/"):
+                    storage_key = storage_key.removeprefix("routes/")
+                break
+        return [f"src/routes/{storage_key}/**"]
     if unit.owns_paths:
         return list(unit.owns_paths)
     if unit.kind == "foundation":
         return ["src/design/**", "src/components/shared/**"]
     if unit.kind == "integration":
-        return ["src/components/shared/**"]
-    route_id = unit.route_id or (unit.route_ids[0] if unit.route_ids else "route")
-    storage_key = route_id
-    for route in projections.get("site/contract.json", {}).get("routes", []):
-        if isinstance(route, dict) and str(route.get("route_id", "")) == route_id:
-            storage_key = str(route.get("storage_key", route_id))
-            storage_key = storage_key.replace("\\", "/").strip("/")
-            if storage_key.startswith("routes/"):
-                storage_key = storage_key.removeprefix("routes/")
-            break
-    return [f"src/routes/{storage_key}/**"]
+        # The integrator reconciles the completed tree: every route path
+        # plus the shared/design system it must keep coherent.
+        return ["src/design/**", "src/components/shared/**", "src/routes/**"]
+    return []
 
 
 def _allowed_packages(
