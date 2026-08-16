@@ -1,0 +1,12 @@
+{
+  "schema_version": "build-preparation-resource-ledger-v3",
+  "pack_version": "build-preparation-pack-v3",
+  "policy": {"runtime_network_fetch_allowed": false, "known_needs_require_execution_slot_coverage": true, "unlisted_resource_ids_are_forbidden": true},
+  "resource_decisions": [],
+  "slots": [
+    {"resource_slot_id": "slot-abf48c82a3ef77ddba4e", "resolution_type": "local_recipe"},
+    {"resource_slot_id": "slot-fa09c3c4a6256f2edce6", "resolution_type": "local_recipe"},
+    {"resource_slot_id": "slot-1e2a37dddc2abf44723e", "resolution_type": "target_package_binding"}
+  ],
+  "execution_contract_path": "execution/contract.json"
+}

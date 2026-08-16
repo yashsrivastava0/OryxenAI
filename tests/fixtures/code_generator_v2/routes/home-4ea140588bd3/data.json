@@ -1,0 +1,19 @@
+{
+  "route_id": "home",
+  "sections": [
+    {
+      "claim_ids": [],
+      "content": {"headline": "Durable systems"},
+      "priority": "primary",
+      "purpose": "Positioning",
+      "section_id": "hero"
+    },
+    {
+      "claim_ids": ["fact-queueguard"],
+      "content": {"title": "QueueGuard"},
+      "priority": "primary",
+      "purpose": "Evidence",
+      "section_id": "project"
+    }
+  ]
+}

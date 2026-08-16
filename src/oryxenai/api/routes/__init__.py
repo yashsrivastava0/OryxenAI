@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from oryxenai.api.routes import (
     agents,
     build_preparation,
+    code_generator_development,
     content_architect,
     discovery,
     health,
@@ -15,7 +16,7 @@ from oryxenai.api.routes import (
 )
 
 
-def create_api_router() -> APIRouter:
+def create_api_router(settings: object | None = None) -> APIRouter:
     """Build the /api/v1 router with all sub-routers."""
     router = APIRouter(prefix="/api/v1")
     router.include_router(agents.router)
@@ -27,6 +28,8 @@ def create_api_router() -> APIRouter:
     router.include_router(visual_design_director.router)
     router.include_router(build_preparation.router)
     router.include_router(build_preparation.fixture_router)
+    if bool(getattr(getattr(settings, "code_generator_development", None), "enabled", False)):
+        router.include_router(code_generator_development.router)
     return router
 
 

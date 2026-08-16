@@ -170,6 +170,10 @@ class TestOpenCodeGoAdapterStructured:
         assert result.finish_reason == "stop"
         assert result.parsed_output["overall_assessment"] == "Test assessment"
         assert result.latency_ms >= 0
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        assert messages[-1]["role"] == "user"
+        assert "<untrusted_input" in messages[-1]["content"]
+        assert '"main_prompt":"test"' in messages[-1]["content"]
 
     def test_uses_json_object_response_format(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")

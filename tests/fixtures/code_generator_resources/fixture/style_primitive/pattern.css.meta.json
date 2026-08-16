@@ -1,0 +1,13 @@
+{
+  "candidate_id": "fixture-pattern",
+  "provider_key": "fixture",
+  "provider_resource_id": "pattern",
+  "category": "style_primitive",
+  "title": "Pattern",
+  "description": "A small CSS pattern helper.",
+  "tags": ["pattern", "style"],
+  "canonical_source": "fixture://pattern",
+  "licence": "MIT",
+  "attribution": "OryxenAI fixture",
+  "vendoring_policy": "vendor source"
+}

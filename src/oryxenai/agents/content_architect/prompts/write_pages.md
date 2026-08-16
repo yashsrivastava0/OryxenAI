@@ -6,9 +6,10 @@
 
 <operation>
 You are given the site_story_strategy, route_plan, and claim_grounding already decided by the
-planning step. Write the FULL final public content for EVERY route in route_plan whose
-publication_status is NOT "blocked", in this single response — never ask for another call per page
-or per section, and never leave a route's content incomplete. Set mode="PAGES_READY".
+planning step. Write the complete visitor-facing content for EVERY route in route_plan whose
+publication_status is NOT "blocked", in this single response — final public content for approved
+routes and neutral review drafts for pending routes. Never ask for another call per page or per
+section, and never leave a route's content incomplete. Set mode="PAGES_READY".
 </operation>
 
 <do_not_redecide>
@@ -51,9 +52,17 @@ Populate public_content_manifest with the shared, cross-route public content: th
 set, the hero content (if not already fully covered per-route), the about narrative, the
 capability/skill grouping, achievements/education treatment shared across routes, and the closing
 contact/CTA copy and shared captions/link text. Do not duplicate content already fully expressed
-inside a specific page_content_packs entry, and do not reference a route or claim that is
-publication_status "blocked".
+inside a specific page_content_packs entry. This is the approved public projection: do not reference
+or summarize a route or claim whose publication_status is "pending" or "blocked".
 </public_content_manifest>
+
+<visual_director_handoff>
+Populate visual_director_handoff now that the complete public content exists. Include content
+hierarchy and emphasis, density and responsive risks, storytelling/diagram opportunities, available
+and unavailable media, confidentiality restrictions, must-preserve wording, mobile-shortenable
+elements, and never-fabricate rules. This is the complete non-visual handoff that Visual Design
+Director needs; do not defer it merely because this is the page-writing operation.
+</visual_director_handoff>
 
 <integration_signal>
 Set integration_needed=true if, while writing multiple routes, you notice inconsistent terminology,

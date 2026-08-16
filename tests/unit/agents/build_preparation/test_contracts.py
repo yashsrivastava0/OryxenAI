@@ -155,3 +155,80 @@ def test_pack_v2_rejects_empty_route_plan() -> None:
             max_routes=12,
         )
     assert exc_info.value.code == "BUILD_PACK_V2_CONTENT_ROUTES_EMPTY"
+
+
+def test_pack_v2_accepts_approved_subset_when_pending_ca_drafts_are_absent_from_vdd() -> None:
+    """Pending CA routes stay in review; they never become public VDD pages."""
+    content = _approved_content()
+    content["route_plan"].append(
+        {
+            "route_id": "case-study-draft",
+            "path": "/case-study-draft",
+            "publication_status": "pending",
+            "section_sequence": ["summary"],
+        }
+    )
+    content["page_content_packs"].append(
+        {
+            "route_id": "case-study-draft",
+            "sections": [
+                {
+                    "section_id": "summary",
+                    "claim_ids": [],
+                    "content": {"headline": "Awaiting permission"},
+                }
+            ],
+        }
+    )
+    content["claim_grounding"].append(
+        {
+            "claim_id": "draft-fact",
+            "statement": "A restricted implementation detail.",
+            "source_reference": "private review",
+            "evidence_status": "verified",
+            "publication_status": "pending",
+        }
+    )
+
+    projections = compile_v2_projections(
+        content_architect=content,
+        visual_design_director=_approved_visual(),
+        source_ref={"input_projection_hash": "projection-hash"},
+        target_contract={"target_id": "react-vite-v1"},
+        max_routes=12,
+    )
+
+    assert [route["route_id"] for route in projections["site"]["routes"]] == ["home"]
+    assert [route["route_id"] for route in projections["visual"]["routes"]] == ["home"]
+    assert [fact["fact_id"] for fact in projections["site"]["facts"]] == ["fact-1"]
+
+
+def test_pack_v2_rejects_pending_ca_draft_reintroduced_by_visual_direction() -> None:
+    content = _approved_content()
+    content["route_plan"].append(
+        {
+            "route_id": "case-study-draft",
+            "path": "/case-study-draft",
+            "publication_status": "pending",
+        }
+    )
+    visual = _approved_visual()
+    visual["pages"].append(
+        {
+            "route_id": "case-study-draft",
+            "path": "/case-study-draft",
+            "publication_status": "approved",
+            "compilable": True,
+        }
+    )
+
+    with pytest.raises(PackContractError) as exc_info:
+        compile_v2_projections(
+            content_architect=content,
+            visual_design_director=visual,
+            source_ref={"input_projection_hash": "projection-hash"},
+            target_contract={"target_id": "react-vite-v1"},
+            max_routes=12,
+        )
+
+    assert exc_info.value.code == "BUILD_PACK_V2_VDD_ROUTE_UNKNOWN"

@@ -1,8 +1,8 @@
 # Code Generator v1 — implementation handoff
 
-**Status:** decided-not-yet-implemented. This is the compact implementation
-contract for D-013 and D-015. It makes no runtime-completeness claim; verify the
-current implementation in `src/oryxenai/agents/code_generator/`, its
+**Status:** standalone Phases 1-4 implemented; production integration remains
+deferred. This is the compact implementation contract for D-013 and D-015.
+Verify runtime completeness in `src/oryxenai/agents/code_generator/`, its
 service/job/API wiring, and the test suite.
 
 Code Generator turns one eligible Build Preparation pack into one locally
@@ -37,7 +37,7 @@ all the way into source.
 ## Boundary and authority
 
 - The authoritative production input is a fresh, eligible, hash-verified Build
-  Preparation pack using the v2 contract defined by D-013.
+  Preparation pack using the v3 readiness contract defined by D-018.
 - Code Generator does not read raw intake, Discovery memory, upstream internal
   notes/reasoning, or arbitrary session fields.
 - Content Architect remains authoritative for public facts, content, routes,
@@ -65,19 +65,23 @@ all the way into source.
 The current implementation sequence intentionally develops Code Generator
 standalone first. During the four phases in
 [Approval-gated implementation phases](implementation-phases.md), a
-development-only fixture/upload adapter supplies pack-v2 input and a separate
+development-only fixture/upload adapter supplies pack-v3 input and a separate
 developer frontend drives the stage. Build Preparation and the main session
 flow are not wired until a later, separately planned integration task.
 
-## Build Preparation pack v2
+## Build Preparation pack v3
 
-D-013 still requires Build Preparation to provide:
+D-018 requires Build Preparation to provide:
 
 - `site/contract.json`, the exact approved route/content/fact/criterion
   contract;
 - `design/visual-direction.json`, the complete approved non-reasoning visual
   contract;
-- locally admitted resources and explicit fallbacks;
+- `execution/contract.json`, the exact slot inventory with a local file,
+  approved package binding, typed local recipe, or explicit execution gap for
+  every known need;
+- `resources/ledger.json`, recipe manifests, locally admitted resources, and
+  provenance/licence records;
 - target, provenance, licence, and handoff reports; and
 - file hashes plus upstream approval/hash identity.
 
@@ -85,9 +89,10 @@ Code Generator rejects a stale, corrupt, unsafe, contradictory, incomplete, or
 unsupported pack before a model call. It does not reconstruct authoritative
 facts or routes from prose.
 
-Build Preparation remains the preferred source for planned resources, but it is
-not required to predict every implementation need. D-015 supersedes D-013's
-earlier prohibition on downstream acquisition.
+Known resource requirements are prepared upstream. Code Generator receives the
+fixed v3 bindings rather than vague fallback prose or the provider catalogue.
+Only an unexpected need discovered during source generation can invoke D-015's
+separate receipt-bound acquisition path.
 
 ## Generation roles
 
@@ -110,7 +115,7 @@ source, manifests, and diagnostic summaries as text.
 ## End-to-end pipeline
 
 ```text
-eligible pack v2
+eligible pack v3
   -> admit + create isolated workspace
   -> plan site + work graph
   -> initial resource reconnaissance
@@ -448,5 +453,5 @@ Coverage must demonstrate:
   three text-only gates and evidence contract.
 - [Live preview and deployment](live-preview-and-deployment.md) — stable preview
   origin, crash-safe promotion, local parity, and explicit deployment boundary.
-- [`DECISIONS.md`](../../DECISIONS.md) — D-013 pack-v2 repair and D-015
+- [`DECISIONS.md`](../../DECISIONS.md) — D-018 pack-v3 readiness and D-015
   generation/resource decision.

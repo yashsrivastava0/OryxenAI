@@ -1,10 +1,8 @@
-# Code Generator Agent — Task Template
+# Code Generator prompt inventory
 
-> **NOT FINAL.** Placeholder task template for the scaffold phase.
+Code Generator operations are assembled from the trusted system prompt plus
+one operation prompt. Runtime input is sent as a separate canonical JSON
+message by the provider-neutral ModelClient boundary; it is never interpolated
+into these templates.
 
-Given the content outline and visual design direction, generate the portfolio
-site source files (HTML, CSS, JS).
-
-Input variables:
-- {{content}}
-- {{design}}
+This file is documentation only. It is not a runtime prompt.

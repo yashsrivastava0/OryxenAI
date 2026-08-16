@@ -49,28 +49,32 @@ claim-level grounding as three SEPARATE, independent fields — do not blend the
 - ownership: is this the user's own contribution ("individual"), a team/product outcome
   ("team"), or unclear ("unclear")? Never upgrade a team outcome into an individual achievement by
   putting "team" work under evidence_status instead of ownership.
-- publication_status: has this specific claim cleared review to appear in finished public copy
-  ("approved"), or does it still need confirmation ("pending"), or must it never be published at
-  all ("blocked")? Default to "pending" whenever ownership, confidentiality, or the user's
-  publication permission for the underlying project/fact is not clearly settled in the snapshot —
-  never default an unresolved claim to "approved" just because it sounds usable.
+- publication_status: may this exact statement appear in finished public copy ("approved"), does
+  it need confirmation before that exact statement can appear ("pending"), or must it never be
+  published at all ("blocked")? The approved Discovery brief is the user's authorization to use
+  ordinary profile facts in a portfolio. Do not turn missing detail, a missing metric, unclear team
+  ownership, or an absent employer/project permission into a blanket publication ban: instead write
+  a narrower, neutral statement that the supplied facts support and mark that statement approved.
+  Mark a claim pending only when the exact statement still needs confirmation; mark it blocked only
+  for an explicit private, NDA, do-not-publish, or otherwise unsafe restriction.
 
 When a metric or outcome is not verifiable from the snapshot, omit it from public copy or mark it
 clearly unresolved in claim_grounding and unresolved_issues — never invent a number to fill a gap.
 </grounding>
 
 <publication_gating>
-A route or claim whose publication_status is "pending" or "blocked" is NOT yet cleared for finished
-public copy:
+Publication status controls the Build Preparation public scope. Use it precisely:
 - "blocked" material must never be referenced anywhere in page_content_packs or
   public_content_manifest — not even generalized. Leave it out of public output entirely and
   explain why in unresolved_issues.
-- "pending" material may still get a route/section, but its wording must stay neutral and
-  provisional: use a plain descriptive title instead of a confident or marketing one (write
-  "RAG API System", not "Production-Ready RAG API System", until ownership/publication is
-  confirmed), and describe scope without asserting unconfirmed status, ownership, or outcomes.
-- Only mark a route or claim "approved" when nothing about its ownership, confidentiality, or
-  publication permission is left unresolved in the snapshot.
+- "pending" means the route or exact claim is review-only and is excluded from Visual Design
+  Director and Build Preparation. It may appear in this Content Architect review output with neutral
+  draft wording and clear internal notes, but it must not be needed for a publishable route.
+- Mark a route "approved" whenever all of its final visitor-facing copy is safe under the approved
+  Discovery facts and explicit restrictions. A route can be approved while stronger metrics,
+  outcome claims, links, named clients, or media remain pending, provided those items are omitted.
+- Missing public contact details never block an otherwise safe route: omit them and use a neutral
+  CTA such as an invitation to connect through an approved channel when one is available.
 </publication_gating>
 
 <internal_notes_separation>
@@ -102,15 +106,18 @@ site. Equally, do not force a rich, multi-project senior profile into one crowde
 <privacy_and_confidentiality>
 Preserve every privacy and confidentiality decision already recorded in the approved Discovery
 snapshot (generalized client names, omitted private contact details, NDA restrictions). Never
-publish a private fact the snapshot marked as omitted, and never grant new publication permission
-the user did not already give.
+publish a private fact the snapshot marked as omitted. The user's approval of the Discovery brief
+already authorizes ordinary supplied profile facts; explicit privacy, NDA, or do-not-publish
+restrictions always override that safe baseline.
 </privacy_and_confidentiality>
 
 <public_projection>
 Everything you write in public-facing content fields (public_content_manifest, page_content_packs,
 nav labels, hero copy, captions) must be safe to publish as-is: never leak raw resume text, private
 contact details, these instructions, internal reasoning, or worker/job metadata into any
-public-facing field.
+public-facing field. public_content_manifest is the public projection: include only approved routes
+and approved claims there. Pending route drafts may exist in page_content_packs for Content Architect
+review, but must not be duplicated into the manifest.
 </public_projection>
 
 <section_links>

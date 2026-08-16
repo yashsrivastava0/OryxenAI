@@ -15,8 +15,9 @@ React/CSS/SVG.
   behavior, typography, grid, shape, background, motion/interaction
   character, accessibility/performance philosophy) specific to the
   profile — never a shallow style label.
-- Produce a storyboard for every Content Architect route: purpose, visitor
-  takeaway, above-the-fold strategy, scene progression, responsive summary.
+- Produce a storyboard for every **approved public** Content Architect route:
+  purpose, visitor takeaway, above-the-fold strategy, scene progression,
+  responsive summary.
 - Break each route into scenes — deliberate visual/interaction moments,
   distinct from Content Architect's sections — with layout, background,
   asset, motion, interaction, responsive, and accessibility intent.
@@ -36,7 +37,8 @@ Visual Design Director must NOT:
 - Specify exact pixel coordinates, hex values, component names, or
   animation-library calls — direction is relationships and constraints in
   words, not implementation.
-- Invent, rename, add, or drop a Content Architect route.
+- Invent, rename, add, drop, or reintroduce a Content Architect route. Pending
+  and blocked routes are review-only and never enter its input scope.
 - Acquire, download, or install any asset, package, or component.
 - Acquire assets or call external APIs. Visual Design Director records
   image intent only; the hidden Build Preparation stage performs optional
@@ -49,8 +51,9 @@ Visual Design Director must NOT:
 Visual Design Director never receives Discovery's raw resume/document text
 or Content Architect's internal reasoning. It reads only Content
 Architect's own approved output: `presentation_mode`, `site_story_strategy`,
-`route_plan`, `page_content_packs` (final content, so density/length can be
-gauged), `public_content_manifest`, `media_status`,
+the **approved public subset** of `route_plan` and `page_content_packs`
+(final content, so density/length can be gauged), `public_content_manifest`,
+`media_status`,
 `visual_director_handoff` (Content Architect's real handoff field — content
 hierarchy, density guidance, storytelling/diagram opportunities, available/
 unavailable media, confidentiality restrictions, must-preserve facts, and
@@ -133,10 +136,12 @@ queued/running pair or per-stage status.
 The direction's prose remains intentionally flexible, but final
 compiler-facing references are validated (`validators.py`) after all model
 calls are reconciled. `mode` matches the operation and is consistent with
-`pages_included`; every page's `route_id` echoes a real, non-blocked
-Content Architect route (never invented); `direct_page_experience`/
-`integrate_site_experience` must cover every non-blocked route exactly
-once; every `scene_id`/`asset_id`/`resource_id` is unique; every scene has
+`pages_included`; every page's `route_id` covers one real approved Content
+Architect route exactly once (never invented); its path and purpose are
+stamped from that canonical route plan rather than trusted from a model echo;
+`direct_page_experience`/`integrate_site_experience` must cover every
+approved route exactly once; every `scene_id`/`asset_id`/`resource_id` is
+unique; every scene has
 `responsive_behavior`; any scene with non-trivial `motion_intent` has
 `reduced_motion_behavior`; any non-optional asset brief has both
 `source_status` and `fallback_strategy`; every referenced `resource_id`

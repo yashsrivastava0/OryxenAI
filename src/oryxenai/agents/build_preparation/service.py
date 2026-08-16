@@ -282,18 +282,37 @@ class BuildPreparationService:
     def _content_projection(state: Any) -> dict[str, Any]:
         return {
             "approved": state.approved.model_dump(mode="json") if state.approved else {},
+            "site_story_strategy": state.site_story_strategy,
+            "decision_basis": [
+                decision.model_dump(mode="json") for decision in state.decision_basis
+            ],
             "route_plan": [route.model_dump(mode="json") for route in state.route_plan],
             "page_content_packs": [
                 {**pack.model_dump(mode="json"), "internal_notes": {}}
                 for pack in state.page_content_packs
             ],
+            "claim_grounding": [
+                claim.model_dump(mode="json")
+                for claim in state.claim_grounding
+                if claim.publication_status.value == "approved"
+            ],
             "public_content_manifest": state.public_content_manifest,
+            "visual_director_handoff": state.visual_director_handoff,
         }
 
     @staticmethod
     def _visual_projection(state: Any) -> dict[str, Any]:
         return {
             "approved": state.approved.model_dump(mode="json") if state.approved else {},
+            "visual_language": state.visual_language,
+            "shared_visual_systems": state.shared_visual_systems,
+            "navigation_direction": state.navigation_direction,
+            "motion_system": state.motion_system,
+            "interaction_system": state.interaction_system,
+            "accessibility_and_performance": state.accessibility_and_performance,
+            "must_preserve": state.must_preserve,
+            "must_not_fabricate": state.must_not_fabricate,
+            "compiler_handoff": state.compiler_handoff,
             "pages": [page.model_dump(mode="json") for page in state.pages],
             "asset_briefs": [asset.model_dump(mode="json") for asset in state.asset_briefs],
             "resource_candidates": [

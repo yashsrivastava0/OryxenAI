@@ -1,0 +1,5 @@
+{
+  "schema_version": "build-preparation-contract-v3",
+  "pack_version": "build-preparation-pack-v3",
+  "target": {"target_id": "react-vite-v1", "allowed_dependencies": ["lucide-react", "react", "react-dom"], "forbidden_runtime_capabilities": ["remote-fonts", "remote-runtime-assets"]}
+}

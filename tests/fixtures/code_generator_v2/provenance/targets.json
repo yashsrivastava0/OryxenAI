@@ -1,0 +1,5 @@
+{
+  "schema_version": "build-preparation-contract-v2",
+  "pack_version": "build-preparation-pack-v2",
+  "target": {"target_id": "react-vite-v1", "runtime": "static-client", "framework": "react", "language": "typescript", "bundler": "vite", "styling": "tailwind", "allowed_dependencies": []}
+}

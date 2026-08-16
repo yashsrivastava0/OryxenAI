@@ -445,6 +445,14 @@ async def search_components(
                 ranked.sort(key=lambda pair: (-pair[0], str(pair[1].get("name", ""))))
                 for _, item in ranked[:limit]:
                     name = str(item["name"])
+                    allowed_names = {
+                        str(value)
+                        for value in getattr(
+                            settings.resource_providers, f"{provider}_allowed_components", []
+                        )
+                    }
+                    if allowed_names and name not in allowed_names:
+                        continue
                     try:
                         (
                             files,
@@ -470,7 +478,9 @@ async def search_components(
                             registry_dependencies=registry_dependencies,
                             license=license_name or _REGISTRY_LICENSES.get(provider, ("", ""))[0],
                             license_reference=_REGISTRY_LICENSES.get(provider, ("", ""))[1],
-                            source_version=version,
+                            source_version=(
+                                f"{getattr(settings.resource_providers, f'{provider}_release_pin', '')}:{version}"
+                            ).strip(":"),
                             fallback=query.fallback,
                         )
                     )

@@ -99,6 +99,113 @@ integration_route_threshold = 2
 # Optional non-evidentiary editorial candidates; provider failure never blocks handoff.
 editorial_image_budget = 1
 
+[code_generator_development]
+# Standalone Phase 1 developer workflow. It has no portfolio-session coupling.
+enabled = true
+input_root = ".workspace/code-generator-development"
+fixture_map = { "privacy-safe-v3" = "tests/fixtures/code_generator_v3_privacy_safe", "privacy-safe-v3-rich" = "tests/fixtures/code_generator_v3_rich_privacy_safe" }
+pack_version = "build-preparation-pack-v3"
+schema_version = "build-preparation-contract-v3"
+target_contract = "react-vite-v1"
+planner_profile = "code_generator_planner"
+max_upload_bytes = 16777216
+max_uncompressed_bytes = 67108864
+max_entries = 256
+max_compression_ratio = 100.0
+max_routes = 12
+max_work_units = 64
+max_events_page_size = 100
+
+[code_generator_acquisition]
+allowlist_image_providers = ["pexels", "unsplash"]
+allowlist_font_formats = ["woff2", "woff"]
+allowlist_icon_package = "lucide"
+allowlist_component_registries = ["shadcn", "magicui"]
+allowlist_style_kinds = ["pattern", "token_preset", "helper"]
+forbidden_subject_terms = []
+user_media_substitution_allowed = false
+max_request_rounds = 4
+image_max_bytes = 4194304
+font_max_bytes = 2097152
+icon_svg_max_bytes = 393216
+component_max_bytes = 524288
+style_max_bytes = 262144
+materials_root = ".workspace/code-generator-materials"
+prefer_resource_scout_model = false
+
+[code_generator_generation]
+scaffold_profile = "react-vite-v1"
+scaffold_root = "src/oryxenai/agents/code_generator/scaffolds"
+workspace_root = ".workspace/code-generator-generation"
+checkpoint_root = ".workspace/code-generator-checkpoints"
+foundation_profile = "code_generator_foundation_builder"
+route_profile = "code_generator_route_builder"
+compose_profile = "code_generator_route_composer"
+integration_profile = "code_generator_integrator"
+repair_profile = "code_generator_repairer"
+max_file_bytes = 262144
+max_response_bytes = 2097152
+max_source_bytes = 8388608
+max_request_rounds = 4
+max_repair_rounds_per_unit = 2
+max_repair_rounds_total = 6
+max_route_batch_sections = 8
+max_concurrency = 1
+typecheck_timeout_seconds = 120.0
+typecheck_command = ["npm.cmd", "run", "typecheck"]
+format_command = []
+use_real_typecheck = true
+
+[code_generator_dependencies]
+workspaces_root = ".workspace/code-generator-workspaces"
+npm_executable = "npm.cmd"
+npm_cache_root = ".workspace/npm-cache"
+allow_network_install = false
+allow_install_scripts = false
+
+[code_generator_dependencies.supported_packages.lucide-react]
+version_pin = "0.460.0"
+transitive = ["react@19.0.0"]
+licence = "ISC"
+
+[code_generator_dependencies.supported_packages.motion]
+version_pin = "12.0.0"
+transitive = ["react@19.0.0"]
+licence = "MIT"
+
+[code_generator_verification]
+# Standalone Phase 4 final build, DOM verification, and promoted preview.
+enabled = true
+profile_id = "code-generator-verification-v1"
+browser_name = "chromium"
+browser_executable = ""
+browser_headless = true
+browser_timeout_ms = 15000
+install_timeout_seconds = 180.0
+typecheck_timeout_seconds = 180.0
+format_timeout_seconds = 60.0
+build_timeout_seconds = 180.0
+runtime_timeout_ms = 15000
+max_output_bytes = 65536
+max_artifact_bytes = 33554432
+reject_source_maps = true
+install_command = ["npm.cmd", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
+typecheck_command = ["npm.cmd", "run", "typecheck"]
+format_command = []
+build_command = ["npm.cmd", "run", "build"]
+preview_root = ".workspace/code-generator-preview"
+preview_base_url = "http://127.0.0.1:4174/preview"
+preview_host = "127.0.0.1"
+preview_port = 4174
+preview_parent_origin = "http://127.0.0.1:8000"
+preview_retention_days = 3
+preview_route_prefix = "/preview"
+
+[code_generator_verification.viewport_profiles]
+mobile = { width = 390, height = 844 }
+tablet = { width = 768, height = 1024 }
+desktop = { width = 1440, height = 900 }
+
 [artifact_storage]
 # Non-secret coordinates for the configured private preparation bucket.
 # Credentials remain in .env or the hosting provider secret store. A deployment
@@ -113,6 +220,9 @@ access_key_env = "R2_ACCESS_KEY_ID"
 secret_key_env = "R2_SECRET_ACCESS_KEY"
 
 [resource_providers]
+# Only configured, trusted sources may participate in execution enrichment.
+# Animate UI is intentionally absent: its Commons-Clause licence is not
+# approved for vendoring or distribution.
 registries_enabled = true
 # The public shadcn catalog is style-versioned.  The root /r/registry.json
 # endpoint is not a public catalog.
@@ -124,7 +234,23 @@ magicui_enabled = true
 aceternity_catalog_url = "https://ui.aceternity.com/registry/registry.json"
 aceternity_item_url_template = "https://ui.aceternity.com/registry/{name}.json"
 aceternity_enabled = false
-registry_order = ["shadcn", "magicui", "aceternity"]
+registry_order = ["shadcn", "magicui"]
+execution_provider_order = ["fontsource", "shadcn", "magicui", "motion_primitives", "lucide", "pexels"]
+provider_cache_policy = "content_hash"
+licence_policy = "permissive-local-vendoring-only"
+fontsource_enabled = true
+fontsource_api_base_url = "https://api.fontsource.org/v1"
+fontsource_format = "woff2"
+fontsource_latin_only = true
+font_profiles = { editorial_technical = { display = "space-grotesk", body = "manrope", utility = "jetbrains-mono" }, neutral_systems = { display = "geist", body = "geist", utility = "jetbrains-mono" }, warm_technical = { display = "hanken-grotesk", body = "manrope", utility = "jetbrains-mono" } }
+shadcn_release_pin = "new-york-v4"
+magicui_release_pin = "registry-v1"
+shadcn_allowed_components = ["accordion", "card", "dialog", "tabs", "tooltip"]
+magicui_allowed_components = ["border-beam", "magic-card", "marquee"]
+motion_primitives_enabled = true
+motion_primitives_commit = "immutable-pin-required"
+motion_primitives_allowed_components = ["cursor", "magnetic", "text-effect"]
+animate_ui_enabled = false
 pexels_api_key_env = "PEXELS_API_KEY"
 unsplash_access_key_env = "UNSPLASH_ACCESS_KEY"
 lucide_icon_url_template = "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"

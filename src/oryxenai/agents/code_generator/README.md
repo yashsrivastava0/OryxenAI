@@ -2,36 +2,56 @@
 
 ## Current purpose
 
-Generates portfolio site source files from content and design direction. In
-the scaffold phase this is a **deterministic mock** returning a checked-in
-sample — no real code generation, no model call.
+This package has two deliberately separate surfaces:
 
-## Input
+- agent.py is the registry-compatible deterministic mock used by the legacy
+  generic-agent harness.
+- core/ is the live, feature-gated standalone development workflow. It accepts
+  only an admitted Build Preparation v3 pack and owns planning,
+  resource/dependency admission, progressive source generation, verification,
+  and preview promotion.
 
-A `CodeGeneratorRequest` with:
-- `content` — content outline from the Content Architect agent.
-- `design` — visual direction from the Visual Design Director agent.
+The standalone workflow is not wired into portfolio sessions and never
+auto-chains from Build Preparation. Package-root modules are compatibility
+adapters only: implementation belongs in core/, prompts belong in prompts/,
+and the checked-in React/Vite scaffold contains source and a real lockfile but
+never node_modules.
 
-## Output
+## Registry mock
 
-A `CodeGeneratorResponse` with:
-- `files` — list of generated files (path, content, language).
-- `metadata` — generation metadata (file count, generator).
+The generic CodeGeneratorAgent remains a deterministic mock for the existing
+agent registry. It validates a generic request and returns samples/output.json;
+it has no model call and does not participate in the standalone workflow.
 
-## Current mock status
+## Standalone development workflow
 
-Returns `samples/output.json` validated against `CodeGeneratorResponse`.
-Input is validated but does not influence the output.
+The developer workflow accepts only build-preparation-pack-v3 fixture or upload
+ZIPs. It records an independent durable run and event stream, validates a typed
+SitePlan plus WorkGraph, reconciles resources and dependencies through trusted
+receipt-backed adapters, then generates a React/Vite/TypeScript workspace in
+foundation, route-batch, composition, and integration units.
 
-## Future responsibilities
+Every model operation receives its trusted prompt separately from one canonical
+untrusted JSON payload, uses a strict response schema, and leaves a prompt
+receipt. The planner must produce concrete creative, visual, responsive,
+accessibility, interaction, component, resource, and acceptance contracts;
+empty design prose is rejected before source generation.
 
-Generate HTML/CSS/JS files, component markup, and a deployable static site
-from content and design artifacts.
+Generation owns immutable source checkpoints. Final verification recreates the
+toolchain cleanly, performs source/build/DOM-runtime gates, uses only bounded
+repair, and atomically promotes an immutable preview receipt. A configured
+package manager must create the lockfile and installation: the workflow never
+synthesizes package locks or node_modules.
+
+When enabled, use the standalone developer page at /code-generator-development.
+Its readiness panel reports only non-secret prerequisites; it does not claim a
+model or local toolchain is usable until configuration actually supports it.
 
 ## Non-responsibilities
 
-- Does NOT perform discovery or content planning.
-- Does NOT create visual designs.
-- Does NOT call an LLM in this phase.
-- Does NOT chain to other agents.
-- Does NOT deploy or publish the generated site in this phase.
+- Does not perform Discovery, Content Architect, or Visual Design Director work.
+- Does not read portfolio-session state or automatically chain any stage.
+- Does not let a model use shell, filesystem, browser, package-manager,
+  storage, deployment, or arbitrary network tools.
+- Does not use screenshots, visual scoring, vision-model input, or a fake
+  package installation to promote a portfolio.

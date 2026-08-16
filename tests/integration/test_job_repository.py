@@ -214,6 +214,30 @@ async def test_recover_stale_skips_a_recently_renewed_heartbeat(db_session):
     assert fetched.locked_by == "still-alive-worker"
 
 
+async def test_fenced_completion_rejects_old_worker(db_session):
+    repo = JobRepository(db_session)
+    job = await repo.enqueue("system.worker_probe", {})
+    claimed = (await repo.claim_batch("worker-a", 120.0, 1))[0]
+    await db_session.commit()
+    assert claimed.lease_token
+    rejected = await repo.mark_succeeded(
+        job.id,
+        {"result": "old"},
+        worker_instance="worker-b",
+        attempt=claimed.attempt,
+        lease_token=claimed.lease_token,
+    )
+    assert rejected is False
+    accepted = await repo.mark_succeeded(
+        job.id,
+        {"result": "current"},
+        worker_instance="worker-a",
+        attempt=claimed.attempt,
+        lease_token=claimed.lease_token,
+    )
+    assert accepted is True
+
+
 async def test_list_recent(db_session):
     repo = JobRepository(db_session)
     for i in range(3):

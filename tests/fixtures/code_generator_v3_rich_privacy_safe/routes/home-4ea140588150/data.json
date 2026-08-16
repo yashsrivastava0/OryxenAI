@@ -1,0 +1,11 @@
+{
+  "route_id": "home",
+  "sections": [
+    {"section_id": "hero", "purpose": "Positioning", "content": {"eyebrow": "Systems portfolio", "headline": "Durable systems, made legible.", "summary": "A privacy-safe sample of evidence-led engineering practice."}, "claim_ids": [], "priority": "primary"},
+    {"section_id": "principles", "purpose": "Practice", "content": {"heading": "Working principles", "items": ["Traceability before novelty", "Failure states are part of the interface", "Proof belongs near the claim"]}, "claim_ids": [], "priority": "primary"},
+    {"section_id": "selected-work", "purpose": "Evidence", "content": {"heading": "QueueGuard", "statement": "Designed durable job lifecycles.", "label": "Verified sample evidence"}, "claim_ids": ["fact-queueguard"], "priority": "primary"},
+    {"section_id": "process", "purpose": "Method", "content": {"heading": "A bounded delivery loop", "steps": ["Map the contract", "Build the smallest reliable system", "Verify the user-visible outcome"]}, "claim_ids": [], "priority": "secondary"},
+    {"section_id": "contact", "purpose": "Closing", "content": {"heading": "Start with the constraints", "summary": "This fixture intentionally contains no personal contact details or external links."}, "claim_ids": [], "priority": "secondary"}
+  ],
+  "public_content_manifest": {"nav": [{"label": "Home", "target": "home"}]}
+}

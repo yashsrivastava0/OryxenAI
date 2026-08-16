@@ -81,6 +81,26 @@ def test_stage0_compiles_routes_and_resource_needs_without_model_calls() -> None
     assert [event.event_id for event in result.events][-1] == "stage_0_complete"
 
 
+def test_stage0_uses_content_architect_route_identity_over_visual_echoes() -> None:
+    content, visual = _inputs()
+    content["route_plan"] = [
+        {
+            "route_id": "home",
+            "path": "/",
+            "title": "Arjun | Software Engineer",
+            "purpose": "Introduce the professional profile and selected work.",
+            "publication_status": "approved",
+        }
+    ]
+    visual["pages"][0].update({"path": "/drifted-path", "purpose": "A stale visual-only purpose."})
+
+    result = compile_stage0(content, visual)
+
+    assert result.routes[0].path == "/"
+    assert result.routes[0].title == "Arjun | Software Engineer"
+    assert result.routes[0].purpose == "Introduce the professional profile and selected work."
+
+
 def test_stage0_excludes_non_public_routes_with_warning() -> None:
     content, visual = _inputs()
     visual["pages"] = [dict(visual["pages"][0], publication_status="pending")]

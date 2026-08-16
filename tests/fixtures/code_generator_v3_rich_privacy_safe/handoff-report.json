@@ -1,0 +1,6 @@
+{
+  "schema_version": "build-preparation-handoff-v3", "pack_version": "build-preparation-pack-v3",
+  "projection_hashes": {"site": "3053c895006cefbf3e2fad8946c04f94827049dbcb42ea2251b5f2d92ee929f9", "visual": "28f3e544c67b5872d446f90b8e210bbce01cd6ade15e6a797e172b4bf39057c5", "approvals": "3a4b07a50f66f229742b5b5eca28b8fa2085a5988bfb86e423b9770beecd3d1d", "targets": "d1f67fdefbac196998210fe23cf7ec572c3f68e60ea9dd1d553f9c57ab2149ff", "resources": "c0a3c1639a7f493431c00f8eee149422edc203084fc7e69471d361e73a958174", "ledger": "ac7e90c078942b0b7e2d713bc9daa224c5faada068092faababa1986a30a0113", "execution": "0968d31d13216b773346d2b74695acefc5f5120031973097a7d4a67994cac41e", "recipes": "9b7eda1e2f53f56036ad9905b1c5ad913c0f4d1c210601731e26d1f562886d75"}, "readiness": {"slot_count": 3, "local_materialized": 0, "target_package_binding": 1, "local_recipe": 2, "execution_gap": 0}, "execution_gaps": [],
+  "handoff_eligible": true, "upstream_approval_verified": true, "status": "ready_for_handoff", "summary": "Rich privacy-safe v3 fixture admitted.",
+  "required_need_ids": [], "selected_resource_ids": [], "materialized_resource_ids": [], "qualifications": [], "issues": []
+}

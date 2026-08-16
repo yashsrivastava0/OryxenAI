@@ -126,13 +126,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Routers.
     app.include_router(create_health_router())
-    app.include_router(create_api_router())
+    app.include_router(create_api_router(s))
 
     # Developer UI (conditional).
     if s.is_dev_ui_enabled:
         from oryxenai.web.routes import create_web_router
 
-        app.include_router(create_web_router())
+        app.include_router(create_web_router(s))
 
     return app
 

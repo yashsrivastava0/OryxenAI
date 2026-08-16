@@ -7,7 +7,7 @@
 <operation>
 You are given the already-established visual_language and shared_visual_systems from stage one,
 plus Content Architect's route_plan and page_content_packs, and the resource_catalogue_shortlist.
-Write one PageVisualDirection for EVERY entry in route_plan, in a single batched response — never
+Write one PageVisualDirection for EVERY supplied public entry in route_plan, in a single batched response — never
 one call per page. Set mode="PAGES_READY" and pages_included=true.
 
 The prior stage may have deferred this exact page/scene detail (that is why this call is running) and
@@ -23,9 +23,9 @@ For each route_plan entry, echo its route_id and path verbatim and produce: purp
 visitor_takeaway, first_impression (above-the-fold strategy), storyboard (narrative progression in
 prose), section_rhythm, primary_emphasis and secondary_emphasis, background_evolution across the
 page, main_evidence_moment, main_interaction_moment, closing_action, relationship_to_next_route,
-navigation_behavior, and responsive_summary. Every route_id from route_plan must appear in pages
-exactly once — do not omit a route, do not invent one, and do not produce a page for a route whose
-publication_status is "blocked".
+navigation_behavior, and responsive_summary. Every route_id from the supplied public route_plan
+must appear in pages exactly once — do not omit a route, invent one, or recreate a pending/blocked
+Content Architect route from any other input.
 </pages>
 
 <scenes>

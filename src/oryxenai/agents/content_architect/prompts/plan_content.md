@@ -59,8 +59,10 @@ source_refs pointing back to the parts of the snapshot it draws from, and public
 ("approved" | "pending" | "blocked" — see the system prompt's publication_gating rules). Do not add
 a route whose purpose duplicates another route's purpose. Do not add a route for a project that
 lacks enough material for a real case study — fold thin projects into a shared section on another
-route instead. A route about a project with unresolved ownership/confidentiality/publication
-permission gets publication_status="pending" and a neutral, non-promotional title.
+route instead. Default an ordinary profile route to "approved" when its final copy can be made safe
+by omitting unresolved metrics, links, ownership claims, or names. Use "pending" only when the
+route itself cannot be described safely without the unresolved material; use "blocked" only for an
+explicit restriction. Every otherwise viable portfolio must have at least one approved route.
 </route_plan>
 
 <claim_grounding>
@@ -72,9 +74,10 @@ prompt's grounding rules for why they must stay separate:
   source_entity_id across claims from the same entity).
 - evidence_status: "verified" | "unverified" | "unresolved".
 - ownership: "individual" | "team" | "unclear".
-- publication_status: "approved" | "pending" | "blocked" — default to "pending" whenever the
-  underlying project/fact's ownership, confidentiality, or publication permission is not clearly
-  settled, even if the statement itself is well-evidenced.
+- publication_status: "approved" | "pending" | "blocked" — mark a neutral statement "approved"
+  when it is grounded in ordinary user-supplied facts and no explicit restriction applies. Keep an
+  exact metric, named client, outcome, or ownership assertion "pending" when that exact detail is
+  unresolved, then omit it from approved-route copy rather than making the whole route pending.
 - confidence_or_warning: a short note explaining any caveat.
 A claim with ownership "team" or "unclear" must not be phrased as "I achieved X" in any content you
 write — phrase it as the team/project outcome it actually is, or omit it.
@@ -95,10 +98,11 @@ Too many strong projects: select the strongest few for dedicated routes and grou
 shared "more work" section rather than creating a route for every one of them.
 Missing links or media: note it in media_status and unresolved_issues; do not fabricate a link or
 describe an image that does not exist.
-Unresolved project (ownership/publication unclear): give it publication_status="pending", a neutral
-title, and describe it without asserting the unconfirmed status — never label it with a confident
-adjective the snapshot hasn't earned (e.g. do not call something "production-ready" when readiness
-was never confirmed).
+Unresolved project detail (ownership/publication unclear): preserve the uncertainty in
+claim_grounding and internal notes, but keep the route approved if a useful neutral description is
+still safe. Make the route pending only when no safe description remains. Never label something
+with a confident adjective the snapshot hasn't earned (e.g. do not call something
+"production-ready" when readiness was never confirmed).
 </coverage_guidance>
 
 <page_content_packs>

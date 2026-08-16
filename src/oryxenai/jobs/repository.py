@@ -31,6 +31,7 @@ def _bg_from_row(row: Any) -> BackgroundJob:
         locked_by=row.locked_by,
         locked_at=row.locked_at,
         heartbeat_at=row.heartbeat_at,
+        lease_token=row.lease_token,
         idempotency_scope=row.idempotency_scope,
         idempotency_key=row.idempotency_key,
         created_at=row.created_at,
@@ -107,7 +108,8 @@ class JobRepository:
             )
             UPDATE background_jobs SET
                 status = :newst, locked_by = :w, locked_at = :now,
-                heartbeat_at = :now, attempt = attempt + 1, started_at = :now
+                heartbeat_at = :now, attempt = attempt + 1,
+                lease_token = md5(id::text || :w || clock_timestamp()::text), started_at = :now
             WHERE id IN (SELECT id FROM due)
             RETURNING *
             """
@@ -142,7 +144,8 @@ class JobRepository:
             )
             UPDATE background_jobs SET
                 locked_by = :w, locked_at = :now, heartbeat_at = :now,
-                started_at = :now
+                attempt = attempt + 1,
+                lease_token = md5(id::text || :w || clock_timestamp()::text), started_at = :now
             WHERE id IN (SELECT id FROM stale)
             RETURNING *
             """
@@ -159,21 +162,41 @@ class JobRepository:
         )
         return [_bg_from_row(r) for r in result.fetchall()]
 
-    async def mark_succeeded(self, job_id: UUID, result: dict[str, Any]) -> None:
+    async def mark_succeeded(
+        self,
+        job_id: UUID,
+        result: dict[str, Any],
+        *,
+        worker_instance: str | None = None,
+        attempt: int | None = None,
+        lease_token: str | None = None,
+    ) -> bool:
         now = datetime.now(UTC)
+        conditions = [BackgroundJob.id == job_id]
+        if worker_instance is not None:
+            conditions.append(BackgroundJob.locked_by == worker_instance)
+        if attempt is not None:
+            conditions.append(BackgroundJob.attempt == attempt)
+        if lease_token is not None:
+            conditions.append(BackgroundJob.lease_token == lease_token)
         stmt = (
             update(BackgroundJob)
-            .where(BackgroundJob.id == job_id)
+            .where(*conditions)
             .values(status=JobStatus.SUCCEEDED.value, result=result, finished_at=now)
         )
-        await self._session.execute(stmt)
+        result_proxy = await self._session.execute(stmt)
+        return bool(getattr(result_proxy, "rowcount", 0))
 
     async def mark_failed(
         self,
         job_id: UUID,
         error_payload: dict[str, Any],
         available_at: datetime | None = None,
-    ) -> None:
+        *,
+        worker_instance: str | None = None,
+        attempt: int | None = None,
+        lease_token: str | None = None,
+    ) -> bool:
         now = datetime.now(UTC)
         values: dict[str, Any] = {
             "status": JobStatus.FAILED.value,
@@ -184,16 +207,35 @@ class JobRepository:
             values["status"] = JobStatus.QUEUED.value
             values["available_at"] = available_at
             values["finished_at"] = None
-        stmt = update(BackgroundJob).where(BackgroundJob.id == job_id).values(**values)
-        await self._session.execute(stmt)
+        conditions = [BackgroundJob.id == job_id]
+        if worker_instance is not None:
+            conditions.append(BackgroundJob.locked_by == worker_instance)
+        if attempt is not None:
+            conditions.append(BackgroundJob.attempt == attempt)
+        if lease_token is not None:
+            conditions.append(BackgroundJob.lease_token == lease_token)
+        stmt = update(BackgroundJob).where(*conditions).values(**values)
+        result_proxy = await self._session.execute(stmt)
+        return bool(getattr(result_proxy, "rowcount", 0))
 
-    async def update_heartbeat(self, job_id: UUID) -> None:
-        stmt = (
-            update(BackgroundJob)
-            .where(BackgroundJob.id == job_id)
-            .values(heartbeat_at=datetime.now(UTC))
-        )
-        await self._session.execute(stmt)
+    async def update_heartbeat(
+        self,
+        job_id: UUID,
+        *,
+        worker_instance: str | None = None,
+        attempt: int | None = None,
+        lease_token: str | None = None,
+    ) -> bool:
+        conditions = [BackgroundJob.id == job_id]
+        if worker_instance is not None:
+            conditions.append(BackgroundJob.locked_by == worker_instance)
+        if attempt is not None:
+            conditions.append(BackgroundJob.attempt == attempt)
+        if lease_token is not None:
+            conditions.append(BackgroundJob.lease_token == lease_token)
+        stmt = update(BackgroundJob).where(*conditions).values(heartbeat_at=datetime.now(UTC))
+        result_proxy = await self._session.execute(stmt)
+        return bool(getattr(result_proxy, "rowcount", 0))
 
     async def list_recent(self, limit: int = 20) -> list[BackgroundJob]:
         limit = max(1, min(limit, 100))

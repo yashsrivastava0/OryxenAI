@@ -25,12 +25,39 @@ validates their files and metadata; a text model may reason over provider
 metadata, descriptions, tags, dimensions, licence, and intended placement, but
 never image pixels.
 
+## Implementation layout and prompt boundary
+
+The registry-compatible Code Generator mock remains at the package root. The
+live standalone implementation is organized under
+src/oryxenai/agents/code_generator/core/, with package-root compatibility
+adapters only. Prompt assets are isolated under prompts/ and configuration is
+kept in config/app.toml plus provider-neutral model profiles.
+
+Every strict model request has exactly three separated inputs:
+
+1. trusted shared system prompt;
+2. trusted operation prompt; and
+3. one canonical, sorted JSON user message containing the untrusted run
+   context.
+
+Application code must never interpolate a second copy of the context or output
+schema into operation prose. The provider transport owns native strict schema
+enforcement. Each request persists hashes of its system prompt, operation
+prompt, canonical context, and output schema in a receipt.
+
+The SitePlan is typed rather than a collection of free dictionaries. Before
+generation it must prove an implementable creative thesis, visual system,
+shell/accessibility contract, route composition and responsive behavior,
+shared-component contracts, interaction contracts, resource inventory, and
+criterion-to-source-marker coverage. A plan that merely repeats generic design
+language is invalid even if its route graph is complete.
+
 ## 1. Input contract and authority
 
 ### Required admitted pack
 
 The sole production input is an immutable Build Preparation pack with the
-supported v2 semantic schema. A representative layout is:
+supported v3 semantic schema. A representative layout is:
 
 ```text
 manifest.json
@@ -842,6 +869,10 @@ The dependency manager:
 9. recreates it from the new receipt-bound lockfile before source checks resume.
 
 Models never author the manifest/lock diff and never issue install commands.
+The dependency manager never synthesizes a lockfile or a node_modules tree. It
+invokes the configured package manager inside the disposable workspace; an
+unavailable executable, missing offline cache, or failed install is an
+actionable dependency issue, not a successful simulated install.
 
 ### Unsupported dependency
 
@@ -1234,3 +1265,14 @@ reports, previews, or logs.
   zero vision-role readiness checks; and
 - promotion conflict/crash/staleness plus failed regeneration preserving the
   previous preview.
+
+
+  We upgraded Build Preparation from a v2 pack with vague fallback notes into a strict
+  pack-v3 handoff that Code Generator can safely consume: every planned visual/resource is
+  now explicitly resolved as a local file, approved package binding, typed local recipe,
+  or a blocking upstream gap—never an ambiguous “fetch later” instruction. The new output
+  contains the approved site/content contract, visual-direction contract, canonical route
+  files, target dependency rules, provenance/licence records, hash-verified ZIP manifest,
+  handoff report, resource ledger, and an execution contract with 8 fixed implementation
+  slots (text-led hero, typography, abstract diagrams, icons, etc.); this exact pack was
+  verified and accepted by the Code Generator admission adapter.

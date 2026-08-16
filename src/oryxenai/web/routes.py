@@ -24,7 +24,7 @@ def _asset_version(filename: str) -> str:
         return "0"
 
 
-def create_web_router() -> APIRouter:
+def create_web_router(settings_override: Any | None = None) -> APIRouter:
     """Return a router serving the developer testing harness and static assets."""
     router = APIRouter()
 
@@ -65,6 +65,23 @@ def create_web_router() -> APIRouter:
                 "fixture_enabled": settings.build_preparation.fixture_enabled,
             },
         )
+
+    if bool(
+        getattr(getattr(settings_override, "code_generator_development", None), "enabled", False)
+    ):
+
+        @router.get("/code-generator-development", response_class=HTMLResponse)
+        async def code_generator_development(request: Request) -> Any:
+            settings = request.app.state.settings
+            return templates.TemplateResponse(
+                request=request,
+                name="code_generator_development.html",
+                context={
+                    "app_name": settings.app.name,
+                    "css_version": _asset_version("code-generator-development.css"),
+                    "js_version": _asset_version("code-generator-development.js"),
+                },
+            )
 
     router.mount("/static", app=StaticFiles(directory=str(_STATIC_DIR)), name="static")
     return router

@@ -164,9 +164,21 @@ class ContentArchitectAgent(Agent):
 
         max_routes = self._config.max_routes
         if len(route_plan) > max_routes:
-            route_plan = route_plan[:max_routes]
+            raise ContentArchitectModelOutputError(
+                "build",
+                [
+                    "Approved content route scope exceeds the configured page ceiling; "
+                    "the route scope was not truncated."
+                ],
+            )
         if len(page_content_packs) > max_routes:
-            page_content_packs = page_content_packs[:max_routes]
+            raise ContentArchitectModelOutputError(
+                "build",
+                [
+                    "Approved content packs exceed the configured page ceiling; "
+                    "the content scope was not truncated."
+                ],
+            )
 
         logger.info(
             "content_architect build stages=%s routes=%d pages=%d",

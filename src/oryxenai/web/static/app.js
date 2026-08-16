@@ -1457,7 +1457,8 @@
       var routeList = document.createElement("ul");
       routes.forEach(function (r) {
         var li = document.createElement("li");
-        li.textContent = (r.path || "") + " — " + (r.purpose || "");
+        var publication = r.publication_status ? " [" + r.publication_status + "]" : "";
+        li.textContent = (r.path || "") + " — " + (r.purpose || "") + publication;
         routeList.appendChild(li);
       });
       content.appendChild(routeList);
@@ -1510,6 +1511,12 @@
     viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("content_architect"); });
     actions.appendChild(viewFullBtn);
     if (caState.status === "content_review") {
+      var reviseBtn = document.createElement("button");
+      reviseBtn.type = "button";
+      reviseBtn.className = "choice-btn";
+      reviseBtn.textContent = "Ask for a revision";
+      reviseBtn.addEventListener("click", openContentRevisionComposer);
+      actions.appendChild(reviseBtn);
       var approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "primary-action";
@@ -1546,7 +1553,75 @@
       recordActivity("content_architect", "Content Architect approval was saved.", "success");
       promptNextAgentPrompt("Content Architect approved — the content is ready for the Visual Design Director.", "Start Visual Design Director", startVisualDesignDirector);
     } catch (e) {
+      var approvalError = (e && e.body && e.body.error) || {};
+      if (
+        approvalError.code === "CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES" ||
+        approvalError.code === "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"
+      ) {
+        var detailErrors = approvalError.details && approvalError.details.errors;
+        var detail = Array.isArray(detailErrors) && detailErrors.length ? " " + detailErrors[0] : "";
+        chatError(
+          "Approval needs a content revision: " + e.message + detail,
+          "Ask for a revision",
+          openContentRevisionComposer
+        );
+        return;
+      }
       chatError("Approval failed: " + e.message, "Try again", approveContentArchitect);
+    }
+  }
+
+  function openContentRevisionComposer() {
+    if (!selectedSessionId || !caState || caState.status !== "content_review") return;
+    var existing = document.getElementById("content-revision-composer");
+    if (existing) {
+      var existingInput = existing.querySelector("textarea");
+      if (existingInput) existingInput.focus();
+      return;
+    }
+    var form = document.createElement("div");
+    form.id = "content-revision-composer";
+    form.className = "brief-actions";
+    var input = document.createElement("textarea");
+    input.rows = 3;
+    input.placeholder = "Describe the content change you want — for example, omit named employers and keep the home page publishable.";
+    form.appendChild(input);
+    var submit = document.createElement("button");
+    submit.type = "button";
+    submit.className = "primary-action";
+    submit.textContent = "Revise content";
+    submit.addEventListener("click", function () { submitContentRevision(input, submit); });
+    form.appendChild(submit);
+    addBubble("assistant", form);
+    input.focus();
+  }
+
+  async function submitContentRevision(input, submit) {
+    var revisionRequest = (input.value || "").trim();
+    if (!revisionRequest) {
+      input.focus();
+      return;
+    }
+    submit.disabled = true;
+    recordActivity("content_architect", "Sending the requested Content Architect revision to the API.");
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/content-architect/revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision_request: revisionRequest }),
+      });
+      caState = data.content_architect;
+      stageJobs.content_architect = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("content_architect", caState, stageJobs.content_architect);
+      var composer = document.getElementById("content-revision-composer");
+      if (composer && composer.parentNode) composer.parentNode.removeChild(composer);
+      chatAnalyzing("Revising the content strategy and page copy…");
+      pollContentArchitect();
+    } catch (e) {
+      submit.disabled = false;
+      chatError("Content revision failed: " + e.message, "Try again", function () {
+        submitContentRevision(input, submit);
+      });
     }
   }
 
