@@ -58,11 +58,12 @@ class MockModelClient:
 def _mock_structured_result(output_model: type[BaseModel]) -> Any:
     """Build a deterministic StructuredModelResult for the given output model.
 
-    Discovery, Content Architect, and Visual Design Director output models
-    each get a valid minimal envelope so the mock-runs dev harness can
-    execute those agents without network access. Any other model falls back
-    to an empty instance.
+    Discovery, Content Architect, Visual Design Director, and Code Generator
+    (SitePlan) output models each get a valid minimal envelope so the
+    mock-runs dev harness can execute those agents without network access.
+    Any other model falls back to an empty instance.
     """
+    from oryxenai.agents.code_generator.core.development_schemas import SitePlan, WorkGraph
     from oryxenai.agents.content_architect.schemas import (
         ClaimGrounding,
         ContentArchitectOutput,
@@ -96,7 +97,13 @@ def _mock_structured_result(output_model: type[BaseModel]) -> Any:
     )
 
     parsed: BaseModel | None
-    if output_model is QuestionSetOutput:
+    if output_model is SitePlan:
+        parsed = SitePlan(
+            plan_id="plan-mock",
+            routes=[],
+            work_graph=WorkGraph(units=[]),
+        )
+    elif output_model is QuestionSetOutput:
         parsed = QuestionSetOutput(
             mode=OperationMode.ASK_QUESTIONS,
             assistant_message="I have enough to ask a few focused questions.",

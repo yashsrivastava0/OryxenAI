@@ -142,6 +142,10 @@ class _MockModelClient:
 
         if operation in ("understand_and_question", "prepare_questions"):
             parsed = self.questions_payload
+        elif str(operation).startswith("code_generator"):
+            from oryxenai.agents.shared.model_client import _mock_structured_result
+
+            return _mock_structured_result(output_model)
         else:
             revision_request = str((input_payload or {}).get("revision_request", "") or "")
             parsed = self.brief_revised_payload if revision_request else self.brief_payload

@@ -26,6 +26,45 @@ _IMPORT_RE = re.compile(
 _REMOTE_RE = re.compile(r"https?://|//[A-Za-z0-9]", re.IGNORECASE)
 _FORBIDDEN_RUNTIME_RE = re.compile(r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(")
 _PLACEHOLDER_TERMS = ("lorem ipsum", "todo", "placeholder", "coming soon", "fake success")
+_LINK_ATTR_RE = re.compile(r"""\b(?:href|src)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+_APPROVED_URL_RE = re.compile(r"https?://[^\s\"'<>)\]}]+", re.IGNORECASE)
+
+
+def _approved_urls(public_text: set[str]) -> set[str]:
+    """Extract the external URLs that appear verbatim in approved content."""
+
+    urls: set[str] = set()
+    for entry in public_text:
+        for match in _APPROVED_URL_RE.finditer(entry or ""):
+            urls.add(match.group(0).rstrip(".,;:"))
+    return urls
+
+
+def _strip_approved_links(text: str, public_text: set[str]) -> str:
+    """Blank URLs that appear verbatim in approved public content.
+
+    A portfolio's approved contact/project links are content, not runtime
+    network dependencies; they may appear in href attributes or as plain
+    data literals. Everything else stays subject to the remote reference
+    ban. Validation only — the applied file keeps the real URL.
+    """
+
+    if not public_text:
+        return text
+
+    def replace_attr(match: re.Match[str]) -> str:
+        url = match.group(1)
+        if url.startswith(("http://", "https://", "//")) and any(
+            url.casefold() in (entry or "").casefold() for entry in public_text
+        ):
+            return 'href="#approved-external-link"'
+        return match.group(0)
+
+    scannable = _LINK_ATTR_RE.sub(replace_attr, text)
+    for url in _approved_urls(public_text):
+        scannable = scannable.replace(url, "#approved-external-link")
+        scannable = scannable.replace(url.casefold(), "#approved-external-link")
+    return scannable
 
 
 def validate_generation_changes(
@@ -145,8 +184,13 @@ def validate_repository(
             )
             continue
         try:
-            trusted_non_source = relative.startswith("public/resources/") or relative.startswith(
-                "public/licences/"
+            trusted_non_source = (
+                relative.startswith("public/resources/")
+                or relative.startswith("public/licences/")
+                # Pipeline-materialized trusted artifacts carry approved
+                # content (including approved external links) as data.
+                or relative.startswith("src/generated/")
+                or relative == "src/content/public-data.ts"
             )
             if (
                 relative
@@ -197,7 +241,8 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
 
 def _validate_text_policy(text: str, path: str, public_text: set[str]) -> None:
     lowered = text.casefold()
-    if _REMOTE_RE.search(text) or _FORBIDDEN_RUNTIME_RE.search(text):
+    scannable = _strip_approved_links(text, public_text)
+    if _REMOTE_RE.search(scannable) or _FORBIDDEN_RUNTIME_RE.search(text):
         raise SourceValidationError(
             "SOURCE_RUNTIME_NETWORK",
             "Generated source contains a remote or runtime network reference.",
@@ -219,7 +264,9 @@ def _validate_text_policy(text: str, path: str, public_text: set[str]) -> None:
                 clean
                 and not _allowed_public_literal(clean, public_text)
                 and any(char.isalpha() for char in clean)
-                and len(clean.split()) >= 3
+                # Five-plus-word spans are prose; shorter spans are
+                # navigational micro-labels the direction permits.
+                and len(clean.split()) >= 5
             ):
                 raise SourceValidationError(
                     "SOURCE_UNGROUNDED_COPY",

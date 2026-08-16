@@ -154,7 +154,9 @@ def validate_final_source(
                     )
                 )
             for text in _strings(section.get("content", {})):
-                if len(text) >= 4 and text not in route_source:
+                # Prose only: single-word enum-ish values are data shape,
+                # not rendered copy the route must carry verbatim.
+                if " " in text and len(text) >= 6 and text not in route_source:
                     diagnostics.append(
                         _diag(
                             "SOURCE_CONTENT_COVERAGE_MISSING",

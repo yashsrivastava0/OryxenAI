@@ -69,6 +69,15 @@ def _timeout(settings: Any, name: str, default: float) -> float:
     return float(getattr(config, name, default)) if config is not None else default
 
 
+def _npm_cache_environment(settings: Any) -> dict[str, str] | None:
+    config = getattr(settings, "code_generator_dependencies", None)
+    cache_root = str(getattr(config, "npm_cache_root", "") or "")
+    if not cache_root:
+        return None
+    # Extras only — run_command merges these onto its safe base environment.
+    return {"npm_config_cache": str(Path(cache_root).resolve())}
+
+
 async def _run(
     command: list[str],
     *,
@@ -89,6 +98,9 @@ async def _run(
                     65536,
                 )
             ),
+            # Offline npm reads the repo's warmed cache; absolute so npm
+            # resolves it correctly against the per-run repo cwd.
+            environment=_npm_cache_environment(settings),
         )
     except Exception as exc:
         return None, diagnostic(

@@ -142,6 +142,14 @@ class WorkerJobConfig(BaseModel):
 
     handler_timeout: float = 300.0
     lease_duration: float = 120.0
+    # Optional per-job-kind overrides from [worker.job.kind_timeouts] for
+    # handlers whose work legitimately outlasts the default (e.g. Code
+    # Generator stages driving multiple long model calls per job).
+    kind_timeouts: dict[str, float] = Field(default_factory=dict)
+
+    def timeout_for(self, kind: str) -> float:
+        override = self.kind_timeouts.get(kind)
+        return float(override) if override is not None else self.handler_timeout
 
 
 class WorkerRetryConfig(BaseModel):
@@ -199,6 +207,9 @@ class BuildPreparationConfig(BaseModel):
     target_contract: str = "react-vite-v1"
     fixture_enabled: bool = False
     fixture_input_path: str = "src/oryxenai/output/visual_design_director_Output.md"
+    # Matching Content Architect snapshot for the fixture input above; used to
+    # reunite the (CA, VDD) pair the fixture compiles into one v3 pack.
+    fixture_content_input_path: str = "src/oryxenai/output/content-architect"
     fixture_output_dir: str = "output"
     fixture_upload: bool = True
     fixture_reasoning_enabled: bool = False
@@ -242,6 +253,9 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     max_routes: int = 12
     max_work_units: int = 64
     max_events_page_size: int = 100
+    # Local Build Preparation debug-mirror root: directories produced by the
+    # Build Preparation stage, each holding build-context/ + build-pack.zip.
+    build_preparation_mirror_root: str = "output/build-preparation"
 
     @field_validator("enabled", mode="before")
     @classmethod

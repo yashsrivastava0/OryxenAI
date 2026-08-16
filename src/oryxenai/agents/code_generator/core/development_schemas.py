@@ -43,7 +43,7 @@ class AdmittedInputReference(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["fixture", "upload"]
+    mode: Literal["fixture", "upload", "build_preparation_mirror"]
     source_id: str
     original_filename: str
     mime_type: str = "application/zip"
@@ -673,12 +673,6 @@ class GenerationResult(BaseModel):
         return self
 
 
-class IntegrationResult(GenerationResult):
-    """Integration result with a trusted text/source design coverage report."""
-
-    design_implementation_report: dict[str, Any] = Field(default_factory=dict)
-
-
 class GenerationContextReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1222,3 +1216,10 @@ class FixtureRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fixture_id: str
+
+
+class BuildPreparationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Mirror pack directory name, or "latest" for the newest eligible pack.
+    pack: str = "latest"
