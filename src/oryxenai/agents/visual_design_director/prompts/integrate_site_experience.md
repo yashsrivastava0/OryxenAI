@@ -8,7 +8,7 @@
 <operation>
 You are given the visual_language, shared_visual_systems, navigation_direction, motion_system, and
 the full pages/asset_briefs/resource_candidates produced by the earlier stage(s). Perform a
-reconciliation pass across ALL pages together — never add, remove, or rename a route. Set
+reconciliation pass across ALL public pages together — never add, remove, or rename a route. Set
 mode="INTEGRATED".
 </operation>
 

@@ -93,17 +93,29 @@ Every claim carries three **independent** fields — never blended into one:
   statement itself backed by the source?
 - `ownership` (`individual` | `team` | `unclear`) — whose contribution is it?
 - `publication_status` (`approved` | `pending` | `blocked`) — has it cleared
-  review to appear in finished public copy? Defaults to `pending` whenever
-  ownership, confidentiality, or publication permission is unresolved.
+  review to appear in finished public copy? An approved Discovery snapshot
+  authorizes neutral, factual wording for ordinary supplied profile facts;
+  missing metrics, contact permission, individual ownership, scale, or a
+  separate project permission are reasons to omit or generalize the detail,
+  not to block the whole route. Explicit privacy, NDA, confidentiality, or
+  do-not-publish restrictions remain blocking.
 
 Routes carry the same `publication_status`. `blocked` material can never be
 referenced from `page_content_packs`/`public_content_manifest` — this is
 enforced structurally in `validators.py` (a hard reject, not just a prompt
 instruction), because a real model was observed to leak an unresolved
 project into public output as a confidently-titled route despite prompt
-instructions saying not to. `pending` material may still get a route/section,
-but must stay neutral (a plain descriptive title, not a confident or
-marketing one) until confirmed.
+instructions saying not to. `pending` material is review-only: it can remain
+in the Content Architect review output, but it is excluded from the approved
+public scope handed to Visual Design Director and Build Preparation.
+
+Approval is an admission gate, not only a top-level hash stamp. At least one
+route must be `approved`; every approved route must have a safe unique path,
+title and purpose, exactly one non-empty content pack whose section sequence
+matches the route plan, and only approved claim references. The public
+manifest and Visual Design Director handoff must also be present. A failure
+returns an actionable 409 so the operator can request a revision before a
+later-stage pack fails.
 
 ## Sections, not loose blocks
 
@@ -161,10 +173,10 @@ exactly when the operation is supposed to produce them; every
 `page_content_packs` section has a pack-unique `section_id` and only cites
 `claim_ids` that exist and are not `blocked`; no `blocked` route/claim is
 referenced from public output; `visual_director_handoff` is required
-non-empty only for `integrate_content`. `route_plan`/`page_content_packs`
-are truncated (never rejected) to `[content_architect].max_routes` — a
-genuinely large senior profile is a fact about the input, not a model
-mistake.
+non-empty only for `integrate_content`. The configured route ceiling is an
+admission boundary: an over-ceiling route plan or content-pack set is
+rejected rather than silently truncated, because truncation would make the
+approved public scope incomplete.
 
 A model output that fails the contract raises
 `ContentArchitectModelOutputError` (surfaced as `MODEL_OUTPUT_INVALID`,

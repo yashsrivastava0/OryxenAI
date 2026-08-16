@@ -137,6 +137,24 @@ async def _mutate_discovery_brief_hash(client, sid: str, new_hash: str) -> None:
         await db.commit()
 
 
+async def _remove_public_content_sections(client, sid: str) -> None:
+    """Simulate a corrupt/incomplete review state without bypassing the API boundary."""
+    from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
+
+    app = client._transport.app
+    async with app.state.sessionmaker() as db:
+        repo = PortfolioSessionRepository(db)
+        session = await repo.get_by_id(UUID(sid))
+        new_state = dict(session.current_state)
+        new_state["content_architect"] = dict(new_state["content_architect"])
+        packs = list(new_state["content_architect"]["page_content_packs"])
+        packs[0] = dict(packs[0])
+        packs[0]["sections"] = []
+        new_state["content_architect"]["page_content_packs"] = packs
+        await repo.update_state(UUID(sid), new_state, session.revision)
+        await db.commit()
+
+
 class TestFullHttpFlow:
     async def test_full_flow_and_approval(self, client):
         sid = await _approve_discovery(client)
@@ -152,6 +170,19 @@ class TestFullHttpFlow:
         approved = resp.json()
         assert approved["content_architect"]["status"] == "approved"
         assert approved["content_architect"]["approved"]["content_hash"]
+
+    async def test_approval_returns_actionable_error_for_incomplete_public_scope(self, client):
+        sid = await _approve_discovery(client)
+        await _build_content(client, sid)
+        await _remove_public_content_sections(client, sid)
+
+        resp = await client.post(f"/api/v1/sessions/{sid}/content-architect/approve")
+
+        assert resp.status_code == 409
+        error = resp.json()["error"]
+        assert error["code"] == "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"
+        assert error["details"]["approved_route_ids"]
+        assert any("no public sections" in item for item in error["details"]["errors"])
 
     async def test_start_requires_discovery_approved(self, client):
         sid = await _create_session(client)

@@ -1,0 +1,6 @@
+{
+  "recipe_id": "recipe-491b8949b8248394c373", "slot_id": "slot-abf48c82a3ef77ddba4e", "category": "typography_system",
+  "description": "Configured system typography fallback with display, body, and utility weights.", "allowed_labels": ["typography"],
+  "forbidden_concepts": ["personal portrait", "project screenshot", "dashboard", "invented metric", "invented client or outcome"],
+  "reduced_motion_state": "static", "local_path": "resources/recipes/recipe-491b8949b8248394c373.json"
+}

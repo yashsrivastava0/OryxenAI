@@ -197,12 +197,95 @@ class HandoffIssue(BaseModel):
     next_action: str = ""
 
 
+class LocalRecipe(BaseModel):
+    """Declarative local implementation guidance for one execution slot.
+
+    A recipe is intentionally not model-authored source code.  It limits a
+    downstream builder to a truthful, static implementation that is already
+    allowed by the approved visual direction.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    recipe_id: str
+    slot_id: str
+    category: Literal[
+        "typography_system",
+        "typographic_composition",
+        "css_surface_pattern",
+        "representative_svg_diagram",
+        "ornament_omission",
+    ]
+    description: str
+    allowed_labels: list[str] = Field(default_factory=list)
+    forbidden_concepts: list[str] = Field(default_factory=list)
+    reduced_motion_state: str = "static"
+    local_path: str = ""
+
+
+class ResolvedResource(BaseModel):
+    """Exactly one concrete resolution for an execution slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    resolution_type: Literal[
+        "local_materialized",
+        "target_package_binding",
+        "local_recipe",
+        "execution_gap",
+    ]
+    resource_id: str = ""
+    local_paths: list[str] = Field(default_factory=list)
+    package_name: str = ""
+    expected_exports: list[str] = Field(default_factory=list)
+    font_family: str = ""
+    font_weights: list[str] = Field(default_factory=list)
+    recipe_id: str = ""
+    fallback_disposition: str = ""
+    accessibility_treatment: str = ""
+    source_expectations: list[str] = Field(default_factory=list)
+
+
+class ExecutionSlot(BaseModel):
+    """A fixed, route-scoped resource decision consumed by Code Generator."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    category: str
+    route_id: str = ""
+    scene_ids: list[str] = Field(default_factory=list)
+    section_ids: list[str] = Field(default_factory=list)
+    component_placement: str = ""
+    required: bool = False
+    source_ids: list[str] = Field(default_factory=list)
+    criterion_ids: list[str] = Field(default_factory=list)
+    rationale: str = ""
+    provenance: Literal["vdd_explicit", "build_preparation_derived"]
+    resolution: ResolvedResource
+
+
+class ExecutionGap(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slot_id: str
+    route_id: str = ""
+    scene_ids: list[str] = Field(default_factory=list)
+    code: Literal["VDD_EXECUTION_GAP"] = "VDD_EXECUTION_GAP"
+    message: str
+    next_action: str
+
+
 class HandoffQualityReport(BaseModel):
     """The Code Generator admission record for a packaged build context."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: str = "build-preparation-handoff-v1"
+    schema_version: str = "build-preparation-handoff-v3"
+    pack_version: str = "build-preparation-pack-v3"
+    projection_hashes: dict[str, str] = Field(default_factory=dict)
+    readiness: dict[str, int] = Field(default_factory=dict)
+    execution_gaps: list[ExecutionGap] = Field(default_factory=list)
     handoff_eligible: bool = False
     upstream_approval_verified: bool = False
     status: Literal["ready_for_handoff", "needs_attention"] = "needs_attention"
@@ -290,6 +373,13 @@ class MaterializationResult(BaseModel):
     # here so a caller can see exactly what was fetched without unzipping.
     resources: list[dict[str, Any]] = Field(default_factory=list)
     handoff_report_path: str = ""
+    pack_version: str = "build-preparation-pack-v3"
+    projection_hashes: dict[str, str] = Field(default_factory=dict)
+    execution_slots: list[ExecutionSlot] = Field(default_factory=list)
+    local_recipes: list[LocalRecipe] = Field(default_factory=list)
+    execution_gaps: list[ExecutionGap] = Field(default_factory=list)
+    execution_contract_path: str = ""
+    resource_ledger_path: str = ""
 
 
 class PackageResult(BaseModel):
@@ -297,7 +387,7 @@ class PackageResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    pack_version: str = "phase3"
+    pack_version: str = "build-preparation-pack-v3"
     archive_sha256: str
     archive_size_bytes: int
     file_count: int
@@ -318,7 +408,7 @@ class BuildPreparationState(BaseModel):
     status: BuildPreparationStatus = BuildPreparationStatus.NOT_STARTED
     model_profile: str = ""
     source_ref: BuildPreparationSourceRef = Field(default_factory=BuildPreparationSourceRef)
-    version: str = "phase3"
+    version: str = "build-preparation-pack-v3"
     current_stage: str = "not_started"
     run_id: str = ""
     job_id: str = ""

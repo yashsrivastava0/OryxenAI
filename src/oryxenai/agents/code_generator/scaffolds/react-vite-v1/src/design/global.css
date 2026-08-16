@@ -1,0 +1,10 @@
+@import "./tokens.css";
+@import "./fonts.css";
+@import "./motion.css";
+
+:root { color: var(--color-ink); background: var(--color-background); }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+main { width: min(100% - 2rem, 72rem); margin: 0 auto; padding: 4rem 0; }
+h1 { font-size: clamp(2.5rem, 8vw, 6rem); line-height: 0.95; max-width: 12ch; }
+p { color: var(--color-muted); line-height: 1.6; }

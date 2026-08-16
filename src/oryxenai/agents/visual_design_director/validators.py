@@ -32,7 +32,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from oryxenai.agents.visual_design_director.schemas import AssetImportance, VisualPlanMode
+from oryxenai.agents.visual_design_director.schemas import (
+    AssetImportance,
+    AssetSourcePolicy,
+    AssetSourceStatus,
+    VisualPlanMode,
+)
 
 _VISUAL_LANGUAGE_MODES = {
     VisualPlanMode.VISUAL_LANGUAGE_ONLY.value,
@@ -48,6 +53,8 @@ _OPERATION_MODES = {
 }
 
 _VALID_IMPORTANCE = {item.value for item in AssetImportance}
+_VALID_SOURCE_POLICIES = {item.value for item in AssetSourcePolicy}
+_VALID_SOURCE_STATUSES = {item.value for item in AssetSourceStatus}
 
 
 class ValidationOutcome:
@@ -309,6 +316,68 @@ def _validate_asset_briefs(asset_briefs: list[Any]) -> tuple[list[str], list[str
                     f"Asset brief {index} ({asset_id or index}) has importance={importance!r} "
                     "but no fallback_strategy"
                 )
+        source_policy = str(asset.get("source_policy", AssetSourcePolicy.CURATED_LOCAL.value) or "")
+        source_status = str(asset.get("source_status", AssetSourceStatus.UNAVAILABLE.value) or "")
+        if source_policy not in _VALID_SOURCE_POLICIES:
+            errors.append(f"Asset brief {index} ({asset_id or index}) has invalid source_policy")
+            continue
+        if source_status and source_status not in _VALID_SOURCE_STATUSES:
+            errors.append(f"Asset brief {index} ({asset_id or index}) has invalid source_status")
+            continue
+        fallback_strategy = str(asset.get("fallback_strategy", "") or "").strip()
+        external_search_fields = (
+            "subject",
+            "mood",
+            "aspect_ratio_need",
+            "color_relationship",
+        )
+        negative_concepts = asset.get("negative_concepts", [])
+        if negative_concepts is not None and not isinstance(negative_concepts, list):
+            errors.append(
+                f"Asset brief {index} ({asset_id or index}) 'negative_concepts' must be a list"
+            )
+            negative_concepts = []
+        if source_policy == AssetSourcePolicy.OPTIONAL_EXTERNAL_ACQUISITION.value:
+            if source_status != AssetSourceStatus.NEEDS_ACQUISITION.value:
+                errors.append(
+                    f"Asset brief {index} ({asset_id or index}) allows external acquisition "
+                    "but is not marked needs_acquisition"
+                )
+            if not fallback_strategy:
+                errors.append(
+                    f"Asset brief {index} ({asset_id or index}) allows external acquisition "
+                    "but has no fallback_strategy"
+                )
+            for field in external_search_fields:
+                if not str(asset.get(field, "") or "").strip():
+                    errors.append(
+                        f"Asset brief {index} ({asset_id or index}) allows external acquisition "
+                        f"but has no {field}"
+                    )
+            if not negative_concepts:
+                errors.append(
+                    f"Asset brief {index} ({asset_id or index}) allows external acquisition "
+                    "but has no negative_concepts"
+                )
+        elif source_status == AssetSourceStatus.NEEDS_ACQUISITION.value:
+            errors.append(
+                f"Asset brief {index} ({asset_id or index}) is needs_acquisition without "
+                "optional_external_acquisition policy"
+            )
+        elif source_policy == AssetSourcePolicy.APPROVED_USER_MEDIA.value:
+            if source_status != AssetSourceStatus.APPROVED_EXISTING.value:
+                errors.append(
+                    f"Approved user media {asset_id or index!r} must be marked approved_existing"
+                )
+            if not fallback_strategy:
+                errors.append(f"Approved user media {asset_id or index!r} has no fallback_strategy")
+            if (
+                any(str(asset.get(field, "") or "").strip() for field in external_search_fields)
+                or negative_concepts
+            ):
+                errors.append(
+                    f"Approved user media {asset_id or index!r} must not carry external-search intent"
+                )
     return errors, asset_ids
 
 
@@ -350,6 +419,7 @@ def validate_final_references(
     resource_candidates: list[Any],
     *,
     known_route_ids: set[str],
+    required_route_ids: set[str] | None = None,
     known_section_ids: set[str],
     known_claim_ids: set[str],
 ) -> ValidationOutcome:
@@ -371,10 +441,13 @@ def validate_final_references(
         for item in resource_candidates
         if isinstance(item, dict) and item.get("resource_id")
     }
+    page_route_ids: set[str] = set()
     for page_index, page in enumerate(pages):
         if not isinstance(page, dict):
             continue
         route_id = str(page.get("route_id", "") or "")
+        if route_id:
+            page_route_ids.add(route_id)
         if known_route_ids and route_id not in known_route_ids:
             errors.append(f"final page {page_index} references unknown route_id {route_id!r}")
         for asset_id in page.get("asset_briefs") or []:
@@ -413,6 +486,9 @@ def validate_final_references(
                     errors.append(
                         f"final scene {scene_label} references unknown resource_id {resource_id!r}"
                     )
+    required = known_route_ids if required_route_ids is None else required_route_ids
+    for route_id in sorted(required - page_route_ids):
+        errors.append(f"approved route_id {route_id!r} has no final compilable visual direction")
     for index, asset in enumerate(asset_briefs):
         if not isinstance(asset, dict):
             continue

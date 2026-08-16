@@ -195,6 +195,10 @@ async def run_fixture(
             "editorial_image_budget": settings.build_preparation.editorial_image_budget,
             "visual_design_director": raw,
             "content_architect": content_architect_override or {},
+            # The detached fixture follows the same canonical v3 route layout
+            # as production. Historical mirrors remain archive diagnostics and
+            # are not generated here because v3 admission rejects aliases.
+            "legacy_route_layout": False,
             "live_model": live_model,
             "live_providers": live_providers,
             "output_dir": settings.build_preparation.fixture_output_dir,

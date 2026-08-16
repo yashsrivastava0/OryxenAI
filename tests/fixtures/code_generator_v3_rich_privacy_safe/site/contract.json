@@ -1,0 +1,40 @@
+{
+  "schema_version": "build-preparation-contract-v3",
+  "pack_version": "build-preparation-pack-v3",
+  "routes": [{
+    "route_id": "home", "path": "/", "title": "Privacy-safe systems portfolio",
+    "purpose": "Show an evidence-led engineering practice without personal or client fabrication.",
+    "storage_key": "routes/home-4ea140588150",
+    "section_sequence": ["hero", "principles", "selected-work", "process", "contact"],
+    "sections": [
+      {"section_id": "hero", "content_file": "routes/home-4ea140588150/data.json"},
+      {"section_id": "principles", "content_file": "routes/home-4ea140588150/data.json"},
+      {"section_id": "selected-work", "content_file": "routes/home-4ea140588150/data.json"},
+      {"section_id": "process", "content_file": "routes/home-4ea140588150/data.json"},
+      {"section_id": "contact", "content_file": "routes/home-4ea140588150/data.json"}
+    ],
+    "files": {
+      "content": "routes/home-4ea140588150/data.json",
+      "resources": "routes/home-4ea140588150/resources.json",
+      "brief": "routes/home-4ea140588150/brief.md"
+    }
+  }],
+  "public_content": [{
+    "route_id": "home", "sections": [
+      {"section_id": "hero", "purpose": "Positioning", "content": {"eyebrow": "Systems portfolio", "headline": "Durable systems, made legible.", "summary": "A privacy-safe sample of evidence-led engineering practice."}, "claim_ids": [], "priority": "primary"},
+      {"section_id": "principles", "purpose": "Practice", "content": {"heading": "Working principles", "items": ["Traceability before novelty", "Failure states are part of the interface", "Proof belongs near the claim"]}, "claim_ids": [], "priority": "primary"},
+      {"section_id": "selected-work", "purpose": "Evidence", "content": {"heading": "QueueGuard", "statement": "Designed durable job lifecycles.", "label": "Verified sample evidence"}, "claim_ids": ["fact-queueguard"], "priority": "primary"},
+      {"section_id": "process", "purpose": "Method", "content": {"heading": "A bounded delivery loop", "steps": ["Map the contract", "Build the smallest reliable system", "Verify the user-visible outcome"]}, "claim_ids": [], "priority": "secondary"},
+      {"section_id": "contact", "purpose": "Closing", "content": {"heading": "Start with the constraints", "summary": "This fixture intentionally contains no personal contact details or external links."}, "claim_ids": [], "priority": "secondary"}
+    ]
+  }],
+  "facts": [{"fact_id": "fact-queueguard", "statement": "Designed durable job lifecycles.", "source_reference": "fixture", "evidence_status": "verified", "ownership": "individual"}],
+  "criteria": [
+    {"criterion_id": "criterion:home:0", "route_id": "home", "text": "Preserve an evidence-first hierarchy."},
+    {"criterion_id": "criterion:home:1", "route_id": "home", "text": "Make the reading sequence distinct without fabricated imagery."},
+    {"criterion_id": "criterion:home:2", "route_id": "home", "text": "Keep all interaction meaning available with reduced motion."}
+  ],
+  "runtime_requirements": [{"runtime_id": "runtime:offline", "key": "offline", "value": true}],
+  "freedoms": [{"freedom_id": "freedom:composition", "key": "composition", "value": "adaptable"}],
+  "public_content_manifest": {"nav": [{"label": "Home", "target": "home"}]}
+}

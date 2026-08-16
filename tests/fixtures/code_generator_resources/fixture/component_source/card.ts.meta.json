@@ -1,0 +1,14 @@
+{
+  "candidate_id": "fixture-card",
+  "provider_key": "fixture",
+  "provider_resource_id": "card",
+  "category": "component_source",
+  "title": "Card",
+  "description": "A small adaptable card component.",
+  "tags": ["card", "component"],
+  "canonical_source": "fixture://card",
+  "licence": "MIT",
+  "attribution": "OryxenAI fixture",
+  "vendoring_policy": "vendor source",
+  "dependency_metadata": {}
+}

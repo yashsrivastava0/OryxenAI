@@ -1,4 +1,4 @@
-"""Deterministic, versioned Build Preparation pack-v2 projections.
+"""Deterministic, versioned Build Preparation pack-v3 projections.
 
 This module deliberately contains no model or storage code.  It is the
 consumer boundary for Build Preparation: a pack is accepted only when the
@@ -13,8 +13,13 @@ import json
 import re
 from typing import Any
 
-PACK_VERSION = "build-preparation-pack-v2"
-SCHEMA_VERSION = "build-preparation-contract-v2"
+# v2 is deliberately not an input compatibility mode.  It is retained only
+# as a diagnostic label for historical archives.  New materialization and all
+# Code Generator admission use the v3 values below.
+LEGACY_PACK_VERSION = "build-preparation-pack-v2"
+LEGACY_SCHEMA_VERSION = "build-preparation-contract-v2"
+PACK_VERSION = "build-preparation-pack-v3"
+SCHEMA_VERSION = "build-preparation-contract-v3"
 
 
 class PackContractError(ValueError):
@@ -183,7 +188,10 @@ def _claims(content: dict[str, Any]) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in content.get("claim_grounding", []) or []:
-        if not isinstance(item, dict):
+        if (
+            not isinstance(item, dict)
+            or str(item.get("publication_status", "approved") or "approved") != "approved"
+        ):
             continue
         claim_id = _id(item.get("claim_id"), "claim_id")
         if claim_id in seen:
@@ -332,6 +340,7 @@ def compile_v2_projections(
         route["files"] = {
             "content": f"{route['storage_key']}/data.json",
             "resources": f"{route['storage_key']}/resources.json",
+            "brief": f"{route['storage_key']}/brief.md",
         }
 
     site = {
@@ -441,3 +450,28 @@ def compile_v2_projections(
         "target": _strip_reasoning(target_contract),
     }
     return {"site": site, "visual": visual, "approvals": approvals, "targets": targets}
+
+
+def compile_v3_projections(
+    *,
+    content_architect: dict[str, Any],
+    visual_design_director: dict[str, Any],
+    source_ref: dict[str, Any],
+    target_contract: dict[str, Any],
+    max_routes: int,
+) -> dict[str, dict[str, Any]]:
+    """Compile the v3 authoritative projections.
+
+    The content and visual projections deliberately keep the v2 shape.  v3
+    adds a separate execution contract rather than weakening those
+    authoritative projections or duplicating their truth in resource prose.
+    ``compile_v2_projections`` remains as a source-compatible internal name
+    for callers that were already staged during the transition.
+    """
+    return compile_v2_projections(
+        content_architect=content_architect,
+        visual_design_director=visual_design_director,
+        source_ref=source_ref,
+        target_contract=target_contract,
+        max_routes=max_routes,
+    )

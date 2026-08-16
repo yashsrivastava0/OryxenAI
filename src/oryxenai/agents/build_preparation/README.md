@@ -8,8 +8,9 @@ public route scope and resource needs. Phase 2 then runs a bounded workflow:
    policy-approved non-evidentiary editorial-image opportunity when configured;
 2. search Pexels first for photos, with Unsplash fallback, and resolve registry
    components and Lucide icons;
-3. select only from the returned closed candidate set, or record an explicit
-   custom-implementation fallback;
+3. select only from the returned closed candidate set, then resolve every
+   known need as local material, a verified target-package binding, a typed
+   local recipe, or an explicit upstream execution gap;
 4. write route-scoped Build Context, optionally integrating cross-route
    constraints when the configured route threshold is reached; and
 5. materialize a local `build-context` tree with provenance, licenses, safe
@@ -24,7 +25,7 @@ image is locally materialized and pixel-inspected; provider failure uses the
 approved custom visual fallback and does not block the handoff. Unsplash stays
 a metadata-only reference and cannot be used by the static target.
 
-`resources/plan.json` records every selected and unselected need, its routes
+For historical diagnostic trees only, `resources/plan.json` records every selected and unselected need, its routes
 and scenes, fallback, adaptation guidance, and whether Code Generator may fetch
 one equivalent during Code Generation. Such a fetch must replace—not duplicate—
 the recorded fallback and is never permitted at portfolio runtime. The target
@@ -32,9 +33,21 @@ ships a dependency ceiling and starter `package.json`, not a synthetic lockfile;
 Code Generator generates the real lockfile after choosing its final dependency
 subset.
 
-Phase 3 packages the staged tree into one deterministic ZIP, verifies it
+Pack-v3 instead writes `execution/contract.json` as the only implementation
+inventory for Code Generator, plus `resources/ledger.json` and hash-covered
+declarative recipe files. Every slot is route/scene scoped and resolves exactly
+once to local material, an approved target dependency/export, a typed local
+recipe, or `VDD_EXECUTION_GAP`. Known needs never become prose-only fallbacks
+or later-fetch instructions; only genuinely emergent needs may use Code
+Generator's separate receipt-bound acquisition path.
+
+Phase 3 packages the staged tree into one deterministic pack-v3 ZIP, verifies it
 through the configured artifact store, and restores the verified bytes to a
-local debug mirror when enabled. It does not invoke Code Generator.
+local debug mirror when enabled. A complete approved input writes hash-covered
+`site/contract.json`, `design/visual-direction.json`, approval/target
+projections, resource projection, execution contract, resource ledger, and v3
+handoff report. Historical packs, including v2, are diagnostic-only and cannot
+be admitted by Code Generator.
 
 ## Folder structure
 

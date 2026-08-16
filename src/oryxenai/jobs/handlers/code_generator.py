@@ -1,0 +1,959 @@
+"""Durable standalone planning and acquisition jobs for Code Generator."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+from collections.abc import Callable
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+from oryxenai.agents.code_generator.core.acquisition_validators import (
+    AcquisitionValidationError,
+    filter_candidates_by_policy,
+    select_candidate,
+    validate_plan_delta,
+    validate_resource_request,
+)
+from oryxenai.agents.code_generator.core.dependency_manager import (
+    DependencyManager,
+    build_dependency_ledger,
+)
+from oryxenai.agents.code_generator.core.development_input import (
+    DevelopmentInputAdapter,
+    DevelopmentInputError,
+)
+from oryxenai.agents.code_generator.core.development_planner import (
+    build_planner_context,
+    canonical_json,
+    context_hash,
+    plan_summary,
+    validate_site_plan,
+)
+from oryxenai.agents.code_generator.core.development_schemas import (
+    AcquireCallReceipt,
+    AcquisitionSummary,
+    AdmittedInputReference,
+    ContextReceipt,
+    DependencyLedger,
+    DependencyRequest,
+    DevelopmentRunStatus,
+    PlanDelta,
+    PlannerCallReceipt,
+    RequestBasis,
+    RequestOrigin,
+    ResourceBinding,
+    ResourceFallback,
+    ResourceLedger,
+    ResourcePlacement,
+    ResourceQuery,
+    ResourceReceipt,
+    ResourceRequest,
+    ResourceSourceConstraints,
+    ResourceTechnicalConstraints,
+    SafeIssue,
+    SitePlan,
+)
+from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.resource_adapters import (
+    OfflineResourceProviderRegistry,
+    ResourceProviderError,
+    default_adapters,
+)
+from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
+from oryxenai.db.session import get_sessionmaker
+
+_KIND = "code_generator.plan"
+
+
+class CodeGeneratorPlanningHandler:
+    kind = _KIND
+
+    def __init__(self, planner_factory: Callable[[], Any] | None = None) -> None:
+        self._planner_factory = planner_factory
+
+    async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
+        del instance_id
+        return await _execute(payload, planner_factory=self._planner_factory)
+
+
+async def _execute(
+    payload: dict[str, Any], *, planner_factory: Callable[[], Any] | None
+) -> dict[str, Any]:
+    from oryxenai.core.settings import get_settings
+
+    run_id = UUID(str(payload["development_run_id"]))
+    settings = get_settings()
+    sessionmaker = get_sessionmaker(settings)
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        run = await repo.get(run_id)
+        if run is None:
+            return {"status": "discarded", "run_id": str(run_id)}
+        if run.status == DevelopmentRunStatus.PLANNED.value and run.planner_receipt and run.plan:
+            return {"status": "succeeded", "run_id": str(run_id), "reused": True}
+        if run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value:
+            return {"status": "needs_attention", "run_id": str(run_id), "reused": True}
+        run = await _cas_status(
+            repo,
+            run,
+            DevelopmentRunStatus.ADMITTING.value,
+            values={"current_attempt": run.current_attempt + 1},
+        )
+        await repo.append_event(
+            run_id,
+            event_type="admitting",
+            level="info",
+            message="Verifying immutable pack input and v3 projections.",
+        )
+        await db.commit()
+        reference = AdmittedInputReference.model_validate(run.input_reference)
+
+    adapter = DevelopmentInputAdapter(settings)
+    try:
+        receipt, projections = adapter.admit(reference)
+    except DevelopmentInputError as exc:
+        await _needs_attention(
+            sessionmaker,
+            run_id,
+            SafeIssue(
+                code=exc.code,
+                message=exc.message,
+                next_action="Correct the pack and start a new run.",
+                details=exc.details,
+            ),
+        )
+        return {"status": "needs_attention", "run_id": str(run_id)}
+
+    context = build_planner_context(projections, receipt.model_dump(mode="json"))
+    context_digest = context_hash(context)
+    context_path = _write_context(settings, receipt.admitted_identity, context_digest, context)
+    context_receipt = ContextReceipt(
+        receipt_id=f"context-{context_digest[:20]}",
+        context_hash=context_digest,
+        stored_relative_path=context_path,
+        route_ids=receipt.route_ids,
+        section_count=sum(
+            len(pack.get("sections", []))
+            for pack in projections["site/contract.json"].get("public_content", [])
+            if isinstance(pack, dict)
+        ),
+        resource_slot_count=len(projections["resources/projection.json"].get("resource_needs", [])),
+    )
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        run = await repo.get(run_id)
+        if run is None:
+            return {"status": "discarded", "run_id": str(run_id)}
+        if run.planner_receipt and run.plan:
+            return {"status": "succeeded", "run_id": str(run_id), "reused": True}
+        run = await _cas_status(
+            repo,
+            run,
+            DevelopmentRunStatus.PLANNING.value,
+            values={
+                "input_receipt": receipt.model_dump(mode="json"),
+                "admitted_identity": receipt.admitted_identity,
+                "context_receipt": context_receipt.model_dump(mode="json"),
+            },
+        )
+        await repo.append_event(
+            run_id,
+            event_type="admitted",
+            level="info",
+            message="Pack v3 admitted; immutable planner context written.",
+            details={"route_count": len(receipt.route_ids)},
+        )
+        await db.commit()
+
+    profile = settings.models.get_profile(settings.code_generator_development.planner_profile)
+    if profile is None or profile.capabilities is None or not profile.capabilities.json_schema_mode:
+        await _needs_attention(
+            sessionmaker,
+            run_id,
+            SafeIssue(
+                code="PLANNER_STRICT_SCHEMA_UNSUPPORTED",
+                message="The configured planner profile does not declare native JSON-schema support.",
+                next_action="Configure code_generator_planner with json_schema_mode before retrying.",
+            ),
+        )
+        return {"status": "needs_attention", "run_id": str(run_id)}
+    planner = planner_factory() if planner_factory is not None else _build_planner(settings)
+    if planner is None:
+        await _needs_attention(
+            sessionmaker,
+            run_id,
+            SafeIssue(
+                code="PLANNER_PROFILE_UNAVAILABLE",
+                message="The configured planner profile has no usable provider credential.",
+                next_action="Configure the planner profile and its indirect API-key environment variable.",
+            ),
+        )
+        return {"status": "needs_attention", "run_id": str(run_id)}
+    try:
+        system_prompt, instructions, prompt_receipt = build_instructions(
+            "planner",
+            context,
+            output_model=SitePlan,
+        )
+        result = await planner.generate_structured(
+            operation="code_generator.plan",
+            instructions=instructions,
+            input_payload=context,
+            output_model=SitePlan,
+            system_prompt=system_prompt,
+            model_profile=settings.code_generator_development.planner_profile,
+            strict_schema=True,
+        )
+        parsed = getattr(result, "parsed_output", result)
+        plan = validate_site_plan(
+            SitePlan.model_validate(parsed),
+            projections,
+            max_work_units=int(settings.code_generator_development.max_work_units),
+        )
+    except Exception as exc:
+        await _needs_attention(
+            sessionmaker,
+            run_id,
+            SafeIssue(
+                code=getattr(exc, "code", "PLANNER_OUTPUT_INVALID"),
+                message="The planner could not produce a valid SitePlan.",
+                next_action="Review the configured planner profile or begin a fresh run after correcting the input.",
+            ),
+        )
+        return {"status": "needs_attention", "run_id": str(run_id)}
+
+    plan_digest = hashlib.sha256(canonical_json(plan.model_dump(mode="json"))).hexdigest()
+    usage = {
+        str(key): int(value)
+        for key, value in dict(getattr(result, "usage", {}) or {}).items()
+        if isinstance(value, int)
+    }
+    planner_receipt = PlannerCallReceipt(
+        receipt_id=f"planner-{plan_digest[:20]}",
+        context_hash=context_digest,
+        plan_hash=plan_digest,
+        profile=settings.code_generator_development.planner_profile,
+        response_id=str(getattr(result, "response_id", "") or ""),
+        model=str(getattr(result, "model", "") or ""),
+        usage=usage,
+        finish_reason=str(getattr(result, "finish_reason", "") or ""),
+        prompt_receipt=prompt_receipt.model_dump(mode="json"),
+    )
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        run = await repo.get(run_id)
+        if run is None:
+            return {"status": "discarded", "run_id": str(run_id)}
+        if run.planner_receipt and run.plan:
+            return {"status": "succeeded", "run_id": str(run_id), "reused": True}
+        await _cas_status(
+            repo,
+            run,
+            DevelopmentRunStatus.PLANNED.value,
+            values={
+                "planner_receipt": planner_receipt.model_dump(mode="json"),
+                "plan": plan.model_dump(mode="json"),
+                "plan_summary": plan_summary(plan),
+                "issues": [],
+            },
+        )
+        await repo.append_event(
+            run_id,
+            event_type="planned",
+            level="info",
+            message="Validated SitePlan and WorkGraph accepted.",
+            details={
+                "route_count": len(plan.routes),
+                "work_unit_count": len(plan.work_graph.units),
+            },
+        )
+        await db.commit()
+    return {"status": "succeeded", "run_id": str(run_id)}
+
+
+class CodeGeneratorAcquisitionHandler:
+    """Durable initial resource/dependency acquisition for a planned run."""
+
+    kind = "code_generator.acquire"
+
+    def __init__(
+        self,
+        selector_factory: Callable[[], Any] | None = None,
+        adapter_factory: Callable[[Any], dict[str, Any]] | None = None,
+        dependency_manager_factory: Callable[[list[ResourceReceipt]], DependencyManager]
+        | None = None,
+    ) -> None:
+        self._selector_factory = selector_factory
+        self._adapter_factory = adapter_factory
+        self._dependency_manager_factory = dependency_manager_factory
+
+    async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
+        del instance_id
+        return await _execute_acquisition(
+            payload,
+            selector_factory=self._selector_factory,
+            adapter_factory=self._adapter_factory,
+            dependency_manager_factory=self._dependency_manager_factory,
+        )
+
+
+async def _execute_acquisition(
+    payload: dict[str, Any],
+    *,
+    selector_factory: Callable[[], Any] | None,
+    adapter_factory: Callable[[Any], dict[str, Any]] | None,
+    dependency_manager_factory: Callable[[list[ResourceReceipt]], DependencyManager] | None,
+) -> dict[str, Any]:
+    from oryxenai.core.settings import get_settings
+
+    run_id = UUID(str(payload["development_run_id"]))
+    settings = get_settings()
+    sessionmaker = get_sessionmaker(settings)
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        run = await repo.get(run_id)
+        if run is None:
+            return {"status": "discarded", "run_id": str(run_id)}
+        if (
+            run.status == DevelopmentRunStatus.ACQUIRED.value
+            and run.acquire_receipt
+            and run.resource_ledger
+            and run.dependency_ledger
+        ):
+            return {"status": "succeeded", "run_id": str(run_id), "reused": True}
+        if run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value and run.acquire_receipt:
+            return {"status": "needs_attention", "run_id": str(run_id), "reused": True}
+        if run.status not in {
+            DevelopmentRunStatus.PLANNED.value,
+            DevelopmentRunStatus.ACQUIRING.value,
+        }:
+            return {"status": "discarded", "run_id": str(run_id)}
+        run = await _cas_status(
+            repo,
+            run,
+            DevelopmentRunStatus.ACQUIRING.value,
+            values={"current_attempt": run.current_attempt + 1},
+        )
+        await repo.append_event(
+            run_id,
+            event_type="acquiring",
+            level="info",
+            message="Resolving initial resource gaps and trusted dependencies.",
+        )
+        await db.commit()
+
+    reference = AdmittedInputReference.model_validate(run.input_reference)
+    input_adapter = DevelopmentInputAdapter(settings)
+    partial_resource_ledger: ResourceLedger | None = None
+    partial_dependency_ledger: DependencyLedger | None = None
+    try:
+        input_receipt, projections = input_adapter.admit(reference)
+        plan = SitePlan.model_validate(run.plan)
+        plan_hash = str((run.planner_receipt or {}).get("plan_hash", ""))
+        requests = _build_initial_requests(
+            plan, projections, input_receipt.admitted_identity, plan_hash
+        )
+        existing_resource_receipts: list[ResourceReceipt] = []
+        if run.resource_ledger:
+            existing_resource_receipts = [
+                ResourceReceipt.model_validate(item)
+                for item in run.resource_ledger.get("receipts", [])
+            ]
+        resource_receipts = list(existing_resource_receipts)
+        bindings: list[ResourceBinding] = []
+        plan_deltas: list[PlanDelta] = []
+        dependency_receipts = [
+            *(
+                DependencyLedger.model_validate(run.dependency_ledger).receipts
+                if run.dependency_ledger
+                else []
+            )
+        ]
+        adapters = (
+            adapter_factory(settings)
+            if adapter_factory is not None
+            else _default_adapter_factory(settings)
+        )
+        materials_root = Path(settings.code_generator_acquisition.materials_root).resolve()
+        run_material_root = materials_root / str(run_id)
+        workspace_root = Path(settings.code_generator_dependencies.workspaces_root).resolve()
+        repo_dir = workspace_root / str(run_id) / "repo"
+        prior_manifest = _read_json(repo_dir / "package.json", {})
+        prior_lock = _read_json(repo_dir / "package-lock.json", {})
+        dependency_manager = (
+            dependency_manager_factory(resource_receipts)
+            if dependency_manager_factory is not None
+            else DependencyManager(resource_receipts)
+        )
+        selector = selector_factory() if selector_factory is not None else None
+        for request in requests:
+            existing = next(
+                (
+                    receipt
+                    for receipt in resource_receipts
+                    if receipt.request_hash == request.request_hash
+                ),
+                None,
+            )
+            if existing is not None:
+                bindings.append(_binding_for(request, existing))
+                continue
+            validate_resource_request(
+                request,
+                plan=plan,
+                ledger_excluding=ResourceLedger(
+                    based_on_input_and_plan={
+                        "input_receipt_hash": input_receipt.admitted_identity,
+                        "site_plan_hash": plan_hash,
+                    },
+                    receipts=resource_receipts,
+                ),
+                settings=settings,
+                projections=projections,
+            )
+            adapter = adapters.get(request.category)
+            if adapter is None:
+                raise AcquisitionValidationError(
+                    "CATEGORY_UNSUPPORTED", f"No trusted adapter exists for {request.category}."
+                )
+            try:
+                candidates = await adapter.search(request, settings=settings)
+                filtered = filter_candidates_by_policy(candidates, request)
+                if not filtered:
+                    if request.requiredness == "required" and request.fallback.kind == "none":
+                        rejected = _rejected_receipt(
+                            request, "No policy-approved candidate exists."
+                        )
+                        resource_receipts.append(rejected)
+                        partial_resource_ledger = ResourceLedger(
+                            based_on_input_and_plan={
+                                "input_receipt_hash": input_receipt.admitted_identity,
+                                "site_plan_hash": plan_hash,
+                            },
+                            requests=requests,
+                            receipts=resource_receipts,
+                            active_bindings=bindings,
+                        )
+                        raise AcquisitionValidationError(
+                            "REQ_FALLBACK_BLOCKED",
+                            "The required resource has no honest fallback.",
+                        )
+                    receipt = _fallback_receipt(request, "No policy-approved candidate exists.")
+                    resource_receipts.append(receipt)
+                    bindings.append(_binding_for(request, receipt))
+                    continue
+                selected_id, _ = select_candidate(
+                    request,
+                    filtered,
+                    prefer_model=bool(
+                        settings.code_generator_acquisition.prefer_resource_scout_model
+                    ),
+                    model_callable=selector,
+                )
+                candidate = next(item for item in filtered if item.candidate_id == selected_id)
+                materialized = await adapter.materialize(
+                    candidate,
+                    request,
+                    storage_root=run_material_root,
+                    settings=settings,
+                )
+                materialized = _prefix_materialized_file(materialized, str(run_id))
+                receipt = ResourceReceipt(
+                    request_hash=request.request_hash,
+                    disposition="admitted",
+                    selected_candidate_id=candidate.candidate_id,
+                    provider_key=candidate.provider_key,
+                    canonical_source=candidate.canonical_source,
+                    licence=candidate.licence,
+                    attribution=candidate.attribution,
+                    original_hash=materialized.sha256,
+                    materialized_files=[materialized],
+                    dependencies=sorted(candidate.dependency_metadata),
+                    satisfied_placements=[request.placement.purpose],
+                    acquired_at=datetime.now(UTC).isoformat(),
+                )
+                resource_receipts.append(receipt)
+                bindings.append(_binding_for(request, receipt))
+                if receipt.dependencies:
+                    for package_name in receipt.dependencies:
+                        dep_request = DependencyRequest(
+                            request_id=f"dep-{request.request_hash[:16]}-{package_name}",
+                            requesting_resource_receipt_hash=receipt.request_hash,
+                            package_name=package_name,
+                            required_api_or_exports=list(
+                                candidate.dependency_metadata.get(package_name, [])
+                            ),
+                            compatibility_constraints="configured target runtime",
+                            reason_existing_stack_is_insufficient="The admitted component declares this API.",
+                            fallback_component_strategy="vendor source without the package or use simple_dom",
+                        )
+                        dep_receipt = await dependency_manager.resolve(
+                            dep_request,
+                            repo_dir=repo_dir,
+                            prior_manifest=prior_manifest,
+                            prior_lock=prior_lock,
+                            settings=settings,
+                        )
+                        dependency_receipts.append(dep_receipt)
+                        if dep_receipt.decision == "admitted":
+                            prior_manifest = _read_json(repo_dir / "package.json", prior_manifest)
+                            prior_lock = _read_json(repo_dir / "package-lock.json", prior_lock)
+            except ResourceProviderError as exc:
+                if request.requiredness == "required" and request.fallback.kind == "none":
+                    rejected = _rejected_receipt(request, str(exc))
+                    resource_receipts.append(rejected)
+                    partial_resource_ledger = ResourceLedger(
+                        based_on_input_and_plan={
+                            "input_receipt_hash": input_receipt.admitted_identity,
+                            "site_plan_hash": plan_hash,
+                        },
+                        requests=requests,
+                        receipts=resource_receipts,
+                        active_bindings=bindings,
+                    )
+                    raise AcquisitionValidationError(
+                        "REQ_REQUIRED_PROVIDER_UNAVAILABLE",
+                        "The required resource provider is unavailable and no fallback exists.",
+                    ) from exc
+                receipt = _fallback_receipt(request, str(exc))
+                resource_receipts.append(receipt)
+                bindings.append(_binding_for(request, receipt))
+
+        for binding in bindings:
+            delta = PlanDelta(
+                delta_id=f"delta-{binding.binding_id}",
+                based_on_plan_hash=plan_hash,
+                binding_changes=[binding],
+            )
+            validate_plan_delta(delta, plan=plan)
+            plan_deltas.append(delta)
+        resource_ledger = ResourceLedger(
+            based_on_input_and_plan={
+                "input_receipt_hash": input_receipt.admitted_identity,
+                "site_plan_hash": plan_hash,
+            },
+            requests=requests,
+            receipts=resource_receipts,
+            active_bindings=bindings,
+            plan_deltas=plan_deltas,
+        )
+        resource_ledger.ledger_hash = _model_hash(
+            resource_ledger.model_dump(mode="json", exclude={"ledger_hash"})
+        )
+        dependency_ledger = build_dependency_ledger(dependency_receipts)
+        partial_resource_ledger = resource_ledger
+        partial_dependency_ledger = dependency_ledger
+        admitted_count = sum(item.disposition == "admitted" for item in resource_receipts)
+        fallback_count = sum(item.disposition == "fallback" for item in resource_receipts)
+        rejected_count = sum(item.disposition == "rejected" for item in resource_receipts)
+        dependency_decisions: dict[str, str] = {
+            item.package_name: item.decision for item in dependency_receipts if item.package_name
+        }
+        node_modules_recreated = (
+            any(item.decision == "admitted" for item in dependency_receipts)
+            and (repo_dir / "node_modules").is_dir()
+        )
+        attempt_hash = _model_hash(
+            {
+                "plan_hash": plan_hash,
+                "request_hashes": sorted(item.request_hash for item in requests),
+            }
+        )
+        acquire_receipt = AcquireCallReceipt(
+            receipt_id=f"acquire-{attempt_hash[:20]}",
+            attempt_hash=attempt_hash,
+            profile=(
+                "code_generator_resource_scout"
+                if settings.code_generator_acquisition.prefer_resource_scout_model
+                else ""
+            ),
+            total_request_count=len(requests),
+            admitted_count=admitted_count,
+            fallback_count=fallback_count,
+            rejected_count=rejected_count,
+            request_rounds=1 if requests else 0,
+            plan_deltas=plan_deltas,
+        )
+        summary = AcquisitionSummary(
+            request_count=len(requests),
+            admitted_resource_count=admitted_count,
+            fallback_resource_count=fallback_count,
+            rejected_resource_count=rejected_count,
+            dependency_decisions=dependency_decisions,
+            node_modules_recreated=node_modules_recreated,
+            ledger_hash=resource_ledger.ledger_hash,
+            dependency_ledger_hash=dependency_ledger.dependency_ledger_hash,
+            attempts=run.current_attempt,
+        )
+    except Exception as exc:
+        issue = SafeIssue(
+            code=getattr(exc, "code", "ACQUISITION_FAILED"),
+            message=getattr(exc, "message", "Resource acquisition could not complete safely."),
+            next_action=(
+                "Add a suitable resource to the pack or relax the request, then retry acquire."
+                if getattr(exc, "code", "") == "REQ_FALLBACK_BLOCKED"
+                else "Review the safe acquisition issue and start a corrected run."
+            ),
+        )
+        values: dict[str, object] = {"issues": [issue.model_dump(mode="json")]}
+        if partial_resource_ledger is not None:
+            values["resource_ledger"] = partial_resource_ledger.model_dump(mode="json")
+            values["acquire_summary"] = AcquisitionSummary(
+                request_count=len(partial_resource_ledger.requests),
+                admitted_resource_count=sum(
+                    item.disposition == "admitted" for item in partial_resource_ledger.receipts
+                ),
+                fallback_resource_count=sum(
+                    item.disposition == "fallback" for item in partial_resource_ledger.receipts
+                ),
+                rejected_resource_count=sum(
+                    item.disposition == "rejected" for item in partial_resource_ledger.receipts
+                ),
+                ledger_hash="",
+                attempts=run.current_attempt,
+            ).model_dump(mode="json")
+        if partial_dependency_ledger is not None:
+            values["dependency_ledger"] = partial_dependency_ledger.model_dump(mode="json")
+        await _needs_attention(sessionmaker, run_id, issue, values=values)
+        return {"status": "needs_attention", "run_id": str(run_id)}
+
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        current = await repo.get(run_id)
+        if current is None:
+            return {"status": "discarded", "run_id": str(run_id)}
+        if current.status == DevelopmentRunStatus.ACQUIRED.value and current.acquire_receipt:
+            return {"status": "succeeded", "run_id": str(run_id), "reused": True}
+        await _cas_status(
+            repo,
+            current,
+            DevelopmentRunStatus.ACQUIRED.value,
+            values={
+                "acquire_receipt": acquire_receipt.model_dump(mode="json"),
+                "resource_ledger": resource_ledger.model_dump(mode="json"),
+                "dependency_ledger": dependency_ledger.model_dump(mode="json"),
+                "acquire_summary": summary.model_dump(mode="json"),
+                "plan_delta_count": len(plan_deltas),
+                "issues": [],
+            },
+        )
+        await repo.append_event(
+            run_id,
+            event_type="acquired",
+            level="info",
+            message="Initial resource and dependency acquisition completed.",
+            details={
+                "admitted_count": admitted_count,
+                "fallback_count": fallback_count,
+                "rejected_count": rejected_count,
+                "node_modules_recreated": node_modules_recreated,
+            },
+        )
+        await db.commit()
+    return {"status": "succeeded", "run_id": str(run_id)}
+
+
+def _build_initial_requests(
+    plan: SitePlan, projections: dict[str, dict[str, Any]], input_hash: str, plan_hash: str
+) -> list[ResourceRequest]:
+    resources = projections.get("resources/projection.json", {}).get("resources", [])
+    needs = projections.get("resources/projection.json", {}).get("resource_needs", [])
+    requests: list[ResourceRequest] = []
+    for slot in plan.resource_slots:
+        matched = any(
+            isinstance(resource, dict)
+            and str(resource.get("route_id", "")) == slot.route_id
+            and (
+                not resource.get("purpose")
+                or str(resource.get("purpose", "")).casefold() in slot.purpose.casefold()
+                or slot.purpose.casefold() in str(resource.get("purpose", "")).casefold()
+            )
+            for resource in resources
+        )
+        if matched:
+            continue
+        matching_need = next(
+            (
+                need
+                for need in needs
+                if isinstance(need, dict)
+                and slot.route_id in [str(item) for item in need.get("route_ids", [])]
+                and _words_overlap(slot.purpose, str(need.get("purpose", "")))
+            ),
+            {},
+        )
+        category = _infer_category(slot.purpose, matching_need)
+        work_unit_id = next(
+            (
+                unit.unit_id
+                for unit in plan.work_graph.units
+                if unit.kind == "route" and unit.route_id == slot.route_id
+            ),
+            "foundation",
+        )
+        required = bool(matching_need.get("required_for_handoff", False))
+        fallback = _fallback_for(category, required)
+        allowed = _allowed_sources(category)
+        request = ResourceRequest(
+            request_id=f"request-{slot.slot_id}",
+            based_on=RequestBasis(input_receipt_hash=input_hash, site_plan_hash=plan_hash),
+            origin=RequestOrigin(work_unit_id=work_unit_id),
+            category=category,  # type: ignore[arg-type]
+            placement=ResourcePlacement(
+                route_id=slot.route_id,
+                purpose=slot.purpose,
+            ),
+            why_existing_is_insufficient="The admitted pack has no suitable resource binding for this slot.",
+            query=ResourceQuery(
+                positive_terms=list(re_split_words(slot.purpose)),
+                negative_terms=[],
+                forbidden_subjects=[],
+            ),
+            technical_constraints=ResourceTechnicalConstraints(
+                media_types=[], max_bytes=_max_bytes_for(category)
+            ),
+            source_constraints=ResourceSourceConstraints(
+                allowed_source_kinds=allowed,
+                upstream_source_policy=str(matching_need.get("source_policy", "")),
+            ),
+            requiredness="required" if required else "preferred",
+            fallback=ResourceFallback.model_validate(
+                {"kind": fallback, "implementation": _fallback_text(category)}
+            ),
+            affected_work_unit_ids=[work_unit_id],
+        )
+        requests.append(request)
+    return requests
+
+
+def _infer_category(purpose: str, need: dict[str, Any]) -> str:
+    value = f"{purpose} {need.get('category', '')}".casefold()
+    if "font" in value or "type" in value:
+        return "font"
+    if "icon" in value:
+        return "icon"
+    if "component" in value:
+        return "component_source"
+    if "pattern" in value or "style" in value or "effect" in value:
+        return "style_primitive"
+    if "texture" in value:
+        return "texture"
+    if "illustr" in value:
+        return "illustration"
+    return "image"
+
+
+def _allowed_sources(category: str) -> list[str]:
+    return {
+        "image": ["pexels", "unsplash", "fixture"],
+        "texture": ["pexels", "unsplash", "fixture"],
+        "illustration": ["pexels", "unsplash", "fixture"],
+        "font": ["local", "fixture"],
+        "icon": ["lucide", "fixture"],
+        "component_source": ["shadcn", "magicui", "fixture"],
+        "style_primitive": ["pattern", "token_preset", "helper", "fixture"],
+    }.get(category, ["fixture"])
+
+
+def _fallback_for(category: str, required: bool) -> str:
+    if required:
+        return "none"
+    return {
+        "font": "system_font_stack",
+        "icon": "lucide_default",
+        "component_source": "simple_dom",
+        "style_primitive": "discard_ornament",
+    }.get(category, "generated_local")
+
+
+def _fallback_text(category: str) -> str:
+    return {
+        "font": "Use the configured system font stack.",
+        "icon": "Use a local Lucide/default icon.",
+        "component_source": "Use a trusted source-only local component.",
+        "style_primitive": "Use the approved tokens without the optional primitive.",
+    }.get(category, "Use an honest local implementation without external media.")
+
+
+def _max_bytes_for(category: str) -> int:
+    return {
+        "image": 4 * 1024 * 1024,
+        "texture": 4 * 1024 * 1024,
+        "illustration": 4 * 1024 * 1024,
+        "font": 2 * 1024 * 1024,
+        "icon": 384 * 1024,
+        "component_source": 512 * 1024,
+        "style_primitive": 256 * 1024,
+    }.get(category, 0)
+
+
+def _words_overlap(left: str, right: str) -> bool:
+    return bool(set(re_split_words(left)).intersection(re_split_words(right)))
+
+
+def re_split_words(value: str) -> list[str]:
+    return [word for word in re.findall(r"[a-z0-9]+", value.casefold()) if len(word) > 2]
+
+
+def _binding_for(request: ResourceRequest, receipt: ResourceReceipt) -> ResourceBinding:
+    return ResourceBinding(
+        binding_id=f"binding-{request.request_hash[:20]}",
+        request_id_or_pack_need_id=request.request_hash,
+        local_paths=[file.local_path for file in receipt.materialized_files],
+        placement_ids=[request.placement.purpose],
+        disposition=receipt.disposition,
+    )
+
+
+def _fallback_receipt(request: ResourceRequest, reason: str) -> ResourceReceipt:
+    return ResourceReceipt(
+        request_hash=request.request_hash,
+        disposition="fallback",
+        fallback={
+            "kind": request.fallback.kind,
+            "implementation": request.fallback.implementation,
+            "reason": reason,
+        },
+        satisfied_placements=[request.placement.purpose],
+        acquired_at=datetime.now(UTC).isoformat(),
+    )
+
+
+def _rejected_receipt(request: ResourceRequest, reason: str) -> ResourceReceipt:
+    return ResourceReceipt(
+        request_hash=request.request_hash,
+        disposition="rejected",
+        fallback={"kind": "none", "reason": reason},
+        satisfied_placements=[request.placement.purpose],
+        acquired_at=datetime.now(UTC).isoformat(),
+    )
+
+
+def _prefix_materialized_file(file: Any, run_id: str) -> Any:
+    inspection = dict(file.inspection)
+    for key, value in list(inspection.items()):
+        if key.endswith("_path") and isinstance(value, str):
+            inspection[key] = f"{run_id}/{value}"
+    return file.model_copy(
+        update={"local_path": f"{run_id}/{file.local_path}", "inspection": inspection}
+    )
+
+
+def _read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return dict(fallback)
+    return value if isinstance(value, dict) else dict(fallback)
+
+
+def _model_hash(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _default_adapter_factory(settings: Any) -> dict[str, Any]:
+    root = str(getattr(settings.code_generator_acquisition, "offline_resource_root", "") or "")
+    registry = OfflineResourceProviderRegistry.from_directory(Path(root)) if root else None
+    return default_adapters(registry=registry)
+
+
+def _build_planner(settings: Any) -> Any | None:
+    from oryxenai.agents.shared.model_client import build_provider_client
+
+    return build_provider_client(
+        settings.code_generator_development.planner_profile, settings.models
+    )
+
+
+def _write_context(settings: Any, identity: str, digest: str, context: dict[str, Any]) -> str:
+    root = Path(settings.code_generator_development.input_root).resolve()
+    relative = Path("contexts") / identity[:2] / f"{identity}-{digest}.json"
+    target = (root / relative).resolve()
+    if not target.is_relative_to(root):
+        raise RuntimeError("development context root is unsafe")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    data = canonical_json(context)
+    if not target.exists():
+        partial = target.with_suffix(".partial")
+        partial.write_bytes(data)
+        os.replace(partial, target)
+    if target.read_bytes() != data:
+        raise RuntimeError("development context read-back failed")
+    return relative.as_posix()
+
+
+class CodeGeneratorGenerationHandler:
+    """Durable Phase 3 progressive source-generation job."""
+
+    kind = "code_generator.generate"
+
+    def __init__(
+        self,
+        model_factory: Callable[[str], Any] | None = None,
+        adapter_factory: Callable[[Any], dict[str, Any]] | None = None,
+    ) -> None:
+        self._model_factory = model_factory
+        self._adapter_factory = adapter_factory
+
+    async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
+        from oryxenai.agents.code_generator.core.generation_orchestrator import (
+            CodeGeneratorGenerationOrchestrator,
+        )
+
+        return await CodeGeneratorGenerationOrchestrator(
+            model_factory=self._model_factory,
+            adapter_factory=self._adapter_factory,
+        ).execute(payload, instance_id)
+
+
+async def _cas_status(
+    repo: CodeGeneratorDevelopmentRepository,
+    run: Any,
+    status: str,
+    *,
+    values: dict[str, object] | None = None,
+) -> Any:
+    updated = await repo.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={"status": status, **(values or {})},
+    )
+    if updated is None:
+        raise RuntimeError("development run revision conflict")
+    return updated
+
+
+async def _needs_attention(
+    sessionmaker: Any,
+    run_id: UUID,
+    issue: SafeIssue,
+    *,
+    values: dict[str, object] | None = None,
+) -> None:
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        run = await repo.get(run_id)
+        if run is None or run.status == DevelopmentRunStatus.PLANNED.value:
+            return
+        updated = await _cas_status(
+            repo,
+            run,
+            DevelopmentRunStatus.NEEDS_ATTENTION.value,
+            values={"issues": [issue.model_dump(mode="json")], **(values or {})},
+        )
+        del updated
+        await repo.append_event(
+            run_id,
+            event_type="needs_attention",
+            level="error",
+            message=issue.message,
+            details={"code": issue.code},
+        )
+        await db.commit()

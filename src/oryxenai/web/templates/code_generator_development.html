@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Code Generator Development - {{ app_name }}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/code-generator-development.css?v={{ css_version }}">
+{% endblock %}
+{% block content %}
+<main class="cg-dev" data-code-generator-development>
+  <header class="cg-dev__header">
+    <p class="eyebrow">Developer workflow - Phase 4</p>
+    <h1>Generate, verify, and promote a grounded portfolio</h1>
+    <p>Every accepted source checkpoint is rebuilt cleanly, verified through text and DOM/runtime evidence, and promoted only through an immutable receipt.</p>
+  </header>
+  <section class="cg-dev__readiness" aria-live="polite">
+    <h2>Execution readiness</h2>
+    <p data-readiness>Checking configured model profiles and local package-manager availability…</p>
+  </section>
+  <section class="cg-dev__controls" aria-labelledby="input-heading">
+    <h2 id="input-heading">Input</h2>
+    <label>Stable fixture <select data-fixture aria-label="Stable fixture"></select></label>
+    <button type="button" data-start-fixture>Start planning</button>
+    <label>ZIP upload <input data-upload type="file" accept="application/zip,.zip"></label>
+    <button type="button" data-start-upload>Upload and plan</button>
+  </section>
+  <section class="cg-dev__rail" aria-live="polite">
+    <h2>Run status</h2><p data-status>Choose an input to begin.</p><p data-receipt></p>
+    <ul data-events aria-label="Persisted event stream"></ul>
+  </section>
+  <section class="cg-dev__summary">
+    <h2>Plan summary</h2><div data-summary>No accepted plan yet.</div>
+    <h2>Plan issues</h2><ul data-plan-issues></ul>
+  </section>
+  <section class="cg-dev__acquire" aria-labelledby="acquire-heading">
+    <h2 id="acquire-heading">Resource acquisition</h2>
+    <p>Run an initial reconciliation against the validated plan. A resource-complete pack makes no provider call.</p>
+    <button type="button" data-acquire disabled>Run acquisition</button>
+    <p data-acquire-status>Idle.</p>
+    <h3>Acquisition issues</h3><ul data-acquire-issues></ul>
+  </section>
+  <section class="cg-dev__resources" aria-label="Resources">
+    <h2>Resources</h2><ul data-resources aria-live="polite"></ul>
+  </section>
+  <section class="cg-dev__dependencies" aria-label="Dependencies">
+    <h2>Dependencies</h2><ul data-dependencies aria-live="polite"></ul>
+  </section>
+  <section class="cg-dev__generate" aria-labelledby="generate-heading">
+    <h2 id="generate-heading">Source generation</h2>
+    <button type="button" data-generate disabled>Generate source</button>
+    <p data-generate-status>Waiting for a resource-complete plan.</p>
+    <div data-generation-summary>No source checkpoint yet.</div>
+    <ul data-work-units aria-label="Generation work units"></ul>
+    <ul data-generation-diagnostics aria-label="Generation diagnostics"></ul>
+  </section>
+  <section class="cg-dev__verify" aria-labelledby="verify-heading">
+    <h2 id="verify-heading">Final verification</h2>
+    <button type="button" data-verify disabled>Build and verify preview</button>
+    <p data-verify-status>Source generation must finish first.</p>
+    <ul data-verification-gates aria-label="Verification gates"></ul>
+    <ul data-verification-diagnostics aria-label="Verification diagnostics"></ul>
+  </section>
+  <section class="cg-dev__preview" aria-label="Preview">
+    <h2>Promoted preview</h2>
+    <p data-preview-status>No verified preview has been promoted yet.</p>
+    <div class="cg-dev__preview-controls">
+      <label>Route <select data-preview-route aria-label="Preview route" disabled></select></label>
+      <div class="cg-dev__viewport-controls" role="group" aria-label="Preview viewport">
+        <button type="button" data-preview-viewport="mobile" aria-pressed="false">Mobile</button>
+        <button type="button" data-preview-viewport="tablet" aria-pressed="false">Tablet</button>
+        <button type="button" data-preview-viewport="desktop" aria-pressed="false">Desktop</button>
+        <button type="button" data-preview-viewport="fit" aria-pressed="true">Fit</button>
+      </div>
+    </div>
+    <div class="cg-dev__preview-actions">
+      <button type="button" data-preview-refresh>Refresh preview</button>
+      <a data-preview-open target="_blank" rel="noopener noreferrer" hidden>Open in new tab</a>
+    </div>
+    <iframe data-preview-frame title="Promoted generated portfolio" sandbox="allow-scripts allow-same-origin" hidden></iframe>
+  </section>
+</main>
+<script type="module" src="/static/code-generator-development.js?v={{ js_version }}"></script>
+{% endblock %}

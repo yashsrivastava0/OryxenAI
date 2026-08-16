@@ -67,6 +67,24 @@ class NoPublishableRoutesError(ValueError):
         super().__init__(self.message)
 
 
+class PublicScopeIncompleteError(ValueError):
+    """Approval attempted with a route that cannot form a complete public pack.
+
+    Content Architect owns the public route/content boundary.  This check is
+    intentionally performed before the top-level approval hash is stamped, so
+    Visual Design Director and Build Preparation never receive an approved
+    route whose content, section plan, or claim references are incomplete.
+    """
+
+    def __init__(self, *, route_ids: list[str], errors: list[str]) -> None:
+        self.route_ids = route_ids
+        self.errors = errors
+        super().__init__(
+            "Cannot approve: the public route scope is incomplete. "
+            "Revise Content Architect so every approved route has complete safe content."
+        )
+
+
 _TERMINAL = frozenset({ContentArchitectStatus.APPROVED})
 
 
@@ -191,14 +209,22 @@ def apply_build_result(
 
 def apply_approval(state: ContentArchitectState, content_hash: str) -> ContentArchitectState:
     _validate_transition(state.status, ContentArchitectStatus.APPROVED)
-    if not any(
-        route.publication_status == PublicationStatus.APPROVED for route in state.route_plan
-    ):
+    public_routes = [
+        route
+        for route in state.route_plan
+        if route.publication_status == PublicationStatus.APPROVED
+    ]
+    if not public_routes:
         raise NoPublishableRoutesError(
             route_statuses={
                 route.route_id: str(route.publication_status) for route in state.route_plan
             },
             route_count=len(state.route_plan),
+        )
+    scope_errors = _public_scope_errors(state, public_routes)
+    if scope_errors:
+        raise PublicScopeIncompleteError(
+            route_ids=[route.route_id for route in public_routes], errors=scope_errors
         )
     new_state = state.model_copy(deep=True)
     new_state.status = ContentArchitectStatus.APPROVED
@@ -230,6 +256,110 @@ def _merge_memory(current: dict[str, Any], update: dict[str, Any]) -> dict[str, 
     if isinstance(update, dict):
         merged.update(update)
     return merged
+
+
+def _public_scope_errors(
+    state: ContentArchitectState, public_routes: list[RoutePlanEntry]
+) -> list[str]:
+    """Return deterministic Build-Preparation-facing admission errors.
+
+    Free-form copy remains deliberately unjudged; this verifies only the
+    stable IDs, route topology, completeness, and publication gates required
+    to compile it safely.
+    """
+    errors: list[str] = []
+    route_ids: set[str] = set()
+    route_paths: set[str] = set()
+    pack_by_route: dict[str, list[PageContentPack]] = {}
+    for pack in state.page_content_packs:
+        pack_by_route.setdefault(pack.route_id, []).append(pack)
+    claims = {claim.claim_id: claim for claim in state.claim_grounding}
+
+    if not state.public_content_manifest:
+        errors.append("public_content_manifest is required for the approved public scope")
+    if not state.visual_director_handoff:
+        errors.append("visual_director_handoff is required for the approved public scope")
+
+    for route in public_routes:
+        route_id = route.route_id.strip()
+        path = route.path.strip()
+        if not _is_safe_identifier(route.route_id):
+            errors.append(f"approved route {route_id or '<unknown>'!r} has an unsafe route_id")
+        elif route_id.casefold() in route_ids:
+            errors.append(f"approved route_id {route_id!r} collides case-insensitively")
+        else:
+            route_ids.add(route_id.casefold())
+        if not _is_safe_route_path(path):
+            errors.append(f"approved route {route_id or '<unknown>'!r} has an unsafe path")
+        elif _canonical_path(path).casefold() in route_paths:
+            errors.append(f"approved route path {path!r} collides case-insensitively")
+        else:
+            route_paths.add(_canonical_path(path).casefold())
+        if not route.title.strip():
+            errors.append(f"approved route {route_id!r} has no title")
+        if not route.purpose.strip():
+            errors.append(f"approved route {route_id!r} has no purpose")
+
+        packs = pack_by_route.get(route_id, [])
+        if len(packs) != 1:
+            errors.append(
+                f"approved route {route_id!r} must have exactly one content pack; found {len(packs)}"
+            )
+            continue
+        pack = packs[0]
+        if not pack.sections:
+            errors.append(f"approved route {route_id!r} has no public sections")
+            continue
+        section_ids = [section.section_id for section in pack.sections]
+        if not route.section_sequence:
+            errors.append(f"approved route {route_id!r} has no section_sequence")
+        elif section_ids != route.section_sequence:
+            errors.append(
+                f"approved route {route_id!r} section_sequence does not exactly match its content pack"
+            )
+        if len(section_ids) != len(set(section_ids)) or any(
+            not section_id.strip() for section_id in section_ids
+        ):
+            errors.append(f"approved route {route_id!r} has invalid section IDs")
+        for section in pack.sections:
+            if not section.purpose.strip():
+                errors.append(
+                    f"approved route {route_id!r} section {section.section_id!r} has no purpose"
+                )
+            if not section.content:
+                errors.append(
+                    f"approved route {route_id!r} section {section.section_id!r} has no content"
+                )
+            for claim_id in section.claim_ids:
+                claim = claims.get(claim_id)
+                if claim is None:
+                    errors.append(
+                        f"approved route {route_id!r} references unknown claim {claim_id!r}"
+                    )
+                elif claim.publication_status != PublicationStatus.APPROVED:
+                    errors.append(
+                        f"approved route {route_id!r} references non-public claim {claim_id!r}"
+                    )
+    return errors
+
+
+def _is_safe_route_path(path: str) -> bool:
+    return bool(
+        path
+        and path.startswith("/")
+        and "\\" not in path
+        and "//" not in path
+        and ".." not in path.split("/")
+        and not any(ord(char) < 32 for char in path)
+    )
+
+
+def _canonical_path(path: str) -> str:
+    return "/" if path == "/" else path.rstrip("/")
+
+
+def _is_safe_identifier(value: str) -> bool:
+    return bool(value and value == value.strip() and not any(ord(char) < 32 for char in value))
 
 
 def _validate_transition(current: ContentArchitectStatus, target: ContentArchitectStatus) -> None:

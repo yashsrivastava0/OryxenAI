@@ -1,0 +1,10 @@
+:root {
+  --color-background: #f7f7f2;
+  --color-ink: #17201f;
+  --color-muted: #63716d;
+  --color-accent: #c05a34;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+}

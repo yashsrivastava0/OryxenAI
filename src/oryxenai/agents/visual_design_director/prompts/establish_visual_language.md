@@ -72,7 +72,7 @@ not a duplicate of visual_language verbatim.
 </user_facing_summary>
 
 <pages_when_included>
-When pages_included=true, write one PageVisualDirection per route_plan entry (see the
+When pages_included=true, write one PageVisualDirection per supplied public route_plan entry (see the
 direct_page_experience operation's <pages> instructions for the exact per-page/scene requirements —
 apply the same rules here). Populate asset_briefs and resource_candidates as needed by those pages.
 Leave compiler_handoff as an empty object {} regardless (see the system prompt's

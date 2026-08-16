@@ -143,10 +143,10 @@ class TestValidatePlanContent:
     def test_large_route_count_is_not_a_validation_error(self):
         """A long route plan is a fact about the input, not a shape defect.
 
-        ContentArchitectAgent truncates route_plan/page_content_packs to
-        [content_architect].max_routes after validation instead of this
-        validator rejecting it — see test_agent.py, mirroring Discovery's
-        validate_brief_output/max_projects precedent.
+        The agent enforces its configured route ceiling after validation.
+        Keeping this structural validator independent of deployment policy
+        makes the producer error actionable without redefining valid output
+        shape.
         """
         routes = [_route(route_id=f"r{i}", path=f"/{i}") for i in range(20)]
         outcome = validate_stage_output(

@@ -72,8 +72,8 @@ it with Build Preparation or the main session flow yet.
 During development:
 
 - input comes through a `DevelopmentInputAdapter`;
-- the adapter accepts either a checked-in privacy-safe pack-v2 fixture or a
-  user-uploaded pack-v2 ZIP from the developer frontend;
+- the adapter accepts either a checked-in privacy-safe pack-v3 fixture or a
+  user-uploaded pack-v3 ZIP from the developer frontend;
 - Code Generator validates that input through the same admission contract the
   future production adapter will use;
 - no Code Generator endpoint calls Build Preparation service/state;
@@ -154,9 +154,13 @@ created by earlier phases.
 
 ## Phase 1 — Standalone spine, admission, planning, and frontend shell
 
+**Status: complete.** The standalone admission/planning spine and its
+completion-gate backfill are verified; Phase 2 acquisition is now available as
+an explicit follow-up operation.
+
 ### Goal
 
-Create a real standalone Code Generator run that can accept a pack-v2
+Create a real standalone Code Generator run that can accept a pack-v3
 development input, admit it safely, produce a validated `SitePlan` and
 `WorkGraph`, persist durable progress, and expose that progress in a dedicated
 developer frontend.
@@ -171,8 +175,9 @@ Implement the Phase 1 subset of the normative schemas and validators:
 
 - admitted input reference;
 - `InputReceipt`;
-- pack-v2 manifest, site-contract, visual-direction, target, provenance, and
-  handoff projections needed for admission;
+- pack-v3 manifest, site-contract, visual-direction, target, provenance,
+  execution contract, resource ledger, recipes, and handoff projections needed
+  for admission;
 - `SitePlan`;
 - `WorkGraph`;
 - `ContextReceipt` and planner call receipt;
@@ -426,6 +431,11 @@ Stop after reporting Phase 2 evidence. Do not begin Phase 3.
 ---
 
 ## Phase 3 — Progressive source generation and integration
+
+**Status: complete.** The standalone source-generation spine, trusted scaffold,
+progressive checkpoints, emergent acquisition, source/type repair, and developer
+workflow are implemented and verified. Phase 4 verification and preview are
+implemented as a separate durable stage.
 
 ### Goal
 
@@ -745,10 +755,10 @@ without beginning Phase N+1.
 
 | Phase | Status | Completion evidence |
 | --- | --- | --- |
-| Phase 1 — standalone spine and planning | not started | — |
-| Phase 2 — resources and dependencies | not started | — |
-| Phase 3 — progressive source generation | not started | — |
-| Phase 4 — verification and preview | not started | — |
+| Phase 1 — standalone spine and planning | complete | `tests/unit/agents/code_generator/`, `tests/integration/test_code_generator_development_worker.py`, `tests/frontend/code_generator_development.test.mjs` |
+| Phase 2 — resources and dependencies | complete | `tests/unit/agents/code_generator/`, `tests/integration/test_code_generator_development_worker.py`, `tests/worker/test_code_generator_acquisition_redelivery.py`, `tests/frontend/code_generator_development.test.mjs` |
+| Phase 3 — progressive source generation | complete | `tests/unit/agents/code_generator/`, `tests/integration/test_code_generator_generation_worker.py`, `tests/api/test_code_generator_development_routes.py`, `tests/frontend/code_generator_development.test.mjs` |
+| Phase 4 — verification and preview | complete | `tests/unit/agents/code_generator/`, `tests/unit/preview/`, `tests/integration/test_code_generator_verification_worker.py`, `tests/api/test_code_generator_development_routes.py`, `tests/frontend/code_generator_development.test.mjs` |
 | Future Build Preparation/main-flow integration | deferred | outside this plan |
 
 Only update a phase to `complete` after its approved plan has been implemented

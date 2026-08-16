@@ -1,0 +1,18 @@
+{
+  "schema_version": "build-preparation-contract-v2",
+  "pack_version": "build-preparation-pack-v2",
+  "global": {
+    "visual_language": {"creative_thesis": "restrained evidence"},
+    "shared_visual_systems": {"cards": "flat"},
+    "navigation_direction": {"form": "anchor"},
+    "motion_system": {"global_character": "minimal"},
+    "interaction_system": {"hover": "subtle"},
+    "accessibility_and_performance": {"reduced_motion": "static equivalent"},
+    "must_preserve": ["QueueGuard"],
+    "must_not_fabricate": ["metrics"],
+    "compiler_handoff": {"offline": true}
+  },
+  "routes": [{"route_id": "home", "path": "/", "scenes": [], "asset_ids": [], "resource_ids": [], "acceptance_criteria": ["Preserve evidence-first hierarchy."], "direction": {"responsive_summary": "stack on mobile"}}],
+  "assets": [],
+  "resources": []
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "build-preparation-contract-v3",
+  "pack_version": "build-preparation-pack-v3",
+  "routes": [{
+    "route_id": "home", "path": "/", "title": "Privacy-safe portfolio",
+    "purpose": "Introduce grounded engineering work.", "storage_key": "routes/home-4ea140588150",
+    "section_sequence": ["hero", "project"],
+    "sections": [
+      {"section_id": "hero", "content_file": "routes/home-4ea140588150/data.json"},
+      {"section_id": "project", "content_file": "routes/home-4ea140588150/data.json"}
+    ],
+    "files": {
+      "content": "routes/home-4ea140588150/data.json",
+      "resources": "routes/home-4ea140588150/resources.json",
+      "brief": "routes/home-4ea140588150/brief.md"
+    }
+  }],
+  "public_content": [{
+    "route_id": "home", "sections": [
+      {"section_id": "hero", "purpose": "Positioning", "content": {"headline": "Durable systems"}, "claim_ids": [], "priority": "primary"},
+      {"section_id": "project", "purpose": "Evidence", "content": {"title": "QueueGuard"}, "claim_ids": ["fact-queueguard"], "priority": "primary"}
+    ]
+  }],
+  "facts": [{"fact_id": "fact-queueguard", "statement": "Designed durable job lifecycles.", "source_reference": "fixture", "evidence_status": "verified", "ownership": "individual"}],
+  "criteria": [{"criterion_id": "criterion:home:0", "route_id": "home", "text": "Preserve evidence-first hierarchy."}],
+  "runtime_requirements": [{"runtime_id": "runtime:offline", "key": "offline", "value": true}],
+  "freedoms": [{"freedom_id": "freedom:composition", "key": "composition", "value": "adaptable"}],
+  "public_content_manifest": {"nav": [{"label": "Home", "target": "home"}]}
+}

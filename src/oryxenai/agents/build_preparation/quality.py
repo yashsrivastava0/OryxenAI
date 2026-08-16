@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 from oryxenai.agents.build_preparation.materializer import dependencies_allowed
@@ -56,6 +57,28 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
     queries = []
     for query in plan.queries:
         need = by_id[query.need_id]
+        if need.source_policy != "optional_external_acquisition":
+            queries.append(
+                query.model_copy(
+                    update={
+                        "kind": "custom",
+                        "allowed_providers": [],
+                        "required_for_handoff": False,
+                    }
+                )
+            )
+            continue
+        if need.source_status != "needs_acquisition":
+            queries.append(
+                query.model_copy(
+                    update={
+                        "kind": "custom",
+                        "allowed_providers": [],
+                        "required_for_handoff": False,
+                    }
+                )
+            )
+            continue
         update: dict[str, Any] = {
             "required_for_handoff": need.required_for_handoff,
             "allowed_providers": ["pexels"] if need.required_for_handoff else [],
@@ -127,9 +150,7 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
         matched_terms = sum(1 for token in meaningful_terms if token in searchable)
         if meaningful_terms and matched_terms == 0:
             relevance = 55
-            reasons.append(
-                "Metadata has no direct subject match; visual review is required before use."
-            )
+            reasons.append("Metadata has no direct subject match for the approved visual need.")
         elif meaningful_terms:
             relevance = min(100, 75 + (matched_terms * 10))
         if not candidate.photographer or not candidate.attribution_url:
@@ -326,6 +347,28 @@ def build_handoff_report(
             )
     required_ids = [need.need_id for need in needs if need.required_for_handoff]
     for need in needs:
+        if need.source_policy in {"curated_local", "generated_local_visual"} and selected_ids.get(
+            need.need_id
+        ):
+            issues.append(
+                HandoffIssue(
+                    code="SOURCE_POLICY_STOCK_FORBIDDEN",
+                    need_id=need.need_id,
+                    message=f"'{need.source_id}' is approved for local fabrication only and cannot use stock acquisition.",
+                    next_action="Use the approved local resource or its declared fallback.",
+                )
+            )
+        if need.source_policy == "approved_user_media":
+            resource_id = selected_ids.get(need.need_id)
+            if resource_id and resource_id not in materialized:
+                issues.append(
+                    HandoffIssue(
+                        code="APPROVED_USER_MEDIA_NOT_LOCAL",
+                        need_id=need.need_id,
+                        message=f"Approved user media '{need.source_id}' was not locally verified.",
+                        next_action="Supply the verified local media or use the declared fallback honestly.",
+                    )
+                )
         if not need.required_for_handoff:
             continue
         resource_id = selected_ids.get(need.need_id)
@@ -347,8 +390,110 @@ def build_handoff_report(
                     next_action="Review provider download, image inspection, and attribution diagnostics, then rerun.",
                 )
             )
+    slot_ids = [slot.resource_slot_id for slot in materialization.execution_slots]
+    known_need_slots = {
+        source_id for slot in materialization.execution_slots for source_id in slot.source_ids
+    }
+    readiness = {
+        "slot_count": len(slot_ids),
+        "local_materialized": sum(
+            slot.resolution.resolution_type == "local_materialized"
+            for slot in materialization.execution_slots
+        ),
+        "target_package_binding": sum(
+            slot.resolution.resolution_type == "target_package_binding"
+            for slot in materialization.execution_slots
+        ),
+        "local_recipe": sum(
+            slot.resolution.resolution_type == "local_recipe"
+            for slot in materialization.execution_slots
+        ),
+        "execution_gap": len(materialization.execution_gaps),
+    }
+    if (
+        materialization.pack_version == "build-preparation-pack-v3"
+        and materialization.execution_contract_path
+    ):
+        if not slot_ids or len(slot_ids) != len(set(slot_ids)):
+            issues.append(
+                HandoffIssue(
+                    code="EXECUTION_SLOT_INVALID",
+                    message="The v3 pack does not contain one unique execution slot per prepared decision.",
+                    next_action="Regenerate Build Preparation after correcting the execution compiler.",
+                )
+            )
+        missing_needs = sorted({need.source_id for need in needs} - known_need_slots)
+        if missing_needs:
+            issues.append(
+                HandoffIssue(
+                    code="EXECUTION_SLOT_COVERAGE_MISSING",
+                    message="Known prepared resource needs are absent from the v3 execution inventory.",
+                    next_action="Regenerate Build Preparation; known needs cannot defer to Code Generator.",
+                )
+            )
+        recipe_ids = {recipe.recipe_id for recipe in materialization.local_recipes}
+        root = Path(materialization.root_path)
+        for slot in materialization.execution_slots:
+            resolution = slot.resolution
+            if resolution.resolution_type == "local_recipe":
+                if resolution.recipe_id not in recipe_ids:
+                    issues.append(
+                        HandoffIssue(
+                            code="EXECUTION_RECIPE_DANGLING",
+                            message=f"Execution slot '{slot.resource_slot_id}' has no local recipe.",
+                            next_action="Regenerate Build Preparation from approved direction.",
+                        )
+                    )
+            elif resolution.resolution_type == "local_materialized":
+                if not resolution.local_paths or any(
+                    not (root / path).is_file() and not (root / path).is_dir()
+                    for path in resolution.local_paths
+                ):
+                    issues.append(
+                        HandoffIssue(
+                            code="EXECUTION_LOCAL_PATH_INVALID",
+                            message=f"Execution slot '{slot.resource_slot_id}' references unavailable local material.",
+                            next_action="Regenerate the local materialization before handoff.",
+                        )
+                    )
+            elif resolution.resolution_type == "target_package_binding":
+                if not resolution.package_name or not resolution.expected_exports:
+                    issues.append(
+                        HandoffIssue(
+                            code="EXECUTION_PACKAGE_BINDING_INVALID",
+                            message=f"Execution slot '{slot.resource_slot_id}' lacks a usable package binding.",
+                            next_action="Use a configured target dependency or a typed local recipe.",
+                        )
+                    )
+            elif resolution.resolution_type == "execution_gap":
+                # The structured gap below supplies the route/scene-specific
+                # revision instruction; this issue makes eligibility visibly false.
+                issues.append(
+                    HandoffIssue(
+                        code="VDD_EXECUTION_GAP",
+                        message=f"Execution slot '{slot.resource_slot_id}' is blocked by upstream direction.",
+                        next_action="Revise and explicitly re-approve Visual Design Director output.",
+                    )
+                )
+        for resource in materialization.resources:
+            if not isinstance(resource, dict):
+                continue
+            if resource.get("provider") and not (
+                str(resource.get("license", "") or "").strip()
+                and str(resource.get("license_reference", "") or "").strip()
+            ):
+                issues.append(
+                    HandoffIssue(
+                        code="EXECUTION_LICENSE_INCOMPLETE",
+                        message="A materialized resource has incomplete licence provenance.",
+                        next_action="Use an approved source with a recorded licence before handoff.",
+                    )
+                )
     eligible = not issues
     return HandoffQualityReport(
+        projection_hashes=dict(materialization.projection_hashes),
+        readiness=readiness,
+        execution_gaps=materialization.execution_gaps,
         handoff_eligible=eligible,
         upstream_approval_verified=approval_verified,
         status="ready_for_handoff" if eligible else "needs_attention",

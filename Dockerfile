@@ -33,6 +33,14 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# The standalone Code Generator verifier is feature-disabled in the normal
+# Docker overlay, but the image still carries the configured local toolchain so
+# an explicitly enabled development profile does not silently fall back to a
+# fake source check.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user.
 RUN groupadd --system --gid 1001 oryxen \
     && useradd --system --uid 1001 --gid oryxen --home-dir /app oryxen

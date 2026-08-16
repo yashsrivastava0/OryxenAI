@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ app_name }} — Portfolio Discovery</title>
+  <title>{% block title %}{{ app_name }} - Portfolio Discovery{% endblock %}</title>
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/app.css?v={{ app_css_version }}">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header>
@@ -17,7 +18,7 @@
   </main>
 
   <footer>
-    <p>{{ app_name }} — Discovery, Content Architect &amp; Visual Design Director. Code generation is not invoked yet.</p>
+    <p>{{ app_name }} - Discovery, Content Architect &amp; Visual Design Director. Code generation is not invoked yet.</p>
   </footer>
 
   <script src="{{ request.scope.get('root_path', '') }}/static/app.js?v={{ app_js_version }}"></script>

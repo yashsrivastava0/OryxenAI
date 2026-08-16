@@ -31,6 +31,9 @@ oryxenai.db
 # Workspace (all generated developer state)
 .workspace/
 
+# JavaScript dependencies in checked-in scaffold fixtures
+**/node_modules/
+
 # Legacy root caches (kept in case a tool runs outside canonical scripts)
 .pytest_cache/
 .mypy_cache/

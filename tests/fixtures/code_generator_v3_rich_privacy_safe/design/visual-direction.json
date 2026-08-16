@@ -1,0 +1,38 @@
+{
+  "schema_version": "build-preparation-contract-v3",
+  "pack_version": "build-preparation-pack-v3",
+  "global": {
+    "visual_language": {
+      "creative_thesis": "Operational clarity as an editorial artifact: decisive type, quiet surfaces, and evidence that earns the accent.",
+      "color_behavior": "Ink, paper, and one signal accent reserved for verified evidence and focus.",
+      "typography": "Large compressed-feeling display hierarchy paired with a measured, highly readable body rhythm."
+    },
+    "shared_visual_systems": {
+      "card_treatment": "Avoid repeated floating cards; use ruled evidence panels and full-bleed typographic intervals.",
+      "spacing": "Alternate dense evidence clusters with generous reading pauses.",
+      "shape": "Fine rules, square corners, and a single offset evidence tab."
+    },
+    "navigation_direction": {"form": "anchor navigation that behaves as a quiet index"},
+    "motion_system": {"global_character": "one restrained line-draw or opacity reveal; static state retains all meaning"},
+    "interaction_system": {"hover": "focus-visible evidence underline and a nonessential accent shift"},
+    "accessibility_and_performance": {"reduced_motion": "Use static evidence tabs and no entry animation"},
+    "must_preserve": ["QueueGuard", "Designed durable job lifecycles."],
+    "must_not_fabricate": ["metrics", "clients", "testimonials", "personal portrait", "project screenshot"],
+    "compiler_handoff": {"offline": true}
+  },
+  "routes": [{
+    "route_id": "home",
+    "path": "/",
+    "scenes": [
+      {"scene_id": "home-hero", "section_ids": ["hero"], "layout_intent": "Asymmetric text-led hero with an offset evidence index."},
+      {"scene_id": "home-evidence", "section_ids": ["principles", "selected-work"], "layout_intent": "A ruled editorial sequence that lets the verified statement interrupt the principles."},
+      {"scene_id": "home-close", "section_ids": ["process", "contact"], "layout_intent": "A compressed method ledger that opens into a deliberately quiet closing."}
+    ],
+    "asset_ids": [],
+    "resource_ids": [],
+    "acceptance_criteria": ["Preserve an evidence-first hierarchy.", "Make the reading sequence distinct without fabricated imagery.", "Keep all interaction meaning available with reduced motion."],
+    "direction": {"responsive_summary": "On small screens, preserve sequence and evidence priority; stack the offset tab below its claim."}
+  }],
+  "assets": [],
+  "resources": []
+}
