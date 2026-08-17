@@ -20,7 +20,9 @@ export function createCodeGeneratorDevelopmentController({
   };
 
   const maybeAdvance = async (run) => {
-    if (!autoAdvance || !activeRun || advancing || !run) return;
+    // The server coordinator is authoritative for normal runs. The browser
+    // remains a manual fallback only for explicitly legacy/manual runs.
+    if (!autoAdvance || run?.auto_advance === true || !activeRun || advancing || !run) return;
     if (run.status === "needs_attention") return;
     advancing = true;
     try {
@@ -71,8 +73,10 @@ export function createCodeGeneratorDevelopmentController({
       : null;
     const result = { run, events: eventResponse.events || [], plan, acquisition, dependencies, planDeltas, generation, verification, preview };
     render(result);
-    if (!["planned", "acquired", "source_ready", "ready", "needs_attention"].includes(run.status)) schedule(loadRun, 1200);
-    else if (run.status !== "ready") maybeAdvance(run);
+    if (run.status !== "ready" && run.status !== "needs_attention") {
+      schedule(loadRun, 1200);
+    }
+    if (run.status !== "ready") maybeAdvance(run);
     return result;
   };
 

@@ -19,11 +19,18 @@ class CodeGeneratorDevelopmentRepository:
         self._session = session
 
     async def create(
-        self, *, input_reference: dict[str, object], idempotency_key: str | None
+        self,
+        *,
+        input_reference: dict[str, object],
+        idempotency_key: str | None,
+        auto_advance: bool = False,
     ) -> CodeGeneratorDevelopmentRun:
         run = CodeGeneratorDevelopmentRun(
             input_reference=input_reference,
             idempotency_key=idempotency_key or None,
+            # Direct repository callers are diagnostic/manual by default. The
+            # HTTP service opts into the durable coordinator explicitly.
+            auto_advance=auto_advance,
         )
         self._session.add(run)
         await self._session.flush()

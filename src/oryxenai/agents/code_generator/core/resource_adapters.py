@@ -55,7 +55,7 @@ class ResourceAdapter(Protocol):
         *,
         storage_root: Path,
         settings: Any,
-    ) -> LocalMaterialFile: ...
+    ) -> LocalMaterialFile | list[LocalMaterialFile]: ...
 
 
 class OfflineResourceProviderRegistry:
@@ -162,6 +162,11 @@ async def _get(
         if attempt < retries:
             await asyncio.sleep(0)
     raise ResourceProviderError(last, provider=provider)
+
+
+async def _download_url(client: httpx.AsyncClient, url: str) -> bytes:
+    response = await _get(client, url, provider="fontsource")
+    return response.content
 
 
 def _safe_relative(value: str) -> str:
@@ -378,8 +383,141 @@ class FontAdapter(_BaseAdapter):
     category = "font"
 
     async def search(self, request: ResourceRequest, *, settings: Any) -> list[ResourceCandidate]:
-        providers = ["fixture", "local"]
-        return self._offline_candidates(request, providers)
+        providers = ["fixture", "local", "fontsource"]
+        offline = self._offline_candidates(request, providers)
+        if offline or self.registry is not None:
+            return offline
+        if not bool(getattr(settings.resource_providers, "fontsource_enabled", True)):
+            return []
+        base = str(
+            getattr(settings.resource_providers, "fontsource_api_base_url", "") or ""
+        ).rstrip("/")
+        if not base:
+            return []
+        terms = _tokens(" ".join(request.query.positive_terms))
+        async with httpx.AsyncClient() as client:
+            response = await _get(
+                client,
+                f"{base}/fonts",
+                provider="fontsource",
+                params={"subsets": "latin"},
+            )
+            payload = response.json()
+            fonts = payload if isinstance(payload, list) else []
+            ranked: list[tuple[int, dict[str, Any]]] = []
+            for item in fonts:
+                if not isinstance(item, dict) or not item.get("id"):
+                    continue
+                haystack = " ".join(str(item.get(key, "")) for key in ("id", "family", "category"))
+                score = sum(1 for token in terms if token in haystack.casefold())
+                if score:
+                    ranked.append((score, item))
+            ranked.sort(key=lambda pair: (-pair[0], str(pair[1].get("id", ""))))
+            candidates: list[ResourceCandidate] = []
+            for _, item in ranked[:3]:
+                font_id = str(item["id"])
+                detail_response = await _get(
+                    client, f"{base}/fonts/{font_id}", provider="fontsource"
+                )
+                detail = detail_response.json()
+                urls: dict[str, str] = {}
+                variants = detail.get("variants", {}) if isinstance(detail, dict) else {}
+                if isinstance(variants, dict):
+                    for weight in ("400", "500", "600", "700"):
+                        normal = (
+                            variants.get(weight, {}).get("normal", {})
+                            if isinstance(variants.get(weight), dict)
+                            else {}
+                        )
+                        latin = normal.get("latin", {}) if isinstance(normal, dict) else {}
+                        url_map = latin.get("url", {}) if isinstance(latin, dict) else {}
+                        format_name = str(
+                            getattr(settings.resource_providers, "fontsource_format", "woff2")
+                        )
+                        url = str(url_map.get(format_name, "")) if isinstance(url_map, dict) else ""
+                        if url.startswith("https://cdn.jsdelivr.net/"):
+                            urls[f"{weight}-normal"] = url
+                if not urls:
+                    continue
+                candidates.append(
+                    ResourceCandidate(
+                        candidate_id=_stable_id("fontsource", font_id),
+                        provider_key="fontsource",
+                        provider_resource_id=font_id,
+                        category="font",
+                        title=str(detail.get("family", font_id)),
+                        description="Fontsource Latin font files",
+                        tags=sorted(_tokens(str(detail.get("family", font_id)))),
+                        technical_metadata={
+                            "font_family": str(detail.get("family", font_id)),
+                            "font_weights": sorted({key.split("-", 1)[0] for key in urls}),
+                            "font_urls": urls,
+                            "font_format": str(
+                                getattr(settings.resource_providers, "fontsource_format", "woff2")
+                            ),
+                        },
+                        canonical_source=next(iter(urls.values())),
+                        licence="OFL-1.1",
+                        attribution="Fontsource / SIL Open Font License",
+                        vendoring_policy="download and vendor",
+                    )
+                )
+            return candidates
+
+    async def materialize(
+        self,
+        candidate: ResourceCandidate,
+        request: ResourceRequest,
+        *,
+        storage_root: Path,
+        settings: Any,
+    ) -> LocalMaterialFile | list[LocalMaterialFile]:
+        urls = candidate.technical_metadata.get("font_urls")
+        if not isinstance(urls, dict):
+            return await super().materialize(
+                candidate, request, storage_root=storage_root, settings=settings
+            )
+        root = Path(storage_root).resolve()
+        category_root = (root / self.category).resolve()
+        if not category_root.is_relative_to(root):
+            raise AcquisitionValidationError(
+                "MATERIAL_ROOT_UNSAFE", "The materialization root is unsafe."
+            )
+        category_root.mkdir(parents=True, exist_ok=True)
+        results: list[LocalMaterialFile] = []
+        async with httpx.AsyncClient() as client:
+            for variant, value in sorted(urls.items()):
+                url = str(value)
+                if not url.startswith("https://cdn.jsdelivr.net/"):
+                    raise AcquisitionValidationError(
+                        "FONT_SOURCE_UNSAFE", "The font source is not approved."
+                    )
+                data = await (
+                    self._download(candidate)
+                    if url == candidate.canonical_source
+                    else _download_url(client, url)
+                )
+                inspection = inspect_bytes(
+                    data,
+                    category="font",
+                    max_bytes=request.technical_constraints.max_bytes
+                    or _category_limit("font", settings)
+                    or None,
+                )
+                digest = str(inspection["sha256"])
+                suffix = str(candidate.technical_metadata.get("font_format", "woff2"))
+                target = category_root / f"{digest}-{_safe_relative(variant)}.{suffix}"
+                target.write_bytes(data)
+                results.append(
+                    LocalMaterialFile(
+                        local_path=target.relative_to(root).as_posix(),
+                        media_type=str(inspection.get("media_type", "font/woff2")),
+                        size=len(data),
+                        sha256=digest,
+                        inspection=inspection,
+                    )
+                )
+        return results
 
 
 class IconAdapter(_BaseAdapter):

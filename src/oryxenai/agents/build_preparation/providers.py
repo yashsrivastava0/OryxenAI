@@ -405,7 +405,11 @@ async def search_components(
     http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
     result: list[FetchedResource] = []
     try:
-        order = list(getattr(settings.resource_providers, "registry_order", ["shadcn", "magicui"]))
+        configured_order = list(
+            getattr(settings.resource_providers, "registry_order", ["shadcn", "magicui"])
+        )
+        allowed = set(query.allowed_providers)
+        order = [provider for provider in configured_order if not allowed or provider in allowed]
         for provider in order:
             enabled = provider == "shadcn" or bool(
                 getattr(settings.resource_providers, f"{provider}_enabled", False)
@@ -540,6 +544,163 @@ async def resolve_icon(
             await http.aclose()
 
 
+async def search_fontsource(
+    query: ResourceQuery,
+    settings: Any,
+    *,
+    client: httpx.AsyncClient | None = None,
+    limit: int = 3,
+) -> list[FetchedResource]:
+    """Resolve a small, pinned Fontsource font set with local file URLs."""
+
+    if not bool(getattr(settings.resource_providers, "fontsource_enabled", True)):
+        return []
+    base = str(getattr(settings.resource_providers, "fontsource_api_base_url", "") or "").rstrip(
+        "/"
+    )
+    if not base:
+        return []
+    # Flatten the set-of-sets while retaining stable order.
+    terms: list[str] = []
+    for value in [query.query, *query.provider_terms]:
+        for token in re.findall(r"[a-z0-9]+", value.lower()):
+            if len(token) > 2 and token not in terms:
+                terms.append(token)
+    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
+    result: list[FetchedResource] = []
+    try:
+        response = await _get(
+            http,
+            f"{base}/fonts",
+            params={"subsets": "latin"},
+            headers={"Accept": "application/json"},
+            timeout_seconds=settings.build_preparation.network_timeout_seconds,
+            retry_count=settings.build_preparation.network_retry_count,
+            provider="fontsource",
+        )
+        payload = response.json()
+        fonts = payload if isinstance(payload, list) else []
+        ranked: list[tuple[int, dict[str, Any]]] = []
+        for item in fonts:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            haystack = " ".join(str(item.get(key, "")) for key in ("id", "family", "category"))
+            score = sum(1 for token in terms if token in haystack.casefold())
+            if score:
+                ranked.append((score, item))
+        ranked.sort(key=lambda pair: (-pair[0], str(pair[1].get("id", ""))))
+        for _, item in ranked[:limit]:
+            font_id = str(item.get("id", ""))
+            try:
+                detail = await _get(
+                    http,
+                    f"{base}/fonts/{font_id}",
+                    headers={"Accept": "application/json"},
+                    timeout_seconds=settings.build_preparation.network_timeout_seconds,
+                    retry_count=settings.build_preparation.network_retry_count,
+                    provider="fontsource",
+                )
+                detail_payload = detail.json()
+            except (ProviderError, ValueError):
+                continue
+            if not isinstance(detail_payload, dict):
+                continue
+            variants = detail_payload.get("variants", {})
+            urls: dict[str, str] = {}
+            if isinstance(variants, dict):
+                for weight in ("400", "500", "600", "700"):
+                    styles = variants.get(weight)
+                    normal = styles.get("normal") if isinstance(styles, dict) else None
+                    subset = normal.get("latin") if isinstance(normal, dict) else None
+                    url_map = subset.get("url") if isinstance(subset, dict) else None
+                    if isinstance(url_map, dict):
+                        url = str(
+                            url_map.get(
+                                str(
+                                    getattr(
+                                        settings.resource_providers, "fontsource_format", "woff2"
+                                    )
+                                ),
+                                "",
+                            )
+                        )
+                        if url.startswith("https://cdn.jsdelivr.net/"):
+                            urls[f"{weight}-normal"] = url
+            if not urls:
+                continue
+            family = str(detail_payload.get("family", item.get("family", font_id)) or font_id)
+            weights = sorted({key.split("-", 1)[0] for key in urls})
+            result.append(
+                FetchedResource(
+                    resource_id=_stable_id("fontsource", f"{query.need_id}:{font_id}"),
+                    need_id=query.need_id,
+                    kind="font",
+                    provider="fontsource",
+                    provider_asset_id=font_id,
+                    source_reference=f"{base}/fonts/{font_id}",
+                    title=family,
+                    description=f"Fontsource {family} Latin {getattr(settings.resource_providers, 'fontsource_format', 'woff2')} files",
+                    font_family=family,
+                    font_weights=weights,
+                    font_urls=urls,
+                    license="OFL-1.1",
+                    license_reference="https://scripts.sil.org/OFL",
+                    source_version=str(detail_payload.get("version", "") or ""),
+                    fallback=query.fallback,
+                )
+            )
+        return result
+    except (ProviderError, ValueError, KeyError):
+        return []
+    finally:
+        if owns:
+            await http.aclose()
+
+
+async def download_font(
+    candidate: FetchedResource,
+    settings: Any,
+    *,
+    client: httpx.AsyncClient | None = None,
+    max_bytes: int | None = None,
+) -> dict[str, bytes]:
+    if candidate.provider != "fontsource" or not candidate.font_urls:
+        raise ResourceProviderError(
+            "Fontsource candidate is not approved", provider="fontsource", retryable=False
+        )
+    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
+    try:
+        result: dict[str, bytes] = {}
+        limit = int(
+            max_bytes or getattr(settings.resource_providers, "font_max_bytes", 2 * 1024 * 1024)
+        )
+        for key, url in sorted(candidate.font_urls.items()):
+            parsed = urlparse(url)
+            if parsed.scheme != "https" or parsed.hostname != "cdn.jsdelivr.net":
+                raise ResourceProviderError(
+                    "Fontsource file URL is not approved", provider="fontsource", retryable=False
+                )
+            response = await _get(
+                http,
+                url,
+                headers={"Accept": "font/woff2,font/woff,application/octet-stream"},
+                timeout_seconds=settings.build_preparation.network_timeout_seconds,
+                retry_count=settings.build_preparation.network_retry_count,
+                provider="fontsource",
+            )
+            if len(response.content) > limit:
+                raise ResourceProviderError(
+                    "Fontsource file exceeds the configured limit",
+                    provider="fontsource",
+                    retryable=False,
+                )
+            result[key] = response.content
+        return result
+    finally:
+        if owns:
+            await http.aclose()
+
+
 async def download_pexels(
     candidate: FetchedResource,
     settings: Any,
@@ -634,4 +795,6 @@ class ProviderLookup:
                 result.extend(await search_components(query, self.settings, client=self.client))
             elif query.kind == "icon":
                 result.extend(await resolve_icon(query, self.settings, client=self.client))
+            elif query.kind == "font":
+                result.extend(await search_fontsource(query, self.settings, client=self.client))
         return result

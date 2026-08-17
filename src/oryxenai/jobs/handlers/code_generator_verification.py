@@ -254,6 +254,11 @@ async def _execute(
             allowed_packages=allowed_packages,
             public_text=public_text,
         )
+        prior_source_passed = _prior_gate_passed(
+            prior_projection, "source_contract", identity.identity_hash
+        )
+        if prior_source_passed:
+            source_diagnostics = []
         projection.diagnostics.extend(source_diagnostics)
         projection.gate_results.append(
             GateResult(
@@ -302,11 +307,15 @@ async def _execute(
         await _persist_projection(
             sessionmaker, run_id, projection, DevelopmentRunStatus.BUILDING.value
         )
-        manifest, build_diagnostics = await run_clean_build(
-            workspace.repo_dir,
-            settings=settings,
-            candidate_identity_hash=identity.identity_hash,
-        )
+        reused_manifest = _prior_build_manifest(prior_projection, identity.identity_hash)
+        if reused_manifest is not None:
+            manifest, build_diagnostics = reused_manifest, []
+        else:
+            manifest, build_diagnostics = await run_clean_build(
+                workspace.repo_dir,
+                settings=settings,
+                candidate_identity_hash=identity.identity_hash,
+            )
         projection.diagnostics.extend(build_diagnostics)
         projection.gate_results.append(
             GateResult(
@@ -358,9 +367,10 @@ async def _execute(
         await _persist_projection(
             sessionmaker, run_id, projection, DevelopmentRunStatus.SMOKE_TESTING.value
         )
+        host = str(run.preview_host or _preview_host(str(run_id)))
         token = secrets.token_urlsafe(32)
-        server = await start_ephemeral_server(
-            create_candidate_app(
+        try:
+            candidate_app = create_candidate_app(
                 workspace.repo_dir / "dist",
                 token=token,
                 parent_origin=str(settings.code_generator_verification.preview_parent_origin),
@@ -369,7 +379,18 @@ async def _execute(
                     f"{host}/"
                 ),
             )
-        )
+            server = await start_ephemeral_server(candidate_app)
+        except Exception as exc:
+            logger.warning(
+                "preview gateway could not start run_id=%s error_type=%s",
+                run_id,
+                type(exc).__name__,
+            )
+            raise VerificationFailure(
+                "PREVIEW_GATEWAY_START_FAILED",
+                "The local preview gateway could not start safely.",
+                owner="infrastructure",
+            ) from exc
         verifier = (
             runtime_verifier_factory()
             if runtime_verifier_factory is not None
@@ -403,6 +424,15 @@ async def _execute(
             if server is not None:
                 await server.close()
                 server = None
+            if _has_infrastructure_diagnostic(runtime_diagnostics):
+                return await _terminal(
+                    sessionmaker,
+                    run_id,
+                    projection,
+                    code=_first_infrastructure_code(runtime_diagnostics),
+                    summary="The verification environment could not complete the browser smoke test.",
+                    next_action="Check the local preview gateway and browser runtime, then retry verification.",
+                )
             repaired = await _attempt_repair(
                 sessionmaker=sessionmaker,
                 run_id=run_id,
@@ -565,10 +595,47 @@ async def _execute(
 
 
 class VerificationFailure(ValueError):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, *, owner: str = "infrastructure") -> None:
         self.code = code
         self.message = message
+        self.owner = owner
         super().__init__(message)
+
+
+def _prior_gate_passed(
+    projection: VerificationProjection | None, gate_id: str, identity_hash: str
+) -> bool:
+    if projection is None or projection.candidate_identity.identity_hash != identity_hash:
+        return False
+    return any(
+        gate.gate_id == gate_id
+        and gate.status == "passed"
+        and gate.candidate_identity_hash == identity_hash
+        for gate in projection.gate_results
+    )
+
+
+def _prior_build_manifest(
+    projection: VerificationProjection | None, identity_hash: str
+) -> Any | None:
+    if projection is None or projection.candidate_identity.identity_hash != identity_hash:
+        return None
+    if not _prior_gate_passed(projection, "type_build_artifact", identity_hash):
+        return None
+    if projection.build_manifest is None:
+        return None
+    return projection.build_manifest
+
+
+def _has_infrastructure_diagnostic(diagnostics: list[Diagnostic]) -> bool:
+    return any(item.owner == "infrastructure" for item in diagnostics)
+
+
+def _first_infrastructure_code(diagnostics: list[Diagnostic]) -> str:
+    for item in diagnostics:
+        if item.owner == "infrastructure":
+            return item.code
+    return "VERIFICATION_INFRASTRUCTURE_FAILED"
 
 
 def _canonical(value: object) -> bytes:

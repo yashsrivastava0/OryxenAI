@@ -389,6 +389,37 @@ def compile_stage0(
             )
         )
 
+    # Typography is executable material too: give the downstream generator a
+    # real, locally vendorable Fontsource candidate whenever the provider is
+    # available, with the deterministic recipe remaining the explicit fallback.
+    if routes and (
+        visual_design_director.get("visual_language")
+        or visual_design_director.get("typography")
+        or visual_design_director.get("global_visual_language")
+    ):
+        result_needs.append(
+            ResourceNeed(
+                need_id=_need_id("resource", "typography-font"),
+                kind="resource",
+                source_id="typography-font",
+                category="font",
+                purpose="A distinctive display/body font family for the approved visual language, vendored locally with Latin glyph coverage.",
+                route_ids=[route.route_id for route in routes],
+                scene_ids=[],
+                source_status="needs_acquisition",
+                source_policy="optional_external_acquisition",
+                importance="important",
+                required_for_handoff=True,
+                query_terms=["space grotesk", "manrope", "technical sans"],
+                fallback="Use the typed local system font recipe with the declared weights.",
+                details={
+                    "font_profile": "editorial_technical",
+                    "weights": ["400", "500", "600", "700"],
+                    "subsets": ["latin"],
+                },
+            )
+        )
+
     events.append(
         _event(
             "scope_compiled",
