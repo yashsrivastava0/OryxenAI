@@ -22,10 +22,10 @@
       {% else %}
       <section class="panel">
         <div class="panel-heading"><h2>Input</h2><span class="badge">Detached · no session required</span></div>
-        <p class="muted">Paste or choose a Visual Design Director JSON object. Content Architect JSON is optional for this fixture, but recommended when it is available.</p>
+        <p class="muted">Leave both fields empty to auto-pick the newest matching Content Architect and Visual Design Director outputs from <span class="mono">Input-Output-Of-Engine</span>. You can still paste or choose JSON for an explicit override.</p>
         <div class="actions">
           <label class="button secondary">Choose VDD JSON<input id="fixture-file" type="file" accept="application/json,.json"></label>
-          <button id="use-default" class="button secondary" type="button">Use checked-in VDD fixture</button>
+          <button id="use-default" class="button secondary" type="button">Auto-pick attached outputs</button>
         </div>
         <textarea id="fixture-input" rows="18" spellcheck="false" placeholder="Paste a Visual Design Director JSON object here…"></textarea>
         <div class="input-heading"><h3>Content Architect JSON <span class="optional">optional</span></h3><span class="muted">Approved content produces fuller per-route build context.</span></div>

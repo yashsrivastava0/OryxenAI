@@ -97,9 +97,9 @@ network_timeout_seconds = 15.0
 network_retry_count = 2
 target_contract = "react-vite-v1"
 fixture_enabled = true
-fixture_input_path = "src/oryxenai/output/visual_design_director_Output.md"
+fixture_input_path = "Input-Output-Of-Engine/Visual Design Director output.md"
 # Matching Content Architect snapshot that reunites the fixture (CA, VDD) pair.
-fixture_content_input_path = "src/oryxenai/output/content-architect"
+fixture_content_input_path = "Input-Output-Of-Engine/Content Architect output.MD"
 fixture_output_dir = "output"
 fixture_upload = true
 fixture_reasoning_enabled = false
