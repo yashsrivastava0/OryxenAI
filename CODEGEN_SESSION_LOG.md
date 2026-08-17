@@ -120,8 +120,9 @@ The requested Code Generator files are not empty. Each package-root example is a
   runtime shell while the validator prohibited those files. Integration is now
   a deterministic no-write audit, and every workspace open reasserts the
   scaffold's trusted `AppRouter`, preview bridge, error boundary, entrypoint,
-  and global CSS. This prevents stale or model-written shell files from
-  reaching a preview.
+  and global CSS. The same reassertion now runs after accepted-checkpoint
+  restore, preventing stale or model-written shell files from reaching a
+  resumed preview.
 - Added regression coverage for trusted-shell mutation, scaffold reassertion,
   readiness/page contracts, and server-authoritative latest-pack selection.
 
