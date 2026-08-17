@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from oryxenai.agents.build_preparation.agent import BuildPreparationAgent
+from oryxenai.agents.build_preparation.fixture import _offline_candidates
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     ResourceQuery,
@@ -176,6 +177,15 @@ async def test_offline_phase2_runs_all_deterministic_stages_and_materializes() -
         assert result.output["package"]["archive_sha256"]
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
+
+
+def test_offline_fixture_never_fabricates_visual_candidates() -> None:
+    queries = [
+        ResourceQuery(need_id="image", kind="photo", query="editorial image"),
+        ResourceQuery(need_id="component", kind="component", query="interactive component"),
+    ]
+
+    assert _offline_candidates(queries) == []
 
 
 @pytest.mark.asyncio

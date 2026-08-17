@@ -81,7 +81,7 @@ async def test_start_requires_approved_content_architect(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_phase_3_start_and_worker_flow_persist_ready_state(db_session) -> None:
+async def test_phase_3_start_and_worker_flow_persist_blocked_visual_state(db_session) -> None:
     session = await PortfolioSessionRepository(db_session).create("Build Preparation worker")
     session_id = session.id
     session.current_state = _approved_upstream_state()
@@ -106,7 +106,9 @@ async def test_phase_3_start_and_worker_flow_persist_ready_state(db_session) -> 
 
     review = await service.get_state(session_id)
     build_preparation = review["build_preparation"]
-    assert build_preparation["status"] == "ready"
+    assert build_preparation["status"] == "needs_attention"
+    assert build_preparation["handoff_report"]["handoff_eligible"] is False
+    assert build_preparation["handoff_report"]["execution_gaps"]
     assert build_preparation["routes"][0]["route_id"] == "home"
     assert build_preparation["scope_hash"]
     assert build_preparation["current_stage"] == "phase_3"

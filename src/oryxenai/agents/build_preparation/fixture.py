@@ -9,15 +9,12 @@ focused on real pipeline orchestration.
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
-
-from PIL import Image
 
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
@@ -67,7 +64,7 @@ def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
             "message": (
                 "Optional editorial-image lookup is ready."
                 if os.getenv(pexels_env, "")
-                else "Pexels is unavailable; the approved custom visual fallback will be used."
+                else "Pexels is unavailable; required visual roles will remain execution gaps."
             ),
             "missing": [] if os.getenv(pexels_env, "") else [pexels_env],
         }
@@ -311,6 +308,8 @@ async def run_fixture(
         "events": output.get("events", []),
         "model_calls": output.get("model_calls", 0),
         "provider_calls": output.get("provider_calls", 0),
+        "provider_cache_hits": output.get("provider_cache_hits", 0),
+        "provider_rate_limit_events": output.get("provider_rate_limit_events", 0),
         "live_model": live_model,
         "live_providers": live_providers,
         "storage": storage,
@@ -359,34 +358,20 @@ def _offline_query_plan(needs: list[Any]) -> Stage1QueryPlan:
 
 
 def _offline_candidates(queries: list[ResourceQuery]) -> list[FetchedResource]:
+    """Return only honest package metadata; never fabricate visual material.
+
+    Offline fixture runs are useful for exercising the compiler and gap
+    reporting, but an image or component needs real provider bytes/source. A
+    mock photo/component would make the UI look populated while producing an
+    inadmissible pack, so those candidates are deliberately omitted.
+    """
     result: list[FetchedResource] = []
     for query in queries:
         if query.kind == "custom":
             continue
         digest = hashlib.sha256(query.need_id.encode("utf-8")).hexdigest()[:16]
         if query.kind == "photo":
-            result.append(
-                FetchedResource(
-                    resource_id=f"resource-mock-{digest}",
-                    need_id=query.need_id,
-                    kind="photo",
-                    provider="pexels",
-                    provider_asset_id=f"mock-{digest}",
-                    source_reference="https://www.pexels.com/",
-                    preview_url="https://images.pexels.com/",
-                    image_url=f"https://images.pexels.com/mock/{digest}.jpg",
-                    title="Mock abstract portfolio image",
-                    photographer="Fixture photographer",
-                    photographer_url="https://www.pexels.com/",
-                    attribution_url="https://www.pexels.com/",
-                    width=1600,
-                    height=1000,
-                    orientation="landscape",
-                    mime_type="image/png",
-                    license="Pexels license",
-                    license_reference="https://www.pexels.com/legal-pages/license/",
-                )
-            )
+            continue
         elif query.kind == "icon":
             icon = query.icon_name or "sparkles"
             result.append(
@@ -407,23 +392,9 @@ def _offline_candidates(queries: list[ResourceQuery]) -> list[FetchedResource]:
             # typography recipe; live Fontsource materialization is opt-in.
             continue
         else:
-            result.append(
-                FetchedResource(
-                    resource_id=f"resource-mock-component-{digest}",
-                    need_id=query.need_id,
-                    kind="component",
-                    provider="shadcn",
-                    provider_asset_id=f"mock-{digest}",
-                    source_reference="https://ui.shadcn.com/",
-                    title="Mock adaptable component",
-                    source_files={
-                        "component.tsx": "export function PreparedComponent() { return null; }"
-                    },
-                    dependencies=["react"],
-                    license="MIT",
-                    license_reference="https://github.com/shadcn-ui/ui/blob/main/LICENSE.md",
-                )
-            )
+            # Registry source is also unavailable offline. Leave the need
+            # unresolved so execution.py emits VDD_EXECUTION_GAP.
+            continue
     return result
 
 
@@ -519,13 +490,3 @@ def _offline_context(
             "custom visual technique",
         ],
     )
-
-
-async def _offline_download(_candidate: FetchedResource) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (1600, 1000), "#1f2937").save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
-async def _offline_trigger(_candidate: FetchedResource) -> None:
-    return None

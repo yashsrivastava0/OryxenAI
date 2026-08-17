@@ -14,10 +14,8 @@ from oryxenai.agents.build_preparation.compiler import compile_stage0
 from oryxenai.agents.build_preparation.fixture import (
     _offline_candidates,
     _offline_context,
-    _offline_download,
     _offline_query_plan,
     _offline_selection_plan,
-    _offline_trigger,
 )
 from oryxenai.agents.build_preparation.materializer import (
     dependencies_allowed,
@@ -29,7 +27,11 @@ from oryxenai.agents.build_preparation.prompt_builder import (
     build_instructions,
     output_model_for,
 )
-from oryxenai.agents.build_preparation.providers import ProviderLookup
+from oryxenai.agents.build_preparation.providers import (
+    ProviderLookup,
+    download_pexels,
+    trigger_unsplash_download,
+)
 from oryxenai.agents.build_preparation.quality import (
     build_handoff_report,
     normalize_query_plan,
@@ -39,7 +41,6 @@ from oryxenai.agents.build_preparation.quality import (
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationSourceRef,
-    CandidateQualification,
     FetchedResource,
     ResourceSelection,
     RouteBuildContext,
@@ -103,72 +104,6 @@ def _candidate_prompt(candidate: FetchedResource) -> dict[str, Any]:
     return data
 
 
-def _generated_visual_candidate(need: Any) -> tuple[FetchedResource, CandidateQualification]:
-    """Create concrete local visual material when external lookup is absent."""
-
-    import hashlib
-
-    digest = hashlib.sha256(str(need.need_id).encode("utf-8")).hexdigest()[:16]
-    is_photo = need.kind == "asset" or "photo" in str(need.category).casefold()
-    resource_id = f"resource-generated-{digest}"
-    if is_photo:
-        candidate = FetchedResource(
-            resource_id=resource_id,
-            need_id=need.need_id,
-            kind="photo",
-            provider="generated-local",
-            provider_asset_id=f"generated-{digest}",
-            source_reference="local://oryxenai/generated-visual",
-            title="Generated abstract technical visual",
-            description="Locally materialized abstract technical editorial visual",
-            width=1600,
-            height=1000,
-            orientation="landscape",
-            mime_type="image/png",
-            image_url="",
-            license="OryxenAI generated visual",
-            license_reference="local://oryxenai/generated-visual-license",
-            fallback="",
-        )
-    else:
-        candidate = FetchedResource(
-            resource_id=resource_id,
-            need_id=need.need_id,
-            kind="component",
-            provider="generated-local",
-            provider_asset_id=f"visual-story-{digest}",
-            source_reference="local://oryxenai/generated-component",
-            title="Generated visual storytelling component",
-            description="Generated local process topology visual component",
-            source_files={
-                "PreparedVisualStory.tsx": (
-                    "import type { ReactNode } from 'react';\n\n"
-                    "type Props = { label?: string; children?: ReactNode };\n\n"
-                    "export function PreparedVisualStory({ label = 'Selected work', children }: Props) {\n"
-                    '  return <div data-resource-role="visual-story" className="prepared-visual-story">'
-                    '<span className="prepared-visual-story__label">{label}</span>{children}</div>;\n'
-                    "}\n\nexport default PreparedVisualStory;\n"
-                )
-            },
-            dependencies=["react"],
-            license="OryxenAI generated component",
-            license_reference="local://oryxenai/generated-component-license",
-        )
-    qualification = CandidateQualification(
-        resource_id=resource_id,
-        need_id=need.need_id,
-        eligible=True,
-        relevance_score=100,
-        quality_score=100,
-        policy_status="approved",
-        technical_status="approved",
-        reasons=[
-            "No provider candidate was available; concrete local visual material was generated."
-        ],
-    )
-    return candidate, qualification
-
-
 class BuildPreparationAgent(Agent):
     key = AgentKey.BUILD_PREPARATION
 
@@ -217,6 +152,9 @@ class BuildPreparationAgent(Agent):
         source_ref = (
             BuildPreparationSourceRef.model_validate(raw_ref) if isinstance(raw_ref, dict) else None
         )
+        declared_policy = visual.get("resource_policy")
+        if not isinstance(declared_policy, dict):
+            declared_policy = {}
         stage0 = compile_stage0(
             content,
             visual,
@@ -227,7 +165,20 @@ class BuildPreparationAgent(Agent):
             editorial_image_budget=int(
                 payload.get(
                     "editorial_image_budget",
-                    self._settings.build_preparation.editorial_image_budget,
+                    declared_policy.get(
+                        "image_target_count",
+                        self._settings.build_preparation.editorial_image_budget,
+                    ),
+                )
+                or 0
+            ),
+            visual_component_budget=int(
+                payload.get(
+                    "visual_component_budget",
+                    declared_policy.get(
+                        "component_target_count",
+                        self._settings.build_preparation.visual_component_budget,
+                    ),
                 )
                 or 0
             ),
@@ -338,7 +289,7 @@ class BuildPreparationAgent(Agent):
                 "stage_2",
                 "Selecting resources from the returned candidate set."
                 if live_model
-                else "Selecting deterministic offline resource fallbacks.",
+                else "Recording offline provider gaps; no visual fallback is fabricated.",
             )
         )
         if live_model:
@@ -370,11 +321,11 @@ class BuildPreparationAgent(Agent):
                 )
             elif query.kind == "photo":
                 selection_warnings.append(
-                    f"No photo candidate was returned for need '{query.need_id}'; using its fallback."
+                    f"No photo candidate was returned for need '{query.need_id}'; the visual role remains an execution gap."
                 )
             elif query.kind == "component":
                 selection_warnings.append(
-                    f"No registry component was returned for need '{query.need_id}'; using its fallback."
+                    f"No registry component was returned for need '{query.need_id}'; the component role remains an execution gap."
                 )
         normalized_selections: list[ResourceSelection] = []
         for selection in selection_plan.selections:
@@ -407,42 +358,6 @@ class BuildPreparationAgent(Agent):
             update={"selections": normalized_selections, "warnings": selection_warnings}
         )
 
-        # Visual-floor slots may be backed by a provider, but they may never
-        # disappear into prose when a provider is unavailable. Materialize a
-        # concrete local image/component candidate so the downstream generator
-        # always receives an executable visual surface.
-        selected_by_need = {
-            item.need_id: item.selected_resource_id for item in selection_plan.selections
-        }
-        qualified_by_id = {item.resource_id: item for item in qualifications}
-        for need in stage0.resource_needs:
-            selected_id = selected_by_need.get(need.need_id)
-            selected_is_eligible = bool(
-                selected_id
-                and qualified_by_id.get(selected_id) is not None
-                and qualified_by_id[selected_id].eligible
-            )
-            if not need.required_for_handoff or selected_is_eligible:
-                continue
-            if need.category not in {"editorial_photo", "visual_component"}:
-                continue
-            candidate, qualification = _generated_visual_candidate(need)
-            candidates.append(candidate)
-            qualifications.append(qualification)
-            replacement = ResourceSelection(
-                need_id=need.need_id,
-                selected_resource_id=candidate.resource_id,
-                why_selected="Concrete local visual fallback materialized because provider lookup returned no usable candidate.",
-                fallback="",
-                adaptation_notes="Use the local material as a real visual component or image; do not replace it with a prose recipe.",
-            )
-            selection_plan.selections = [
-                replacement if item.need_id == need.need_id else item
-                for item in selection_plan.selections
-            ]
-            selection_plan.warnings.append(
-                f"Materialized local visual fallback for required need '{need.source_id}'."
-            )
         forced_selections, forced_warnings = select_required_candidates(
             selection_plan.selections,
             stage0.resource_needs,
@@ -456,9 +371,7 @@ class BuildPreparationAgent(Agent):
         )
         validate_selection_plan(selection_plan, need_ids, candidates)
         await record(
-            _event(
-                "stage_2_complete", "stage_2", "Resources selected or assigned explicit fallbacks."
-            )
+            _event("stage_2_complete", "stage_2", "Resources selected or explicit gaps recorded.")
         )
 
         context_packet = {
@@ -598,8 +511,16 @@ class BuildPreparationAgent(Agent):
                 legacy_route_layout=bool(payload.get("legacy_route_layout", False))
                 or not bool((content or {}).get("route_plan")),
                 settings=self._settings,
-                download_image=_offline_download if not live_providers else None,
-                trigger_download=_offline_trigger if not live_providers else None,
+                download_image=(
+                    (lambda candidate: download_pexels(candidate, self._settings))
+                    if live_providers
+                    else None
+                ),
+                trigger_download=(
+                    (lambda candidate: trigger_unsplash_download(candidate, self._settings))
+                    if live_providers
+                    else None
+                ),
                 root_override=staging_root,
             )
             await record(
@@ -751,6 +672,11 @@ class BuildPreparationAgent(Agent):
                 )
             )
         await record(_event("phase_3_complete", "phase_3", "Build Preparation Phase 3 completed."))
+        provider_calls = int(getattr(lookup, "calls_made", 0)) if live_providers else 0
+        provider_cache_hits = int(getattr(lookup, "cache_hits", 0)) if live_providers else 0
+        provider_rate_limit_events = (
+            int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
+        )
         warnings = (
             list(stage0.warnings)
             + list(query_plan.warnings)
@@ -782,7 +708,9 @@ class BuildPreparationAgent(Agent):
                 "warnings": warnings,
                 "events": [event.model_dump(mode="json") for event in events],
                 "model_calls": model_calls,
-                "provider_calls": len(query_plan.queries) if live_providers else 0,
+                "provider_calls": provider_calls,
+                "provider_cache_hits": provider_cache_hits,
+                "provider_rate_limit_events": provider_rate_limit_events,
                 "context_packet_hash": context_packet_hash,
                 "model_call_receipts": stages_meta,
             },
@@ -790,7 +718,9 @@ class BuildPreparationAgent(Agent):
             model_metadata={
                 "stages": stages_meta,
                 "model_calls": model_calls,
-                "provider_calls": len(query_plan.queries) if live_providers else 0,
+                "provider_calls": provider_calls,
+                "provider_cache_hits": provider_cache_hits,
+                "provider_rate_limit_events": provider_rate_limit_events,
                 "context_packet_hash": context_packet_hash,
                 "model_call_receipts": stages_meta,
             },

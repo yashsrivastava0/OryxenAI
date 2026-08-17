@@ -92,6 +92,8 @@
     summary.hidden = false;
     while (body.firstChild) body.removeChild(body.firstChild);
     var value = record.summary || {};
+    body.appendChild(element("p", "Real material: " + (value.real_image_count || 0) + " images · " + (value.real_component_count || 0) + " components · " + (value.execution_gap_count || 0) + " execution gaps"));
+    body.appendChild(element("p", "Calls: " + (value.model_calls || 0) + " model · " + (value.provider_calls || 0) + " provider", "muted"));
     body.appendChild(element("p", "Status: " + record.status + " · Routes: " + (value.route_count || 0) + " · Needs: " + (value.resource_need_count || 0)));
     body.appendChild(element("p", "ZIP: " + (value.archive_sha256 || "not available") + " · " + (value.archive_size_bytes || 0) + " bytes", "mono"));
     document.getElementById("summary-details").href = record.details_url || "/build-preparation-fixture/progress";

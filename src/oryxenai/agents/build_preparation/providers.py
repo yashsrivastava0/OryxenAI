@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import re
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
@@ -30,12 +32,19 @@ from oryxenai.agents.shared.providers.errors import (
 class ResourceProviderError(ProviderError):
     """A provider lookup failed but the pipeline may still use a fallback."""
 
-    def __init__(self, message: str, *, provider: str, retryable: bool = True) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: str,
+        retryable: bool = True,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(
             message,
             code="RESOURCE_PROVIDER_UNAVAILABLE",
             retryable=retryable,
-            details={"provider": provider},
+            details={"provider": provider, **(details or {})},
         )
 
 
@@ -49,6 +58,8 @@ _REGISTRY_LICENSES: dict[str, tuple[str, str]] = {
         "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
     ),
 }
+_REGISTRY_CATALOG_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_PROVIDER_RATE_STATE: dict[str, dict[str, float]] = {}
 
 
 def _stable_id(prefix: str, value: str) -> str:
@@ -65,9 +76,9 @@ def _env_value(settings: Any, field: str, fallback: str) -> str:
     return os.environ.get(name, "")
 
 
-def _retry_after(response: httpx.Response) -> float:
+def _retry_after(response: httpx.Response, *, maximum: float = 8.0) -> float:
     try:
-        return max(0.0, min(float(response.headers.get("Retry-After", "0")), 5.0))
+        return max(0.0, min(float(response.headers.get("Retry-After", "0")), maximum))
     except (TypeError, ValueError):
         return 0.0
 
@@ -80,12 +91,14 @@ async def _get(
     params: dict[str, str | int] | None = None,
     timeout_seconds: float = 15.0,
     retry_count: int = 2,
+    max_retry_after_seconds: float = 8.0,
     provider: str,
 ) -> httpx.Response:
     last_error: Exception | None = None
     for attempt in range(max(0, retry_count) + 1):
         delay = 0.0
         try:
+            await _respect_provider_budget(provider, max_retry_after_seconds)
             response = await client.get(
                 url,
                 headers=headers,
@@ -99,11 +112,18 @@ async def _get(
             last_error = ProviderConnectionError(f"{provider} connection failed")
         else:
             if response.status_code < 400:
+                _record_rate_headers(provider, response)
                 return response
             if response.status_code == 429:
+                retry_after = _retry_after(response, maximum=max_retry_after_seconds)
                 last_error = ProviderRateLimitError(
-                    f"{provider} rate limit reached", retry_after_seconds=_retry_after(response)
+                    f"{provider} rate limit reached",
+                    retry_after_seconds=retry_after,
                 )
+                _PROVIDER_RATE_STATE[provider] = {
+                    "remaining": 0.0,
+                    "reset_at": time.time() + retry_after,
+                }
             elif response.status_code >= 500:
                 last_error = ProviderServerError(
                     f"{provider} returned a server error", status_code=response.status_code
@@ -114,11 +134,18 @@ async def _get(
                     provider=provider,
                     retryable=False,
                 )
-            delay = _retry_after(response)
+            delay = _retry_after(response, maximum=max_retry_after_seconds)
         if attempt < max(0, retry_count):
             await asyncio.sleep(delay)
     if last_error is not None:
-        raise ResourceProviderError(str(last_error), provider=provider) from last_error
+        raise ResourceProviderError(
+            str(last_error),
+            provider=provider,
+            details={
+                "error_code": getattr(last_error, "code", ""),
+                **getattr(last_error, "details", {}),
+            },
+        ) from last_error
     raise ResourceProviderError(f"{provider} request failed", provider=provider)
 
 
@@ -130,13 +157,50 @@ def _client_or_new(
     return httpx.AsyncClient(timeout=timeout_seconds), True
 
 
+async def _respect_provider_budget(provider: str, maximum_wait: float) -> None:
+    state = _PROVIDER_RATE_STATE.get(provider, {})
+    reset_at = float(state.get("reset_at", 0.0) or 0.0)
+    remaining = state.get("remaining")
+    if remaining is None or remaining > 0 or reset_at <= time.time():
+        return
+    wait = reset_at - time.time()
+    if wait > maximum_wait:
+        raise ResourceProviderError(
+            f"{provider} rate budget is exhausted",
+            provider=provider,
+            details={
+                "error_code": "PROVIDER_RATE_LIMIT_ERROR",
+                "reset_at": reset_at,
+                "remaining": remaining,
+            },
+        )
+    await asyncio.sleep(max(0.0, wait))
+
+
+def _record_rate_headers(provider: str, response: httpx.Response) -> None:
+    remaining_value = response.headers.get("X-Ratelimit-Remaining") or response.headers.get(
+        "X-RateLimit-Remaining"
+    )
+    reset_value = response.headers.get("X-Ratelimit-Reset") or response.headers.get(
+        "X-RateLimit-Reset"
+    )
+    state = _PROVIDER_RATE_STATE.setdefault(provider, {})
+    try:
+        if remaining_value is not None:
+            state["remaining"] = float(remaining_value)
+        if reset_value is not None:
+            state["reset_at"] = float(reset_value)
+    except (TypeError, ValueError):
+        return
+
+
 async def search_pexels(
     query: ResourceQuery,
     settings: Any,
     *,
     client: httpx.AsyncClient | None = None,
     api_key: str | None = None,
-    limit: int = 5,
+    limit: int = 20,
 ) -> list[FetchedResource]:
     key = (
         api_key
@@ -149,7 +213,7 @@ async def search_pexels(
     try:
         params: dict[str, str | int] = {
             "query": query.query[:180],
-            "per_page": min(max(limit, 1), 12),
+            "per_page": min(max(limit, 1), 80),
         }
         if query.orientation in {"landscape", "portrait", "square"}:
             params["orientation"] = query.orientation
@@ -425,16 +489,26 @@ async def search_components(
             if not catalog_url or not template:
                 continue
             try:
-                response = await _get(
-                    http,
-                    catalog_url,
-                    headers={"Accept": "application/json"},
-                    timeout_seconds=settings.build_preparation.network_timeout_seconds,
-                    retry_count=settings.build_preparation.network_retry_count,
-                    provider=provider,
+                cache_ttl = max(
+                    0,
+                    int(getattr(settings.build_preparation, "provider_cache_ttl_seconds", 86400)),
                 )
-                payload = response.json()
-                items = payload.get("items", []) if isinstance(payload, dict) else []
+                cached_catalog = _REGISTRY_CATALOG_CACHE.get(catalog_url)
+                if cached_catalog and time.monotonic() - cached_catalog[0] <= cache_ttl:
+                    items = cached_catalog[1]
+                else:
+                    response = await _get(
+                        http,
+                        catalog_url,
+                        headers={"Accept": "application/json"},
+                        timeout_seconds=settings.build_preparation.network_timeout_seconds,
+                        retry_count=settings.build_preparation.network_retry_count,
+                        provider=provider,
+                    )
+                    payload = response.json()
+                    items = payload.get("items", []) if isinstance(payload, dict) else []
+                    items = [item for item in items if isinstance(item, dict)]
+                    _REGISTRY_CATALOG_CACHE[catalog_url] = (time.monotonic(), items)
                 ranked: list[tuple[int, dict[str, Any]]] = []
                 wanted = _tokens(" ".join([query.query, *query.provider_terms]))
                 for item in items if isinstance(items, list) else []:
@@ -772,29 +846,83 @@ class ProviderLookup:
     settings: Any
     client: httpx.AsyncClient | None = None
     live: bool = True
+    _cache: dict[str, tuple[float, list[FetchedResource]]] = field(default_factory=dict)
+    _blocked_until: dict[str, float] = field(default_factory=dict)
+    _request_counts: dict[str, int] = field(default_factory=dict)
+    _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
+    calls_made: int = field(default=0, init=False)
+    cache_hits: int = field(default=0, init=False)
+    rate_limit_events: int = field(default=0, init=False)
+
+    def __post_init__(self) -> None:
+        limit = max(1, int(getattr(self.settings.build_preparation, "provider_max_concurrency", 2)))
+        self._semaphore = asyncio.Semaphore(limit)
+
+    def _cache_key(self, query: ResourceQuery) -> str:
+        payload = query.model_dump(mode="json")
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    async def _lookup_one(self, query: ResourceQuery) -> list[FetchedResource]:
+        now = time.monotonic()
+        key = self._cache_key(query)
+        cached = self._cache.get(key)
+        ttl = max(
+            0, int(getattr(self.settings.build_preparation, "provider_cache_ttl_seconds", 86400))
+        )
+        if cached and now - cached[0] <= ttl:
+            self.cache_hits += 1
+            return list(cached[1])
+        provider = {
+            "photo": "pexels",
+            "component": "registry",
+            "font": "fontsource",
+            "icon": "lucide",
+        }.get(query.kind, query.kind)
+        if now < self._blocked_until.get(provider, 0.0):
+            self.rate_limit_events += 1
+            return []
+        max_requests = max(
+            1, int(getattr(self.settings.build_preparation, "provider_max_requests", 32))
+        )
+        if self._request_counts.get(provider, 0) >= max_requests:
+            self._blocked_until[provider] = now + max(1.0, float(ttl))
+            self.rate_limit_events += 1
+            return []
+        self._request_counts[provider] = self._request_counts.get(provider, 0) + 1
+        self.calls_made += 1
+        if self._semaphore is None:
+            self.__post_init__()
+        assert self._semaphore is not None
+        async with self._semaphore:
+            found: list[FetchedResource] = []
+            if query.kind == "photo":
+                try:
+                    found = await search_pexels(query, self.settings, client=self.client)
+                except ResourceProviderError as exc:
+                    if exc.details.get("error_code") == "PROVIDER_RATE_LIMIT_ERROR":
+                        self.rate_limit_events += 1
+                        retry_after = float(exc.details.get("retry_after_seconds", 0) or 0)
+                        self._blocked_until[provider] = time.monotonic() + max(1.0, retry_after)
+                if not found and not query.required_for_handoff:
+                    try:
+                        found = await search_unsplash(query, self.settings, client=self.client)
+                    except ResourceProviderError:
+                        found = []
+            elif query.kind == "component":
+                found = await search_components(query, self.settings, client=self.client)
+            elif query.kind == "icon":
+                found = await resolve_icon(query, self.settings, client=self.client)
+            elif query.kind == "font":
+                found = await search_fontsource(query, self.settings, client=self.client)
+        self._cache[key] = (time.monotonic(), list(found))
+        return found
 
     async def lookup(self, queries: list[ResourceQuery]) -> list[FetchedResource]:
         if not self.live:
             return []
         result: list[FetchedResource] = []
         for query in queries:
-            if query.kind == "photo":
-                try:
-                    found = await search_pexels(query, self.settings, client=self.client)
-                except ResourceProviderError:
-                    found = []
-                # Unsplash requires hotlinking and cannot satisfy a required
-                # local resource while the static target forbids remote assets.
-                if not found and not query.required_for_handoff:
-                    try:
-                        found = await search_unsplash(query, self.settings, client=self.client)
-                    except ResourceProviderError:
-                        found = []
-                result.extend(found)
-            elif query.kind == "component":
-                result.extend(await search_components(query, self.settings, client=self.client))
-            elif query.kind == "icon":
-                result.extend(await resolve_icon(query, self.settings, client=self.client))
-            elif query.kind == "font":
-                result.extend(await search_fontsource(query, self.settings, client=self.client))
+            result.extend(await self._lookup_one(query))
         return result

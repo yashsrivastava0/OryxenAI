@@ -186,6 +186,7 @@ class AssetBrief(BaseModel):
     decorative_vs_informative: str = ""
     alt_text_intent: str = ""
     attribution_requirement: str = ""
+    expected_exports: list[str] = Field(default_factory=list)
     subject: str = ""
     mood: str = ""
     aspect_ratio_need: str = ""
@@ -385,6 +386,7 @@ class VisualDesignDirectorState(BaseModel):
     conflicts: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     compiler_handoff: dict[str, Any] = Field(default_factory=dict)
+    resource_policy: dict[str, Any] = Field(default_factory=dict)
     stages_run: list[str] = Field(default_factory=list)
     memory: dict[str, Any] = Field(default_factory=dict)
     revision_request: str = ""

@@ -84,6 +84,46 @@ def test_quality_rejects_unrelated_component_candidate() -> None:
     assert "COMPONENT_NOT_RELEVANT" in qualification.issue_codes
 
 
+def test_quality_rejects_synthetic_visual_candidates() -> None:
+    image_need = _required_image()
+    image = FetchedResource(
+        resource_id="mock-image",
+        need_id=image_need.need_id,
+        kind="photo",
+        provider="pexels",
+        provider_asset_id="mock-1",
+        image_url="https://images.pexels.com/mock/1.jpg",
+        width=1600,
+        height=1000,
+        photographer="Fixture",
+        attribution_url="https://www.pexels.com/",
+        license="Pexels license",
+        license_reference="https://www.pexels.com/legal-pages/license/",
+    )
+    component_need = ResourceNeed(
+        need_id="need-component",
+        kind="resource",
+        source_id="visual-component",
+        category="visual_component",
+        required_for_handoff=True,
+        query_terms=["workspace", "card"],
+    )
+    component = FetchedResource(
+        resource_id="generated-component",
+        need_id=component_need.need_id,
+        kind="component",
+        provider="generated-local",
+        source_files={"component.tsx": "export function Card() { return <div>Card</div>; }"},
+        license="MIT",
+        license_reference="https://example.test/license",
+    )
+    qualifications = qualify_candidates([image_need, component_need], [image, component])
+    assert qualifications[0].eligible is False
+    assert "SYNTHETIC_IMAGE_CANDIDATE" in qualifications[0].issue_codes
+    assert qualifications[1].eligible is False
+    assert "SYNTHETIC_COMPONENT_CANDIDATE" in qualifications[1].issue_codes
+
+
 def test_quality_accepts_allowed_versioned_component_dependencies() -> None:
     need = ResourceNeed(
         need_id="need-component",
@@ -99,9 +139,17 @@ def test_quality_accepts_allowed_versioned_component_dependencies() -> None:
         provider="shadcn",
         provider_asset_id="workspace-card",
         title="Workspace card",
-        source_files={"card.tsx": "export const Card = () => null"},
+        source_files={
+            "card.tsx": (
+                "import type { ReactNode } from 'react';\n"
+                "export function Card({ children }: { children: ReactNode }) {\n"
+                '  return <article data-testid="card">{children}</article>;\n'
+                "}\n"
+            )
+        },
         dependencies=["react@^19.0.0"],
         license="MIT",
+        license_reference="https://example.test/license",
     )
     qualification = qualify_candidates([need], [candidate])[0]
     assert qualification.eligible is True
@@ -147,6 +195,8 @@ def test_required_local_image_is_forced_then_admitted_only_when_materialized() -
         attribution_url="https://www.pexels.com/photo/1",
         width=1600,
         height=1000,
+        license="Pexels license",
+        license_reference="https://www.pexels.com/legal-pages/license/",
     )
     qualifications = qualify_candidates([need], [candidate])
     selections, warnings = select_required_candidates(
