@@ -6,7 +6,14 @@ from pathlib import Path
 import pytest
 
 from oryxenai.agents.build_preparation import fixture_runs
-from oryxenai.agents.build_preparation.fixture import run_fixture
+from oryxenai.agents.build_preparation.fixture import (
+    _content_snapshot_path,
+    _fixture_path,
+    _load_content_snapshot,
+    _load_default,
+    fixture_storage_preflight,
+    run_fixture,
+)
 from oryxenai.core.settings import Settings
 
 
@@ -43,6 +50,33 @@ async def test_fixture_returns_routes_needs_and_complete_events(tmp_path: Path) 
     assert result["package"]["mirror_root"]
     assert (tmp_path / "fixture-result" / "build-context" / "manifest.json").is_file()
     assert (tmp_path / "fixture-result" / "build-pack.zip").is_file()
+
+
+def test_fixture_auto_picks_attached_content_and_visual_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    attached = tmp_path / "Input-Output-Of-Engine"
+    attached.mkdir()
+    visual_path = attached / "Visual Design Director output.md"
+    content_path = attached / "Content Architect output.MD"
+    visual_path.write_text(json.dumps({"status": "approved", "pages": []}), encoding="utf-8")
+    content_path.write_text(
+        json.dumps({"status": "approved", "route_plan": [{"route_id": "home"}]}),
+        encoding="utf-8",
+    )
+
+    settings = Settings()
+    settings.build_preparation.fixture_input_path = str(tmp_path / "old-vdd-output.md")
+    settings.build_preparation.fixture_content_input_path = str(tmp_path / "old-ca-output.md")
+
+    assert _fixture_path(settings) == visual_path
+    assert _content_snapshot_path(settings) == content_path
+    assert _load_default(settings)["status"] == "approved"
+    assert _load_content_snapshot(settings)["route_plan"][0]["route_id"] == "home"
+    preflight = fixture_storage_preflight(settings)
+    assert preflight["inputs"]["visual_design_director"]["status"] == "ready"
+    assert preflight["inputs"]["content_architect"]["status"] == "ready"
 
 
 def test_fixture_diagnostics_retry_transient_windows_replace(

@@ -66,6 +66,12 @@
     list.appendChild(element("li", r2Text, r2.status === "ready" || r2.status === "verified" ? "ok" : r2.status === "not_configured" ? "warn" : ""));
     var pexels = resources.pexels || {};
     if (pexels.message) list.appendChild(element("li", "Editorial images: " + pexels.message, pexels.status === "ready" ? "ok" : "warn"));
+    var inputs = data.inputs || {};
+    Object.keys(inputs).forEach(function (key) {
+      var item = inputs[key] || {};
+      var label = key === "visual_design_director" ? "Visual Design Director input" : "Content Architect input";
+      list.appendChild(element("li", label + ": " + (item.status === "ready" ? "auto-picked" : "not found"), item.status === "ready" ? "ok" : "warn"));
+    });
   }
   function renderIssue(issue) {
     if (!issue) { issueCard.hidden = true; return; }
@@ -134,7 +140,7 @@
   }
   file.addEventListener("change", function () { readFile(file.files && file.files[0], input, "VDD JSON"); });
   contentFile.addEventListener("change", function () { readFile(contentFile.files && contentFile.files[0], contentInput, "Content Architect JSON"); });
-  document.getElementById("use-default").addEventListener("click", function () { input.value = ""; file.value = ""; status.textContent = "Using checked-in VDD fixture."; });
+  document.getElementById("use-default").addEventListener("click", function () { input.value = ""; file.value = ""; contentInput.value = ""; contentFile.value = ""; status.textContent = "Auto-picking the attached Content Architect and Visual Design Director outputs."; });
   document.getElementById("copy-path").addEventListener("click", async function () { if (!localFolder) return; await navigator.clipboard.writeText(localFolder); this.textContent = "Copied"; });
   document.getElementById("copy-issue").addEventListener("click", async function () { if (!current || !current.issue) return; await navigator.clipboard.writeText(JSON.stringify({run_id: current.run_id, issue: current.issue, local_result: current.local_result}, null, 2)); this.textContent = "Copied"; });
   runButton.addEventListener("click", async function () {
