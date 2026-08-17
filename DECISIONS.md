@@ -25,6 +25,15 @@ Every AI agent (Codex CLI, Claude Code, Cursor, OpenCode, Google Antigravity, or
 
 ## Active Decisions
 
+## D-027 — Verified major tasks end in task-scoped local commits
+
+- **Date & Time:** 2026-08-17 15:46 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Multiple AI coding agents work in the same repository, but completed major tasks have often remained mixed in one long-lived dirty worktree. `CHANGES.md` records the work but does not create a recoverable Git boundary, making later review, attribution, rollback, and handoff harder.
+- **Decision:** Any finished, verified unit large enough for `CHANGES.md` must create a local task-scoped commit by default. Agents inspect the starting and final diffs, stage only owned files or exact hunks, review and validate the staged patch, use a concise conventional commit subject, report the commit hash and remaining status, and never treat a local commit as permission to push. If pre-existing edits cannot be separated safely, the agent commits the isolatable portion and reports the precise overlap instead of absorbing another contributor's work.
+- **Rejected alternatives:** Leaving all completed work uncommitted (continues an unauditable shared diff); committing after every save or tiny edit (creates noisy history); using `git add -A` in a dirty worktree (can capture another agent's work, secrets, or generated files); or automatically pushing every commit (changes an external system without explicit authorization).
+- **Consequence:** Major completed work gains an immediate local recovery and review point across Codex, Claude Code, Cursor, and other tools. Small, incomplete, blocked, or plan-only work remains uncommitted, unrelated dirty changes remain visible, and remote synchronization still requires an explicit user request.
+
 ## D-018 — Pack-v3 makes known resource decisions executable before Code Generator
 
 - **Date & Time:** 2026-08-13 22:30 +05:30 — Codex (GPT-5 / OpenAI)
