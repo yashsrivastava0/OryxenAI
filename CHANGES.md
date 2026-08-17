@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-17 17:09 +05:30 — Codex (GPT-5 / OpenAI) — [fffd253] — Code Generator workspace UI, pack admission, trusted shell, tests
+Implemented the compact one-click portfolio workspace with semantic durable progress, newest eligible Build Preparation selection, route/viewport preview controls, and an advanced/debug disclosure. Added full v3 pack eligibility validation, truthful readiness blockers, deterministic no-write integration, scaffold reassertion for immutable preview shell files, and focused frontend/API/unit regression coverage.
+
 ### 2026-08-17 15:46 +05:30 — Codex (GPT-5 / OpenAI) — [d23bc09] — AGENTS.md, DECISIONS.md, CHANGES.md
 Established a cross-agent Git policy requiring every verified commit-sized task to end in a reviewed, task-scoped local commit while preserving unrelated dirty work and keeping pushes explicit. Added staging, verification, commit-message, overlap, and post-commit evidence rules; see D-027.
 

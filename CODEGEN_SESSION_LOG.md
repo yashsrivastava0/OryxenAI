@@ -95,3 +95,61 @@ The requested Code Generator files are not empty. Each package-root example is a
 3. Verify root and nested preview routes plus image/component runtime smoke diagnostics; record any remaining visual defects as source/prompt issues rather than hiding them behind Playwright steps.
 4. Run the complete regression suite with a longer timeout and resolve the mypy/Pydantic environment mismatch.
 5. Revisit production session integration only when the deferred D-015 boundary is deliberately opened.
+
+## 6. Session continuation - 2026-08-17 17:09 +05:30
+
+### Implemented in this continuation
+
+- Replaced the dense developer harness presentation with a compact, vanilla
+  HTML/CSS/JS workspace: one primary **Generate portfolio** action, newest
+  eligible Build Preparation pack selection, semantic four-stage progress,
+  readable durable-job events, route selection, viewport controls, and a
+  promoted live iframe preview. Fixture, upload, manual stage, and diagnostic
+  controls remain available under **Advanced / debug controls**.
+- Added readiness fields (`can_start_latest` and explicit blocker codes) so the
+  primary action is disabled for a truthful reason instead of failing after a
+  click. The controller still uses the durable API and persists run restoration
+  through the URL/local storage path.
+- Hardened Build Preparation mirror discovery to run the complete pack-v3
+  admission validator before a pack is advertised as eligible. In the live
+  output directory, newer packs with a route/content mismatch are now marked
+  ineligible; the UI selected `11-08-17-08-73059d72`, the newest fully admitted
+  mirror.
+- Closed a generator architecture gap exposed by live verification: the
+  planner/prompt previously granted integration ownership of the immutable
+  runtime shell while the validator prohibited those files. Integration is now
+  a deterministic no-write audit, and every workspace open reasserts the
+  scaffold's trusted `AppRouter`, preview bridge, error boundary, entrypoint,
+  and global CSS. This prevents stale or model-written shell files from
+  reaching a preview.
+- Added regression coverage for trusted-shell mutation, scaffold reassertion,
+  readiness/page contracts, and server-authoritative latest-pack selection.
+
+### Evidence and remaining state
+
+- Focused verification passed: Code Generator unit suite **56 passed**;
+  frontend Node suite **15 passed**; development API route tests **2 passed**;
+  Ruff check/format and JavaScript syntax checks passed.
+- Isolated API smoke on port 8001 served the new page and reported
+  `can_start_latest: true` with no readiness blockers. A live run admitted the
+  corrected pack, planned three work units, and completed acquisition. The
+  prior live run reached `source_ready` but exposed an invalid generated
+  `AppRouter` regex; the stale-shell/integration fixes above address that
+  boundary. The fresh retry after the fix reached the foundation retry and was
+  stopped by a transient provider connection error, so a new provider-backed
+  run is still needed for final `ready`/preview promotion evidence.
+- Browser screenshot QA was not run because the in-app browser automation
+  surface was unavailable in this environment; HTTP/API smoke and durable
+  worker evidence were used instead. The existing local preview gateway and
+  worker processes were left untouched except for the isolated smoke restart.
+
+### Pending follow-up
+
+1. Run one provider-available end-to-end generation after the shell fix and
+   inspect the promoted portfolio at root and every generated route.
+2. Confirm the generated export appears under the timestamp-first
+   `output/code-gen-output/HH-mm-DD-MM-YYYY-<shortid>/` convention and review
+   visual distinctiveness, resource bindings, animation, and nested preview
+   assets.
+3. Keep production session integration deferred until D-015 is deliberately
+   reopened.
