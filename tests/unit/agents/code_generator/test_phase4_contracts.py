@@ -14,6 +14,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 from oryxenai.agents.code_generator.core.final_repair import _deterministic_marker_repair
 from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
+from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 
 
 def test_candidate_identity_is_canonical_and_stable() -> None:
@@ -167,3 +168,19 @@ def test_marker_repair_fallback_inserts_only_missing_route_markers(tmp_path) -> 
     assert len(changes.files) == 1
     assert "marker:criterion:home:3" in changes.files[0].complete_utf8_content
     assert changes.files[0].path == "src/routes/home-route/index.tsx"
+
+
+def test_workspace_reasserts_trusted_shell_from_scaffold(tmp_path) -> None:
+    source_shell = Path("src/oryxenai/agents/code_generator/scaffolds/react-vite-v1").resolve()
+    repo = tmp_path / "run" / "repo"
+    repo.mkdir(parents=True)
+    target = repo / "src" / "app" / "AppRouter.tsx"
+    target.parent.mkdir(parents=True)
+    target.write_text("export function AppRouter() { return null; }", encoding="utf-8")
+    workspace = GenerationWorkspace(tmp_path / "run", tmp_path / "input", tmp_path / "checkpoint")
+
+    workspace._restore_trusted_shell(source_shell)
+
+    assert target.read_text(encoding="utf-8") == (
+        source_shell / "src" / "app" / "AppRouter.tsx"
+    ).read_text(encoding="utf-8")

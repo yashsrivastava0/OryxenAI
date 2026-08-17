@@ -204,6 +204,15 @@ test('build-preparation start uses the mirror endpoint and activates the run', a
   ]);
 });
 
+test('latest build-preparation selection is passed through to the server-authoritative endpoint', async () => {
+  const subject = harness({ status: 'queued' });
+  await subject.controller.startBuildPreparation('latest');
+  assert.deepEqual(subject.calls.slice(0, 2), [
+    ['createBuildPreparation', 'latest'],
+    ['replaceState', '?run=bp-run'],
+  ]);
+});
+
 test('loadPacks returns the mirror pack list newest-first from the API', async () => {
   const subject = harness();
   const packs = await subject.controller.loadPacks();

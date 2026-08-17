@@ -41,7 +41,13 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
+        readiness = await client.get("/api/v1/development/code-generator/readiness")
         response = await client.get("/code-generator-development")
+    assert readiness.status_code == 200
+    assert "can_start_latest" in readiness.json()
+    assert "readiness_blockers" in readiness.json()
     assert response.status_code == 200
-    assert "Promoted preview" in response.text
-    assert "Execution readiness" in response.text
+    assert "Generate portfolio" in response.text
+    assert "Live preview" in response.text
+    assert "Advanced / debug controls" in response.text
+    assert "Auto-advance stages" in response.text
