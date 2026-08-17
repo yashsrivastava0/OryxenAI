@@ -49,6 +49,7 @@ class GenerationWorkspace:
         self.artifacts_dir = root / "artifacts"
         self.checkpoint_root = checkpoint_root
         self.manifest_root = input_root
+        self.scaffold_dir: Path | None = None
 
     @classmethod
     def open(
@@ -121,6 +122,7 @@ class GenerationWorkspace:
                 symlinks=False,
                 ignore=shutil.ignore_patterns("node_modules", "dist"),
             )
+        self.scaffold_dir = scaffold
         self._restore_trusted_shell(scaffold)
         self._assert_tree_safe(self.repo_dir)
         self.write_json(
@@ -152,6 +154,15 @@ class GenerationWorkspace:
                 )
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
+
+    def reassert_trusted_shell(self) -> None:
+        """Reapply the configured shell after checkpoint restoration."""
+
+        if self.scaffold_dir is None:
+            raise WorkspaceError(
+                "SCAFFOLD_UNAVAILABLE", "The workspace scaffold is not initialized."
+            )
+        self._restore_trusted_shell(self.scaffold_dir)
 
     def write_json(self, path: Path, value: object) -> None:
         target = path.resolve()

@@ -174,6 +174,10 @@ class CodeGeneratorGenerationOrchestrator:
             checkpoint_store = CheckpointStore(workspace, generation_id=generation_id)
             if projection.accepted_checkpoint is not None:
                 checkpoint_store.restore(projection.accepted_checkpoint)
+                # A checkpoint may have been produced by an older generator
+                # version. Restore its mutable source, then reassert the
+                # immutable shell before any toolchain or source checks run.
+                workspace.reassert_trusted_shell()
             if run.resource_ledger:
                 projections["resources/ledger.json"] = dict(run.resource_ledger)
             materialize_trusted_manifests(
