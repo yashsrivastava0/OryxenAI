@@ -72,6 +72,53 @@ from oryxenai.db.session import get_sessionmaker
 _KIND = "code_generator.plan"
 
 
+def _planner_failure_issue(exc: Exception) -> SafeIssue:
+    """Turn planner/provider failures into safe, actionable UI diagnostics."""
+    code = str(getattr(exc, "code", "PLANNER_OUTPUT_INVALID") or "PLANNER_OUTPUT_INVALID")
+    actions = {
+        "PROVIDER_CONNECTION_ERROR": (
+            "Check worker DNS, proxy/firewall access, and the configured planner endpoint, then retry."
+        ),
+        "PROVIDER_TIMEOUT_ERROR": (
+            "Check worker network access or increase the configured planner timeout, then retry."
+        ),
+        "PROVIDER_AUTH_ERROR": (
+            "Verify the planner API-key environment variable and provider account, then retry."
+        ),
+        "PROVIDER_RATE_LIMIT_ERROR": (
+            "Wait for the provider rate-limit window to reset, then retry once."
+        ),
+        "PROVIDER_SERVER_ERROR": "Retry after the planner provider recovers.",
+    }
+    messages = {
+        "PROVIDER_CONNECTION_ERROR": "The configured planner provider could not be reached before it produced a SitePlan.",
+        "PROVIDER_TIMEOUT_ERROR": "The configured planner provider timed out before it produced a SitePlan.",
+        "PROVIDER_AUTH_ERROR": "The configured planner provider rejected its API key before it produced a SitePlan.",
+        "PROVIDER_RATE_LIMIT_ERROR": "The configured planner provider rate-limited the SitePlan request.",
+        "PROVIDER_SERVER_ERROR": "The configured planner provider returned a server error before it produced a SitePlan.",
+    }
+    raw_details = getattr(exc, "details", {})
+    allowed = (str, int, float, bool)
+    details = (
+        {
+            str(key): value
+            for key, value in raw_details.items()
+            if isinstance(key, str) and isinstance(value, allowed)
+        }
+        if isinstance(raw_details, dict)
+        else {}
+    )
+    return SafeIssue(
+        code=code,
+        message=messages.get(code, "The planner could not produce a valid SitePlan."),
+        next_action=actions.get(
+            code,
+            "Review the planner diagnostics and admitted pack projections, then retry after correcting the failure.",
+        ),
+        details=details,
+    )
+
+
 class CodeGeneratorPlanningHandler:
     kind = _KIND
 
@@ -205,15 +252,7 @@ async def _execute(
             max_work_units=int(settings.code_generator_development.max_work_units),
         )
     except Exception as exc:
-        await _needs_attention(
-            sessionmaker,
-            run_id,
-            SafeIssue(
-                code=getattr(exc, "code", "PLANNER_OUTPUT_INVALID"),
-                message="The planner could not produce a valid SitePlan.",
-                next_action="Review the configured planner profile or begin a fresh run after correcting the input.",
-            ),
-        )
+        await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
         return {"status": "needs_attention", "run_id": str(run_id)}
 
     plan_digest = hashlib.sha256(canonical_json(plan.model_dump(mode="json"))).hexdigest()

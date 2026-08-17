@@ -63,8 +63,18 @@ class ProviderTimeoutError(ProviderError):
 class ProviderConnectionError(ProviderError):
     """Network-level connection failure."""
 
-    def __init__(self, message: str = "Provider connection failed") -> None:
-        super().__init__(message, code="PROVIDER_CONNECTION_ERROR", retryable=True)
+    def __init__(
+        self,
+        message: str = "Provider connection failed",
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            code="PROVIDER_CONNECTION_ERROR",
+            retryable=True,
+            details=details,
+        )
 
 
 class ProviderServerError(ProviderError):
