@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-17 22:20 +05:30 - Codex (GPT-5 / OpenAI) - [3479c40] - OpenAI provider diagnostics, Build Preparation fixture monitor, Code Generator planner
+Preserved OpenAI-only profile selection and made provider connection failures actionable: Build Preparation now reports the endpoint host and retry guidance, while Code Generator distinguishes provider transport/auth/rate/server failures from invalid SitePlan output. Added focused regression coverage; no OpenCode profile is used by the active Build Preparation or planner paths.
+
 ### 2026-08-17 22:05 +05:30 — Codex (GPT-5 / OpenAI) — [2edc335] — Real provider-backed visual handoff
 Removed generated-local/blank visual fallbacks from Build Preparation, added configured multi-image/component targets with VDD overrides, real Pexels/registry materialization gates, pixel/source quality checks, provider caching/deduplication/rate-limit diagnostics, explicit `VDD_EXECUTION_GAP` slots, Code Generator rejection of unreal visual resources, and truthful fixture counts/status. Offline fixtures are now reviewable but cannot claim a ready handoff without real provider bytes/source; see D-028.
 
