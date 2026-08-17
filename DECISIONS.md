@@ -1,24 +1,22 @@
 # OryxenAI — Decisions & Open Issues
 
-Architecture Decision Record (ADR)-style log: real decisions with actual trade-offs, open questions, deferred work, and architectural history. Not routine implementation minutiae (which belong in commit messages or `CHANGES.md`).
+Architecture Decision Record (ADR) log of architectural choices, trade-offs, and invariants. Read before making design changes.
 
-**Logging policy — same discipline as `CHANGES.md`:** Log only real decisions with actual trade-offs. Ask the user first if ambiguous.
+**Policy:**
+- Log only real architectural decisions with concrete trade-offs (not routine code changes).
+- Maintain reverse-chronological order (newest first under `## Active Decisions`). Entry IDs (`D-001`, `D-002`, ...) are permanent and never reused.
+- Keep entries high-density, concise, and machine-readable for AI agents.
 
-Ordering: Reverse-chronological by decision date, newest at top. Entry IDs (`D-001`, `D-002`, ...) are stable references and never reused.
-
-Every AI agent (Codex CLI, Claude Code, Cursor, OpenCode, Google Antigravity, or any other) must check this file before making architectural choices.
-
-**Entry template** (copy verbatim for new entries, insert directly below this header, above newest entry):
-
+**Entry Template:**
 ```markdown
 ## D-0XX — <short decision title>
 
 - **Date & Time:** YYYY-MM-DD HH:MM TZ — <Agent/Tool> (<Model/Provider>)
-- **Status:** open | decided-not-yet-implemented | decided-implemented | superseded-by-D-0XX
+- **Status:** open | decided-not-yet-implemented | decided-implemented | superseded-by-D-0YY
 - **Context:** Constraint or problem forcing a choice.
 - **Decision:** What was chosen, stated concretely.
 - **Rejected alternatives:** What else was considered and specifically why rejected.
-- **Consequence:** Forward implications, trade-offs, and revisit criteria.
+- **Consequence:** Forward implications, trade-offs, and invariants.
 ```
 
 ---
@@ -29,293 +27,224 @@ Every AI agent (Codex CLI, Claude Code, Cursor, OpenCode, Google Antigravity, or
 
 - **Date & Time:** 2026-08-17 15:46 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Multiple AI coding agents work in the same repository, but completed major tasks have often remained mixed in one long-lived dirty worktree. `CHANGES.md` records the work but does not create a recoverable Git boundary, making later review, attribution, rollback, and handoff harder.
-- **Decision:** Any finished, verified unit large enough for `CHANGES.md` must create a local task-scoped commit by default. Agents inspect the starting and final diffs, stage only owned files or exact hunks, review and validate the staged patch, use a concise conventional commit subject, report the commit hash and remaining status, and never treat a local commit as permission to push. If pre-existing edits cannot be separated safely, the agent commits the isolatable portion and reports the precise overlap instead of absorbing another contributor's work.
-- **Rejected alternatives:** Leaving all completed work uncommitted (continues an unauditable shared diff); committing after every save or tiny edit (creates noisy history); using `git add -A` in a dirty worktree (can capture another agent's work, secrets, or generated files); or automatically pushing every commit (changes an external system without explicit authorization).
-- **Consequence:** Major completed work gains an immediate local recovery and review point across Codex, Claude Code, Cursor, and other tools. Small, incomplete, blocked, or plan-only work remains uncommitted, unrelated dirty changes remain visible, and remote synchronization still requires an explicit user request.
+- **Context:** Shared dirty worktree across multiple AI tools hindered auditability, rollback, and attribution.
+- **Decision:** Finished, verified major units (`CHANGES.md` level) must create a local task-scoped Git commit by default. Stage only owned files/hunks; review diff; use conventional commit messages; report hash. Never push or use `git add .` on a shared dirty worktree. Report overlapping file conflicts if unseparable.
+- **Rejected alternatives:** Leaving work uncommitted in dirty tree; committing micro-saves; blanket `git add -A`; auto-pushing without explicit user instruction.
+- **Consequence:** Clean local commit boundaries across AI tools; pushes remain strictly user-initiated.
 
 ## D-026 — Code Generator core is the sole standalone implementation namespace
 
 - **Date & Time:** 2026-08-17 15:19 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** The Code Generator package root duplicated 27 `core/` modules through wildcard compatibility imports. Production code already used `core/` directly, 17 adapters were referenced only by internal tests, 10 had no repository consumer, and the additional `core/generation_schemas.py` facade had no direct consumer. The duplicate namespace obscured implementation ownership and exposed incidental imported names.
-- **Decision:** Make `oryxenai.agents.code_generator.core.*` the sole internal namespace for the standalone workflow. Keep only `__init__.py`, `agent.py`, and `schemas.py` at the package root, remove every wildcard compatibility module plus the unused generation-schema facade, and migrate repository tests to direct `core.*` imports. Historical package-root workflow-module paths are not a supported external API and receive no deprecation period.
-- **Rejected alternatives:** Keeping wildcard adapters (continues duplicate ownership and uncontrolled exports); replacing them with explicit deprecated re-exports (preserves files with no known external consumer); or moving the implementation back to the package root (reverses the established lean `core/` ownership boundary).
-- **Consequence:** Old package-root workflow imports fail immediately and callers must use the canonical `core.*` modules. The registry-facing Agent import remains stable, while HTTP routes, job kinds, persisted contracts, generation behavior, and production-integration scope are unchanged.
+- **Context:** Package root duplicated 27 `core/` modules via wildcard compatibility imports, creating duplicate namespaces and dead imports.
+- **Decision:** `oryxenai.agents.code_generator.core.*` is the sole internal namespace for the standalone workflow. Package root retains only `__init__.py`, `agent.py`, and `schemas.py`. Deprecated root workflow imports removed without deprecation period.
+- **Rejected alternatives:** Retaining wildcard adapters; explicit deprecated re-exports; moving implementation back to package root.
+- **Consequence:** Direct `core.*` imports enforced for tests and internals; registry-facing `CodeGeneratorAgent` remains stable.
 
-## D-025 - Required visual handoff uses executable local bindings
+## D-025 — Required visual handoff uses executable local bindings
 
-- **Date & Time:** 2026-08-17 13:29 +05:30 - Codex (GPT-5 / OpenAI)
+- **Date & Time:** 2026-08-17 13:29 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** The generated portfolio could pass source admission while using only slot IDs, comments, or manifest prose for visual resources. Build Preparation also allowed required editorial/component needs to collapse into recipes, leaving Code Generator with no image or component to render.
-- **Decision:** Build Preparation adds one required visual component per public route and makes the required editorial visual concrete; provider failure uses deterministic local PNG/TSX material with provenance. Code Generator copies component source into an importable generated path, serves media from the local pack URL, and validates executable imports/rendering or package/export usage. The trusted shell and global CSS entrypoint are immutable, and default browser verification is a bounded route/asset smoke pass rather than one Playwright journey per interaction.
-- **Rejected alternatives:** Keeping comment-token evidence (admits false positives), forcing every slot to be a recipe (preserves generic output), fetching arbitrary remote images at generation time (breaks reproducible local handoff), or making every interaction a browser journey (overfits the gate to Playwright instead of source/build contracts).
-- **Consequence:** A required visual slot cannot silently disappear into prose, and a generated portfolio has an actual local visual floor while preserving the existing pack-v3 schema and historical fixture compatibility. Full visual quality still depends on model composition and source/build checks; browser smoke proves runtime integrity, not design taste.
+- **Context:** Visual slots could collapse into prose/comments or missing recipe references during generation.
+- **Decision:** Build Preparation guarantees one concrete visual component per public route plus editorial visuals; provider fallbacks use deterministic local PNG/TSX. Code Generator copies component source to importable paths and serves media via local pack URL. Trusted shell and `global.css` entrypoint are immutable. Default browser verification is a bounded route/asset smoke pass.
+- **Rejected alternatives:** Comment-token evidence; forcing all slots to recipes; remote image fetches at generation time; full browser journey per interaction.
+- **Consequence:** Guarantees executable visual baseline; browser verification proves runtime integrity, not subjective design taste.
 
 ## D-024 — Export complete verified portfolios with receipt-bound metadata
 
 - **Date & Time:** 2026-08-17 11:15 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** A promoted Code Generator candidate must be usable outside the ephemeral workspace, while promotion itself must remain independent from local export failures.
-- **Decision:** After atomic promotion, export `source/` without disposables, built `dist/`, and `portfolio.json` under the configured run-scoped export root. Metadata includes the run, preview URL, candidate, candidate identity, build/checkpoint hashes, pack reference, and routes; export failures are recorded as advisory events.
-- **Rejected alternatives:** Exporting only the build artifact (loses editable source), using one shared export directory (permits cross-run overwrite), or making export failure roll back a verified preview (couples a convenience artifact to the promotion gate).
-- **Consequence:** A successful standalone run has a copy-ready portfolio at `output/code-gen-output/<run-id>/`; the export root remains configuration-driven and run-isolated.
+- **Context:** Promoted candidate needed persistence outside ephemeral workspace without coupling promotion to export success.
+- **Decision:** On atomic promotion, export clean `source/`, built `dist/`, and `portfolio.json` metadata (run ID, preview URL, candidate hash, pack ref, routes) to run-scoped `output/code-gen-output/<run-id>/`. Export errors are logged as advisory events without blocking preview.
+- **Rejected alternatives:** Exporting only `dist/`; shared export folder (cross-run collision); rollback promotion on export error.
+- **Consequence:** Copy-ready, isolated export per run; promotion remains resilient.
 
 ## D-023 — Harden generated filesystem transitions on Windows
 
 - **Date & Time:** 2026-08-17 11:10 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Checkpoint, workspace, build, preview, and repair operations cross directory trees that Windows antivirus/indexer locks and MAX_PATH can interrupt.
-- **Decision:** Route directory swaps, retrying tree removal, and atomic text writes through one bounded `fs_safe` layer with extended paths, retry/backoff, stale-target cleanup, and explicit failure semantics; keep disposable cleanup best-effort only when verified safe.
-- **Rejected alternatives:** Scattering retries at individual call sites (inconsistent semantics), ignoring all deletion errors (hides corrupted state), or disabling safety checks around broad recursive deletion.
-- **Consequence:** Checkpoint recovery and promotion remain atomic while transient Windows locks become retryable infrastructure events rather than model-facing generation failures.
+- **Context:** Windows file locks (antivirus, indexer, tsc/npm) and path constraints caused transient `PermissionError` on atomic directory replace.
+- **Decision:** Route directory swaps, tree removal, and atomic writes through `fs_safe` layer with extended paths (`\\?\`), bounded retry/backoff, stale target cleanup, and explicit failure semantics.
+- **Rejected alternatives:** Ad-hoc retries per call site; ignoring all deletion errors; disabling recursive cleanup safety checks.
+- **Consequence:** Atomic checkpoints and promotion survive transient Windows file locking.
 
 ## D-022 — Skip acquisition for execution-contract-resolved resource slots
 
 - **Date & Time:** 2026-08-17 11:05 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Pack-v3 already resolves known slots to local recipes or an admitted package binding; asking the scout to acquire those same slots duplicates authority and can create conflicting receipts.
-- **Decision:** The acquisition chain skips slots resolved by the execution contract and only permits new, receipt-bound emergent needs. Dependency bindings still go through the trusted DependencyManager, with scaffold manifests/locks and cache evidence preserved.
-- **Rejected alternatives:** Letting the model reacquire every slot (duplicates upstream decisions), treating resolved slots as missing (false gaps), or allowing arbitrary package installation (breaks the dependency policy).
-- **Consequence:** Pack-v3 remains the authoritative known-resource boundary while Code Generator can safely supplement only genuine implementation discoveries.
+- **Context:** Pack-v3 already resolves known slots to recipes or package bindings; re-acquiring them duplicates work and causes conflicting receipts.
+- **Decision:** Acquisition skips slots resolved in execution contract; scout runs only for genuine emergent needs. Dependency additions route through `DependencyManager`.
+- **Rejected alternatives:** Reacquiring all slots; treating resolved slots as missing; unrestricted npm package installs.
+- **Consequence:** Pack-v3 remains authoritative for known slots; Code Generator handles only emergent implementation gaps.
 
 ## D-021 — Keep one canonical storage-key route owner
 
 - **Date & Time:** 2026-08-17 11:00 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Route IDs and route storage keys can differ; treating both as writable paths produced duplicate route trees and made verification ownership ambiguous.
-- **Decision:** The canonical verification anchor is `src/routes/<storage_key>/index.tsx`, with the `routes/` prefix stripped for storage paths. Planner, contract, prompts, repair policy, and validators use that same key; generated registries remain trusted pipeline output.
-- **Rejected alternatives:** Recreating directories from route IDs (collides with slugged keys), allowing both aliases (permits divergent copies), or making model prose authoritative over the pack route mapping.
-- **Consequence:** Each route has one disjoint source owner and one literal evidence anchor for content, markers, interactions, and resource bindings.
+- **Context:** Divergence between route IDs and storage keys created duplicate route files and ambiguous ownership.
+- **Decision:** Canonical verification anchor is `src/routes/<storage_key>/index.tsx`. Planner, contracts, prompts, repair, and validators use slugged storage key without `routes/` prefix. Generated route registries are trusted pipeline output.
+- **Rejected alternatives:** Re-deriving paths from route IDs; permitting both aliases; letting model prose override pack mapping.
+- **Consequence:** Exactly one source owner and literal verification anchor per route.
 
 ## D-020 — Approved external links are content, not runtime navigation
 
 - **Date & Time:** 2026-08-17 10:55 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Offline DOM verification must prove approved links exist and are accessible without following them into the network; planner URL fields may legitimately be blank when the trusted ledger carries the URL.
-- **Decision:** Derive interaction journeys from literal `data-interaction-id` markers. Same-app targets may be exercised; approved external or prose/blank-target links use a non-navigating `assert_link` step that checks the local href when known and accessible name without outbound requests.
-- **Rejected alternatives:** Clicking external links (violates offline verification), dropping link journeys (loses interaction coverage), or trusting planner prose as a CSS selector (can click a section wrapper instead of the control).
-- **Consequence:** The runtime gate remains offline and fail-closed while preserving link accessibility and approved-URL source policy.
+- **Context:** Offline DOM verification cannot navigate to external URLs (LinkedIn, GitHub); blank target URLs in planner are valid if in trusted ledger.
+- **Decision:** Derive journeys from literal `data-interaction-id`. Same-app links may navigate; external/prose links use non-navigating `assert_link` to verify href and accessible name offline.
+- **Rejected alternatives:** Clicking external links (breaks offline invariant); dropping link assertions; selector-guessing from prose.
+- **Consequence:** Offline, fail-closed runtime verification preserves link accessibility without network calls.
 
 ## D-019 — Normalize strict-schema generation payloads by mode tag
 
 - **Date & Time:** 2026-08-17 10:50 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Strict structured-output providers may fill every nullable transport property even when the operation semantically returns one tagged result.
-- **Decision:** The `GenerationResult` normalizer treats the declared mode as authoritative, retains only the matching payload, and rejects an empty matching payload; unrelated filled properties are dropped before operation validation.
-- **Rejected alternatives:** Rejecting every provider response with extra nullable fields (unnecessarily burns live calls), or inferring mode from whichever payload is non-empty (makes the contract ambiguous).
-- **Consequence:** Transport strictness and semantic one-of behavior coexist, with deterministic tests covering both normalization and honest empty results.
+- **Context:** OpenAI strict JSON schema requires all nullable properties to be present, populating unused fields in union responses.
+- **Decision:** `GenerationResult` normalizer treats declared `mode` as authoritative, keeps only matching payload, strips non-matching null/empty fields, and rejects empty matching payloads.
+- **Rejected alternatives:** Rejecting any payload with extra null fields; inferring mode from non-empty fields.
+- **Consequence:** Coexistence of strict transport schema with semantic one-of payloads.
 
 ## D-018 — Pack-v3 makes known resource decisions executable before Code Generator
 
 - **Date & Time:** 2026-08-13 22:30 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** A reproduced consumer audit found that a structurally valid v2 pack could still contain only prose fallbacks for typography, icons, components, and abstract visuals. It also retained legacy route mirrors beside canonical files and normalized eligible provider lookup away before it could perform useful acquisition. Those defects leave a downstream builder to guess implementation decisions despite otherwise correct approved scope, provenance, archive hashing, and storage read-back.
-- **Decision:** Supersede the consumer admission portion of D-013 with `build-preparation-pack-v3` / `build-preparation-contract-v3`. Preserve authoritative site and visual projections, but add a hash-covered `execution/contract.json`, `resources/ledger.json`, and declarative local recipe manifests. Every known slot resolves exactly once to locally materialized files, a target-package binding with permitted exports, a static typed recipe, or a route/scene-specific `VDD_EXECUTION_GAP`; known needs have no later-fetch escape hatch. V3 has one canonical route storage key per route and rejects aliases or duplicate route data. Standalone fixture/upload admission accepts only v3 and verifies execution, resource, recipe, licence, route mapping, and projection hashes before planner invocation. Configuration owns the initial trusted provider set and pins; Animate UI remains disabled pending a separate licence/distribution decision. Code Generator acquisition remains available only for genuinely emergent, receipt-bound needs under D-015.
-- **Rejected alternatives:** Treating empty resource selection as an acceptable prose fallback (forces generator invention); rewriting old v2 archives in place (breaks immutable historical provenance); allowing Build Preparation to invent personal/project media or silently revise VDD (violates upstream authority); accepting duplicate route mirrors because the contract happens to point at one copy (invites accidental use); and giving the generator provider catalogues or arbitrary URLs (weakens reproducibility and policy enforcement).
-- **Consequence:** Fresh generation produces only v3 packs for Code Generator, while v2 remains review-only diagnostics. Sparse but valid privacy-safe direction can use bounded system-typography, text composition, CSS/diagram, or omission recipes; a required unsatisfied scene fails closed and asks for explicit VDD revision. The production/main-flow adapter, source generation, preview, and automatic chaining remain outside this change.
-
----
+- **Context:** Pack-v2 allowed prose-only fallbacks for typography, icons, components, and visuals, forcing Code Generator to invent decisions.
+- **Decision:** Superseded pack-v2 consumer admission with `build-preparation-pack-v3`. Added `execution/contract.json`, `resources/ledger.json`, and local recipe manifests. All known slots resolve to local files, package bindings, typed recipes, or explicit `VDD_EXECUTION_GAP`. Single canonical storage key per route. Fixture/upload admission accepts only v3 with full hash verification.
+- **Rejected alternatives:** Accepting prose fallbacks; in-place archive rewriting; arbitrary web/URL fetches by Code Generator.
+- **Consequence:** V3 packs guarantee executable local bindings before Code Generator runs; emergent acquisition handles only coding discoveries.
 
 ## D-017 — Approve a complete safe public scope, then direct that exact scope
 
 - **Date & Time:** 2026-08-13 20:22 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** D-016 correctly stopped an all-pending Content Architect result from being approved, but its prompting still treated ordinary portfolio facts as non-clearable whenever contact permission, team ownership, project permission, metrics, or scale were not individually confirmed. That made a normal profile likely to yield no public route at all. Separately, Visual Design Director was passed all non-blocked routes and could direct a pending route, while Build Preparation pack-v2 correctly requires VDD pages to equal Content Architect's approved public route set exactly. The result was either an operator-facing 409 with no clear safe baseline or a later cross-agent route mismatch.
-- **Decision:** An approved Discovery snapshot authorizes a neutral portfolio baseline for ordinary supplied professional facts. Content Architect must use narrow, factual wording; omit contact details, metrics, named outcomes, individual-contribution assertions, and restricted material unless they are supported. Explicit privacy, NDA, do-not-publish, or confidentiality restrictions remain overriding blocks. At approval, Content Architect must have at least one approved route and every approved route must have one complete content pack, matching section sequence, approved claim references, a safe unique path, a public manifest, and a visual handoff. Visual Design Director receives and may emit only that approved route set; its pages are deterministically stamped with Content Architect's canonical path and purpose. Build Preparation keeps exact-set rejection as the final consumer backstop.
-- **Rejected alternatives:** Treating every missing detail as a publication ban (strands ordinary profiles with no portfolio); auto-promoting pending claims or routes at approval (bypasses explicit restrictions); allowing VDD to carry pending pages and filtering them only in Build Preparation (turns a producer contract violation into a late opaque failure); accepting VDD path/purpose echoes as authoritative (permits downstream semantic drift).
-- **Consequence:** Approval now means an actually compilable, privacy-respecting public scope rather than a top-level stamp alone. A model that cannot produce that scope fails at Content Architect review with targeted revision diagnostics; a VDD run cannot reintroduce review-only routes; and the v2 pack consumes one canonical route graph. Revisit only if Discovery adds a finer-grained publication authority model.
-
----
+- **Context:** Content Architect over-gated ordinary facts as pending, leading to 0 approved routes or route mismatches with Visual Design Director.
+- **Decision:** Approved Discovery authorizes neutral baseline public copy. CA must approve at least 1 route, with complete content pack, section sequence, claim references, unique path, and visual handoff. VDD receives and directs only the approved CA route set, stamped with canonical paths.
+- **Rejected alternatives:** Treating unverified details as publication bans; auto-clearing unverified claims at approval; passing pending routes to VDD.
+- **Consequence:** Approval guarantees a complete, compilable public route graph across CA, VDD, and Build Preparation.
 
 ## D-016 — Content Architect approval requires at least one publishable route
 
 - **Date & Time:** 2026-08-13 19:22 +05:30 — OpenCode (glm-5.2)
 - **Status:** decided-implemented
-- **Context:** Build Preparation's pack-v2 contract (`contracts._public_routes` / `compiler._public_route_ids`) treats a Content Architect `route_plan` entry's `publication_status == "approved"` as the authority for "is this route public". Content Architect's `apply_approval`, however, only stamps a separate top-level `approved = {approved_at, content_hash}` object computed from `page_content_packs` + `public_content_manifest` — it never touches `route_plan` entries' `publication_status`. So a run where the model emits `"pending"`/`"blocked"` for every route (exactly what `plan_content` prompts for unresolved-ownership routes) passed approval, then failed deep inside Build Preparation as `BUILD_PACK_V2_CONTENT_ROUTES_MISSING` with no dropped-route diagnostic.
-- **Decision:** Make Content Architect's state machine (`apply_approval`) refuse approval when no `route_plan` entry has `publication_status == "approved"`, raising `NoPublishableRoutesError` carrying the per-route statuses. The service surfaces a 409 `CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES` so the operator revises/re-runs Content Architect at the right boundary. `route_plan` entries are never mutated — `pending`/`blocked` content stays gated, preserving the cross-agent invariant (VDD's `_stamp_page_compilability` mirrors CA's per-route status into page `publication_status`/`compilable`). Separately, split Build Preparation's failure into `BUILD_PACK_V2_CONTENT_ROUTES_EMPTY` (missing/empty `route_plan`) vs `BUILD_PACK_V2_CONTENT_ROUTES_NONE_APPROVED` (non-empty, none approved) and propagate dropped route_ids + their statuses into the issue `details`, plus enriched Stage 0 `scope_compiled` `dropped_routes` and named warnings.
-- **Rejected alternatives:** Auto-promoting every `route_plan` entry to `publication_status="approved"` at approval (overwriting entries in `apply_approval`) — would publish content the model deliberately marked not-cleared, override the documented confidentiality gating, and silently skip the VDD stamping chain (would also force a VDD re-run to re-stamp pages). Build-Prep-boundary coercion that treats the top-level `approved` stamp as authoritative regardless of per-route status — same confidentiality bypass and weakens the closed-set v2 contract. Compatibility-mode synthesis from VDD pages when a real CA `route_plan` exists — guts the closed-set consumer boundary.
-- **Consequence:** A formulation the model judges entirely non-clearable no longer produces a dead Build Preparation pack; it fails loudly at approval with an actionable 409. The closed-set pack-v2 contract remains strict. Getting a successful pack after this fix requires a Content Architect re-run that emits at least one `approved` route (samples prove the model can, even for NDA-heavy profiles), then re-approve CA, re-run/approve VDD, then re-run Build Preparation. Revisit if a future stage needs to derive publishability from something other than the model's per-route judgement.
-
----
+- **Context:** CA allowed approval when all routes were `"pending"`/`"blocked"`, causing downstream Build Preparation pack failure `BUILD_PACK_V2_CONTENT_ROUTES_MISSING`.
+- **Decision:** CA `apply_approval` raises `NoPublishableRoutesError` (HTTP 409 `CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES`) if no route is `publication_status == "approved"`. Build Preparation splits route diagnostics into `BUILD_PACK_V2_CONTENT_ROUTES_EMPTY` vs `NONE_APPROVED`.
+- **Rejected alternatives:** Auto-promoting pending routes to approved on approval; bypassing route status checks in Build Preparation.
+- **Consequence:** Non-clearable profiles fail loudly at CA stage with actionable 409 instead of producing corrupt packs.
 
 ## D-015 — Code Generator uses progressive text-only generation with mediated resource acquisition
 
 - **Date & Time:** 2026-08-13 11:59 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** D-014 made screenshot capture, an image-capable reviewer, a large visual-evidence matrix, and a closed pre-generation resource set central to Code Generator acceptance. The product owner has rejected vision-model and screenshot verification because their cost and operational complexity do not improve the generator itself. The closed resource set is also too restrictive: Build Preparation cannot predict every image, font, icon, style primitive, or adaptable component that becomes necessary once real source is being composed. Reliability must come primarily from a better staged generator, compiler/runtime feedback, and explicit resource authority—not from a post-hoc visual judge.
-- **Decision:** Supersede D-014. Implement Code Generator as one explicitly started durable stage with narrow configured operation roles—planner, resource scout, foundation builder, route builder, integrator, and repairer—behind the provider-neutral text/structured-output boundary; profiles may share one configured model. The stage advances through admitted-input planning, initial resource reconnaissance, trusted scaffold/dependency resolution, foundation generation, route batches, integration, text/DOM verification, repair, and atomic preview promotion, persisting an immutable checkpoint after every accepted step. No operation accepts image input, captures or compares screenshots/frames, calls a vision model, or produces a visual-review verdict. Visual quality is built in through the approved visual contract, explicit composition/resource/token plans, narrow builder contexts, and a final text/source-based integration pass; it is not a separate promotion gate. Code Generator may supplement the Build Preparation pack both when initial planning finds a gap and when a builder or repairer discovers a justified need. Models emit typed resource/dependency requests but receive no raw shell, filesystem, browser, network, package-manager, or promotion tool. Trusted acquisition adapters search only configured image, font, icon, component-source, and style-resource providers; enforce upstream source policy, creative-freedom limits, provenance, licence, type, size, decode/sanitization, and hash rules; materialize accepted resources locally; and record immutable receipts. Trusted dependency management alone may update the manifest and lockfile for supported component dependencies. `node_modules` and build output are disposable, excluded from model output and checkpoints, and recreated from the receipt-bound lockfile; acquisition may use controlled network, while generation, build, preview, and the generated portfolio remain offline/local-resource-only. Replace D-014's seven-gate screenshot matrix and two one-shot phase corrections with three lean blockers—source/contract integrity, clean type/build/artifact integrity, and headless text/DOM/runtime smoke checks—with configured finite repair cycles driven by normalized compiler, build, console, request, accessibility, and interaction diagnostics. Keep D-014's explicit start, durable idempotency, isolated workspaces, stable-current-preview, and crash-safe atomic promotion semantics.
-- **Rejected alternatives:** Keeping screenshots but removing only the visual model (still creates capture/storage/matrix complexity without a decision-maker); build-only acceptance (misses route and interaction runtime failures); continuing to require Build Preparation to supply every possible resource (prevents composition-aware additions discovered during coding); giving a model unrestricted web, shell, npm, or filesystem tools (makes provenance, reproducibility, and recovery unreliable); accepting remote runtime hotlinks (makes the portfolio depend on third parties after generation); and an unbounded autonomous repair conversation (cannot guarantee termination or idempotent worker recovery).
-- **Consequence:** `docs/code-generator-architecture/` remains the implementation contract for D-013 and D-015. The standalone four-phase workflow now provides the resource/dependency request schemas, configured acquisition adapters, provenance and dependency receipts, progressive checkpoints, diagnostic context assembly, bounded repair, clean text/DOM verification, and atomic preview promotion described here. Build Preparation remains the preferred source of approved resources; Code Generator supplementation cannot contradict user-media semantics, fixed facts, forbidden subjects, route authority, or the approved visual direction. Production session integration and automatic chaining remain a separate future task.
-
----
-
-## D-014 — Code Generator v1 uses bounded generation, verification, repair, and atomic preview promotion
-
-- **Date & Time:** 2026-08-13 10:36 +05:30 — Codex (GPT-5 / OpenAI)
-- **Status:** superseded-by-D-015
-- **Context:** Code Generator is still a deterministic mock, while the product requires generation that fails safely, produces a content-specific advanced portfolio, and exposes no portfolio with route, code, runtime, interaction, responsive, accessibility, or visual-direction defects. The stage also needs to survive at-least-once worker delivery and regeneration without losing the last known-good preview. A free-running coding agent, unbounded repair conversation, or one-shot repository response cannot provide those invariants.
-- **Decision:** Implement one explicitly started durable Code Generator stage whose configured planner, builder, and image-capable reviewer roles operate only through the provider-neutral boundary and native strict structured outputs; correction reuses the builder profile. Use three idempotent jobs—`code_generator.plan`, `code_generator.generate`, and `code_generator.verify_and_preview`—with immutable hashed checkpoints and durable receipts. Admit only Build Preparation pack v2; freeze a validated `SitePlan`; generate bounded, non-overlapping `FileChangeSet` objects inside a deterministic fixed React/Vite/TypeScript scaffold; and let trusted code own toolchain files, dependency-free routing, local assets, assembly, commands, and promotion. Require an exact-set verification matrix across source/static/type/build gates and isolated all-route browser, responsive, interaction, accessibility, reduced-motion, motion-frame, and image-based visual review. Normalize blocking failures into stable fingerprints and use a linear repair policy: one envelope reissue per model operation, one non-repeatable source/build correction slot for Gates 1-2, one non-repeatable browser/visual slot for Gates 3-5, and at most two corrective model calls total. Reuse correction receipts after redelivery; a repeated fingerprint exits as `STRATEGY_RECURRED`, while a consumed phase regression, out-of-scope change, or attempted third correction exits with an actionable terminal report. Persist `active_preview`, `current_attempt`, and `pending_promotion`; keep exactly one stable current preview on a dedicated preview origin and replace it only through crash-safe conditional receipt/pointer writes plus session CAS. Expose only GET state, POST start, and POST regenerate session routes; do not auto-chain, expose candidates or preview history, publish, or add approval/revision endpoints.
-- **Rejected alternatives:** A single prompt that returns a whole repository (too large and has no enforceable ownership); a model with shell/filesystem/network/package or promotion tools (crosses the trust boundary); a multi-agent supervisor or open-ended coding loop (duplicates the durable queue and cannot bound retries); build-only acceptance (does not prove routes, interactions, responsive behavior, accessibility, or visual quality); publishing an unverified candidate or clearing the old preview at regeneration start (breaks the stable-preview invariant); and user-visible preview history in v1 (adds state and API surface unrelated to producing one reliable current result).
-- **Consequence:** Implementation follows the ordered handoff in `docs/code-generator-architecture/README.md`. The shared provider contract must gain configured strict-schema and typed image-input capabilities; worker claiming must enforce configured free capacity and accepted job kinds; production mock mutation routes must be disabled; and the generator must persist enough fingerprints and receipts to resume idempotently and explain terminal failure. Model selection remains in `config/models.toml`; the checked-in `react-vite-v1` scaffold and exact toolchain are selected by a config-driven supported-runtime profile and immutable digest. Publishing and other non-MVP extensions require later decisions.
-
----
+- **Context:** D-014's screenshot/vision-model matrix was operationally expensive and didn't improve code quality; closed pre-generation resource set prevented necessary in-flight discoveries.
+- **Decision:** Supersede D-014. Implement text-only Code Generator with staged operation roles (planner, resource scout, foundation, route builder, integrator, repairer). Advances through planning, acquisition, foundation, route batches, integration, text/DOM verification, finite repair, and atomic preview promotion. No vision models or screenshot gates. Acquisition adapters mediate local materialization of emergent resources. 3 lean verification gates: source contract, clean type/build, and headless text/DOM/runtime smoke.
+- **Rejected alternatives:** Screenshots without vision models; build-only verification; unmediated model tools (shell/web); unbounded repair loops.
+- **Consequence:** Architecture documented in `docs/code-generator-architecture/`. High quality via structured prompts, tokens, and deterministic compiler/DOM gates.
 
 ## D-013 — Repair only reproduced Build Preparation pack defects and issue pack v2
 
 - **Date & Time:** 2026-08-13 10:36 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Code Generator consumer review reproduced three defects in the admitted Build Preparation v1 boundary. First, the production projection and archive omit approved global Visual Design Director fields—including visual language and shared navigation, motion, interaction, accessibility/performance, preservation, fabrication, compiler-handoff, and full asset-intent constraints—even though upstream approval hashing covers them. Second, the archive has route-scoped prose/data but no authoritative machine-readable route, criterion, fact, runtime, freedom, or file-reference contract; current VDD inline-page validation can also omit an approved route, while path echoes and lossy storage slugs can drift or collide. Third, asset source policy is carried but not enforced: approved-user, curated-local, or generated-local intent can enter external stock lookup, and critical external needs may never become required for handoff. These are reproduced omissions or false admissions, not generic requests to improve upstream creativity.
-- **Decision:** Narrowly supersede D-012 and create semantic `build-preparation-pack-v2`. Add hash-covered `site/contract.json`, deterministically derived from the approved Content Architect projection, containing the canonical route graph and paths, collision-proof storage keys, ordered section/content references, stable fact/criterion/runtime/freedom IDs, and route-file pointers. Add hash-covered `design/visual-direction.json` containing the approved non-reasoning global and route-scoped visual contract plus full asset intent. Require exact Content Architect/VDD/package route equality whenever VDD pages are present; stamp canonical route facts from Content Architect; reject unsafe, duplicate, case-colliding, contradictory, partial, or ceiling-truncated scope. Enforce acquisition policy: only `optional_external_acquisition + needs_acquisition` may use configured stock providers; approved-user media must be locally verified or fall back honestly; curated-local and generated-local visual needs never use stock; critical external needs are `required_for_handoff`; negative concepts and forbidden subjects remain binding. Give the pack and target contract independent supported schema versions, hash every projection, and make `handoff-report.json` fail closed on missing, invalid, stale, mismatched, or incomplete evidence. Code Generator rejects or regenerates v1 packs and has no resource-acquisition path. Freeze every other Build Preparation responsibility and contract unless a future consumer reproduces another admitted-package defect and identifies its correct owner.
-- **Rejected alternatives:** Inferring route paths or global visual rules inside Code Generator (would create a second, lossy source of truth); reading arbitrary upstream session state alongside the archive (breaks the immutable handoff boundary); silently treating v1 packs as v2 (hides missing input); and broadly redesigning Build Preparation, changing its model workflow, or adding quality features without a reproduced pack defect (reopens a verified stage speculatively).
-- **Consequence:** The VDD coverage validator and Build Preparation receive one versioned, regression-tested boundary patch before real Code Generator work. Existing model workflow, provenance, per-route content, object-storage, read-back, staleness, job, API, and all unenumerated behavior remain frozen. Fresh v2 fixtures become the only Code Generator production inputs; historical packs remain diagnostic artifacts. D-012's consumer-evidence ownership rule survives, but its v1 freeze is superseded by this precisely bounded repair.
-
----
-
-## D-012 — Freeze Build Preparation v1 and validate it through Code Generator consumption
-
-- **Date & Time:** 2026-08-12 20:45 +05:30 — Codex (GPT-5 / OpenAI)
-- **Status:** superseded-by-D-013
-- **Context:** Independent production-handoff review found and fixed concrete Build Preparation admission, provenance, resource-planning, dependency, path-safety, and fixture-concurrency defects. The repaired contract now gives Code Generator approved route content, visual direction, local/provenanced resources, exclusive fallbacks/later-fetch rules, target constraints, and a deterministic `handoff-report.json`. Continuing to refine Build Preparation without a real consumer would be speculative and would delay Code Generator; conversely, declaring every future integration problem the fault of either stage would hide genuine contract defects.
-- **Decision:** Freeze the Build Preparation v1 contract and begin Code Generator development. Treat an admitted, freshly regenerated pack as Code Generator's authoritative input; the currently reviewed historical packs remain immutable and are not production inputs when their handoff report or upstream approval is incomplete. Generic composition, repetitive sections/cards, weak responsive execution, poor animation, or failure to follow valid package instructions belong to Code Generator. Reopen Build Preparation or an upstream agent only when a reproducible consumer-contract failure shows that the admitted package omitted, contradicted, corrupted, or falsely admitted required facts, routes, visual direction, resources, provenance, paths, fallbacks, or target constraints.
-- **Rejected alternatives:** Indefinitely polishing Build Preparation before Code Generator exists (rejected because no consumer evidence can justify further changes); treating every Code Generator problem as proof that Build Preparation failed (rejected because implementation quality belongs downstream); declaring every package/contract problem a Code Generator bug (rejected because admission and package correctness remain Build Preparation's responsibility).
-- **Consequence:** Code Generator work may start immediately against the frozen contract and approved test fixtures. Before the first production build, approve the current Visual Design Director direction and regenerate so the package passes deterministic admission and R2 read-back verification. The first end-to-end build is a consumer-contract validation, but it does not reopen Build Preparation by default; any proposed upstream change must cite a reproduced package defect and its correct owner.
-
----
+- **Context:** Pack-v1 omitted approved global VDD fields, lacked machine-readable route contracts, and had unenforced asset acquisition policies.
+- **Decision:** Superseded D-012 with `build-preparation-pack-v2`. Added `site/contract.json` (canonical routes, section refs, criteria IDs) and `design/visual-direction.json`. Enforced exact CA/VDD route equality and stock acquisition policies (`optional_external_acquisition` only).
+- **Rejected alternatives:** Inferring routes in Code Generator; reading upstream session state directly; silently treating v1 as v2.
+- **Consequence:** Versioned, hash-verified pack-v2 boundary between Build Preparation and Code Generator (later extended by D-018 to pack-v3).
 
 ## D-011 — Rebuild Build Preparation as a real agent, from zero, superseding D-010
 
 - **Date & Time:** 2026-08-11 (local) — Claude Code (Claude Sonnet 5 / Anthropic)
 - **Status:** decided-implemented
-- **Implementation:** The new agent, durable wiring, deterministic ZIP packaging, verified temporary artifact storage, local debug mirror, and tests are implemented. Code Generator remains untouched and deferred.
-- **Context:** The D-010 Portfolio Production Compiler (`src/oryxenai/build_preparation/`, 5,228 implementation lines + 1,457 test lines) was reported as producing empty output and not fetching images. Investigation found the code itself works (real Pexels/shadcn HTTP calls, real R2 upload/verify) but the fixture harness silently defaults to skipping all live provider calls, and the checked-in sample input has no photo requirement to trigger one — a design/discoverability problem, not a broken call. Separately, the module is ~2.2x the size of Visual Design Director for a non-creative packaging stage, lives outside `src/oryxenai/agents/`, and has no `AgentKey` entry — inconsistent with the established agent pattern (D-008).
-- **Decision:** Retire `src/oryxenai/build_preparation/` entirely (no reuse of its code as a base) and rebuild Build Preparation from zero as agent #4 at `src/oryxenai/agents/build_preparation/`, mirroring the Content Architect/Visual Design Director file pattern (schemas/state/agent/service/validators/prompts, job handler, API routes, JSONB persistence, `AgentKey.BUILD_PREPARATION`). Keep Render + Supabase + R2 (no infra migration). Use the model liberally via structured-output calls wherever it adds real synthesis value (translating resource intent into provider queries, site-wide coherent selection, and — new — writing the screen-by-screen build brief itself), rather than minimizing model calls. Add Unsplash as a free-tier fallback behind Pexels with reactive rate-limit failover. Drop the per-image responsive-rendition matrix and full static-source import/export admission parsing in favor of a single verified rendition per asset and lighter hash/allowlist/dependency checks — Code Generator's own downstream build/typecheck already re-verifies component correctness. Full design in `docs/build-preparation-agent-proposal.md`.
-- **Rejected alternatives:** Patching the existing `build_preparation/` module in place (rejected — architecture itself, not just a bug, was the complaint); a fully deterministic zero-model-call redesign (rejected by the user — this is meant to be a real AI agent, not a pure compiler); AI-generated image fallback via OpenAI images (rejected — stock photography with an honest typography/custom-visual fallback is sufficient and avoids new provenance/cost questions); migrating storage/hosting to Azure free tier (rejected — current Render/Supabase/R2 setup already works with live credentials).
-- **Consequence:** `docs/portfolio-production-compiler-proposal.md` is marked superseded but kept for historical record. The new agent code, retired legacy package references, job/API/DB wiring, verified packaging/storage path, and tests are implemented under this decision. Code Generator remains untouched and deferred.
-
----
-
-## D-010 — User-visible Portfolio Production Compiler as the pre-code boundary
-
-- **Date & Time:** 2026-08-10 17:51 +05:30 — Codex (GPT-5 / OpenAI)
-- **Status:** superseded-by-D-011
-- **Context:** Fixture review of Build Preparation showed fallback-only manifests were insufficient handoffs for Code Generator. User needs observable progress without turning Code Generator into a rigid template assembler.
-- **Decision:** Replaced preparation internals with a 5-operation Portfolio Production Compiler: experience compilation, site-wide resource planning, provider lookup/admission, site-wide selection, and context compilation/package verification (plus adaptive cross-route call if multi-route). Targets React/Vite/TS/Tailwind/React Router/Motion/Lucide, Pexels for photos, public shadcn-compatible registries (Magic UI/Aceternity). Persists immutable ZIP to temporary R2.
-- **Rejected alternatives:** Hidden stage, multiple business agents/supervisors, per-scene calls, critic/repair loops, mandatory fixed visual templates/quotas, runtime provider access, dynamic package installs, Unsplash, remote fonts, production MCP.
-- **Consequence:** Transitional fallback compiler will be retired after production compiler verification passes. Code Generator remains deferred and consumes extracted pack without provider/network access.
-
----
+- **Context:** Legacy compiler (`src/oryxenai/build_preparation/`) was overly complex, had discovery issues, and didn't follow agent patterns (D-008).
+- **Decision:** Retired old compiler; rebuilt Build Preparation as standard agent at `src/oryxenai/agents/build_preparation/` (`AgentKey.BUILD_PREPARATION`, state/validators/job/API). Uses structured model calls for resource planning and build briefs, Unsplash fallback for Pexels, single verified image rendition, and deterministic ZIP packaging to temporary R2.
+- **Rejected alternatives:** In-place patching; zero-model pure compiler; OpenAI image generation; moving infrastructure to Azure.
+- **Consequence:** Standardized agent architecture across pipeline; verified temporary artifact upload to R2.
 
 ## D-009 — Deployment-independent temporary Build Preparation packs
 
 - **Date & Time:** 2026-08-09 21:15 UTC — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
-- **Context:** Worker and API run in separate disposable containers; shared disk and Postgres byte storage are unsuitable for handoffs to Code Generator.
-- **Decision:** Materialize one immutable, hash-verified ZIP per preparation run and upload to private S3/Cloudflare R2 under session/version namespace. Persist only object metadata, hash, and expiry in session JSONB.
-- **Rejected alternatives:** Shared Docker named volumes/local disk (fails across multi-host deployments), PostgreSQL byte storage (bloats DB), permanent downloads/public signed URLs (artifacts are private pre-code inputs).
-- **Consequence:** R2 storage credentials and TTL lifecycle policy required in production; expired packs regenerate from canonical approved upstream state.
-
----
+- **Context:** API and worker run in independent disposable containers; shared disk or database byte storage was unsuitable for build packs.
+- **Decision:** Materialize immutable hash-verified ZIP per preparation run and upload to private S3/R2 storage with TTL lifecycle. Session JSONB stores only metadata, hash, and expiry.
+- **Rejected alternatives:** Shared Docker volumes (multi-host failure); DB byte blobs (database bloat); public URLs.
+- **Consequence:** Production requires R2 credentials; expired packs deterministically regenerate from approved upstream state.
 
 ## D-008 — Visual Design Director mirrors Content Architect architecture
 
 - **Date & Time:** 2026-08-08 19:49 UTC — Claude Code (Claude Sonnet 5 / Anthropic)
 - **Status:** decided-implemented
-- **Context:** Stage 3 needed implementation following Content Architect's proven bounded workflow pattern.
-- **Decision:** Built VDD mirroring Content Architect: 5-status state machine, 3-operation workflow (`establish_visual_language`, `direct_page_experience`, `integrate_site_experience`), envelope-only validation, hash staleness check, JSONB session state persistence. Added deterministic in-process tag-overlap local resource catalogue (`catalogue.json`) queried before model calls.
-- **Rejected alternatives:** `decision_basis` provenance field, internal-note leak backstop, deterministic code-computed visual quality heuristics in `validators.py`.
-- **Consequence:** Future Code Generator work should check if this mirror pattern applies before inventing new patterns.
-
----
+- **Context:** Visual Design Director needed implementation following Content Architect's proven bounded workflow pattern.
+- **Decision:** Built VDD with 5-status state machine, 3-operation workflow (`establish_visual_language`, `direct_page_experience`, `integrate_site_experience`), envelope-only validation, hash staleness checks, and JSONB session persistence. Tag-overlap local resource catalogue (`catalogue.json`) queried in Python before model calls.
+- **Rejected alternatives:** Complex provenance fields; deterministic heuristic code validators.
+- **Consequence:** Reusable pipeline agent pattern established across stages.
 
 ## D-007 — Restructure AI-agent context files around canonical AGENTS.md
 
 - **Date & Time:** 2026-08-08 16:02 UTC — Claude Code (Claude Sonnet 5 / Anthropic)
 - **Status:** decided-implemented
-- **Context:** Multiple AI tools (Claude Code, Codex CLI, Cursor, Antigravity) worked on repo; `CODEX.md` was not auto-discovered by standard tools and contained contradictions.
-- **Decision:** Made `AGENTS.md` canonical cross-tool context. Reduced `CODEX.md` to redirect. Created `CLAUDE.md` (`@AGENTS.md` import), `CHANGES.md` (compacting changelog), and `DECISIONS.md` (ADR log).
-- **Rejected alternatives:** Keeping `CODEX.md` canonical, merging decisions into `CHANGES.md`.
-- **Consequence:** All AI sessions read `AGENTS.md` first; single source of truth for project facts.
-
----
+- **Context:** Multiple AI tools (Claude Code, Codex CLI, Cursor, Antigravity) worked on repo; inconsistent context caused configuration drift.
+- **Decision:** `AGENTS.md` is canonical context. `CODEX.md` and `CLAUDE.md` redirect to it. Created `CHANGES.md` (changelog) and `DECISIONS.md` (ADR log).
+- **Rejected alternatives:** Maintaining separate per-tool context files; merging ADRs into `CHANGES.md`.
+- **Consequence:** Single source of truth for cross-tool AI sessions.
 
 ## D-005 — Jinja2 + vanilla JS testing harness instead of framework frontend
 
 - **Date & Time:** 2026-08-08 (retroactive) — Unspecified (Unspecified)
 - **Status:** decided-implemented
-- **Context:** Needed developer UI to test Discovery/Content Architect chat flow before final product frontend was designed.
-- **Decision:** Minimal Jinja2 + vanilla JS server-rendered testing harness (`src/oryxenai/web/`) without external framework dependencies.
-- **Rejected alternatives:** Building full React/Next.js product UI prematurely before core agent behavior stabilized.
-- **Consequence:** Harness is developer-only and throwaway-adjacent; conversational contract documented in `docs/frontend-behavior-spec.md`.
-
----
+- **Context:** Needed lightweight UI to test agent chat flows before final product frontend was designed.
+- **Decision:** Server-rendered Jinja2 + vanilla JS harness (`src/oryxenai/web/`) without external framework dependencies.
+- **Rejected alternatives:** Building full React/Next.js app before agent protocols stabilized.
+- **Consequence:** Simple developer harness; conversational contract specified in `docs/frontend-behavior-spec.md`.
 
 ## D-004 — Kept dormant discovery_opencode_go profile in config/models.toml
 
 - **Date & Time:** 2026-08-07 21:00 UTC — Unspecified (Unspecified)
 - **Status:** decided-implemented
-- **Context:** After switching live model provider (D-003), old OpenCode Go profile became unused.
-- **Decision:** Preserved dormant profile in `config/models.toml` for easy one-line rollback if needed.
-- **Rejected alternatives:** Deleting unused profile for code cleanliness.
-- **Consequence:** `config/models.toml` may contain multiple profiles per agent; only active profile referenced by code is used.
-
----
+- **Context:** Switching active model provider left old profile unused.
+- **Decision:** Keep dormant provider profiles in `config/models.toml` for zero-code rollback.
+- **Rejected alternatives:** Deleting dormant profiles.
+- **Consequence:** Easy provider switching via config profile assignment.
 
 ## D-003 — Switched Discovery/Content Architect to OpenAI API directly
 
 - **Date & Time:** 2026-08-07 20:10 UTC — Unspecified (Unspecified)
 - **Status:** decided-implemented
-- **Context:** OpenCode Go usage quota exhausted (`GoUsageLimitError`), blocking development.
-- **Decision:** Pointed `[profiles.discovery]` and `[profiles.content_architect]` directly to OpenAI API via `OPENAI_API_KEY`. Extended `ModelCapabilities` for provider-specific API quirks (e.g. `uses_max_completion_tokens`).
-- **Rejected alternatives:** Waiting for monthly quota reset, hardcoding provider special-cases in agent logic.
-- **Consequence:** Preserved rollback path (D-004); generic `ModelCapabilities` system handles provider differences.
-
----
+- **Context:** OpenCode Go rate limit quota exhausted, blocking development.
+- **Decision:** Pointed profiles directly to OpenAI API via `OPENAI_API_KEY`. Added `ModelCapabilities` abstraction for provider quirks (e.g. `uses_max_completion_tokens`).
+- **Rejected alternatives:** Waiting for quota reset; hardcoding provider branches in agent code.
+- **Consequence:** Generic provider capability layer handles API differences.
 
 ## D-002 — v1 Discovery over-engineering, then v2 simplification
 
 - **Date & Time:** 2026-08-07 (retroactive) — Unspecified (Unspecified)
 - **Status:** decided-implemented
-- **Context:** Earlier Discovery implementation had source document tables, repair-prompt loops, 20-file few-shot libraries, and fact-graph validation layers.
-- **Decision:** Stripped over-engineered components: intake stored as session JSONB, inline contrastive prompt examples, envelope-only output validation.
-- **Rejected alternatives:** Retaining complex validation and multi-table graph machinery.
-- **Consequence:** Established repository bias toward envelope-only validation and prompt-carried examples over heavy structural machinery.
-
----
+- **Context:** Initial Discovery implementation had dedicated document tables, repair loops, 20-file few-shot libraries, and graph validation.
+- **Decision:** Simplified to session JSONB storage, inline contrastive prompt examples, and envelope-only validation.
+- **Rejected alternatives:** Preserving multi-table validation graph.
+- **Consequence:** Repository standard established: envelope validation + prompt-carried examples over heavy framework machinery.
 
 ## D-001 — Explicit Python agents over an agent framework
 
 - **Date & Time:** 2026-08-06 (retroactive) — Unspecified (Unspecified)
 - **Status:** decided-implemented
-- **Context:** Needed structure for agent model execution before tool-calling/routing requirements were known.
-- **Decision:** Used plain Python protocols (`Agent`, `ModelClient`) and Pydantic models without external frameworks.
-- **Rejected alternatives:** LangChain, LangGraph, CrewAI, AutoGen (imposed premature abstractions and obscured testability).
-- **Consequence:** Frameworks deferred until concrete need demonstrated; agents own explicit schemas, prompts, and execution.
+- **Context:** Needed agent architecture before tool-calling and routing requirements were clear.
+- **Decision:** Plain Python protocols (`Agent`, `ModelClient`) and Pydantic schemas without external frameworks.
+- **Rejected alternatives:** LangChain, LangGraph, CrewAI, AutoGen.
+- **Consequence:** High testability, zero framework lock-in, explicit model boundaries.
 
 ---
 
 ## Compacted & Superseded History
 
-- **D-006** — 2026-08-08 15:30 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — Visual Design Director & Code Generator deferred; no auto-chaining from Content Architect *(superseded by D-008 on Visual Design Director implementation)*
+- **D-014** — 2026-08-13 10:36 +05:30 — Codex (GPT-5 / OpenAI) — Code Generator v1 bounded generation, verification, repair, atomic preview promotion (superseded by D-015)
+- **D-012** — 2026-08-12 20:45 +05:30 — Codex (GPT-5 / OpenAI) — Freeze Build Preparation v1 and validate through Code Generator (superseded by D-013)
+- **D-010** — 2026-08-10 17:51 +05:30 — Codex (GPT-5 / OpenAI) — Portfolio Production Compiler pre-code boundary (superseded by D-011)
+- **D-006** — 2026-08-08 15:30 UTC — Claude Code (Claude Sonnet 5 / Anthropic) — Visual Design Director & Code Generator deferred (superseded by D-008)
 
 ---
 
-## Compaction & Archiving Procedure (for AI tools: Codex, Claude, Cursor, OpenCode, Antigravity)
+## Summary (as of last update — 2026-08-17)
 
-**Trigger:** If `DECISIONS.md` reaches or exceeds **350 lines**, run compaction before appending a new decision entry.
-
-**Procedure:**
-1. **Active Decisions:** Keep decisions with `Status: open`, `Status: decided-not-yet-implemented`, or `Status: decided-implemented` under `## Active Decisions` using high-density bullet points.
-2. **Superseded Decisions:** Move superseded entries to `## Compacted & Superseded History` as concise single-line entries:
-   `- D-0XX — YYYY-MM-DD HH:MM TZ — <Agent/Tool> (<Model/Provider>) — <short title> (superseded by D-0YY)`
-3. **Summary Recomputation:** Recompute the `## Summary` block below reflecting active vs. superseded counts and tool distribution.
-
----
-
-## Summary (as of last update — 2026-08-13)
-
-- Total decisions logged: 15
-- Active decisions: 11 (D-001 through D-005, D-007 through D-009, D-011, D-013, D-015)
-- Superseded decisions: 4 (D-006 compacted under history; D-010, D-012, and D-014 remain expanded because the file is below the 350-line trigger)
-- By tool: Codex (6), Claude Code (4), Unspecified/Retroactive (5)
-- Last updated: 2026-08-13 — Codex (GPT-5 / OpenAI)
+- Total decisions logged: 27
+- Active decisions: 23 (D-001–D-005, D-007–D-009, D-011, D-013, D-015–D-027)
+- Superseded decisions: 4 (D-006, D-010, D-012, D-014)
+- By tool: Codex (17), Claude Code (4), OpenCode (1), Unspecified/Retroactive (5)
+- Last updated: 2026-08-17 — Codex (GPT-5 / OpenAI)
