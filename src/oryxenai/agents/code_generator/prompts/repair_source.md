@@ -1,23 +1,40 @@
 Repair only the bounded diagnostic bundle using the smallest safe source
-change. The failure details identify the defect; they do not grant authority
-to redesign unrelated routes, alter facts, add dependencies, or weaken
-verification markers.
+change. Diagnostics do not grant authority to redesign routes, alter facts,
+add dependencies, or weaken verification markers. The `<generation-contract>`
+block carries the exact copy, marker, interaction, URL, and resource rules.
 
-For `SOURCE_RUNTIME_NETWORK` diagnostics the repair MUST remove every
-unapproved network reference from the named file — delete `@import url(...)`
-lines for remote fonts (fall back to the local/system stacks), replace remote
-image or script references with local `public/resources/...` paths from the
-context, and strip URLs from comments and licence headers. Approved external
-links whose URLs appear verbatim in the approved public content are content,
-not defects — keep them. When the context's `previous_attempt_files` carries
-the rejected file, return the complete corrected version of it. For
-`SOURCE_REPLACE_MISSING`, re-emit the change as `create`.
+Apply the diagnostic's correct repair:
 
-Preserve all public truth, route ownership, resource bindings, accessibility,
-responsive behavior, and reduced-motion behavior. If a visual implementation
-caused the failure, prefer a local resilient fallback over removing meaning or
-adding an unapproved dependency. Re-check the diagnostic's expected outcome
-and return only changed owned files with honest coverage.
+- `SOURCE_RUNTIME_NETWORK`: remove unapproved network references and runtime
+  calls. Approved external links are content only.
+- `SOURCE_REPLACE_MISSING` / `SOURCE_CREATE_EXISTS`: choose create or replace
+  from the current `existing_files` state and return the complete file.
+- `SOURCE_OWNERSHIP_ESCAPE` / `SOURCE_TRUSTED_FILE_MUTATION`: drop or move the
+  change inside the owned paths; never edit the trusted runtime shell.
+- `SOURCE_UNGROUNDED_COPY` / `SOURCE_CONTENT_COVERAGE_MISSING`: use exact
+  approved copy or a short micro-label; never invent portfolio claims.
+- `SOURCE_SECTION_COVERAGE_MISSING` / `SOURCE_ROUTE_ID_MISSING`: put the exact
+  route/section ID and `data-content-id` literal in the route anchor file.
+- `SOURCE_ACCEPTANCE_MARKER_MISSING`: put the exact marker token in the route
+  anchor file.
+- `SOURCE_INTERACTION_MARKER_MISSING`: put the exact literal
+  `data-interaction-id="<interaction_id>"` on the interactive element in the
+  anchor file; do not hide it behind a dynamic prop/helper.
+- `SOURCE_EXECUTION_SLOT_UNUSED`: use executable resource binding. Import and
+  render the admitted local component module, use the admitted
+  `/resources/pack/...` media URL in JSX/CSS, or import the admitted package
+  and export. A slot ID, filename in a comment, manifest text, or prose mention
+  does not count.
+- `SOURCE_VISUAL_CONTRACT_MISSING`: include the missing preservation string.
+- `SOURCE_LOCAL_IMPORT_MISSING` / `SOURCE_UNDECLARED_IMPORT`: fix or remove the
+  import using only files and packages admitted in the current context.
+- `SOURCE_PLACEHOLDER` / `SOURCE_SECRET_ACCESS`: remove the placeholder or
+  secret access.
+- `TYPECHECK_FAILED` / `TYPECHECK_STRUCTURE_INVALID`: fix only the named files
+  and preserve the design intent.
 
-If the defect cannot be repaired within the owned paths and supplied
-authority, return cannot_complete and state the missing authority precisely.
+When rejected file bodies are supplied, return the complete corrected file.
+Preserve public truth, route ownership, resource bindings, accessibility,
+responsive behavior, and reduced-motion behavior. Re-check the diagnostic and
+return only changed owned files with honest coverage. If it cannot be repaired
+within the supplied authority, return `cannot_complete` with the precise gap.

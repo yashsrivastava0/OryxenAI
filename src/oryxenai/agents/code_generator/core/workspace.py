@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 from pathlib import Path
 from typing import Any
+
+from oryxenai.agents.code_generator.core import fs_safe
 
 
 class WorkspaceError(ValueError):
@@ -77,7 +78,7 @@ class GenerationWorkspace:
                     self.artifacts_dir,
                 ):
                     if disposable.exists():
-                        shutil.rmtree(disposable)
+                        fs_safe.remove_tree(disposable)
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoint_root.mkdir(parents=True, exist_ok=True)
@@ -123,11 +124,8 @@ class GenerationWorkspace:
         target = path.resolve()
         if not target.is_relative_to(self.root.resolve()):
             raise WorkspaceError("WORKSPACE_PATH_UNSAFE", "A workspace write escaped the run root.")
-        target.parent.mkdir(parents=True, exist_ok=True)
         data = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-        partial = target.with_name(f".{target.name}.partial")
-        partial.write_text(data, encoding="utf-8", newline="\n")
-        os.replace(partial, target)
+        fs_safe.write_text_atomic(target, data)
         if target.read_text(encoding="utf-8") != data:
             raise WorkspaceError(
                 "WORKSPACE_READBACK_FAILED", "A workspace JSON write failed read-back."
@@ -155,7 +153,15 @@ class GenerationWorkspace:
             if not source.is_file() or source.name in {"ledger.json", "projection.json"}:
                 continue
             relative = source.relative_to(source_root).as_posix()
-            destination = self.repo_dir / "public" / "resources" / "pack" / relative
+            # Binary media is served from public/, while component source is
+            # copied into the generated source tree so route units can import
+            # and render it. Keeping TSX under public/ made the old contract
+            # effectively recipe-only: a model could mention the filename but
+            # had no valid module path to bind.
+            if relative.startswith("components/") and source.suffix.lower() in {".ts", ".tsx"}:
+                destination = self.repo_dir / "src" / "generated" / "resources" / "pack" / relative
+            else:
+                destination = self.repo_dir / "public" / "resources" / "pack" / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
             copied.append(destination.relative_to(self.repo_dir).as_posix())

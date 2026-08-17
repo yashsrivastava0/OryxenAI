@@ -119,6 +119,85 @@ async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> Non
 
 
 @pytest.mark.asyncio
+async def test_materializer_writes_generated_local_visuals_as_concrete_material() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        photo_need = ResourceNeed(
+            need_id="visual-photo-need",
+            kind="asset",
+            source_id="editorial-hero-image",
+            category="editorial_photo",
+            purpose="Abstract hero visual",
+            route_ids=["home"],
+            required_for_handoff=True,
+        )
+        component_need = ResourceNeed(
+            need_id="visual-component-need",
+            kind="resource",
+            source_id="visual-component-home",
+            category="visual_component",
+            purpose="Featured project visual treatment",
+            route_ids=["home"],
+            required_for_handoff=True,
+        )
+        candidates = [
+            FetchedResource(
+                resource_id="generated-photo",
+                need_id=photo_need.need_id,
+                kind="photo",
+                provider="generated-local",
+                source_reference="local://oryxenai/generated-visual",
+                license="local-generated",
+            ),
+            FetchedResource(
+                resource_id="generated-component",
+                need_id=component_need.need_id,
+                kind="component",
+                provider="generated-local",
+                source_reference="local://oryxenai/generated-component",
+                source_files={
+                    "PreparedVisualStory.tsx": "export default function PreparedVisualStory() { return null; }"
+                },
+                license="local-generated",
+            ),
+        ]
+        result = await materialize_build_context(
+            output_dir=output_dir,
+            run_id="run-generated-local",
+            routes=[RouteScope(route_id="home", path="/")],
+            needs=[photo_need, component_need],
+            selections=[
+                ResourceSelection(
+                    need_id=photo_need.need_id, selected_resource_id="generated-photo"
+                ),
+                ResourceSelection(
+                    need_id=component_need.need_id, selected_resource_id="generated-component"
+                ),
+            ],
+            candidates=candidates,
+            context=BuildContextDraft(
+                overview_markdown="# Build context",
+                routes=[RouteBuildContext(route_id="home", brief_markdown="# Home")],
+            ),
+            content_architect={},
+            settings=settings,
+        )
+        root = Path(result.root_path)
+        assert (root / "resources/images/generated-photo.png").is_file()
+        assert (
+            root
+            / "resources/components/generated-local/generated-component/source/PreparedVisualStory.tsx"
+        ).is_file()
+        assert {item["disposition"] for item in result.resources} == {
+            "local_file",
+            "adaptable_source",
+        }
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
 async def test_materializer_keeps_unsplash_metadata_only() -> None:
     output_dir = _output_dir()
     try:

@@ -114,6 +114,11 @@ def validate_generation_changes(
             "tsconfig.app.json",
             "tsconfig.node.json",
             "index.html",
+            "src/main.tsx",
+            "src/app/AppRouter.tsx",
+            "src/app/PreviewBridge.ts",
+            "src/app/ErrorBoundary.tsx",
+            "src/design/global.css",
         }:
             raise SourceValidationError(
                 "SOURCE_TRUSTED_FILE_MUTATION",
@@ -202,6 +207,11 @@ def validate_repository(
                     "tsconfig.app.json",
                     "tsconfig.node.json",
                     "index.html",
+                    "src/main.tsx",
+                    "src/app/AppRouter.tsx",
+                    "src/app/PreviewBridge.ts",
+                    "src/app/ErrorBoundary.tsx",
+                    "src/design/global.css",
                 }
                 and not trusted_non_source
             ):

@@ -14,7 +14,10 @@ The standalone workflow is not wired into portfolio sessions and never
 auto-chains from Build Preparation. The package-root Python surface is limited
 to `__init__.py`, `agent.py`, and `schemas.py`; standalone implementation belongs
 in `core/`, prompts belong in `prompts/`, and the checked-in React/Vite scaffold
-contains source and a real lockfile but never `node_modules`.
+contains source and a real lockfile but never `node_modules`. Required visual
+slots are executable local bindings: media is served from the prepared pack and
+component source is imported from the generated resource tree; recipes and
+comments cannot satisfy them.
 
 ## Registry planner surface
 
@@ -39,7 +42,8 @@ accessibility, interaction, component, resource, and acceptance contracts;
 empty design prose is rejected before source generation.
 
 Generation owns immutable source checkpoints. Final verification recreates the
-toolchain cleanly, performs source/build/DOM-runtime gates, uses only bounded
+toolchain cleanly, performs source/build/DOM-runtime gates, uses a bounded
+route/asset smoke (interaction journeys are opt-in), uses only bounded
 repair, and atomically promotes an immutable preview receipt. A configured
 package manager must create the lockfile and installation: the workflow never
 synthesizes package locks or node_modules.
@@ -54,5 +58,6 @@ model or local toolchain is usable until configuration actually supports it.
 - Does not read portfolio-session state or automatically chain any stage.
 - Does not let a model use shell, filesystem, browser, package-manager,
   storage, deployment, or arbitrary network tools.
-- Does not use screenshots, visual scoring, vision-model input, or a fake
-  package installation to promote a portfolio.
+- Does not use screenshots or vision-model input to promote a portfolio; the
+  source/resource contract owns design evidence and the browser is a runtime
+  smoke check, not a substitute for it.

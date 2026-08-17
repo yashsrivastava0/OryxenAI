@@ -161,12 +161,9 @@ def _fixture_inputs(
         return content_architect_override, visual
     content = _load_content_snapshot(settings)
     if not content:
-        intake = raw.get("intake") if isinstance(raw.get("intake"), dict) else {}
-        content = (
-            dict(intake)
-            if isinstance(intake.get("route_plan"), list) and intake["route_plan"]
-            else {}
-        )
+        raw_intake = raw.get("intake")
+        intake = raw_intake if isinstance(raw_intake, dict) else {}
+        content = dict(intake) if intake.get("route_plan") else {}
     ca_hash = str((raw.get("source_ref") or {}).get("content_architect_content_hash", "") or "")
     if content and not isinstance(content.get("approved"), dict):
         stamped = dict(content)

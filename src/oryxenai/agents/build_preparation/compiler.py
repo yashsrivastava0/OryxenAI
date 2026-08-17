@@ -332,10 +332,10 @@ def compile_stage0(
                 ),
                 route_ids=[route.route_id],
                 scene_ids=route.scene_ids[:1],
-                source_status="build_preparation_policy",
-                source_policy="decorative_non_evidentiary_attributed",
+                source_status="needs_acquisition",
+                source_policy="optional_external_acquisition",
                 importance="optional",
-                required_for_handoff=False,
+                required_for_handoff=True,
                 query_terms=["abstract technology", "editorial", "connected light"],
                 fallback=(
                     "Use the approved custom text-led composition with a small abstract motif "
@@ -357,8 +357,36 @@ def compile_stage0(
             )
         )
         warnings.append(
-            "Added one optional policy-approved editorial-image opportunity; provider failure "
-            "must use the approved custom fallback."
+            "Added one required hero visual slot; provider failure must produce a local generated visual, not a prose-only fallback."
+        )
+
+    # Every public route also receives one actual component slot for project
+    # storytelling. The component may be a registry primitive or a generated
+    # local diagram, but a description alone is not an executable handoff.
+    for route in routes:
+        result_needs.append(
+            ResourceNeed(
+                need_id=_need_id("resource", f"visual-component-{route.route_id}"),
+                kind="resource",
+                source_id=f"visual-component-{route.route_id}",
+                category="visual_component",
+                purpose=(
+                    "A route-specific visual storytelling component for featured work: "
+                    "timeline, topology, process flow, metric composition, or editorial evidence."
+                ),
+                route_ids=[route.route_id],
+                scene_ids=route.scene_ids,
+                source_status="generated_local",
+                source_policy="generated_local_visual",
+                importance="critical",
+                required_for_handoff=True,
+                query_terms=["visual", "storytelling", "process", "topology"],
+                fallback="Materialize a local TSX visual component with approved data bindings.",
+                details={
+                    "placement": "featured project visual treatment",
+                    "expected_exports": ["PreparedVisualStory"],
+                },
+            )
         )
 
     events.append(

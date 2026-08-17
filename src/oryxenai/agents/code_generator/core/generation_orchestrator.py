@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
-import os
 import re
 import shutil
 from collections.abc import Callable
@@ -13,21 +13,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from oryxenai.core.logging import get_logger
-
-logger = get_logger("oryxenai.agents.code_generator.generation")
-
-
-def _unit_dir_slug(unit_id: str) -> str:
-    """Filesystem-safe workspace suffix for a work-unit id.
-
-    Unit ids follow the colon-namespaced convention (``unit:route:home``);
-    Windows forbids colons (and other reserved characters) in paths.
-    """
-
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", unit_id).strip("._")
-    return slug or "unit"
-
+from oryxenai.agents.code_generator.core import fs_safe
 from oryxenai.agents.code_generator.core.acquisition_validators import (
     AcquisitionValidationError,
     filter_candidates_by_policy,
@@ -36,7 +22,7 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
     validate_resource_request,
 )
 from oryxenai.agents.code_generator.core.check_runner import prepare_toolchain, run_source_checks
-from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
+from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointError, CheckpointStore
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
@@ -62,6 +48,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SourceDiagnostic,
     WorkUnit,
 )
+from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
@@ -77,8 +64,22 @@ from oryxenai.agents.code_generator.core.source_validation import (
     validate_generation_changes,
 )
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace, WorkspaceError
+from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
+
+logger = get_logger("oryxenai.agents.code_generator.generation")
+
+
+def _unit_dir_slug(unit_id: str) -> str:
+    """Filesystem-safe workspace suffix for a work-unit id.
+
+    Unit ids follow the colon-namespaced convention (``unit:route:home``);
+    Windows forbids colons (and other reserved characters) in paths.
+    """
+
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", unit_id).strip("._")
+    return slug or "unit"
 
 
 class GenerationError(ValueError):
@@ -258,7 +259,13 @@ class CodeGeneratorGenerationOrchestrator:
                 ),
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
-        except (WorkspaceError, SourceValidationError, AcquisitionValidationError) as exc:
+        except (
+            WorkspaceError,
+            SourceValidationError,
+            AcquisitionValidationError,
+            CheckpointError,
+            fs_safe.FsSafeError,
+        ) as exc:
             code = getattr(exc, "code", "GENERATION_FAILED")
             message = getattr(exc, "message", str(exc))
             await self._fail(
@@ -515,7 +522,7 @@ class CodeGeneratorGenerationOrchestrator:
         unit_slug = _unit_dir_slug(unit.unit_id)
         candidate = workspace.root / f"candidate-{unit_slug}"
         if candidate.exists():
-            shutil.rmtree(candidate)
+            fs_safe.remove_tree(candidate)
         _copy_without_disposables(original, candidate)
         normalized = validate_generation_changes(
             changes,
@@ -531,14 +538,28 @@ class CodeGeneratorGenerationOrchestrator:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(change.complete_utf8_content, encoding="utf-8", newline="\n")
         old = workspace.root / f"repo-{unit_slug}-old"
-        if old.exists():
-            shutil.rmtree(old)
-        os.replace(original, old)
-        os.replace(candidate, original)
+        fs_safe.remove_tree(old, required=False)
+        try:
+            fs_safe.rename_dir_with_retry(original, old)
+            fs_safe.rename_dir_with_retry(candidate, original)
+        except fs_safe.FsSafeError as exc:
+            # Keep the workspace coherent: put the accepted tree back before
+            # surfacing the failure as a resumable generation error.
+            if not original.exists() and old.exists():
+                fs_safe.remove_tree(candidate, required=False)
+                fs_safe.rename_dir_with_retry(old, original)
+            raise GenerationError(
+                "GENERATION_SWAP_FAILED",
+                "The candidate tree could not be swapped in under filesystem "
+                "locks; the run stays resumable from the last checkpoint.",
+            ) from exc
         installed = old / "node_modules"
         if installed.is_dir():
-            os.replace(installed, original / "node_modules")
-        shutil.rmtree(old, ignore_errors=True)
+            # node_modules is disposable; the next toolchain install
+            # recreates it.
+            with contextlib.suppress(fs_safe.FsSafeError):
+                fs_safe.rename_dir_with_retry(installed, original / "node_modules")
+        fs_safe.remove_tree(old, required=False)
 
     async def _model_result(
         self,
@@ -557,9 +578,7 @@ class CodeGeneratorGenerationOrchestrator:
     ) -> tuple[GenerationResult, GenerationCallReceipt]:
         # The cache key binds the prompt text (via the operation-prompt hash)
         # so a prompt change invalidates previously cached model calls.
-        prompt_hash = str(
-            (context_receipt.prompt_versions or {}).get("operation_hash", "")
-        )
+        prompt_hash = str((context_receipt.prompt_versions or {}).get("operation_hash", ""))
         key = hashlib.sha256(
             f"{generation_id}:{unit_id}:{operation}:{prompt_hash}:{context_receipt.context_hash}:{request_round}".encode()
         ).hexdigest()
@@ -1009,10 +1028,21 @@ def _operation_context(
                 continue
             if len(previous_attempt_files) >= 12:
                 break
+    owned = _owned_paths(unit, plan, projections)
     return {
         "role_profile": role_profile,
         "operation": operation,
         "unit": unit.model_dump(mode="json"),
+        # The normative per-unit contract: every mechanically enforced rule
+        # with the exact data it is checked against. Also rendered into the
+        # operation prompt by build_instructions.
+        "generation_contract": build_generation_contract(
+            unit=unit,
+            plan=plan,
+            projections=projections,
+            operation=operation,
+            owned_paths=owned,
+        ),
         "site_contract": {
             "routes": route_slices,
             "criteria": site.get("criteria", []),
@@ -1030,7 +1060,7 @@ def _operation_context(
         "resource_bindings": projections.get("resources/ledger.json", {}),
         "execution_contract": projections.get("execution/contract.json", {}),
         "prior_checkpoint": checkpoint.model_dump(mode="json") if checkpoint else {},
-        "owned_paths": _owned_paths(unit, plan, projections),
+        "owned_paths": owned,
         # Ground truth for create-vs-replace: files present in the current
         # candidate tree (disposables excluded).
         "existing_files": existing_files,
@@ -1071,9 +1101,31 @@ def _owned_paths(
                 break
         return [f"src/routes/{storage_key}/**"]
     if unit.owns_paths:
-        return list(unit.owns_paths)
+        paths = list(unit.owns_paths)
+        if unit.kind == "foundation":
+            # Older planner outputs used the broad design glob. Keep their
+            # useful ownership while removing the immutable global entrypoint.
+            paths = [
+                item for item in paths if item not in {"src/design/global.css", "src/design/**"}
+            ] + (
+                [
+                    "src/design/tokens.css",
+                    "src/design/fonts.css",
+                    "src/design/motion.css",
+                ]
+                if any(item == "src/design/**" for item in unit.owns_paths)
+                else []
+            )
+        if unit.kind == "integration":
+            paths = [item for item in paths if item not in {"src/app/**", "src/main.tsx"}]
+        return paths
     if unit.kind == "foundation":
-        return ["src/design/**", "src/components/shared/**"]
+        return [
+            "src/design/tokens.css",
+            "src/design/fonts.css",
+            "src/design/motion.css",
+            "src/components/shared/**",
+        ]
     if unit.kind == "integration":
         # The integrator reconciles the completed tree: every route path
         # plus the shared/design system it must keep coherent.

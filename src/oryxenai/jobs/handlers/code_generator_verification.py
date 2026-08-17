@@ -364,6 +364,10 @@ async def _execute(
                 workspace.repo_dir / "dist",
                 token=token,
                 parent_origin=str(settings.code_generator_verification.preview_parent_origin),
+                mount_prefix=(
+                    f"{settings.code_generator_verification.preview_route_prefix.rstrip('/')}/"
+                    f"{host}/"
+                ),
             )
         )
         verifier = (
@@ -372,7 +376,11 @@ async def _execute(
             else RuntimeVerifier()
         )
         evidence, runtime_diagnostics = await verifier.verify(
-            f"{server.url}/",
+            (
+                f"{server.url}"
+                f"{settings.code_generator_verification.preview_route_prefix.rstrip('/')}/"
+                f"{host}/"
+            ),
             plan=verification_plan,
             profile=profile,
             timeout_ms=int(settings.code_generator_verification.runtime_timeout_ms),
@@ -495,6 +503,18 @@ async def _execute(
                 "source_summary": {"preview_url": active.url, "build_hash": manifest.build_hash},
             },
             event=("promoted", "Verified portfolio preview promoted atomically."),
+        )
+        await _export_portfolio(
+            sessionmaker,
+            run_id,
+            settings,
+            workspace=workspace,
+            manifest=manifest,
+            active=active,
+            plan=plan,
+            candidate_id=candidate_id,
+            identity=identity,
+            pack_reference=str((run.input_reference or {}).get("source_id", "")),
         )
         return {"status": "succeeded", "run_id": str(run_id), "preview_url": active.url}
     except VerificationFailure as exc:
@@ -747,13 +767,18 @@ async def _attempt_repair(
             plan=plan,
             projections=projections,
             diagnostics=diagnostics,
-            allowed_paths=repair_allowed_paths(diagnostics, plan),
+            allowed_paths=repair_allowed_paths(diagnostics, plan, projections),
             public_text=public_text,
             allowed_packages=allowed_packages,
             strategy=strategy,
             round_number=budget.total_used,
         )
     except Exception:
+        logger.error(
+            "final repair attempt failed run_id=%s",
+            run_id,
+            exc_info=True,
+        )
         return False
     projection.repair_rounds = budget.total_used
     projection.repair_receipts.append(receipt)
@@ -778,6 +803,55 @@ async def _attempt_repair(
         ),
     )
     return True
+
+
+async def _export_portfolio(
+    sessionmaker: Any,
+    run_id: UUID,
+    settings: Any,
+    *,
+    workspace: GenerationWorkspace,
+    manifest: Any,
+    active: Any,
+    plan: SitePlan,
+    candidate_id: str,
+    identity: Any,
+    pack_reference: str,
+) -> None:
+    """Copy the complete portfolio (source + dist + metadata) to the export
+    root. Advisory only: failures are recorded as events, never raised."""
+
+    from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
+
+    try:
+        exported = export_portfolio(
+            settings=settings,
+            run_id=str(run_id),
+            repo_dir=workspace.repo_dir,
+            metadata={
+                "preview_url": active.url,
+                "build_hash": manifest.build_hash,
+                "candidate_id": candidate_id,
+                "candidate_identity_hash": identity.identity_hash,
+                "checkpoint_hash": identity.source_checkpoint_hash,
+                "pack_reference": pack_reference,
+                "routes": [
+                    {"route_id": route.route_id, "path": route.path} for route in plan.routes
+                ],
+            },
+        )
+    except Exception as exc:
+        logger.warning("portfolio export failed run_id=%s error=%s", run_id, exc)
+        event = ("export_failed", f"The portfolio export could not be written: {exc}")
+        level = "warning"
+    else:
+        logger.info("portfolio exported run_id=%s path=%s", run_id, exported)
+        event = ("exported", f"Complete portfolio exported to {exported}")
+        level = "info"
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        await repo.append_event(run_id, event_type=event[0], level=level, message=event[1])
+        await db.commit()
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:

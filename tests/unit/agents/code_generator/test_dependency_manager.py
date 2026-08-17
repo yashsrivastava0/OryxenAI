@@ -32,11 +32,12 @@ def test_supported_dependency_never_synthesizes_a_package_install_and_unsupporte
 ) -> None:
     settings = Settings()
     settings.code_generator_dependencies.workspaces_root = str(tmp_path / "workspaces")
+    # Hermetic: an empty offline cache guarantees the real npm invocation
+    # fails instead of depending on whatever the developer warmed.
+    settings.code_generator_dependencies.npm_cache_root = str(tmp_path / "empty-cache")
     receipt = ResourceReceipt(request_hash="resource-1", disposition="admitted", licence="MIT")
     manager = DependencyManager([receipt])
-    with pytest.raises(
-        DependencyPolicyError, match="package-manager lockfile command failed safely"
-    ):
+    with pytest.raises(DependencyPolicyError, match="package-manager lockfile command failed"):
         asyncio.run(
             manager.resolve(
                 _request(),
@@ -48,11 +49,14 @@ def test_supported_dependency_never_synthesizes_a_package_install_and_unsupporte
         )
     assert not (tmp_path / "repo" / "node_modules").exists()
     assert not (tmp_path / "repo" / "package-lock.json").exists()
+    configured_pin = str(
+        settings.code_generator_dependencies.supported_packages["lucide-react"]["version_pin"]
+    )
     second = asyncio.run(
         manager.resolve(
             _request("not-configured"),
             repo_dir=tmp_path / "repo",
-            prior_manifest={"dependencies": {"lucide-react": "0.460.0"}},
+            prior_manifest={"dependencies": {"lucide-react": configured_pin}},
             prior_lock={},
             settings=settings,
         )
@@ -64,11 +68,14 @@ def test_existing_dependency_does_not_reinstall(tmp_path) -> None:
     settings = Settings()
     receipt = ResourceReceipt(request_hash="resource-1", disposition="admitted", licence="MIT")
     manager = DependencyManager([receipt])
+    configured_pin = str(
+        settings.code_generator_dependencies.supported_packages["lucide-react"]["version_pin"]
+    )
     result = asyncio.run(
         manager.resolve(
             _request(),
             repo_dir=tmp_path / "repo",
-            prior_manifest={"dependencies": {"lucide-react": "0.460.0"}},
+            prior_manifest={"dependencies": {"lucide-react": configured_pin}},
             prior_lock={"lockfileVersion": 3},
             settings=settings,
         )

@@ -43,6 +43,69 @@ Every AI agent (Codex CLI, Claude Code, Cursor, OpenCode, Google Antigravity, or
 - **Rejected alternatives:** Keeping wildcard adapters (continues duplicate ownership and uncontrolled exports); replacing them with explicit deprecated re-exports (preserves files with no known external consumer); or moving the implementation back to the package root (reverses the established lean `core/` ownership boundary).
 - **Consequence:** Old package-root workflow imports fail immediately and callers must use the canonical `core.*` modules. The registry-facing Agent import remains stable, while HTTP routes, job kinds, persisted contracts, generation behavior, and production-integration scope are unchanged.
 
+## D-025 - Required visual handoff uses executable local bindings
+
+- **Date & Time:** 2026-08-17 13:29 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The generated portfolio could pass source admission while using only slot IDs, comments, or manifest prose for visual resources. Build Preparation also allowed required editorial/component needs to collapse into recipes, leaving Code Generator with no image or component to render.
+- **Decision:** Build Preparation adds one required visual component per public route and makes the required editorial visual concrete; provider failure uses deterministic local PNG/TSX material with provenance. Code Generator copies component source into an importable generated path, serves media from the local pack URL, and validates executable imports/rendering or package/export usage. The trusted shell and global CSS entrypoint are immutable, and default browser verification is a bounded route/asset smoke pass rather than one Playwright journey per interaction.
+- **Rejected alternatives:** Keeping comment-token evidence (admits false positives), forcing every slot to be a recipe (preserves generic output), fetching arbitrary remote images at generation time (breaks reproducible local handoff), or making every interaction a browser journey (overfits the gate to Playwright instead of source/build contracts).
+- **Consequence:** A required visual slot cannot silently disappear into prose, and a generated portfolio has an actual local visual floor while preserving the existing pack-v3 schema and historical fixture compatibility. Full visual quality still depends on model composition and source/build checks; browser smoke proves runtime integrity, not design taste.
+
+## D-024 — Export complete verified portfolios with receipt-bound metadata
+
+- **Date & Time:** 2026-08-17 11:15 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** A promoted Code Generator candidate must be usable outside the ephemeral workspace, while promotion itself must remain independent from local export failures.
+- **Decision:** After atomic promotion, export `source/` without disposables, built `dist/`, and `portfolio.json` under the configured run-scoped export root. Metadata includes the run, preview URL, candidate, candidate identity, build/checkpoint hashes, pack reference, and routes; export failures are recorded as advisory events.
+- **Rejected alternatives:** Exporting only the build artifact (loses editable source), using one shared export directory (permits cross-run overwrite), or making export failure roll back a verified preview (couples a convenience artifact to the promotion gate).
+- **Consequence:** A successful standalone run has a copy-ready portfolio at `output/code-gen-output/<run-id>/`; the export root remains configuration-driven and run-isolated.
+
+## D-023 — Harden generated filesystem transitions on Windows
+
+- **Date & Time:** 2026-08-17 11:10 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Checkpoint, workspace, build, preview, and repair operations cross directory trees that Windows antivirus/indexer locks and MAX_PATH can interrupt.
+- **Decision:** Route directory swaps, retrying tree removal, and atomic text writes through one bounded `fs_safe` layer with extended paths, retry/backoff, stale-target cleanup, and explicit failure semantics; keep disposable cleanup best-effort only when verified safe.
+- **Rejected alternatives:** Scattering retries at individual call sites (inconsistent semantics), ignoring all deletion errors (hides corrupted state), or disabling safety checks around broad recursive deletion.
+- **Consequence:** Checkpoint recovery and promotion remain atomic while transient Windows locks become retryable infrastructure events rather than model-facing generation failures.
+
+## D-022 — Skip acquisition for execution-contract-resolved resource slots
+
+- **Date & Time:** 2026-08-17 11:05 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Pack-v3 already resolves known slots to local recipes or an admitted package binding; asking the scout to acquire those same slots duplicates authority and can create conflicting receipts.
+- **Decision:** The acquisition chain skips slots resolved by the execution contract and only permits new, receipt-bound emergent needs. Dependency bindings still go through the trusted DependencyManager, with scaffold manifests/locks and cache evidence preserved.
+- **Rejected alternatives:** Letting the model reacquire every slot (duplicates upstream decisions), treating resolved slots as missing (false gaps), or allowing arbitrary package installation (breaks the dependency policy).
+- **Consequence:** Pack-v3 remains the authoritative known-resource boundary while Code Generator can safely supplement only genuine implementation discoveries.
+
+## D-021 — Keep one canonical storage-key route owner
+
+- **Date & Time:** 2026-08-17 11:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Route IDs and route storage keys can differ; treating both as writable paths produced duplicate route trees and made verification ownership ambiguous.
+- **Decision:** The canonical verification anchor is `src/routes/<storage_key>/index.tsx`, with the `routes/` prefix stripped for storage paths. Planner, contract, prompts, repair policy, and validators use that same key; generated registries remain trusted pipeline output.
+- **Rejected alternatives:** Recreating directories from route IDs (collides with slugged keys), allowing both aliases (permits divergent copies), or making model prose authoritative over the pack route mapping.
+- **Consequence:** Each route has one disjoint source owner and one literal evidence anchor for content, markers, interactions, and resource bindings.
+
+## D-020 — Approved external links are content, not runtime navigation
+
+- **Date & Time:** 2026-08-17 10:55 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Offline DOM verification must prove approved links exist and are accessible without following them into the network; planner URL fields may legitimately be blank when the trusted ledger carries the URL.
+- **Decision:** Derive interaction journeys from literal `data-interaction-id` markers. Same-app targets may be exercised; approved external or prose/blank-target links use a non-navigating `assert_link` step that checks the local href when known and accessible name without outbound requests.
+- **Rejected alternatives:** Clicking external links (violates offline verification), dropping link journeys (loses interaction coverage), or trusting planner prose as a CSS selector (can click a section wrapper instead of the control).
+- **Consequence:** The runtime gate remains offline and fail-closed while preserving link accessibility and approved-URL source policy.
+
+## D-019 — Normalize strict-schema generation payloads by mode tag
+
+- **Date & Time:** 2026-08-17 10:50 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Strict structured-output providers may fill every nullable transport property even when the operation semantically returns one tagged result.
+- **Decision:** The `GenerationResult` normalizer treats the declared mode as authoritative, retains only the matching payload, and rejects an empty matching payload; unrelated filled properties are dropped before operation validation.
+- **Rejected alternatives:** Rejecting every provider response with extra nullable fields (unnecessarily burns live calls), or inferring mode from whichever payload is non-empty (makes the contract ambiguous).
+- **Consequence:** Transport strictness and semantic one-of behavior coexist, with deterministic tests covering both normalization and honest empty results.
+
 ## D-018 — Pack-v3 makes known resource decisions executable before Code Generator
 
 - **Date & Time:** 2026-08-13 22:30 +05:30 — Codex (GPT-5 / OpenAI)

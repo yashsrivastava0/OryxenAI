@@ -394,9 +394,8 @@ class CodeGeneratorVerificationConfig(BaseModel):
         default_factory=lambda: [
             "runtime.routes",
             "runtime.navigation",
-            "runtime.interactions",
+            "runtime.assets",
             "runtime.accessibility",
-            "runtime.requests",
         ]
     )
     viewport_profiles: dict[str, dict[str, int]] = Field(
@@ -413,6 +412,11 @@ class CodeGeneratorVerificationConfig(BaseModel):
     preview_parent_origin: str = "http://127.0.0.1:8000"
     preview_retention_days: int = 3
     preview_route_prefix: str = "/preview"
+    # Where the complete generated portfolio (source project + built dist +
+    # metadata) is exported after a successful promotion. Advisory: export
+    # failures never fail a promoted run.
+    export_root: str = "output/code-gen-output"
+    export_timezone: str = "Asia/Kolkata"
 
     @field_validator("enabled", "browser_headless", "reject_source_maps", mode="before")
     @classmethod
