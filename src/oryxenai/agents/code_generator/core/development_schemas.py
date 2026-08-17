@@ -1212,6 +1212,9 @@ class DevelopmentRunProjection(BaseModel):
     status: DevelopmentRunStatus
     revision: int
     current_attempt: int = 0
+    auto_advance: bool = True
+    coordinator_stage: str = "plan"
+    selected_pack_receipt: dict[str, Any] | None = None
     job_id: str = ""
     input: AdmittedInputReference
     input_receipt: InputReceipt | None = None
@@ -1247,5 +1250,5 @@ class FixtureRunRequest(BaseModel):
 class BuildPreparationRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Mirror pack directory name, or "latest" for the newest eligible pack.
-    pack: str = "latest"
+    # Mirror pack directory name, or "best" for deterministic ranking.
+    pack: str = "best"

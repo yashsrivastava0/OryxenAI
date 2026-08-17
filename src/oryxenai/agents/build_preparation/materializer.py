@@ -16,9 +16,11 @@ from oryxenai.agents.build_preparation.contracts import (
     PACK_VERSION,
     compile_v3_projections,
     projection_hash,
+    validate_execution_contract_shape,
 )
 from oryxenai.agents.build_preparation.execution import compile_execution_contract
 from oryxenai.agents.build_preparation.providers import (
+    download_font,
     download_pexels,
     trigger_unsplash_download,
 )
@@ -34,6 +36,7 @@ from oryxenai.agents.build_preparation.schemas import (
 
 DownloadImage = Callable[[FetchedResource], Awaitable[bytes]]
 TriggerDownload = Callable[[FetchedResource], Awaitable[None]]
+DownloadFont = Callable[[FetchedResource], Awaitable[dict[str, bytes]]]
 
 TARGET_ALLOWED_DEPENDENCIES = frozenset(
     {
@@ -378,6 +381,7 @@ async def materialize_build_context(
     visual_design_director: dict[str, Any] | None = None,
     legacy_route_layout: bool = False,
     download_image: DownloadImage | None = None,
+    download_font_files: DownloadFont | None = None,
     trigger_download: TriggerDownload | None = None,
     root_override: str | Path | None = None,
 ) -> MaterializationResult:
@@ -753,6 +757,59 @@ async def materialize_build_context(
                     "disposition": "reference_only",
                 }
             )
+        elif candidate.kind == "font" and candidate.provider == "fontsource":
+            try:
+                downloader = download_font_files or (lambda item: download_font(item, settings))
+                font_files = await downloader(candidate)
+                font_root = f"resources/fonts/{resource_id}"
+                source_entries: list[dict[str, Any]] = []
+                for variant, font_bytes in sorted(font_files.items()):
+                    extension = str(
+                        getattr(settings.resource_providers, "fontsource_format", "woff2")
+                    )
+                    font_path = f"{font_root}/{_safe_name(variant)}.{extension}"
+                    item = _write(root, font_path, font_bytes, "font")
+                    source_entries.append(
+                        {"variant": variant, "local_path": font_path, "sha256": item.sha256}
+                    )
+                    files.append(item)
+                if not source_entries:
+                    raise ValueError("Fontsource returned no font files")
+                files.append(
+                    _write(
+                        root,
+                        f"{font_root}/font.json",
+                        _json_bytes(
+                            {
+                                "resource_id": resource_id,
+                                "family": candidate.font_family,
+                                "weights": candidate.font_weights,
+                                "license": candidate.license,
+                                "license_reference": candidate.license_reference,
+                                "files": source_entries,
+                            }
+                        ),
+                        "metadata",
+                    )
+                )
+                base_entry.update(
+                    {
+                        "font_family": candidate.font_family,
+                        "font_weights": candidate.font_weights,
+                        "local_directory": font_root,
+                        "source_files": source_entries,
+                        "disposition": "local_file",
+                    }
+                )
+            except Exception as exc:
+                warnings.append(f"Could not materialize Fontsource resource {resource_id}: {exc}")
+                base_entry.update(
+                    {
+                        "font_family": candidate.font_family,
+                        "font_weights": candidate.font_weights,
+                        "disposition": "custom_implementation_required",
+                    }
+                )
         elif candidate.kind == "component":
             component_root = f"resources/components/{_safe_name(candidate.provider)}/{resource_id}"
             component_dependencies_allowed = dependencies_allowed(candidate.dependencies)
@@ -952,6 +1009,15 @@ async def materialize_build_context(
     )
     projection_hashes["execution"] = projection_hash(execution_contract)
     execution_contract_path = "execution/contract.json"
+    if not compatibility_mode:
+        validate_execution_contract_shape(
+            execution=execution_contract,
+            ledger=ledger,
+            recipe_manifest=recipe_manifest,
+            site=projections["site"],
+            package_paths={item.relative_path for item in files} | {execution_contract_path},
+            allowed_dependencies=set(target.get("allowed_dependencies", []) or []),
+        )
     files.append(_write(root, execution_contract_path, _json_bytes(execution_contract), "text"))
     manifest = {
         "phase": "pack-v3" if not compatibility_mode else "diagnostic-phase3",

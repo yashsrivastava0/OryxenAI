@@ -79,7 +79,10 @@ if (root) {
     const entries = Array.isArray(packs) ? packs : [];
     const eligible = entries.filter((pack) => pack.eligible);
     const invalid = entries.filter((pack) => !pack.eligible);
-    selectedPack = eligible[0]?.pack_dir || '';
+    const best = eligible.slice().sort((a, b) =>
+      JSON.stringify(b.selection_rank || []).localeCompare(JSON.stringify(a.selection_rank || []))
+    )[0];
+    selectedPack = best?.pack_dir || '';
     const select = view('pack');
     select.replaceChildren(
       ...eligible.map((pack) => new Option(
@@ -93,7 +96,7 @@ if (root) {
     if (!entries.length) {
       view('pack-status').textContent = 'No eligible Build Preparation output found. Run Build Preparation first.';
     } else if (selectedPack) {
-      view('pack-status').textContent = `Using newest eligible pack ${selectedPack}.`;
+      view('pack-status').textContent = `Using best eligible pack ${selectedPack}.`;
     } else {
       view('pack-status').textContent = `No eligible pack is available (${entries[0].issue || 'unknown reason'}).`;
     }
@@ -251,7 +254,7 @@ if (root) {
       createFixture: (fixture_id) => request('/runs', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ fixture_id }) }),
       createUpload: (file) => request('/runs/upload', { method: 'POST', headers: { 'content-type': 'application/zip', 'X-Upload-Filename': file.name, 'Idempotency-Key': requestKey() }, body: file }),
       getBuildPreparationPacks: () => request('/build-preparation-packs'),
-      createBuildPreparation: (pack) => request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'latest' }) }),
+      createBuildPreparation: (pack) => request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'best' }) }),
     },
     storage: localStorage,
     location,
@@ -274,7 +277,7 @@ if (root) {
   });
   view('auto-advance').checked = controller.autoAdvance();
   view('auto-advance').addEventListener('change', (event) => controller.setAutoAdvance(event.target.checked));
-  view('start-build-preparation').addEventListener('click', () => runAction(() => controller.startBuildPreparation(selectedPack || 'latest')));
+  view('start-build-preparation').addEventListener('click', () => runAction(() => controller.startBuildPreparation(selectedPack || 'best')));
   view('pack').addEventListener('change', (event) => { selectedPack = event.target.value; updateLaunchButton(); });
   view('start-fixture').addEventListener('click', () => runAction(() => controller.startFixture(view('fixture').value)));
   view('start-upload').addEventListener('click', () => {

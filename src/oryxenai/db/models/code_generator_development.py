@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,6 +26,12 @@ class CodeGeneratorDevelopmentRun(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="created")
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    auto_advance: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    coordinator_stage: Mapped[str] = mapped_column(
+        Text, nullable=False, default="plan", server_default="plan"
+    )
     input_reference: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     input_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     context_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
@@ -34,6 +40,7 @@ class CodeGeneratorDevelopmentRun(Base):
     plan_summary: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     issues: Mapped[list[dict[str, object]]] = mapped_column(JSONB, nullable=False, default=list)
     admitted_identity: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selected_pack_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     background_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     acquire_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     generation_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)

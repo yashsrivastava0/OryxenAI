@@ -12,7 +12,13 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
-from oryxenai.agents.build_preparation.contracts import PACK_VERSION, canonical_json
+from oryxenai.agents.build_preparation.contracts import (
+    PACK_VERSION,
+    PackContractError,
+    canonical_json,
+    validate_execution_contract_shape,
+    validate_route_section_contract,
+)
 from oryxenai.agents.build_preparation.packager import (
     PackageError,
     restore_verified_bundle,
@@ -152,12 +158,21 @@ class DevelopmentInputAdapter:
                 "PACK_MIRROR_UNAVAILABLE",
                 "The Build Preparation mirror has no packs. Run Build Preparation first.",
             )
-        if pack == "latest":
+        if pack in {"latest", "best"}:
             candidates = sorted(
                 entries, key=lambda entry: (entry.stat().st_mtime_ns, entry.name), reverse=True
             )
             infos = [(entry, self._mirror_pack_info(entry)) for entry in candidates]
-            selected = next((entry for entry, info in infos if info["eligible"]), None)
+            if pack == "best":
+                selected = max(
+                    (entry for entry, info in infos if info["eligible"]),
+                    key=lambda entry: self._pack_rank(
+                        next(info for item, info in infos if item == entry)
+                    ),
+                    default=None,
+                )
+            else:
+                selected = next((entry for entry, info in infos if info["eligible"]), None)
             if selected is None:
                 reason = infos[0][1].get("issue", "unknown") if infos else "unknown"
                 raise DevelopmentInputError(
@@ -214,6 +229,10 @@ class DevelopmentInputAdapter:
         manifest: dict[str, Any] = {}
         handoff: dict[str, Any] = {}
         issue = ""
+        execution_gaps = 1
+        provenance_complete = 0
+        resource_coverage = 0
+        visual_readiness = 0
         context_dir = entry / "build-context"
         manifest_path = context_dir / "manifest.json"
         handoff_path = context_dir / "handoff-report.json"
@@ -228,6 +247,27 @@ class DevelopmentInputAdapter:
             else:
                 with zipfile.ZipFile(zip_path) as archive:
                     handoff = json.loads(archive.read("handoff-report.json").decode("utf-8"))
+            with zipfile.ZipFile(zip_path) as archive:
+                execution = json.loads(archive.read("execution/contract.json").decode("utf-8"))
+                resources = json.loads(archive.read("resources/projection.json").decode("utf-8"))
+                visual = json.loads(archive.read("design/visual-direction.json").decode("utf-8"))
+                execution_gaps = (
+                    len(execution.get("execution_gaps", [])) if isinstance(execution, dict) else 1
+                )
+                resource_coverage = (
+                    len(resources.get("resources", [])) if isinstance(resources, dict) else 0
+                )
+                provenance_complete = int(
+                    all(
+                        path in archive.namelist()
+                        for path in (
+                            "provenance/approvals.json",
+                            "provenance/licenses.json",
+                            "provenance/targets.json",
+                        )
+                    )
+                )
+                visual_readiness = len(visual.get("routes", [])) if isinstance(visual, dict) else 0
         except (OSError, ValueError, UnicodeDecodeError, zipfile.BadZipFile, KeyError) as exc:
             manifest, handoff = {}, {}
             issue = f"unreadable pack: {type(exc).__name__}"
@@ -263,12 +303,30 @@ class DevelopmentInputAdapter:
             "pack_version": pack_version,
             "expires_at": expires_at,
             "handoff_eligible": bool(handoff.get("handoff_eligible", False)),
+            "execution_gaps": execution_gaps,
+            "provenance_complete": provenance_complete,
+            "resource_coverage": resource_coverage,
+            "visual_readiness": visual_readiness,
             "expired": expired,
             "eligible": not issue,
         }
         if issue:
             info["issue"] = issue
+        info["selection_rank"] = self._pack_rank(info)
         return info
+
+    @staticmethod
+    def _pack_rank(info: dict[str, Any]) -> tuple[int, int, int, int, int, int]:
+        """Lexicographic quality ranking; modified time is only the final tie-break."""
+
+        return (
+            int(bool(info.get("handoff_eligible"))),
+            int(not bool(info.get("expired"))),
+            int(info.get("execution_gaps", 1) == 0),
+            int(info.get("provenance_complete", 0)),
+            int(info.get("resource_coverage", 0)),
+            int(info.get("visual_readiness", 0)),
+        )
 
     def read(self, reference: AdmittedInputReference) -> bytes:
         candidate = (self._root / reference.stored_relative_path).resolve()
@@ -540,6 +598,17 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "PACK_ROUTE_CONTRACT_MISMATCH", "The pack contains case-colliding route IDs."
             )
+        try:
+            validate_route_section_contract(site)
+        except PackContractError as exc:
+            raise DevelopmentInputError(
+                "PACK_CONTENT_INVALID",
+                "The pack route/content contract is not executable.",
+                details={
+                    "contract_code": exc.code,
+                    **{str(k): str(v) for k, v in exc.details.items()},
+                },
+            ) from exc
         route_paths: set[str] = set()
         content_by_route = {
             str(item.get("route_id", "")): item for item in public_content if isinstance(item, dict)
@@ -641,6 +710,25 @@ class DevelopmentInputAdapter:
         package_paths: set[str],
         route_resource_maps: dict[str, dict[str, Any]],
     ) -> None:
+        try:
+            validate_execution_contract_shape(
+                execution=execution,
+                ledger=ledger,
+                recipe_manifest=recipe_manifest,
+                site=site,
+                package_paths=package_paths,
+                allowed_dependencies=set(
+                    (targets.get("target") or {}).get("allowed_dependencies", [])
+                    if isinstance(targets.get("target"), dict)
+                    else []
+                ),
+            )
+        except PackContractError as exc:
+            raise DevelopmentInputError(
+                "PACK_EXECUTION_CONTRACT_INVALID",
+                "The v3 execution contract is not admissible.",
+                details={"contract_code": exc.code},
+            ) from exc
         if execution.get("schema_version") != self._config.schema_version:
             raise DevelopmentInputError(
                 "PACK_EXECUTION_SCHEMA_UNSUPPORTED", "The execution contract schema is unsupported."

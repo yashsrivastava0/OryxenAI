@@ -57,7 +57,34 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
     queries = []
     for query in plan.queries:
         need = by_id[query.need_id]
+        if need.category.casefold() == "visual_component":
+            registry_order = [
+                str(value)
+                for value in getattr(query, "allowed_providers", [])
+                if str(value) in {"shadcn", "magicui"}
+            ] or ["shadcn", "magicui"]
+            queries.append(
+                query.model_copy(
+                    update={
+                        "kind": "component",
+                        "allowed_providers": registry_order,
+                        "required_for_handoff": need.required_for_handoff,
+                    }
+                )
+            )
+            continue
         if need.source_policy != "optional_external_acquisition":
+            if need.category.casefold() in {"font", "typography", "type_system"}:
+                queries.append(
+                    query.model_copy(
+                        update={
+                            "kind": "font",
+                            "allowed_providers": ["fontsource"],
+                            "required_for_handoff": need.required_for_handoff,
+                        }
+                    )
+                )
+                continue
             queries.append(
                 query.model_copy(
                     update={
@@ -83,6 +110,10 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
             "required_for_handoff": need.required_for_handoff,
             "allowed_providers": ["pexels"] if need.required_for_handoff else [],
         }
+        if need.category.casefold() in {"font", "typography", "type_system"}:
+            update.update({"kind": "font", "allowed_providers": ["fontsource"]})
+            queries.append(query.model_copy(update=update))
+            continue
         photo_need = need.kind == "asset" and any(
             token in f"{need.category} {need.purpose}".lower()
             for token in ("editorial", "image", "photo", "portrait")
@@ -224,6 +255,15 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
             technical_status = "rejected"
             codes.append("ICON_NAME_MISSING")
             reasons.append("The icon candidate has no importable Lucide name.")
+    elif candidate.kind == "font":
+        if candidate.provider != "fontsource" or not candidate.font_family:
+            technical_status = "rejected"
+            codes.append("FONT_METADATA_MISSING")
+            reasons.append("The font candidate has no approved Fontsource metadata.")
+        if not candidate.font_urls:
+            technical_status = "rejected"
+            codes.append("FONT_SOURCE_MISSING")
+            reasons.append("The font candidate has no downloadable local font files.")
 
     eligible = (
         relevance >= 70

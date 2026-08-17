@@ -95,7 +95,7 @@ class ResourceQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     need_id: str
-    kind: Literal["photo", "component", "icon", "custom"]
+    kind: Literal["photo", "component", "icon", "font", "custom"]
     query: str = ""
     provider_terms: list[str] = Field(default_factory=list)
     orientation: str = ""
@@ -125,7 +125,7 @@ class FetchedResource(BaseModel):
 
     resource_id: str
     need_id: str
-    kind: Literal["photo", "component", "icon"]
+    kind: Literal["photo", "component", "icon", "font"]
     provider: str
     provider_asset_id: str = ""
     source_reference: str = ""
@@ -143,6 +143,9 @@ class FetchedResource(BaseModel):
     mime_type: str = ""
     image_url: str = ""
     icon_name: str = ""
+    font_family: str = ""
+    font_weights: list[str] = Field(default_factory=list)
+    font_urls: dict[str, str] = Field(default_factory=dict)
     source_files: dict[str, str] = Field(default_factory=dict)
     dependencies: list[str] = Field(default_factory=list)
     registry_dependencies: list[str] = Field(default_factory=list)
@@ -352,7 +355,7 @@ class MaterializedFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     relative_path: str
-    kind: Literal["text", "image", "metadata"]
+    kind: Literal["text", "image", "font", "metadata"]
     size_bytes: int = 0
     sha256: str = ""
 

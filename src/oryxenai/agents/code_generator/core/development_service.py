@@ -74,6 +74,11 @@ class CodeGeneratorDevelopmentService:
         npm_available = bool(npm and shutil.which(npm))
         packs = self.build_preparation_packs()
         latest_pack = next((pack for pack in packs if pack.get("eligible")), None)
+        best_pack = max(
+            (pack for pack in packs if pack.get("eligible")),
+            key=lambda pack: tuple(pack.get("selection_rank", []) or []),
+            default=None,
+        )
         browser_available = _browser_ready(self._settings.code_generator_verification)
         generation_ready = all(
             profiles[operation]
@@ -86,7 +91,7 @@ class CodeGeneratorDevelopmentService:
                 ("generation_profiles", generation_ready),
                 ("npm", npm_available),
                 ("verification_browser", browser_available),
-                ("build_preparation_pack", latest_pack is not None),
+                ("build_preparation_pack", best_pack is not None),
             )
             if not ready
         ]
@@ -101,8 +106,10 @@ class CodeGeneratorDevelopmentService:
             "fixture_ids": [item["fixture_id"] for item in self.fixtures()],
             "build_preparation_pack_ready": latest_pack is not None,
             "build_preparation_latest": latest_pack,
+            "build_preparation_best": best_pack,
             "browser_ready": browser_available,
             "can_start_latest": not readiness_blockers,
+            "can_start_best": not readiness_blockers,
             "readiness_blockers": readiness_blockers,
         }
 
@@ -148,8 +155,26 @@ class CodeGeneratorDevelopmentService:
                 )
             return _projection(existing)
         run = await self._repo.create(
-            input_reference=reference.model_dump(mode="json"), idempotency_key=idempotency_key
+            input_reference=reference.model_dump(mode="json"),
+            idempotency_key=idempotency_key,
+            auto_advance=True,
         )
+        selected_pack_receipt = None
+        if reference.mode == "build_preparation_mirror":
+            selected_pack_receipt = {
+                "source_id": reference.source_id,
+                "source_sha256": reference.source_sha256,
+                "selection": "best",
+                "selected_at": run.created_at.isoformat(),
+            }
+            run = (
+                await self._repo.compare_and_swap(
+                    run.id,
+                    expected_revision=run.revision,
+                    values={"selected_pack_receipt": selected_pack_receipt},
+                )
+                or run
+            )
         await self._repo.append_event(
             run.id,
             event_type="created",
@@ -611,6 +636,9 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "status": run.status,
             "revision": run.revision,
             "current_attempt": run.current_attempt,
+            "auto_advance": bool(getattr(run, "auto_advance", True)),
+            "coordinator_stage": str(getattr(run, "coordinator_stage", "plan") or "plan"),
+            "selected_pack_receipt": getattr(run, "selected_pack_receipt", None),
             "job_id": str(run.background_job_id or ""),
             "input": run.input_reference,
             "input_receipt": run.input_receipt,
