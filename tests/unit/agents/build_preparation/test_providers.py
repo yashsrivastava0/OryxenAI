@@ -107,3 +107,55 @@ async def test_registry_component_lookup_collects_safe_dependency_source() -> No
     assert candidates[0].dependencies == ["react"]
     assert candidates[0].license == "MIT"
     assert candidates[0].license_reference.endswith("LICENSE.md")
+
+
+@pytest.mark.asyncio
+async def test_provider_lookup_deduplicates_identical_live_queries() -> None:
+    settings = Settings()
+    settings.resource_providers.registry_order = ["shadcn"]
+    settings.resource_providers.shadcn_catalog_url = "https://registry.test/cache-catalog.json"
+    settings.resource_providers.shadcn_item_url_template = "https://registry.test/cache-{name}.json"
+    requests: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(str(request.url))
+        if request.url.path.endswith("cache-catalog.json"):
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "name": "card",
+                            "title": "Editorial workspace card",
+                            "description": "editorial workspace content card",
+                        }
+                    ]
+                },
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            json={
+                "files": [
+                    {
+                        "path": "card.tsx",
+                        "content": "export function Card() { return <article>Card</article>; }",
+                    }
+                ],
+                "dependencies": ["react"],
+                "registryDependencies": [],
+                "version": "1.0.0",
+            },
+            request=request,
+        )
+
+    query = _query("component")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        lookup = ProviderLookup(settings, client=client, live=True)
+        first = await lookup.lookup([query])
+        second = await lookup.lookup([query])
+
+    assert len(first) == len(second) == 1
+    assert lookup.calls_made == 1
+    assert lookup.cache_hits == 1
+    assert sum("cache-catalog.json" in item for item in requests) == 1

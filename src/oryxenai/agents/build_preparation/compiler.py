@@ -127,7 +127,8 @@ def compile_stage0(
     *,
     source_ref: BuildPreparationSourceRef | None = None,
     max_routes: int = 12,
-    editorial_image_budget: int = 1,
+    editorial_image_budget: int = 5,
+    visual_component_budget: int = 4,
 ) -> Stage0Result:
     """Compile public route scope and resource needs without I/O."""
     validate_visual_input(visual_design_director)
@@ -251,27 +252,33 @@ def compile_stage0(
                 str(asset.get("asset_type", "") or ""),
             ]
         )
+        asset_type = str(asset.get("asset_type", "") or "")
+        is_component_role = asset_type.casefold() in {"component", "visual_component"}
+        is_image_role = asset_type.casefold() in {
+            "image",
+            "photo",
+            "editorial_photo",
+            "portrait",
+        }
         result_need = ResourceNeed(
             need_id=_need_id("asset", asset_id),
-            kind="asset",
+            kind="resource" if is_component_role else "asset",
             source_id=asset_id,
-            category=str(asset.get("asset_type", "") or ""),
+            category="visual_component" if is_component_role else asset_type,
             purpose=str(asset.get("purpose", "") or ""),
             route_ids=sorted(used_route_ids),
             scene_ids=sorted(used_scene_ids),
             source_status=str(asset.get("source_status", "") or ""),
             source_policy=source_policy,
             importance=str(asset.get("importance", "") or ""),
-            required_for_handoff=(
-                source_policy == "optional_external_acquisition"
-                and str(asset.get("importance", "") or "") == "critical"
-            ),
+            required_for_handoff=is_component_role or is_image_role,
             query_terms=query_terms,
             fallback=fallback,
             details={
                 "orientation": asset.get("orientation", ""),
                 "focal_point": asset.get("focal_point", ""),
                 "alt_text_intent": asset.get("alt_text_intent", ""),
+                "expected_exports": asset.get("expected_exports", []),
             },
         )
         if not routes or used_route_ids:
@@ -311,82 +318,32 @@ def compile_stage0(
                     "adaptation_notes": resource.get("adaptation_notes", ""),
                     "lookup_status": resource.get("lookup_status", ""),
                 },
+                required_for_handoff=(
+                    str(resource.get("category", "") or "").casefold()
+                    in {"visual_component", "component"}
+                ),
             )
         )
 
-    # The approved default policy permits one purely editorial, non-evidentiary
-    # visual.  It is intentionally introduced by Build Preparation instead of
-    # pretending that a VDD catalogue pattern is an image or registry component.
-    if routes and editorial_image_budget > 0:
-        route = routes[0]
-        source_id = "editorial-hero-image"
-        result_needs.append(
-            ResourceNeed(
-                need_id=_need_id("asset", source_id),
-                kind="asset",
-                source_id=source_id,
-                category="editorial_photo",
-                purpose=(
-                    "A high-quality abstract technical editorial visual that supports the hero "
-                    "without representing a person, project screen, or production evidence."
-                ),
-                route_ids=[route.route_id],
-                scene_ids=route.scene_ids[:1],
-                source_status="needs_acquisition",
-                source_policy="optional_external_acquisition",
-                importance="optional",
-                required_for_handoff=True,
-                query_terms=["abstract technology", "editorial", "connected light"],
-                fallback=(
-                    "Use the approved custom text-led composition with a small abstract motif "
-                    "or plain tonal surface."
-                ),
-                details={
-                    "orientation": "landscape",
-                    "alt_text_intent": "Decorative abstract technology visual; omit alt text when it conveys no content.",
-                    "placement": "home hero supporting visual",
-                    "forbidden_subjects": [
-                        "portraits",
-                        "faces",
-                        "screenshots",
-                        "dashboards",
-                        "logos",
-                        "product interfaces",
-                    ],
-                },
-            )
-        )
+    image_need_count = sum(
+        1
+        for need in result_needs
+        if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
+    )
+    component_need_count = sum(
+        1 for need in result_needs if need.category.casefold() in {"visual_component", "component"}
+    )
+    if routes and editorial_image_budget > image_need_count:
         warnings.append(
-            "Added one required hero visual slot; provider failure must produce a local generated visual, not a prose-only fallback."
+            f"Approved Visual Design Director output contains {image_need_count} image roles; "
+            f"the configured image target is {editorial_image_budget}. Missing roles remain an "
+            "execution gap until explicitly authorized upstream."
         )
-
-    # Every public route also receives one actual component slot for project
-    # storytelling. The component may be a registry primitive or a generated
-    # local diagram, but a description alone is not an executable handoff.
-    for route in routes:
-        result_needs.append(
-            ResourceNeed(
-                need_id=_need_id("resource", f"visual-component-{route.route_id}"),
-                kind="resource",
-                source_id=f"visual-component-{route.route_id}",
-                category="visual_component",
-                purpose=(
-                    "A route-specific visual storytelling component for featured work: "
-                    "timeline, topology, process flow, metric composition, or editorial evidence."
-                ),
-                route_ids=[route.route_id],
-                scene_ids=route.scene_ids,
-                source_status="generated_local",
-                source_policy="generated_local_visual",
-                importance="critical",
-                required_for_handoff=True,
-                query_terms=["visual", "storytelling", "process", "topology"],
-                fallback="Materialize a local TSX visual component with approved data bindings.",
-                details={
-                    "placement": "featured project visual treatment",
-                    "expected_exports": ["PreparedVisualStory"],
-                },
-            )
+    if routes and visual_component_budget > component_need_count:
+        warnings.append(
+            f"Approved Visual Design Director output contains {component_need_count} component roles; "
+            f"the configured component target is {visual_component_budget}. Missing roles remain an "
+            "execution gap until explicitly authorized upstream."
         )
 
     # Typography is executable material too: give the downstream generator a

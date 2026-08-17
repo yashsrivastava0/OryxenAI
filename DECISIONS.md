@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-028 — Real provider material is mandatory for visual handoff slots
+
+- **Date & Time:** 2026-08-17 22:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Offline Build Preparation fixtures were marking deterministic blank PNGs and a tiny generated component wrapper as handoff-ready. The result hid provider failures, produced only one generic image/component, and gave Code Generator no trustworthy visual material.
+- **Decision:** Image-rich approved directions target five real images (maximum six) and four real components (maximum six), with policy overrides for text-led or privacy-limited work. Build Preparation may use LLM calls only for bounded query/context/placement orchestration. Images must be downloaded and pixel-inspected from an approved provider; components must come from an approved registry/MCP source and pass source/dependency/provenance checks. Provider responses are cached, deduplicated, concurrency/request bounded, and rate-limit aware. Missing, unavailable, flat, placeholder, metadata-only, or synthetic visual material becomes `VDD_EXECUTION_GAP`. Code Generator admission rejects gaps, generated-local visuals, and visual recipes.
+- **Rejected alternatives:** Deterministic generated-local images/components; blank or wrapper source; accepting remote-only image metadata; using a visual recipe or prose fallback to satisfy an image/component slot; unbounded provider retries; treating provider failure as a ready handoff.
+- **Consequence:** Offline fixtures remain reviewable but cannot claim readiness when visual roles are unresolved. A production-ready pack now contains provenance-bound local pixels/source, truthful material counts and provider diagnostics, and an actionable upstream revision path when authority or provider material is missing.
+
 ## D-027 — Verified major tasks end in task-scoped local commits
 
 - **Date & Time:** 2026-08-17 15:46 +05:30 — Codex (GPT-5 / OpenAI)

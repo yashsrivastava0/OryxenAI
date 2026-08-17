@@ -34,7 +34,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--live-providers",
         action="store_true",
-        help="Use live resource providers instead of deterministic fallbacks.",
+        help="Use live resource providers; offline mode records visual gaps instead of fabricating assets.",
     )
     parser.add_argument("--model-profile", default="", help="Optional configured model profile.")
     parser.add_argument(

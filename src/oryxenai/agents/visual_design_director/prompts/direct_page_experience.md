@@ -51,6 +51,18 @@ just "disable motion."
 </scenes>
 
 <assets>
+The input includes a resource_policy. For an image-rich approved direction,
+produce distinct asset briefs up to image_target_count (never above
+image_maximum) so Build Preparation can fetch several real, contextual
+editorial images. Each brief must describe a different approved role or
+scene; do not duplicate one generic hero request. These are search intent
+only: never claim that the image already exists and never describe project
+screenshots, personal portraits, employer evidence, or fabricated proof.
+For a real interactive visual role, use an additional asset brief with
+asset_type="visual_component", a concrete interaction purpose, and
+expected_exports; Build Preparation will resolve it through a real component
+registry rather than generating source here.
+
 For every meaningful image/visual requirement across all pages, add ONE asset_briefs entry (unique
 asset_id) with: purpose, content_ref, asset_type, source_status (use media_status/
 visual_director_handoff.available_media/unavailable_media as the source of truth — never claim an

@@ -112,6 +112,18 @@ def _route_sections(site: dict[str, Any]) -> dict[str, list[str]]:
     return result
 
 
+def _is_visual_resource(need: ResourceNeed) -> bool:
+    category = need.category.casefold()
+    return category in {
+        "image",
+        "photo",
+        "editorial_photo",
+        "portrait",
+        "visual_component",
+        "component",
+    }
+
+
 def compile_execution_contract(
     *,
     routes: list[RouteScope],
@@ -195,6 +207,24 @@ def compile_execution_contract(
                     accessibility_treatment="decorative icons are aria-hidden; actionable icons have an accessible name",
                     source_expectations=source_expectations,
                 )
+        elif _is_visual_resource(need) and need.required_for_handoff:
+            message = f"Visual resource '{need.source_id}' has no verified real provider bytes or component source."
+            gap = ExecutionGap(
+                slot_id=slot_id,
+                route_id=route_id,
+                scene_ids=need.scene_ids,
+                message=message,
+                next_action=(
+                    "Run live approved resource providers and materialize the real image/component, "
+                    "or revise Visual Design Director to remove the requirement explicitly."
+                ),
+            )
+            gaps.append(gap)
+            resolution = ResolvedResource(
+                resolution_type="execution_gap",
+                fallback_disposition="blocked_pending_real_visual_resource",
+                accessibility_treatment="not applicable while blocked",
+            )
         elif need.source_policy == "approved_user_media" and (
             need.required_for_handoff or need.importance.casefold() == "critical"
         ):
@@ -250,6 +280,66 @@ def compile_execution_contract(
                 resolution=resolution,
             )
         )
+
+    visual_policy = target.get("visual_resource_policy", {})
+    declared_policy = visual.get("global", {}).get("resource_policy", {})
+    if isinstance(declared_policy, dict):
+        visual_policy = {**visual_policy, **declared_policy}
+    image_target = max(0, int(visual_policy.get("image_target_count", 0) or 0))
+    component_target = max(0, int(visual_policy.get("component_target_count", 0) or 0))
+    require_real_visuals = bool(visual_policy.get("require_real_local_material", True))
+    image_count = sum(
+        1
+        for need in needs
+        if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
+    )
+    component_count = sum(
+        1 for need in needs if need.category.casefold() in {"component", "visual_component"}
+    )
+
+    def add_policy_gaps(category: str, target_count: int, actual_count: int, label: str) -> None:
+        if not require_real_visuals or actual_count >= target_count or not routes:
+            return
+        for index in range(actual_count, target_count):
+            route = routes[index % len(routes)]
+            slot_id = _stable_id("slot", "policy-gap", category, route.route_id, str(index))
+            gap = ExecutionGap(
+                slot_id=slot_id,
+                route_id=route.route_id,
+                scene_ids=route.scene_ids,
+                message=(
+                    f"Approved visual direction exposes {actual_count} {label} roles but the "
+                    f"configured handoff target is {target_count}; no role was invented."
+                ),
+                next_action=(
+                    "Add the missing approved role to Visual Design Director and rerun live provider "
+                    "acquisition, or explicitly lower the resource policy for this portfolio."
+                ),
+            )
+            gaps.append(gap)
+            slots.append(
+                ExecutionSlot(
+                    resource_slot_id=slot_id,
+                    category=category,
+                    route_id=route.route_id,
+                    scene_ids=route.scene_ids,
+                    section_ids=sections.get(route.route_id, []),
+                    component_placement="approved visual role required",
+                    required=True,
+                    source_ids=[],
+                    criterion_ids=criteria.get(route.route_id, []),
+                    rationale=gap.message,
+                    provenance="build_preparation_derived",
+                    resolution=ResolvedResource(
+                        resolution_type="execution_gap",
+                        fallback_disposition="blocked_pending_vdd_visual_role",
+                        accessibility_treatment="not applicable while blocked",
+                    ),
+                )
+            )
+
+    add_policy_gaps("editorial_photo", image_target, image_count, "image")
+    add_policy_gaps("visual_component", component_target, component_count, "component")
 
     # Sparse but structurally valid visual direction still needs a concrete
     # implementation baseline.  These are constrained, derived mechanics,
@@ -383,6 +473,11 @@ def compile_execution_contract(
                 "local_recipe",
                 "execution_gap",
             ],
+            "visual_resource_policy": {
+                "visual_slots_require_real_local_material": True,
+                "generated_local_visuals_forbidden": True,
+                "recipes_cannot_resolve_images_or_components": True,
+            },
         },
     }
     return contract, recipes, slots, gaps

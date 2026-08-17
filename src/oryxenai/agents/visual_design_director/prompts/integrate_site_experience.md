@@ -45,6 +45,13 @@ registry when no adaptable catalogue reference is justified. Page/scene lists on
 registered candidate is used.
 </resource_registry>
 
+<real_resource_policy>
+Preserve distinct approved image and component roles from earlier stages. Do
+not collapse several contextual roles into one generic asset, and do not add
+generated pixels or handwritten component source. Any role that cannot be
+honestly authorized remains an explicit conflict for Build Preparation.
+</real_resource_policy>
+
 <compiler_handoff>
 Populate compiler_handoff — a free-form summary for the FUTURE Experience Blueprint Compiler (not
 implemented by you): the key structural facts it will need to merge this direction with Content

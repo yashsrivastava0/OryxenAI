@@ -108,8 +108,18 @@ debug_mirror_enabled = true
 model_profile = "build_preparation"
 reasoning_enabled = true
 integration_route_threshold = 2
-# Optional non-evidentiary editorial candidates; provider failure never blocks handoff.
-editorial_image_budget = 1
+# Defaults for image-rich approved directions.  VDD may explicitly authorize
+# fewer roles for text-led or privacy-limited portfolios; missing authorized
+# roles become execution gaps rather than generated placeholders.
+editorial_image_budget = 5
+editorial_image_maximum = 6
+visual_component_budget = 4
+visual_component_maximum = 6
+provider_cache_ttl_seconds = 86400
+provider_max_wait_seconds = 8.0
+provider_max_concurrency = 2
+provider_max_requests = 32
+require_live_visual_resources = true
 
 [code_generator_development]
 # Standalone Phase 1 developer workflow. It has no portfolio-session coupling.

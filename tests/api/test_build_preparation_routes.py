@@ -87,7 +87,7 @@ async def test_fixture_run_is_detached_and_deterministic(tmp_path: Path) -> None
     assert response.status_code == 200
     body = response.json()
     assert body["stage"] == "phase_3"
-    assert body["status"] == "ready"
+    assert body["status"] == "needs_attention"
     assert body["model_calls"] == 0
     assert body["events"][-1]["event_id"] == "phase_3_complete"
     assert body["package"]["archive_sha256"]
@@ -203,8 +203,9 @@ async def test_fixture_run_api_persists_local_package_and_offers_download(tmp_pa
         assert start.status_code == 202
         run_id = start.json()["run_id"]
         result = await _completed_run(client, run_id)
-        assert result["status"] == "ready_for_handoff"
-        assert result["summary"]["handoff_eligible"] is True
+        assert result["status"] == "needs_attention"
+        assert result["summary"]["handoff_eligible"] is False
+        assert result["summary"]["execution_gap_count"] > 0
         assert result["local_result"]["archive_available"] is True
         assert (
             Path(result["local_result"]["result_folder"])

@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageStat
 
 from oryxenai.agents.build_preparation.contracts import (
     PACK_VERSION,
@@ -19,11 +19,7 @@ from oryxenai.agents.build_preparation.contracts import (
     validate_execution_contract_shape,
 )
 from oryxenai.agents.build_preparation.execution import compile_execution_contract
-from oryxenai.agents.build_preparation.providers import (
-    download_font,
-    download_pexels,
-    trigger_unsplash_download,
-)
+from oryxenai.agents.build_preparation.providers import download_font
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     FetchedResource,
@@ -104,29 +100,6 @@ def _hash_bytes(value: bytes) -> str:
 
 def _json_bytes(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
-
-
-def _generated_visual_bytes(seed: str) -> bytes:
-    """Create a deterministic, non-evidentiary visual for offline handoff."""
-
-    digest = hashlib.sha256(seed.encode("utf-8")).digest()
-    image = Image.new("RGB", (1600, 1000), (10, 17, 34))
-    draw = ImageDraw.Draw(image, "RGBA")
-    colors = [
-        (38 + digest[0] % 60, 120 + digest[1] % 90, 210 + digest[2] % 40, 185),
-        (220, 74 + digest[3] % 80, 120 + digest[4] % 60, 150),
-        (120, 220, 180 + digest[5] % 60, 135),
-    ]
-    for index, color in enumerate(colors):
-        x = 160 + (digest[index + 6] * 3)
-        y = 120 + (digest[index + 9] * 2)
-        radius = 180 + digest[index + 12]
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=color)
-    for offset in range(0, 1600, 80):
-        draw.line((offset, 0, offset - 240, 1000), fill=(255, 255, 255, 18), width=2)
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG", optimize=True)
-    return buffer.getvalue()
 
 
 def _write(root: Path, relative: str, content: bytes, kind: str) -> MaterializedFile:
@@ -224,6 +197,28 @@ def _safe_component_source_path(value: str) -> str:
     if not normalized or path.is_absolute() or ".." in path.parts or "." in path.parts:
         raise ValueError("component source path is unsafe")
     return path.as_posix()
+
+
+def _meaningful_component_source(source_files: dict[str, str]) -> bool:
+    """Reject wrappers/comments that only look like a component on disk.
+
+    Registry source must contain executable UI structure, not an empty export,
+    a single ``return null`` wrapper, or a prose/comment marker.  The checks
+    are intentionally structural and provider-agnostic; relevance remains a
+    separate quality decision.
+    """
+    combined = "\n".join(str(value or "") for value in source_files.values())
+    normalized = re.sub(r"/\*.*?\*/|//[^\n]*|<!--[\s\S]*?-->", "", combined, flags=re.S)
+    compact = re.sub(r"\s+", " ", normalized).strip()
+    if len(compact) < 150 or "return null" in compact.replace(" ", "").casefold():
+        return False
+    has_export = bool(re.search(r"\bexport\s+(?:default\s+)?(?:function|const|class)\b", compact))
+    markup_count = len(re.findall(r"</?[A-Za-z][^>]*>", compact))
+    ui_signals = sum(
+        token in compact.casefold()
+        for token in ("classname", "aria-", "data-", "onclick", "onchange", "motion", "ref=")
+    )
+    return has_export and markup_count >= 2 and ui_signals >= 1
 
 
 def _later_fetch_providers(settings: Any, need: ResourceNeed) -> list[str]:
@@ -479,7 +474,31 @@ async def materialize_build_context(
             "package_manifest_is_starter": True,
             "runtime_installation_allowed": False,
         },
+        "visual_resource_policy": {
+            "image_target_count": settings.build_preparation.editorial_image_budget,
+            "image_maximum": settings.build_preparation.editorial_image_maximum,
+            "component_target_count": settings.build_preparation.visual_component_budget,
+            "component_maximum": settings.build_preparation.visual_component_maximum,
+            "require_real_local_material": settings.build_preparation.require_live_visual_resources,
+            "generated_visuals_allowed": False,
+        },
     }
+    declared_policy = (visual_design_director or {}).get("resource_policy")
+    if isinstance(declared_policy, dict):
+        target["visual_resource_policy"] = {
+            **target["visual_resource_policy"],
+            **{
+                key: declared_policy[key]
+                for key in (
+                    "image_target_count",
+                    "image_maximum",
+                    "component_target_count",
+                    "component_maximum",
+                    "require_real_local_material",
+                )
+                if key in declared_policy
+            },
+        }
     files.append(_write(root, "target/target-contract.json", _json_bytes(target), "text"))
     package = _target_package_file(target)
     files.append(_write(root, "target/package.json", _json_bytes(package), "text"))
@@ -622,55 +641,23 @@ async def materialize_build_context(
             "placement": str(need.details.get("placement", "")) if need else "",
             "disposition": "selected_not_materialized",
         }
-        if candidate.kind == "photo" and candidate.provider == "generated-local":
+        if candidate.kind == "photo" and candidate.provider == "pexels":
             try:
-                image_bytes = _generated_visual_bytes(candidate.resource_id)
-                with Image.open(io.BytesIO(image_bytes)) as image:
-                    image.load()
-                    pixel_width, pixel_height = image.size
-                image_path = f"resources/images/{resource_id}.png"
-                files.append(_write(root, image_path, image_bytes, "image"))
-                metadata = {
-                    "resource_id": resource_id,
-                    "alt_text": "",
-                    "source": candidate.source_reference,
-                    "license": candidate.license,
-                    "license_reference": candidate.license_reference,
-                    "placement": need.details.get("placement", "") if need else "",
-                    "decorative": True,
-                    "pixel_width": pixel_width,
-                    "pixel_height": pixel_height,
-                    "inspection_level": "pixel_inspected",
-                    "local_path": image_path,
-                }
-                files.append(
-                    _write(
-                        root,
-                        f"resources/images/{resource_id}.json",
-                        _json_bytes(metadata),
-                        "metadata",
+                if download_image is None:
+                    raise ValueError(
+                        "live provider download is required; offline image bytes are not admissible"
                     )
-                )
-                base_entry.update(
-                    {
-                        "local_path": image_path,
-                        "inspection_level": "pixel_inspected",
-                        "pixel_width": pixel_width,
-                        "pixel_height": pixel_height,
-                        "disposition": "local_file",
-                    }
-                )
-            except Exception as exc:
-                warnings.append(f"Could not materialize generated visual {resource_id}: {exc}")
-                base_entry.update({"disposition": "custom_implementation_required"})
-        elif candidate.kind == "photo" and candidate.provider == "pexels":
-            try:
-                downloader = download_image or (lambda item: download_pexels(item, settings))
+                downloader = download_image
                 image_bytes = await downloader(candidate)
                 try:
                     with Image.open(io.BytesIO(image_bytes)) as image:
                         image.load()
                         pixel_width, pixel_height = image.size
+                        sample = image.convert("RGB").resize((64, 64))
+                        colors = sample.getcolors(maxcolors=4096)
+                        channel_spread = sum(ImageStat.Stat(sample).stddev)
+                        if colors is None or len(colors) < 8 or channel_spread < 6.0:
+                            raise ValueError("image pixels are flat or insufficiently varied")
                     if (
                         need
                         and need.required_for_handoff
@@ -727,36 +714,11 @@ async def materialize_build_context(
                         "fallback": selection.fallback or (need.fallback if need else ""),
                     }
                 )
-        elif candidate.kind == "photo" and candidate.provider == "unsplash":
-            try:
-                tracker = trigger_download or (
-                    lambda item: trigger_unsplash_download(item, settings)
-                )
-                await tracker(candidate)
-            except Exception as exc:
-                warnings.append(f"Unsplash tracking failed for {resource_id}: {exc}")
-            metadata = {
-                "resource_id": resource_id,
-                "hotlink_url": candidate.hotlink_url,
-                "source": candidate.source_reference,
-                "photographer": candidate.photographer,
-                "photographer_url": candidate.photographer_url,
-                "attribution_url": candidate.attribution_url,
-                "inspection_level": "metadata_only",
-                "local_path": "",
-            }
-            files.append(
-                _write(
-                    root, f"resources/images/{resource_id}.json", _json_bytes(metadata), "metadata"
-                )
+        elif candidate.kind == "photo":
+            warnings.append(
+                f"Image {resource_id} uses provider '{candidate.provider}', which is not approved for local handoff."
             )
-            base_entry.update(
-                {
-                    "hotlink_url": candidate.hotlink_url,
-                    "inspection_level": "metadata_only",
-                    "disposition": "reference_only",
-                }
-            )
+            base_entry.update({"disposition": "custom_implementation_required"})
         elif candidate.kind == "font" and candidate.provider == "fontsource":
             try:
                 downloader = download_font_files or (lambda item: download_font(item, settings))
@@ -846,6 +808,22 @@ async def materialize_build_context(
                         }
                     )
                 else:
+                    source_map = {
+                        source_path: content for source_path, _, content in resolved_sources
+                    }
+                    if not resolved_sources or not _meaningful_component_source(source_map):
+                        warnings.append(
+                            f"Component {resource_id} is empty or placeholder source and cannot be handed off."
+                        )
+                        base_entry.update(
+                            {
+                                "dependencies_allowed": True,
+                                "local_directory": "",
+                                "disposition": "custom_implementation_required",
+                            }
+                        )
+                        resource_manifest.append(base_entry)
+                        continue
                     source_entries: list[dict[str, Any]] = []
                     for source_path, relative, content in resolved_sources:
                         item = _write(root, relative, content.encode("utf-8"), "text")

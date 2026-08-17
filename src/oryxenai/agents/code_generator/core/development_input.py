@@ -689,6 +689,22 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "PACK_LICENSE_INVALID", "A materialized resource has no usable license record."
             )
+        if any(
+            resource.get("kind") in {"photo", "component"}
+            and (
+                resource.get("provider") == "generated-local"
+                or (resource.get("kind") == "photo" and resource.get("disposition") != "local_file")
+                or (
+                    resource.get("kind") == "component"
+                    and resource.get("disposition") != "adaptable_source"
+                )
+            )
+            for resource in resources
+        ):
+            raise DevelopmentInputError(
+                "PACK_RESOURCE_NOT_REAL",
+                "A visual resource is not a real locally materialized provider resource.",
+            )
         self._validate_execution_contract(
             execution=execution,
             ledger=ledger,
@@ -774,6 +790,7 @@ class DevelopmentInputAdapter:
                     "PACK_EXECUTION_SLOT_INVALID", "An execution slot has no typed resolution."
                 )
             resolution_type = str(resolution.get("resolution_type", ""))
+            category = str(slot.get("category", "") or "").casefold()
             route_id = str(slot.get("route_id", "") or "")
             if route_id and route_id not in route_ids:
                 raise DevelopmentInputError(
@@ -810,6 +827,18 @@ class DevelopmentInputAdapter:
                         "An execution package binding is not in the target dependency contract.",
                     )
             elif resolution_type == "local_recipe":
+                if category in {
+                    "image",
+                    "photo",
+                    "editorial_photo",
+                    "portrait",
+                    "component",
+                    "visual_component",
+                }:
+                    raise DevelopmentInputError(
+                        "PACK_VISUAL_RECIPE_FORBIDDEN",
+                        "Image and component slots must use real local material, not recipes.",
+                    )
                 recipe_id = str(resolution.get("recipe_id", ""))
                 recipe = next(
                     (
