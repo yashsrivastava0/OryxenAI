@@ -179,7 +179,8 @@ def test_workspace_reasserts_trusted_shell_from_scaffold(tmp_path) -> None:
     target.write_text("export function AppRouter() { return null; }", encoding="utf-8")
     workspace = GenerationWorkspace(tmp_path / "run", tmp_path / "input", tmp_path / "checkpoint")
 
-    workspace._restore_trusted_shell(source_shell)
+    workspace.scaffold_dir = source_shell
+    workspace.reassert_trusted_shell()
 
     assert target.read_text(encoding="utf-8") == (
         source_shell / "src" / "app" / "AppRouter.tsx"
