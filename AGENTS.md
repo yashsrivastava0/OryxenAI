@@ -86,16 +86,16 @@ deterministic mock, not a live implementation.
 
 ## What is deliberately still mocked or excluded
 
-- The registry-compatible Code Generator agent remains a deterministic mock,
-  but its feature-gated standalone development workflow now implements Phases
-  1-4: v3 admission, planning, controlled acquisition, progressive source
-  generation, checkpoints, clean build/runtime verification, finite repair,
-  atomic preview promotion, and source/preview API/UI. Production session
-  integration remains deferred; see `DECISIONS.md` D-015 and
-  `docs/code-generator-architecture/`.
+- The registry-compatible Code Generator agent exposes the same model-backed,
+  structured planner operation used by the durable workflow. Its feature-gated
+  standalone development workflow implements v3 admission, planning,
+  controlled acquisition, progressive source generation, checkpoints, clean
+  build/runtime verification, finite repair, atomic preview promotion, and
+  source/preview API/UI. Production session integration remains deferred; see
+  `DECISIONS.md` D-015 and `docs/code-generator-architecture/`.
 - Normal tests use checked-in fixtures; live model calls are opt-in.
-- No portfolio generation, publishing, web research, or automatic chaining
-  between agents.
+- No automatic production-session portfolio generation, publishing, web
+  research, or automatic chaining between agents.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
 - No authentication, billing, Supabase, or published-portfolio deployment

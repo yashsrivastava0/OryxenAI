@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from oryxenai.agents.code_generator.process_runner import ProcessRunnerError, run_command
+from oryxenai.agents.code_generator.core.process_runner import ProcessRunnerError, run_command
 
 
 @pytest.mark.asyncio

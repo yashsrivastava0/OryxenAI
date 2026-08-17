@@ -4,11 +4,14 @@ import asyncio
 
 import pytest
 
-from oryxenai.agents.code_generator.dependency_manager import (
+from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
 )
-from oryxenai.agents.code_generator.development_schemas import DependencyRequest, ResourceReceipt
+from oryxenai.agents.code_generator.core.development_schemas import (
+    DependencyRequest,
+    ResourceReceipt,
+)
 from oryxenai.core.settings import Settings
 
 

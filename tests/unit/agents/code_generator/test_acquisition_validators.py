@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.acquisition_validators import (
+from oryxenai.agents.code_generator.core.acquisition_validators import (
     AcquisitionValidationError,
     filter_candidates_by_policy,
     inspect_bytes,
@@ -10,7 +10,7 @@ from oryxenai.agents.code_generator.acquisition_validators import (
     validate_plan_delta,
     validate_resource_request,
 )
-from oryxenai.agents.code_generator.development_schemas import (
+from oryxenai.agents.code_generator.core.development_schemas import (
     PlanDelta,
     ResourceBinding,
     ResourceCandidate,

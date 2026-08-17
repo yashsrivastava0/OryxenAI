@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.resource_adapters import default_adapters
+from oryxenai.agents.code_generator.core.resource_adapters import default_adapters
 from oryxenai.core.settings import get_settings
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.handlers.code_generator import CodeGeneratorAcquisitionHandler

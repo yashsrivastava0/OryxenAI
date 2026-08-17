@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.development_schemas import (
+from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationChanges,
     GenerationResult,
     SourceFileChange,
 )
-from oryxenai.agents.code_generator.source_validation import (
+from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
 )

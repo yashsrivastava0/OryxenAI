@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from oryxenai.agents.code_generator.checkpoint_store import CheckpointStore
-from oryxenai.agents.code_generator.development_input import DevelopmentInputAdapter
-from oryxenai.agents.code_generator.development_schemas import GenerationProjection, SitePlan
-from oryxenai.agents.code_generator.generation_orchestrator import _unit_projection_dict
-from oryxenai.agents.code_generator.workspace import GenerationWorkspace
+from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
+from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
+from oryxenai.agents.code_generator.core.development_schemas import GenerationProjection, SitePlan
+from oryxenai.agents.code_generator.core.generation_orchestrator import _unit_projection_dict
+from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 from oryxenai.core.settings import get_settings
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.handlers.code_generator_verification import CodeGeneratorVerificationHandler
@@ -125,7 +125,7 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
     workspace = GenerationWorkspace.open(
         settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
     )
-    from oryxenai.agents.code_generator.source_manifest import materialize_trusted_manifests
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
 
     materialize_trusted_manifests(workspace, projections, plan)
     route_file = workspace.repo_dir / "src" / "routes" / "home-4ea140588150" / "index.tsx"
