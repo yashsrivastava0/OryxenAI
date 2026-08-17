@@ -349,6 +349,27 @@ consistent:
 4. **Never hardcode** a model name, provider, API key env-var value, test
    count, or "currently implemented" snapshot anywhere — follow the
    config-driven policy above.
+5. **Commit completed major work locally by default.** A finished, verified
+   unit that qualifies for `CHANGES.md` must end with a task-scoped Git commit;
+   the agent does not wait for a separate “commit this” request. Use a concise
+   conventional subject such as `feat(scope): outcome`, `fix(scope): outcome`,
+   or `refactor(scope): outcome`, and report the resulting commit hash.
+   - At the start and again before staging, inspect `git status --short
+     --branch`, the relevant `git diff`, and the staged diff. Treat every
+     pre-existing tracked or untracked change as another contributor's work.
+   - Stage only files or exact hunks owned by the completed task. Never use
+     `git add .` or `git add -A` in a dirty multi-agent worktree unless the user
+     explicitly requests one complete-state commit. Never include `.env`,
+     secrets, caches, `node_modules`, build output, or unreviewed tool files.
+   - Before committing, run the task's verification, `git diff --cached
+     --check`, and review `git diff --cached --stat` plus the complete staged
+     patch. If an already-dirty file cannot be separated safely, do not absorb
+     another contributor's edits: commit the isolatable work and report the
+     exact overlapping files as the blocker for the remainder.
+   - A local commit is not a push. Never push, amend, rebase, reset, or rewrite
+     history unless the user explicitly requests it. After committing, show
+     `git log -1 --oneline` and the remaining `git status --short` so unfinished
+     or unrelated work stays visible.
 
 ## Related documents
 
