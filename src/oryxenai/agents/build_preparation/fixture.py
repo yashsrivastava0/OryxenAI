@@ -321,7 +321,9 @@ def _offline_query_plan(needs: list[Any]) -> Stage1QueryPlan:
     queries: list[ResourceQuery] = []
     for need in needs:
         category = f"{need.category} {need.purpose} {' '.join(need.query_terms)}".lower()
-        if bool(getattr(need, "required_for_handoff", False)) or (
+        if need.category.casefold() in {"font", "typography", "type_system"}:
+            kind = "font"
+        elif bool(getattr(need, "required_for_handoff", False)) or (
             need.kind == "asset"
             and any(token in category for token in ("photo", "portrait", "editorial", "image"))
         ):
@@ -346,7 +348,9 @@ def _offline_query_plan(needs: list[Any]) -> Stage1QueryPlan:
                 icon_name=(need.query_terms[0] if kind == "icon" and need.query_terms else ""),
                 fallback=need.fallback or "Use an explicit custom implementation.",
                 required_for_handoff=bool(getattr(need, "required_for_handoff", False)),
-                allowed_providers=["pexels"]
+                allowed_providers=["fontsource"]
+                if kind == "font"
+                else ["pexels"]
                 if bool(getattr(need, "required_for_handoff", False))
                 else [],
             )
@@ -398,6 +402,10 @@ def _offline_candidates(queries: list[ResourceQuery]) -> list[FetchedResource]:
                     license_reference="https://github.com/lucide-icons/lucide/blob/main/LICENSE",
                 )
             )
+        elif query.kind == "font":
+            # Provider-free fixtures intentionally exercise the typed local
+            # typography recipe; live Fontsource materialization is opt-in.
+            continue
         else:
             result.append(
                 FetchedResource(

@@ -184,6 +184,174 @@ def _content_by_route(content: dict[str, Any], route_ids: set[str]) -> dict[str,
     return result
 
 
+def validate_route_section_contract(site: dict[str, Any]) -> None:
+    """Validate the route-to-public-content mapping shared by producer and consumer.
+
+    The Code Generator must be able to address every public section exactly once;
+    an empty or partial ``section_sequence`` is therefore not an admissible
+    handoff.  Keeping this check here prevents Build Preparation and admission
+    from silently maintaining different interpretations of the same pack.
+    """
+
+    routes = site.get("routes")
+    public_content = site.get("public_content")
+    if not isinstance(routes, list) or not isinstance(public_content, list):
+        raise PackContractError(
+            "BUILD_PACK_V3_CONTENT_CONTRACT_INVALID",
+            "The v3 site projection must contain routes and public content.",
+        )
+    content_by_route = {
+        str(item.get("route_id", "")): item for item in public_content if isinstance(item, dict)
+    }
+    for route in routes:
+        if not isinstance(route, dict):
+            raise PackContractError(
+                "BUILD_PACK_V3_CONTENT_CONTRACT_INVALID",
+                "A v3 route entry is invalid.",
+            )
+        route_id = str(route.get("route_id", ""))
+        route_sections = route.get("section_sequence")
+        content = content_by_route.get(route_id)
+        content_sections = content.get("sections") if isinstance(content, dict) else None
+        if not isinstance(route_sections, list) or not isinstance(content_sections, list):
+            raise PackContractError(
+                "BUILD_PACK_V3_CONTENT_SECTION_COVERAGE",
+                "Every public route must list its content sections exactly once.",
+                details={"route_id": route_id},
+            )
+        section_ids = [
+            str(section.get("section_id", ""))
+            for section in content_sections
+            if isinstance(section, dict)
+        ]
+        if (
+            len(section_ids) != len(content_sections)
+            or len(set(section_ids)) != len(section_ids)
+            or route_sections != section_ids
+        ):
+            raise PackContractError(
+                "BUILD_PACK_V3_CONTENT_SECTION_COVERAGE",
+                "Route section sequence must cover public content exactly and in order.",
+                details={"route_id": route_id, "expected": section_ids, "observed": route_sections},
+            )
+
+
+def validate_execution_contract_shape(
+    *,
+    execution: dict[str, Any],
+    ledger: dict[str, Any],
+    recipe_manifest: dict[str, Any],
+    site: dict[str, Any],
+    package_paths: set[str],
+    allowed_dependencies: set[str] | None = None,
+) -> None:
+    """Shared pure slot/resource admission used before packaging and at intake."""
+
+    slots = execution.get("slots")
+    if not isinstance(slots, list) or not slots or execution.get("execution_gaps"):
+        raise PackContractError(
+            "BUILD_PACK_V3_EXECUTION_GAP",
+            "Every v3 execution slot must have a concrete resolution.",
+        )
+    slot_by_id = {
+        str(slot.get("resource_slot_id", "")): slot
+        for slot in slots
+        if isinstance(slot, dict) and str(slot.get("resource_slot_id", ""))
+    }
+    if len(slot_by_id) != len(slots):
+        raise PackContractError(
+            "BUILD_PACK_V3_EXECUTION_SLOT_INVALID",
+            "Execution slot IDs must be unique and non-empty.",
+        )
+    recipes = recipe_manifest.get("recipes")
+    if not isinstance(recipes, list):
+        raise PackContractError("BUILD_PACK_V3_RECIPE_INVALID", "The recipe manifest is invalid.")
+    recipe_by_id = {
+        str(recipe.get("recipe_id", "")): recipe
+        for recipe in recipes
+        if isinstance(recipe, dict) and str(recipe.get("recipe_id", ""))
+    }
+    if len(recipe_by_id) != len(recipes):
+        raise PackContractError(
+            "BUILD_PACK_V3_RECIPE_INVALID", "Recipe IDs must be unique and non-empty."
+        )
+    route_ids = {
+        str(route.get("route_id", ""))
+        for route in site.get("routes", [])
+        if isinstance(route, dict)
+    }
+    allowed = allowed_dependencies or set()
+    for slot_id, slot in slot_by_id.items():
+        route_id = str(slot.get("route_id", "") or "")
+        if route_id and route_id not in route_ids:
+            raise PackContractError(
+                "BUILD_PACK_V3_EXECUTION_ROUTE_INVALID",
+                "An execution slot is outside the public route scope.",
+            )
+        resolution = slot.get("resolution")
+        if not isinstance(resolution, dict):
+            raise PackContractError(
+                "BUILD_PACK_V3_EXECUTION_SLOT_INVALID", "An execution slot has no resolution."
+            )
+        kind = str(resolution.get("resolution_type", ""))
+        if kind == "local_materialized":
+            paths = resolution.get("local_paths")
+            if (
+                not isinstance(paths, list)
+                or not paths
+                or any(
+                    not isinstance(path, str)
+                    or not any(
+                        name == path or name.startswith(path.rstrip("/") + "/")
+                        for name in package_paths
+                    )
+                    for path in paths
+                )
+            ):
+                raise PackContractError(
+                    "BUILD_PACK_V3_EXECUTION_LOCAL_PATH_INVALID",
+                    "A local binding is missing from the package.",
+                )
+        elif kind == "target_package_binding":
+            package = str(resolution.get("package_name", ""))
+            if (
+                package not in allowed
+                or not isinstance(resolution.get("expected_exports"), list)
+                or not resolution["expected_exports"]
+            ):
+                raise PackContractError(
+                    "BUILD_PACK_V3_EXECUTION_PACKAGE_INVALID",
+                    "A package binding is outside the target dependency contract.",
+                )
+        elif kind == "local_recipe":
+            recipe_id = str(resolution.get("recipe_id", ""))
+            recipe = recipe_by_id.get(recipe_id)
+            if (
+                recipe is None
+                or str(recipe.get("slot_id", "")) != slot_id
+                or str(recipe.get("local_path", "")) not in package_paths
+            ):
+                raise PackContractError(
+                    "BUILD_PACK_V3_RECIPE_DANGLING",
+                    "A local recipe does not bind a packaged recipe file.",
+                )
+        else:
+            raise PackContractError(
+                "BUILD_PACK_V3_EXECUTION_SLOT_INVALID",
+                "An execution slot has an unsupported resolution.",
+            )
+    ledger_slots = {
+        str(item.get("resource_slot_id", ""))
+        for item in ledger.get("slots", [])
+        if isinstance(item, dict) and str(item.get("resource_slot_id", ""))
+    }
+    if ledger_slots != set(slot_by_id):
+        raise PackContractError(
+            "BUILD_PACK_V3_RESOURCE_SLOT_MISMATCH",
+            "The resource ledger must mirror execution slots exactly.",
+        )
+
+
 def _claims(content: dict[str, Any]) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -318,13 +486,17 @@ def compile_v2_projections(
     fact_ids = {item["fact_id"] for item in facts}
     for route in routes:
         route_content = content[route["route_id"]]
-        section_ids = {section["section_id"] for section in route_content["sections"]}
-        if route["section_sequence"] and not set(route["section_sequence"]).issubset(section_ids):
+        section_ids = [section["section_id"] for section in route_content["sections"]]
+        if route["section_sequence"] and route["section_sequence"] != section_ids:
             raise PackContractError(
-                "BUILD_PACK_V2_SECTION_COVERAGE",
-                "Route section sequence references missing public content.",
-                details={"route_id": route["route_id"]},
+                "BUILD_PACK_V3_CONTENT_SECTION_COVERAGE",
+                "Route section sequence must cover public content exactly and in order.",
+                details={"route_id": route["route_id"], "expected": section_ids},
             )
+        # The public content pack is authoritative for the executable order.
+        # Preserve a declared order only when it covers the same sections;
+        # otherwise normalize an omitted sequence to the content order.
+        route["section_sequence"] = [section["section_id"] for section in route_content["sections"]]
         for section in route_content["sections"]:
             unknown = set(section["claim_ids"]) - fact_ids
             if unknown:
@@ -449,6 +621,7 @@ def compile_v2_projections(
         "pack_version": PACK_VERSION,
         "target": _strip_reasoning(target_contract),
     }
+    validate_route_section_contract(site)
     return {"site": site, "visual": visual, "approvals": approvals, "targets": targets}
 
 

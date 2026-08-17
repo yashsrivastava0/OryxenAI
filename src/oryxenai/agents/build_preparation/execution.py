@@ -163,6 +163,8 @@ def compile_execution_contract(
                     if str(resource.get("kind", "")) == "photo"
                     else "preserve semantic labels and focus treatment in the approved route"
                 ),
+                font_family=str(resource.get("font_family", "") or ""),
+                font_weights=[str(value) for value in resource.get("font_weights", []) or []],
                 source_expectations=source_expectations,
             )
         elif disposition == "package_import":

@@ -23,6 +23,7 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
 )
 from oryxenai.agents.code_generator.core.check_runner import prepare_toolchain, run_source_checks
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointError, CheckpointStore
+from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
@@ -251,6 +252,7 @@ class CodeGeneratorGenerationOrchestrator:
                     "Source generation completed with an accepted source checkpoint.",
                 ),
             )
+            await advance_after(sessionmaker, run_id, completed_stage="source_ready")
             return {"status": "succeeded", "run_id": str(run_id)}
         except GenerationError as exc:
             await self._fail(
@@ -730,27 +732,41 @@ class CodeGeneratorGenerationOrchestrator:
                     candidate = next(
                         item for item in candidates if item.candidate_id == candidate_id
                     )
-                    materialized = await adapter.materialize(
+                    materialized_result = await adapter.materialize(
                         candidate, request, storage_root=materials_root, settings=settings
                     )
-                    source_file = materials_root / materialized.local_path
-                    local_name = f"{materialized.sha256}{Path(materialized.local_path).suffix}"
-                    generated_path = workspace.materialize_acquired_file(source_file, local_name)
-                    inspection = dict(materialized.inspection)
-                    licence_name = str(inspection.get("licence_path", ""))
-                    if licence_name:
-                        licence_source = materials_root / licence_name
-                        licence_target = (
-                            workspace.repo_dir / "public" / "licences" / Path(licence_name).name
-                        ).resolve()
-                        if licence_source.is_file() and licence_target.is_relative_to(
-                            workspace.repo_dir.resolve()
-                        ):
-                            licence_target.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copyfile(licence_source, licence_target)
-                            inspection["licence_path"] = licence_target.relative_to(
-                                workspace.repo_dir
-                            ).as_posix()
+                    materialized_files = (
+                        list(materialized_result)
+                        if isinstance(materialized_result, list)
+                        else [materialized_result]
+                    )
+                    receipt_files = []
+                    for materialized in materialized_files:
+                        source_file = materials_root / materialized.local_path
+                        local_name = f"{materialized.sha256}{Path(materialized.local_path).suffix}"
+                        generated_path = workspace.materialize_acquired_file(
+                            source_file, local_name
+                        )
+                        inspection = dict(materialized.inspection)
+                        licence_name = str(inspection.get("licence_path", ""))
+                        if licence_name:
+                            licence_source = materials_root / licence_name
+                            licence_target = (
+                                workspace.repo_dir / "public" / "licences" / Path(licence_name).name
+                            ).resolve()
+                            if licence_source.is_file() and licence_target.is_relative_to(
+                                workspace.repo_dir.resolve()
+                            ):
+                                licence_target.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copyfile(licence_source, licence_target)
+                                inspection["licence_path"] = licence_target.relative_to(
+                                    workspace.repo_dir
+                                ).as_posix()
+                        receipt_files.append(
+                            materialized.model_copy(
+                                update={"local_path": generated_path, "inspection": inspection}
+                            )
+                        )
                     receipt = ResourceReceipt(
                         request_hash=request.request_hash,
                         disposition="admitted",
@@ -759,12 +775,8 @@ class CodeGeneratorGenerationOrchestrator:
                         canonical_source=candidate.canonical_source,
                         licence=candidate.licence,
                         attribution=candidate.attribution,
-                        original_hash=materialized.sha256,
-                        materialized_files=[
-                            materialized.model_copy(
-                                update={"local_path": generated_path, "inspection": inspection}
-                            )
-                        ],
+                        original_hash=materialized_files[0].sha256,
+                        materialized_files=receipt_files,
                         dependencies=sorted(candidate.dependency_metadata),
                         satisfied_placements=[request.placement.purpose],
                         acquired_at=datetime.now(UTC).isoformat(),

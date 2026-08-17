@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -412,8 +414,15 @@ class BuildPreparationAgent(Agent):
         selected_by_need = {
             item.need_id: item.selected_resource_id for item in selection_plan.selections
         }
+        qualified_by_id = {item.resource_id: item for item in qualifications}
         for need in stage0.resource_needs:
-            if not need.required_for_handoff or selected_by_need.get(need.need_id):
+            selected_id = selected_by_need.get(need.need_id)
+            selected_is_eligible = bool(
+                selected_id
+                and qualified_by_id.get(selected_id) is not None
+                and qualified_by_id[selected_id].eligible
+            )
+            if not need.required_for_handoff or selected_is_eligible:
                 continue
             if need.category not in {"editorial_photo", "visual_component"}:
                 continue
@@ -461,7 +470,13 @@ class BuildPreparationAgent(Agent):
             ],
             "content_architect": content or {},
             "visual_design_director": visual,
+            "authority": {
+                "approved_route_ids": sorted(route_ids),
+                "selected_resource_ids": sorted(_selected_ids(selection_plan)),
+                "model_may_not_grant_handoff": True,
+            },
         }
+        context_packet_hash = _packet_hash(context_packet)
         await self._emit_event(
             _event(
                 "stage_3_started",
@@ -629,6 +644,8 @@ class BuildPreparationAgent(Agent):
                             for selection in selection_plan.selections
                         ],
                         "materialized_resources": materialization.resources,
+                        "context_packet_hash": context_packet_hash,
+                        "authority": {"model_may_not_grant_handoff": True},
                     },
                     model_profile,
                 )
@@ -766,12 +783,16 @@ class BuildPreparationAgent(Agent):
                 "events": [event.model_dump(mode="json") for event in events],
                 "model_calls": model_calls,
                 "provider_calls": len(query_plan.queries) if live_providers else 0,
+                "context_packet_hash": context_packet_hash,
+                "model_call_receipts": stages_meta,
             },
             prompt_version=prompt_version,
             model_metadata={
                 "stages": stages_meta,
                 "model_calls": model_calls,
                 "provider_calls": len(query_plan.queries) if live_providers else 0,
+                "context_packet_hash": context_packet_hash,
+                "model_call_receipts": stages_meta,
             },
         )
 
@@ -795,7 +816,7 @@ class BuildPreparationAgent(Agent):
         model = output_model_for(operation).model_validate(parsed)
         if not isinstance(model, (Stage1QueryPlan, Stage2SelectionPlan)):
             raise BuildPreparationModelOutputError(f"Unexpected output model for {operation}.")
-        return model, version, _metadata(result, manifest, operation)
+        return model, version, _metadata(result, manifest, operation, packet)
 
     async def _call_handoff_stage(
         self, packet: dict[str, Any], model_profile: str
@@ -818,7 +839,7 @@ class BuildPreparationAgent(Agent):
         model = output_model_for(operation).model_validate(parsed)
         if not isinstance(model, Stage5HandoffReview):
             raise BuildPreparationModelOutputError("Unexpected output model for handoff review.")
-        return model, version, _metadata(result, manifest, operation)
+        return model, version, _metadata(result, manifest, operation, packet)
 
     async def _call_context_stage(
         self,
@@ -845,10 +866,12 @@ class BuildPreparationAgent(Agent):
         model = output_model_for(operation).model_validate(parsed)
         if not isinstance(model, (Stage3BuildContextResult, Stage4IntegratedContextResult)):
             raise BuildPreparationModelOutputError(f"Unexpected output model for {operation}.")
-        return model, version, _metadata(result, manifest, operation)
+        return model, version, _metadata(result, manifest, operation, packet)
 
 
-def _metadata(result: Any, manifest: dict[str, str], operation: str) -> dict[str, Any]:
+def _metadata(
+    result: Any, manifest: dict[str, str], operation: str, packet: dict[str, Any] | None = None
+) -> dict[str, Any]:
     return {
         "operation": operation,
         "provider": str(getattr(result, "model", "") or ""),
@@ -858,7 +881,14 @@ def _metadata(result: Any, manifest: dict[str, str], operation: str) -> dict[str
         "latency_ms": getattr(result, "latency_ms", 0.0),
         "finish_reason": str(getattr(result, "finish_reason", "") or ""),
         "prompt_modules": manifest,
+        "input_packet_hash": _packet_hash(packet) if packet is not None else "",
     }
+
+
+def _packet_hash(packet: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _selected_ids(plan: Stage2SelectionPlan) -> set[str]:

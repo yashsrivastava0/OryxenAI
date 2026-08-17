@@ -19,6 +19,7 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
     validate_plan_delta,
     validate_resource_request,
 )
+from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
@@ -261,6 +262,7 @@ async def _execute(
             },
         )
         await db.commit()
+    await advance_after(sessionmaker, run_id, completed_stage="planned")
     return {"status": "succeeded", "run_id": str(run_id)}
 
 
@@ -697,6 +699,7 @@ async def _execute_acquisition(
             },
         )
         await db.commit()
+    await advance_after(sessionmaker, run_id, completed_stage="acquired")
     return {"status": "succeeded", "run_id": str(run_id)}
 
 
