@@ -80,9 +80,8 @@ During development:
 - no Build Preparation approval automatically starts Code Generator;
 - no existing Discovery, Content Architect, Visual Design Director, or Build
   Preparation state machine is changed to know about Code Generator;
-- the existing deterministic mock remains available wherever current tests or
-  generic mock routes still require it, until the later integration task
-  explicitly retires it; and
+- the registry-facing `CodeGeneratorAgent` exposes the same structured planner
+  operation and can run with whichever `ModelClient` the caller supplies; and
 - all standalone routes and mutation paths are protected by an explicit
   development setting and are absent or disabled in production.
 
@@ -717,7 +716,8 @@ That future plan may:
 - add the production session GET/start/regenerate routes;
 - connect Code Generator state to the existing session without changing
   upstream authority;
-- remove or retain the deterministic mock based on compatibility evidence;
+- decide whether the registry-facing planner surface remains useful after the
+  production session API is available;
 - decide whether the standalone development frontend remains feature-gated as a
   diagnostic harness; and
 - verify the complete explicit flow from Discovery through Code Generator.

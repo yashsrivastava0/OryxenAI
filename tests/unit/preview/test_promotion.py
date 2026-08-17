@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.development_schemas import (
+from oryxenai.agents.code_generator.core.development_schemas import (
     BuildManifest,
     BuildManifestEntry,
     CandidateArtifact,

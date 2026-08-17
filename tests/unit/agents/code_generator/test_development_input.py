@@ -6,7 +6,7 @@ import zipfile
 
 import pytest
 
-from oryxenai.agents.code_generator.development_input import (
+from oryxenai.agents.code_generator.core.development_input import (
     DevelopmentInputAdapter,
     DevelopmentInputError,
 )

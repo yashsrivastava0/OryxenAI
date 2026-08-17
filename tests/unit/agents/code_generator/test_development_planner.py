@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.development_planner import (
+from oryxenai.agents.code_generator.core.development_planner import (
     SitePlanValidationError,
     validate_site_plan,
 )
-from oryxenai.agents.code_generator.development_schemas import SitePlan, WorkUnit
+from oryxenai.agents.code_generator.core.development_schemas import SitePlan, WorkUnit
 
 
 def _projections() -> dict[str, dict[str, object]]:

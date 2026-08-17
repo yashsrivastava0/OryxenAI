@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from oryxenai.agents.code_generator.development_input import DevelopmentInputAdapter
-from oryxenai.agents.code_generator.development_schemas import ResourceCandidate, SitePlan
-from oryxenai.agents.code_generator.resource_adapters import (
+from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
+from oryxenai.agents.code_generator.core.development_schemas import ResourceCandidate, SitePlan
+from oryxenai.agents.code_generator.core.resource_adapters import (
     ImageAdapter,
     OfflineResourceProviderRegistry,
     default_adapters,

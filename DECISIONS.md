@@ -34,6 +34,15 @@ Every AI agent (Codex CLI, Claude Code, Cursor, OpenCode, Google Antigravity, or
 - **Rejected alternatives:** Leaving all completed work uncommitted (continues an unauditable shared diff); committing after every save or tiny edit (creates noisy history); using `git add -A` in a dirty worktree (can capture another agent's work, secrets, or generated files); or automatically pushing every commit (changes an external system without explicit authorization).
 - **Consequence:** Major completed work gains an immediate local recovery and review point across Codex, Claude Code, Cursor, and other tools. Small, incomplete, blocked, or plan-only work remains uncommitted, unrelated dirty changes remain visible, and remote synchronization still requires an explicit user request.
 
+## D-026 — Code Generator core is the sole standalone implementation namespace
+
+- **Date & Time:** 2026-08-17 15:19 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The Code Generator package root duplicated 27 `core/` modules through wildcard compatibility imports. Production code already used `core/` directly, 17 adapters were referenced only by internal tests, 10 had no repository consumer, and the additional `core/generation_schemas.py` facade had no direct consumer. The duplicate namespace obscured implementation ownership and exposed incidental imported names.
+- **Decision:** Make `oryxenai.agents.code_generator.core.*` the sole internal namespace for the standalone workflow. Keep only `__init__.py`, `agent.py`, and `schemas.py` at the package root, remove every wildcard compatibility module plus the unused generation-schema facade, and migrate repository tests to direct `core.*` imports. Historical package-root workflow-module paths are not a supported external API and receive no deprecation period.
+- **Rejected alternatives:** Keeping wildcard adapters (continues duplicate ownership and uncontrolled exports); replacing them with explicit deprecated re-exports (preserves files with no known external consumer); or moving the implementation back to the package root (reverses the established lean `core/` ownership boundary).
+- **Consequence:** Old package-root workflow imports fail immediately and callers must use the canonical `core.*` modules. The registry-facing Agent import remains stable, while HTTP routes, job kinds, persisted contracts, generation behavior, and production-integration scope are unchanged.
+
 ## D-018 — Pack-v3 makes known resource decisions executable before Code Generator
 
 - **Date & Time:** 2026-08-13 22:30 +05:30 — Codex (GPT-5 / OpenAI)
