@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-17 20:34 +05:30 — Codex (GPT-5 / OpenAI) — [7957f7e] — Best-pack readiness UI alignment
+Updated the normal developer workspace readiness indicator and troubleshooting copy to use the server-authoritative best Build Preparation pack projection.
+
 ### 2026-08-17 20:31 +05:30 — Codex (GPT-5 / OpenAI) — [2903bd2] — Build Preparation resources, Code Generator coordination, verifier hardening
 Unified pack-v3 route/execution admission across producer and consumer, added Fontsource/font and registry-aware component materialization with provenance, structured Build Preparation context/receipts, live Code Generator resource adapters, deterministic best-pack selection, durable server-side stage advancement, and the frontend’s truthful one-click flow. Hardened preview-gateway diagnostics, source/build gate reuse, infrastructure fail-closed behavior, migration state, and doctor exit reporting; verified 751 tests plus frontend checks, with only the external-provider verification canary remaining environment-dependent.
 
