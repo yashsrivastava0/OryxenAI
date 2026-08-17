@@ -192,6 +192,23 @@ def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
     )
     selection_plan = result.get("selection_plan")
     selections = selection_plan.get("selections", []) if isinstance(selection_plan, dict) else []
+    resources = materialization.get("resources", [])
+    real_images = sum(
+        1
+        for item in resources
+        if isinstance(item, dict)
+        and item.get("kind") == "photo"
+        and item.get("disposition") == "local_file"
+        and item.get("provider") != "generated-local"
+    )
+    real_components = sum(
+        1
+        for item in resources
+        if isinstance(item, dict)
+        and item.get("kind") == "component"
+        and item.get("disposition") == "adaptable_source"
+        and item.get("provider") != "generated-local"
+    )
     return {
         "stage": result.get("stage", ""),
         "route_count": len(result.get("routes", []) or []),
@@ -202,6 +219,13 @@ def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
             1 for item in selections if isinstance(item, dict) and item.get("selected_resource_id")
         ),
         "materialized_file_count": len(materialization.get("files", []) or []),
+        "real_image_count": real_images,
+        "real_component_count": real_components,
+        "provider_calls": result.get("provider_calls", 0),
+        "provider_cache_hits": result.get("provider_cache_hits", 0),
+        "provider_rate_limit_events": result.get("provider_rate_limit_events", 0),
+        "model_calls": result.get("model_calls", 0),
+        "execution_gap_count": len(materialization.get("execution_gaps", []) or []),
         "handoff_eligible": bool(handoff.get("handoff_eligible", False)),
         "handoff_status": str(handoff.get("status", "needs_attention")),
         "handoff_issue_count": len(handoff.get("issues", []) or []),

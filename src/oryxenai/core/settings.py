@@ -218,7 +218,18 @@ class BuildPreparationConfig(BaseModel):
     model_profile: str = "build_preparation"
     reasoning_enabled: bool = True
     integration_route_threshold: int = 2
-    editorial_image_budget: int = 1
+    # These are policy defaults for image-rich directions.  The approved VDD
+    # projection may explicitly lower them for text-led or privacy-limited
+    # work; Build Preparation never fabricates missing roles to meet a quota.
+    editorial_image_budget: int = 5
+    editorial_image_maximum: int = 6
+    visual_component_budget: int = 4
+    visual_component_maximum: int = 6
+    provider_cache_ttl_seconds: int = 86400
+    provider_max_wait_seconds: float = 8.0
+    provider_max_concurrency: int = 2
+    provider_max_requests: int = 32
+    require_live_visual_resources: bool = True
 
     @field_validator(
         "fixture_enabled",
@@ -227,6 +238,7 @@ class BuildPreparationConfig(BaseModel):
         "fixture_debug_mirror_enabled",
         "debug_mirror_enabled",
         "reasoning_enabled",
+        "require_live_visual_resources",
         mode="before",
     )
     @classmethod

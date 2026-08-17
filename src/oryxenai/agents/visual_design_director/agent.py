@@ -56,7 +56,9 @@ class VisualDesignDirectorAgent(Agent):
         if model_client is None:
             raise ValueError("VisualDesignDirectorAgent requires a model client")
         self._model_client = model_client
-        self._config = get_settings().visual_design_director
+        settings = get_settings()
+        self._config = settings.visual_design_director
+        self._resource_policy = settings.build_preparation
         self._profile_name = profile_name
 
     async def run(self, context: AgentContext) -> AgentResult:
@@ -124,6 +126,13 @@ class VisualDesignDirectorAgent(Agent):
             "privacy_and_confidentiality": intake.get("privacy_and_confidentiality", []),
             "preferences": preferences,
             "resource_catalogue_shortlist": catalogue_for_prompt,
+            "resource_policy": {
+                "image_target_count": self._resource_policy.editorial_image_budget,
+                "image_maximum": self._resource_policy.editorial_image_maximum,
+                "component_target_count": self._resource_policy.visual_component_budget,
+                "component_maximum": self._resource_policy.visual_component_maximum,
+                "real_provider_material_required": True,
+            },
             "prior_output": prior_output,
             "revision_request": revision_request,
         }
@@ -170,6 +179,13 @@ class VisualDesignDirectorAgent(Agent):
                 "visual_director_handoff": intake.get("visual_director_handoff", {}),
                 "preferences": preferences,
                 "resource_catalogue_shortlist": catalogue_for_prompt,
+                "resource_policy": {
+                    "image_target_count": self._resource_policy.editorial_image_budget,
+                    "image_maximum": self._resource_policy.editorial_image_maximum,
+                    "component_target_count": self._resource_policy.visual_component_budget,
+                    "component_maximum": self._resource_policy.visual_component_maximum,
+                    "real_provider_material_required": True,
+                },
                 "prior_output": prior_output,
                 "revision_request": revision_request,
             }
@@ -221,6 +237,13 @@ class VisualDesignDirectorAgent(Agent):
                 "asset_briefs": asset_briefs,
                 "resource_candidates": resource_candidates,
                 "resource_catalogue_shortlist": catalogue_for_prompt,
+                "resource_policy": {
+                    "image_target_count": self._resource_policy.editorial_image_budget,
+                    "image_maximum": self._resource_policy.editorial_image_maximum,
+                    "component_target_count": self._resource_policy.visual_component_budget,
+                    "component_maximum": self._resource_policy.visual_component_maximum,
+                    "real_provider_material_required": True,
+                },
             }
             parsed_integrate, version, meta_integrate = await self._call_stage(
                 "integrate_site_experience",
@@ -341,6 +364,13 @@ class VisualDesignDirectorAgent(Agent):
             len(asset_briefs),
             len(resource_candidates),
         )
+        resource_policy = {
+            "image_target_count": self._resource_policy.editorial_image_budget,
+            "image_maximum": self._resource_policy.editorial_image_maximum,
+            "component_target_count": self._resource_policy.visual_component_budget,
+            "component_maximum": self._resource_policy.visual_component_maximum,
+            "require_real_local_material": self._resource_policy.require_live_visual_resources,
+        }
 
         return AgentResult(
             output={
@@ -361,6 +391,7 @@ class VisualDesignDirectorAgent(Agent):
                 "conflicts": conflicts,
                 "warnings": warnings,
                 "compiler_handoff": compiler_handoff,
+                "resource_policy": resource_policy,
                 "stages_run": stages_run,
                 "memory_update": memory_update,
             },

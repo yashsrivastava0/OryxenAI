@@ -7,9 +7,12 @@ from oryxenai.agents.build_preparation.contracts import (
     PackContractError,
     compile_v2_projections,
 )
+from oryxenai.agents.build_preparation.execution import compile_execution_contract
 from oryxenai.agents.build_preparation.schemas import (
+    ResourceNeed,
     ResourceQuery,
     ResourceSelection,
+    RouteScope,
     Stage1QueryPlan,
     Stage2SelectionPlan,
 )
@@ -37,6 +40,33 @@ def test_selection_plan_is_closed_over_candidates_and_needs() -> None:
         selections=[ResourceSelection(need_id="need-1", fallback="Build it locally.")]
     )
     assert validate_selection_plan(plan, {"need-1"}, []) == plan
+
+
+def test_required_visual_without_real_material_is_an_execution_gap() -> None:
+    need = ResourceNeed(
+        need_id="need-image",
+        kind="asset",
+        source_id="editorial-image-1",
+        category="editorial_photo",
+        route_ids=["home"],
+        required_for_handoff=True,
+    )
+    contract, recipes, slots, gaps = compile_execution_contract(
+        routes=[RouteScope(route_id="home", path="/")],
+        needs=[need],
+        materialized_resources=[],
+        site={"routes": [{"route_id": "home", "section_sequence": []}]},
+        visual={},
+        target={"allowed_dependencies": []},
+    )
+    gap_slot_ids = {gap.slot_id for gap in gaps}
+    assert all(recipe.slot_id not in gap_slot_ids for recipe in recipes)
+    assert len(gaps) == 1
+    assert any(
+        slot.resource_slot_id in gap_slot_ids and slot.resolution.resolution_type == "execution_gap"
+        for slot in slots
+    )
+    assert contract["execution_gaps"][0]["code"] == "VDD_EXECUTION_GAP"
 
 
 def _approved_content() -> dict[str, object]:

@@ -4,10 +4,10 @@ Build Preparation is the fourth explicit pipeline stage. Stage 0 deterministical
 compiles approved Content Architect and Visual Design Director projections into
 public route scope and resource needs. Phase 2 then runs a bounded workflow:
 
-1. compose one provider query per deterministic need, including an optional,
-   policy-approved non-evidentiary editorial-image opportunity when configured;
-2. search Pexels first for photos, with Unsplash fallback, and resolve registry
-   components and Lucide icons;
+1. compose one provider query per deterministic need, including the configured
+   image and component roles from the approved Visual Design Director output;
+2. search Pexels for photos, resolve Fontsource fonts, and resolve registry
+   components and Lucide icons through bounded, cached provider clients;
 3. select only from the returned closed candidate set, then resolve every
    known need as local material, a verified target-package binding, a typed
    local recipe, or an explicit upstream execution gap;
@@ -21,14 +21,26 @@ Before packaging, the agent writes `handoff-report.json`. Code Generator may
 consume a pack only when `handoff_eligible` is true, which requires both
 approved upstream hashes. Detached or unapproved fixture packages remain
 downloadable for review but are never production-eligible. A selected Pexels
-image is locally materialized and pixel-inspected; provider failure uses the
-approved custom visual fallback and does not block the handoff. Unsplash stays
-a metadata-only reference and cannot be used by the static target.
+image is locally materialized and pixel-inspected, and a selected registry
+component is copied as importable source. Provider failure, an offline run, a
+blank/flat image, a placeholder component, or a metadata-only remote image
+creates an actionable `VDD_EXECUTION_GAP`; no generated-local visual, blank
+PNG, wrapper, or visual recipe can satisfy an image/component slot. Unsplash
+remains a diagnostic metadata source and cannot be used by the static target.
+
+Image-rich directions target five real images (maximum six) and four real
+components (maximum six) by default. These are policy targets, not invented
+assets: the approved VDD projection may explicitly lower them for a text-led
+or privacy-limited portfolio. Build Preparation records the target policy,
+actual local material counts, provider calls/cache hits/rate-limit events, and
+every missing role in the handoff summary.
 
 For historical diagnostic trees only, `resources/plan.json` records every selected and unselected need, its routes
 and scenes, fallback, adaptation guidance, and whether Code Generator may fetch
 one equivalent during Code Generation. Such a fetch must replace—not duplicate—
-the recorded fallback and is never permitted at portfolio runtime. The target
+the recorded fallback and is never permitted at portfolio runtime. In current
+pack-v3 output, known image/component roles do not receive a later-fetch escape
+hatch: they remain local material or an explicit execution gap. The target
 ships a dependency ceiling and starter `package.json`, not a synthetic lockfile;
 Code Generator generates the real lockfile after choosing its final dependency
 subset.
@@ -87,8 +99,13 @@ When the development UI and Build Preparation fixture flag are enabled:
 - `POST /api/v1/build-preparation/fixture/run` runs the same Stage 0 → Phase 3
   pipeline without a session, approval state, or database write.
 
-The harness is deterministic and offline by default. Its two explicit options
-enable the configured model and resource providers for a live smoke run.
+The harness is deterministic and offline by default, but an offline run is
+diagnostic-only when visual roles are present: it cannot claim a ready handoff.
+Its two explicit options enable the configured model and resource providers for
+a live smoke run. Live providers are bounded by request ceilings, short retry
+windows, response caching, duplicate-query suppression, and rate-limit header
+tracking; provider exhaustion stops with a visible gap instead of retrying
+indefinitely.
 When the local debug mirror is enabled, each run is stored under a sortable
 timestamp plus an eight-character run prefix; the package manifest retains the
 full run ID.

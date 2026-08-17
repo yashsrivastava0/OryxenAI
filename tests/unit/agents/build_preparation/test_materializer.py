@@ -26,7 +26,7 @@ from oryxenai.core.settings import Settings
 
 def _png() -> bytes:
     buffer = io.BytesIO()
-    Image.new("RGB", (4, 3), "#334155").save(buffer, format="PNG")
+    Image.effect_noise((1200, 700), 40).convert("RGB").save(buffer, format="PNG")
     return buffer.getvalue()
 
 
@@ -119,7 +119,7 @@ async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> Non
 
 
 @pytest.mark.asyncio
-async def test_materializer_writes_generated_local_visuals_as_concrete_material() -> None:
+async def test_materializer_rejects_generated_local_visuals() -> None:
     output_dir = _output_dir()
     try:
         settings = Settings()
@@ -184,21 +184,20 @@ async def test_materializer_writes_generated_local_visuals_as_concrete_material(
             settings=settings,
         )
         root = Path(result.root_path)
-        assert (root / "resources/images/generated-photo.png").is_file()
-        assert (
+        assert not (root / "resources/images/generated-photo.png").exists()
+        assert not (
             root
             / "resources/components/generated-local/generated-component/source/PreparedVisualStory.tsx"
-        ).is_file()
+        ).exists()
         assert {item["disposition"] for item in result.resources} == {
-            "local_file",
-            "adaptable_source",
+            "custom_implementation_required",
         }
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
 
 @pytest.mark.asyncio
-async def test_materializer_keeps_unsplash_metadata_only() -> None:
+async def test_materializer_rejects_remote_only_unsplash_resources() -> None:
     output_dir = _output_dir()
     try:
         settings = Settings()
@@ -243,15 +242,9 @@ async def test_materializer_keeps_unsplash_metadata_only() -> None:
             trigger_download=trigger,
         )
 
-        assert triggered == [candidate.resource_id]
+        assert triggered == []
         assert not any(item.kind == "image" for item in result.files)
-        metadata = json.loads(
-            (
-                output_dir
-                / "build-preparation/run-2/build-context/resources/images/resource-unsplash-1.json"
-            ).read_text()
-        )
-        assert metadata["inspection_level"] == "metadata_only"
+        assert result.resources[0]["disposition"] == "custom_implementation_required"
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
@@ -317,7 +310,12 @@ async def test_materializer_preserves_component_source_paths_and_license_provena
             provider_asset_id="magic-card",
             source_reference="https://magicui.design/r/magic-card.json",
             source_files={
-                "registry/magicui/magic-card.tsx": "export function MagicCard() { return null; }"
+                "registry/magicui/magic-card.tsx": (
+                    "import type { ReactNode } from 'react';\n"
+                    "export function MagicCard({ children }: { children: ReactNode }) {\n"
+                    '  return <section className="magic-card">{children}</section>;\n'
+                    "}\n"
+                )
             },
             dependencies=["motion"],
             license="MIT",

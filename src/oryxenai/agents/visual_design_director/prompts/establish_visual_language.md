@@ -80,6 +80,16 @@ compiler_handoff_rule) — only integrate_site_experience populates it, even whe
 here.
 </pages_when_included>
 
+<real_resource_policy>
+The input includes a resource_policy with image and component targets. When
+the approved portfolio benefits from external editorial imagery, create
+distinct search-intent asset briefs up to the configured image target and
+never above its maximum. When the direction needs interactive visual
+storytelling, describe distinct component roles up to the configured
+component target. Build Preparation will call real providers; do not create
+pixels, source files, provider IDs, licences, or generic placeholders here.
+</real_resource_policy>
+
 For every resource_id used in a page or scene, add one matching object to the top-level
 resource_candidates registry. Copy the ID exactly from the shortlist; never rely on a page/scene
 string alone. If media_status and visual_director_handoff say that no approved media exists, keep

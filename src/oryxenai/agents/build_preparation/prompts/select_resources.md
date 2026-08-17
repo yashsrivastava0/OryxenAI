@@ -5,4 +5,6 @@ input for the same need. Select none when candidates are weak, unavailable,
 incompatible with the fixed target contract, or unnecessary. A null selection
 must include a concrete custom, typography, or static fallback. Required
 handoff needs must select a suitable supplied candidate when one exists. Do
-not select an item merely because it exists, and do not invent IDs or paths.
+not select an item merely because it exists, and do not invent IDs or paths. A
+missing image/component candidate is not permission to manufacture one; leave
+it unselected with an actionable fallback for deterministic gap reporting.

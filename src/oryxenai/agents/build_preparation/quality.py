@@ -6,7 +6,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from oryxenai.agents.build_preparation.materializer import dependencies_allowed
+from oryxenai.agents.build_preparation.materializer import (
+    _meaningful_component_source,
+    dependencies_allowed,
+)
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationSourceRef,
@@ -148,19 +151,15 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
     quality = 70
 
     if candidate.kind == "photo":
-        if candidate.provider == "generated-local":
-            # Generated local visuals are already concrete files produced by
-            # the trusted materializer; they do not need a remote URL or stock
-            # photographer metadata.
-            return CandidateQualification(
-                resource_id=candidate.resource_id,
-                need_id=need.need_id,
-                eligible=True,
-                relevance_score=100,
-                quality_score=100,
-                policy_status="approved",
-                technical_status="approved",
-                reasons=["Concrete local generated visual material."],
+        if (
+            candidate.provider == "generated-local"
+            or candidate.provider_asset_id.casefold().startswith(("mock-", "generated-"))
+            or "/mock/" in candidate.image_url.casefold()
+        ):
+            technical_status = "rejected"
+            codes.append("SYNTHETIC_IMAGE_CANDIDATE")
+            reasons.append(
+                "Synthetic, mock, or generated image candidates are never handoff material."
             )
         if candidate.provider != "pexels" and need.required_for_handoff:
             technical_status = "rejected"
@@ -202,23 +201,15 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
             quality = min(quality, 55)
             codes.append("IMAGE_ATTRIBUTION_INCOMPLETE")
             reasons.append("Photographer attribution is incomplete.")
+        if not candidate.license.strip() or not candidate.license_reference.strip():
+            technical_status = "rejected"
+            codes.append("IMAGE_LICENSE_INCOMPLETE")
+            reasons.append("Image licence provenance is incomplete.")
     elif candidate.kind == "component":
         if candidate.provider == "generated-local":
-            return CandidateQualification(
-                resource_id=candidate.resource_id,
-                need_id=need.need_id,
-                eligible=bool(
-                    candidate.source_files and dependencies_allowed(candidate.dependencies)
-                ),
-                relevance_score=100,
-                quality_score=100,
-                policy_status="approved",
-                technical_status="approved" if candidate.source_files else "rejected",
-                reasons=[]
-                if candidate.source_files
-                else ["Generated component has no source files."],
-                issue_codes=[] if candidate.source_files else ["COMPONENT_SOURCE_MISSING"],
-            )
+            technical_status = "rejected"
+            codes.append("SYNTHETIC_COMPONENT_CANDIDATE")
+            reasons.append("Generated-local component source is not a real registry handoff.")
         source_text = " ".join(
             [candidate.title, candidate.description, candidate.provider_asset_id]
         ).lower()
@@ -240,13 +231,17 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
             technical_status = "rejected"
             codes.append("COMPONENT_SOURCE_MISSING")
             reasons.append("The registry candidate has no source files to materialize.")
+        elif not _meaningful_component_source(candidate.source_files):
+            technical_status = "rejected"
+            codes.append("COMPONENT_SOURCE_PLACEHOLDER")
+            reasons.append("The registry candidate contains only empty or placeholder source.")
         if not dependencies_allowed(candidate.dependencies):
             technical_status = "rejected"
             codes.append("COMPONENT_DEPENDENCY_NOT_ALLOWED")
             reasons.append(
                 "The registry candidate requires dependencies outside the target contract."
             )
-        if not candidate.license.strip():
+        if not candidate.license.strip() or not candidate.license_reference.strip():
             technical_status = "rejected"
             codes.append("COMPONENT_LICENSE_UNKNOWN")
             reasons.append("The registry candidate does not provide a license record.")

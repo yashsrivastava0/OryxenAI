@@ -248,10 +248,10 @@ def validate_execution_contract_shape(
     """Shared pure slot/resource admission used before packaging and at intake."""
 
     slots = execution.get("slots")
-    if not isinstance(slots, list) or not slots or execution.get("execution_gaps"):
+    if not isinstance(slots, list) or not slots:
         raise PackContractError(
-            "BUILD_PACK_V3_EXECUTION_GAP",
-            "Every v3 execution slot must have a concrete resolution.",
+            "BUILD_PACK_V3_EXECUTION_SLOT_INVALID",
+            "A v3 execution inventory must contain at least one slot.",
         )
     slot_by_id = {
         str(slot.get("resource_slot_id", "")): slot
@@ -275,6 +275,11 @@ def validate_execution_contract_shape(
         raise PackContractError(
             "BUILD_PACK_V3_RECIPE_INVALID", "Recipe IDs must be unique and non-empty."
         )
+    gap_ids = {
+        str(gap.get("slot_id", ""))
+        for gap in execution.get("execution_gaps", [])
+        if isinstance(gap, dict) and str(gap.get("slot_id", ""))
+    }
     route_ids = {
         str(route.get("route_id", ""))
         for route in site.get("routes", [])
@@ -324,6 +329,18 @@ def validate_execution_contract_shape(
                     "A package binding is outside the target dependency contract.",
                 )
         elif kind == "local_recipe":
+            if str(slot.get("category", "") or "").casefold() in {
+                "image",
+                "photo",
+                "editorial_photo",
+                "portrait",
+                "component",
+                "visual_component",
+            }:
+                raise PackContractError(
+                    "BUILD_PACK_V3_VISUAL_RECIPE_FORBIDDEN",
+                    "Image and component slots must use real local material, not recipes.",
+                )
             recipe_id = str(resolution.get("recipe_id", ""))
             recipe = recipe_by_id.get(recipe_id)
             if (
@@ -335,6 +352,12 @@ def validate_execution_contract_shape(
                     "BUILD_PACK_V3_RECIPE_DANGLING",
                     "A local recipe does not bind a packaged recipe file.",
                 )
+        elif kind == "execution_gap":
+            if slot_id not in gap_ids:
+                raise PackContractError(
+                    "BUILD_PACK_V3_EXECUTION_GAP",
+                    "An execution gap must be represented in the contract diagnostics.",
+                )
         else:
             raise PackContractError(
                 "BUILD_PACK_V3_EXECUTION_SLOT_INVALID",
@@ -345,6 +368,11 @@ def validate_execution_contract_shape(
         for item in ledger.get("slots", [])
         if isinstance(item, dict) and str(item.get("resource_slot_id", ""))
     }
+    if gap_ids - set(slot_by_id):
+        raise PackContractError(
+            "BUILD_PACK_V3_EXECUTION_GAP",
+            "Execution gap diagnostics must refer to declared execution slots.",
+        )
     if ledger_slots != set(slot_by_id):
         raise PackContractError(
             "BUILD_PACK_V3_RESOURCE_SLOT_MISMATCH",
@@ -557,6 +585,7 @@ def compile_v2_projections(
                 "must_preserve",
                 "must_not_fabricate",
                 "compiler_handoff",
+                "resource_policy",
             )
         },
         "routes": [
