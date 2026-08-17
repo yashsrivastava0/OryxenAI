@@ -27,6 +27,9 @@ This file is separate from `DECISIONS.md`. Log *what happened* here; log
 ### 2026-08-17 15:46 +05:30 — Codex (GPT-5 / OpenAI) — AGENTS.md, DECISIONS.md, CHANGES.md
 Established a cross-agent Git policy requiring every verified commit-sized task to end in a reviewed, task-scoped local commit while preserving unrelated dirty work and keeping pushes explicit. Added staging, verification, commit-message, overlap, and post-commit evidence rules; see D-027.
 
+### 2026-08-17 15:19 +05:30 — Codex (GPT-5 / OpenAI) — src/oryxenai/agents/code_generator/, tests/, architecture documentation
+Removed the duplicate Code Generator compatibility namespace, migrated internal tests to the canonical `core.*` implementations, and documented the registry planner/core ownership boundary. Deleted all package-root wildcard adapters and the unused generation-schema facade without changing runtime behavior; see D-026.
+
 ### 2026-08-16 11:51 +05:30 — Codex (GPT-5 / OpenAI) — Code Generator Phases 1-4, Build Preparation, provider configuration, preview workflow, tests
 Completed the standalone Code Generator development workflow through admission, planning, controlled acquisition, progressive source generation, verification, finite repair, and preview promotion, while aligning Build Preparation, model/provider configuration, durable jobs, migrations, developer UI, fixtures, and regression coverage with the new contracts. Production session integration and automatic pipeline chaining remain deferred.
 

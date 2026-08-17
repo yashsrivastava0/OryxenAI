@@ -4,24 +4,25 @@
 
 This package has two deliberately separate surfaces:
 
-- agent.py is the registry-compatible deterministic mock used by the legacy
-  generic-agent harness.
+- agent.py is the registry-compatible, model-backed structured planner surface.
 - core/ is the live, feature-gated standalone development workflow. It accepts
   only an admitted Build Preparation v3 pack and owns planning,
   resource/dependency admission, progressive source generation, verification,
   and preview promotion.
 
 The standalone workflow is not wired into portfolio sessions and never
-auto-chains from Build Preparation. Package-root modules are compatibility
-adapters only: implementation belongs in core/, prompts belong in prompts/,
-and the checked-in React/Vite scaffold contains source and a real lockfile but
-never node_modules.
+auto-chains from Build Preparation. The package-root Python surface is limited
+to `__init__.py`, `agent.py`, and `schemas.py`; standalone implementation belongs
+in `core/`, prompts belong in `prompts/`, and the checked-in React/Vite scaffold
+contains source and a real lockfile but never `node_modules`.
 
-## Registry mock
+## Registry planner surface
 
-The generic CodeGeneratorAgent remains a deterministic mock for the existing
-agent registry. It validates a generic request and returns samples/output.json;
-it has no model call and does not participate in the standalone workflow.
+The generic CodeGeneratorAgent validates the planner request and invokes the
+same trusted-prompt, strict structured-output planner operation used by the
+durable workflow through the provider-neutral ModelClient boundary. It exposes
+planning through the shared Agent protocol; it does not orchestrate the
+standalone durable jobs.
 
 ## Standalone development workflow
 

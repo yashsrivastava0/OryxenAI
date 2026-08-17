@@ -6,16 +6,16 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from oryxenai.agents.code_generator.development_input import DevelopmentInputAdapter
-from oryxenai.agents.code_generator.development_schemas import (
+from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
+from oryxenai.agents.code_generator.core.development_schemas import (
     ResourceCandidate,
     ResourceRequest,
     SitePlan,
 )
-from oryxenai.agents.code_generator.generation_orchestrator import (
+from oryxenai.agents.code_generator.core.generation_orchestrator import (
     CodeGeneratorGenerationOrchestrator,
 )
-from oryxenai.agents.code_generator.resource_adapters import (
+from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     default_adapters,
 )

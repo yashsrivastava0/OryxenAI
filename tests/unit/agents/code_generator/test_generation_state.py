@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.state import GenerationStateError, can_transition, transition
+from oryxenai.agents.code_generator.core.state import (
+    GenerationStateError,
+    can_transition,
+    transition,
+)
 
 
 def test_generation_state_allows_source_pipeline() -> None:

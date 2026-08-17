@@ -6,9 +6,9 @@ import pytest
 from PIL import Image
 from tests.unit.agents.code_generator.test_acquisition_validators import _request
 
-from oryxenai.agents.code_generator.acquisition_validators import AcquisitionValidationError
-from oryxenai.agents.code_generator.development_schemas import ResourceCandidate
-from oryxenai.agents.code_generator.resource_adapters import (
+from oryxenai.agents.code_generator.core.acquisition_validators import AcquisitionValidationError
+from oryxenai.agents.code_generator.core.development_schemas import ResourceCandidate
+from oryxenai.agents.code_generator.core.resource_adapters import (
     ComponentSourceAdapter,
     FontAdapter,
     IconAdapter,

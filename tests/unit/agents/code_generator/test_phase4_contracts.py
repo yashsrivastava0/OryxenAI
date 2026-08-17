@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from oryxenai.agents.code_generator.artifact_manifest import build_manifest, candidate_zip
-from oryxenai.agents.code_generator.development_schemas import (
+from oryxenai.agents.code_generator.core.artifact_manifest import build_manifest, candidate_zip
+from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     Diagnostic,
     VerificationProfile,
 )
-from oryxenai.agents.code_generator.repair_policy import RepairBudget
+from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 
 
 def test_candidate_identity_is_canonical_and_stable() -> None:

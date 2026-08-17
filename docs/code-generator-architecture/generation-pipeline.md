@@ -27,11 +27,11 @@ never image pixels.
 
 ## Implementation layout and prompt boundary
 
-The registry-compatible Code Generator mock remains at the package root. The
-live standalone implementation is organized under
-src/oryxenai/agents/code_generator/core/, with package-root compatibility
-adapters only. Prompt assets are isolated under prompts/ and configuration is
-kept in config/app.toml plus provider-neutral model profiles.
+The registry-compatible Code Generator planner surface remains at the package
+root. The live standalone implementation is organized under
+src/oryxenai/agents/code_generator/core/, which is its sole internal module
+namespace. Prompt assets are isolated under prompts/ and configuration is kept
+in config/app.toml plus provider-neutral model profiles.
 
 Every strict model request has exactly three separated inputs:
 
