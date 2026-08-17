@@ -127,6 +127,27 @@ def test_source_changes_reject_remote_runtime_and_ownership_escape(tmp_path) -> 
         )
 
 
+def test_source_changes_reject_trusted_preview_shell_mutation(tmp_path) -> None:
+    with pytest.raises(SourceValidationError, match="trusted toolchain"):
+        validate_generation_changes(
+            GenerationChanges(
+                files=[
+                    SourceFileChange(
+                        path="src/app/AppRouter.tsx",
+                        operation="replace",
+                        complete_utf8_content="export function AppRouter() { return null; }",
+                    )
+                ]
+            ),
+            owned_paths=["src/app/**"],
+            repo_dir=tmp_path,
+            max_file_bytes=10000,
+            max_response_bytes=10000,
+            allowed_packages=set(),
+            public_text=set(),
+        )
+
+
 def test_source_change_operations_match_repository_state(tmp_path) -> None:
     target = tmp_path / "src" / "existing.ts"
     target.parent.mkdir(parents=True)

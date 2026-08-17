@@ -373,6 +373,30 @@ class CodeGeneratorGenerationOrchestrator:
         operation = _operation_for(unit)
         role_profile = _profile_for(operation, settings)
         unit_projection = _unit_projection(projection, unit)
+        if unit.kind == "integration":
+            # Integration is intentionally a deterministic terminal audit.
+            # The scaffold shell is immutable and all mutable source paths
+            # were already checkpointed by foundation/route units, so asking
+            # a model for an empty change payload only adds a failure mode.
+            diagnostics = await run_source_checks(
+                workspace.repo_dir,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+                work_unit_id=unit.unit_id,
+                settings=settings,
+            )
+            if diagnostics:
+                projection.diagnostics.extend(diagnostics)
+                unit_projection.diagnostics.extend(item.diagnostic_id for item in diagnostics)
+                raise GenerationError(
+                    "INTEGRATION_SOURCE_CHECK_FAILED",
+                    "The completed source tree failed the deterministic integration audit.",
+                )
+            return checkpoint_store.accept(
+                work_unit_id=unit.unit_id,
+                parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
+            )
         request_round = 0
         repair_round = 0
         while True:
@@ -1087,6 +1111,11 @@ def _operation_context(
 def _owned_paths(
     unit: WorkUnit, plan: SitePlan, projections: dict[str, dict[str, Any]]
 ) -> list[str]:
+    # Integration is a terminal audit/reconciliation pass. The executable
+    # shell is scaffold-owned and route/foundation units already own every
+    # mutable source path, so integration must not receive a write surface.
+    if unit.kind == "integration":
+        return []
     if unit.kind in {"route", "route_batch", "route_compose"}:
         # Route ownership is fully determined by the trusted route-registry
         # wiring: the site contract's storage key, never the plan's prose.
@@ -1116,8 +1145,6 @@ def _owned_paths(
                 if any(item == "src/design/**" for item in unit.owns_paths)
                 else []
             )
-        if unit.kind == "integration":
-            paths = [item for item in paths if item not in {"src/app/**", "src/main.tsx"}]
         return paths
     if unit.kind == "foundation":
         return [

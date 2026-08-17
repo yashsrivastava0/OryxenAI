@@ -1,4 +1,6 @@
-Integrate the completed portfolio through the explicitly owned integration paths.
+Audit and reconcile the completed portfolio without writing source files.
+The integration unit owns an empty path set; return `files: []` when the
+existing tree satisfies the contract.
 The runtime shell under `src/app/**` and `src/main.tsx` is trusted and immutable;
 inspect it and integrate against its stable interfaces. Reconcile the SitePlan,
 route coverage, shared component contracts, local resource ledger, and verified

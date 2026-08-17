@@ -247,6 +247,15 @@ class DevelopmentInputAdapter:
                     issue = f"pack expired at {expires_at}"
                 elif not issue and not bool(handoff.get("handoff_eligible", False)):
                     issue = "handoff report is not eligible"
+        if not issue:
+            try:
+                self._validate_admitted_data(zip_path.read_bytes())
+            except (DevelopmentInputError, OSError) as exc:
+                issue = (
+                    f"{exc.code}: {exc.message}"
+                    if isinstance(exc, DevelopmentInputError)
+                    else f"unreadable pack: {type(exc).__name__}"
+                )
         info: dict[str, Any] = {
             "pack_dir": entry.name,
             "size_bytes": stat.st_size,
@@ -277,6 +286,13 @@ class DevelopmentInputAdapter:
 
     def admit(self, reference: AdmittedInputReference) -> tuple[InputReceipt, dict[str, Any]]:
         data = self.read(reference)
+        receipt, projections, identity = self._validate_admitted_data(data)
+        self._extract_verified(data, identity)
+        return receipt, projections
+
+    def _validate_admitted_data(self, data: bytes) -> tuple[InputReceipt, dict[str, Any], str]:
+        """Validate a pack without writing an extracted copy to the workspace."""
+
         self._validate_zip(data)
         try:
             manifest = verify_bundle_bytes(data, max_bytes=int(self._config.max_uncompressed_bytes))
@@ -352,7 +368,6 @@ class DevelopmentInputAdapter:
                 "The handoff report does not match the admitted v3 projections.",
             )
         identity = _sha256(canonical_json({"manifest": files, "projections": projection_hashes}))
-        self._extract_verified(data, identity)
         site = projections["site/contract.json"]
         route_ids = [str(route["route_id"]) for route in site["routes"]]
         receipt = InputReceipt(
@@ -366,7 +381,7 @@ class DevelopmentInputAdapter:
             pack_version=str(manifest["pack_version"]),
             schema_version=str(site.get("schema_version", "")),
         )
-        return receipt, projections
+        return receipt, projections, identity
 
     def _store_source(
         self, *, mode: str, source_id: str, filename: str, data: bytes
