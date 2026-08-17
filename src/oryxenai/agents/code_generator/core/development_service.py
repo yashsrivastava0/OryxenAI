@@ -74,12 +74,25 @@ class CodeGeneratorDevelopmentService:
         npm_available = bool(npm and shutil.which(npm))
         packs = self.build_preparation_packs()
         latest_pack = next((pack for pack in packs if pack.get("eligible")), None)
+        browser_available = _browser_ready(self._settings.code_generator_verification)
+        generation_ready = all(
+            profiles[operation]
+            for operation in ("foundation", "route", "compose", "integration", "repair")
+        )
+        readiness_blockers = [
+            blocker
+            for blocker, ready in (
+                ("planner", profiles["planner"]),
+                ("generation_profiles", generation_ready),
+                ("npm", npm_available),
+                ("verification_browser", browser_available),
+                ("build_preparation_pack", latest_pack is not None),
+            )
+            if not ready
+        ]
         return {
             "planning_ready": profiles["planner"],
-            "generation_ready": all(
-                profiles[operation]
-                for operation in ("foundation", "route", "compose", "integration", "repair")
-            ),
+            "generation_ready": generation_ready,
             "package_manager_ready": npm_available,
             "profiles": profiles,
             "offline_install_policy": not bool(
@@ -88,7 +101,9 @@ class CodeGeneratorDevelopmentService:
             "fixture_ids": [item["fixture_id"] for item in self.fixtures()],
             "build_preparation_pack_ready": latest_pack is not None,
             "build_preparation_latest": latest_pack,
-            "browser_ready": _browser_ready(self._settings.code_generator_verification),
+            "browser_ready": browser_available,
+            "can_start_latest": not readiness_blockers,
+            "readiness_blockers": readiness_blockers,
         }
 
     async def create_fixture(

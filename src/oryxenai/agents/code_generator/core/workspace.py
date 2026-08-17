@@ -17,6 +17,18 @@ class WorkspaceError(ValueError):
         super().__init__(message)
 
 
+# These files form the executable preview shell. They are copied from the
+# checked-in scaffold on every workspace open so a resumed run can never keep
+# a stale or partially generated router/runtime entrypoint.
+TRUSTED_SHELL_FILES = (
+    "src/main.tsx",
+    "src/app/AppRouter.tsx",
+    "src/app/PreviewBridge.ts",
+    "src/app/ErrorBoundary.tsx",
+    "src/design/global.css",
+)
+
+
 def repository_root() -> Path:
     for parent in Path(__file__).resolve().parents:
         if (parent / "pyproject.toml").is_file() and (parent / "src").is_dir():
@@ -109,6 +121,7 @@ class GenerationWorkspace:
                 symlinks=False,
                 ignore=shutil.ignore_patterns("node_modules", "dist"),
             )
+        self._restore_trusted_shell(scaffold)
         self._assert_tree_safe(self.repo_dir)
         self.write_json(
             self.ledger_dir / "workspace.json",
@@ -119,6 +132,26 @@ class GenerationWorkspace:
                 "scaffold_profile": scaffold_profile,
             },
         )
+
+    def _restore_trusted_shell(self, scaffold: Path) -> None:
+        """Restore immutable runtime files from the configured scaffold.
+
+        A workspace can outlive a process restart or an older generator
+        version. Reasserting these files makes the scaffold the source of
+        truth instead of allowing a stale candidate tree to become the
+        preview runtime.
+        """
+
+        for relative in TRUSTED_SHELL_FILES:
+            source = (scaffold / relative).resolve()
+            target = (self.repo_dir / relative).resolve()
+            if not source.is_file() or not target.is_relative_to(self.repo_dir.resolve()):
+                raise WorkspaceError(
+                    "SCAFFOLD_SHELL_INCOMPLETE",
+                    f"The scaffold is missing trusted shell file {relative}.",
+                )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
 
     def write_json(self, path: Path, value: object) -> None:
         target = path.resolve()

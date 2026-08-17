@@ -92,9 +92,11 @@ and the validators all assume it:
   `src/components/<route-short-name>/**` for that route's private components.
   NEVER plan a route directory named after the route_id when the storage_key
   differs.
-- The integration unit owns `src/app/**` and `src/main.tsx`. It reconciles the
-  finished tree but never owns `src/generated/**` or `src/content/**` (those
-  are pipeline-owned).
+- The integration unit owns no files. It is a terminal audit/reconciliation
+  pass over the finished tree; return an empty change set after confirming
+  the scaffold shell, route coverage, and shared contracts. The executable
+  shell (`src/app/**`, `src/main.tsx`) is scaffold-owned and immutable, while
+  `src/generated/**` and `src/content/**` are pipeline-owned.
 
 Do not emit source files, dependency requests, acquisition requests, URLs,
 commands, or raw reasoning. The following source phases will be accountable
