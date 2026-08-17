@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -80,10 +81,23 @@ class RuntimeVerifier:
             launch_kwargs: dict[str, Any] = {"headless": True}
             if profile.browser_executable:
                 launch_kwargs["executable_path"] = profile.browser_executable
-            try:
-                browser = await browser_type.launch(**launch_kwargs)
-            except Exception as exc:
-                return [], [_diagnostic("BROWSER_START_FAILED", str(exc), owner="infrastructure")]
+            browser: Any = None
+            last_error: Exception | None = None
+            # One retry: first launches on a cold Windows profile can lose a
+            # race with browser-process setup without the browser being broken.
+            for attempt in range(2):
+                try:
+                    browser = await browser_type.launch(**launch_kwargs)
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if attempt == 0:
+                        await asyncio.sleep(1.0)
+            if browser is None:
+                assert last_error is not None
+                return [], [
+                    _diagnostic("BROWSER_START_FAILED", str(last_error), owner="infrastructure")
+                ]
             try:
                 for journey in plan.runtime_journeys:
                     journey_evidence, journey_diagnostics = await self._run_journey(
@@ -212,6 +226,40 @@ class RuntimeVerifier:
                     focus_results,
                     overflow_results,
                 )
+            visual_state = await page.evaluate(
+                """() => ({
+                  bodyText: document.body?.innerText?.trim().length ?? 0,
+                  mainCount: document.querySelectorAll('main').length,
+                  brokenImages: Array.from(document.images)
+                    .filter(image => image.complete && image.naturalWidth === 0)
+                    .map(image => image.currentSrc || image.src),
+                })"""
+            )
+            if (
+                int(visual_state.get("bodyText", 0)) == 0
+                or int(visual_state.get("mainCount", 0)) == 0
+            ):
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_EMPTY_SHELL",
+                        "The route rendered without a visible body or main landmark.",
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            broken_images = [str(value) for value in visual_state.get("brokenImages", [])]
+            if broken_images:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_IMAGE_DECODE_FAILED",
+                        "A local image element completed with no decoded pixels: "
+                        + ", ".join(broken_images[:4]),
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
             title = await page.title()
             final_url = page.url
         except Exception as exc:
@@ -254,7 +302,12 @@ class RuntimeVerifier:
                     route_id=journey.route_id,
                 )
             )
-        outbound = [item for item in requests if bool(item.get("outbound"))]
+        outbound = [
+            item
+            for item in requests
+            if bool(item.get("outbound"))
+            or self._is_outbound_request(item, expected_netloc, base_url)
+        ]
         if outbound:
             passed = False
             diagnostics.append(
@@ -266,7 +319,11 @@ class RuntimeVerifier:
                 )
             )
         local_failures = [
-            item for item in requests if bool(item.get("failed")) and not bool(item.get("outbound"))
+            item
+            for item in requests
+            if bool(item.get("failed"))
+            and not bool(item.get("outbound"))
+            and not self._is_outbound_request(item, expected_netloc, base_url)
         ]
         if local_failures:
             passed = False
@@ -298,6 +355,13 @@ class RuntimeVerifier:
             diagnostics,
         )
 
+    @staticmethod
+    def _is_outbound_request(
+        request: dict[str, str | int | bool], expected_netloc: str, base_url: str
+    ) -> bool:
+        url = urlsplit(str(request.get("url", "")))
+        return url.netloc != expected_netloc or url.scheme != urlsplit(base_url).scheme
+
     async def _step(
         self,
         page: Any,
@@ -327,6 +391,23 @@ class RuntimeVerifier:
             await page.go_back(wait_until="networkidle")
         elif step.action == "forward":
             await page.go_forward(wait_until="networkidle")
+        elif step.action == "assert_link":
+            locator = page.locator(step.target).first
+            await locator.wait_for(state="attached")
+            observed_href = await locator.get_attribute("href")
+            if step.expected_url and observed_href != step.expected_url:
+                raise AssertionError(
+                    f"Expected link href {step.expected_url}, observed {observed_href}"
+                )
+            if step.expected_accessible_name:
+                observed = (
+                    await locator.get_attribute("aria-label")
+                    or (await locator.inner_text()).strip()
+                )
+                if step.expected_accessible_name.casefold() not in str(observed).casefold():
+                    raise AssertionError(
+                        f"Expected accessible name {step.expected_accessible_name}, observed {observed}"
+                    )
         elif step.action in {"click", "focus", "press"}:
             locator = page.locator(step.target).first
             if step.action == "click":
@@ -344,7 +425,9 @@ class RuntimeVerifier:
                     await locator.get_attribute("aria-label")
                     or (await locator.inner_text()).strip()
                 )
-                if observed != step.expected_accessible_name:
+                # Containment, not equality: the plan carries a human label,
+                # the rendered control carries the approved copy.
+                if step.expected_accessible_name.casefold() not in str(observed).casefold():
                     raise AssertionError(
                         f"Expected accessible name {step.expected_accessible_name}, observed {observed}"
                     )
@@ -380,7 +463,13 @@ class RuntimeVerifier:
             locator = page.locator(f'[data-content-id="{content_id}"]')
             await locator.wait_for(state="attached")
             content_ids.append(content_id)
-        body_text = await page.locator("body").inner_text()
+        # SPAs render after network idle; wait until something is painted
+        # before reading text so the unknown-route check cannot race React.
+        await page.wait_for_function(
+            "() => !!document.body && document.body.innerText.trim().length > 0"
+        )
+        body_text = " ".join((await page.locator("body").inner_text()).split()).casefold()
         for expected in step.expected_text:
-            if expected not in body_text:
+            normalized_expected = " ".join(expected.split()).casefold()
+            if normalized_expected not in body_text:
                 raise AssertionError(f"Expected public content is missing: {expected}")

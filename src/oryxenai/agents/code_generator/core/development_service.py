@@ -467,9 +467,16 @@ class CodeGeneratorDevelopmentService:
                 "The source checkpoint has no stable identity.",
                 status_code=409,
             )
-        attempt_key = f"{run.id}:{candidate_key}:{run.current_attempt + 1}"
+        # Revision (bumped by every terminal write) keeps each retry a new
+        # attempt while staying stable while one attempt is in flight, so
+        # repeated POSTs can never silently reuse a completed job.
+        attempt_key = f"{run.id}:{candidate_key}:{run.revision}"
         existing_job = await self._jobs.find_idempotent(_VERIFY_SCOPE, attempt_key)
-        if existing_job is not None and run.verification_job_id is not None:
+        if (
+            existing_job is not None
+            and run.verification_job_id is not None
+            and str(getattr(existing_job, "status", "")) in {"queued", "running"}
+        ):
             return _projection(run)
         job = await self._jobs.enqueue(
             _VERIFY_JOB_KIND,
@@ -579,7 +586,7 @@ def _browser_ready(verification: Any) -> bool:
     )
     if not root.is_dir():
         return False
-    return any(root.glob(f"{str(verification.browser_name)}-*"))
+    return any(root.glob(f"{verification.browser_name!s}-*"))
 
 
 def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:

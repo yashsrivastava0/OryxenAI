@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from oryxenai.agents.code_generator.core import fs_safe
 from oryxenai.agents.code_generator.core.development_schemas import SourceCheckpoint
 from oryxenai.agents.code_generator.core.source_manifest import build_source_manifest, digest
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
@@ -47,16 +46,22 @@ class CheckpointStore:
                 raise CheckpointError("CHECKPOINT_INVALID", "An existing checkpoint is incomplete.")
         else:
             partial = target.with_name(f".{target.name}.partial")
-            if partial.exists():
-                shutil.rmtree(partial, ignore_errors=True)
+            fs_safe.remove_tree(partial, required=False)
             partial.mkdir(parents=True, exist_ok=True)
             self._copy_source_tree(self.workspace.repo_dir, partial / "repo")
-            (partial / "source-manifest.json").write_text(
+            fs_safe.write_text_atomic(
+                partial / "source-manifest.json",
                 json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-                encoding="utf-8",
-                newline="\n",
             )
-            os.replace(partial, target)
+            try:
+                fs_safe.rename_dir_with_retry(partial, target)
+            except fs_safe.FsSafeError as exc:
+                fs_safe.remove_tree(partial, required=False)
+                raise CheckpointError(
+                    "CHECKPOINT_SWAP_FAILED",
+                    "The checkpoint could not be finalized under filesystem locks; "
+                    "the run stays resumable from the last accepted checkpoint.",
+                ) from exc
         total_bytes = sum(int(item["size"]) for item in manifest)
         relative_checkpoint = target.relative_to(
             self.workspace.checkpoint_root.parent.parent
@@ -87,7 +92,7 @@ class CheckpointStore:
                 "CHECKPOINT_MISSING", "The accepted source checkpoint is unavailable."
             )
         if self.workspace.repo_dir.exists():
-            shutil.rmtree(self.workspace.repo_dir)
+            fs_safe.remove_tree(self.workspace.repo_dir)
         self._copy_source_tree(source, self.workspace.repo_dir)
 
     def _write_api_manifest(
@@ -110,9 +115,7 @@ class CheckpointStore:
             "files": manifest,
         }
         data = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-        partial = target.with_name(f".{target.name}.partial")
-        partial.write_text(data, encoding="utf-8", newline="\n")
-        os.replace(partial, target)
+        fs_safe.write_text_atomic(target, data)
         return relative.as_posix()
 
     @staticmethod
@@ -126,5 +129,4 @@ class CheckpointStore:
             if path.is_dir():
                 destination.mkdir(parents=True, exist_ok=True)
             elif path.is_file():
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(path, destination)
+                fs_safe.copy_file_with_retry(path, destination)

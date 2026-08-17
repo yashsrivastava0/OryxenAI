@@ -13,6 +13,10 @@ from oryxenai.agents.code_generator.core.source_validation import validate_repos
 _IMPORT_RE = re.compile(
     r"(?:import\s+(?:[^;]*?\s+from\s+)?|export\s+[^;]*?\s+from\s+|import\s*\()\s*[\"']([^\"']+)[\"']"
 )
+_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\r\n]*|<!--[\s\S]*?-->", re.DOTALL)
+_COMPONENT_IMPORT_RE = re.compile(
+    r"import\s+(?P<bindings>[\s\S]*?)\s+from\s+[\"'](?P<module>[^\"']+)[\"']"
+)
 
 
 def _diag(code: str, message: str, *, file: str = "", route_id: str = "") -> Diagnostic:
@@ -69,6 +73,106 @@ def _resolve_local(repo_dir: Path, source: Path, imported: str) -> bool:
         if target.with_suffix(suffix).is_file():
             return True
     return (target / "index.ts").is_file() or (target / "index.tsx").is_file()
+
+
+def _without_comments(value: str) -> str:
+    """Return source suitable for binding checks, excluding marker comments."""
+
+    return _COMMENT_RE.sub(" ", value)
+
+
+def _local_binding_tokens(local_paths: list[str]) -> set[str]:
+    """Translate pack-relative paths into the paths the generator can use.
+
+    Build Preparation paths are archive paths (``resources/...``). Media is
+    served from ``public/resources/pack``; component source is copied into
+    ``src/generated/resources/pack``. Both forms are accepted only as actual
+    source references, never as comments or manifest text.
+    """
+
+    tokens: set[str] = set()
+    for value in local_paths:
+        normalized = value.replace("\\", "/").strip("/")
+        if not normalized:
+            continue
+        tokens.add(normalized)
+        suffix = Path(normalized).suffix
+        if suffix:
+            tokens.add(normalized[: -len(suffix)])
+        if normalized.startswith("resources/"):
+            relative = normalized.removeprefix("resources/")
+            tokens.update(
+                {
+                    f"/resources/pack/{relative}",
+                    f"resources/pack/{relative}",
+                    f"public/resources/pack/{relative}",
+                    f"generated/resources/pack/{relative}",
+                    f"src/generated/resources/pack/{relative}",
+                }
+            )
+        tokens.add(Path(normalized).name)
+    return tokens
+
+
+def _slot_is_bound(
+    *,
+    slot: dict[str, Any],
+    source_by_path: dict[str, str],
+) -> bool:
+    """Check executable source usage for one required execution slot.
+
+    This deliberately does not search the complete repository for arbitrary
+    token presence: generated manifests and comments are not implementation.
+    """
+
+    source_files = {
+        path: _without_comments(text)
+        for path, text in source_by_path.items()
+        if not path.startswith("src/generated/")
+        and not path.startswith("public/")
+        and path not in {"package.json", "package-lock.json"}
+    }
+    source = "\n".join(source_files.values())
+    resolution_type = str(slot.get("resolution_type", ""))
+    category = str(slot.get("category", "")).casefold()
+    if resolution_type == "target_package_binding":
+        package_name = str(slot.get("package_name", ""))
+        if not package_name:
+            return False
+        package_imports = [
+            match.group(1)
+            for text in source_files.values()
+            for match in _IMPORT_RE.finditer(text)
+            if match.group(1) == package_name
+        ]
+        if not package_imports:
+            return False
+        expected = [str(item) for item in slot.get("expected_exports", []) if str(item)]
+        return not expected or any(
+            re.search(rf"\b{re.escape(item)}\b", source) for item in expected
+        )
+    if resolution_type != "local_materialized":
+        return True
+    tokens = _local_binding_tokens([str(item) for item in slot.get("local_paths", []) if str(item)])
+    if not tokens:
+        return False
+    if category in {"component_source", "visual_component", "component"}:
+        imports = [
+            match for text in source_files.values() for match in _COMPONENT_IMPORT_RE.finditer(text)
+        ]
+        for match in imports:
+            module = match.group("module").replace("\\", "/")
+            if not any(token in module or module.endswith(Path(token).name) for token in tokens):
+                continue
+            bindings = match.group("bindings")
+            names = re.findall(r"\b[A-Za-z_$][\w$]*\b", bindings)
+            if any(re.search(rf"\b{re.escape(name)}\b", source[match.end() :]) for name in names):
+                return True
+        return False
+    # Media and fonts must be used as a URL/CSS value. A filename in a
+    # comment, a manifest, or a generated resource file is intentionally not
+    # enough.
+    return any(token in source for token in tokens)
 
 
 def validate_final_source(
@@ -144,11 +248,14 @@ def validate_final_source(
             if not isinstance(section, dict):
                 continue
             section_id = str(section.get("section_id", ""))
-            if section_id and section_id not in route_source:
+            content_anchor = f'data-content-id="{section_id}"'
+            if section_id and (
+                section_id not in route_source or content_anchor not in route_source
+            ):
                 diagnostics.append(
                     _diag(
                         "SOURCE_SECTION_COVERAGE_MISSING",
-                        "An approved section is not mapped to route source.",
+                        "An approved section is missing its route-source content anchor.",
                         file=route_file,
                         route_id=route_id,
                     )
@@ -169,18 +276,34 @@ def validate_final_source(
     for slot in execution.get("slots", []) if isinstance(execution, dict) else []:
         if not isinstance(slot, dict):
             continue
-        slot_id = str(slot.get("resource_slot_id", ""))
         resolution = slot.get("resolution", {})
-        local_paths = resolution.get("local_paths", []) if isinstance(resolution, dict) else []
-        package_name = (
-            str(resolution.get("package_name", "")) if isinstance(resolution, dict) else ""
+        resolution_type = (
+            str(resolution.get("resolution_type", "")) if isinstance(resolution, dict) else ""
         )
-        evidence = [slot_id, package_name, *[str(item) for item in local_paths]]
-        if slot.get("required") and not any(item and item in combined for item in evidence):
+        # Local recipes are intentionally non-binding design guidance. The
+        # required visual floor is concrete local material or a package import.
+        binding_slot = {
+            "category": str(slot.get("category", "")),
+            "resolution_type": resolution_type,
+            "local_paths": (
+                resolution.get("local_paths", []) if isinstance(resolution, dict) else []
+            ),
+            "package_name": (
+                str(resolution.get("package_name", "")) if isinstance(resolution, dict) else ""
+            ),
+            "expected_exports": (
+                resolution.get("expected_exports", []) if isinstance(resolution, dict) else []
+            ),
+        }
+        if (
+            slot.get("required")
+            and resolution_type != "local_recipe"
+            and not _slot_is_bound(slot=binding_slot, source_by_path=files)
+        ):
             diagnostics.append(
                 _diag(
                     "SOURCE_EXECUTION_SLOT_UNUSED",
-                    "A required v3 execution slot has no source binding.",
+                    "A required execution slot has no executable source binding; comments and manifests do not count.",
                     file="src/generated/resource-manifest.ts",
                     route_id=str(slot.get("route_id", "")),
                 )

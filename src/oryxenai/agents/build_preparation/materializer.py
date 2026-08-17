@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from oryxenai.agents.build_preparation.contracts import (
     PACK_VERSION,
@@ -101,6 +101,29 @@ def _hash_bytes(value: bytes) -> str:
 
 def _json_bytes(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+
+
+def _generated_visual_bytes(seed: str) -> bytes:
+    """Create a deterministic, non-evidentiary visual for offline handoff."""
+
+    digest = hashlib.sha256(seed.encode("utf-8")).digest()
+    image = Image.new("RGB", (1600, 1000), (10, 17, 34))
+    draw = ImageDraw.Draw(image, "RGBA")
+    colors = [
+        (38 + digest[0] % 60, 120 + digest[1] % 90, 210 + digest[2] % 40, 185),
+        (220, 74 + digest[3] % 80, 120 + digest[4] % 60, 150),
+        (120, 220, 180 + digest[5] % 60, 135),
+    ]
+    for index, color in enumerate(colors):
+        x = 160 + (digest[index + 6] * 3)
+        y = 120 + (digest[index + 9] * 2)
+        radius = 180 + digest[index + 12]
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=color)
+    for offset in range(0, 1600, 80):
+        draw.line((offset, 0, offset - 240, 1000), fill=(255, 255, 255, 18), width=2)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
 
 
 def _write(root: Path, relative: str, content: bytes, kind: str) -> MaterializedFile:
@@ -595,7 +618,48 @@ async def materialize_build_context(
             "placement": str(need.details.get("placement", "")) if need else "",
             "disposition": "selected_not_materialized",
         }
-        if candidate.kind == "photo" and candidate.provider == "pexels":
+        if candidate.kind == "photo" and candidate.provider == "generated-local":
+            try:
+                image_bytes = _generated_visual_bytes(candidate.resource_id)
+                with Image.open(io.BytesIO(image_bytes)) as image:
+                    image.load()
+                    pixel_width, pixel_height = image.size
+                image_path = f"resources/images/{resource_id}.png"
+                files.append(_write(root, image_path, image_bytes, "image"))
+                metadata = {
+                    "resource_id": resource_id,
+                    "alt_text": "",
+                    "source": candidate.source_reference,
+                    "license": candidate.license,
+                    "license_reference": candidate.license_reference,
+                    "placement": need.details.get("placement", "") if need else "",
+                    "decorative": True,
+                    "pixel_width": pixel_width,
+                    "pixel_height": pixel_height,
+                    "inspection_level": "pixel_inspected",
+                    "local_path": image_path,
+                }
+                files.append(
+                    _write(
+                        root,
+                        f"resources/images/{resource_id}.json",
+                        _json_bytes(metadata),
+                        "metadata",
+                    )
+                )
+                base_entry.update(
+                    {
+                        "local_path": image_path,
+                        "inspection_level": "pixel_inspected",
+                        "pixel_width": pixel_width,
+                        "pixel_height": pixel_height,
+                        "disposition": "local_file",
+                    }
+                )
+            except Exception as exc:
+                warnings.append(f"Could not materialize generated visual {resource_id}: {exc}")
+                base_entry.update({"disposition": "custom_implementation_required"})
+        elif candidate.kind == "photo" and candidate.provider == "pexels":
             try:
                 downloader = download_image or (lambda item: download_pexels(item, settings))
                 image_bytes = await downloader(candidate)

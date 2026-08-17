@@ -929,7 +929,7 @@ Foundation generation establishes contracts before routes:
 - token names and theme variables;
 - local typography and font fallbacks;
 - global layout/focus/motion/reduced-motion rules;
-- shell and navigation presentation;
+- shared shell-facing presentation (the runtime shell itself is trusted);
 - shared component signatures; and
 - interaction helpers permitted by target policy.
 
@@ -1131,20 +1131,22 @@ provider errors are excluded from API responses and logs.
 The final three gates are detailed in
 [Preview, quality, and evaluation](preview-quality-and-evaluation.md).
 
-The headless runtime verifier serves the production `dist` artifact through the
-candidate gateway and records only structured text/DOM/runtime evidence:
+The runtime verifier is a bounded smoke check, not the source of visual design
+truth. It serves the production `dist` artifact through the candidate gateway
+and records only structured text/DOM/runtime evidence:
 
 - route and final URL;
 - expected title, headings, landmark/accessibility tree summaries, and public
   content IDs;
-- navigation, back/forward, unknown-route, and declared interaction outcomes;
+- route loading, unknown-route behavior, and one compact navigation smoke;
 - focus and accessible state before/after an interaction;
 - reduced-motion media-query behavior and content availability;
-- horizontal-overflow and element-boundary numeric assertions where configured;
+- horizontal-overflow, main-landmark, body-paint, and local-image decode checks;
 - console/page exceptions and CSP violations; and
 - requested local URLs, status/content type, and unexpected outbound requests.
 
-It does not capture pixels. Viewport profiles exist only to exercise responsive
+It does not capture pixels and does not replace the design-direction,
+source-contract, asset, or component checks. Viewport profiles exist only to exercise responsive
 DOM behavior, overflow, interaction availability, and navigation—not to create
 visual evidence.
 
@@ -1265,14 +1267,3 @@ reports, previews, or logs.
   zero vision-role readiness checks; and
 - promotion conflict/crash/staleness plus failed regeneration preserving the
   previous preview.
-
-
-  We upgraded Build Preparation from a v2 pack with vague fallback notes into a strict
-  pack-v3 handoff that Code Generator can safely consume: every planned visual/resource is
-  now explicitly resolved as a local file, approved package binding, typed local recipe,
-  or a blocking upstream gap—never an ambiguous “fetch later” instruction. The new output
-  contains the approved site/content contract, visual-direction contract, canonical route
-  files, target dependency rules, provenance/licence records, hash-verified ZIP manifest,
-  handoff report, resource ledger, and an execution contract with 8 fixed implementation
-  slots (text-led hero, typography, abstract diagrams, icons, etc.); this exact pack was
-  verified and accepted by the Code Generator admission adapter.

@@ -91,6 +91,9 @@ facts or routes from prose.
 
 Known resource requirements are prepared upstream. Code Generator receives the
 fixed v3 bindings rather than vague fallback prose or the provider catalogue.
+Required visual slots must be concrete local media, importable local component
+source, or an admitted package binding; a recipe or comment marker cannot
+satisfy a required visual slot.
 Only an unexpected need discovered during source generation can invoke D-015's
 separate receipt-bound acquisition path.
 
@@ -104,7 +107,7 @@ configured model.
 | --- | --- | --- |
 | **planner** | Convert the admitted contracts into one implementable composition and work graph | `SitePlan`, `WorkGraph` |
 | **resource scout** | Find resource gaps and express constrained search intent | `ResourceRequest[]` |
-| **foundation builder** | Create tokens, typography, shell, navigation, shared APIs, and shared creative components | `GenerationResult` |
+| **foundation builder** | Create tokens, typography, shared APIs, and shared creative components around the trusted shell | `GenerationResult` |
 | **route builder** | Implement one deterministic batch of routes/sections against frozen shared contracts | `GenerationResult` |
 | **integrator** | Reconcile route composition, shared behavior, design-system use, and manifest coverage | `IntegrationResult` |
 | **repairer** | Correct source from compiler/build/DOM diagnostics within explicit path ownership | `GenerationResult` |

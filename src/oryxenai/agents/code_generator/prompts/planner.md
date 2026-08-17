@@ -31,10 +31,18 @@ motion vocabulary. Make distinctness structural, not cosmetic:
   numbers and proof get distinct typographic treatment, not body paragraphs.
 
 - Every interaction must have a keyboard-accessible outcome; every resource must
-  be an admitted local binding, declared slot, or explicit fallback.
+  be an admitted local binding, declared slot, or explicit fallback. Give every
+  interaction a short stable id (`interaction:<route>:<name>`) — the route
+  source must embed a literal `data-interaction-id="<that exact id>"` attribute,
+  so the id must be filesystem- and JSX-safe (letters, digits, colons,
+  hyphens only). Leave `target` empty or a valid CSS selector (never prose,
+  never a bare section id); leave `expected_url` empty for external links and
+  anchors — set it only for in-app navigations starting with `/`.
 - Each `acceptance_coverage.source_marker` is a SHORT embeddable token —
   `marker:<criterion_id>` — that the route source will embed verbatim inside a
   data attribute. Never write prose, sentences, or ID lists as a marker.
+- Bind every required execution slot from the execution contract to the route
+  that renders it, in `resource_slots`, reusing the slot ids verbatim.
 
 The WorkGraph is validated structurally — honor this contract exactly:
 
@@ -52,10 +60,41 @@ The WorkGraph is validated structurally — honor this contract exactly:
   no sections).
 - Every admitted route appears in at least one route unit; no invented routes.
 - `owns_paths` are disjoint across ALL units (no path owned twice) and stay
-  inside the scaffold's source tree (e.g. `src/...`).
+  inside the scaffold's source tree (`src/...` only).
 - The terminal integration unit's `depends_on` lists EVERY other unit id
   verbatim — enumerate them exhaustively, including the foundation unit and
   every route/compose unit.
+
+PREFER THE SIMPLEST GRAPH THAT COVERS THE WORK. A single-route portfolio with
+eight or fewer sections is exactly three units, in order:
+
+1. `unit:foundation` — kind `foundation`, no route scope.
+2. `unit:route:<route_id>` — kind `route_batch`, covering ALL of the route's
+   sections in one batch (no split, no compose unit).
+3. `unit:integration` — kind `integration`, terminal, depending on both.
+
+Only split a route into multiple batches plus a compose unit when the route
+genuinely has too many sections for one batch, and only add further route
+units when there are further routes.
+
+Path ownership follows the scaffold's fixed idiom — declare `owns_paths`
+exactly this way, because the trusted route registry, the builder prompts,
+and the validators all assume it:
+
+- The foundation unit owns `src/design/**` and `src/components/shared/**`
+  (and may own `src/lib/**` for shared helpers). NEVER plan `src/styles/**` —
+  the scaffold's token system lives under `src/design/`.
+- Each route unit owns exactly `src/routes/<storage-key-dir>/**` where
+  `<storage-key-dir>` is the site contract's `storage_key` for that route with
+  any leading `routes/` prefix REMOVED (a storage_key of
+  `routes/home-4ea140588150` therefore yields `src/routes/home-4ea140588150/**`
+  — never `src/routes/routes/...`), plus optionally
+  `src/components/<route-short-name>/**` for that route's private components.
+  NEVER plan a route directory named after the route_id when the storage_key
+  differs.
+- The integration unit owns `src/app/**` and `src/main.tsx`. It reconciles the
+  finished tree but never owns `src/generated/**` or `src/content/**` (those
+  are pipeline-owned).
 
 Do not emit source files, dependency requests, acquisition requests, URLs,
 commands, or raw reasoning. The following source phases will be accountable

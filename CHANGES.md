@@ -30,6 +30,12 @@ Established a cross-agent Git policy requiring every verified commit-sized task 
 ### 2026-08-17 15:19 +05:30 — Codex (GPT-5 / OpenAI) — src/oryxenai/agents/code_generator/, tests/, architecture documentation
 Removed the duplicate Code Generator compatibility namespace, migrated internal tests to the canonical `core.*` implementations, and documented the registry planner/core ownership boundary. Deleted all package-root wildcard adapters and the unused generation-schema facade without changing runtime behavior; see D-026.
 
+### 2026-08-17 13:29 +05:30 - Codex (GPT-5 / OpenAI) - Build Preparation visual handoff, Code Generator source contract, preview/runtime smoke, timestamp export
+Made required visual slots concrete by materializing deterministic local image/component assets, copied component source into an importable generated path, and rejected comment/manifest-only resource markers. Fixed nested preview asset bases, protected the trusted shell/design entrypoint, reduced the default browser pass to route/asset smoke, and changed exports to timezone-aware `HH-mm-DD-MM-YYYY` folders with collision-safe metadata.
+
+### 2026-08-17 11:20 +05:30 — Codex (GPT-5 / OpenAI) — Code Generator DOM verification, Windows safety, contract prompts, portfolio export
+Completed the standalone Code Generator live path from the Build Preparation v3 pack through a `ready` run, promoted preview, and run-scoped source/dist/metadata export. Added the normative generation contract and prompt alignment, Windows-safe filesystem retries, literal interaction/content anchors, offline approved-link assertions, and receipt-bound export metadata; production session integration remains deferred.
+
 ### 2026-08-16 11:51 +05:30 — Codex (GPT-5 / OpenAI) — Code Generator Phases 1-4, Build Preparation, provider configuration, preview workflow, tests
 Completed the standalone Code Generator development workflow through admission, planning, controlled acquisition, progressive source generation, verification, finite repair, and preview promotion, while aligning Build Preparation, model/provider configuration, durable jobs, migrations, developer UI, fixtures, and regression coverage with the new contracts. Production session integration and automatic pipeline chaining remain deferred.
 

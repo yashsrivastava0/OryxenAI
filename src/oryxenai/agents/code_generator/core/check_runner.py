@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
-import os
 import re
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import SourceDiagnostic
+from oryxenai.agents.code_generator.core.process_runner import (
+    ProcessRunnerError,
+    run_command,
+)
 
 
 async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnostic | None:
@@ -28,31 +29,27 @@ async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnosti
             "toolchain",
             "",
         )
-    environment = os.environ.copy()
-    for key in tuple(environment):
-        if key.upper().endswith(("_TOKEN", "_PASSWORD", "_SECRET", "_KEY")):
-            environment.pop(key, None)
-    # Offline installs read the repo's warmed npm cache; the path must be
-    # absolute because npm resolves a relative cache against repo_dir.
-    cache_root = str(
-        getattr(settings.code_generator_dependencies, "npm_cache_root", "") or ""
-    )
-    if cache_root:
-        environment["npm_config_cache"] = str(Path(cache_root).resolve())
+    # Offline installs read the warmed npm cache; the path must be absolute
+    # because npm resolves a relative cache against the repo directory.
+    cache_root = str(getattr(settings.code_generator_dependencies, "npm_cache_root", "") or "")
+    environment = {"npm_config_cache": str(Path(cache_root).resolve())} if cache_root else None
     try:
-        result = await asyncio.to_thread(
-            subprocess.run,
+        result = await run_command(
             [npm, "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"],
             cwd=repo_dir,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=float(config.typecheck_timeout_seconds),
-            check=False,
+            timeout_seconds=float(config.typecheck_timeout_seconds),
+            environment=environment,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except ProcessRunnerError as exc:
         return _command_diagnostic(
             "TOOLCHAIN_START_FAILED", "The source toolchain could not start.", "toolchain", str(exc)
+        )
+    if result.timed_out:
+        return _command_diagnostic(
+            "TOOLCHAIN_TIMEOUT",
+            "The offline dependency install timed out.",
+            "toolchain",
+            "",
         )
     if result.returncode != 0:
         return _command_diagnostic(
@@ -97,22 +94,13 @@ async def _run_configured_typecheck(
     command = [str(value) for value in settings.code_generator_generation.typecheck_command]
     if not command:
         return _structural_typecheck(repo_dir, work_unit_id)
-    environment = os.environ.copy()
-    for key in tuple(environment):
-        if key.upper().endswith(("_TOKEN", "_PASSWORD", "_SECRET", "_KEY")):
-            environment.pop(key, None)
     try:
-        result = await asyncio.to_thread(
-            subprocess.run,
+        result = await run_command(
             command,
             cwd=repo_dir,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=float(settings.code_generator_generation.typecheck_timeout_seconds),
-            check=False,
+            timeout_seconds=float(settings.code_generator_generation.typecheck_timeout_seconds),
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except ProcessRunnerError as exc:
         return [
             _command_diagnostic(
                 "TYPECHECK_START_FAILED",
@@ -121,9 +109,18 @@ async def _run_configured_typecheck(
                 str(exc),
             )
         ]
+    if result.timed_out:
+        return [
+            _command_diagnostic(
+                "TYPECHECK_TIMEOUT",
+                "The configured typecheck command timed out and its process tree was stopped.",
+                work_unit_id,
+                "",
+            )
+        ]
     if result.returncode == 0:
         return []
-    message = _normalize_output(f"{result.stdout}\n{result.stderr}")
+    message = _normalize_output(result.combined_output)
     return [
         _command_diagnostic(
             "TYPECHECK_FAILED",

@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import os
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -158,9 +159,7 @@ class LocalPreviewStorage:
             path = self._path(key)
             path.parent.mkdir(parents=True, exist_ok=True)
             self.metadata_root.mkdir(parents=True, exist_ok=True)
-            partial = path.with_name(f".{path.name}.partial")
-            partial.write_bytes(data)
-            os.replace(partial, path)
+            _atomic_write_bytes(path, data)
             reference = _object(data, key=key, content_type=content_type)
             self._metadata(key).write_text(
                 json.dumps(asdict(reference), sort_keys=True) + "\n", encoding="utf-8"
@@ -225,9 +224,7 @@ class LocalPreviewStorage:
             path.parent.mkdir(parents=True, exist_ok=True)
             self.metadata_root.mkdir(parents=True, exist_ok=True)
             reference = _object(data, key=key, content_type=content_type)
-            partial = path.with_name(f".{path.name}.partial")
-            partial.write_bytes(data)
-            os.replace(partial, path)
+            _atomic_write_bytes(path, data)
             self._metadata(key).write_text(
                 json.dumps(asdict(reference), sort_keys=True) + "\n", encoding="utf-8"
             )
@@ -242,10 +239,34 @@ class LocalPreviewStorage:
             metadata.unlink()
 
 
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    # Same-process writes can still hit transient Windows locks (antivirus
+    # scanning the freshly written partial); retry the swap briefly.
+    partial = path.with_name(f".{path.name}.partial")
+    partial.write_bytes(data)
+    for attempt in range(6):
+        try:
+            os.replace(partial, path)
+            return
+        except PermissionError:
+            time.sleep(0.3 * (attempt + 1))
+    os.replace(partial, path)
+
+
+def _repository_root() -> Path:
+    # Anchor relative roots at the repository (pyproject.toml) instead of the
+    # process cwd, so the API, worker, and preview gateway always share one
+    # storage root regardless of where they were started from.
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "pyproject.toml").is_file() and (parent / "src").is_dir():
+            return parent
+    return Path.cwd()
+
+
 def create_preview_storage(settings: object) -> PreviewStorage:
     config = getattr(settings, "code_generator_verification", None)
     root_value = str(getattr(config, "preview_root", ".workspace/code-generator-preview"))
     root = Path(root_value)
     if not root.is_absolute():
-        root = Path.cwd() / root
+        root = _repository_root() / root
     return LocalPreviewStorage(root)

@@ -117,6 +117,20 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
     quality = 70
 
     if candidate.kind == "photo":
+        if candidate.provider == "generated-local":
+            # Generated local visuals are already concrete files produced by
+            # the trusted materializer; they do not need a remote URL or stock
+            # photographer metadata.
+            return CandidateQualification(
+                resource_id=candidate.resource_id,
+                need_id=need.need_id,
+                eligible=True,
+                relevance_score=100,
+                quality_score=100,
+                policy_status="approved",
+                technical_status="approved",
+                reasons=["Concrete local generated visual material."],
+            )
         if candidate.provider != "pexels" and need.required_for_handoff:
             technical_status = "rejected"
             codes.append("REMOTE_ASSET_NOT_ALLOWED")
@@ -158,6 +172,22 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
             codes.append("IMAGE_ATTRIBUTION_INCOMPLETE")
             reasons.append("Photographer attribution is incomplete.")
     elif candidate.kind == "component":
+        if candidate.provider == "generated-local":
+            return CandidateQualification(
+                resource_id=candidate.resource_id,
+                need_id=need.need_id,
+                eligible=bool(
+                    candidate.source_files and dependencies_allowed(candidate.dependencies)
+                ),
+                relevance_score=100,
+                quality_score=100,
+                policy_status="approved",
+                technical_status="approved" if candidate.source_files else "rejected",
+                reasons=[]
+                if candidate.source_files
+                else ["Generated component has no source files."],
+                issue_codes=[] if candidate.source_files else ["COMPONENT_SOURCE_MISSING"],
+            )
         source_text = " ".join(
             [candidate.title, candidate.description, candidate.provider_asset_id]
         ).lower()
@@ -292,6 +322,11 @@ def build_handoff_report(
             or str(entry.get("disposition", "")) == "adaptable_source"
         )
     }
+    materialized_by_id = {
+        str(entry.get("id", "")): entry
+        for entry in materialization.resources
+        if isinstance(entry, dict)
+    }
     issues: list[HandoffIssue] = []
     approval_verified = bool(
         source_ref.content_architect_content_hash
@@ -347,8 +382,11 @@ def build_handoff_report(
             )
     required_ids = [need.need_id for need in needs if need.required_for_handoff]
     for need in needs:
-        if need.source_policy in {"curated_local", "generated_local_visual"} and selected_ids.get(
-            need.need_id
+        selected_resource = materialized_by_id.get(selected_ids.get(need.need_id, ""), {})
+        if (
+            need.source_policy in {"curated_local", "generated_local_visual"}
+            and selected_ids.get(need.need_id)
+            and str(selected_resource.get("provider", "")) != "generated-local"
         ):
             issues.append(
                 HandoffIssue(

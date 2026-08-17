@@ -652,6 +652,33 @@ class GenerationResult(BaseModel):
     requests: GenerationRequests | None = None
     cannot_complete: GenerationCannotComplete | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_tagged_payload(cls, data: Any) -> Any:
+        """Strict output schemas require every declared property, so models
+        routinely fill more than one payload field. The mode tag decides which
+        payload is real; the others are transport artifacts and are dropped
+        instead of failing the whole response."""
+        if not isinstance(data, dict):
+            return data
+        present = [
+            key for key in ("changes", "requests", "cannot_complete") if data.get(key) is not None
+        ]
+        mode = data.get("mode")
+        if mode in {"changes", "requests", "cannot_complete"} and data.get(mode) is None:
+            # The tag points at an empty payload; adopt the one present one.
+            if len(present) == 1:
+                mode = present[0]
+                data["mode"] = mode
+        elif mode not in {"changes", "requests", "cannot_complete"} and len(present) == 1:
+            mode = present[0]
+            data["mode"] = mode
+        if mode in {"changes", "requests", "cannot_complete"}:
+            for key in ("changes", "requests", "cannot_complete"):
+                if key != mode:
+                    data[key] = None
+        return data
+
     @model_validator(mode="after")
     def validate_tagged_payload(self) -> GenerationResult:
         payloads = {
@@ -661,8 +688,6 @@ class GenerationResult(BaseModel):
         }
         if payloads[self.mode] is None:
             raise ValueError(f"mode={self.mode} requires its matching payload")
-        if sum(value is not None for value in payloads.values()) != 1:
-            raise ValueError("GenerationResult payloads are mutually exclusive")
         if self.mode == "changes" and (self.changes is None or not self.changes.files):
             raise ValueError("changes mode requires at least one file")
         if self.mode == "requests" and (
@@ -860,6 +885,7 @@ class VerificationStep(BaseModel):
         "back",
         "forward",
         "click",
+        "assert_link",
         "focus",
         "press",
         "assert_content",

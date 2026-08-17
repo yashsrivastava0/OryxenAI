@@ -7,6 +7,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationResult,
     SourceFileChange,
 )
+from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
 from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
@@ -33,39 +34,60 @@ def test_generation_result_requires_one_tagged_payload() -> None:
     assert result.mode == "changes"
 
 
-def test_generation_result_rejects_mixed_modes() -> None:
-    with pytest.raises(ValueError, match="mutually exclusive"):
+def test_generation_result_drops_mismatched_payloads() -> None:
+    # Strict output schemas make every property required, so models may fill
+    # several payload fields; the mode tag decides and the rest are dropped.
+    result = GenerationResult.model_validate(
+        {
+            "operation_id": "foundation",
+            "based_on_context_receipt": "context-hash",
+            "mode": "changes",
+            "changes": {
+                "files": [
+                    {
+                        "path": "src/a.ts",
+                        "operation": "create",
+                        "complete_utf8_content": "export {};",
+                    }
+                ]
+            },
+            "requests": {
+                "resource_requests": [
+                    {
+                        "request_id": "request",
+                        "based_on": {"input_receipt_hash": "i", "site_plan_hash": "p"},
+                        "origin": {"work_unit_id": "foundation"},
+                        "category": "image",
+                        "placement": {"purpose": "ornament"},
+                        "why_existing_is_insufficient": "needed",
+                        "query": {},
+                        "technical_constraints": {},
+                        "source_constraints": {},
+                        "requiredness": "preferred",
+                        "fallback": {"kind": "generated_local", "implementation": "css"},
+                    }
+                ]
+            },
+        }
+    )
+    assert result.mode == "changes"
+    assert result.changes is not None and len(result.changes.files) == 1
+    assert result.requests is None
+    assert result.cannot_complete is None
+
+
+def test_generation_result_still_rejects_empty_mode_payload() -> None:
+    # Adoption only applies when exactly one payload is present; a result with
+    # no payload at all is still rejected honestly.
+    with pytest.raises(ValueError, match="mode=changes requires its matching payload"):
         GenerationResult.model_validate(
             {
                 "operation_id": "foundation",
                 "based_on_context_receipt": "context-hash",
                 "mode": "changes",
-                "changes": {
-                    "files": [
-                        {
-                            "path": "src/a.ts",
-                            "operation": "create",
-                            "complete_utf8_content": "export {};",
-                        }
-                    ]
-                },
-                "requests": {
-                    "resource_requests": [
-                        {
-                            "request_id": "request",
-                            "based_on": {"input_receipt_hash": "i", "site_plan_hash": "p"},
-                            "origin": {"work_unit_id": "foundation"},
-                            "category": "image",
-                            "placement": {"purpose": "ornament"},
-                            "why_existing_is_insufficient": "needed",
-                            "query": {},
-                            "technical_constraints": {},
-                            "source_constraints": {},
-                            "requiredness": "preferred",
-                            "fallback": {"kind": "generated_local", "implementation": "css"},
-                        }
-                    ]
-                },
+                "changes": None,
+                "requests": None,
+                "cannot_complete": None,
             }
         )
 
@@ -127,3 +149,22 @@ def test_source_change_operations_match_repository_state(tmp_path) -> None:
             allowed_packages=set(),
             public_text=set(),
         )
+
+
+def test_prompt_builder_injects_the_normative_generation_contract() -> None:
+    _system, instructions, receipt = build_instructions(
+        "integrate",
+        {
+            "context_receipt_hash": "context",
+            "generation_contract": {
+                "path_rules": {"owned_paths": ["src/app/**"]},
+                "runtime_shell": {
+                    "router_file": "src/app/AppRouter.tsx",
+                    "required_behaviors": ["Render Page not found for unknown paths."],
+                },
+            },
+        },
+    )
+    assert "RUNTIME SHELL CONTRACT: src/app/AppRouter.tsx" in instructions
+    assert "Render Page not found for unknown paths." in instructions
+    assert receipt.prompt_versions["operation"] == "code_generator.integrate.v5"
