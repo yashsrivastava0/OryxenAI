@@ -63,11 +63,11 @@ if (root) {
     if (!readiness.package_manager_ready) fallbackBlockers.push('npm');
     if (!readiness.browser_ready) fallbackBlockers.push('verification browser');
     if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('eligible Build Preparation pack');
-    readinessReady = readiness.can_start_latest ?? fallbackBlockers.length === 0;
+    readinessReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
     const blockers = Array.isArray(readiness.readiness_blockers) && readiness.readiness_blockers.length
       ? readiness.readiness_blockers
       : fallbackBlockers;
-    const target = readiness.build_preparation_latest?.pack_dir;
+    const target = readiness.build_preparation_best?.pack_dir;
     view('readiness').textContent = readinessReady
       ? `Ready to run${target ? ` with ${target}` : ''}.`
       : `Waiting for ${blockers.join(', ')}.`;
