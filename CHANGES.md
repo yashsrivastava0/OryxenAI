@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-17 22:30 +05:30 - Codex (GPT-5 / OpenAI) - [e3d80c2] - Detached Build Preparation input pickup and monitor readiness
+The detached Build Preparation harness now auto-selects the newest matching Content Architect and Visual Design Director output from `Input-Output-Of-Engine`, supports JSON fenced in `.md` outputs, shows the resolved source paths in readiness, and retains configured-path fallback for later integration. Live verification reached packaging and R2 read-back; handoff remained correctly blocked because the approved VDD exposed zero image and component roles.
+
 ### 2026-08-17 22:20 +05:30 - Codex (GPT-5 / OpenAI) - [3479c40] - OpenAI provider diagnostics, Build Preparation fixture monitor, Code Generator planner
 Preserved OpenAI-only profile selection and made provider connection failures actionable: Build Preparation now reports the endpoint host and retry guidance, while Code Generator distinguishes provider transport/auth/rate/server failures from invalid SitePlan output. Added focused regression coverage; no OpenCode profile is used by the active Build Preparation or planner paths.
 
