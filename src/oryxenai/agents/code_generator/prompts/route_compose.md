@@ -1,6 +1,9 @@
 Compose the assigned split route from its completed section groups. Preserve
 the frozen route authority, section order, shared exports, facts, and resource
-bindings exactly.
+bindings exactly. The `<generation-contract>` block in your instructions
+lists the exact anchor literals (route_id, section_ids, verbatim copy,
+marker tokens, interaction attributes) that must survive composition
+unchanged — re-verify them by string search before returning.
 
 The composition pass may resolve layout rhythm, landmark structure, section
 transitions, and route-local interaction wiring, but it may not rewrite

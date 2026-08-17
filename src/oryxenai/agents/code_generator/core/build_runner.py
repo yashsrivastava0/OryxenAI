@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import re
-import shutil
 from pathlib import Path
 from typing import Any
 
+from oryxenai.agents.code_generator.core import fs_safe
 from oryxenai.agents.code_generator.core.artifact_manifest import (
     ArtifactValidationError,
     build_manifest,
@@ -138,8 +138,17 @@ async def run_clean_build(
 
     diagnostics: list[Diagnostic] = []
     for disposable in (repo_dir / "node_modules", repo_dir / "dist"):
-        if disposable.exists():
-            shutil.rmtree(disposable, ignore_errors=False)
+        try:
+            fs_safe.remove_tree(disposable)
+        except fs_safe.FsSafeError as exc:
+            return None, [
+                diagnostic(
+                    "CLEANUP_FAILED",
+                    str(exc),
+                    phase="install",
+                    owner="infrastructure",
+                )
+            ]
     npm_ci = _command(
         settings,
         "install_command",

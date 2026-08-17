@@ -53,7 +53,7 @@ def _strict_json_schema(output_model: type[BaseModel]) -> dict[str, Any]:
     must not appear on model-facing output models.
     """
 
-    schema = json.loads(json.dumps(output_model.model_json_schema()))
+    schema: dict[str, Any] = json.loads(json.dumps(output_model.model_json_schema()))
     _strictify(schema)
     return schema
 

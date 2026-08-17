@@ -115,7 +115,9 @@ async def run_command(
         )
     creationflags = 0
     if sys.platform == "win32":
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+        # New process group so taskkill /T can target the tree; no window so
+        # worker-driven npm/node runs never flash consoles.
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     kwargs: dict[str, object] = {
         "cwd": str(cwd),
         "env": _safe_environment(environment),

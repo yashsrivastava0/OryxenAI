@@ -66,6 +66,14 @@ def materialize_trusted_manifests(
     }
     resource_manifest = {
         "pack_resources": copied_resources,
+        "pack_bindings": [
+            {
+                "path": path,
+                "usage": "module" if path.startswith("src/generated/resources/") else "url",
+                "reference": (path.removeprefix("public") if path.startswith("public/") else path),
+            }
+            for path in copied_resources
+        ],
         "acquired_resources": acquired_resources,
         "execution_slots": execution.get("slots", []),
         "resource_ledger": projections["resources/ledger.json"],

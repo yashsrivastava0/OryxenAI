@@ -181,7 +181,9 @@ allow_network_install = false
 allow_install_scripts = false
 
 [code_generator_dependencies.supported_packages.lucide-react]
-version_pin = "0.460.0"
+# 0.460.0's peer range excludes stable react 19 (only 19.0.0-rc); 0.500.0
+# accepts ^19.0.0 and matches the pack target's ^0.500 declaration.
+version_pin = "0.500.0"
 transitive = ["react@19.0.0"]
 licence = "ISC"
 
@@ -217,6 +219,9 @@ preview_port = 4174
 preview_parent_origin = "http://127.0.0.1:8000"
 preview_retention_days = 3
 preview_route_prefix = "/preview"
+# Complete-portfolio export destination (source + built dist + metadata).
+export_root = "output/code-gen-output"
+export_timezone = "Asia/Kolkata"
 
 [code_generator_verification.viewport_profiles]
 mobile = { width = 390, height = 844 }

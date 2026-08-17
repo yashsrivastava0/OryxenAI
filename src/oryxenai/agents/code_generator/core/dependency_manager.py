@@ -38,8 +38,16 @@ class DependencyPolicyError(ValueError):
 class DependencyManager:
     """Own package/lock mutation and disposable installation."""
 
-    def __init__(self, resource_receipts: Iterable[ResourceReceipt] = ()) -> None:
+    def __init__(
+        self,
+        resource_receipts: Iterable[ResourceReceipt] = (),
+        *,
+        authorized_hashes: Iterable[str] = (),
+    ) -> None:
         self._resource_receipts = {receipt.request_hash: receipt for receipt in resource_receipts}
+        # Pre-authorized trust bases other than resource receipts — currently
+        # the admitted execution contract's target-package bindings.
+        self._authorized_hashes = set(authorized_hashes)
 
     async def resolve(
         self,
@@ -54,11 +62,15 @@ class DependencyManager:
             raise DependencyPolicyError(
                 "DEPENDENCY_NAME_UNSAFE", "The dependency name is not a safe package identifier."
             )
-        if self._resource_receipts and not any(
-            _canonical_hash(receipt.model_dump(mode="json"))
-            == request.requesting_resource_receipt_hash
-            or receipt.request_hash == request.requesting_resource_receipt_hash
-            for receipt in self._resource_receipts.values()
+        if (
+            self._resource_receipts
+            and request.requesting_resource_receipt_hash not in self._authorized_hashes
+            and not any(
+                _canonical_hash(receipt.model_dump(mode="json"))
+                == request.requesting_resource_receipt_hash
+                or receipt.request_hash == request.requesting_resource_receipt_hash
+                for receipt in self._resource_receipts.values()
+            )
         ):
             raise DependencyPolicyError(
                 "DEPENDENCY_RESOURCE_RECEIPT_UNKNOWN",
@@ -243,8 +255,10 @@ async def _run_npm(command: list[str], repo_dir: Path, settings: Any, *, stage: 
             "DEPENDENCY_INSTALL_FAILED", f"The package-manager {stage} command could not start."
         ) from exc
     if result.returncode != 0:
+        detail = " ".join((result.stderr or result.stdout or "").split())[:800]
         raise DependencyPolicyError(
-            "DEPENDENCY_INSTALL_FAILED", f"The package-manager {stage} command failed safely."
+            "DEPENDENCY_INSTALL_FAILED",
+            f"The package-manager {stage} command failed: {detail or 'no output captured'}",
         )
 
 

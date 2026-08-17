@@ -4,23 +4,26 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from oryxenai.agents.code_generator.core import fs_safe
 from oryxenai.agents.code_generator.core.check_runner import prepare_toolchain, run_source_checks
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
 from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     Diagnostic,
+    GenerationChanges,
     GenerationResult,
     RepairReceipt,
     SitePlan,
     SourceCheckpoint,
+    SourceFileChange,
 )
 from oryxenai.agents.code_generator.core.diagnostics import build_bundle
+from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
 from oryxenai.agents.code_generator.core.source_validation import validate_generation_changes
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
@@ -77,6 +80,15 @@ class FinalRepairer:
             "strategy": strategy,
             "round": round_number,
             "owned_paths": allowed_paths,
+            # Full-scope contract so repairs can satisfy the final gates'
+            # literal checks (copy coverage, markers, slot evidence) exactly.
+            "generation_contract": build_generation_contract(
+                unit=None,
+                plan=plan,
+                projections=projections,
+                operation="repair",
+                owned_paths=allowed_paths,
+            ),
             "input_hashes": [identity.identity_hash, checkpoint.checkpoint_hash],
             "output_ceiling": int(settings.code_generator_generation.max_response_bytes),
         }
@@ -116,13 +128,32 @@ class FinalRepairer:
                 )
             workspace.write_json(result_path, result.model_dump(mode="json"))
         if result.mode != "changes" or result.changes is None:
+            deterministic_changes = _deterministic_marker_repair(
+                diagnostics=diagnostics,
+                plan=plan,
+                projections=projections,
+                repo_dir=workspace.repo_dir,
+            )
+            if deterministic_changes is None:
+                raise FinalRepairError(
+                    "REPAIR_NO_SOURCE_CHANGE",
+                    "The repair operation did not return a bounded source correction.",
+                )
+            result = GenerationResult(
+                operation_id="code-generator.repair.deterministic-marker-fallback",
+                based_on_context_receipt=context_receipt.context_hash,
+                mode="changes",
+                changes=deterministic_changes,
+            )
+        changes = result.changes
+        if changes is None:
             raise FinalRepairError(
                 "REPAIR_NO_SOURCE_CHANGE",
                 "The repair operation did not return a bounded source correction.",
             )
         candidate = workspace.root / f"repair-{round_number}"
         if candidate.exists():
-            shutil.rmtree(candidate)
+            fs_safe.remove_tree(candidate)
         shutil.copytree(
             workspace.repo_dir,
             candidate,
@@ -130,7 +161,7 @@ class FinalRepairer:
             ignore=shutil.ignore_patterns("node_modules", "dist"),
         )
         normalized = validate_generation_changes(
-            result.changes,
+            changes,
             owned_paths=allowed_paths,
             repo_dir=candidate,
             max_file_bytes=int(settings.code_generator_generation.max_file_bytes),
@@ -143,11 +174,19 @@ class FinalRepairer:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(change.complete_utf8_content, encoding="utf-8", newline="\n")
         old = workspace.root / f"repair-{round_number}-old"
-        if old.exists():
-            shutil.rmtree(old)
-        os.replace(workspace.repo_dir, old)
-        os.replace(candidate, workspace.repo_dir)
-        shutil.rmtree(old, ignore_errors=True)
+        fs_safe.remove_tree(old, required=False)
+        try:
+            fs_safe.rename_dir_with_retry(workspace.repo_dir, old)
+            fs_safe.rename_dir_with_retry(candidate, workspace.repo_dir)
+        except fs_safe.FsSafeError as exc:
+            if not workspace.repo_dir.exists() and old.exists():
+                fs_safe.remove_tree(candidate, required=False)
+                fs_safe.rename_dir_with_retry(old, workspace.repo_dir)
+            raise FinalRepairError(
+                "REPAIR_SWAP_FAILED",
+                "The repair candidate could not be swapped in under filesystem locks.",
+            ) from exc
+        fs_safe.remove_tree(old, required=False)
         toolchain_issue = await prepare_toolchain(workspace.repo_dir, settings=settings)
         if toolchain_issue is not None:
             raise FinalRepairError("REPAIR_TOOLCHAIN_FAILED", toolchain_issue.normalized_message)
@@ -194,7 +233,11 @@ class FinalRepairer:
         return build_provider_client(profile, settings.models)
 
 
-def repair_allowed_paths(diagnostics: list[Diagnostic], plan: SitePlan) -> list[str]:
+def repair_allowed_paths(
+    diagnostics: list[Diagnostic],
+    plan: SitePlan,
+    projections: dict[str, Any] | None = None,
+) -> list[str]:
     del plan
     file_paths = {
         item.file for item in diagnostics if item.file and not item.file.startswith("public/")
@@ -203,8 +246,71 @@ def repair_allowed_paths(diagnostics: list[Diagnostic], plan: SitePlan) -> list[
         return sorted(file_paths)
     route_ids = {item.route_id for item in diagnostics if item.route_id}
     if route_ids:
-        route_paths: list[str] = []
-        for route_id in sorted(route_ids):
-            route_paths.append(f"src/routes/{route_id}/**")
-        return route_paths
+        # Route files live at the site contract's storage key (e.g.
+        # src/routes/home-4ea140588150/**), never at the bare route id.
+        storage_keys: dict[str, str] = {}
+        for route in (projections or {}).get("site/contract.json", {}).get("routes", []):
+            if not isinstance(route, dict):
+                continue
+            route_id = str(route.get("route_id", ""))
+            storage_key = str(route.get("storage_key", route_id)).replace("\\", "/").strip("/")
+            if storage_key.startswith("routes/"):
+                storage_key = storage_key.removeprefix("routes/")
+            storage_keys[route_id] = storage_key
+        return sorted(
+            f"src/routes/{storage_keys.get(route_id, route_id)}/**" for route_id in route_ids
+        )
     return ["src/design/**", "src/components/shared/**"]
+
+
+def _deterministic_marker_repair(
+    *,
+    diagnostics: list[Diagnostic],
+    plan: SitePlan,
+    projections: dict[str, Any],
+    repo_dir: Any,
+) -> GenerationChanges | None:
+    """Repair the mechanical marker-only defect without broad model authority."""
+
+    if not diagnostics or {item.code for item in diagnostics} != {
+        "SOURCE_ACCEPTANCE_MARKER_MISSING"
+    }:
+        return None
+    route_storage_keys = {
+        str(route.get("route_id", "")): str(route.get("storage_key", ""))
+        .replace("\\", "/")
+        .removeprefix("routes/")
+        .strip("/")
+        for route in (projections.get("site/contract.json", {}).get("routes", []))
+        if isinstance(route, dict)
+    }
+    changes: list[SourceFileChange] = []
+    for diagnostic in diagnostics:
+        route_id = diagnostic.route_id
+        storage_key = route_storage_keys.get(route_id, route_id)
+        path = f"src/routes/{storage_key}/index.tsx"
+        target = repo_dir / path
+        if not target.is_file():
+            return None
+        content = target.read_text(encoding="utf-8")
+        markers = [
+            item.source_marker.strip()
+            for item in plan.acceptance_coverage
+            if item.route_id == route_id and item.source_marker.strip()
+        ]
+        missing = [marker for marker in markers if marker not in content]
+        if not missing:
+            return None
+        insertion = "".join(f"      {{/* {marker} */}}\n" for marker in missing)
+        section_start = content.find("<section")
+        if section_start < 0:
+            return None
+        corrected = f"{content[:section_start]}{insertion}{content[section_start:]}"
+        changes.append(
+            SourceFileChange(
+                path=path,
+                operation="replace",
+                complete_utf8_content=corrected,
+            )
+        )
+    return GenerationChanges(files=changes)

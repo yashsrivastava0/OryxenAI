@@ -13,15 +13,18 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationContextReceipt,
     GenerationResult,
 )
+from oryxenai.agents.code_generator.core.generation_contract import (
+    render_contract_instructions,
+)
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
-    "planner": "code_generator.planner.v5",
-    "foundation": "code_generator.foundation.v4",
-    "route_batch": "code_generator.route_batch.v4",
-    "route_compose": "code_generator.route_compose.v3",
-    "integrate": "code_generator.integrate.v3",
-    "repair": "code_generator.repair.v3",
+    "planner": "code_generator.planner.v6",
+    "foundation": "code_generator.foundation.v5",
+    "route_batch": "code_generator.route_batch.v5",
+    "route_compose": "code_generator.route_compose.v4",
+    "integrate": "code_generator.integrate.v5",
+    "repair": "code_generator.repair.v5",
 }
 _FILES = {
     "planner": "planner.md",
@@ -43,14 +46,21 @@ def build_instructions(
         raise ValueError(f"Unknown Code Generator operation: {operation}")
     system = _read("system.md")
     operation_prompt = _read(_FILES[operation])
+    contract = context.get("generation_contract")
+    contract_block = (
+        render_contract_instructions(contract) if isinstance(contract, dict) and contract else ""
+    )
     schema = json.dumps(output_model.model_json_schema(), ensure_ascii=False, sort_keys=True)
     serialized = json.dumps(context, ensure_ascii=False, sort_keys=True, default=str)
     task = (
         f"{operation_prompt}\n\n"
-        "Return exactly one JSON object. The transport enforces the declared output schema; "
+        + (f"{contract_block}\n\n" if contract_block else "")
+        + "Return exactly one JSON object. The transport enforces the declared output schema; "
         "do not include prose, Markdown, or reasoning outside that object.\n"
         "Copy the input's context_receipt_hash value EXACTLY, unchanged, into "
-        "based_on_context_receipt."
+        "based_on_context_receipt.\n"
+        "Set mode to exactly one of changes/requests/cannot_complete; the two payload "
+        "fields that do not match your mode MUST be null."
     )
     context_hash = _hash(context)
     schema_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()
@@ -59,10 +69,12 @@ def build_instructions(
         operation_id=operation,
         role_profile=str(context.get("role_profile", "")),
         prompt_versions={
-            "system": "code_generator.system.v2",
+            "system": "code_generator.system.v3",
             "operation": _VERSIONS[operation],
             "system_hash": _hash(system),
-            "operation_hash": _hash(operation_prompt),
+            # Hash the full composed instructions so a changed contract block
+            # invalidates cached model calls, not just a changed prompt file.
+            "operation_hash": _hash(task),
         },
         output_schema_hash=schema_hash,
         ordered_input_hashes=[str(value) for value in context.get("input_hashes", [])],

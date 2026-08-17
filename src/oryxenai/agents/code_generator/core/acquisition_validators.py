@@ -71,9 +71,11 @@ def _fact_terms(projections: dict[str, dict[str, Any]] | None) -> set[str]:
     terms: set[str] = set()
     for fact in site.get("facts", []):
         if isinstance(fact, dict):
-            terms.update(
-                _tokens(" ".join(str(fact.get(key, "")) for key in ("fact_id", "text", "value")))
-            )
+            # Only the fact's human language is evidence-bearing. Fact ids
+            # (claim:<name>_scope, claim:<name>_focus, …) contribute generic
+            # namespace tokens ("scope", "focus", "claim") that a legitimate
+            # visual search query may share without implying any fact.
+            terms.update(_tokens(" ".join(str(fact.get(key, "")) for key in ("text", "value"))))
     return terms
 
 

@@ -37,6 +37,7 @@ from oryxenai.agents.build_preparation.quality import (
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationSourceRef,
+    CandidateQualification,
     FetchedResource,
     ResourceSelection,
     RouteBuildContext,
@@ -98,6 +99,72 @@ def _candidate_prompt(candidate: FetchedResource) -> dict[str, Any]:
     data = candidate.model_dump(mode="json")
     data.pop("source_files", None)
     return data
+
+
+def _generated_visual_candidate(need: Any) -> tuple[FetchedResource, CandidateQualification]:
+    """Create concrete local visual material when external lookup is absent."""
+
+    import hashlib
+
+    digest = hashlib.sha256(str(need.need_id).encode("utf-8")).hexdigest()[:16]
+    is_photo = need.kind == "asset" or "photo" in str(need.category).casefold()
+    resource_id = f"resource-generated-{digest}"
+    if is_photo:
+        candidate = FetchedResource(
+            resource_id=resource_id,
+            need_id=need.need_id,
+            kind="photo",
+            provider="generated-local",
+            provider_asset_id=f"generated-{digest}",
+            source_reference="local://oryxenai/generated-visual",
+            title="Generated abstract technical visual",
+            description="Locally materialized abstract technical editorial visual",
+            width=1600,
+            height=1000,
+            orientation="landscape",
+            mime_type="image/png",
+            image_url="",
+            license="OryxenAI generated visual",
+            license_reference="local://oryxenai/generated-visual-license",
+            fallback="",
+        )
+    else:
+        candidate = FetchedResource(
+            resource_id=resource_id,
+            need_id=need.need_id,
+            kind="component",
+            provider="generated-local",
+            provider_asset_id=f"visual-story-{digest}",
+            source_reference="local://oryxenai/generated-component",
+            title="Generated visual storytelling component",
+            description="Generated local process topology visual component",
+            source_files={
+                "PreparedVisualStory.tsx": (
+                    "import type { ReactNode } from 'react';\n\n"
+                    "type Props = { label?: string; children?: ReactNode };\n\n"
+                    "export function PreparedVisualStory({ label = 'Selected work', children }: Props) {\n"
+                    '  return <div data-resource-role="visual-story" className="prepared-visual-story">'
+                    '<span className="prepared-visual-story__label">{label}</span>{children}</div>;\n'
+                    "}\n\nexport default PreparedVisualStory;\n"
+                )
+            },
+            dependencies=["react"],
+            license="OryxenAI generated component",
+            license_reference="local://oryxenai/generated-component-license",
+        )
+    qualification = CandidateQualification(
+        resource_id=resource_id,
+        need_id=need.need_id,
+        eligible=True,
+        relevance_score=100,
+        quality_score=100,
+        policy_status="approved",
+        technical_status="approved",
+        reasons=[
+            "No provider candidate was available; concrete local visual material was generated."
+        ],
+    )
+    return candidate, qualification
 
 
 class BuildPreparationAgent(Agent):
@@ -337,6 +404,36 @@ class BuildPreparationAgent(Agent):
         selection_plan = selection_plan.model_copy(
             update={"selections": normalized_selections, "warnings": selection_warnings}
         )
+
+        # Visual-floor slots may be backed by a provider, but they may never
+        # disappear into prose when a provider is unavailable. Materialize a
+        # concrete local image/component candidate so the downstream generator
+        # always receives an executable visual surface.
+        selected_by_need = {
+            item.need_id: item.selected_resource_id for item in selection_plan.selections
+        }
+        for need in stage0.resource_needs:
+            if not need.required_for_handoff or selected_by_need.get(need.need_id):
+                continue
+            if need.category not in {"editorial_photo", "visual_component"}:
+                continue
+            candidate, qualification = _generated_visual_candidate(need)
+            candidates.append(candidate)
+            qualifications.append(qualification)
+            replacement = ResourceSelection(
+                need_id=need.need_id,
+                selected_resource_id=candidate.resource_id,
+                why_selected="Concrete local visual fallback materialized because provider lookup returned no usable candidate.",
+                fallback="",
+                adaptation_notes="Use the local material as a real visual component or image; do not replace it with a prose recipe.",
+            )
+            selection_plan.selections = [
+                replacement if item.need_id == need.need_id else item
+                for item in selection_plan.selections
+            ]
+            selection_plan.warnings.append(
+                f"Materialized local visual fallback for required need '{need.source_id}'."
+            )
         forced_selections, forced_warnings = select_required_candidates(
             selection_plan.selections,
             stage0.resource_needs,

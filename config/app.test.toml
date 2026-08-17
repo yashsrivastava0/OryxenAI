@@ -34,7 +34,8 @@ allowlist_image_providers = []
 
 [code_generator_dependencies]
 workspaces_root = ".workspace/code-generator-workspaces-test"
-npm_executable = ""
+npm_executable = "npm.cmd"
+npm_cache_root = ".workspace/npm-cache"
 allow_network_install = false
 allow_install_scripts = false
 
@@ -51,6 +52,7 @@ preview_base_url = "http://127.0.0.1:4174/preview"
 preview_host = "127.0.0.1"
 preview_port = 4175
 preview_parent_origin = "http://test"
+export_timezone = "Asia/Kolkata"
 browser_timeout_ms = 5000
 runtime_timeout_ms = 5000
 install_timeout_seconds = 60.0

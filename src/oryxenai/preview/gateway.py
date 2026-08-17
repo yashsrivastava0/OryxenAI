@@ -67,6 +67,20 @@ def _headers(*, parent_origin: str, asset: bool) -> dict[str, str]:
     }
 
 
+def _inject_preview_base(data: bytes, base_path: str) -> bytes:
+    """Add the runtime mount prefix without changing the immutable artifact."""
+
+    if not base_path or b"<head" not in data.lower():
+        return data
+    marker = f'<meta name="oryxenai-preview-base" content="{base_path}">'.encode()
+    lowered = data.lower()
+    head_index = lowered.find(b"<head")
+    close_index = data.find(b">", head_index)
+    if close_index < 0:
+        return data
+    return data[: close_index + 1] + marker + data[close_index + 1 :]
+
+
 class PreviewGateway:
     def __init__(
         self, storage: PreviewStorage, *, parent_origin: str = "http://127.0.0.1:8000"
@@ -146,8 +160,11 @@ class PreviewGateway:
         if stored is None or stored[0].sha256 != str(entry.get("sha256", "")):
             return JSONResponse({"status": "unavailable"}, status_code=503)
         headers = _headers(parent_origin=self.parent_origin, asset=asset)
+        body = stored[1]
+        if requested == "index.html":
+            body = _inject_preview_base(body, f"/preview/{host}/")
         return Response(
-            content=b"" if request.method == "HEAD" else stored[1],
+            content=b"" if request.method == "HEAD" else body,
             media_type=str(entry.get("media_type", stored[0].content_type)),
             headers=headers,
         )
@@ -173,11 +190,17 @@ class CandidateGateway:
     """Protected local gateway used only while a candidate is being verified."""
 
     def __init__(
-        self, dist_dir: Path, *, token: str, parent_origin: str = "http://127.0.0.1:8000"
+        self,
+        dist_dir: Path,
+        *,
+        token: str,
+        parent_origin: str = "http://127.0.0.1:8000",
+        mount_prefix: str = "/",
     ) -> None:
         self.dist_dir = dist_dir.resolve()
         self.token = token
         self.parent_origin = parent_origin
+        self.mount_prefix = "/" + mount_prefix.strip("/") + "/" if mount_prefix.strip("/") else "/"
 
     async def serve(self, request: Request) -> Response:
         if request.method not in {"GET", "HEAD"}:
@@ -185,6 +208,14 @@ class CandidateGateway:
         if request.headers.get("x-preview-verify-token", "") != self.token:
             return Response("Not found", status_code=404)
         raw_path = str(request.path_params.get("path", ""))
+        if self.mount_prefix != "/":
+            prefix = self.mount_prefix.strip("/")
+            if raw_path == prefix:
+                raw_path = ""
+            elif raw_path.startswith(prefix + "/"):
+                raw_path = raw_path[len(prefix) + 1 :]
+            else:
+                return Response("Not found", status_code=404)
         try:
             relative = _safe_path(raw_path) if raw_path else "index.html"
         except ValueError:
@@ -197,6 +228,8 @@ class CandidateGateway:
         if not target.is_file():
             return Response("Not found", status_code=404)
         data = target.read_bytes()
+        if relative == "index.html":
+            data = _inject_preview_base(data, self.mount_prefix)
         return Response(
             content=b"" if request.method == "HEAD" else data,
             media_type=mimetypes.guess_type(target.name)[0] or "application/octet-stream",
@@ -209,8 +242,14 @@ def create_candidate_app(
     *,
     token: str,
     parent_origin: str = "http://127.0.0.1:8000",
+    mount_prefix: str = "/",
 ) -> Starlette:
-    gateway = CandidateGateway(dist_dir, token=token, parent_origin=parent_origin)
+    gateway = CandidateGateway(
+        dist_dir,
+        token=token,
+        parent_origin=parent_origin,
+        mount_prefix=mount_prefix,
+    )
 
     async def candidate(request: Request) -> Response:
         return await gateway.serve(request)

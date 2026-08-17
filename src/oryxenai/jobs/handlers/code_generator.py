@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
+import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -316,10 +316,19 @@ async def _execute_acquisition(
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
         if run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value and run.acquire_receipt:
             return {"status": "needs_attention", "run_id": str(run_id), "reused": True}
-        if run.status not in {
-            DevelopmentRunStatus.PLANNED.value,
-            DevelopmentRunStatus.ACQUIRING.value,
-        }:
+        # A needs_attention run without an acquire receipt is a failed
+        # acquisition: retryable, mirroring the generate/verify handlers.
+        acquire_retry = (
+            run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value and not run.acquire_receipt
+        )
+        if (
+            run.status
+            not in {
+                DevelopmentRunStatus.PLANNED.value,
+                DevelopmentRunStatus.ACQUIRING.value,
+            }
+            and not acquire_retry
+        ):
             return {"status": "discarded", "run_id": str(run_id)}
         run = await _cas_status(
             repo,
@@ -371,12 +380,19 @@ async def _execute_acquisition(
         run_material_root = materials_root / str(run_id)
         workspace_root = Path(settings.code_generator_dependencies.workspaces_root).resolve()
         repo_dir = workspace_root / str(run_id) / "repo"
+        _seed_dependency_workspace(settings, repo_dir)
         prior_manifest = _read_json(repo_dir / "package.json", {})
         prior_lock = _read_json(repo_dir / "package-lock.json", {})
         dependency_manager = (
             dependency_manager_factory(resource_receipts)
             if dependency_manager_factory is not None
-            else DependencyManager(resource_receipts)
+            else DependencyManager(
+                resource_receipts,
+                authorized_hashes={
+                    _execution_binding_hash(slot_id, package_name)
+                    for slot_id, package_name, _exports in _execution_package_bindings(projections)
+                },
+            )
         )
         selector = selector_factory() if selector_factory is not None else None
         scout: Any = None
@@ -518,6 +534,38 @@ async def _execute_acquisition(
                 resource_receipts.append(receipt)
                 bindings.append(_binding_for(request, receipt))
 
+        # Admitted execution-contract package bindings go through the same
+        # trusted dependency manager as receipt-bound requests: real npm
+        # lockfile + offline install, never a hand-written manifest entry.
+        for slot_id, package_name, expected_exports in _execution_package_bindings(projections):
+            if any(
+                item.package_name == package_name and item.decision in {"admitted", "existing"}
+                for item in dependency_receipts
+            ):
+                continue
+            binding_request = DependencyRequest(
+                request_id=f"dep-execution-{package_name}",
+                requesting_resource_receipt_hash=_execution_binding_hash(slot_id, package_name),
+                package_name=package_name,
+                required_api_or_exports=list(expected_exports),
+                compatibility_constraints="configured target runtime",
+                reason_existing_stack_is_insufficient=(
+                    "The admitted execution contract binds this package to a declared slot."
+                ),
+                fallback_component_strategy="Use the plain DOM affordance without the bound package.",
+            )
+            dependency_receipts.append(
+                await dependency_manager.resolve(
+                    binding_request,
+                    repo_dir=repo_dir,
+                    prior_manifest=prior_manifest,
+                    prior_lock=prior_lock,
+                    settings=settings,
+                )
+            )
+            prior_manifest = _read_json(repo_dir / "package.json", prior_manifest)
+            prior_lock = _read_json(repo_dir / "package-lock.json", prior_lock)
+
         for binding in bindings:
             delta = PlanDelta(
                 delta_id=f"delta-{binding.binding_id}",
@@ -652,13 +700,91 @@ async def _execute_acquisition(
     return {"status": "succeeded", "run_id": str(run_id)}
 
 
+def _seed_dependency_workspace(settings: Any, repo_dir: Path) -> None:
+    """Seed dependency resolution from the scaffold's committed manifest and
+    lockfile.
+
+    The dependency workspace is the merge base for every admitted binding.
+    Starting it empty would let a single resolved package produce a minimal
+    manifest+lock that — when synchronized back into the generation repo —
+    REPLACES the scaffold's toolchain instead of extending it.
+    """
+
+    if (repo_dir / "package.json").is_file():
+        return
+    from oryxenai.agents.code_generator.core.workspace import repository_root
+
+    config = settings.code_generator_generation
+    scaffold_root = Path(str(config.scaffold_root))
+    if not scaffold_root.is_absolute():
+        scaffold_root = repository_root() / scaffold_root
+    profile = str(getattr(config, "scaffold_profile", "") or "react-vite-v1")
+    manifest = scaffold_root / profile / "package.json"
+    lock = scaffold_root / profile / "package-lock.json"
+    if not manifest.is_file() or not lock.is_file():
+        raise AcquisitionValidationError(
+            "SCAFFOLD_MANIFEST_UNAVAILABLE",
+            "The scaffold manifest/lockfile required to seed dependency resolution is missing.",
+        )
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(manifest, repo_dir / "package.json")
+    shutil.copyfile(lock, repo_dir / "package-lock.json")
+
+
+def _execution_resolved_slot_ids(projections: dict[str, dict[str, Any]]) -> set[str]:
+    execution = projections.get("execution/contract.json", {})
+    slots = execution.get("slots", []) if isinstance(execution, dict) else []
+    return {
+        str(slot.get("resource_slot_id", ""))
+        for slot in slots
+        if isinstance(slot, dict) and str(slot.get("resource_slot_id", ""))
+    }
+
+
+def _execution_package_bindings(
+    projections: dict[str, dict[str, Any]],
+) -> list[tuple[str, str, list[str]]]:
+    """Admitted target-package bindings (slot id, package, expected exports)."""
+
+    execution = projections.get("execution/contract.json", {})
+    slots = execution.get("slots", []) if isinstance(execution, dict) else []
+    bindings: list[tuple[str, str, list[str]]] = []
+    for slot in slots:
+        if not isinstance(slot, dict):
+            continue
+        resolution = slot.get("resolution", {})
+        if (
+            not isinstance(resolution, dict)
+            or str(resolution.get("resolution_type", "")) != "target_package_binding"
+        ):
+            continue
+        package_name = str(resolution.get("package_name", ""))
+        if not package_name:
+            continue
+        exports = [str(value) for value in resolution.get("expected_exports", []) or []]
+        bindings.append((str(slot.get("resource_slot_id", "")), package_name, exports))
+    return bindings
+
+
+def _execution_binding_hash(slot_id: str, package_name: str) -> str:
+    return _model_hash({"execution_slot": slot_id, "package": package_name})
+
+
 def _build_initial_requests(
     plan: SitePlan, projections: dict[str, dict[str, Any]], input_hash: str, plan_hash: str
 ) -> list[ResourceRequest]:
     resources = projections.get("resources/projection.json", {}).get("resources", [])
     needs = projections.get("resources/projection.json", {}).get("resource_needs", [])
+    # v3 packs resolve every declared execution slot deterministically at
+    # admission (local recipe / local materialized file / target package
+    # binding). Emergent acquisition exists only for planner slots the pack
+    # does NOT already resolve (D-018); re-acquiring resolved slots would
+    # both duplicate bindings and risk stock substitutions for evidence.
+    resolved_slot_ids = _execution_resolved_slot_ids(projections)
     requests: list[ResourceRequest] = []
     for slot in plan.resource_slots:
+        if slot.slot_id in resolved_slot_ids:
+            continue
         matched = any(
             isinstance(resource, dict)
             and str(resource.get("route_id", "")) == slot.route_id
@@ -867,6 +993,8 @@ def _build_planner(settings: Any) -> Any | None:
 
 
 def _write_context(settings: Any, identity: str, digest: str, context: dict[str, Any]) -> str:
+    from oryxenai.agents.code_generator.core import fs_safe
+
     root = Path(settings.code_generator_development.input_root).resolve()
     relative = Path("contexts") / identity[:2] / f"{identity}-{digest}.json"
     target = (root / relative).resolve()
@@ -875,9 +1003,7 @@ def _write_context(settings: Any, identity: str, digest: str, context: dict[str,
     target.parent.mkdir(parents=True, exist_ok=True)
     data = canonical_json(context)
     if not target.exists():
-        partial = target.with_suffix(".partial")
-        partial.write_bytes(data)
-        os.replace(partial, target)
+        fs_safe.write_text_atomic(target, data.decode("utf-8"))
     if target.read_bytes() != data:
         raise RuntimeError("development context read-back failed")
     return relative.as_posix()
