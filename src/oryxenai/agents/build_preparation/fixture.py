@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -69,8 +70,9 @@ def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
             "missing": [] if os.getenv(pexels_env, "") else [pexels_env],
         }
     }
+    inputs = _fixture_input_preflight(settings)
     if not requested:
-        return {"local": {"status": "ready"}, "r2": r2, "resources": resources}
+        return {"local": {"status": "ready"}, "r2": r2, "resources": resources, "inputs": inputs}
     if provider not in {"r2_s3", "s3"}:
         r2.update(
             {
@@ -78,7 +80,7 @@ def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
                 "message": "Configured artifact storage is not S3-compatible.",
             }
         )
-        return {"local": {"status": "ready"}, "r2": r2, "resources": resources}
+        return {"local": {"status": "ready"}, "r2": r2, "resources": resources, "inputs": inputs}
     missing = [
         name for name in (config.access_key_env, config.secret_key_env) if not os.getenv(name, "")
     ]
@@ -99,12 +101,87 @@ def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
                 "message": "R2 upload and read-back verification are ready.",
             }
         )
-    return {"local": {"status": "ready"}, "r2": r2, "resources": resources}
+    return {"local": {"status": "ready"}, "r2": r2, "resources": resources, "inputs": inputs}
+
+
+def _configured_path(value: str) -> Path:
+    configured = Path(value)
+    return configured if configured.is_absolute() else Path.cwd() / configured
+
+
+def _attached_output_path(kind: str) -> Path | None:
+    """Find the newest matching engine output in the detached input folder."""
+    folder = Path.cwd() / "Input-Output-Of-Engine"
+    if not folder.is_dir():
+        return None
+    tokens = ("visual", "design", "director") if kind == "visual" else ("content", "architect")
+    candidates: list[Path] = []
+    for path in folder.iterdir():
+        if not path.is_file() or path.suffix.casefold() not in {".json", ".md", ".markdown"}:
+            continue
+        stem = path.stem.casefold()
+        if all(token in stem for token in tokens):
+            candidates.append(path)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: (path.stat().st_mtime_ns, path.name.casefold()))
 
 
 def _fixture_path(settings: Settings) -> Path:
-    configured = Path(settings.build_preparation.fixture_input_path)
-    return configured if configured.is_absolute() else Path.cwd() / configured
+    attached = _attached_output_path("visual")
+    if attached is not None:
+        return attached
+    return _configured_path(settings.build_preparation.fixture_input_path)
+
+
+def _content_snapshot_path(settings: Settings) -> Path:
+    attached = _attached_output_path("content")
+    if attached is not None:
+        return attached
+    return _configured_path(settings.build_preparation.fixture_content_input_path)
+
+
+def _fixture_input_preflight(settings: Settings) -> dict[str, dict[str, str]]:
+    visual = _fixture_path(settings)
+    content = _content_snapshot_path(settings)
+    return {
+        "visual_design_director": {
+            "status": "ready" if visual.is_file() else "not_found",
+            "path": str(visual),
+        },
+        "content_architect": {
+            "status": "ready" if content.is_file() else "not_found",
+            "path": str(content),
+        },
+    }
+
+
+def _read_json_object(path: Path, *, label: str, code: str) -> dict[str, Any]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise FixturePreparationError(
+            f"The {label} output could not be read.", code=code, details={"path": str(path)}
+        ) from exc
+    try:
+        parsed: Any = json.loads(text)
+    except json.JSONDecodeError:
+        parsed = None
+        for block in re.findall(r"```(?:json)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL):
+            try:
+                parsed = json.loads(block)
+                break
+            except json.JSONDecodeError:
+                continue
+        if parsed is None:
+            raise FixturePreparationError(
+                f"The {label} output is not valid JSON.", code=code, details={"path": str(path)}
+            ) from None
+    if not isinstance(parsed, dict):
+        raise FixturePreparationError(
+            f"The {label} output must be a JSON object.", code=code, details={"path": str(path)}
+        )
+    return parsed
 
 
 def _load_default(settings: Settings) -> dict[str, Any]:
@@ -115,19 +192,7 @@ def _load_default(settings: Settings) -> dict[str, Any]:
             code="FIXTURE_DEFAULT_NOT_FOUND",
             details={"path": str(path)},
         )
-    try:
-        parsed = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise FixturePreparationError(
-            "The configured VDD fixture is not valid JSON.",
-            code="FIXTURE_DEFAULT_INVALID",
-        ) from exc
-    if not isinstance(parsed, dict):
-        raise FixturePreparationError(
-            "The configured VDD fixture must be a JSON object.",
-            code="FIXTURE_DEFAULT_INVALID",
-        )
-    return parsed
+    return _read_json_object(path, label="Visual Design Director", code="FIXTURE_DEFAULT_INVALID")
 
 
 def _fixture_direction_hash(visual: dict[str, Any]) -> str:
@@ -172,19 +237,32 @@ def _fixture_inputs(
 
 
 def _load_content_snapshot(settings: Settings) -> dict[str, Any]:
-    import json as _json
-
-    configured = Path(settings.build_preparation.fixture_content_input_path)
-    path = configured if configured.is_absolute() else Path.cwd() / configured
+    path = _content_snapshot_path(settings)
     if not path.is_file():
         return {}
     try:
-        parsed = _json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, _json.JSONDecodeError):
+        parsed = _read_json_object(
+            path, label="Content Architect", code="FIXTURE_CONTENT_INPUT_INVALID"
+        )
+    except FixturePreparationError:
+        if _attached_output_path("content") == path:
+            raise
         return {}
     if not isinstance(parsed, dict) or not isinstance(parsed.get("route_plan"), list):
+        if _attached_output_path("content") == path:
+            raise FixturePreparationError(
+                "The attached Content Architect output must include a route_plan.",
+                code="FIXTURE_CONTENT_INPUT_INVALID",
+                details={"path": str(path)},
+            )
         return {}
     if not parsed["route_plan"]:
+        if _attached_output_path("content") == path:
+            raise FixturePreparationError(
+                "The attached Content Architect output contains no routes.",
+                code="FIXTURE_CONTENT_INPUT_INVALID",
+                details={"path": str(path)},
+            )
         return {}
     return parsed
 
