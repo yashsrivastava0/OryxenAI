@@ -71,12 +71,45 @@ def _safe_details(value: Any) -> dict[str, Any]:
 def _issue_from_error(exc: Exception) -> dict[str, Any]:
     code = str(getattr(exc, "code", "FIXTURE_RUN_FAILED") or "FIXTURE_RUN_FAILED")
     message = str(getattr(exc, "message", str(exc)) or "Build Preparation fixture failed.")
+    messages = {
+        "PROVIDER_CONNECTION_ERROR": (
+            "The configured OpenAI model provider could not be reached while composing resource queries."
+        ),
+        "PROVIDER_TIMEOUT_ERROR": (
+            "The configured OpenAI model provider timed out while composing resource queries."
+        ),
+        "PROVIDER_AUTH_ERROR": (
+            "The configured OpenAI model provider rejected its API key while composing resource queries."
+        ),
+        "PROVIDER_RATE_LIMIT_ERROR": (
+            "The configured OpenAI model provider rate-limited resource-query composition."
+        ),
+        "PROVIDER_SERVER_ERROR": (
+            "The configured OpenAI model provider returned a server error while composing resource queries."
+        ),
+    }
+    message = messages.get(code, message)
     actions = {
         "ARTIFACT_STORAGE_CREDENTIALS_MISSING": (
             "Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in .env, then recreate the app container."
         ),
         "FIXTURE_MODEL_UNAVAILABLE": (
             "Check the configured Build Preparation model profile and its API-key environment variable."
+        ),
+        "PROVIDER_CONNECTION_ERROR": (
+            "The live model endpoint could not be reached. Check worker DNS, proxy/firewall access, and the configured model profile endpoint, then retry."
+        ),
+        "PROVIDER_TIMEOUT_ERROR": (
+            "The live model endpoint timed out. Check worker network access or increase the configured provider timeout, then retry."
+        ),
+        "PROVIDER_AUTH_ERROR": (
+            "The live model provider rejected the API key. Verify the configured key environment variable and provider account, then retry."
+        ),
+        "PROVIDER_RATE_LIMIT_ERROR": (
+            "The live model provider rate-limited this run. Wait for the provider window to reset, then retry once."
+        ),
+        "PROVIDER_SERVER_ERROR": (
+            "The live model provider returned a server error. Retry after the provider recovers."
         ),
         "BUILD_PREPARATION_MODEL_OUTPUT_INVALID": (
             "Inspect the returned model output in the issue report and retry with the same approved inputs."

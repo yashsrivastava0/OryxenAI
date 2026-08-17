@@ -19,6 +19,7 @@ import json
 import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
@@ -325,7 +326,12 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
         if isinstance(exc, openai.APIConnectionError):
             from oryxenai.agents.shared.providers.errors import ProviderConnectionError
 
-            return ProviderConnectionError(str(exc))
+            endpoint = self._profile.base_url or _OPENCODE_GO_BASE_URL
+            host = urlparse(endpoint).hostname or "configured model endpoint"
+            return ProviderConnectionError(
+                "Could not connect to the configured model provider.",
+                details={"provider": self.provider_name, "endpoint_host": host},
+            )
         if isinstance(exc, openai.APIStatusError):
             return map_http_error(exc.status_code, _safe_body(exc))
         if isinstance(exc, openai.BadRequestError):
