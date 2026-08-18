@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [3e2831c] - Cache-free multi-provider component retrieval
+Added one shared direct HTTP/API and registry-JSON retrieval boundary for shadcn, Magic UI, Smooth UI, and Cult UI. Discovery is metadata-only; selected components are fetched recursively with strict host/path/dependency validation and provenance, with optional injected MCP transport, no provider-response cache, and 429/timeout/server-error handling. Wired Build Preparation and Code Generator to the four-provider allowlist and added the scaffold `cn()` utility with locked `clsx`/`tailwind-merge` dependencies; see D-029.
+
 ### 2026-08-17 22:30 +05:30 - Codex (GPT-5 / OpenAI) - [e3d80c2] - Detached Build Preparation input pickup and monitor readiness
 The detached Build Preparation harness now auto-selects the newest matching Content Architect and Visual Design Director output from `Input-Output-Of-Engine`, supports JSON fenced in `.md` outputs, shows the resolved source paths in readiness, and retains configured-path fallback for later integration. Live verification reached packaging and R2 read-back; handoff remained correctly blocked because the approved VDD exposed zero image and component roles.
 
