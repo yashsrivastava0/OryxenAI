@@ -304,6 +304,19 @@ class ResolvedResource(BaseModel):
     fallback_disposition: str = ""
     accessibility_treatment: str = ""
     source_expectations: list[str] = Field(default_factory=list)
+    provider: str = ""
+    provider_asset_id: str = ""
+    source_reference: str = ""
+    license: str = ""
+    license_reference: str = ""
+    source_hashes: list[str] = Field(default_factory=list)
+    release_pin: str = ""
+    dependencies: list[str] = Field(default_factory=list)
+    registry_dependencies: list[str] = Field(default_factory=list)
+    import_path: str = ""
+    responsive_behavior: str = ""
+    reduced_motion_behavior: str = ""
+    fallback_behavior: str = ""
 
 
 class ExecutionSlot(BaseModel):
@@ -446,6 +459,8 @@ class MaterializationResult(BaseModel):
     resource_ledger_path: str = ""
     analysis_path: str = ""
     analysis_hash: str = ""
+    effective_selections: list[ResourceSelection] = Field(default_factory=list)
+    resource_attempts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class PackageResult(BaseModel):

@@ -96,6 +96,10 @@ max_queries = 3
 max_candidates_per_query = 6
 max_candidates_total = 12
 max_dimension = 2400
+raw_download_max_bytes = 25165824
+optimized_max_bytes = 8388608
+minimum_width = 1200
+minimum_height = 700
 timeout_seconds = 15.0
 retry_count = 2
 max_retry_wait_seconds = 8.0
@@ -129,14 +133,15 @@ integration_route_threshold = 2
 # roles become execution gaps rather than generated placeholders.
 editorial_image_budget = 5
 editorial_image_maximum = 6
-# The target is advisory for handoff reporting. Retrieval count is derived
-# from approved component roles; the maximum bounds optional role retrieval.
+# Targets are advisory for handoff reporting. Retrieval count is derived from
+# approved roles; only per-role source attempts remain bounded.
 visual_component_budget = 4
 visual_component_maximum = 6
+# Per-role transport/source retries remain bounded; role count is semantic.
+image_source_attempt_maximum = 3
 component_source_attempt_maximum = 3
 provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
-provider_max_requests = 32
 require_live_visual_resources = true
 auto_derive_visual_resources = true
 
@@ -173,9 +178,6 @@ image_max_bytes = 4194304
 font_max_bytes = 2097152
 icon_svg_max_bytes = 393216
 component_max_bytes = 524288
-# Per-run optional component-source budget; required roles are never silently
-# dropped when they exceed this ceiling.
-component_request_maximum = 6
 style_max_bytes = 262144
 materials_root = ".workspace/code-generator-materials"
 # Model-assisted candidate selection through the code_generator_resource_scout

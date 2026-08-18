@@ -119,6 +119,72 @@ async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> Non
 
 
 @pytest.mark.asyncio
+async def test_materializer_tries_closed_set_image_alternate_after_validation_failure() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        route = RouteScope(route_id="home", path="/", title="Home")
+        need = ResourceNeed(
+            need_id="photo-need",
+            kind="asset",
+            source_id="asset-1",
+            category="photo",
+            purpose="Hero image",
+            route_ids=["home"],
+        )
+        primary = FetchedResource(
+            resource_id="resource-primary",
+            need_id=need.need_id,
+            kind="photo",
+            provider="pexels",
+            provider_asset_id="primary",
+            image_url="https://images.pexels.com/primary.jpg",
+        )
+        alternate = primary.model_copy(
+            update={
+                "resource_id": "resource-alternate",
+                "provider_asset_id": "alternate",
+                "image_url": "https://images.pexels.com/alternate.jpg",
+            }
+        )
+
+        async def download(candidate: FetchedResource) -> bytes:
+            return b"corrupt" if candidate.resource_id == primary.resource_id else _png()
+
+        result = await materialize_build_context(
+            output_dir=output_dir,
+            run_id="run-image-alternate",
+            routes=[route],
+            needs=[need],
+            selections=[
+                ResourceSelection(
+                    need_id=need.need_id,
+                    selected_resource_id=primary.resource_id,
+                    alternate_resource_ids=[alternate.resource_id],
+                )
+            ],
+            candidates=[primary, alternate],
+            context=BuildContextDraft(
+                overview_markdown="# Build context",
+                routes=[RouteBuildContext(route_id="home", brief_markdown="# Home")],
+            ),
+            content_architect={},
+            settings=settings,
+            download_image=download,
+        )
+
+        assert result.effective_selections[0].selected_resource_id == alternate.resource_id
+        assert [item["status"] for item in result.resource_attempts] == [
+            "rejected",
+            "materialized",
+        ]
+        assert result.resources[0]["id"] == alternate.resource_id
+        assert result.resources[0]["source_hashes"]
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
 async def test_materializer_rejects_generated_local_visuals() -> None:
     output_dir = _output_dir()
     try:

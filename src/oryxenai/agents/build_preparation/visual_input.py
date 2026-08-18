@@ -222,8 +222,6 @@ def _explicit_prohibits_visual_acquisition(content: dict[str, Any], visual: dict
     ):
         if key in policy and policy[key] is False:
             return True
-    if "image_target_count" in policy and int(policy.get("image_target_count") or 0) <= 0:
-        return True
     text = _flatten_text(
         [
             visual.get("must_not_fabricate"),
@@ -249,8 +247,6 @@ def _explicitly_prohibits_components(visual: dict[str, Any]) -> bool:
     ):
         if key in policy and policy[key] is False:
             return True
-    if "component_target_count" in policy and int(policy.get("component_target_count") or 0) <= 0:
-        return True
     text = _flatten_text(
         [visual.get("must_not_fabricate"), visual.get("conflicts"), visual.get("compiler_handoff")]
     ).casefold()
@@ -483,24 +479,6 @@ def _semantic_component_intents(
     return result
 
 
-def _image_target(image_target: int, image_maximum: int) -> int:
-    return min(max(0, int(image_target)), max(0, min(6, int(image_maximum))))
-
-
-def _component_target(component_target: int, component_maximum: int) -> int:
-    return min(max(0, int(component_target)), max(0, min(6, int(component_maximum))))
-
-
-def _existing_image_count(visual: dict[str, Any]) -> int:
-    return sum(
-        1
-        for item in _as_list(visual.get("asset_briefs"))
-        if isinstance(item, dict)
-        and str(item.get("asset_type", "") or "").casefold()
-        in {"image", "photo", "editorial_photo", "portrait"}
-    )
-
-
 def _ordered_descriptors(
     descriptors: list[tuple[dict[str, Any], dict[str, Any], str, str]],
 ) -> list[tuple[dict[str, Any], dict[str, Any], str, str, str]]:
@@ -663,16 +641,14 @@ def normalize_visual_input(
         for item in _as_list(visual.get("resource_candidates"))
         if isinstance(item, dict)
     }
-    needed_images = max(
-        0,
-        _image_target(requested_image_target, image_maximum) - _existing_image_count(visual),
-    )
-    if enabled and not explicit_prohibition and needed_images:
+    # Counts are reporting/advisory values.  Once a role is semantically
+    # justified by the approved route/section context, keep it in the closed
+    # acquisition set; provider and per-role materialization limits remain the
+    # operational safeguards.
+    if enabled and not explicit_prohibition:
         for ordinal, (route, page, section_id, scene_id, role_name) in enumerate(
             _ordered_descriptors(descriptors)
         ):
-            if needed_images <= 0:
-                break
             role_spec = next(item for item in _IMAGE_ROLE_SPECS if item[0] == role_name)
             route_id = str(route["route_id"])
             asset_id = f"assumed-image:{route_id}:{section_id}:{ordinal}"
@@ -715,7 +691,6 @@ def normalize_visual_input(
             scene = _ensure_scene(page, section_id)
             scene.setdefault("asset_requirements", []).append(asset_id)
             existing_assets.add(asset_id)
-            needed_images -= 1
             derived_any = True
 
     if enabled and not explicit_component_prohibition:
@@ -732,21 +707,7 @@ def normalize_visual_input(
                     route_count=route_count,
                 )
             )
-        # The configured target is a ceiling for optional enrichment, never a
-        # reason to manufacture roles. Explicitly required roles always stay in
-        # the closed set even when they exceed that ceiling.
-        optional_ceiling = min(
-            max(0, _component_target(requested_component_target, component_maximum)),
-            max(0, int(component_maximum)),
-        )
-        selected_intents: list[dict[str, Any]] = [
-            item for item in semantic_intents if bool(item.get("required"))
-        ]
-        optional_intents = [item for item in semantic_intents if not bool(item.get("required"))]
-        selected_intents.extend(
-            optional_intents[: max(0, optional_ceiling - len(selected_intents))]
-        )
-        for intent in selected_intents:
+        for intent in semantic_intents:
             route_id = str(intent["route_id"])
             section_id = str(intent["section_id"])
             role_id = str(intent["role_id"])
@@ -785,12 +746,10 @@ def normalize_visual_input(
 
     policy = _as_dict(visual.get("resource_policy"))
     if "image_target_count" not in policy:
-        policy["image_target_count"] = (
-            0 if explicit_prohibition else _image_target(image_target, image_maximum)
-        )
+        policy["image_target_count"] = 0 if explicit_prohibition else max(0, requested_image_target)
     if "component_target_count" not in policy:
-        policy["component_target_count"] = _component_target(
-            0 if explicit_component_prohibition else requested_component_target, component_maximum
+        policy["component_target_count"] = (
+            0 if explicit_component_prohibition else max(0, requested_component_target)
         )
     if enabled:
         policy["auto_derived_visual_resources"] = True

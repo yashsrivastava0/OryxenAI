@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from oryxenai.agents.build_preparation.quality import (
     build_handoff_report,
+    normalize_query_plan,
     qualify_candidates,
     select_required_candidates,
 )
@@ -11,10 +12,13 @@ from oryxenai.agents.build_preparation.schemas import (
     FetchedResource,
     MaterializationResult,
     ResourceNeed,
+    ResourceQuery,
     ResourceSelection,
     RouteBuildContext,
     RouteScope,
+    Stage1QueryPlan,
 )
+from oryxenai.core.settings import Settings
 
 
 def _source_ref() -> BuildPreparationSourceRef:
@@ -303,3 +307,122 @@ def test_handoff_rejects_empty_public_route_content() -> None:
     )
     assert report.handoff_eligible is False
     assert [issue.code for issue in report.issues] == ["ROUTE_PUBLIC_CONTENT_MISSING"]
+
+
+def test_query_normalization_merges_route_content_and_interaction_context() -> None:
+    need = ResourceNeed(
+        need_id="need-contextual",
+        kind="resource",
+        source_id="capability-disclosure",
+        category="visual_component",
+        purpose="Reveal approved capability groups",
+        route_ids=["home"],
+        section_ids=["capabilities"],
+        query_terms=["capability grouping"],
+        component_intent={
+            "role_id": "capability-disclosure",
+            "route_id": "home",
+            "section_id": "capabilities",
+            "interaction_class": "disclosure",
+            "interaction_outcome": "Reveal grouped capabilities",
+            "provider_terms": ["accordion", "collapsible"],
+        },
+    )
+    plan = normalize_query_plan(
+        Stage1QueryPlan(queries=[ResourceQuery(need_id=need.need_id, kind="component", query="")]),
+        [need],
+        settings=Settings(),
+        context={
+            "semantic_subject_terms": ["technical editorial"],
+            "approved_route_context": [
+                {"route_id": "home", "title": "Systems portfolio", "purpose": "Show platform work"}
+            ],
+            "approved_section_context": [
+                {
+                    "route_id": "home",
+                    "section": {
+                        "section_id": "capabilities",
+                        "purpose": "Explain platform capabilities",
+                        "content": {"heading": "Capabilities"},
+                    },
+                }
+            ],
+            "interaction_context": [
+                {
+                    "role_id": "capability-disclosure",
+                    "interaction_class": "disclosure",
+                    "interaction_outcome": "Reveal grouped capabilities",
+                    "placement": "capabilities section",
+                }
+            ],
+            "responsive_context": {"responsive": "Stack controls on narrow screens"},
+            "reduced_motion_context": {"reduced_motion": "Keep the complete static state"},
+        },
+    )
+    query = plan.queries[0]
+    assert "platform" in query.query
+    assert "capabilities" in query.query
+    assert "accordion" in query.provider_terms
+    assert "home" not in query.query
+    assert "route-id" not in query.query
+
+
+def test_visual_enrichment_report_distinguishes_total_and_partial_failure() -> None:
+    image_need = ResourceNeed(
+        need_id="image-role",
+        kind="asset",
+        source_id="approved-image",
+        category="editorial_photo",
+        route_ids=["home"],
+    )
+    component_need = ResourceNeed(
+        need_id="component-role",
+        kind="resource",
+        source_id="approved-component",
+        category="visual_component",
+        route_ids=["home"],
+    )
+    common = {
+        **_route_handoff_args(),
+        "source_ref": _source_ref(),
+        "needs": [image_need, component_need],
+        "qualifications": [],
+    }
+    total = build_handoff_report(
+        **common,
+        selections=[
+            ResourceSelection(need_id=image_need.need_id),
+            ResourceSelection(need_id=component_need.need_id),
+        ],
+        materialization=MaterializationResult(root_path="x", relative_root="x"),
+    )
+    assert total.handoff_eligible is False
+    assert total.handoff_summary["total_enrichment_failure"] is True
+    assert "TOTAL_ENRICHMENT_FAILURE" in {issue.code for issue in total.issues}
+
+    partial = build_handoff_report(
+        **common,
+        selections=[
+            ResourceSelection(need_id=image_need.need_id, selected_resource_id="image-local"),
+            ResourceSelection(need_id=component_need.need_id),
+        ],
+        materialization=MaterializationResult(
+            root_path="x",
+            relative_root="x",
+            resources=[
+                {
+                    "id": "image-local",
+                    "need_id": image_need.need_id,
+                    "provider": "pexels",
+                    "license": "Pexels license",
+                    "license_reference": "https://www.pexels.com/legal-pages/license/",
+                    "local_path": "resources/images/image-local.jpg",
+                    "disposition": "local_file",
+                }
+            ],
+        ),
+    )
+    assert partial.handoff_eligible is False
+    assert partial.handoff_summary["partial_enrichment_failure"] is True
+    assert partial.handoff_summary["total_enrichment_failure"] is False
+    assert "COMPONENT_ROLE_UNRESOLVED" in {issue.code for issue in partial.issues}

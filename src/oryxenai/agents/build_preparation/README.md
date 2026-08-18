@@ -34,12 +34,12 @@ creates an actionable `VDD_EXECUTION_GAP`; no generated-local visual, blank
 PNG, wrapper, or visual recipe can satisfy an image/component slot. Unsplash
 remains a diagnostic metadata source and cannot be used by the static target.
 
-Image-rich directions use dynamic component retrieval: required roles are
-always attempted, while optional roles are prioritized by importance, distinct
-interaction role, and route coverage within the configured per-run maximum.
-The count therefore follows the approved portfolio rather than a fixed number.
-Required roles are never silently dropped when they exceed the ceiling; the
-handoff reports the over-budget condition and provider limits still apply.
+Image-rich directions use dynamic component retrieval: every semantically
+justified approved role is attempted, with deterministic priority retained for
+reporting and candidate ordering. The count therefore follows the approved
+portfolio rather than a fixed quota. Per-role candidate lists, source-attempt
+limits, transport retries, provider rate limits, concurrency, and artifact
+limits remain enforced.
 Build Preparation records the policy, actual local material counts, provider
 calls/rate-limit events, and every missing role in the handoff summary.
 
