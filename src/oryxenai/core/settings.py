@@ -328,6 +328,7 @@ class CodeGeneratorAcquisitionConfig(BaseModel):
     font_max_bytes: int = 2 * 1024 * 1024
     icon_svg_max_bytes: int = 384 * 1024
     component_max_bytes: int = 512 * 1024
+    component_request_maximum: int = 6
     style_max_bytes: int = 256 * 1024
     materials_root: str = ".workspace/code-generator-materials"
     offline_resource_root: str = ""

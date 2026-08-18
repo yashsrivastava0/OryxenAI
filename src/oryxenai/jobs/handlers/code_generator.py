@@ -66,6 +66,7 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
 )
 from oryxenai.agents.code_generator.core.resource_scout import select_candidate_with_scout
 from oryxenai.agents.shared.model_client import build_provider_client
+from oryxenai.agents.shared.retrieval_policy import plan_component_retrieval
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
 
@@ -396,6 +397,17 @@ async def _execute_acquisition(
         requests = _build_initial_requests(
             plan, projections, input_receipt.admitted_identity, plan_hash
         )
+        component_policy = plan_component_retrieval(
+            [request for request in requests if request.category == "component_source"],
+            maximum=int(
+                getattr(
+                    settings.code_generator_acquisition,
+                    "component_request_maximum",
+                    6,
+                )
+            ),
+        )
+        deferred_component_request_ids = set(component_policy.deferred_optional_ids)
         existing_resource_receipts: list[ResourceReceipt] = []
         if run.resource_ledger:
             existing_resource_receipts = [
@@ -464,6 +476,14 @@ async def _execute_acquisition(
                 settings=settings,
                 projections=projections,
             )
+            if request.request_id in deferred_component_request_ids:
+                receipt = _fallback_receipt(
+                    request,
+                    "Optional component retrieval was deferred by the priority and route-coverage budget.",
+                )
+                resource_receipts.append(receipt)
+                bindings.append(_binding_for(request, receipt))
+                continue
             adapter = adapters.get(request.category)
             if adapter is None:
                 raise AcquisitionValidationError(
