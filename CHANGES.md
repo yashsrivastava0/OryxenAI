@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [cde016e] - Build Preparation live-run boundary fixes
+Removed false component-quota execution gaps and reconciled model-selected resource IDs against the live provider closed set, preserving explicit fallbacks and diagnostics. Focused Build Preparation tests pass; the two-run live acceptance exposed the model-boundary defect on run 2, so no third live run was performed.
+
 ### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [42e92ec] - Build Preparation semantic live resource enrichment
 Replaced cyclic quota-driven component derivation with semantic typed intents, live provider terms and diagnostics, closed-set alternate source fallback, and complete local Code Generator contracts and run analysis. Normal workflows stay live while offline fixtures are diagnostic-only; provider safety, provenance, hashes, and v3 admission remain fail-closed under D-029/D-030.
 
