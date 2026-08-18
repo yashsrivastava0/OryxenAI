@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
@@ -8,7 +10,41 @@ from oryxenai.agents.shared.component_retrieval import (
     McpComponentProvider,
     build_component_retrieval_service,
 )
+from oryxenai.agents.shared.retrieval_policy import plan_component_retrieval
 from oryxenai.core.settings import Settings
+
+
+def test_component_retrieval_policy_is_required_first_and_route_aware() -> None:
+    plan = plan_component_retrieval(
+        [
+            SimpleNamespace(
+                need_id="optional-home",
+                required_for_handoff=False,
+                importance="optional",
+                route_ids=["home"],
+                scene_ids=["hero"],
+            ),
+            SimpleNamespace(
+                need_id="required-projects",
+                required_for_handoff=True,
+                importance="important",
+                route_ids=["projects"],
+                scene_ids=["grid"],
+            ),
+            SimpleNamespace(
+                need_id="optional-shared",
+                required_for_handoff=False,
+                importance="supporting",
+                route_ids=["home", "projects", "about"],
+                scene_ids=["hero", "grid", "bio"],
+            ),
+        ],
+        maximum=2,
+    )
+
+    assert plan.selected_ids == ("required-projects", "optional-shared")
+    assert plan.deferred_optional_ids == ("optional-home",)
+    assert plan.required_over_maximum is False
 
 
 @pytest.mark.asyncio
