@@ -18,11 +18,11 @@ _PROMPT_FILES = {
 }
 
 _PROMPT_VERSIONS = {
-    "compose_resource_queries": "build_preparation.compose_resource_queries.v1",
-    "select_resources": "build_preparation.select_resources.v1",
-    "write_build_context": "build_preparation.write_build_context.v1",
+    "compose_resource_queries": "build_preparation.compose_resource_queries.v2",
+    "select_resources": "build_preparation.select_resources.v2",
+    "write_build_context": "build_preparation.write_build_context.v2",
     "integrate_cross_route": "build_preparation.integrate_cross_route.v1",
-    "review_handoff_quality": "build_preparation.review_handoff_quality.v1",
+    "review_handoff_quality": "build_preparation.review_handoff_quality.v2",
 }
 
 

@@ -9,6 +9,7 @@ from typing import Any
 
 from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationSourceRef,
+    ComponentIntent,
     ResourceNeed,
     RouteScope,
     Stage0Result,
@@ -19,11 +20,61 @@ from oryxenai.agents.build_preparation.validators import (
     validate_stage0_result,
     validate_visual_input,
 )
-from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
+from oryxenai.agents.build_preparation.visual_input import (
+    component_provider_terms,
+    normalize_visual_input,
+)
 
 
 def _unique(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
+
+
+def _component_intent(
+    resource: dict[str, Any], *, route_id: str, scene_ids: list[str], section_ids: list[str]
+) -> ComponentIntent | None:
+    category = str(resource.get("category", "") or "").casefold()
+    if category not in {"component", "visual_component", "registry_component"}:
+        return None
+    raw = resource.get("component_intent")
+    if isinstance(raw, dict):
+        try:
+            return ComponentIntent.model_validate(raw)
+        except ValueError:
+            pass
+    role_id = str(resource.get("interaction_role", "") or resource.get("resource_id", ""))
+    terms = [str(item) for item in resource.get("provider_terms", []) or [] if str(item).strip()]
+    terms = _unique([*terms, *component_provider_terms(role_id)])
+    section_id = str(section_ids[0] if section_ids else resource.get("section_id", "") or "")
+    scene_id = str(scene_ids[0] if scene_ids else resource.get("scene_id", "") or "")
+    return ComponentIntent(
+        role_id=role_id,
+        route_id=route_id,
+        scene_id=scene_id,
+        section_id=section_id,
+        interaction_class=str(resource.get("interaction_class", "") or role_id),
+        interaction_outcome=str(
+            resource.get("interaction_outcome", "")
+            or resource.get("possible_use", "")
+            or resource.get("why_it_matches", "")
+        ),
+        placement=str(resource.get("where_it_may_help", "") or resource.get("placement", "")),
+        purpose=str(resource.get("possible_use", "") or resource.get("purpose", "")),
+        provider_terms=terms,
+        negative_concepts=[
+            str(item) for item in resource.get("negative_concepts", []) or [] if str(item).strip()
+        ],
+        required=bool(resource.get("required_for_handoff", False)),
+        fallback_type="semantic_local",
+        responsive_behavior=str(resource.get("responsive_behavior", "") or ""),
+        reduced_motion_behavior=str(resource.get("reduced_motion_behavior", "") or ""),
+        expected_exports=[
+            str(item) for item in resource.get("expected_exports", []) or [] if str(item).strip()
+        ],
+        prohibitions=[
+            str(item) for item in resource.get("prohibitions", []) or [] if str(item).strip()
+        ],
+    )
 
 
 def _event(
@@ -318,7 +369,11 @@ def compile_stage0(
             ]
         )
         asset_type = str(asset.get("asset_type", "") or "")
-        is_component_role = asset_type.casefold() in {"component", "visual_component"}
+        is_component_role = asset_type.casefold() in {
+            "component",
+            "visual_component",
+            "registry_component",
+        }
         is_image_role = asset_type.casefold() in {
             "image",
             "photo",
@@ -365,8 +420,24 @@ def compile_stage0(
                 "minimum_height": int(asset.get("minimum_height", 0) or 0),
                 "responsive_behavior": asset.get("mobile_treatment", ""),
                 "reduced_motion_behavior": "Render the complete image treatment statically.",
+                "provider_terms": [
+                    str(item) for item in asset.get("provider_terms", []) or [] if str(item).strip()
+                ],
+                "interaction_class": str(asset.get("interaction_class", "") or ""),
+                "interaction_outcome": str(asset.get("interaction_outcome", "") or ""),
             },
         )
+        if is_component_role:
+            result_need = result_need.model_copy(
+                update={
+                    "component_intent": _component_intent(
+                        asset,
+                        route_id=sorted(used_route_ids)[0] if used_route_ids else "",
+                        scene_ids=sorted(used_scene_ids),
+                        section_ids=result_need.section_ids,
+                    )
+                }
+            )
         if not routes or used_route_ids:
             # The need is retained for a single-route harness input even when
             # the sample does not repeat the asset ID on the page object.
@@ -380,6 +451,17 @@ def compile_stage0(
         used_route_ids &= known_route_ids
         if not used_route_ids:
             continue
+        component_intent = _component_intent(
+            resource,
+            route_id=sorted(used_route_ids)[0] if used_route_ids else "",
+            scene_ids=sorted(used_scene_ids),
+            section_ids=_unique(
+                [
+                    str(resource.get("section_id", "") or ""),
+                    *[str(item) for item in resource.get("section_ids", []) or []],
+                ]
+            ),
+        )
         result_needs.append(
             ResourceNeed(
                 need_id=_need_id("resource", resource_id),
@@ -414,13 +496,26 @@ def compile_stage0(
                     "responsive_behavior": resource.get("responsive_behavior", ""),
                     "reduced_motion_behavior": resource.get("reduced_motion_behavior", ""),
                     "required_for_handoff": resource.get("required_for_handoff"),
+                    "provider_terms": [
+                        str(item)
+                        for item in resource.get("provider_terms", []) or []
+                        if str(item).strip()
+                    ],
+                    "negative_concepts": [
+                        str(item)
+                        for item in resource.get("negative_concepts", []) or []
+                        if str(item).strip()
+                    ],
+                    "interaction_class": str(resource.get("interaction_class", "") or ""),
+                    "interaction_outcome": str(resource.get("interaction_outcome", "") or ""),
                 },
                 required_for_handoff=(
                     bool(resource["required_for_handoff"])
                     if isinstance(resource.get("required_for_handoff"), bool)
                     else str(resource.get("category", "") or "").casefold()
-                    in {"visual_component", "component"}
+                    in {"visual_component", "component", "registry_component"}
                 ),
+                component_intent=component_intent,
             )
         )
 
@@ -430,7 +525,9 @@ def compile_stage0(
         if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
     )
     component_need_count = sum(
-        1 for need in result_needs if need.category.casefold() in {"visual_component", "component"}
+        1
+        for need in result_needs
+        if need.category.casefold() in {"visual_component", "component", "registry_component"}
     )
     if routes and editorial_image_budget > image_need_count:
         warnings.append(

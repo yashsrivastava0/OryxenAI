@@ -155,6 +155,50 @@ def test_quality_accepts_allowed_versioned_component_dependencies() -> None:
     assert qualification.eligible is True
 
 
+def test_component_quality_uses_provider_terms_from_typed_intent() -> None:
+    from oryxenai.agents.build_preparation.schemas import ComponentIntent
+
+    need = ResourceNeed(
+        need_id="need-disclosure",
+        kind="resource",
+        source_id="capability-disclosure",
+        category="visual_component",
+        query_terms=["capability grouping"],
+        component_intent=ComponentIntent(
+            role_id="capability-grouping",
+            route_id="home",
+            section_id="capabilities",
+            interaction_class="disclosure",
+            interaction_outcome="Reveal grouped approved capabilities.",
+            provider_terms=["accordion", "collapsible", "disclosure"],
+        ),
+    )
+    candidate = FetchedResource(
+        resource_id="accordion-1",
+        need_id=need.need_id,
+        kind="component",
+        provider="shadcn",
+        provider_asset_id="accordion",
+        title="Accordion",
+        description="Accessible collapsible disclosure groups.",
+        source_files={
+            "accordion.tsx": (
+                "import * as React from 'react';\n"
+                "export function Accordion() { return <div aria-expanded={false} className='accordion' data-state='closed'><button type='button'>Open approved capability groups</button><span>Accessible disclosure content</span></div>; }\n"
+            )
+        },
+        dependencies=["react"],
+        license="MIT",
+        license_reference="https://example.test/license",
+        retrieval_metadata={"provider_terms": ["accordion", "disclosure"]},
+    )
+
+    qualification = qualify_candidates([need], [candidate])[0]
+
+    assert qualification.eligible is True
+    assert qualification.relevance_score >= 70
+
+
 def test_quality_rejects_npm_alias_for_allowed_dependency_name() -> None:
     need = ResourceNeed(
         need_id="need-component",

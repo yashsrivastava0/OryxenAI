@@ -23,9 +23,17 @@ import httpx
 class ComponentRetrievalError(RuntimeError):
     """A component provider returned an unsafe or unavailable result."""
 
-    def __init__(self, message: str, *, provider: str, code: str = "PROVIDER_FAILED") -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: str,
+        code: str = "PROVIDER_FAILED",
+        details: dict[str, Any] | None = None,
+    ) -> None:
         self.provider = provider
         self.code = code
+        self.details = dict(details or {})
         super().__init__(message)
 
 
@@ -197,6 +205,11 @@ async def _get_json(
                     f"{provider} rate limit reached; no alternate transport was attempted.",
                     provider=provider,
                     code="RATE_LIMITED",
+                    details={
+                        "http_status": 429,
+                        "retry_delay": min(2.0**attempt, 4.0),
+                        "rate_limit_event": True,
+                    },
                 )
             if response.status_code >= 500:
                 last_error = f"provider returned HTTP {response.status_code}"
@@ -205,6 +218,7 @@ async def _get_json(
                     f"{provider} rejected the component request.",
                     provider=provider,
                     code=f"HTTP_{response.status_code}",
+                    details={"http_status": response.status_code},
                 )
             else:
                 try:
@@ -217,7 +231,12 @@ async def _get_json(
                     ) from exc
         if attempt < retries:
             await asyncio.sleep(min(2.0**attempt, 4.0))
-    raise ComponentRetrievalError(last_error, provider=provider, code="PROVIDER_UNAVAILABLE")
+    raise ComponentRetrievalError(
+        last_error,
+        provider=provider,
+        code="PROVIDER_UNAVAILABLE",
+        details={"http_status": None, "retry_delay": min(2.0**retries, 4.0)},
+    )
 
 
 class ComponentProvider(Protocol):
@@ -661,6 +680,7 @@ class ComponentRetrievalService:
         self.order = order
         self.calls_made = 0
         self.rate_limit_events = 0
+        self.diagnostics: list[dict[str, Any]] = []
 
     async def discover(
         self,
@@ -670,6 +690,7 @@ class ComponentRetrievalService:
         client: httpx.AsyncClient,
         settings: Any,
         limit: int = 5,
+        diagnostics: list[dict[str, Any]] | None = None,
     ) -> list[ComponentCandidate]:
         allowed = set(allowed_providers)
         result: list[ComponentCandidate] = []
@@ -680,14 +701,35 @@ class ComponentRetrievalService:
             if provider is None:
                 continue
             self.calls_made += 1
+            receipt = {
+                "provider": provider_name,
+                "query": query,
+                "attempt": 1,
+                "cache_state": "not_cached",
+                "kind": "component",
+            }
             try:
-                result.extend(
-                    await provider.discover(query, client=client, settings=settings, limit=limit)
+                found = await provider.discover(
+                    query, client=client, settings=settings, limit=limit
                 )
+                result.extend(found)
+                receipt.update({"http_status": 200, "candidate_count": len(found)})
             except ComponentRetrievalError as exc:
                 if exc.code == "RATE_LIMITED":
                     self.rate_limit_events += 1
-                continue
+                receipt.update(
+                    {
+                        "http_status": exc.details.get("http_status"),
+                        "retry_delay": exc.details.get("retry_delay", 0.0),
+                        "rate_limit_event": exc.code == "RATE_LIMITED",
+                        "candidate_count": 0,
+                        "error_code": exc.code,
+                        "rejection_reason": str(exc),
+                    }
+                )
+            self.diagnostics.append(receipt)
+            if diagnostics is not None:
+                diagnostics.append(dict(receipt))
         return result
 
     async def fetch(
