@@ -264,7 +264,11 @@ class BuildPreparationAgent(Agent):
             else _offline_candidates(query_plan.queries)
         )
         validate_fetched_candidates(candidates, need_ids)
-        qualifications = qualify_candidates(stage0.resource_needs, candidates)
+        qualifications = qualify_candidates(
+            stage0.resource_needs,
+            candidates,
+            source_required=not live_providers,
+        )
         qualified_ids = {item.resource_id for item in qualifications if item.eligible}
         await record(
             _event(
@@ -369,6 +373,64 @@ class BuildPreparationAgent(Agent):
                 "warnings": [*selection_plan.warnings, *forced_warnings],
             }
         )
+
+        # Discovery returns metadata only for live components. Fetch real
+        # source after the closed candidate set has been selected, so weak
+        # candidates do not consume source requests or provider quota.
+        if live_providers:
+            selected_ids = _selected_ids(selection_plan)
+            fetched_candidates: list[FetchedResource] = []
+            fetch_failures: dict[str, str] = {}
+            for candidate in candidates:
+                if candidate.kind == "component" and candidate.resource_id in selected_ids:
+                    try:
+                        candidate = await lookup.fetch_component(candidate)
+                    except Exception as exc:
+                        fetch_failures[candidate.resource_id] = str(exc)
+                fetched_candidates.append(candidate)
+            candidates = fetched_candidates
+            candidate_by_id = {candidate.resource_id: candidate for candidate in candidates}
+            qualifications = qualify_candidates(
+                stage0.resource_needs,
+                candidates,
+                source_required=True,
+            )
+            qualification_by_id = {item.resource_id: item for item in qualifications}
+            post_fetch_selections: list[ResourceSelection] = []
+            for selection in selection_plan.selections:
+                selected = qualification_by_id.get(selection.selected_resource_id or "")
+                if selection.selected_resource_id and (
+                    selection.selected_resource_id in fetch_failures
+                    or selected is None
+                    or not selected.eligible
+                ):
+                    failure = fetch_failures.get(
+                        selection.selected_resource_id,
+                        "; ".join(selected.reasons)
+                        if selected
+                        else "component source was not fetched",
+                    )
+                    post_fetch_selections.append(
+                        selection.model_copy(
+                            update={
+                                "selected_resource_id": None,
+                                "fallback": selection.fallback
+                                or "Implement the approved component intent locally.",
+                                "adaptation_notes": f"Live component retrieval failed: {failure}",
+                            }
+                        )
+                    )
+                    selection_warnings.append(
+                        f"Selected component for need '{selection.need_id}' was not admitted after live source validation."
+                    )
+                else:
+                    post_fetch_selections.append(selection)
+            selection_plan = selection_plan.model_copy(
+                update={
+                    "selections": post_fetch_selections,
+                    "warnings": selection_warnings,
+                }
+            )
         validate_selection_plan(selection_plan, need_ids, candidates)
         await record(
             _event("stage_2_complete", "stage_2", "Resources selected or explicit gaps recorded.")
@@ -673,7 +735,6 @@ class BuildPreparationAgent(Agent):
             )
         await record(_event("phase_3_complete", "phase_3", "Build Preparation Phase 3 completed."))
         provider_calls = int(getattr(lookup, "calls_made", 0)) if live_providers else 0
-        provider_cache_hits = int(getattr(lookup, "cache_hits", 0)) if live_providers else 0
         provider_rate_limit_events = (
             int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
         )
@@ -709,7 +770,6 @@ class BuildPreparationAgent(Agent):
                 "events": [event.model_dump(mode="json") for event in events],
                 "model_calls": model_calls,
                 "provider_calls": provider_calls,
-                "provider_cache_hits": provider_cache_hits,
                 "provider_rate_limit_events": provider_rate_limit_events,
                 "context_packet_hash": context_packet_hash,
                 "model_call_receipts": stages_meta,
@@ -719,7 +779,6 @@ class BuildPreparationAgent(Agent):
                 "stages": stages_meta,
                 "model_calls": model_calls,
                 "provider_calls": provider_calls,
-                "provider_cache_hits": provider_cache_hits,
                 "provider_rate_limit_events": provider_rate_limit_events,
                 "context_packet_hash": context_packet_hash,
                 "model_call_receipts": stages_meta,

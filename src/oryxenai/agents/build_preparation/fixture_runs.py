@@ -255,7 +255,6 @@ def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
         "real_image_count": real_images,
         "real_component_count": real_components,
         "provider_calls": result.get("provider_calls", 0),
-        "provider_cache_hits": result.get("provider_cache_hits", 0),
         "provider_rate_limit_events": result.get("provider_rate_limit_events", 0),
         "model_calls": result.get("model_calls", 0),
         "execution_gap_count": len(materialization.get("execution_gaps", []) or []),

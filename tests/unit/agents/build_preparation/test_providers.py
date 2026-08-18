@@ -100,7 +100,9 @@ async def test_registry_component_lookup_collects_safe_dependency_source() -> No
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        candidates = await search_components(_query("component"), settings, client=client)
+        candidates = await search_components(
+            _query("component"), settings, client=client, fetch_source=True
+        )
 
     assert len(candidates) == 1
     assert candidates[0].source_files["card.tsx"].startswith("export function")
@@ -110,16 +112,16 @@ async def test_registry_component_lookup_collects_safe_dependency_source() -> No
 
 
 @pytest.mark.asyncio
-async def test_provider_lookup_deduplicates_identical_live_queries() -> None:
+async def test_provider_lookup_fetches_identical_live_queries_again() -> None:
     settings = Settings()
     settings.resource_providers.registry_order = ["shadcn"]
-    settings.resource_providers.shadcn_catalog_url = "https://registry.test/cache-catalog.json"
-    settings.resource_providers.shadcn_item_url_template = "https://registry.test/cache-{name}.json"
+    settings.resource_providers.shadcn_catalog_url = "https://registry.test/live-catalog.json"
+    settings.resource_providers.shadcn_item_url_template = "https://registry.test/live-{name}.json"
     requests: list[str] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
         requests.append(str(request.url))
-        if request.url.path.endswith("cache-catalog.json"):
+        if request.url.path.endswith("live-catalog.json"):
             return httpx.Response(
                 200,
                 json={
@@ -156,6 +158,5 @@ async def test_provider_lookup_deduplicates_identical_live_queries() -> None:
         second = await lookup.lookup([query])
 
     assert len(first) == len(second) == 1
-    assert lookup.calls_made == 1
-    assert lookup.cache_hits == 1
-    assert sum("cache-catalog.json" in item for item in requests) == 1
+    assert lookup.calls_made == 2
+    assert sum("live-catalog.json" in item for item in requests) == 2

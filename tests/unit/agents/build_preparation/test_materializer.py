@@ -395,6 +395,11 @@ async def test_resource_plan_makes_later_fetch_an_exclusive_codegen_only_fallbac
         assert entry["later_fetch"]["allowed"] is True
         assert entry["later_fetch"]["phase"] == "code_generation_only"
         assert entry["later_fetch"]["must_replace_not_duplicate"] is True
-        assert entry["later_fetch"]["providers"] == ["shadcn", "magicui"]
+        assert entry["later_fetch"]["providers"] == [
+            "shadcn",
+            "magicui",
+            "smoothui",
+            "cultui",
+        ]
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)

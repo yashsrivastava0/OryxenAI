@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import os
 import re
 import time
@@ -20,6 +19,12 @@ from urllib.parse import urlencode, urlparse
 import httpx
 
 from oryxenai.agents.build_preparation.schemas import FetchedResource, ResourceQuery
+from oryxenai.agents.shared.component_retrieval import (
+    ComponentCandidate,
+    ComponentRetrievalError,
+    ComponentRetrievalService,
+    build_component_retrieval_service,
+)
 from oryxenai.agents.shared.providers.errors import (
     ProviderConnectionError,
     ProviderError,
@@ -48,17 +53,6 @@ class ResourceProviderError(ProviderError):
         )
 
 
-_REGISTRY_LICENSES: dict[str, tuple[str, str]] = {
-    "shadcn": (
-        "MIT",
-        "https://github.com/shadcn-ui/ui/blob/main/LICENSE.md",
-    ),
-    "magicui": (
-        "MIT",
-        "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
-    ),
-}
-_REGISTRY_CATALOG_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _PROVIDER_RATE_STATE: dict[str, dict[str, float]] = {}
 
 
@@ -124,6 +118,7 @@ async def _get(
                     "remaining": 0.0,
                     "reset_at": time.time() + retry_after,
                 }
+                break
             elif response.status_code >= 500:
                 last_error = ProviderServerError(
                     f"{provider} returned a server error", status_code=response.status_code
@@ -386,185 +381,112 @@ def _safe_path(path: str) -> str:
     return normalized
 
 
-async def _registry_item(
-    provider: str,
-    name: str,
-    template: str,
-    settings: Any,
-    client: httpx.AsyncClient,
-    *,
-    seen: set[str] | None = None,
-) -> tuple[dict[str, str], list[str], list[str], str, str]:
-    seen = set() if seen is None else seen
-    if not name or name in seen or len(seen) > 8 or any(char.isspace() for char in name):
-        raise ResourceProviderError(
-            "Registry dependency graph is unsafe", provider=provider, retryable=False
-        )
-    seen.add(name)
-    response = await _get(
-        client,
-        template.format(name=name.lstrip("@")),
-        headers={"Accept": "application/json"},
-        timeout_seconds=settings.build_preparation.network_timeout_seconds,
-        retry_count=settings.build_preparation.network_retry_count,
-        provider=provider,
-    )
-    payload = response.json()
-    if not isinstance(payload, dict) or not isinstance(payload.get("files"), list):
-        raise ResourceProviderError(
-            "Registry item is malformed", provider=provider, retryable=False
-        )
-    files: dict[str, str] = {}
-    for file_item in payload["files"]:
-        if (
-            not isinstance(file_item, dict)
-            or not file_item.get("path")
-            or not file_item.get("content")
-        ):
-            raise ResourceProviderError(
-                "Registry item contains malformed source", provider=provider, retryable=False
-            )
-        files[_safe_path(str(file_item["path"]))] = str(file_item["content"])
-    dependencies = [
-        str(value) for value in payload.get("dependencies", []) if isinstance(value, str)
-    ]
-    registry_dependencies = [
-        str(value) for value in payload.get("registryDependencies", []) if isinstance(value, str)
-    ]
-    for dependency in registry_dependencies:
-        child_name = dependency.rsplit("/", 1)[-1].lstrip("@")
-        child_files, child_deps, _, _, _ = await _registry_item(
-            provider, child_name, template, settings, client, seen=seen
-        )
-        conflicting_paths = {
-            path for path in set(files) & set(child_files) if files[path] != child_files[path]
-        }
-        if conflicting_paths:
-            raise ResourceProviderError(
-                "Registry dependencies contain conflicting source paths",
-                provider=provider,
-                retryable=False,
-            )
-        files.update(child_files)
-        dependencies.extend(child_deps)
-    seen.remove(name)
-    return (
-        files,
-        list(dict.fromkeys(dependencies)),
-        registry_dependencies,
-        str(payload.get("license", "") or ""),
-        str(payload.get("version", payload.get("$schema", "")) or ""),
-    )
-
-
 async def search_components(
     query: ResourceQuery,
     settings: Any,
     *,
     client: httpx.AsyncClient | None = None,
     limit: int = 5,
+    fetch_source: bool = False,
 ) -> list[FetchedResource]:
+    """Discover registry components and optionally fetch their source.
+
+    Build Preparation uses ``fetch_source=False`` for live discovery so the
+    model ranks metadata only.  The selected candidate is then fetched through
+    :func:`fetch_component`; source retrieval is never implicit during discovery.
+    """
     if not getattr(settings.resource_providers, "registries_enabled", True):
         return []
     http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
     result: list[FetchedResource] = []
     try:
-        configured_order = list(
-            getattr(settings.resource_providers, "registry_order", ["shadcn", "magicui"])
+        service = _component_service(settings)
+        candidates = await service.discover(
+            " ".join([query.query, *query.provider_terms]),
+            allowed_providers=query.allowed_providers,
+            client=http,
+            settings=settings,
+            limit=limit,
         )
-        allowed = set(query.allowed_providers)
-        order = [provider for provider in configured_order if not allowed or provider in allowed]
-        for provider in order:
-            enabled = provider == "shadcn" or bool(
-                getattr(settings.resource_providers, f"{provider}_enabled", False)
-            )
-            if not enabled:
-                continue
-            catalog_url = str(
-                getattr(settings.resource_providers, f"{provider}_catalog_url", "") or ""
-            )
-            template = str(
-                getattr(settings.resource_providers, f"{provider}_item_url_template", "") or ""
-            )
-            if not catalog_url or not template:
-                continue
-            try:
-                cache_ttl = max(
-                    0,
-                    int(getattr(settings.build_preparation, "provider_cache_ttl_seconds", 86400)),
-                )
-                cached_catalog = _REGISTRY_CATALOG_CACHE.get(catalog_url)
-                if cached_catalog and time.monotonic() - cached_catalog[0] <= cache_ttl:
-                    items = cached_catalog[1]
-                else:
-                    response = await _get(
-                        http,
-                        catalog_url,
-                        headers={"Accept": "application/json"},
-                        timeout_seconds=settings.build_preparation.network_timeout_seconds,
-                        retry_count=settings.build_preparation.network_retry_count,
-                        provider=provider,
-                    )
-                    payload = response.json()
-                    items = payload.get("items", []) if isinstance(payload, dict) else []
-                    items = [item for item in items if isinstance(item, dict)]
-                    _REGISTRY_CATALOG_CACHE[catalog_url] = (time.monotonic(), items)
-                ranked: list[tuple[int, dict[str, Any]]] = []
-                wanted = _tokens(" ".join([query.query, *query.provider_terms]))
-                for item in items if isinstance(items, list) else []:
-                    if not isinstance(item, dict) or not isinstance(item.get("name"), str):
-                        continue
-                    haystack = " ".join(
-                        str(item.get(key, "")) for key in ("name", "title", "description", "type")
-                    )
-                    score = sum(1 for token in wanted if token in haystack.lower())
-                    if score:
-                        ranked.append((score, item))
-                ranked.sort(key=lambda pair: (-pair[0], str(pair[1].get("name", ""))))
-                for _, item in ranked[:limit]:
-                    name = str(item["name"])
-                    allowed_names = {
-                        str(value)
-                        for value in getattr(
-                            settings.resource_providers, f"{provider}_allowed_components", []
-                        )
-                    }
-                    if allowed_names and name not in allowed_names:
-                        continue
-                    try:
-                        (
-                            files,
-                            dependencies,
-                            registry_dependencies,
-                            license_name,
-                            version,
-                        ) = await _registry_item(provider, name, template, settings, http)
-                    except ResourceProviderError:
-                        continue
-                    result.append(
-                        FetchedResource(
-                            resource_id=_stable_id(provider, f"{query.need_id}:{name}"),
-                            need_id=query.need_id,
-                            kind="component",
-                            provider=provider,
-                            provider_asset_id=name,
-                            source_reference=template.format(name=name.lstrip("@")),
-                            title=str(item.get("title", item.get("description", name)) or name),
-                            description=str(item.get("description", "") or ""),
-                            source_files=files,
-                            dependencies=dependencies,
-                            registry_dependencies=registry_dependencies,
-                            license=license_name or _REGISTRY_LICENSES.get(provider, ("", ""))[0],
-                            license_reference=_REGISTRY_LICENSES.get(provider, ("", ""))[1],
-                            source_version=(
-                                f"{getattr(settings.resource_providers, f'{provider}_release_pin', '')}:{version}"
-                            ).strip(":"),
-                            fallback=query.fallback,
-                        )
-                    )
-            except ResourceProviderError:
-                continue
+        for candidate in candidates:
+            fetched = None
+            if fetch_source:
+                try:
+                    fetched = await service.fetch(candidate, client=http, settings=settings)
+                except ComponentRetrievalError:
+                    continue
+            result.append(_fetched_resource_from_candidate(query, candidate, fetched))
         return result
+    finally:
+        if owns:
+            await http.aclose()
+
+
+def _component_service(settings: Any) -> ComponentRetrievalService:
+    """Build the shared provider set without retaining provider responses."""
+
+    return build_component_retrieval_service(settings)
+
+
+def _fetched_resource_from_candidate(
+    query: ResourceQuery,
+    candidate: ComponentCandidate,
+    fetched: Any | None,
+) -> FetchedResource:
+    return FetchedResource(
+        resource_id=_stable_id(candidate.provider, f"{query.need_id}:{candidate.name}"),
+        need_id=query.need_id,
+        kind="component",
+        provider=candidate.provider,
+        provider_asset_id=candidate.name,
+        source_reference=candidate.item_url,
+        title=candidate.title,
+        description=candidate.description,
+        source_files=dict(fetched.source_files) if fetched is not None else {},
+        dependencies=list(fetched.dependencies if fetched is not None else candidate.dependencies),
+        registry_dependencies=list(
+            fetched.registry_dependencies
+            if fetched is not None
+            else candidate.registry_dependencies
+        ),
+        retrieval_metadata=candidate.as_metadata(),
+        license=(fetched.license if fetched is not None else candidate.license),
+        license_reference=(
+            fetched.license_reference if fetched is not None else candidate.license_reference
+        ),
+        source_version=(
+            fetched.source_version if fetched is not None else candidate.source_version
+        ),
+        fallback=query.fallback,
+    )
+
+
+async def fetch_component(
+    candidate: FetchedResource,
+    settings: Any,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> FetchedResource:
+    """Fetch the selected component source exactly when the caller asks for it."""
+
+    metadata = candidate.retrieval_metadata
+    if not metadata:
+        return candidate
+    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
+    try:
+        service = _component_service(settings)
+        selected = ComponentCandidate.from_metadata(metadata)
+        fetched = await service.fetch(selected, client=http, settings=settings)
+        return candidate.model_copy(
+            update={
+                "source_files": dict(fetched.source_files),
+                "dependencies": list(fetched.dependencies),
+                "registry_dependencies": list(fetched.registry_dependencies),
+                "license": fetched.license,
+                "license_reference": fetched.license_reference,
+                "source_version": fetched.source_version,
+            }
+        )
     finally:
         if owns:
             await http.aclose()
@@ -846,37 +768,21 @@ class ProviderLookup:
     settings: Any
     client: httpx.AsyncClient | None = None
     live: bool = True
-    _cache: dict[str, tuple[float, list[FetchedResource]]] = field(default_factory=dict)
     _blocked_until: dict[str, float] = field(default_factory=dict)
     _request_counts: dict[str, int] = field(default_factory=dict)
     _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
     calls_made: int = field(default=0, init=False)
-    cache_hits: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
         limit = max(1, int(getattr(self.settings.build_preparation, "provider_max_concurrency", 2)))
         self._semaphore = asyncio.Semaphore(limit)
 
-    def _cache_key(self, query: ResourceQuery) -> str:
-        payload = query.model_dump(mode="json")
-        return hashlib.sha256(
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-
     async def _lookup_one(self, query: ResourceQuery) -> list[FetchedResource]:
         now = time.monotonic()
-        key = self._cache_key(query)
-        cached = self._cache.get(key)
-        ttl = max(
-            0, int(getattr(self.settings.build_preparation, "provider_cache_ttl_seconds", 86400))
-        )
-        if cached and now - cached[0] <= ttl:
-            self.cache_hits += 1
-            return list(cached[1])
         provider = {
             "photo": "pexels",
-            "component": "registry",
+            "component": "component",
             "font": "fontsource",
             "icon": "lucide",
         }.get(query.kind, query.kind)
@@ -887,7 +793,10 @@ class ProviderLookup:
             1, int(getattr(self.settings.build_preparation, "provider_max_requests", 32))
         )
         if self._request_counts.get(provider, 0) >= max_requests:
-            self._blocked_until[provider] = now + max(1.0, float(ttl))
+            self._blocked_until[provider] = now + max(
+                1.0,
+                float(getattr(self.settings.build_preparation, "provider_max_wait_seconds", 8.0)),
+            )
             self.rate_limit_events += 1
             return []
         self._request_counts[provider] = self._request_counts.get(provider, 0) + 1
@@ -911,13 +820,17 @@ class ProviderLookup:
                     except ResourceProviderError:
                         found = []
             elif query.kind == "component":
-                found = await search_components(query, self.settings, client=self.client)
+                found = await search_components(
+                    query, self.settings, client=self.client, fetch_source=False
+                )
             elif query.kind == "icon":
                 found = await resolve_icon(query, self.settings, client=self.client)
             elif query.kind == "font":
                 found = await search_fontsource(query, self.settings, client=self.client)
-        self._cache[key] = (time.monotonic(), list(found))
         return found
+
+    async def fetch_component(self, candidate: FetchedResource) -> FetchedResource:
+        return await fetch_component(candidate, self.settings, client=self.client)
 
     async def lookup(self, queries: list[ResourceQuery]) -> list[FetchedResource]:
         if not self.live:
