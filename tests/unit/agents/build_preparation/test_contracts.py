@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from oryxenai.agents.build_preparation.agent import _normalize_selection_ids
 from oryxenai.agents.build_preparation.contracts import (
     PACK_VERSION,
     PackContractError,
@@ -87,6 +88,35 @@ def test_selection_alternates_must_be_returned_and_distinct_from_primary() -> No
         )
 
 
+def test_model_selection_ids_are_discarded_when_not_in_provider_closed_set() -> None:
+    plan, warnings = _normalize_selection_ids(
+        Stage2SelectionPlan(
+            selections=[
+                ResourceSelection(
+                    need_id="need-1",
+                    selected_resource_id="invented-resource",
+                    alternate_resource_ids=["also-invented", "candidate-1"],
+                )
+            ]
+        ),
+        [
+            FetchedResource(
+                resource_id="candidate-1",
+                need_id="need-1",
+                kind="component",
+                provider="shadcn",
+            )
+        ],
+        [ResourceNeed(need_id="need-1", kind="resource", source_id="component")],
+    )
+
+    selection = plan.selections[0]
+    assert selection.selected_resource_id is None
+    assert selection.alternate_resource_ids == ["candidate-1"]
+    assert selection.fallback
+    assert any("invented-resource" in warning for warning in warnings)
+
+
 def test_required_visual_without_real_material_is_an_execution_gap() -> None:
     need = ResourceNeed(
         need_id="need-image",
@@ -112,6 +142,22 @@ def test_required_visual_without_real_material_is_an_execution_gap() -> None:
         for slot in slots
     )
     assert contract["execution_gaps"][0]["code"] == "VDD_EXECUTION_GAP"
+
+
+def test_component_target_is_advisory_and_never_creates_quota_gaps() -> None:
+    contract, recipes, slots, gaps = compile_execution_contract(
+        routes=[RouteScope(route_id="home", path="/")],
+        needs=[],
+        materialized_resources=[],
+        site={"routes": [{"route_id": "home", "section_sequence": []}]},
+        visual={"global": {"resource_policy": {"component_target_count": 4}}},
+        target={"allowed_dependencies": []},
+    )
+
+    assert recipes
+    assert slots
+    assert gaps == []
+    assert contract["execution_gaps"] == []
 
 
 def _approved_content() -> dict[str, object]:

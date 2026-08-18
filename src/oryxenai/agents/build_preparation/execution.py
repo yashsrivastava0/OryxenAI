@@ -317,17 +317,12 @@ def compile_execution_contract(
     if isinstance(declared_policy, dict):
         visual_policy = {**visual_policy, **declared_policy}
     image_target = max(0, int(visual_policy.get("image_target_count", 0) or 0))
-    component_target = max(0, int(visual_policy.get("component_target_count", 0) or 0))
     require_real_visuals = bool(visual_policy.get("require_real_local_material", True))
     image_count = sum(
         1
         for need in needs
         if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
     )
-    component_count = sum(
-        1 for need in needs if need.category.casefold() in {"component", "visual_component"}
-    )
-
     def add_policy_gaps(category: str, target_count: int, actual_count: int, label: str) -> None:
         if not require_real_visuals or actual_count >= target_count or not routes:
             return
@@ -370,7 +365,6 @@ def compile_execution_contract(
             )
 
     add_policy_gaps("editorial_photo", image_target, image_count, "image")
-    add_policy_gaps("visual_component", component_target, component_count, "component")
 
     # Sparse but structurally valid visual direction still needs a concrete
     # implementation baseline.  These are constrained, derived mechanics,
