@@ -1,11 +1,15 @@
 # Build Preparation Agent
 
 Build Preparation is the fourth explicit pipeline stage. Stage 0 deterministically
-compiles approved Content Architect and Visual Design Director projections into
-public route scope and resource needs. Phase 2 then runs a bounded workflow:
+compiles approved Content Architect content and the Visual Design Director
+projection into public route scope and resource needs. When VDD is absent or
+incomplete, Build Preparation records a hash-stamped, presentation-only visual
+assumption layer derived from approved route sections; it never invents
+portfolio facts, evidence, people, employers, metrics, or private media. Phase 2
+then runs a bounded workflow:
 
 1. compose one provider query per deterministic need, including the configured
-   image and component roles from the approved Visual Design Director output;
+   image and component roles from the normalized visual input;
 2. search Pexels for photos, resolve Fontsource fonts, and discover registry
    component metadata through bounded provider clients;
 3. select only from the returned closed candidate set, fetch the selected
@@ -19,8 +23,9 @@ public route scope and resource needs. Phase 2 then runs a bounded workflow:
    plan, and a resources manifest.
 
 Before packaging, the agent writes `handoff-report.json`. Code Generator may
-consume a pack only when `handoff_eligible` is true, which requires both
-approved upstream hashes. Detached or unapproved fixture packages remain
+consume a pack only when `handoff_eligible` is true, which requires approved
+Content Architect content plus either approved VDD provenance or recorded
+Build Preparation assumption provenance. Detached or unapproved fixture packages remain
 downloadable for review but are never production-eligible. A selected Pexels
 image is locally materialized and pixel-inspected, and a selected registry
 component is copied as importable source. Provider failure, an offline run, a
@@ -86,7 +91,7 @@ NOT_STARTED -> RUNNING -> READY
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/v1/sessions/{id}/build-preparation` | State, jobs, and staleness |
-| POST | `/api/v1/sessions/{id}/build-preparation/start` | Start from approved CA + VDD |
+| POST | `/api/v1/sessions/{id}/build-preparation/start` | Start from approved CA and approved, partial, or absent VDD |
 | POST | `/api/v1/sessions/{id}/build-preparation/regenerate` | Re-run from current approved upstream |
 
 The state is stored under `portfolio_sessions.current_state["build_preparation"]`.
@@ -97,7 +102,7 @@ result, so stale work cannot overwrite newer approved state.
 
 When the development UI and Build Preparation fixture flag are enabled:
 
-- `/build-preparation-fixture` accepts pasted or uploaded Visual Design Director JSON and an optional approved Content Architect JSON projection; leaving the latter blank preserves the VDD-only harness behavior;
+- `/build-preparation-fixture` accepts pasted or uploaded Visual Design Director JSON and an approved Content Architect JSON projection; a missing or partial VDD is normalized from the approved CA projection;
 - `/build-preparation-fixture/progress` shows every stage event and the full JSON;
 - `POST /api/v1/build-preparation/fixture/run` runs the same Stage 0 → Phase 3
   pipeline without a session, approval state, or database write.

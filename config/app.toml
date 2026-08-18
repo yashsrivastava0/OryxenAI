@@ -137,6 +137,7 @@ provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
 provider_max_requests = 32
 require_live_visual_resources = true
+auto_derive_visual_resources = true
 
 [code_generator_development]
 # Standalone Phase 1 developer workflow. It has no portfolio-session coupling.

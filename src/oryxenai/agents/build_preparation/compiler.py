@@ -19,6 +19,7 @@ from oryxenai.agents.build_preparation.validators import (
     validate_stage0_result,
     validate_visual_input,
 )
+from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -61,6 +62,11 @@ def _projection_hash(
             "pages": visual_design_director.get("pages", []),
             "asset_briefs": visual_design_director.get("asset_briefs", []),
             "resource_candidates": visual_design_director.get("resource_candidates", []),
+            "visual_language": visual_design_director.get("visual_language", {}),
+            "resource_policy": visual_design_director.get("resource_policy", {}),
+            "visual_input_mode": visual_design_director.get("visual_input_mode", ""),
+            "assumption_hash": visual_design_director.get("assumption_hash", ""),
+            "assumptions": visual_design_director.get("assumptions", []),
         },
     }
     encoded = json.dumps(projection, sort_keys=True, separators=(",", ":"), default=str)
@@ -78,6 +84,33 @@ def build_source_ref(
     approved_ca = (content_architect or {}).get("approved") or {}
     approved_vdd = visual_design_director.get("approved") or {}
     visual_source_ref = visual_design_director.get("source_ref") or {}
+    visual_input_mode = str(
+        visual_design_director.get("visual_input_mode", "")
+        or ("approved_vdd" if approved_vdd.get("visual_direction_hash") else "assumed_from_content")
+    )
+    assumption_hash = str(visual_design_director.get("assumption_hash", "") or "")
+    assumptions = [
+        str(item)
+        for item in visual_design_director.get("assumptions", []) or []
+        if str(item).strip()
+    ]
+    producer_provenance_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "content_architect_content_hash": str(
+                    approved_ca.get("content_hash", "")
+                    or visual_source_ref.get("content_architect_content_hash", "")
+                    or ""
+                ),
+                "visual_design_director_direction_hash": str(
+                    approved_vdd.get("visual_direction_hash", "") or ""
+                ),
+                "assumption_hash": assumption_hash,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     return BuildPreparationSourceRef(
         content_architect_content_hash=str(
             approved_ca.get("content_hash", "")
@@ -88,6 +121,10 @@ def build_source_ref(
             approved_vdd.get("visual_direction_hash", "") or ""
         ),
         input_projection_hash=_projection_hash(content_architect, visual_design_director),
+        visual_input_mode=visual_input_mode,  # type: ignore[arg-type]
+        assumption_hash=assumption_hash,
+        assumptions=assumptions,
+        producer_provenance_hash=producer_provenance_hash,
         content_architect_session_revision=(
             content_architect_session_revision
             or int(visual_source_ref.get("content_architect_session_revision", 0) or 0)
@@ -129,8 +166,30 @@ def compile_stage0(
     max_routes: int = 12,
     editorial_image_budget: int = 5,
     visual_component_budget: int = 4,
+    editorial_image_maximum: int = 6,
+    visual_component_maximum: int = 6,
+    auto_derive_visual_resources: bool = True,
 ) -> Stage0Result:
     """Compile public route scope and resource needs without I/O."""
+    normalized = normalize_visual_input(
+        content_architect,
+        visual_design_director,
+        image_target=editorial_image_budget,
+        image_maximum=editorial_image_maximum,
+        component_target=visual_component_budget,
+        component_maximum=visual_component_maximum,
+        enabled=auto_derive_visual_resources,
+    )
+    visual_design_director = normalized.visual
+    visual_policy = visual_design_director.get("resource_policy")
+    if not isinstance(visual_policy, dict):
+        visual_policy = {}
+    editorial_image_budget = int(
+        visual_policy.get("image_target_count", editorial_image_budget) or 0
+    )
+    visual_component_budget = int(
+        visual_policy.get("component_target_count", visual_component_budget) or 0
+    )
     validate_visual_input(visual_design_director)
     pages = visual_design_director.get("pages") or []
     assets = {
@@ -225,6 +284,11 @@ def compile_stage0(
                 ),
                 purpose=str(canonical_route.get("purpose", page.get("purpose", "")) or ""),
                 publication_status=publication_status,
+                section_ids=[
+                    str(item)
+                    for item in canonical_route.get("section_sequence", []) or []
+                    if str(item)
+                ],
                 scene_ids=_unique(scene_ids),
                 asset_ids=_unique(asset_ids),
                 resource_ids=_unique(resource_ids),
@@ -250,6 +314,7 @@ def compile_stage0(
                 str(asset.get("mood", "") or ""),
                 str(asset.get("aspect_ratio_need", "") or ""),
                 str(asset.get("asset_type", "") or ""),
+                str(asset.get("composition_role", "") or ""),
             ]
         )
         asset_type = str(asset.get("asset_type", "") or "")
@@ -268,6 +333,12 @@ def compile_stage0(
             purpose=str(asset.get("purpose", "") or ""),
             route_ids=sorted(used_route_ids),
             scene_ids=sorted(used_scene_ids),
+            section_ids=_unique(
+                [
+                    str(asset.get("section_id", "") or ""),
+                    *[str(item) for item in asset.get("section_ids", []) or []],
+                ]
+            ),
             source_status=str(asset.get("source_status", "") or ""),
             source_policy=source_policy,
             importance=str(asset.get("importance", "") or ""),
@@ -279,6 +350,21 @@ def compile_stage0(
                 "focal_point": asset.get("focal_point", ""),
                 "alt_text_intent": asset.get("alt_text_intent", ""),
                 "expected_exports": asset.get("expected_exports", []),
+                "placement": asset.get("placement", "") or asset.get("composition_role", ""),
+                "style_mood": asset.get("mood", ""),
+                "theme_colors": [
+                    str(item) for item in asset.get("theme_colors", []) or [] if str(item).strip()
+                ],
+                "negative_concepts": [
+                    str(item)
+                    for item in asset.get("negative_concepts", []) or []
+                    if str(item).strip()
+                ],
+                "aspect_ratio": asset.get("aspect_ratio_need", ""),
+                "minimum_width": int(asset.get("minimum_width", 0) or 0),
+                "minimum_height": int(asset.get("minimum_height", 0) or 0),
+                "responsive_behavior": asset.get("mobile_treatment", ""),
+                "reduced_motion_behavior": "Render the complete image treatment statically.",
             },
         )
         if not routes or used_route_ids:
@@ -305,6 +391,12 @@ def compile_stage0(
                 ),
                 route_ids=sorted(used_route_ids),
                 scene_ids=sorted(used_scene_ids),
+                section_ids=_unique(
+                    [
+                        str(resource.get("section_id", "") or ""),
+                        *[str(item) for item in resource.get("section_ids", []) or []],
+                    ]
+                ),
                 importance=str(resource.get("priority", "") or ""),
                 query_terms=_unique(
                     [
@@ -317,9 +409,16 @@ def compile_stage0(
                 details={
                     "adaptation_notes": resource.get("adaptation_notes", ""),
                     "lookup_status": resource.get("lookup_status", ""),
+                    "placement": resource.get("where_it_may_help", ""),
+                    "interaction_role": resource.get("interaction_role", ""),
+                    "responsive_behavior": resource.get("responsive_behavior", ""),
+                    "reduced_motion_behavior": resource.get("reduced_motion_behavior", ""),
+                    "required_for_handoff": resource.get("required_for_handoff"),
                 },
                 required_for_handoff=(
-                    str(resource.get("category", "") or "").casefold()
+                    bool(resource["required_for_handoff"])
+                    if isinstance(resource.get("required_for_handoff"), bool)
+                    else str(resource.get("category", "") or "").casefold()
                     in {"visual_component", "component"}
                 ),
             )
@@ -385,6 +484,13 @@ def compile_stage0(
                 "route_count": len(routes),
                 "resource_need_count": len(result_needs),
                 "dropped_routes": dropped_routes,
+                "visual_input_mode": normalized.mode,
+                "assumption_hash": normalized.assumption_hash,
+                "assumptions": list(normalized.assumptions),
+                "resource_targets": {
+                    "image_target": editorial_image_budget,
+                    "component_target": visual_component_budget,
+                },
             },
         )
     )
@@ -412,6 +518,17 @@ def compile_stage0(
     result = Stage0Result(
         scope_hash=scope_hash,
         source_ref=source_ref or build_source_ref(content_architect, visual_design_director),
+        visual_input_mode=normalized.mode,  # type: ignore[arg-type]
+        assumption_hash=normalized.assumption_hash,
+        assumptions=list(normalized.assumptions),
+        resource_targets={
+            "image_target": min(
+                max(0, editorial_image_budget), min(6, max(0, editorial_image_maximum))
+            ),
+            "component_target": min(
+                max(0, visual_component_budget), min(6, max(0, visual_component_maximum))
+            ),
+        },
         routes=routes,
         resource_needs=result_needs,
         warnings=warnings,

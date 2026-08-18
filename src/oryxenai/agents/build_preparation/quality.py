@@ -57,8 +57,13 @@ _PROHIBITED_IMAGE_TERMS = frozenset(
 def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = None) -> Any:
     """Keep model query intent inside the fixed visual and provider policy."""
     by_id = {need.need_id: need for need in needs}
-    image_providers = ["pexels", "pixabay"]
     image_config = getattr(settings, "image_retrieval", None)
+    image_providers = list(getattr(image_config, "provider_order", ["pexels", "pixabay"]))
+    image_providers = [
+        provider for provider in image_providers if provider in {"pexels", "pixabay", "unsplash"}
+    ]
+    if not image_providers:
+        image_providers = ["pexels", "pixabay"]
     if (
         image_config is not None
         and bool(getattr(image_config, "unsplash_enabled", False))
@@ -104,11 +109,23 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
             }
         )
         if need.category.casefold() == "visual_component":
+            configured_registry_order = list(
+                getattr(
+                    getattr(settings, "resource_providers", None),
+                    "registry_order",
+                    ["shadcn", "magicui", "smoothui", "cultui"],
+                )
+            )
+            configured_registry_order = [
+                provider
+                for provider in configured_registry_order
+                if provider in {"shadcn", "magicui", "smoothui", "cultui"}
+            ]
             registry_order = [
                 str(value)
                 for value in getattr(query, "allowed_providers", [])
-                if str(value) in {"shadcn", "magicui", "smoothui", "cultui"}
-            ] or ["shadcn", "magicui", "smoothui", "cultui"]
+                if str(value) in configured_registry_order
+            ] or configured_registry_order
             queries.append(
                 query.model_copy(
                     update={
@@ -389,6 +406,14 @@ def build_handoff_report(
     selections: list[ResourceSelection],
     qualifications: list[CandidateQualification],
     materialization: MaterializationResult,
+    visual_input_mode: str = "approved_vdd",
+    assumption_hash: str = "",
+    image_target: int = 0,
+    component_target: int = 0,
+    provider_calls: int = 0,
+    cache_hits: int = 0,
+    rate_limit_events: int = 0,
+    deferred_optional_roles: list[str] | None = None,
 ) -> HandoffQualityReport:
     """Apply the final non-bypassable Code Generator admission gate."""
     selected_ids = {
@@ -414,7 +439,14 @@ def build_handoff_report(
     issues: list[HandoffIssue] = []
     approval_verified = bool(
         source_ref.content_architect_content_hash
-        and source_ref.visual_design_director_direction_hash
+        and (
+            source_ref.visual_design_director_direction_hash
+            or (
+                source_ref.visual_input_mode in {"assumed_from_content", "merged_vdd_assumptions"}
+                and source_ref.assumption_hash
+                and source_ref.producer_provenance_hash
+            )
+        )
     )
     if not approval_verified:
         issues.append(
@@ -422,7 +454,7 @@ def build_handoff_report(
                 code="UPSTREAM_APPROVAL_UNVERIFIED",
                 message=(
                     "The package does not contain both approved Content Architect and Visual "
-                    "Design Director hashes, so it is review-only and cannot be handed to Code Generator."
+                    "Design Director approval or Build Preparation assumption provenance, so it is review-only and cannot be handed to Code Generator."
                 ),
                 next_action=(
                     "Approve both upstream stages and regenerate through the production session flow, "
@@ -465,6 +497,21 @@ def build_handoff_report(
                 )
             )
     required_ids = [need.need_id for need in needs if need.required_for_handoff]
+    image_need_ids = {
+        need.need_id
+        for need in needs
+        if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
+    }
+    component_need_ids = {
+        need.need_id
+        for need in needs
+        if need.category.casefold() in {"component", "visual_component", "registry_component"}
+    }
+    materialized_by_need = {
+        str(entry.get("need_id", "")): entry
+        for entry in materialization.resources
+        if isinstance(entry, dict)
+    }
     for need in needs:
         selected_resource = materialized_by_id.get(selected_ids.get(need.need_id, ""), {})
         if (
@@ -544,7 +591,9 @@ def build_handoff_report(
                     next_action="Regenerate Build Preparation after correcting the execution compiler.",
                 )
             )
-        missing_needs = sorted({need.source_id for need in needs} - known_need_slots)
+        missing_needs = sorted(
+            {need.source_id for need in needs if need.required_for_handoff} - known_need_slots
+        )
         if missing_needs:
             issues.append(
                 HandoffIssue(
@@ -611,6 +660,67 @@ def build_handoff_report(
                         next_action="Use an approved source with a recorded licence before handoff.",
                     )
                 )
+        seen_hashes: dict[str, str] = {}
+        for resource in materialization.resources:
+            if not isinstance(resource, dict):
+                continue
+            content_hash = str(resource.get("content_hash", "") or "")
+            if not content_hash:
+                continue
+            previous = seen_hashes.get(content_hash)
+            if previous and previous != str(resource.get("id", "")):
+                issues.append(
+                    HandoffIssue(
+                        code="DUPLICATE_IMAGE_MATERIAL",
+                        message="Two image roles resolve to the same local content hash.",
+                        next_action="Select distinct provider assets or revise the visual roles before handoff.",
+                    )
+                )
+            seen_hashes[content_hash] = str(resource.get("id", ""))
+        for resource in materialization.resources:
+            if not isinstance(resource, dict):
+                continue
+            local_values = [
+                str(resource.get("local_path", "") or ""),
+                str(resource.get("local_directory", "") or ""),
+            ]
+            if any(value.startswith(("http://", "https://")) for value in local_values):
+                issues.append(
+                    HandoffIssue(
+                        code="REMOTE_RUNTIME_ASSET",
+                        message="A resource usage contract points at a remote runtime asset.",
+                        next_action="Materialize the selected bytes/source into the pack before handoff.",
+                    )
+                )
+    handoff_summary = {
+        "image_target": int(image_target),
+        "image_materialized": sum(
+            1
+            for need_id in image_need_ids
+            if str(materialized_by_need.get(need_id, {}).get("disposition", "")) == "local_file"
+        ),
+        "component_target": int(component_target),
+        "component_materialized": sum(
+            1
+            for need_id in component_need_ids
+            if str(materialized_by_need.get(need_id, {}).get("disposition", ""))
+            in {"adaptable_source", "local_file"}
+        ),
+        "font_materialized": sum(
+            1
+            for entry in materialization.resources
+            if isinstance(entry, dict)
+            and entry.get("kind") == "font"
+            and entry.get("disposition") == "local_file"
+        ),
+        "provider_calls": int(provider_calls),
+        "cache_hits": int(cache_hits),
+        "rate_limit_events": int(rate_limit_events),
+        "deferred_optional_roles": list(deferred_optional_roles or []),
+        "execution_gaps": len(materialization.execution_gaps),
+        "visual_input_mode": visual_input_mode,
+        "assumption_hash": assumption_hash,
+    }
     eligible = not issues
     return HandoffQualityReport(
         projection_hashes=dict(materialization.projection_hashes),
@@ -629,4 +739,5 @@ def build_handoff_report(
         materialized_resource_ids=sorted(materialized),
         qualifications=qualifications,
         issues=issues,
+        handoff_summary=handoff_summary,
     )
