@@ -77,6 +77,7 @@ class ImageCandidate(BaseModel):
     license_reference: str = ""
     popularity: float = 0.0
     editorial: bool = False
+    ai_generated: bool = False
     provider_rank: int = 0
     query: str = ""
     download_tracking_url: str = ""
@@ -109,6 +110,16 @@ def _provider_key(settings: Any, name: str, fallback: str) -> str:
     providers = getattr(settings, "resource_providers", None)
     env_name = str(getattr(providers, name, fallback) or fallback)
     return os.environ.get(env_name, "")
+
+
+def _provider_key_configured(settings: Any, provider: str) -> bool:
+    if provider == "pexels":
+        return bool(_provider_key(settings, "pexels_api_key_env", "PEXELS_API_KEY"))
+    if provider == "pixabay":
+        return bool(_provider_key(settings, "pixabay_api_key_env", "PIXABAY_API_KEY"))
+    if provider == "unsplash":
+        return bool(_provider_key(settings, "unsplash_access_key_env", "UNSPLASH_ACCESS_KEY"))
+    return True
 
 
 def _tokens(value: str | Iterable[str]) -> set[str]:
@@ -245,13 +256,17 @@ class ImageSearchCache:
             if float(payload.get("expires_at", 0)) <= time.time():
                 return None
             value = payload.get("candidates", [])
-            return value if isinstance(value, list) else None
+            # Empty responses are not durable retrieval evidence. Treat old
+            # empty cache files as misses too.
+            return value if isinstance(value, list) and value else None
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return None
 
     def put(
         self, provider: str, query: str, filters: dict[str, Any], candidates: list[dict[str, Any]]
     ) -> None:
+        if not candidates:
+            return
         path = self._path(provider, query, filters)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(
@@ -311,6 +326,7 @@ async def _get(
     settings: Any,
     headers: dict[str, str] | None = None,
     params: dict[str, Any] | None = None,
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> httpx.Response:
     retries = max(0, int(_value(settings, "retry_count", 2)))
     timeout = float(_value(settings, "timeout_seconds", 15.0))
@@ -323,6 +339,15 @@ async def _get(
                 url, headers=headers, params=params, timeout=timeout, follow_redirects=True
             )
             if response.status_code < 400:
+                if diagnostics is not None:
+                    diagnostics.append(
+                        {
+                            "provider": provider,
+                            "attempt": attempt + 1,
+                            "http_status": response.status_code,
+                            "retry_delay": 0.0,
+                        }
+                    )
                 _record_headers(provider, response)
                 return response
             if response.status_code not in {429, 500, 502, 503, 504}:
@@ -337,10 +362,29 @@ async def _get(
             if response.status_code == 429:
                 _RATE_STATE[provider] = {"remaining": 0.0, "reset_at": time.time() + delay}
             last = ImageDownloadError(f"{provider} returned HTTP {response.status_code}")
+            if diagnostics is not None:
+                diagnostics.append(
+                    {
+                        "provider": provider,
+                        "attempt": attempt + 1,
+                        "http_status": response.status_code,
+                        "retry_delay": delay,
+                    }
+                )
             if attempt < retries:
                 await asyncio.sleep(delay)
         except (httpx.HTTPError, TimeoutError) as exc:
             last = exc
+            if diagnostics is not None:
+                diagnostics.append(
+                    {
+                        "provider": provider,
+                        "attempt": attempt + 1,
+                        "http_status": None,
+                        "retry_delay": 0.0,
+                        "error": type(exc).__name__,
+                    }
+                )
             if attempt < retries:
                 await asyncio.sleep(0)
     raise ImageDownloadError(str(last or f"{provider} request failed"))
@@ -356,6 +400,13 @@ def _filters(intent: ImageSearchIntent) -> dict[str, Any]:
         "category": intent.category,
         "colors": intent.colors,
         "editors_choice": intent.editors_choice,
+        "provider_minimum_size": (
+            "large"
+            if max(intent.minimum_width, intent.minimum_height) >= 2000
+            else "medium"
+            if max(intent.minimum_width, intent.minimum_height) >= 1000
+            else ""
+        ),
     }
     return {key: value for key, value in filters.items() if value not in ("", 0, None)}
 
@@ -414,6 +465,8 @@ def _pexels_candidate(photo: dict[str, Any], query: str, rank: int) -> ImageCand
 
 
 def _pixabay_candidate(hit: dict[str, Any], query: str, rank: int) -> ImageCandidate | None:
+    if bool(hit.get("isAiGenerated", False)):
+        return None
     asset_id = str(hit.get("id", "") or "")
     image_url = str(
         hit.get("imageURL")
@@ -442,7 +495,8 @@ def _pixabay_candidate(hit: dict[str, Any], query: str, rank: int) -> ImageCandi
         license="Pixabay Content License",
         license_reference="https://pixabay.com/service/license-summary/",
         popularity=float(hit.get("likes", 0) or 0) + float(hit.get("downloads", 0) or 0) / 10,
-        editorial=bool(hit.get("isAiGenerated", False) is False),
+        editorial=True,
+        ai_generated=False,
         provider_rank=rank,
         query=query,
     )
@@ -455,6 +509,7 @@ async def _search_provider(
     settings: Any,
     client: httpx.AsyncClient,
     limit: int,
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> list[ImageCandidate]:
     filters = _filters(intent)
     cache = ImageSearchCache(
@@ -464,14 +519,46 @@ async def _search_provider(
     normalized_query = " ".join(query.casefold().split())
     cached = cache.get(provider, normalized_query, filters)
     if cached is not None:
+        if diagnostics is not None:
+            diagnostics.append(
+                {
+                    "provider": provider,
+                    "query": query,
+                    "attempt": 0,
+                    "http_status": None,
+                    "retry_delay": 0.0,
+                    "cache_state": "hit",
+                    "configured_key": _provider_key_configured(settings, provider),
+                    "candidate_count": len(cached),
+                }
+            )
         return [ImageCandidate.model_validate(item) for item in cached]
     if provider == "pexels":
         key = _provider_key(settings, "pexels_api_key_env", "PEXELS_API_KEY")
         if not key:
+            if diagnostics is not None:
+                diagnostics.append(
+                    {
+                        "provider": provider,
+                        "query": query,
+                        "attempt": 0,
+                        "http_status": None,
+                        "retry_delay": 0.0,
+                        "cache_state": "miss",
+                        "configured_key": False,
+                        "candidate_count": 0,
+                    }
+                )
             return []
         params: dict[str, Any] = {"query": query[:180], "per_page": min(max(limit, 1), 20)}
         if intent.orientation in {"landscape", "portrait", "square"}:
             params["orientation"] = intent.orientation
+        if max(intent.minimum_width, intent.minimum_height) >= 2000:
+            params["size"] = "large"
+        elif max(intent.minimum_width, intent.minimum_height) >= 1000:
+            params["size"] = "medium"
+        if intent.colors:
+            params["color"] = intent.colors[0]
         response = await _get(
             client,
             "https://api.pexels.com/v1/search",
@@ -479,6 +566,7 @@ async def _search_provider(
             settings=settings,
             headers={"Authorization": key, "Accept": "application/json"},
             params=params,
+            diagnostics=diagnostics,
         )
         payload = response.json()
         raw = payload.get("photos", []) if isinstance(payload, dict) else []
@@ -491,6 +579,19 @@ async def _search_provider(
     elif provider == "pixabay":
         key = _provider_key(settings, "pixabay_api_key_env", "PIXABAY_API_KEY")
         if not key:
+            if diagnostics is not None:
+                diagnostics.append(
+                    {
+                        "provider": provider,
+                        "query": query,
+                        "attempt": 0,
+                        "http_status": None,
+                        "retry_delay": 0.0,
+                        "cache_state": "miss",
+                        "configured_key": False,
+                        "candidate_count": 0,
+                    }
+                )
             return []
         params = _pixabay_params(intent, query, limit)
         params["key"] = key
@@ -501,6 +602,7 @@ async def _search_provider(
             settings=settings,
             headers={"Accept": "application/json"},
             params=params,
+            diagnostics=diagnostics,
         )
         payload = response.json()
         raw = payload.get("hits", []) if isinstance(payload, dict) else []
@@ -525,6 +627,7 @@ async def _search_provider(
             settings=settings,
             headers={"Authorization": f"Client-ID {key}", "Accept": "application/json"},
             params={"query": query[:180], "per_page": min(max(limit, 1), 5)},
+            diagnostics=diagnostics,
         )
         payload = response.json()
         candidates = []
@@ -572,6 +675,19 @@ async def _search_provider(
         filters,
         [item.model_dump(mode="json") for item in candidates],
     )
+    if diagnostics is not None:
+        diagnostics.append(
+            {
+                "provider": provider,
+                "query": query,
+                "attempt": 1,
+                "http_status": 200,
+                "retry_delay": 0.0,
+                "cache_state": "miss",
+                "configured_key": True,
+                "candidate_count": len(candidates),
+            }
+        )
     return candidates
 
 
@@ -631,6 +747,7 @@ async def search_images(
     providers: Iterable[str] | None = None,
     client: httpx.AsyncClient | None = None,
     limit: int | None = None,
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> list[ImageCandidate]:
     """Search a bounded provider set and return deterministic ranked metadata."""
 
@@ -652,7 +769,13 @@ async def search_images(
                     try:
                         found.extend(
                             await _search_provider(
-                                provider, intent, query, settings, http, candidate_limit
+                                provider,
+                                intent,
+                                query,
+                                settings,
+                                http,
+                                candidate_limit,
+                                diagnostics,
                             )
                         )
                     except (ImageDownloadError, ValueError, httpx.HTTPError):
@@ -661,7 +784,13 @@ async def search_images(
                 for provider in configured:
                     try:
                         batch = await _search_provider(
-                            provider, intent, query, settings, http, candidate_limit
+                            provider,
+                            intent,
+                            query,
+                            settings,
+                            http,
+                            candidate_limit,
+                            diagnostics,
                         )
                     except (ImageDownloadError, ValueError, httpx.HTTPError):
                         batch = []

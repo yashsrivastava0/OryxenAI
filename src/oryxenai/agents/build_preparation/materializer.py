@@ -642,6 +642,34 @@ async def materialize_build_context(
             "required_for_handoff": bool(need.required_for_handoff) if need else False,
             "placement": str(need.details.get("placement", "")) if need else "",
             "disposition": "selected_not_materialized",
+            "usage_contract": {
+                "route_ids": list(need.route_ids) if need else [],
+                "scene_ids": list(need.scene_ids) if need else [],
+                "section_ids": list(need.section_ids) if need else [],
+                "placement": str(need.details.get("placement", "")) if need else "",
+                "responsive_behavior": str(need.details.get("responsive_behavior", "") or "")
+                if need
+                else "",
+                "alt_or_decorative_treatment": (
+                    "decorative; use empty alt unless the final approved composition gives it meaning"
+                    if candidate.kind == "photo"
+                    else "preserve semantic labels and keyboard/focus behavior"
+                ),
+                "attribution": {
+                    "source_reference": candidate.source_reference,
+                    "attribution_url": candidate.attribution_url,
+                    "license": candidate.license,
+                    "license_reference": candidate.license_reference,
+                },
+                "dependencies": list(candidate.dependencies),
+                "reduced_motion_behavior": str(
+                    need.details.get("reduced_motion_behavior", "") or "static equivalent"
+                )
+                if need
+                else "static equivalent",
+                "fallback": selection.fallback or (need.fallback if need else ""),
+                "provider_receipt": dict(candidate.retrieval_metadata),
+            },
         }
         if candidate.kind == "photo" and candidate.provider in {
             "pexels",
@@ -740,6 +768,10 @@ async def materialize_build_context(
                         "attribution_url": candidate.attribution_url,
                         "disposition": "local_file",
                     }
+                )
+                base_entry["content_hash"] = content_hash
+                base_entry["usage_contract"].update(
+                    {"local_path": image_path, "sha256": content_hash}
                 )
             except Exception as exc:
                 warnings.append(
@@ -878,6 +910,17 @@ async def materialize_build_context(
                             "local_directory": f"{component_root}/source",
                             "source_files": source_entries,
                             "disposition": "adaptable_source",
+                        }
+                    )
+                    source_hashes = [str(item.get("sha256", "")) for item in source_entries]
+                    base_entry["usage_contract"].update(
+                        {
+                            "local_directory": f"{component_root}/source",
+                            "local_paths": [item["local_path"] for item in source_entries],
+                            "export_name": str(
+                                (need.details.get("expected_exports") or [""])[0] if need else ""
+                            ),
+                            "sha256": source_hashes,
                         }
                     )
         elif candidate.kind == "icon":

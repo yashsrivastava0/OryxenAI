@@ -195,7 +195,11 @@ def _record_rate_headers(provider: str, response: httpx.Response) -> None:
         return
 
 
-def _fetched_image(candidate: ImageCandidate, query: ResourceQuery) -> FetchedResource:
+def _fetched_image(
+    candidate: ImageCandidate,
+    query: ResourceQuery,
+    provider_receipt: dict[str, Any] | None = None,
+) -> FetchedResource:
     return FetchedResource(
         resource_id=_stable_id(
             candidate.provider, f"{query.need_id}:{candidate.provider_asset_id}"
@@ -224,7 +228,10 @@ def _fetched_image(candidate: ImageCandidate, query: ResourceQuery) -> FetchedRe
         ),
         mime_type=candidate.mime_type,
         image_url=candidate.image_url,
-        retrieval_metadata={"query": query.model_dump(mode="json")},
+        retrieval_metadata={
+            "query": query.model_dump(mode="json"),
+            "provider_receipt": dict(provider_receipt or {}),
+        },
         license=candidate.license,
         license_reference=candidate.license_reference,
     )
@@ -285,6 +292,13 @@ async def search_pexels(
         }
         if query.orientation in {"landscape", "portrait", "square"}:
             params["orientation"] = query.orientation
+        minimum = max(query.minimum_width, query.minimum_height)
+        if minimum >= 2000:
+            params["size"] = "large"
+        elif minimum >= 1000:
+            params["size"] = "medium"
+        if query.colors:
+            params["color"] = query.colors[0]
         response = await _get(
             http,
             "https://api.pexels.com/v1/search",
@@ -863,6 +877,8 @@ class ProviderLookup:
     _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
     calls_made: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
+    cache_hits: int = field(default=0, init=False)
+    provider_receipts: list[dict[str, Any]] = field(default_factory=list, init=False)
     _image_asset_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _image_terms: set[str] = field(default_factory=set, init=False, repr=False)
 
@@ -941,8 +957,33 @@ class ProviderLookup:
                             6,
                         )
                     ),
+                    diagnostics=self.provider_receipts,
                 )
-                found = [_fetched_image(candidate, query) for candidate in image_candidates]
+                self.cache_hits += (
+                    sum(
+                        1
+                        for receipt in self.provider_receipts
+                        if receipt.get("cache_state") == "hit"
+                    )
+                    - self.cache_hits
+                )
+                found = [
+                    _fetched_image(
+                        candidate,
+                        query,
+                        next(
+                            (
+                                receipt
+                                for receipt in reversed(self.provider_receipts)
+                                if receipt.get("provider") == candidate.provider
+                                and receipt.get("query") == query.query
+                                and "candidate_count" in receipt
+                            ),
+                            None,
+                        ),
+                    )
+                    for candidate in image_candidates
+                ]
                 self._image_asset_ids.update(
                     candidate.provider_asset_id for candidate in image_candidates
                 )
@@ -962,6 +1003,42 @@ class ProviderLookup:
                 found = await resolve_icon(query, self.settings, client=self.client)
             elif query.kind == "font":
                 found = await search_fontsource(query, self.settings, client=self.client)
+            if query.kind != "photo":
+                found = [
+                    item.model_copy(
+                        update={
+                            "retrieval_metadata": {
+                                **item.retrieval_metadata,
+                                "provider_receipt": {
+                                    "provider": item.provider or provider,
+                                    "query": query.query,
+                                    "attempt": 1,
+                                    "http_status": 200 if found else None,
+                                    "retry_delay": 0.0,
+                                    "cache_state": "not_cached",
+                                    "configured_key": True,
+                                    "candidate_count": len(found),
+                                    "kind": query.kind,
+                                },
+                            }
+                        }
+                    )
+                    for item in found
+                ]
+            if query.kind != "photo":
+                self.provider_receipts.append(
+                    {
+                        "provider": provider,
+                        "query": query.query,
+                        "attempt": 1,
+                        "http_status": 200 if found else None,
+                        "retry_delay": 0.0,
+                        "cache_state": "not_cached",
+                        "configured_key": True,
+                        "candidate_count": len(found),
+                        "kind": query.kind,
+                    }
+                )
         return found
 
     async def fetch_component(self, candidate: FetchedResource) -> FetchedResource:

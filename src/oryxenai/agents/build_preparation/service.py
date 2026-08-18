@@ -14,6 +14,7 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationStatus,
 )
 from oryxenai.agents.build_preparation.state import apply_start, reset_for_regeneration
+from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorStatus
 from oryxenai.core.settings import get_settings
@@ -81,6 +82,15 @@ class BuildPreparationService:
 
         ca_payload = self._content_projection(content_architect)
         vdd_payload = self._visual_projection(visual_design_director)
+        vdd_payload = normalize_visual_input(
+            ca_payload,
+            vdd_payload,
+            image_target=self._settings.build_preparation.editorial_image_budget,
+            image_maximum=self._settings.build_preparation.editorial_image_maximum,
+            component_target=self._settings.build_preparation.visual_component_budget,
+            component_maximum=self._settings.build_preparation.visual_component_maximum,
+            enabled=self._settings.build_preparation.auto_derive_visual_resources,
+        ).visual
         source_ref = build_source_ref(
             ca_payload,
             vdd_payload,
@@ -111,6 +121,7 @@ class BuildPreparationService:
                 "source_ref": source_ref.model_dump(mode="json"),
                 "content_architect": ca_payload,
                 "visual_design_director": vdd_payload,
+                "auto_derive_visual_resources": self._settings.build_preparation.auto_derive_visual_resources,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -175,13 +186,30 @@ class BuildPreparationService:
             visual_design_director = await self._repository.get_visual_design_director_snapshot(
                 session_id
             )
-            if (
-                content_architect.approved is not None
-                and visual_design_director.approved is not None
+            if content_architect.approved is not None and (
+                visual_design_director.approved is not None
+                or (
+                    bool(
+                        getattr(
+                            self._settings.build_preparation, "auto_derive_visual_resources", True
+                        )
+                    )
+                    and visual_design_director.status is VisualDesignDirectorStatus.NOT_STARTED
+                )
             ):
-                current_source_ref = build_source_ref(
-                    self._content_projection(content_architect),
+                ca_payload = self._content_projection(content_architect)
+                vdd_payload = normalize_visual_input(
+                    ca_payload,
                     self._visual_projection(visual_design_director),
+                    image_target=self._settings.build_preparation.editorial_image_budget,
+                    image_maximum=self._settings.build_preparation.editorial_image_maximum,
+                    component_target=self._settings.build_preparation.visual_component_budget,
+                    component_maximum=self._settings.build_preparation.visual_component_maximum,
+                    enabled=self._settings.build_preparation.auto_derive_visual_resources,
+                ).visual
+                current_source_ref = build_source_ref(
+                    ca_payload,
+                    vdd_payload,
                 )
                 upstream_stale = (
                     current_source_ref.visual_design_director_direction_hash
@@ -272,6 +300,13 @@ class BuildPreparationService:
             visual_design_director.status is not VisualDesignDirectorStatus.APPROVED
             or visual_design_director.approved is None
         ):
+            if (
+                bool(
+                    getattr(self._settings.build_preparation, "auto_derive_visual_resources", True)
+                )
+                and visual_design_director.status is VisualDesignDirectorStatus.NOT_STARTED
+            ):
+                return
             raise BuildPreparationOperationError(
                 "BUILD_PREPARATION_VISUAL_DESIGN_DIRECTOR_NOT_APPROVED",
                 "Visual Design Director must be approved before Build Preparation can start.",
@@ -312,6 +347,7 @@ class BuildPreparationService:
             "accessibility_and_performance": state.accessibility_and_performance,
             "must_preserve": state.must_preserve,
             "must_not_fabricate": state.must_not_fabricate,
+            "resource_policy": state.resource_policy,
             "compiler_handoff": state.compiler_handoff,
             "pages": [page.model_dump(mode="json") for page in state.pages],
             "asset_briefs": [asset.model_dump(mode="json") for asset in state.asset_briefs],

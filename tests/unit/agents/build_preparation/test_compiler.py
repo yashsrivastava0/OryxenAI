@@ -4,6 +4,7 @@ import pytest
 
 from oryxenai.agents.build_preparation.compiler import compile_stage0
 from oryxenai.agents.build_preparation.validators import BuildPreparationValidationError
+from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 
 
 def _inputs() -> tuple[dict[str, object], dict[str, object]]:
@@ -58,6 +59,98 @@ def _inputs() -> tuple[dict[str, object], dict[str, object]]:
         ],
     }
     return content, visual
+
+
+def _enriched_content() -> dict[str, object]:
+    return {
+        "approved": {"content_hash": "ca-enriched"},
+        "route_plan": [
+            {
+                "route_id": "home",
+                "path": "/",
+                "publication_status": "approved",
+                "section_sequence": [
+                    "home:hero",
+                    "home:capabilities",
+                    "home:experience",
+                    "home:selected-work",
+                    "home:connect",
+                ],
+            }
+        ],
+        "page_content_packs": [
+            {
+                "route_id": "home",
+                "sections": [
+                    {"section_id": "home:hero", "content": {"headline": "Build systems."}},
+                    {"section_id": "home:capabilities", "content": {"heading": "Capabilities"}},
+                    {"section_id": "home:experience", "content": {"heading": "Experience"}},
+                    {"section_id": "home:selected-work", "content": {"heading": "Selected work"}},
+                    {"section_id": "home:connect", "content": {"heading": "Connect"}},
+                ],
+            }
+        ],
+        "site_story_strategy": {
+            "positioning": "Backend and platform engineer building dependable APIs and delivery systems."
+        },
+    }
+
+
+def test_missing_vdd_derives_deterministic_visual_direction_and_roles() -> None:
+    content = _enriched_content()
+    first = normalize_visual_input(content, {})
+    second = normalize_visual_input(content, {})
+
+    assert first.mode == "assumed_from_content"
+    assert first.assumption_hash == second.assumption_hash
+    assert len(first.visual["asset_briefs"]) == 5
+    assert (
+        len(
+            [
+                item
+                for item in first.visual["resource_candidates"]
+                if item["category"] == "visual_component"
+            ]
+        )
+        == 4
+    )
+    result = compile_stage0(content, {})
+    assert result.visual_input_mode == "assumed_from_content"
+    assert result.assumption_hash
+    assert {need.section_ids[0] for need in result.resource_needs if need.section_ids} >= {
+        "home:hero",
+        "home:selected-work",
+    }
+
+
+def test_partial_vdd_merges_roles_but_preserves_explicit_prohibition() -> None:
+    content = _enriched_content()
+    visual = {
+        "approved": {"visual_direction_hash": "vdd-partial"},
+        "must_not_fabricate": ["No stock imagery or external photos."],
+        "pages": [{"route_id": "home", "publication_status": "approved", "scenes": []}],
+        "asset_briefs": [],
+        "resource_candidates": [],
+    }
+
+    normalized = normalize_visual_input(content, visual)
+    assert normalized.mode == "merged_vdd_assumptions"
+    assert normalized.visual["asset_briefs"] == []
+    assert len(normalized.visual["resource_candidates"]) == 4
+    result = compile_stage0(content, visual)
+    assert not any(need.category == "editorial_photo" for need in result.resource_needs)
+    assert any(need.category == "visual_component" for need in result.resource_needs)
+
+
+def test_component_roles_are_distinct_and_route_aware() -> None:
+    normalized = normalize_visual_input(_enriched_content(), {})
+    roles = [
+        item
+        for item in normalized.visual["resource_candidates"]
+        if item["category"] == "visual_component"
+    ]
+    assert len({item["interaction_role"] for item in roles}) == len(roles)
+    assert {item["where_it_may_help"].split(" / ")[0] for item in roles} == {"home"}
 
 
 def test_stage0_compiles_routes_and_resource_needs_without_model_calls() -> None:

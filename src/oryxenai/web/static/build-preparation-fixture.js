@@ -99,7 +99,29 @@
     while (body.firstChild) body.removeChild(body.firstChild);
     var value = record.summary || {};
     body.appendChild(element("p", "Real material: " + (value.real_image_count || 0) + " images · " + (value.real_component_count || 0) + " components · " + (value.execution_gap_count || 0) + " execution gaps"));
-    body.appendChild(element("p", "Calls: " + (value.model_calls || 0) + " model · " + (value.provider_calls || 0) + " provider", "muted"));
+    body.appendChild(element("p", "Targets: " + (value.image_target || 0) + " images · " + (value.component_target || 0) + " components · input: " + (value.visual_input_mode || "approved_vdd"), "muted"));
+    body.appendChild(element("p", "Calls: " + (value.model_calls || 0) + " model · " + (value.provider_calls || 0) + " provider · " + (value.provider_cache_hits || 0) + " cache hits · " + (value.provider_rate_limit_events || 0) + " rate-limit events", "muted"));
+    if (value.deferred_optional_roles && value.deferred_optional_roles.length) body.appendChild(element("p", "Deferred optional roles: " + value.deferred_optional_roles.join(", "), "muted"));
+    var assumptions = record.result && record.result.assumptions ? record.result.assumptions : [];
+    if (assumptions.length) body.appendChild(element("p", "Assumptions applied: " + assumptions.join(" · "), "muted"));
+    var receipts = record.result && record.result.provider_receipts ? record.result.provider_receipts : [];
+    if (receipts.length) {
+      var receiptDetails = document.createElement("details");
+      receiptDetails.appendChild(element("summary", "Provider receipts (" + receipts.length + ")"));
+      receipts.slice(-12).forEach(function (receipt) {
+        receiptDetails.appendChild(element("p", (receipt.provider || "provider") + " · " + (receipt.query || "") + " · HTTP " + (receipt.http_status || "n/a") + " · " + (receipt.candidate_count || 0) + " candidates · " + (receipt.cache_state || "unknown"), "muted mono"));
+      });
+      body.appendChild(receiptDetails);
+    }
+    var issues = record.result && record.result.handoff_report && record.result.handoff_report.issues ? record.result.handoff_report.issues : [];
+    if (issues.length) {
+      var issueDetails = document.createElement("details");
+      issueDetails.appendChild(element("summary", "Role diagnostics (" + issues.length + ")"));
+      issues.forEach(function (issue) {
+        issueDetails.appendChild(element("p", (issue.code || "issue") + (issue.need_id ? " · " + issue.need_id : "") + " · " + (issue.message || ""), "muted"));
+      });
+      body.appendChild(issueDetails);
+    }
     body.appendChild(element("p", "Status: " + record.status + " · Routes: " + (value.route_count || 0) + " · Needs: " + (value.resource_need_count || 0)));
     body.appendChild(element("p", "ZIP: " + (value.archive_sha256 || "not available") + " · " + (value.archive_size_bytes || 0) + " bytes", "mono"));
     document.getElementById("summary-details").href = record.details_url || "/build-preparation-fixture/progress";

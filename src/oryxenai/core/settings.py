@@ -253,6 +253,7 @@ class BuildPreparationConfig(BaseModel):
     provider_max_concurrency: int = 2
     provider_max_requests: int = 32
     require_live_visual_resources: bool = True
+    auto_derive_visual_resources: bool = True
 
     @field_validator(
         "fixture_enabled",
@@ -262,6 +263,7 @@ class BuildPreparationConfig(BaseModel):
         "debug_mirror_enabled",
         "reasoning_enabled",
         "require_live_visual_resources",
+        "auto_derive_visual_resources",
         mode="before",
     )
     @classmethod
