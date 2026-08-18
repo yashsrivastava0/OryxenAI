@@ -156,6 +156,20 @@ def compile_execution_contract(
         route_id = need.route_ids[0] if need.route_ids else ""
         resource = by_need.get(need.need_id, {})
         disposition = str(resource.get("disposition", "") or "")
+        if (
+            _is_visual_resource(need)
+            and not need.required_for_handoff
+            and disposition
+            not in {
+                "local_file",
+                "adaptable_source",
+                "package_import",
+            }
+        ):
+            # Optional visual roles may be deferred by the deterministic
+            # retrieval budget. They remain in the ledger and diagnostics but
+            # do not become fake recipes or blocking execution slots.
+            continue
         source_expectations = [
             value
             for value in (
@@ -270,13 +284,17 @@ def compile_execution_contract(
                 category=need.category or need.kind,
                 route_id=route_id,
                 scene_ids=sorted(set(need.scene_ids)),
-                section_ids=sections.get(route_id, []),
+                section_ids=sorted(set(need.section_ids or sections.get(route_id, []))),
                 component_placement=str(need.details.get("placement", "") or need.purpose),
                 required=need.required_for_handoff,
                 source_ids=[need.source_id],
                 criterion_ids=criteria.get(route_id, []),
                 rationale=need.purpose or need.fallback,
-                provenance="vdd_explicit",
+                provenance=(
+                    "build_preparation_derived"
+                    if need.source_id.startswith("assumed-")
+                    else "vdd_explicit"
+                ),
                 resolution=resolution,
             )
         )

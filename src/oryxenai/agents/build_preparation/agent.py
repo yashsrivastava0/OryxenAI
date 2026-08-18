@@ -58,7 +58,9 @@ from oryxenai.agents.build_preparation.validators import (
     validate_query_plan,
     validate_selection_plan,
 )
+from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
+from oryxenai.agents.shared.resource_context import build_resource_context_packet
 from oryxenai.agents.shared.retrieval_policy import plan_component_retrieval
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
@@ -149,6 +151,12 @@ class BuildPreparationAgent(Agent):
             visual = {}
         if not isinstance(content, dict):
             content = None
+        auto_derive = bool(
+            payload.get(
+                "auto_derive_visual_resources",
+                getattr(self._settings.build_preparation, "auto_derive_visual_resources", True),
+            )
+        )
         raw_ref = payload.get("source_ref")
         source_ref = (
             BuildPreparationSourceRef.model_validate(raw_ref) if isinstance(raw_ref, dict) else None
@@ -156,6 +164,47 @@ class BuildPreparationAgent(Agent):
         declared_policy = visual.get("resource_policy")
         if not isinstance(declared_policy, dict):
             declared_policy = {}
+        normalized_visual = normalize_visual_input(
+            content,
+            visual,
+            image_target=int(
+                payload.get(
+                    "editorial_image_budget",
+                    declared_policy.get(
+                        "image_target_count",
+                        self._settings.build_preparation.editorial_image_budget,
+                    ),
+                )
+                or 0
+            ),
+            image_maximum=int(
+                payload.get(
+                    "editorial_image_maximum",
+                    getattr(self._settings.build_preparation, "editorial_image_maximum", 6),
+                )
+                or 6
+            ),
+            component_target=int(
+                payload.get(
+                    "visual_component_budget",
+                    declared_policy.get(
+                        "component_target_count",
+                        self._settings.build_preparation.visual_component_budget,
+                    ),
+                )
+                or 0
+            ),
+            component_maximum=int(
+                payload.get(
+                    "visual_component_maximum",
+                    getattr(self._settings.build_preparation, "visual_component_maximum", 6),
+                )
+                or 6
+            ),
+            enabled=auto_derive,
+        )
+        visual = normalized_visual.visual
+        declared_policy = visual.get("resource_policy", {})
         stage0 = compile_stage0(
             content,
             visual,
@@ -183,6 +232,21 @@ class BuildPreparationAgent(Agent):
                 )
                 or 0
             ),
+            editorial_image_maximum=int(
+                payload.get(
+                    "editorial_image_maximum",
+                    getattr(self._settings.build_preparation, "editorial_image_maximum", 6),
+                )
+                or 6
+            ),
+            visual_component_maximum=int(
+                payload.get(
+                    "visual_component_maximum",
+                    getattr(self._settings.build_preparation, "visual_component_maximum", 6),
+                )
+                or 6
+            ),
+            auto_derive_visual_resources=auto_derive,
         )
         events = list(stage0.events)
         for event in events:
@@ -211,6 +275,31 @@ class BuildPreparationAgent(Agent):
         stages_meta: list[dict[str, Any]] = []
         prompt_version = "build_preparation.phase2"
         model_calls = 0
+        component_maximum = int(
+            payload.get(
+                "visual_component_maximum",
+                declared_policy.get(
+                    "component_maximum",
+                    getattr(self._settings.build_preparation, "visual_component_maximum", 6),
+                ),
+            )
+            or 0
+        )
+        base_resource_packet = build_resource_context_packet(
+            content_architect=content or {},
+            visual_design_director=visual,
+            routes=stage0.routes,
+            resource_needs=stage0.resource_needs,
+            provider_capabilities={
+                "images": list(getattr(self._settings.image_retrieval, "provider_order", [])),
+                "components": list(
+                    getattr(self._settings.resource_providers, "registry_order", [])
+                ),
+                "fonts": ["fontsource"],
+                "runtime_network_assets": False,
+            },
+            dependency_limits={"component_request_maximum": component_maximum},
+        ).model_dump(mode="json")
 
         await self._emit_event(
             _event(
@@ -224,13 +313,7 @@ class BuildPreparationAgent(Agent):
         if live_model:
             query_plan_value, prompt_version, meta = await self._call_stage(
                 "compose_resource_queries",
-                {
-                    "routes": [route.model_dump(mode="json") for route in stage0.routes],
-                    "resource_needs": [
-                        need.model_dump(mode="json") for need in stage0.resource_needs
-                    ],
-                    "visual_design_director": visual,
-                },
+                base_resource_packet,
                 model_profile,
             )
             query_plan = cast(Stage1QueryPlan, query_plan_value)
@@ -241,18 +324,13 @@ class BuildPreparationAgent(Agent):
         query_plan = normalize_query_plan(
             query_plan, stage0.resource_needs, settings=self._settings
         )
-        component_maximum = int(
-            payload.get(
-                "visual_component_maximum",
-                declared_policy.get(
-                    "component_maximum",
-                    getattr(self._settings.build_preparation, "visual_component_maximum", 6),
-                ),
-            )
-            or 0
-        )
+        component_needs = [
+            need
+            for need in stage0.resource_needs
+            if need.category.casefold() in {"visual_component", "component", "registry_component"}
+        ]
         component_policy = plan_component_retrieval(
-            stage0.resource_needs,
+            component_needs,
             maximum=component_maximum,
         )
         deferred_optional_ids = set(component_policy.deferred_optional_ids)
@@ -350,11 +428,9 @@ class BuildPreparationAgent(Agent):
             selection_plan_value, prompt_version, meta = await self._call_stage(
                 "select_resources",
                 {
-                    "resource_needs": [
-                        need.model_dump(mode="json") for need in stage0.resource_needs
-                    ],
+                    **base_resource_packet,
                     "candidate_resources": candidate_payload,
-                    "routes": [route.model_dump(mode="json") for route in stage0.routes],
+                    "existing_resources": candidate_payload,
                 },
                 model_profile,
             )
@@ -486,21 +562,18 @@ class BuildPreparationAgent(Agent):
             _event("stage_2_complete", "stage_2", "Resources selected or explicit gaps recorded.")
         )
 
-        context_packet = {
-            "routes": [route.model_dump(mode="json") for route in stage0.routes],
-            "resource_needs": [need.model_dump(mode="json") for need in stage0.resource_needs],
-            "candidate_resources": candidate_payload,
-            "selections": [
+        context_packet = build_resource_context_packet(
+            content_architect=content or {},
+            visual_design_director=visual,
+            routes=stage0.routes,
+            resource_needs=stage0.resource_needs,
+            candidate_resources=candidate_payload,
+            selections=[
                 selection.model_dump(mode="json") for selection in selection_plan.selections
             ],
-            "content_architect": content or {},
-            "visual_design_director": visual,
-            "authority": {
-                "approved_route_ids": sorted(route_ids),
-                "selected_resource_ids": sorted(_selected_ids(selection_plan)),
-                "model_may_not_grant_handoff": True,
-            },
-        }
+            provider_capabilities=base_resource_packet["provider_capabilities"],
+            dependency_limits=base_resource_packet["dependency_limits"],
+        ).model_dump(mode="json")
         context_packet_hash = _packet_hash(context_packet)
         await self._emit_event(
             _event(
@@ -655,7 +728,22 @@ class BuildPreparationAgent(Agent):
                 selections=selection_plan.selections,
                 qualifications=qualifications,
                 materialization=materialization,
+                visual_input_mode=stage0.visual_input_mode,
+                assumption_hash=stage0.assumption_hash,
+                image_target=stage0.resource_targets.get("image_target", 0),
+                component_target=stage0.resource_targets.get("component_target", 0),
+                provider_calls=int(getattr(lookup, "calls_made", 0)) if live_providers else 0,
+                cache_hits=int(getattr(lookup, "cache_hits", 0)) if live_providers else 0,
+                rate_limit_events=int(getattr(lookup, "rate_limit_events", 0))
+                if live_providers
+                else 0,
+                deferred_optional_roles=sorted(deferred_optional_ids),
             )
+            provider_calls = int(getattr(lookup, "calls_made", 0)) if live_providers else 0
+            provider_rate_limit_events = (
+                int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
+            )
+            provider_cache_hits = int(getattr(lookup, "cache_hits", 0)) if live_providers else 0
             await self._emit_event(
                 _event(
                     "stage_5_started",
@@ -788,6 +876,18 @@ class BuildPreparationAgent(Agent):
         provider_rate_limit_events = (
             int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
         )
+        provider_cache_hits = int(getattr(lookup, "cache_hits", 0)) if live_providers else 0
+        provider_receipts = list(getattr(lookup, "provider_receipts", [])) if live_providers else []
+        handoff_report = handoff_report.model_copy(
+            update={
+                "handoff_summary": {
+                    **handoff_report.handoff_summary,
+                    "provider_calls": provider_calls,
+                    "cache_hits": provider_cache_hits,
+                    "rate_limit_events": provider_rate_limit_events,
+                }
+            }
+        )
         warnings = (
             list(stage0.warnings)
             + list(query_plan.warnings)
@@ -821,6 +921,11 @@ class BuildPreparationAgent(Agent):
                 "model_calls": model_calls,
                 "provider_calls": provider_calls,
                 "provider_rate_limit_events": provider_rate_limit_events,
+                "provider_cache_hits": provider_cache_hits,
+                "provider_receipts": provider_receipts,
+                "visual_input_mode": stage0.visual_input_mode,
+                "assumption_hash": stage0.assumption_hash,
+                "assumptions": stage0.assumptions,
                 "context_packet_hash": context_packet_hash,
                 "model_call_receipts": stages_meta,
             },
@@ -830,6 +935,10 @@ class BuildPreparationAgent(Agent):
                 "model_calls": model_calls,
                 "provider_calls": provider_calls,
                 "provider_rate_limit_events": provider_rate_limit_events,
+                "provider_cache_hits": provider_cache_hits,
+                "provider_receipts": provider_receipts,
+                "visual_input_mode": stage0.visual_input_mode,
+                "assumption_hash": stage0.assumption_hash,
                 "context_packet_hash": context_packet_hash,
                 "model_call_receipts": stages_meta,
             },

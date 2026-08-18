@@ -36,6 +36,12 @@ class BuildPreparationSourceRef(BaseModel):
     content_architect_content_hash: str = ""
     visual_design_director_direction_hash: str = ""
     input_projection_hash: str = ""
+    visual_input_mode: Literal["approved_vdd", "assumed_from_content", "merged_vdd_assumptions"] = (
+        "approved_vdd"
+    )
+    assumption_hash: str = ""
+    assumptions: list[str] = Field(default_factory=list)
+    producer_provenance_hash: str = ""
     content_architect_session_revision: int = 0
     visual_design_director_session_revision: int = 0
     snapshotted_at: str = ""
@@ -49,6 +55,7 @@ class RouteScope(BaseModel):
     title: str = ""
     purpose: str = ""
     publication_status: str = "approved"
+    section_ids: list[str] = Field(default_factory=list)
     scene_ids: list[str] = Field(default_factory=list)
     asset_ids: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)
@@ -66,6 +73,7 @@ class ResourceNeed(BaseModel):
     purpose: str = ""
     route_ids: list[str] = Field(default_factory=list)
     scene_ids: list[str] = Field(default_factory=list)
+    section_ids: list[str] = Field(default_factory=list)
     source_status: str = ""
     source_policy: str = ""
     importance: str = ""
@@ -82,6 +90,12 @@ class Stage0Result(BaseModel):
     status: Literal["ready"] = "ready"
     scope_hash: str
     source_ref: BuildPreparationSourceRef = Field(default_factory=BuildPreparationSourceRef)
+    visual_input_mode: Literal["approved_vdd", "assumed_from_content", "merged_vdd_assumptions"] = (
+        "approved_vdd"
+    )
+    assumption_hash: str = ""
+    assumptions: list[str] = Field(default_factory=list)
+    resource_targets: dict[str, int] = Field(default_factory=dict)
     routes: list[RouteScope] = Field(default_factory=list)
     resource_needs: list[ResourceNeed] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -312,6 +326,7 @@ class HandoffQualityReport(BaseModel):
     materialized_resource_ids: list[str] = Field(default_factory=list)
     qualifications: list[CandidateQualification] = Field(default_factory=list)
     issues: list[HandoffIssue] = Field(default_factory=list)
+    handoff_summary: dict[str, Any] = Field(default_factory=dict)
     model_review: dict[str, Any] = Field(default_factory=dict)
 
 
