@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [0bd8bb5] - Shared local Pexels/Pixabay image retrieval
+Added first-class Pixabay alongside Pexels through one shared image service used by Build Preparation and Code Generator. Structured portfolio-aware intent, bounded provider fallback/dual search, 24-hour filesystem caching, rate-aware retries, deterministic ranking, selected-byte download, decoded-pixel validation, crop/resize/compression, hash deduplication, local provenance metadata, opt-in Unsplash, Docker cache sharing, and focused provider/materialization coverage are now wired without changing component retrieval.
+
 ### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [646a0bb] - Dynamic priority component retrieval
 Added a shared deterministic retrieval policy for Build Preparation and Code Generator. Required component roles remain eligible, while optional roles are selected by importance, interaction-role novelty, and route/scene coverage within the per-run maximum; LLMs remain closed-set query/candidate rankers and selected components still fetch real recursive source. See D-030.
 
