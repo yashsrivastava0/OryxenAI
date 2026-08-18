@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [42e92ec] - Build Preparation semantic live resource enrichment
+Replaced cyclic quota-driven component derivation with semantic typed intents, live provider terms and diagnostics, closed-set alternate source fallback, and complete local Code Generator contracts and run analysis. Normal workflows stay live while offline fixtures are diagnostic-only; provider safety, provenance, hashes, and v3 admission remain fail-closed under D-029/D-030.
+
 ### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [8909c09] - Build Preparation visual resource intent enrichment
 Normalized complete, partial, and missing VDD input with hash-stamped presentation assumptions derived from approved Content Architect sections. Added deterministic contextual image/component role compilation, one shared resource context packet, config-driven provider diagnostics, strict local usage contracts, truthful handoff counts/gaps, and frontend role/provider diagnostics. Verified 628 unit tests, 8 Build Preparation API tests, Ruff, compile, and JavaScript checks; the live-provider canary correctly failed closed because external keys were not configured.
 
