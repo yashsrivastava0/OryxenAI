@@ -54,12 +54,55 @@ _PROHIBITED_IMAGE_TERMS = frozenset(
 )
 
 
-def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
+def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = None) -> Any:
     """Keep model query intent inside the fixed visual and provider policy."""
     by_id = {need.need_id: need for need in needs}
+    image_providers = ["pexels", "pixabay"]
+    image_config = getattr(settings, "image_retrieval", None)
+    if (
+        image_config is not None
+        and bool(getattr(image_config, "unsplash_enabled", False))
+        and bool(getattr(image_config, "unsplash_local_vendoring_authorized", False))
+        and "unsplash" in list(getattr(image_config, "provider_order", []))
+    ):
+        image_providers.append("unsplash")
     queries = []
     for query in plan.queries:
         need = by_id[query.need_id]
+        details = need.details if isinstance(need.details, dict) else {}
+        query = query.model_copy(
+            update={
+                "query": query.query.strip() or " ".join([*need.query_terms, need.purpose]).strip(),
+                "purpose": query.purpose or need.purpose,
+                "subject": query.subject or " ".join(need.query_terms),
+                "style_mood": query.style_mood or str(details.get("mood", "") or ""),
+                "theme_colors": query.theme_colors
+                or (
+                    [str(item) for item in details.get("theme_colors", []) if str(item).strip()]
+                    if isinstance(details.get("theme_colors", []), list)
+                    else []
+                ),
+                "orientation": query.orientation or str(details.get("orientation", "") or ""),
+                "aspect_ratio": query.aspect_ratio
+                or str(details.get("aspect_ratio_need", "") or ""),
+                "category": query.category or need.category,
+                "negative_concepts": query.negative_concepts
+                or (
+                    [
+                        str(item)
+                        for item in details.get("negative_concepts", [])
+                        if str(item).strip()
+                    ]
+                    if isinstance(details.get("negative_concepts", []), list)
+                    else []
+                ),
+                "important": query.important
+                or any(
+                    token in f"{need.purpose} {need.importance}".casefold()
+                    for token in ("hero", "banner", "showcase", "critical")
+                ),
+            }
+        )
         if need.category.casefold() == "visual_component":
             registry_order = [
                 str(value)
@@ -111,7 +154,7 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
             continue
         update: dict[str, Any] = {
             "required_for_handoff": need.required_for_handoff,
-            "allowed_providers": ["pexels"] if need.required_for_handoff else [],
+            "allowed_providers": image_providers if need.required_for_handoff else [],
         }
         if need.category.casefold() in {"font", "typography", "type_system"}:
             update.update({"kind": "font", "allowed_providers": ["fontsource"]})
@@ -124,9 +167,7 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
         if need.required_for_handoff or photo_need:
             update["kind"] = "photo"
             update["orientation"] = str(need.details.get("orientation", "landscape") or "landscape")
-            update["allowed_providers"] = (
-                ["pexels"] if need.required_for_handoff else ["pexels", "unsplash"]
-            )
+            update["allowed_providers"] = image_providers
         elif need.category in _CUSTOM_CATEGORIES:
             update["kind"] = "custom"
             update["allowed_providers"] = []
@@ -169,7 +210,7 @@ def _qualify(
             reasons.append(
                 "Synthetic, mock, or generated image candidates are never handoff material."
             )
-        if candidate.provider != "pexels" and need.required_for_handoff:
+        if candidate.provider not in {"pexels", "pixabay"} and need.required_for_handoff:
             technical_status = "rejected"
             codes.append("REMOTE_ASSET_NOT_ALLOWED")
             reasons.append("Required images must be materialized locally for the static target.")
@@ -459,7 +500,7 @@ def build_handoff_report(
                     code="REQUIRED_RESOURCE_UNRESOLVED",
                     need_id=need.need_id,
                     message=f"Required resource '{need.source_id}' has no eligible provider selection.",
-                    next_action="Configure PEXELS_API_KEY or refine the approved editorial asset policy, then rerun.",
+                    next_action="Configure PEXELS_API_KEY or PIXABAY_API_KEY, or refine the approved editorial asset policy, then rerun.",
                 )
             )
         elif resource_id not in materialized:

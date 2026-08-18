@@ -195,6 +195,30 @@ class VisualDesignDirectorConfig(BaseModel):
     max_catalogue_candidates: int = 6
 
 
+class ImageRetrievalConfig(BaseModel):
+    """Shared provider, cache, and image-processing policy."""
+
+    provider_order: list[str] = Field(default_factory=lambda: ["pexels", "pixabay"])
+    cache_root: str = ".workspace/image-search-cache"
+    cache_ttl_seconds: int = 86400
+    max_queries: int = 3
+    max_candidates_per_query: int = 6
+    max_candidates_total: int = 12
+    max_dimension: int = 2400
+    timeout_seconds: float = 15.0
+    retry_count: int = 2
+    max_retry_wait_seconds: float = 8.0
+    unsplash_enabled: bool = False
+    unsplash_local_vendoring_authorized: bool = False
+
+    @field_validator("unsplash_enabled", "unsplash_local_vendoring_authorized", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
 class BuildPreparationConfig(BaseModel):
     """Build Preparation limits and lifecycle policy."""
 
@@ -312,7 +336,7 @@ class CodeGeneratorGenerationConfig(BaseModel):
 class CodeGeneratorAcquisitionConfig(BaseModel):
     """Trusted Code Generator resource-acquisition policy."""
 
-    allowlist_image_providers: list[str] = Field(default_factory=lambda: ["pexels", "unsplash"])
+    allowlist_image_providers: list[str] = Field(default_factory=lambda: ["pexels", "pixabay"])
     allowlist_font_formats: list[str] = Field(default_factory=lambda: ["woff2", "woff"])
     allowlist_icon_package: str = "lucide"
     allowlist_component_registries: list[str] = Field(
@@ -512,6 +536,7 @@ class ResourceProviderConfig(BaseModel):
     motion_primitives_allowed_components: list[str] = Field(default_factory=list)
     animate_ui_enabled: bool = False
     pexels_api_key_env: str = "PEXELS_API_KEY"
+    pixabay_api_key_env: str = "PIXABAY_API_KEY"
     unsplash_access_key_env: str = "UNSPLASH_ACCESS_KEY"
     lucide_icon_url_template: str = (
         "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"
@@ -603,6 +628,7 @@ class Settings(BaseSettings):
     visual_design_director: VisualDesignDirectorConfig = Field(
         default_factory=VisualDesignDirectorConfig
     )
+    image_retrieval: ImageRetrievalConfig = Field(default_factory=ImageRetrievalConfig)
     build_preparation: BuildPreparationConfig = Field(default_factory=BuildPreparationConfig)
     code_generator_development: CodeGeneratorDevelopmentConfig = Field(
         default_factory=CodeGeneratorDevelopmentConfig
@@ -662,6 +688,8 @@ class Settings(BaseSettings):
             self.visual_design_director = VisualDesignDirectorConfig(
                 **app_data["visual_design_director"]
             )
+        if "image_retrieval" in app_data:
+            self.image_retrieval = ImageRetrievalConfig(**app_data["image_retrieval"])
         if "build_preparation" in app_data:
             self.build_preparation = BuildPreparationConfig(**app_data["build_preparation"])
         if "code_generator_development" in app_data:

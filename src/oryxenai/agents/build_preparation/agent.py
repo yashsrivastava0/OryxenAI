@@ -29,7 +29,7 @@ from oryxenai.agents.build_preparation.prompt_builder import (
 )
 from oryxenai.agents.build_preparation.providers import (
     ProviderLookup,
-    download_pexels,
+    download_image,
     trigger_unsplash_download,
 )
 from oryxenai.agents.build_preparation.quality import (
@@ -238,7 +238,9 @@ class BuildPreparationAgent(Agent):
             stages_meta.append(meta)
         else:
             query_plan = _offline_query_plan(stage0.resource_needs)
-        query_plan = normalize_query_plan(query_plan, stage0.resource_needs)
+        query_plan = normalize_query_plan(
+            query_plan, stage0.resource_needs, settings=self._settings
+        )
         component_maximum = int(
             payload.get(
                 "visual_component_maximum",
@@ -622,7 +624,7 @@ class BuildPreparationAgent(Agent):
                 or not bool((content or {}).get("route_plan")),
                 settings=self._settings,
                 download_image=(
-                    (lambda candidate: download_pexels(candidate, self._settings))
+                    (lambda candidate: download_image(candidate, self._settings))
                     if live_providers
                     else None
                 ),

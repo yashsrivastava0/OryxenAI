@@ -59,6 +59,7 @@ def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
         "missing": [],
     }
     pexels_env = str(settings.resource_providers.pexels_api_key_env or "PEXELS_API_KEY")
+    pixabay_env = str(settings.resource_providers.pixabay_api_key_env or "PIXABAY_API_KEY")
     resources = {
         "pexels": {
             "status": "ready" if os.getenv(pexels_env, "") else "not_configured",
@@ -68,7 +69,16 @@ def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
                 else "Pexels is unavailable; required visual roles will remain execution gaps."
             ),
             "missing": [] if os.getenv(pexels_env, "") else [pexels_env],
-        }
+        },
+        "pixabay": {
+            "status": "ready" if os.getenv(pixabay_env, "") else "not_configured",
+            "message": (
+                "Optional Pixabay editorial-image lookup is ready."
+                if os.getenv(pixabay_env, "")
+                else "Pixabay is unavailable; the other configured image provider will be tried."
+            ),
+            "missing": [] if os.getenv(pixabay_env, "") else [pixabay_env],
+        },
     }
     inputs = _fixture_input_preflight(settings)
     if not requested:

@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-031 — Shared local Pexels/Pixabay image retrieval
+
+- **Date & Time:** 2026-08-18 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Build Preparation and Code Generator both need real contextual imagery during generation, while the final static site must not hotlink a provider or duplicate provider-specific selection logic.
+- **Decision:** Both stages use the shared image retrieval service for structured intent, bounded Pexels/Pixabay search, 24-hour filesystem response caching, rate-aware retries, deterministic relevance/quality/aspect/popularity/diversity ranking, selected-byte download, pixel validation, intelligent crop/resize/compression, hashing, and local provenance-bound materialization. Pexels is tried first for normal images; Pixabay is used when results are weak or unavailable; important imagery queries both. Unsplash remains disabled unless local vendoring and the provider are explicitly configured.
+- **Rejected alternatives:** Hardcoded component keywords; a separate smart retrieval agent; browser-runtime provider URLs; downloading every candidate; permanent Unsplash/Pixabay hotlinks; caching component registry responses; making either agent own a second provider implementation.
+- **Consequence:** Provider outages degrade to the other configured image provider and unresolved required visual roles remain visible as readiness gaps. The same shared cache volume can be mounted by worker processes, while component retrieval remains deliberately cache-free under D-029.
+
 ## D-030 — Priority-based dynamic component retrieval
 
 - **Date & Time:** 2026-08-18 00:00 +05:30 — Codex (GPT-5 / OpenAI)
