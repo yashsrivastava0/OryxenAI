@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [8909c09] - Build Preparation visual resource intent enrichment
+Normalized complete, partial, and missing VDD input with hash-stamped presentation assumptions derived from approved Content Architect sections. Added deterministic contextual image/component role compilation, one shared resource context packet, config-driven provider diagnostics, strict local usage contracts, truthful handoff counts/gaps, and frontend role/provider diagnostics. Verified 628 unit tests, 8 Build Preparation API tests, Ruff, compile, and JavaScript checks; the live-provider canary correctly failed closed because external keys were not configured.
+
 ### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [0bd8bb5] - Shared local Pexels/Pixabay image retrieval
 Added first-class Pixabay alongside Pexels through one shared image service used by Build Preparation and Code Generator. Structured portfolio-aware intent, bounded provider fallback/dual search, 24-hour filesystem caching, rate-aware retries, deterministic ranking, selected-byte download, decoded-pixel validation, crop/resize/compression, hash deduplication, local provenance metadata, opt-in Unsplash, Docker cache sharing, and focused provider/materialization coverage are now wired without changing component retrieval.
 
