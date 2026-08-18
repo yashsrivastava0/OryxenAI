@@ -23,12 +23,21 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-029 — Cache-free live component retrieval
+
+- **Date & Time:** 2026-08-18 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Component libraries are free upstream registries with undocumented or changing quotas. Reusing provider responses can hide upstream changes and violates the requirement that selected components come from the current real source.
+- **Decision:** Component discovery and source retrieval never persist or reuse provider responses. Build Preparation and Code Generator share one bounded retrieval service: direct REST/registry JSON is authoritative for shadcn, Magic UI, Smooth UI, and Cult UI; discovery returns metadata, and source is fetched only after selection, with recursive `registryDependencies`, strict host/path/dependency validation, SHA-256/license/source provenance, 429 fail-fast behavior, and bounded timeout/5xx retries. MCP is an optional injected discovery/source adapter for registries without a suitable HTTP path, never a required downloader and never an `npx` subprocess. The local shared `cn()` utility is vendored in the target scaffold rather than retrieved from a provider.
+- **Rejected alternatives:** Provider response caches or durable component mirrors; fetching every candidate's source before ranking; MCP as the only production transport; shelling out to registry CLIs; silently installing unknown dependencies; accepting metadata-only or synthetic component source.
+- **Consequence:** Every selected component reflects a fresh upstream fetch in the current run and can fail closed when a provider is unavailable or rate-limited. Existing infrastructure/toolchain caches remain separate and are not component-retrieval truth.
+
 ## D-028 — Real provider material is mandatory for visual handoff slots
 
 - **Date & Time:** 2026-08-17 22:00 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
 - **Context:** Offline Build Preparation fixtures were marking deterministic blank PNGs and a tiny generated component wrapper as handoff-ready. The result hid provider failures, produced only one generic image/component, and gave Code Generator no trustworthy visual material.
-- **Decision:** Image-rich approved directions target five real images (maximum six) and four real components (maximum six), with policy overrides for text-led or privacy-limited work. Build Preparation may use LLM calls only for bounded query/context/placement orchestration. Images must be downloaded and pixel-inspected from an approved provider; components must come from an approved registry/MCP source and pass source/dependency/provenance checks. Provider responses are cached, deduplicated, concurrency/request bounded, and rate-limit aware. Missing, unavailable, flat, placeholder, metadata-only, or synthetic visual material becomes `VDD_EXECUTION_GAP`. Code Generator admission rejects gaps, generated-local visuals, and visual recipes.
+- **Decision:** Image-rich approved directions target five real images (maximum six) and four real components (maximum six), with policy overrides for text-led or privacy-limited work. Build Preparation may use LLM calls only for bounded query/context/placement orchestration. Images must be downloaded and pixel-inspected from an approved provider; components must come from an approved registry/MCP source and pass source/dependency/provenance checks. Provider requests are concurrency/request bounded and rate-limit aware; component response caching is superseded by D-029. Missing, unavailable, flat, placeholder, metadata-only, or synthetic visual material becomes `VDD_EXECUTION_GAP`. Code Generator admission rejects gaps, generated-local visuals, and visual recipes.
 - **Rejected alternatives:** Deterministic generated-local images/components; blank or wrapper source; accepting remote-only image metadata; using a visual recipe or prose fallback to satisfy an image/component slot; unbounded provider retries; treating provider failure as a ready handoff.
 - **Consequence:** Offline fixtures remain reviewable but cannot claim readiness when visual roles are unresolved. A production-ready pack now contains provenance-bound local pixels/source, truthful material counts and provider diagnostics, and an actionable upstream revision path when authority or provider material is missing.
 

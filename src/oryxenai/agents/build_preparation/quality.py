@@ -64,8 +64,8 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
             registry_order = [
                 str(value)
                 for value in getattr(query, "allowed_providers", [])
-                if str(value) in {"shadcn", "magicui"}
-            ] or ["shadcn", "magicui"]
+                if str(value) in {"shadcn", "magicui", "smoothui", "cultui"}
+            ] or ["shadcn", "magicui", "smoothui", "cultui"]
             queries.append(
                 query.model_copy(
                     update={
@@ -135,14 +135,22 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed]) -> Any:
 
 
 def qualify_candidates(
-    needs: list[ResourceNeed], candidates: list[FetchedResource]
+    needs: list[ResourceNeed],
+    candidates: list[FetchedResource],
+    *,
+    source_required: bool = True,
 ) -> list[CandidateQualification]:
-    """Admit only candidates that can actually satisfy this static-client handoff."""
+    """Admit candidates, optionally before the selected source is fetched."""
     need_by_id = {need.need_id: need for need in needs}
-    return [_qualify(need_by_id[candidate.need_id], candidate) for candidate in candidates]
+    return [
+        _qualify(need_by_id[candidate.need_id], candidate, source_required=source_required)
+        for candidate in candidates
+    ]
 
 
-def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualification:
+def _qualify(
+    need: ResourceNeed, candidate: FetchedResource, *, source_required: bool = True
+) -> CandidateQualification:
     reasons: list[str] = []
     codes: list[str] = []
     policy_status = "approved"
@@ -227,11 +235,11 @@ def _qualify(need: ResourceNeed, candidate: FetchedResource) -> CandidateQualifi
             )
         else:
             relevance = min(100, 70 + matches * 10)
-        if not candidate.source_files:
+        if source_required and not candidate.source_files:
             technical_status = "rejected"
             codes.append("COMPONENT_SOURCE_MISSING")
             reasons.append("The registry candidate has no source files to materialize.")
-        elif not _meaningful_component_source(candidate.source_files):
+        elif source_required and not _meaningful_component_source(candidate.source_files):
             technical_status = "rejected"
             codes.append("COMPONENT_SOURCE_PLACEHOLDER")
             reasons.append("The registry candidate contains only empty or placeholder source.")

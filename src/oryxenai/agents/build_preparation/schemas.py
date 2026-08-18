@@ -149,6 +149,7 @@ class FetchedResource(BaseModel):
     source_files: dict[str, str] = Field(default_factory=dict)
     dependencies: list[str] = Field(default_factory=list)
     registry_dependencies: list[str] = Field(default_factory=list)
+    retrieval_metadata: dict[str, Any] = Field(default_factory=dict)
     license: str = ""
     license_reference: str = ""
     source_version: str = ""

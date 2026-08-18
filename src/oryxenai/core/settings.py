@@ -225,7 +225,6 @@ class BuildPreparationConfig(BaseModel):
     editorial_image_maximum: int = 6
     visual_component_budget: int = 4
     visual_component_maximum: int = 6
-    provider_cache_ttl_seconds: int = 86400
     provider_max_wait_seconds: float = 8.0
     provider_max_concurrency: int = 2
     provider_max_requests: int = 32
@@ -316,7 +315,9 @@ class CodeGeneratorAcquisitionConfig(BaseModel):
     allowlist_image_providers: list[str] = Field(default_factory=lambda: ["pexels", "unsplash"])
     allowlist_font_formats: list[str] = Field(default_factory=lambda: ["woff2", "woff"])
     allowlist_icon_package: str = "lucide"
-    allowlist_component_registries: list[str] = Field(default_factory=lambda: ["shadcn", "magicui"])
+    allowlist_component_registries: list[str] = Field(
+        default_factory=lambda: ["shadcn", "magicui", "smoothui", "cultui"]
+    )
     allowlist_style_kinds: list[str] = Field(
         default_factory=lambda: ["pattern", "token_preset", "helper"]
     )
@@ -467,21 +468,30 @@ class ResourceProviderConfig(BaseModel):
     magicui_catalog_url: str = "https://magicui.design/r/registry.json"
     magicui_item_url_template: str = "https://magicui.design/r/{name}.json"
     magicui_enabled: bool = True
+    smoothui_api_base_url: str = "https://smoothui.dev/api/v1"
+    smoothui_item_url_template: str = "https://smoothui.dev/r/{name}.json"
+    smoothui_enabled: bool = True
+    cultui_catalog_url: str = "https://cult-ui.com/r/registry.json"
+    cultui_item_url_template: str = "https://cult-ui.com/r/{name}.json"
+    cultui_enabled: bool = True
     aceternity_catalog_url: str = "https://ui.aceternity.com/registry/registry.json"
     aceternity_item_url_template: str = "https://ui.aceternity.com/registry/{name}.json"
     aceternity_enabled: bool = False
-    registry_order: list[str] = Field(default_factory=lambda: ["shadcn", "magicui", "aceternity"])
+    registry_order: list[str] = Field(
+        default_factory=lambda: ["shadcn", "magicui", "smoothui", "cultui", "aceternity"]
+    )
     execution_provider_order: list[str] = Field(
         default_factory=lambda: [
             "fontsource",
             "shadcn",
             "magicui",
+            "smoothui",
+            "cultui",
             "motion_primitives",
             "lucide",
             "pexels",
         ]
     )
-    provider_cache_policy: str = "content_hash"
     licence_policy: str = "permissive-local-vendoring-only"
     fontsource_enabled: bool = True
     fontsource_api_base_url: str = "https://api.fontsource.org/v1"
@@ -490,8 +500,12 @@ class ResourceProviderConfig(BaseModel):
     font_profiles: dict[str, dict[str, str]] = Field(default_factory=dict)
     shadcn_release_pin: str = ""
     magicui_release_pin: str = ""
+    smoothui_release_pin: str = ""
+    cultui_release_pin: str = ""
     shadcn_allowed_components: list[str] = Field(default_factory=list)
     magicui_allowed_components: list[str] = Field(default_factory=list)
+    smoothui_allowed_components: list[str] = Field(default_factory=list)
+    cultui_allowed_components: list[str] = Field(default_factory=list)
     motion_primitives_enabled: bool = True
     motion_primitives_commit: str = ""
     motion_primitives_allowed_components: list[str] = Field(default_factory=list)
@@ -505,6 +519,8 @@ class ResourceProviderConfig(BaseModel):
     @field_validator(
         "registries_enabled",
         "magicui_enabled",
+        "smoothui_enabled",
+        "cultui_enabled",
         "aceternity_enabled",
         "fontsource_enabled",
         "fontsource_latin_only",

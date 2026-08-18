@@ -917,7 +917,7 @@ def _allowed_sources(category: str) -> list[str]:
         "illustration": ["pexels", "unsplash", "fixture"],
         "font": ["local", "fixture"],
         "icon": ["lucide", "fixture"],
-        "component_source": ["shadcn", "magicui", "fixture"],
+        "component_source": ["shadcn", "magicui", "smoothui", "cultui", "fixture"],
         "style_primitive": ["pattern", "token_preset", "helper", "fixture"],
     }.get(category, ["fixture"])
 
