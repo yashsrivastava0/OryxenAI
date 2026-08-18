@@ -42,6 +42,7 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationSourceRef,
     FetchedResource,
+    HandoffIssue,
     ResourceSelection,
     RouteBuildContext,
     Stage1QueryPlan,
@@ -299,6 +300,21 @@ class BuildPreparationAgent(Agent):
                 "runtime_network_assets": False,
             },
             dependency_limits={"component_request_maximum": component_maximum},
+            query_history=list(payload.get("query_history", []) or []),
+            provider_attempts=list(payload.get("provider_attempts", []) or []),
+            previous_attempt_analysis=dict(payload.get("previous_attempt_analysis", {}) or {}),
+            materialization_constraints={
+                "runtime_network_assets": False,
+                "source_fetched_only_after_selection": True,
+                "component_source_attempt_maximum": int(
+                    getattr(
+                        self._settings.build_preparation,
+                        "component_source_attempt_maximum",
+                        3,
+                    )
+                    or 3
+                ),
+            },
         ).model_dump(mode="json")
 
         await self._emit_event(
@@ -364,6 +380,7 @@ class BuildPreparationAgent(Agent):
                 }
             )
         validate_query_plan(query_plan, need_ids)
+        query_terms_by_need = _query_terms_by_need(query_plan)
         await record(
             _event(
                 "stage_1_complete",
@@ -396,6 +413,7 @@ class BuildPreparationAgent(Agent):
             stage0.resource_needs,
             candidates,
             source_required=not live_providers,
+            query_terms_by_need=query_terms_by_need,
         )
         qualified_ids = {item.resource_id for item in qualifications if item.eligible}
         await record(
@@ -410,11 +428,7 @@ class BuildPreparationAgent(Agent):
             )
         )
 
-        candidate_payload = [
-            _candidate_prompt(candidate)
-            for candidate in candidates
-            if candidate.resource_id in qualified_ids
-        ]
+        candidate_payload = [_candidate_prompt(candidate) for candidate in candidates]
         await self._emit_event(
             _event(
                 "stage_2_started",
@@ -495,7 +509,11 @@ class BuildPreparationAgent(Agent):
         )
         selection_plan = selection_plan.model_copy(
             update={
-                "selections": forced_selections,
+                "selections": _complete_alternate_rankings(
+                    forced_selections,
+                    candidates,
+                    qualifications,
+                ),
                 "warnings": [*selection_plan.warnings, *forced_warnings],
             }
         )
@@ -504,53 +522,155 @@ class BuildPreparationAgent(Agent):
         # source after the closed candidate set has been selected, so weak
         # candidates do not consume source requests or provider quota.
         if live_providers:
-            selected_ids = _selected_ids(selection_plan)
-            fetched_candidates: list[FetchedResource] = []
-            fetch_failures: dict[str, str] = {}
-            for candidate in candidates:
-                if candidate.kind == "component" and candidate.resource_id in selected_ids:
-                    try:
-                        candidate = await lookup.fetch_component(candidate)
-                    except Exception as exc:
-                        fetch_failures[candidate.resource_id] = str(exc)
-                fetched_candidates.append(candidate)
-            candidates = fetched_candidates
             candidate_by_id = {candidate.resource_id: candidate for candidate in candidates}
-            qualifications = qualify_candidates(
-                stage0.resource_needs,
-                candidates,
-                source_required=True,
+            source_attempt_limit = max(
+                1,
+                int(
+                    getattr(
+                        self._settings.build_preparation,
+                        "component_source_attempt_maximum",
+                        3,
+                    )
+                    or 3
+                ),
             )
-            qualification_by_id = {item.resource_id: item for item in qualifications}
             post_fetch_selections: list[ResourceSelection] = []
             for selection in selection_plan.selections:
-                selected = qualification_by_id.get(selection.selected_resource_id or "")
-                if selection.selected_resource_id and (
-                    selection.selected_resource_id in fetch_failures
-                    or selected is None
-                    or not selected.eligible
-                ):
-                    failure = fetch_failures.get(
-                        selection.selected_resource_id,
-                        "; ".join(selected.reasons)
-                        if selected
-                        else "component source was not fetched",
+                need = next(
+                    (item for item in stage0.resource_needs if item.need_id == selection.need_id),
+                    None,
+                )
+                if need is None or need.category.casefold() not in {
+                    "component",
+                    "visual_component",
+                    "registry_component",
+                }:
+                    post_fetch_selections.append(selection)
+                    continue
+                ordered_ids = list(
+                    dict.fromkeys(
+                        [
+                            *(
+                                [selection.selected_resource_id]
+                                if selection.selected_resource_id
+                                else []
+                            ),
+                            *selection.alternate_resource_ids,
+                            *[
+                                item.resource_id
+                                for item in sorted(
+                                    qualifications,
+                                    key=lambda item: (
+                                        -item.relevance_score,
+                                        -item.quality_score,
+                                        item.resource_id,
+                                    ),
+                                )
+                                if item.need_id == need.need_id and item.eligible
+                            ],
+                        ]
                     )
+                )
+                attempts: list[dict[str, Any]] = []
+                resolved: FetchedResource | None = None
+                for candidate_id in ordered_ids[:source_attempt_limit]:
+                    candidate = candidate_by_id.get(candidate_id)
+                    if candidate is None or candidate.kind != "component":
+                        continue
+                    try:
+                        fetched = await lookup.fetch_component(candidate)
+                    except Exception as exc:
+                        details = getattr(exc, "details", {})
+                        details = details if isinstance(details, dict) else {}
+                        error_code = str(
+                            getattr(exc, "code", "SOURCE_FETCH_FAILED") or "SOURCE_FETCH_FAILED"
+                        )
+                        if error_code == "RATE_LIMITED":
+                            lookup.rate_limit_events = (
+                                int(getattr(lookup, "rate_limit_events", 0)) + 1
+                            )
+                        attempts.append(
+                            {
+                                "provider": candidate.provider,
+                                "candidate_id": candidate_id,
+                                "attempt": len(attempts) + 1,
+                                "query": query_terms_by_need.get(need.need_id, []),
+                                "source_fetch_status": "failed",
+                                "http_status": details.get("http_status"),
+                                "retry_delay": details.get("retry_delay", 0.0),
+                                "rate_limit_event": error_code == "RATE_LIMITED",
+                                "error_code": error_code,
+                                "rejection_reason": str(exc),
+                            }
+                        )
+                        continue
+                    candidate_by_id[candidate_id] = fetched
+                    qualified = qualify_candidates(
+                        [need],
+                        [fetched],
+                        source_required=True,
+                        query_terms_by_need=query_terms_by_need,
+                    )[0]
+                    attempts.append(
+                        {
+                            "provider": fetched.provider,
+                            "candidate_id": candidate_id,
+                            "attempt": len(attempts) + 1,
+                            "query": query_terms_by_need.get(need.need_id, []),
+                            "source_fetch_status": "accepted" if qualified.eligible else "rejected",
+                            "http_status": 200,
+                            "retry_delay": 0.0,
+                            "cache_state": "not_cached",
+                            "rejection_reason": "; ".join(qualified.reasons),
+                            "license": fetched.license,
+                            "source_file_count": len(fetched.source_files),
+                        }
+                    )
+                    if qualified.eligible:
+                        resolved = fetched
+                        break
+                lookup.provider_receipts.extend(attempts)
+                if resolved is None:
                     post_fetch_selections.append(
                         selection.model_copy(
                             update={
                                 "selected_resource_id": None,
                                 "fallback": selection.fallback
+                                or need.fallback
                                 or "Implement the approved component intent locally.",
-                                "adaptation_notes": f"Live component retrieval failed: {failure}",
+                                "adaptation_notes": (
+                                    f"Exhausted {len(attempts)} bounded registry source attempts; "
+                                    "the role remains an explicit execution gap."
+                                ),
                             }
                         )
                     )
                     selection_warnings.append(
-                        f"Selected component for need '{selection.need_id}' was not admitted after live source validation."
+                        f"No component source passed validation for need '{selection.need_id}' after bounded alternates."
                     )
                 else:
-                    post_fetch_selections.append(selection)
+                    post_fetch_selections.append(
+                        selection.model_copy(
+                            update={
+                                "selected_resource_id": resolved.resource_id,
+                                "alternate_resource_ids": [
+                                    item
+                                    for item in ordered_ids
+                                    if item != resolved.resource_id and item in candidate_by_id
+                                ],
+                                "why_selected": selection.why_selected
+                                or "First closed-set registry candidate with valid local source and provenance.",
+                            }
+                        )
+                    )
+            candidates = list(candidate_by_id.values())
+            candidate_by_id = {candidate.resource_id: candidate for candidate in candidates}
+            qualifications = qualify_candidates(
+                stage0.resource_needs,
+                candidates,
+                source_required=True,
+                query_terms_by_need=query_terms_by_need,
+            )
             selection_plan = selection_plan.model_copy(
                 update={
                     "selections": post_fetch_selections,
@@ -573,6 +693,11 @@ class BuildPreparationAgent(Agent):
             ],
             provider_capabilities=base_resource_packet["provider_capabilities"],
             dependency_limits=base_resource_packet["dependency_limits"],
+            query_history=[query.model_dump(mode="json") for query in query_plan.queries],
+            provider_attempts=list(getattr(lookup, "provider_receipts", [])),
+            previous_attempt_analysis=dict(payload.get("previous_attempt_analysis", {}) or {}),
+            materialization_constraints=base_resource_packet["materialization_constraints"],
+            quality_boundary=base_resource_packet["quality_boundary"],
         ).model_dump(mode="json")
         context_packet_hash = _packet_hash(context_packet)
         await self._emit_event(
@@ -739,6 +864,22 @@ class BuildPreparationAgent(Agent):
                 else 0,
                 deferred_optional_roles=sorted(deferred_optional_ids),
             )
+            if not live_model and not live_providers:
+                handoff_report = handoff_report.model_copy(
+                    update={
+                        "handoff_eligible": False,
+                        "status": "needs_attention",
+                        "summary": "Offline Build Preparation output is diagnostic-only and cannot be handed to Code Generator.",
+                        "issues": [
+                            *handoff_report.issues,
+                            HandoffIssue(
+                                code="OFFLINE_DIAGNOSTIC_ONLY",
+                                message="Offline model/provider mode cannot advertise a production-ready handoff.",
+                                next_action="Run the normal workflow with the configured live model and providers.",
+                            ),
+                        ],
+                    }
+                )
             provider_calls = int(getattr(lookup, "calls_made", 0)) if live_providers else 0
             provider_rate_limit_events = (
                 int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
@@ -757,6 +898,12 @@ class BuildPreparationAgent(Agent):
                 review, prompt_version, meta = await self._call_handoff_stage(
                     {
                         "handoff_report": handoff_report.model_dump(mode="json"),
+                        "resource_context_packet": context_packet,
+                        "query_plan": query_plan.model_dump(mode="json"),
+                        "candidate_resources": candidate_payload,
+                        "candidate_qualifications": [
+                            item.model_dump(mode="json") for item in qualifications
+                        ],
                         "resource_needs": [
                             need.model_dump(mode="json") for need in stage0.resource_needs
                         ],
@@ -765,6 +912,7 @@ class BuildPreparationAgent(Agent):
                             for selection in selection_plan.selections
                         ],
                         "materialized_resources": materialization.resources,
+                        "provider_attempts": list(getattr(lookup, "provider_receipts", [])),
                         "context_packet_hash": context_packet_hash,
                         "authority": {"model_may_not_grant_handoff": True},
                     },
@@ -785,6 +933,58 @@ class BuildPreparationAgent(Agent):
                         }
                     }
                 )
+            run_analysis = {
+                "schema_version": "build-preparation-run-analysis-v1",
+                "input": {
+                    "scope_hash": stage0.scope_hash,
+                    "content_hash": stage0.source_ref.content_architect_content_hash,
+                    "visual_direction_hash": stage0.source_ref.visual_design_director_direction_hash,
+                    "approval_verified": handoff_report.upstream_approval_verified,
+                    "visual_input_mode": stage0.visual_input_mode,
+                    "assumption_hash": stage0.assumption_hash,
+                    "assumptions": stage0.assumptions,
+                },
+                "derived_roles": [
+                    {
+                        "need_id": need.need_id,
+                        "category": need.category,
+                        "route_ids": need.route_ids,
+                        "scene_ids": need.scene_ids,
+                        "section_ids": need.section_ids,
+                        "component_intent": (
+                            need.component_intent.model_dump(mode="json")
+                            if need.component_intent
+                            else None
+                        ),
+                        "required": need.required_for_handoff,
+                    }
+                    for need in stage0.resource_needs
+                ],
+                "queries": [query.model_dump(mode="json") for query in query_plan.queries],
+                "model_call_receipts": stages_meta,
+                "provider_attempts": list(getattr(lookup, "provider_receipts", [])),
+                "candidate_qualifications": [
+                    item.model_dump(mode="json") for item in qualifications
+                ],
+                "selections": [item.model_dump(mode="json") for item in selection_plan.selections],
+                "materialized_resources": materialization.resources,
+                "role_failures": [issue.model_dump(mode="json") for issue in handoff_report.issues],
+                "retryability": {
+                    "provider_failures_retryable": any(
+                        str(item.get("error_code", "")).upper()
+                        in {"RATE_LIMITED", "PROVIDER_UNAVAILABLE"}
+                        for item in getattr(lookup, "provider_receipts", [])
+                    ),
+                    "explicit_regeneration_required": bool(handoff_report.issues),
+                },
+                "recommended_next_action": (
+                    "Review provider/source diagnostics and regenerate."
+                    if handoff_report.issues
+                    else "Proceed to Code Generator admission."
+                ),
+                "code_generator_eligible": handoff_report.handoff_eligible,
+            }
+            handoff_report = handoff_report.model_copy(update={"run_analysis": run_analysis})
             materialization = materialize_handoff_report(
                 staging_root,
                 materialization,
@@ -1045,6 +1245,66 @@ def _selected_ids(plan: Stage2SelectionPlan) -> set[str]:
         for selection in plan.selections
         if selection.selected_resource_id
     }
+
+
+def _query_terms_by_need(plan: Stage1QueryPlan) -> dict[str, list[str]]:
+    return {
+        query.need_id: list(
+            dict.fromkeys(
+                [
+                    *str(query.query or "").split(),
+                    *[str(item) for item in query.provider_terms if str(item).strip()],
+                ]
+            )
+        )
+        for query in plan.queries
+    }
+
+
+def _complete_alternate_rankings(
+    selections: list[ResourceSelection],
+    candidates: list[FetchedResource],
+    qualifications: list[Any],
+) -> list[ResourceSelection]:
+    """Fill alternate IDs only from the provider-returned closed candidate set."""
+    by_need: dict[str, list[FetchedResource]] = {}
+    for candidate in candidates:
+        by_need.setdefault(candidate.need_id, []).append(candidate)
+    qualification_order = {
+        item.resource_id: (item.relevance_score, item.quality_score) for item in qualifications
+    }
+    result: list[ResourceSelection] = []
+    for selection in selections:
+        candidates_for_need = sorted(
+            by_need.get(selection.need_id, []),
+            key=lambda candidate: (
+                -qualification_order.get(candidate.resource_id, (0, 0))[0],
+                -qualification_order.get(candidate.resource_id, (0, 0))[1],
+                candidate.resource_id,
+            ),
+        )
+        closed_ids = {candidate.resource_id for candidate in candidates_for_need}
+        ordered = list(
+            dict.fromkeys(
+                [
+                    *selection.alternate_resource_ids,
+                    *[candidate.resource_id for candidate in candidates_for_need],
+                ]
+            )
+        )
+        result.append(
+            selection.model_copy(
+                update={
+                    "alternate_resource_ids": [
+                        resource_id
+                        for resource_id in ordered
+                        if resource_id in closed_ids
+                        and resource_id != selection.selected_resource_id
+                    ]
+                }
+            )
+        )
+    return result
 
 
 def _reconcile_model_context(

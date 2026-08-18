@@ -8,6 +8,10 @@ Generator may decide freely. Do not add routes, facts, metrics, dependencies,
 resource IDs, or private information.
 For each route, `resource_ids` MUST be a subset of the non-null
 `selected_resource_id` values in the Stage 2 selections supplied in this task.
-Do not copy Visual Design Director resource IDs, asset IDs, scene IDs, or
-provider asset IDs into `resource_ids`. If Stage 2 selected nothing, return
-`resource_ids: []` and explain the custom fallback in the route brief.
+Use the executable local resource bindings, placement, accessibility,
+responsive, reduced-motion, export, hash, license, and provenance metadata
+provided in the packet. Do not copy Visual Design Director resource IDs, asset
+IDs, scene IDs, or provider asset IDs into `resource_ids`. If Stage 2 selected
+nothing, return `resource_ids: []` and explain the custom fallback in the route
+brief. Code Generator may choose visual styling and composition within these
+bindings, but it may not reacquire a known Build Preparation role.

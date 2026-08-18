@@ -249,6 +249,7 @@ class BuildPreparationConfig(BaseModel):
     editorial_image_maximum: int = 6
     visual_component_budget: int = 4
     visual_component_maximum: int = 6
+    component_source_attempt_maximum: int = 3
     provider_max_wait_seconds: float = 8.0
     provider_max_concurrency: int = 2
     provider_max_requests: int = 32

@@ -178,6 +178,11 @@ def compile_execution_contract(
             )
             if value
         ]
+        source_expectations.extend(
+            f"sha256:{entry.get('sha256')}"
+            for entry in resource.get("source_files", []) or []
+            if isinstance(entry, dict) and str(entry.get("sha256", "") or "")
+        )
         if disposition in {"local_file", "adaptable_source"} and _local_paths(resource):
             resolution = ResolvedResource(
                 resolution_type="local_materialized",
@@ -191,6 +196,14 @@ def compile_execution_contract(
                 ),
                 font_family=str(resource.get("font_family", "") or ""),
                 font_weights=[str(value) for value in resource.get("font_weights", []) or []],
+                expected_exports=[
+                    str(value)
+                    for value in (
+                        resource.get("expected_exports", [])
+                        or resource.get("usage_contract", {}).get("expected_exports", [])
+                    )
+                    if str(value).strip()
+                ],
                 source_expectations=source_expectations,
             )
         elif disposition == "package_import":

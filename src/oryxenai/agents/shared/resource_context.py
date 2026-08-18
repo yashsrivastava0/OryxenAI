@@ -17,12 +17,14 @@ class ResourceContextPacket(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: str = "resource-context-packet-v1"
+    schema_version: str = "resource-context-packet-v2"
     approved_content: dict[str, Any] = Field(default_factory=dict)
     visual_direction: dict[str, Any] = Field(default_factory=dict)
     routes: list[dict[str, Any]] = Field(default_factory=list)
     image_roles: list[dict[str, Any]] = Field(default_factory=list)
     component_roles: list[dict[str, Any]] = Field(default_factory=list)
+    component_intents: list[dict[str, Any]] = Field(default_factory=list)
+    canonical_provider_terms: dict[str, list[str]] = Field(default_factory=dict)
     resource_needs: list[dict[str, Any]] = Field(default_factory=list)
     candidate_resources: list[dict[str, Any]] = Field(default_factory=list)
     selections: list[dict[str, Any]] = Field(default_factory=list)
@@ -33,6 +35,11 @@ class ResourceContextPacket(BaseModel):
     existing_resources: list[dict[str, Any]] = Field(default_factory=list)
     output_fields: list[str] = Field(default_factory=list)
     authority: dict[str, Any] = Field(default_factory=dict)
+    query_history: list[dict[str, Any]] = Field(default_factory=list)
+    provider_attempts: list[dict[str, Any]] = Field(default_factory=list)
+    materialization_constraints: dict[str, Any] = Field(default_factory=dict)
+    previous_attempt_analysis: dict[str, Any] = Field(default_factory=dict)
+    quality_boundary: dict[str, Any] = Field(default_factory=dict)
 
 
 def build_resource_context_packet(
@@ -45,6 +52,11 @@ def build_resource_context_packet(
     selections: list[dict[str, Any]] | None = None,
     provider_capabilities: dict[str, Any] | None = None,
     dependency_limits: dict[str, Any] | None = None,
+    query_history: list[dict[str, Any]] | None = None,
+    provider_attempts: list[dict[str, Any]] | None = None,
+    materialization_constraints: dict[str, Any] | None = None,
+    previous_attempt_analysis: dict[str, Any] | None = None,
+    quality_boundary: dict[str, Any] | None = None,
 ) -> ResourceContextPacket:
     needs = [
         item.model_dump(mode="json") if hasattr(item, "model_dump") else dict(item)
@@ -62,6 +74,18 @@ def build_resource_context_packet(
         if str(item.get("category", "") or "").casefold()
         in {"component", "visual_component", "registry_component"}
     ]
+    component_intents = [
+        item.get("component_intent")
+        for item in component_roles
+        if isinstance(item.get("component_intent"), dict)
+    ]
+    canonical_provider_terms = {
+        str(item.get("role_id", "")): [
+            str(term) for term in item.get("provider_terms", []) if str(term).strip()
+        ]
+        for item in component_intents
+        if str(item.get("role_id", ""))
+    }
     visual = dict(visual_design_director)
     forbidden = list(visual.get("must_not_fabricate", []) or [])
     for need in needs:
@@ -83,6 +107,8 @@ def build_resource_context_packet(
         ],
         image_roles=image_roles,
         component_roles=component_roles,
+        component_intents=component_intents,
+        canonical_provider_terms=canonical_provider_terms,
         resource_needs=needs,
         candidate_resources=list(candidate_resources or []),
         selections=list(selections or []),
@@ -105,4 +131,29 @@ def build_resource_context_packet(
             "model_may_not_invent_provider_ids_urls_source_or_bytes": True,
             "model_may_not_grant_handoff": True,
         },
+        query_history=list(query_history or []),
+        provider_attempts=list(provider_attempts or []),
+        materialization_constraints=dict(
+            materialization_constraints
+            or {
+                "runtime_network_assets": False,
+                "source_fetched_only_after_selection": True,
+                "component_source_attempt_maximum": 3,
+            }
+        ),
+        previous_attempt_analysis=dict(previous_attempt_analysis or {}),
+        quality_boundary=dict(
+            quality_boundary
+            or {
+                "hard_failures": [
+                    "unsafe_source",
+                    "missing_local_path",
+                    "missing_hash",
+                    "missing_provenance",
+                    "invalid_dependency",
+                    "invalid_license",
+                ],
+                "warnings_only": ["subjective_visual_quality", "candidate_style_preference"],
+            }
+        ),
     )

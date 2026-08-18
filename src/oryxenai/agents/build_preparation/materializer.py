@@ -222,6 +222,22 @@ def _meaningful_component_source(source_files: dict[str, str]) -> bool:
     return has_export and markup_count >= 2 and ui_signals >= 1
 
 
+def _component_exports(source_files: dict[str, str]) -> list[str]:
+    names: list[str] = []
+    for source in source_files.values():
+        names.extend(
+            re.findall(
+                r"\bexport\s+(?:default\s+)?(?:const|function|class|type|interface)\s+([A-Za-z_$][\w$]*)",
+                source,
+            )
+        )
+        for group in re.findall(r"\bexport\s*\{([^}]*)\}", source):
+            names.extend(
+                item.strip().split(" as ")[-1] for item in group.split(",") if item.strip()
+            )
+    return sorted({name for name in names if name})
+
+
 def _later_fetch_providers(settings: Any, need: ResourceNeed) -> list[str]:
     if need.kind != "resource":
         return []
@@ -636,7 +652,10 @@ async def materialize_build_context(
             "source_reference": candidate.source_reference,
             "why_selected": selection.why_selected,
             "fallback": selection.fallback or candidate.fallback,
-            "dependencies": candidate.dependencies,
+            "dependencies": list(candidate.dependencies),
+            "registry_dependencies": list(candidate.registry_dependencies),
+            "source_version": candidate.source_version,
+            "provider_receipt": dict(candidate.retrieval_metadata.get("provider_receipt", {})),
             "license": candidate.license,
             "license_reference": candidate.license_reference,
             "required_for_handoff": bool(need.required_for_handoff) if need else False,
@@ -662,6 +681,13 @@ async def materialize_build_context(
                     "license_reference": candidate.license_reference,
                 },
                 "dependencies": list(candidate.dependencies),
+                "registry_dependencies": list(candidate.registry_dependencies),
+                "source_version": candidate.source_version,
+                "expected_exports": list(
+                    need.component_intent.expected_exports
+                    if need and need.component_intent
+                    else candidate.retrieval_metadata.get("expected_exports", [])
+                ),
                 "reduced_motion_behavior": str(
                     need.details.get("reduced_motion_behavior", "") or "static equivalent"
                 )
@@ -910,19 +936,32 @@ async def materialize_build_context(
                             "local_directory": f"{component_root}/source",
                             "source_files": source_entries,
                             "disposition": "adaptable_source",
+                            "release_pin": candidate.source_version,
                         }
                     )
                     source_hashes = [str(item.get("sha256", "")) for item in source_entries]
+                    explicit_exports = [
+                        str(item)
+                        for item in (
+                            need.component_intent.expected_exports
+                            if need and need.component_intent
+                            else candidate.retrieval_metadata.get("expected_exports", [])
+                        )
+                        if str(item).strip()
+                    ]
+                    export_names = explicit_exports or _component_exports(source_map)
                     base_entry["usage_contract"].update(
                         {
                             "local_directory": f"{component_root}/source",
                             "local_paths": [item["local_path"] for item in source_entries],
-                            "export_name": str(
-                                (need.details.get("expected_exports") or [""])[0] if need else ""
-                            ),
+                            "expected_exports": export_names,
+                            "export_name": export_names[0] if export_names else "",
                             "sha256": source_hashes,
+                            "source_hashes": source_hashes,
+                            "import_path": f"./{component_root}/source",
                         }
                     )
+                    base_entry["expected_exports"] = export_names
         elif candidate.kind == "icon":
             icon_names.append(candidate.icon_name)
             base_entry.update(
@@ -1118,9 +1157,22 @@ def materialize_handoff_report(
     """Write the Code Generator admission decision into the staged tree."""
     relative = "handoff-report.json"
     item = _write(root, relative, _json_bytes(report), "metadata")
+    analysis = report.get("run_analysis")
+    analysis_item: MaterializedFile | None = None
+    analysis_hash = ""
+    if isinstance(analysis, dict):
+        analysis_bytes = _json_bytes(analysis)
+        analysis_hash = _hash_bytes(analysis_bytes)
+        analysis_item = _write(root, "handoff-analysis.json", analysis_bytes, "metadata")
     return materialization.model_copy(
         update={
-            "files": [*materialization.files, item],
+            "files": [
+                *materialization.files,
+                item,
+                *([analysis_item] if analysis_item is not None else []),
+            ],
             "handoff_report_path": relative,
+            "analysis_path": "handoff-analysis.json" if analysis_item is not None else "",
+            "analysis_hash": analysis_hash,
         }
     )

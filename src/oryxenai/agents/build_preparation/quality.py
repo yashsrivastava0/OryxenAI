@@ -22,6 +22,7 @@ from oryxenai.agents.build_preparation.schemas import (
     ResourceSelection,
     RouteScope,
 )
+from oryxenai.agents.build_preparation.visual_input import component_provider_terms
 
 _CUSTOM_CATEGORIES = frozenset({"hero_pattern", "background_system", "diagram_primitive"})
 _GENERIC_TERMS = frozenset(
@@ -108,7 +109,7 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
                 ),
             }
         )
-        if need.category.casefold() == "visual_component":
+        if need.category.casefold() in {"visual_component", "component", "registry_component"}:
             configured_registry_order = list(
                 getattr(
                     getattr(settings, "resource_providers", None),
@@ -126,12 +127,67 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
                 for value in getattr(query, "allowed_providers", [])
                 if str(value) in configured_registry_order
             ] or configured_registry_order
+            role_id = (
+                need.component_intent.role_id
+                if need.component_intent is not None
+                else str(details.get("interaction_role", "") or "")
+            )
+            canonical_terms = [
+                str(item) for item in details.get("provider_terms", []) or [] if str(item).strip()
+            ]
+            interaction_terms = [
+                str(details.get(key, "") or "")
+                for key in ("interaction_class", "interaction_outcome", "placement")
+                if str(details.get(key, "") or "").strip()
+            ]
+            provider_terms = list(
+                dict.fromkeys(
+                    [
+                        *query.provider_terms,
+                        *canonical_terms,
+                        *component_provider_terms(role_id),
+                        *interaction_terms,
+                    ]
+                )
+            )
+            query_text = " ".join(
+                dict.fromkeys(
+                    [
+                        *str(query.query or "").split(),
+                        *provider_terms,
+                        *need.query_terms,
+                    ]
+                )
+            ).strip()
             queries.append(
                 query.model_copy(
                     update={
                         "kind": "component",
+                        "query": query_text,
+                        "provider_terms": provider_terms[:16],
                         "allowed_providers": registry_order,
                         "required_for_handoff": need.required_for_handoff,
+                        "interaction_class": (
+                            query.interaction_class
+                            or (
+                                need.component_intent.interaction_class
+                                if need.component_intent
+                                else ""
+                            )
+                        ),
+                        "interaction_outcome": (
+                            query.interaction_outcome
+                            or (
+                                need.component_intent.interaction_outcome
+                                if need.component_intent
+                                else ""
+                            )
+                        ),
+                        "placement": query.placement or str(details.get("placement", "") or ""),
+                        "expected_exports": query.expected_exports
+                        or (
+                            need.component_intent.expected_exports if need.component_intent else []
+                        ),
                     }
                 )
             )
@@ -197,17 +253,27 @@ def qualify_candidates(
     candidates: list[FetchedResource],
     *,
     source_required: bool = True,
+    query_terms_by_need: dict[str, list[str]] | None = None,
 ) -> list[CandidateQualification]:
     """Admit candidates, optionally before the selected source is fetched."""
     need_by_id = {need.need_id: need for need in needs}
     return [
-        _qualify(need_by_id[candidate.need_id], candidate, source_required=source_required)
+        _qualify(
+            need_by_id[candidate.need_id],
+            candidate,
+            source_required=source_required,
+            query_terms=(query_terms_by_need or {}).get(candidate.need_id, []),
+        )
         for candidate in candidates
     ]
 
 
 def _qualify(
-    need: ResourceNeed, candidate: FetchedResource, *, source_required: bool = True
+    need: ResourceNeed,
+    candidate: FetchedResource,
+    *,
+    source_required: bool = True,
+    query_terms: list[str] | None = None,
 ) -> CandidateQualification:
     reasons: list[str] = []
     codes: list[str] = []
@@ -277,15 +343,48 @@ def _qualify(
             codes.append("SYNTHETIC_COMPONENT_CANDIDATE")
             reasons.append("Generated-local component source is not a real registry handoff.")
         source_text = " ".join(
-            [candidate.title, candidate.description, candidate.provider_asset_id]
+            [
+                candidate.title,
+                candidate.description,
+                candidate.provider_asset_id,
+                " ".join(str(item) for item in candidate.retrieval_metadata.get("tags", [])),
+            ]
         ).lower()
+        intent = need.component_intent
+        forbidden = {
+            token
+            for token in re.findall(
+                r"[a-z0-9]+",
+                " ".join(
+                    [
+                        *(intent.negative_concepts if intent else []),
+                        *(intent.prohibitions if intent else []),
+                    ]
+                ).lower(),
+            )
+            if len(token) > 3
+        }
+        if forbidden.intersection(set(re.findall(r"[a-z0-9]+", source_text))):
+            policy_status = "rejected"
+            codes.append("COMPONENT_POLICY_REJECTED")
+            reasons.append("The candidate metadata contains a prohibited concept for this role.")
         terms = {
             token
-            for token in re.findall(r"[a-z0-9]+", " ".join(need.query_terms).lower())
+            for token in re.findall(
+                r"[a-z0-9]+",
+                " ".join(
+                    [
+                        *need.query_terms,
+                        *(query_terms or []),
+                        *(intent.provider_terms if intent else []),
+                        *candidate.retrieval_metadata.get("provider_terms", []),
+                    ]
+                ).lower(),
+            )
             if len(token) > 3 and token not in _GENERIC_TERMS
         }
         matches = sum(1 for token in terms if token in source_text)
-        if matches < 2:
+        if matches < 1:
             relevance = 0
             codes.append("COMPONENT_NOT_RELEVANT")
             reasons.append(

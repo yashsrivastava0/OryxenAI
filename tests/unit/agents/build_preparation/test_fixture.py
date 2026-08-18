@@ -38,13 +38,16 @@ async def test_fixture_returns_routes_needs_and_complete_events(tmp_path: Path) 
         },
         local_result_root=str(tmp_path / "fixture-result"),
     )
-    assert result["status"] == "ready"
+    assert result["status"] == "needs_attention"
     assert result["routes"][0]["route_id"] == "home"
     assert result["events"][-1]["event_id"] == "phase_3_complete"
     assert result["stage"] == "phase_3"
     assert result["materialization"]["manifest_path"] == "resources/manifest.json"
     assert result["materialization"]["resource_plan_path"] == "resources/plan.json"
-    assert result["handoff_report"]["handoff_eligible"] is True
+    assert result["handoff_report"]["handoff_eligible"] is False
+    assert any(
+        issue["code"] == "OFFLINE_DIAGNOSTIC_ONLY" for issue in result["handoff_report"]["issues"]
+    )
     assert (tmp_path / "fixture-result" / "build-context" / "handoff-report.json").is_file()
     assert result["package"]["archive_sha256"]
     assert result["package"]["mirror_root"]

@@ -353,6 +353,10 @@ async def test_materializer_preserves_component_source_paths_and_license_provena
         assert resource["disposition"] == "adaptable_source"
         assert resource["source_files"][0]["original_path"] == ("registry/magicui/magic-card.tsx")
         assert resource["license_reference"].endswith("LICENSE.md")
+        assert resource["expected_exports"] == ["MagicCard"]
+        assert resource["usage_contract"]["local_paths"]
+        assert resource["usage_contract"]["expected_exports"] == ["MagicCard"]
+        assert resource["usage_contract"]["source_hashes"]
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
