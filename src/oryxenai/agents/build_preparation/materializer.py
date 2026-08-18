@@ -472,8 +472,110 @@ async def _materialize_image_candidate(
     }
 
 
+def _overview_handoff_text(context: BuildContextDraft) -> str:
+    """Add a detailed consumer briefing without becoming a second contract.
+
+    The JSON projections and execution contract are authoritative for Code
+    Generator.  This section exists so a person, or a model reviewing the
+    pack, can understand the boundary before opening those projections.  It
+    deliberately describes choices as advisory and does not invent a route or
+    component quota.
+    """
+
+    route_lines: list[str] = []
+    for route in context.routes:
+        details = [f"`{route.route_id}` at `{route.path or '/'}`"]
+        if route.resource_ids:
+            details.append(
+                "prepared resource IDs: " + ", ".join(f"`{value}`" for value in route.resource_ids)
+            )
+        if route.acceptance_criteria:
+            details.append(f"{len(route.acceptance_criteria)} acceptance criteria")
+        route_lines.append("- " + " — ".join(details))
+    route_inventory = "\n".join(route_lines) or "- No route-specific brief was supplied."
+
+    return (
+        """## How Code Generator consumes this pack
+
+`overview.md` is explanatory context, not the implementation authority. The
+consumer first admits `build-pack.zip`, verifies the ZIP, expiry, manifest,
+projection hashes, approvals, licenses, execution slots, and route contracts,
+then builds its planner context from the following files:
+
+- `site/contract.json` — the approved public routes, paths, sections, content,
+  criteria, and route file references.
+- `design/visual-direction.json` — the approved visual language, composition
+  intent, responsive outcomes, accessibility, and motion direction.
+- `execution/contract.json` — the one authoritative resolution for every known
+  resource slot: local paths, import paths, exports, dependencies, hashes,
+  provenance, and fallback behavior.
+- `resources/projection.json` and `resources/ledger.json` — materialized
+  resources, decisions, placements, and the reason each resource is present.
+- `provenance/approvals.json`, `provenance/targets.json`,
+  `provenance/licenses.json`, and `provenance/checksums.json` — admission,
+  target, licensing, and byte-integrity evidence.
+- `routes/` — route-scoped briefs, public data, and resource maps.
+- `resources/images/`, `resources/components/`, `resources/fonts/`, and
+  `resources/recipes/` — the local material and typed local implementations
+  available inside the admitted pack.
+
+The planner writes a local workspace from those admitted files. It imports
+prepared component source from the generated resource tree, references local
+images and fonts, merges only the allowed dependency bindings, and records a
+source manifest. Known Build Preparation roles are not searched for again.
+Only a genuinely emergent need that is absent from the execution contract can
+enter Code Generator's separate, receipt-bound acquisition path.
+
+## Approved route inventory
+
+The route set below is the current approved public scope. It is a coverage
+boundary, not a visual template or a recommendation about how many screens a
+portfolio should have.
+
+"""
+        + route_inventory
+        + """
+
+## Composition guidance (advisory)
+
+- This briefing does not set a fixed screen count, route count, shared
+  component count, card count, or layout. Choose the composition that best
+  serves the approved audience and content.
+- Cover every admitted route and semantic section, but decide how to express
+  them: a long-form route may use multiple scroll scenes, responsive states,
+  or nested interaction surfaces; multiple approved routes may become separate
+  public screens. Adding a new public route requires upstream approval rather
+  than an assumption in this document.
+- Treat prepared component bindings as available implementation material for
+  their named roles, not as a quota. Use the declared exports/import paths when
+  they improve the experience; otherwise preserve the binding's declared
+  accessible fallback. Do not substitute a remote component or reacquire the
+  known role.
+- Infer the portfolio's information architecture from the approved person,
+  work, and audience. An executive-oriented portfolio may emphasize trust,
+  leadership, outcomes, and a clear contact path when those facts are
+  approved. A software-oriented portfolio may emphasize capabilities,
+  experience, selected work, technical decisions, and evidence when those
+  facts are approved. Neither archetype authorizes invented claims, metrics,
+  employers, projects, or credentials.
+- Preserve the contract's responsive, keyboard, accessibility, and
+  reduced-motion outcomes while freely choosing visual hierarchy, spacing,
+  grouping, and implementation detail.
+
+## Handoff review checklist
+
+Before generation, confirm that the selected route and section coverage is
+exact, every known visual role resolves to its prepared local material or
+declared typed fallback, imports and exports match the execution contract, and
+all local references remain inside the workspace. Before preview promotion,
+verify the generated source and runtime at the approved routes and responsive
+states, including keyboard and reduced-motion behavior. The overview can guide
+that work, but the JSON contracts and local files remain the source of truth."""
+    )
+
+
 def _overview_text(context: BuildContextDraft) -> str:
-    sections = [context.overview_markdown.strip()]
+    sections = [context.overview_markdown.strip(), _overview_handoff_text(context)]
     if context.fixed_facts:
         sections.append(
             "## Fixed facts\n\n" + "\n".join(f"- {item}" for item in context.fixed_facts)
