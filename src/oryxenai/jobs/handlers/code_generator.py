@@ -837,6 +837,17 @@ def _build_initial_requests(
 ) -> list[ResourceRequest]:
     resources = projections.get("resources/projection.json", {}).get("resources", [])
     needs = projections.get("resources/projection.json", {}).get("resource_needs", [])
+    visual_projection = projections.get("design/visual-direction.json", {})
+    visual_global = (
+        visual_projection.get("global", {}) if isinstance(visual_projection, dict) else {}
+    )
+    visual_language = (
+        visual_global.get("visual_language", {}) if isinstance(visual_global, dict) else {}
+    )
+    image_style = " ".join(
+        str(visual_language.get(key, "") or "")
+        for key in ("creative_thesis", "color_behavior", "typography")
+    ).strip()
     # v3 packs resolve every declared execution slot deterministically at
     # admission (local recipe / local materialized file / target package
     # binding). Emergent acquisition exists only for planner slots the pack
@@ -895,6 +906,23 @@ def _build_initial_requests(
                 positive_terms=list(re_split_words(slot.purpose)),
                 negative_terms=[],
                 forbidden_subjects=[],
+                style_mood=image_style[:240]
+                if category in {"image", "texture", "illustration"}
+                else "",
+                theme_colors=(
+                    [str(visual_language.get("color_behavior", ""))[:120]]
+                    if category in {"image", "texture", "illustration"}
+                    and visual_language.get("color_behavior")
+                    else []
+                ),
+                orientation=(
+                    "landscape"
+                    if category in {"image", "texture", "illustration"}
+                    and any(
+                        token in slot.purpose.casefold() for token in ("hero", "banner", "showcase")
+                    )
+                    else ""
+                ),
             ),
             technical_constraints=ResourceTechnicalConstraints(
                 media_types=[], max_bytes=_max_bytes_for(category)
@@ -932,9 +960,9 @@ def _infer_category(purpose: str, need: dict[str, Any]) -> str:
 
 def _allowed_sources(category: str) -> list[str]:
     return {
-        "image": ["pexels", "unsplash", "fixture"],
-        "texture": ["pexels", "unsplash", "fixture"],
-        "illustration": ["pexels", "unsplash", "fixture"],
+        "image": ["pexels", "pixabay", "unsplash", "fixture"],
+        "texture": ["pexels", "pixabay", "unsplash", "fixture"],
+        "illustration": ["pexels", "pixabay", "unsplash", "fixture"],
         "font": ["local", "fixture"],
         "icon": ["lucide", "fixture"],
         "component_source": ["shadcn", "magicui", "smoothui", "cultui", "fixture"],

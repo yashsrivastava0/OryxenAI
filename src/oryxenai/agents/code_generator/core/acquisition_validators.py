@@ -33,9 +33,9 @@ class AcquisitionValidationError(ValueError):
 
 _SAFE_VENDOR_PATH = re.compile(r"^src/components/vendor/[a-z0-9_-]+/.+$")
 _PROVIDER_BY_CATEGORY = {
-    "image": {"pexels", "unsplash", "fixture"},
-    "texture": {"pexels", "unsplash", "fixture"},
-    "illustration": {"pexels", "unsplash", "fixture"},
+    "image": {"pexels", "pixabay", "unsplash", "fixture"},
+    "texture": {"pexels", "pixabay", "unsplash", "fixture"},
+    "illustration": {"pexels", "pixabay", "unsplash", "fixture"},
     "font": {"google_fonts", "fixture", "local"},
     "icon": {"lucide", "fixture", "local"},
     "component_source": {"shadcn", "magicui", "smoothui", "cultui", "fixture"},

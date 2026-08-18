@@ -86,6 +86,22 @@ max_routes = 12                # route_plan / page_content_packs truncated to th
 max_pages = 12                     # pages truncated to this, never rejected
 max_catalogue_candidates = 6       # resource-catalogue shortlist size per model call
 
+[image_retrieval]
+# Shared by Build Preparation and Code Generator. Search responses are cached
+# for one day and selected bytes are always materialized into the generated site.
+provider_order = ["pexels", "pixabay"]
+cache_root = ".workspace/image-search-cache"
+cache_ttl_seconds = 86400
+max_queries = 3
+max_candidates_per_query = 6
+max_candidates_total = 12
+max_dimension = 2400
+timeout_seconds = 15.0
+retry_count = 2
+max_retry_wait_seconds = 8.0
+unsplash_enabled = false
+unsplash_local_vendoring_authorized = false
+
 [build_preparation]
 # User-visible pre-code stage. Bundles live in private object storage, never on
 # a shared application/worker filesystem.
@@ -143,7 +159,7 @@ max_events_page_size = 100
 build_preparation_mirror_root = "output/build-preparation"
 
 [code_generator_acquisition]
-allowlist_image_providers = ["pexels", "unsplash"]
+allowlist_image_providers = ["pexels", "pixabay"]
 allowlist_font_formats = ["woff2", "woff"]
 allowlist_icon_package = "lucide"
 allowlist_component_registries = ["shadcn", "magicui", "smoothui", "cultui"]
@@ -307,5 +323,6 @@ motion_primitives_commit = "immutable-pin-required"
 motion_primitives_allowed_components = ["cursor", "magnetic", "text-effect"]
 animate_ui_enabled = false
 pexels_api_key_env = "PEXELS_API_KEY"
+pixabay_api_key_env = "PIXABAY_API_KEY"
 unsplash_access_key_env = "UNSPLASH_ACCESS_KEY"
 lucide_icon_url_template = "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"

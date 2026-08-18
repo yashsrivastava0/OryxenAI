@@ -98,7 +98,19 @@ class ResourceQuery(BaseModel):
     kind: Literal["photo", "component", "icon", "font", "custom"]
     query: str = ""
     provider_terms: list[str] = Field(default_factory=list)
+    purpose: str = ""
+    subject: str = ""
+    style_mood: str = ""
+    theme_colors: list[str] = Field(default_factory=list)
+    category: str = ""
+    colors: list[str] = Field(default_factory=list)
+    editors_choice: bool = False
     orientation: str = ""
+    aspect_ratio: str = ""
+    minimum_width: int = 0
+    minimum_height: int = 0
+    negative_concepts: list[str] = Field(default_factory=list)
+    important: bool = False
     icon_name: str = ""
     fallback: str = ""
     required_for_handoff: bool = False
@@ -117,8 +129,9 @@ class Stage1QueryPlan(BaseModel):
 class FetchedResource(BaseModel):
     """Provider-returned metadata and safe registry source text.
 
-    Image bytes are deliberately not represented here. Pexels bytes are
-    downloaded only after selection; Unsplash bytes are never downloaded.
+    Image bytes are deliberately not represented here. Pexels/Pixabay bytes
+    are downloaded only after selection; an explicitly authorized Unsplash
+    path follows the same local-vendoring rule.
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -130,6 +130,13 @@ class ResourceQuery(BaseModel):
     positive_terms: list[str] = Field(default_factory=list)
     negative_terms: list[str] = Field(default_factory=list)
     forbidden_subjects: list[str] = Field(default_factory=list)
+    style_mood: str = ""
+    theme_colors: list[str] = Field(default_factory=list)
+    orientation: str = ""
+    aspect_ratio: str = ""
+    category: str = ""
+    colors: list[str] = Field(default_factory=list)
+    editors_choice: bool = False
 
 
 class ResourceTechnicalConstraints(BaseModel):

@@ -29,6 +29,7 @@ from oryxenai.agents.build_preparation.schemas import (
     ResourceSelection,
     RouteScope,
 )
+from oryxenai.agents.shared.image_retrieval import intent_from_values, prepare_image_bytes
 
 DownloadImage = Callable[[FetchedResource], Awaitable[bytes]]
 TriggerDownload = Callable[[FetchedResource], Awaitable[None]]
@@ -615,6 +616,7 @@ async def materialize_build_context(
     resource_manifest: list[dict[str, Any]] = []
     icon_names: list[str] = []
     seen_selected: set[str] = set()
+    image_by_hash: dict[str, str] = {}
     for selection in selections:
         resource_id = selection.selected_resource_id
         if not resource_id or resource_id in seen_selected:
@@ -641,7 +643,11 @@ async def materialize_build_context(
             "placement": str(need.details.get("placement", "")) if need else "",
             "disposition": "selected_not_materialized",
         }
-        if candidate.kind == "photo" and candidate.provider == "pexels":
+        if candidate.kind == "photo" and candidate.provider in {
+            "pexels",
+            "pixabay",
+            "unsplash",
+        }:
             try:
                 if download_image is None:
                     raise ValueError(
@@ -649,6 +655,28 @@ async def materialize_build_context(
                     )
                 downloader = download_image
                 image_bytes = await downloader(candidate)
+                details = need.details if need else {}
+                intent = intent_from_values(
+                    purpose=need.purpose if need else candidate.title,
+                    subject=candidate.title or candidate.description,
+                    style_mood=str(details.get("style_mood", "") or ""),
+                    orientation=candidate.orientation,
+                    aspect_ratio=str(details.get("aspect_ratio", "") or ""),
+                    minimum_width=1200 if need and need.required_for_handoff else 0,
+                    minimum_height=700 if need and need.required_for_handoff else 0,
+                    queries=[candidate.title or candidate.description],
+                )
+                image_bytes, image_info = prepare_image_bytes(
+                    image_bytes,
+                    intent,
+                    max_dimension=int(
+                        getattr(
+                            getattr(settings, "image_retrieval", None),
+                            "max_dimension",
+                            2400,
+                        )
+                    ),
+                )
                 try:
                     with Image.open(io.BytesIO(image_bytes)) as image:
                         image.load()
@@ -669,8 +697,12 @@ async def materialize_build_context(
                 extension = "jpg"
                 if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
                     extension = "png"
-                image_path = f"resources/images/{resource_id}.{extension}"
-                files.append(_write(root, image_path, image_bytes, "image"))
+                content_hash = str(image_info["sha256"])
+                image_path = image_by_hash.get(content_hash, "")
+                if not image_path:
+                    image_path = f"resources/images/{resource_id}.{extension}"
+                    files.append(_write(root, image_path, image_bytes, "image"))
+                    image_by_hash[content_hash] = image_path
                 metadata = {
                     "resource_id": resource_id,
                     "alt_text": candidate.title,
@@ -685,6 +717,9 @@ async def materialize_build_context(
                     "decorative": True,
                     "pixel_width": pixel_width,
                     "pixel_height": pixel_height,
+                    "original_width": image_info["original_width"],
+                    "original_height": image_info["original_height"],
+                    "content_hash": content_hash,
                     "inspection_level": "pixel_inspected",
                     "local_path": image_path,
                 }
@@ -707,7 +742,9 @@ async def materialize_build_context(
                     }
                 )
             except Exception as exc:
-                warnings.append(f"Could not materialize Pexels resource {resource_id}: {exc}")
+                warnings.append(
+                    f"Could not materialize {candidate.provider} resource {resource_id}: {exc}"
+                )
                 base_entry.update(
                     {
                         "disposition": "custom_implementation_required",
