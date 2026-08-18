@@ -1,8 +1,10 @@
-"""Deterministic priority and budget policy for live component retrieval.
+"""Deterministic reporting policy for live component retrieval.
 
 The policy deliberately does not perform I/O, call a model, or retain results.
-It decides which component intents may spend provider/source-fetch budget. LLM
-query composition and candidate ranking remain separate, closed-set steps.
+It reports semantic priority and the configured advisory ceiling.  It does not
+drop an approved role: LLM query composition and candidate ranking remain
+separate, closed-set steps and operational limits are enforced per role by the
+provider/materialization layers.
 """
 
 from __future__ import annotations
@@ -24,6 +26,10 @@ class ComponentRetrievalPlan:
     required_over_maximum: bool
 
     @property
+    def advisory_exceeded(self) -> bool:
+        return len(self.selected_ids) > self.maximum
+
+    @property
     def target_count(self) -> int:
         return len(self.selected_ids)
 
@@ -35,7 +41,8 @@ class ComponentRetrievalPlan:
             "target_count": self.target_count,
             "maximum": self.maximum,
             "required_over_maximum": self.required_over_maximum,
-            "strategy": "required-first-priority-with-route-coverage",
+            "advisory_exceeded": self.advisory_exceeded,
+            "strategy": "all-approved-roles-with-priority-reporting",
         }
 
 
@@ -124,30 +131,27 @@ def _optional_priority(
 
 
 def plan_component_retrieval(items: Iterable[Any], *, maximum: int) -> ComponentRetrievalPlan:
-    """Select required roles plus the highest-value optional roles.
+    """Report role priority without turning the configured maximum into quota.
 
-    Required roles are never silently dropped when they exceed the configured
-    maximum; the plan reports that condition so the caller can surface a
-    truthful operational warning. Only optional roles are deferred.
+    The maximum is retained as an advisory value for diagnostics and capacity
+    review.  Every semantically justified approved role remains selected; the
+    provider and materializer enforce only per-role safety limits.
     """
 
     entries = [(index, item, _key(item)) for index, item in enumerate(items) if _key(item)]
     maximum = max(0, int(maximum))
-    required = [entry for entry in entries if _required(entry[1])]
-    optional = [entry for entry in entries if not _required(entry[1])]
-    required.sort(key=lambda entry: _priority(entry[1], entry[0]), reverse=True)
-    selected = required[:]
-    remaining = max(0, maximum - len(selected))
-    covered_routes = (
-        set().union(*(_route_ids(entry[1]) for entry in selected)) if selected else set()
+    required = sorted(
+        (entry for entry in entries if _required(entry[1])),
+        key=lambda entry: _priority(entry[1], entry[0]),
+        reverse=True,
     )
-    covered_roles = (
-        set().union(*(_role_tokens(entry[1]) for entry in selected)) if selected else set()
-    )
-    optional_pool = optional[:]
-    for _ in range(min(remaining, len(optional_pool))):
-        best = max(
-            optional_pool,
+    remaining_optional = [entry for entry in entries if not _required(entry[1])]
+    covered_routes = {route_id for _, item, _ in required for route_id in _route_ids(item)}
+    covered_roles = {token for _, item, _ in required for token in _role_tokens(item)}
+    optional: list[tuple[int, Any, str]] = []
+    while remaining_optional:
+        index, item, key = max(
+            remaining_optional,
             key=lambda entry: _optional_priority(
                 entry[1],
                 entry[0],
@@ -155,15 +159,16 @@ def plan_component_retrieval(items: Iterable[Any], *, maximum: int) -> Component
                 covered_roles=covered_roles,
             ),
         )
-        optional_pool.remove(best)
-        selected.append(best)
-        covered_routes.update(_route_ids(best[1]))
-        covered_roles.update(_role_tokens(best[1]))
-    deferred = optional_pool
+        chosen = next(entry for entry in remaining_optional if entry[0] == index)
+        remaining_optional.remove(chosen)
+        optional.append((index, item, key))
+        covered_routes.update(_route_ids(item))
+        covered_roles.update(_role_tokens(item))
+    selected = [*required, *optional]
     return ComponentRetrievalPlan(
         selected_ids=tuple(entry[2] for entry in selected),
         required_ids=tuple(entry[2] for entry in required),
-        deferred_optional_ids=tuple(entry[2] for entry in deferred),
+        deferred_optional_ids=(),
         maximum=maximum,
         required_over_maximum=len(required) > maximum,
     )

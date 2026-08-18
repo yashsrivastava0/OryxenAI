@@ -315,11 +315,11 @@ async def search_pexels(
             if not isinstance(photo, dict) or not isinstance(photo.get("src"), dict):
                 continue
             source = photo["src"]
-            # Preserve the original provider asset for local inspection and
-            # controlled packaging; delivery sizing remains Code Generator's
-            # responsibility after the image has passed the handoff gate.
+            # Prefer the provider-sized rendition before falling back to the
+            # original asset; Build Preparation still optimizes and validates
+            # the downloaded bytes before packaging.
             image_url = str(
-                source.get("original") or source.get("large2x") or source.get("large") or ""
+                source.get("large2x") or source.get("large") or source.get("original") or ""
             )
             photo_id = str(photo.get("id", "") or "")
             if not photo_id or not image_url.startswith("https://"):
@@ -844,15 +844,28 @@ async def download_image(
     settings: Any,
     *,
     client: httpx.AsyncClient | None = None,
-    max_bytes: int = 12 * 1024 * 1024,
+    max_bytes: int | None = None,
 ) -> bytes:
     """Download a selected Pexels/Pixabay/opt-in Unsplash image safely."""
 
     try:
-        return await download_image_bytes(candidate, settings, client=client, max_bytes=max_bytes)
+        raw_limit = int(
+            max_bytes
+            or getattr(
+                getattr(settings, "image_retrieval", None),
+                "raw_download_max_bytes",
+                24 * 1024 * 1024,
+            )
+        )
+        return await download_image_bytes(candidate, settings, client=client, max_bytes=raw_limit)
     except ValueError as exc:
         raise ResourceProviderError(
-            str(exc), provider=candidate.provider or "image", retryable=False
+            str(exc),
+            provider=candidate.provider or "image",
+            retryable=False,
+            details=getattr(exc, "details", {})
+            if isinstance(getattr(exc, "details", {}), dict)
+            else {},
         ) from exc
 
 
@@ -890,7 +903,6 @@ class ProviderLookup:
     client: httpx.AsyncClient | None = None
     live: bool = True
     _blocked_until: dict[str, float] = field(default_factory=dict)
-    _request_counts: dict[str, int] = field(default_factory=dict)
     _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
     calls_made: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
@@ -914,17 +926,6 @@ class ProviderLookup:
         if now < self._blocked_until.get(provider, 0.0):
             self.rate_limit_events += 1
             return []
-        max_requests = max(
-            1, int(getattr(self.settings.build_preparation, "provider_max_requests", 32))
-        )
-        if self._request_counts.get(provider, 0) >= max_requests:
-            self._blocked_until[provider] = now + max(
-                1.0,
-                float(getattr(self.settings.build_preparation, "provider_max_wait_seconds", 8.0)),
-            )
-            self.rate_limit_events += 1
-            return []
-        self._request_counts[provider] = self._request_counts.get(provider, 0) + 1
         self.calls_made += 1
         if self._semaphore is None:
             self.__post_init__()
@@ -932,6 +933,7 @@ class ProviderLookup:
         async with self._semaphore:
             found: list[FetchedResource] = []
             if query.kind == "photo":
+                receipt_start = len(self.provider_receipts)
                 allowed = query.allowed_providers or list(
                     getattr(
                         getattr(self.settings, "image_retrieval", None),
@@ -975,6 +977,10 @@ class ProviderLookup:
                         )
                     ),
                     diagnostics=self.provider_receipts,
+                )
+                self.rate_limit_events += sum(
+                    bool(item.get("rate_limit_event"))
+                    for item in self.provider_receipts[receipt_start:]
                 )
                 self.cache_hits += (
                     sum(

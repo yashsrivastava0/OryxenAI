@@ -338,7 +338,10 @@ class BuildPreparationAgent(Agent):
         else:
             query_plan = _offline_query_plan(stage0.resource_needs)
         query_plan = normalize_query_plan(
-            query_plan, stage0.resource_needs, settings=self._settings
+            query_plan,
+            stage0.resource_needs,
+            settings=self._settings,
+            context=base_resource_packet,
         )
         component_needs = [
             need
@@ -349,35 +352,14 @@ class BuildPreparationAgent(Agent):
             component_needs,
             maximum=component_maximum,
         )
-        deferred_optional_ids = set(component_policy.deferred_optional_ids)
         policy_warnings: list[str] = []
-        if deferred_optional_ids:
+        if component_policy.advisory_exceeded:
             policy_warnings.append(
-                f"Deferred {len(deferred_optional_ids)} optional component role(s) by priority and route coverage."
-            )
-        if component_policy.required_over_maximum:
-            policy_warnings.append(
-                "Required component roles exceed the configured retrieval maximum; all required roles remain attempted and provider limits still apply."
+                "Approved component roles exceed the configured advisory maximum; all roles remain attempted and per-role provider/source limits still apply."
             )
         if policy_warnings:
             query_plan = query_plan.model_copy(
-                update={
-                    "queries": [
-                        query.model_copy(
-                            update={
-                                "kind": "custom",
-                                "allowed_providers": [],
-                                "required_for_handoff": False,
-                                "fallback": query.fallback
-                                or "Implement the optional component role locally.",
-                            }
-                        )
-                        if query.kind == "component" and query.need_id in deferred_optional_ids
-                        else query
-                        for query in query_plan.queries
-                    ],
-                    "warnings": [*query_plan.warnings, *policy_warnings],
-                }
+                update={"warnings": [*query_plan.warnings, *policy_warnings]}
             )
         validate_query_plan(query_plan, need_ids)
         query_terms_by_need = _query_terms_by_need(query_plan)
@@ -526,7 +508,8 @@ class BuildPreparationAgent(Agent):
 
         # Discovery returns metadata only for live components. Fetch real
         # source after the closed candidate set has been selected, so weak
-        # candidates do not consume source requests or provider quota.
+        # candidates do not consume source requests before selection; transport
+        # retries and provider rate limits remain enforced after selection.
         if live_providers:
             candidate_by_id = {candidate.resource_id: candidate for candidate in candidates}
             source_attempt_limit = max(
@@ -839,6 +822,10 @@ class BuildPreparationAgent(Agent):
                 ),
                 root_override=staging_root,
             )
+            if materialization.effective_selections:
+                selection_plan = selection_plan.model_copy(
+                    update={"selections": materialization.effective_selections}
+                )
             await record(
                 _event(
                     "materialization_complete",
@@ -868,7 +855,7 @@ class BuildPreparationAgent(Agent):
                 rate_limit_events=int(getattr(lookup, "rate_limit_events", 0))
                 if live_providers
                 else 0,
-                deferred_optional_roles=sorted(deferred_optional_ids),
+                deferred_optional_roles=[],
             )
             if not live_model and not live_providers:
                 handoff_report = handoff_report.model_copy(

@@ -205,6 +205,10 @@ class ImageRetrievalConfig(BaseModel):
     max_candidates_per_query: int = 6
     max_candidates_total: int = 12
     max_dimension: int = 2400
+    raw_download_max_bytes: int = 24 * 1024 * 1024
+    optimized_max_bytes: int = 8 * 1024 * 1024
+    minimum_width: int = 1200
+    minimum_height: int = 700
     timeout_seconds: float = 15.0
     retry_count: int = 2
     max_retry_wait_seconds: float = 8.0
@@ -249,10 +253,10 @@ class BuildPreparationConfig(BaseModel):
     editorial_image_maximum: int = 6
     visual_component_budget: int = 4
     visual_component_maximum: int = 6
+    image_source_attempt_maximum: int = 3
     component_source_attempt_maximum: int = 3
     provider_max_wait_seconds: float = 8.0
     provider_max_concurrency: int = 2
-    provider_max_requests: int = 32
     require_live_visual_resources: bool = True
     auto_derive_visual_resources: bool = True
 
@@ -355,7 +359,6 @@ class CodeGeneratorAcquisitionConfig(BaseModel):
     font_max_bytes: int = 2 * 1024 * 1024
     icon_svg_max_bytes: int = 384 * 1024
     component_max_bytes: int = 512 * 1024
-    component_request_maximum: int = 6
     style_max_bytes: int = 256 * 1024
     materials_root: str = ".workspace/code-generator-materials"
     offline_resource_root: str = ""

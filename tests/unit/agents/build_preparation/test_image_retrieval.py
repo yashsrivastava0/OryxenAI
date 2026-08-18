@@ -58,6 +58,7 @@ async def test_important_image_role_searches_pexels_and_pixabay_with_filters(
                             "url": "https://pexels.test/photo/1",
                             "src": {
                                 "original": "https://images.pexels.com/photo/1.jpg",
+                                "large2x": "https://images.pexels.com/photo/1-large2x.jpg",
                                 "medium": "https://images.pexels.com/photo/1-medium.jpg",
                             },
                         }
@@ -105,6 +106,8 @@ async def test_important_image_role_searches_pexels_and_pixabay_with_filters(
         )
 
     assert {candidate.provider for candidate in candidates} == {"pexels", "pixabay"}
+    pexels = next(candidate for candidate in candidates if candidate.provider == "pexels")
+    assert pexels.image_url.endswith("1-large2x.jpg")
     assert len(requests) == 2
 
 
@@ -136,6 +139,17 @@ def test_image_processing_rejects_corrupt_and_undersized_bytes() -> None:
         prepare_image_bytes(b"not-an-image", intent)
     with pytest.raises(ImageDownloadError, match="dimensions"):
         prepare_image_bytes(_jpeg(400, 300, varied=True), intent)
+
+
+def test_large_valid_image_is_resized_and_optimized_within_configured_limits() -> None:
+    optimized, info = prepare_image_bytes(
+        _jpeg(3600, 2200, varied=True),
+        ImageSearchIntent(minimum_width=1200, minimum_height=700),
+    )
+    assert len(optimized) <= 8 * 1024 * 1024
+    assert max(info["pixel_width"], info["pixel_height"]) <= 2400
+    assert info["pixel_width"] >= 1200
+    assert info["pixel_height"] >= 700
 
 
 def test_image_cache_never_returns_an_empty_entry(tmp_path) -> None:

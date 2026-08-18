@@ -86,6 +86,10 @@ class ImageCandidate(BaseModel):
 class ImageDownloadError(ValueError):
     """Raised when a provider response cannot be safely materialized."""
 
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
+        self.details = dict(details or {})
+        super().__init__(message)
+
 
 _RATE_STATE: dict[str, dict[str, float]] = {}
 _SCHEMA_VERSION = "image-search-v1"
@@ -301,7 +305,14 @@ async def _respect_budget(provider: str, maximum_wait: float) -> None:
         return
     wait = reset_at - time.time()
     if wait > maximum_wait:
-        raise ImageDownloadError(f"{provider} rate budget exhausted")
+        raise ImageDownloadError(
+            f"{provider} rate budget exhausted",
+            details={
+                "rejection_reason": "provider_rate_budget_exhausted",
+                "rate_limit_event": True,
+                "retry_delay": wait,
+            },
+        )
     await asyncio.sleep(max(0.0, wait))
 
 
@@ -346,13 +357,15 @@ async def _get(
                             "attempt": attempt + 1,
                             "http_status": response.status_code,
                             "retry_delay": 0.0,
+                            "rate_limit_event": False,
                         }
                     )
                 _record_headers(provider, response)
                 return response
             if response.status_code not in {429, 500, 502, 503, 504}:
                 raise ImageDownloadError(
-                    f"{provider} rejected the request ({response.status_code})"
+                    f"{provider} rejected the request ({response.status_code})",
+                    details={"http_status": response.status_code},
                 )
             retry_after = response.headers.get("Retry-After", "0")
             try:
@@ -361,7 +374,14 @@ async def _get(
                 delay = 0.0
             if response.status_code == 429:
                 _RATE_STATE[provider] = {"remaining": 0.0, "reset_at": time.time() + delay}
-            last = ImageDownloadError(f"{provider} returned HTTP {response.status_code}")
+            last = ImageDownloadError(
+                f"{provider} returned HTTP {response.status_code}",
+                details={
+                    "http_status": response.status_code,
+                    "retry_delay": delay,
+                    "rate_limit_event": response.status_code == 429,
+                },
+            )
             if diagnostics is not None:
                 diagnostics.append(
                     {
@@ -369,6 +389,7 @@ async def _get(
                         "attempt": attempt + 1,
                         "http_status": response.status_code,
                         "retry_delay": delay,
+                        "rate_limit_event": response.status_code == 429,
                     }
                 )
             if attempt < retries:
@@ -383,10 +404,13 @@ async def _get(
                         "http_status": None,
                         "retry_delay": 0.0,
                         "error": type(exc).__name__,
+                        "rate_limit_event": False,
                     }
                 )
             if attempt < retries:
                 await asyncio.sleep(0)
+    if isinstance(last, ImageDownloadError):
+        raise last
     raise ImageDownloadError(str(last or f"{provider} request failed"))
 
 
@@ -440,7 +464,9 @@ def _pixabay_params(intent: ImageSearchIntent, query: str, limit: int) -> dict[s
 
 def _pexels_candidate(photo: dict[str, Any], query: str, rank: int) -> ImageCandidate | None:
     source = photo.get("src") if isinstance(photo.get("src"), dict) else {}
-    image_url = str(source.get("original") or source.get("large2x") or source.get("large") or "")
+    # Prefer a provider-sized rendition. ``original`` can be needlessly huge
+    # and defeat the raw/optimized artifact limits.
+    image_url = str(source.get("large2x") or source.get("large") or source.get("original") or "")
     asset_id = str(photo.get("id", "") or "")
     if not asset_id or not image_url.startswith("https://"):
         return None
@@ -830,7 +856,13 @@ async def download_image_bytes(
         )
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_HOSTS.get(provider, set()):
-        raise ImageDownloadError(f"{provider} image URL is not approved")
+        raise ImageDownloadError(
+            f"{provider} image URL is not approved",
+            details={
+                "rejection_reason": "unapproved_https_host",
+                "url_host": parsed.hostname or "",
+            },
+        )
     own_client = client is None
     http = client or httpx.AsyncClient()
     try:
@@ -843,10 +875,35 @@ async def download_image_bytes(
         if response.url.scheme != "https" or response.url.host not in _ALLOWED_HOSTS.get(
             provider, set()
         ):
-            raise ImageDownloadError(f"{provider} redirected to an unapproved image host")
+            raise ImageDownloadError(
+                f"{provider} redirected to an unapproved image host",
+                details={
+                    "rejection_reason": "redirected_to_unapproved_host",
+                    "url_host": response.url.host or "",
+                },
+            )
         content_type = response.headers.get("content-type", "").casefold()
-        if not content_type.startswith("image/") or len(response.content) > max_bytes:
-            raise ImageDownloadError(f"{provider} returned an invalid or oversized image")
+        raw_size = len(response.content)
+        if not content_type.startswith("image/"):
+            raise ImageDownloadError(
+                f"{provider} returned a non-image response",
+                details={
+                    "rejection_reason": "response_content_type_not_image",
+                    "response_content_type": content_type,
+                    "raw_byte_size": raw_size,
+                    "configured_raw_limit": max_bytes,
+                },
+            )
+        if raw_size > max_bytes:
+            raise ImageDownloadError(
+                f"{provider} returned an oversized image",
+                details={
+                    "rejection_reason": "raw_download_size_limit",
+                    "response_content_type": content_type,
+                    "raw_byte_size": raw_size,
+                    "configured_raw_limit": max_bytes,
+                },
+            )
         return response.content
     finally:
         if own_client:
@@ -857,7 +914,7 @@ def prepare_image_bytes(
     data: bytes,
     intent: ImageSearchIntent | None = None,
     *,
-    max_bytes: int = 12 * 1024 * 1024,
+    max_bytes: int = 8 * 1024 * 1024,
     max_dimension: int = 2400,
 ) -> tuple[bytes, dict[str, Any]]:
     """Decode, orient, crop to the requested ratio, and optimize when useful."""
@@ -868,15 +925,33 @@ def prepare_image_bytes(
         with Image.open(io.BytesIO(data)) as source:
             image = ImageOps.exif_transpose(source).convert("RGB")
     except Exception as exc:
-        raise ImageDownloadError("image bytes are corrupt or not a supported raster") from exc
+        raise ImageDownloadError(
+            "image bytes are corrupt or not a supported raster",
+            details={
+                "rejection_reason": "corrupt_or_unsupported_raster",
+                "raw_byte_size": len(data),
+            },
+        ) from exc
     original_width, original_height = image.size
     if (
         intent
-        and intent.minimum_width
-        and intent.minimum_height
-        and (original_width < intent.minimum_width or original_height < intent.minimum_height)
+        and (intent.minimum_width or intent.minimum_height)
+        and (
+            (intent.minimum_width and original_width < intent.minimum_width)
+            or (intent.minimum_height and original_height < intent.minimum_height)
+        )
     ):
-        raise ImageDownloadError("image dimensions are below the requested minimum")
+        raise ImageDownloadError(
+            "image dimensions are below the requested minimum",
+            details={
+                "rejection_reason": "minimum_dimensions",
+                "raw_byte_size": len(data),
+                "original_width": original_width,
+                "original_height": original_height,
+                "minimum_width": intent.minimum_width,
+                "minimum_height": intent.minimum_height,
+            },
+        )
     if max_dimension > 0 and max(image.size) > max_dimension:
         scale = max_dimension / max(image.size)
         image = image.resize(
@@ -905,7 +980,19 @@ def prepare_image_bytes(
             optimized = output.getvalue()
             if len(optimized) <= max_bytes:
                 break
-    if len(optimized) > len(data) and not target_ratio:
+    if len(optimized) > max_bytes:
+        raise ImageDownloadError(
+            "optimized image exceeds the configured local size limit",
+            details={
+                "rejection_reason": "optimized_size_limit",
+                "raw_byte_size": len(data),
+                "optimized_byte_size": len(optimized),
+                "configured_optimized_limit": max_bytes,
+                "pixel_width": image.width,
+                "pixel_height": image.height,
+            },
+        )
+    if len(optimized) > len(data) and not target_ratio and len(data) <= max_bytes:
         optimized = data
     return optimized, {
         "original_width": original_width,

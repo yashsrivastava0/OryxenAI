@@ -121,6 +121,7 @@ def _is_visual_resource(need: ResourceNeed) -> bool:
         "portrait",
         "visual_component",
         "component",
+        "registry_component",
     }
 
 
@@ -156,20 +157,6 @@ def compile_execution_contract(
         route_id = need.route_ids[0] if need.route_ids else ""
         resource = by_need.get(need.need_id, {})
         disposition = str(resource.get("disposition", "") or "")
-        if (
-            _is_visual_resource(need)
-            and not need.required_for_handoff
-            and disposition
-            not in {
-                "local_file",
-                "adaptable_source",
-                "package_import",
-            }
-        ):
-            # Optional visual roles may be deferred by the deterministic
-            # retrieval budget. They remain in the ledger and diagnostics but
-            # do not become fake recipes or blocking execution slots.
-            continue
         source_expectations = [
             value
             for value in (
@@ -205,6 +192,50 @@ def compile_execution_contract(
                     if str(value).strip()
                 ],
                 source_expectations=source_expectations,
+                provider=str(resource.get("provider", "") or ""),
+                provider_asset_id=str(resource.get("provider_asset_id", "") or ""),
+                source_reference=str(resource.get("source_reference", "") or ""),
+                license=str(resource.get("license", "") or ""),
+                license_reference=str(resource.get("license_reference", "") or ""),
+                source_hashes=[
+                    str(value)
+                    for value in (
+                        resource.get("source_hashes", [])
+                        or resource.get("usage_contract", {}).get("source_hashes", [])
+                        or [
+                            item.get("sha256")
+                            for item in resource.get("source_files", []) or []
+                            if isinstance(item, dict) and item.get("sha256")
+                        ]
+                    )
+                    if str(value)
+                ],
+                release_pin=str(resource.get("source_version", "") or ""),
+                dependencies=[str(value) for value in resource.get("dependencies", []) or []],
+                registry_dependencies=[
+                    str(value) for value in resource.get("registry_dependencies", []) or []
+                ],
+                import_path=str(
+                    resource.get("import_path", "")
+                    or resource.get("usage_contract", {}).get("import_path", "")
+                    or (f"./{_local_paths(resource)[0]}" if _local_paths(resource) else "")
+                ),
+                responsive_behavior=str(
+                    resource.get("usage_contract", {}).get("responsive_behavior", "")
+                    or need.details.get("responsive_behavior", "")
+                    or ""
+                ),
+                reduced_motion_behavior=str(
+                    resource.get("usage_contract", {}).get("reduced_motion_behavior", "")
+                    or need.details.get("reduced_motion_behavior", "")
+                    or "static equivalent"
+                ),
+                fallback_behavior=str(
+                    resource.get("usage_contract", {}).get("fallback", "")
+                    or resource.get("fallback", "")
+                    or need.fallback
+                    or ""
+                ),
             )
         elif disposition == "package_import":
             package_import = str(resource.get("package_import", "") or "")
@@ -233,9 +264,21 @@ def compile_execution_contract(
                     fallback_disposition="omit_nonessential_icon_when_binding_is_unavailable",
                     accessibility_treatment="decorative icons are aria-hidden; actionable icons have an accessible name",
                     source_expectations=source_expectations,
+                    provider=str(resource.get("provider", "") or ""),
+                    provider_asset_id=str(resource.get("provider_asset_id", "") or ""),
+                    source_reference=str(resource.get("source_reference", "") or ""),
+                    license=str(resource.get("license", "") or ""),
+                    license_reference=str(resource.get("license_reference", "") or ""),
+                    release_pin=str(resource.get("source_version", "") or ""),
+                    dependencies=[str(value) for value in resource.get("dependencies", []) or []],
+                    registry_dependencies=[
+                        str(value) for value in resource.get("registry_dependencies", []) or []
+                    ],
+                    import_path=str(resource.get("import_path", "") or ""),
+                    fallback_behavior=str(resource.get("fallback", "") or need.fallback or ""),
                 )
-        elif _is_visual_resource(need) and need.required_for_handoff:
-            message = f"Visual resource '{need.source_id}' has no verified real provider bytes or component source."
+        elif _is_visual_resource(need):
+            message = f"Known visual role '{need.source_id}' has no verified local image or component source."
             gap = ExecutionGap(
                 slot_id=slot_id,
                 route_id=route_id,
@@ -312,59 +355,8 @@ def compile_execution_contract(
             )
         )
 
-    visual_policy = target.get("visual_resource_policy", {})
-    declared_policy = visual.get("global", {}).get("resource_policy", {})
-    if isinstance(declared_policy, dict):
-        visual_policy = {**visual_policy, **declared_policy}
-    image_target = max(0, int(visual_policy.get("image_target_count", 0) or 0))
-    require_real_visuals = bool(visual_policy.get("require_real_local_material", True))
-    image_count = sum(
-        1
-        for need in needs
-        if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
-    )
-    def add_policy_gaps(category: str, target_count: int, actual_count: int, label: str) -> None:
-        if not require_real_visuals or actual_count >= target_count or not routes:
-            return
-        for index in range(actual_count, target_count):
-            route = routes[index % len(routes)]
-            slot_id = _stable_id("slot", "policy-gap", category, route.route_id, str(index))
-            gap = ExecutionGap(
-                slot_id=slot_id,
-                route_id=route.route_id,
-                scene_ids=route.scene_ids,
-                message=(
-                    f"Approved visual direction exposes {actual_count} {label} roles but the "
-                    f"configured handoff target is {target_count}; no role was invented."
-                ),
-                next_action=(
-                    "Add the missing approved role to Visual Design Director and rerun live provider "
-                    "acquisition, or explicitly lower the resource policy for this portfolio."
-                ),
-            )
-            gaps.append(gap)
-            slots.append(
-                ExecutionSlot(
-                    resource_slot_id=slot_id,
-                    category=category,
-                    route_id=route.route_id,
-                    scene_ids=route.scene_ids,
-                    section_ids=sections.get(route.route_id, []),
-                    component_placement="approved visual role required",
-                    required=True,
-                    source_ids=[],
-                    criterion_ids=criteria.get(route.route_id, []),
-                    rationale=gap.message,
-                    provenance="build_preparation_derived",
-                    resolution=ResolvedResource(
-                        resolution_type="execution_gap",
-                        fallback_disposition="blocked_pending_vdd_visual_role",
-                        accessibility_treatment="not applicable while blocked",
-                    ),
-                )
-            )
-
-    add_policy_gaps("editorial_photo", image_target, image_count, "image")
+    # Target counts are advisory reporting values.  They never manufacture a
+    # gap or suppress a role; the role inventory above is authoritative.
 
     # Sparse but structurally valid visual direction still needs a concrete
     # implementation baseline.  These are constrained, derived mechanics,
