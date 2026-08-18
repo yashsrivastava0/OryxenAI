@@ -25,6 +25,12 @@ from oryxenai.agents.shared.component_retrieval import (
     ComponentRetrievalService,
     build_component_retrieval_service,
 )
+from oryxenai.agents.shared.image_retrieval import (
+    ImageCandidate,
+    download_image_bytes,
+    intent_from_values,
+    search_images,
+)
 from oryxenai.agents.shared.providers.errors import (
     ProviderConnectionError,
     ProviderError,
@@ -187,6 +193,73 @@ def _record_rate_headers(provider: str, response: httpx.Response) -> None:
             state["reset_at"] = float(reset_value)
     except (TypeError, ValueError):
         return
+
+
+def _fetched_image(candidate: ImageCandidate, query: ResourceQuery) -> FetchedResource:
+    return FetchedResource(
+        resource_id=_stable_id(
+            candidate.provider, f"{query.need_id}:{candidate.provider_asset_id}"
+        ),
+        need_id=query.need_id,
+        kind="photo",
+        provider=candidate.provider,
+        provider_asset_id=candidate.provider_asset_id,
+        source_reference=candidate.source_url,
+        preview_url=candidate.preview_url,
+        hotlink_url=candidate.image_url if candidate.provider == "unsplash" else "",
+        download_tracking_url=candidate.download_tracking_url,
+        title=candidate.title,
+        description=candidate.description,
+        photographer=candidate.author,
+        photographer_url=candidate.author_url,
+        attribution_url=candidate.source_url,
+        width=candidate.width,
+        height=candidate.height,
+        orientation=(
+            "landscape"
+            if candidate.width > candidate.height
+            else "portrait"
+            if candidate.height > candidate.width
+            else "square"
+        ),
+        mime_type=candidate.mime_type,
+        image_url=candidate.image_url,
+        retrieval_metadata={"query": query.model_dump(mode="json")},
+        license=candidate.license,
+        license_reference=candidate.license_reference,
+    )
+
+
+async def search_pixabay(
+    query: ResourceQuery,
+    settings: Any,
+    *,
+    client: httpx.AsyncClient | None = None,
+    limit: int = 6,
+) -> list[FetchedResource]:
+    """Search Pixabay through the shared provider-neutral image service."""
+
+    intent = intent_from_values(
+        purpose=query.purpose or query.query,
+        subject=query.subject or query.query,
+        style_mood=query.style_mood,
+        theme_colors=query.theme_colors,
+        orientation=query.orientation,
+        aspect_ratio=query.aspect_ratio,
+        minimum_width=query.minimum_width,
+        minimum_height=query.minimum_height,
+        negative_concepts=query.negative_concepts,
+        queries=[query.query],
+        important=query.important or query.required_for_handoff,
+        media_kind="illustration" if "illustr" in query.query.casefold() else "photo",
+        category=query.category,
+        colors=query.colors,
+        editors_choice=query.editors_choice,
+    )
+    candidates = await search_images(
+        intent, settings, providers=["pixabay"], client=client, limit=limit
+    )
+    return [_fetched_image(candidate, query) for candidate in candidates]
 
 
 async def search_pexels(
@@ -735,6 +808,23 @@ async def download_pexels(
             await http.aclose()
 
 
+async def download_image(
+    candidate: FetchedResource,
+    settings: Any,
+    *,
+    client: httpx.AsyncClient | None = None,
+    max_bytes: int = 12 * 1024 * 1024,
+) -> bytes:
+    """Download a selected Pexels/Pixabay/opt-in Unsplash image safely."""
+
+    try:
+        return await download_image_bytes(candidate, settings, client=client, max_bytes=max_bytes)
+    except ValueError as exc:
+        raise ResourceProviderError(
+            str(exc), provider=candidate.provider or "image", retryable=False
+        ) from exc
+
+
 async def trigger_unsplash_download(
     candidate: FetchedResource,
     settings: Any,
@@ -773,6 +863,8 @@ class ProviderLookup:
     _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
     calls_made: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
+    _image_asset_ids: set[str] = field(default_factory=set, init=False, repr=False)
+    _image_terms: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
         limit = max(1, int(getattr(self.settings.build_preparation, "provider_max_concurrency", 2)))
@@ -807,18 +899,61 @@ class ProviderLookup:
         async with self._semaphore:
             found: list[FetchedResource] = []
             if query.kind == "photo":
-                try:
-                    found = await search_pexels(query, self.settings, client=self.client)
-                except ResourceProviderError as exc:
-                    if exc.details.get("error_code") == "PROVIDER_RATE_LIMIT_ERROR":
-                        self.rate_limit_events += 1
-                        retry_after = float(exc.details.get("retry_after_seconds", 0) or 0)
-                        self._blocked_until[provider] = time.monotonic() + max(1.0, retry_after)
-                if not found and not query.required_for_handoff:
-                    try:
-                        found = await search_unsplash(query, self.settings, client=self.client)
-                    except ResourceProviderError:
-                        found = []
+                allowed = query.allowed_providers or list(
+                    getattr(
+                        getattr(self.settings, "image_retrieval", None),
+                        "provider_order",
+                        ["pexels", "pixabay"],
+                    )
+                )
+                intent = intent_from_values(
+                    purpose=query.purpose or query.query,
+                    subject=query.subject or query.query,
+                    style_mood=query.style_mood,
+                    theme_colors=query.theme_colors,
+                    orientation=query.orientation,
+                    aspect_ratio=query.aspect_ratio,
+                    minimum_width=query.minimum_width,
+                    minimum_height=query.minimum_height,
+                    negative_concepts=query.negative_concepts,
+                    queries=[query.query],
+                    important=query.important
+                    or any(
+                        token in f"{query.purpose} {query.query}".casefold()
+                        for token in ("hero", "banner", "showcase")
+                    ),
+                    media_kind="illustration" if "illustr" in query.query.casefold() else "photo",
+                    category=query.category,
+                    colors=query.colors,
+                    editors_choice=query.editors_choice,
+                    used_asset_ids=self._image_asset_ids,
+                    used_terms=self._image_terms,
+                )
+                image_candidates = await search_images(
+                    intent,
+                    self.settings,
+                    providers=allowed,
+                    client=self.client,
+                    limit=int(
+                        getattr(
+                            getattr(self.settings, "image_retrieval", None),
+                            "max_candidates_per_query",
+                            6,
+                        )
+                    ),
+                )
+                found = [_fetched_image(candidate, query) for candidate in image_candidates]
+                self._image_asset_ids.update(
+                    candidate.provider_asset_id for candidate in image_candidates
+                )
+                self._image_terms.update(
+                    token
+                    for candidate in image_candidates
+                    for token in re.findall(
+                        r"[a-z0-9]+", (candidate.title or candidate.description).casefold()
+                    )
+                    if len(token) > 2
+                )
             elif query.kind == "component":
                 found = await search_components(
                     query, self.settings, client=self.client, fetch_source=False

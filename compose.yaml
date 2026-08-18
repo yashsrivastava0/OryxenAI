@@ -85,6 +85,7 @@ services:
     command: ["python", "-m", "oryxenai.jobs.worker"]
     volumes:
       - oryxen_codegen_preview:/app/.workspace/code-generator-preview
+      - oryxen_image_cache:/app/.workspace/image-search-cache
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
       interval: 15s
@@ -126,8 +127,10 @@ services:
       OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
     volumes:
       - ./output:/app/output
+      - oryxen_image_cache:/app/.workspace/image-search-cache
     command: ["python", "-m", "oryxenai.agents.build_preparation.cli"]
 
 volumes:
   oryxen_pgdata:
   oryxen_codegen_preview:
+  oryxen_image_cache:

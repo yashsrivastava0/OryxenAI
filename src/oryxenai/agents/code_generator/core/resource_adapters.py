@@ -34,6 +34,12 @@ from oryxenai.agents.shared.component_retrieval import (
     ComponentRetrievalError,
     build_component_retrieval_service,
 )
+from oryxenai.agents.shared.image_retrieval import (
+    download_image_bytes,
+    intent_from_request,
+    prepare_image_bytes,
+    search_images,
+)
 
 
 class ResourceProviderError(RuntimeError):
@@ -217,12 +223,19 @@ class _BaseAdapter:
             return []
         return self.registry.candidates(providers, self.category)
 
-    async def _download(self, candidate: ResourceCandidate) -> bytes:
+    async def _download(self, candidate: ResourceCandidate, settings: Any) -> bytes:
         if self.registry is not None:
             try:
                 return self.registry.bytes_for(candidate.candidate_id)
             except ResourceProviderError:
                 pass
+        if self.category in {"image", "texture", "illustration"}:
+            try:
+                return await download_image_bytes(candidate, settings)
+            except ValueError as exc:
+                raise ResourceProviderError(
+                    str(exc), provider=candidate.provider_key, retryable=False
+                ) from exc
         url = candidate.canonical_source
         if not url.startswith("https://"):
             raise ResourceProviderError(
@@ -242,7 +255,27 @@ class _BaseAdapter:
         storage_root: Path,
         settings: Any,
     ) -> LocalMaterialFile | list[LocalMaterialFile]:
-        data = await self._download(candidate)
+        data = await self._download(candidate, settings)
+        if (
+            self.category in {"image", "texture", "illustration"}
+            and candidate.provider_key != "fixture"
+        ):
+            try:
+                data, _ = prepare_image_bytes(
+                    data,
+                    intent_from_request(request),
+                    max_dimension=int(
+                        getattr(
+                            getattr(settings, "image_retrieval", None),
+                            "max_dimension",
+                            2400,
+                        )
+                    ),
+                )
+            except ValueError as exc:
+                raise ResourceProviderError(
+                    str(exc), provider=candidate.provider_key, retryable=False
+                ) from exc
         max_bytes = request.technical_constraints.max_bytes or _category_limit(
             self.category, settings
         )
@@ -268,7 +301,10 @@ class _BaseAdapter:
             json.dumps(
                 {
                     "provider": candidate.provider_key,
+                    "provider_resource_id": candidate.provider_resource_id,
                     "canonical_source": candidate.canonical_source,
+                    "source_url": candidate.technical_metadata.get("source_url", ""),
+                    "preview_url": candidate.technical_metadata.get("preview_url", ""),
                     "licence": candidate.licence,
                     "attribution": candidate.attribution,
                     "sha256": digest,
@@ -296,6 +332,8 @@ class ImageAdapter(_BaseAdapter):
     ) -> None:
         super().__init__(registry)
         self.category = category
+        self._used_asset_ids: set[str] = set()
+        self._used_terms: set[str] = set()
 
     async def search(self, request: ResourceRequest, *, settings: Any) -> list[ResourceCandidate]:
         providers = list(
@@ -304,84 +342,39 @@ class ImageAdapter(_BaseAdapter):
         offline = self._offline_candidates(request, [*providers, "fixture"])
         if offline or self.registry is not None:
             return offline
-        query = " ".join(request.query.positive_terms)
-        candidates: list[ResourceCandidate] = []
-        pexels_key = _env_value(settings, "pexels_api_key_env")
-        if "pexels" in providers and pexels_key:
-            async with httpx.AsyncClient() as client:
-                response = await _get(
-                    client,
-                    "https://api.pexels.com/v1/search",
-                    provider="pexels",
-                    headers={"Authorization": pexels_key},
-                    params={"query": query, "per_page": 5},
-                )
-            payload = response.json()
-            for photo in payload.get("photos", []):
-                source = str(photo.get("src", {}).get("large", ""))
-                if source:
-                    candidates.append(
-                        ResourceCandidate(
-                            candidate_id=_stable_id("pexels", str(photo.get("id", source))),
-                            provider_key="pexels",
-                            provider_resource_id=str(photo.get("id", "")),
-                            category=self.category,
-                            title=str(photo.get("alt", "")) or "Editorial image",
-                            description=str(photo.get("alt", "")),
-                            tags=sorted(_tokens(str(photo.get("alt", "")))),
-                            technical_metadata={
-                                "width": int(photo.get("width", 0) or 0),
-                                "height": int(photo.get("height", 0) or 0),
-                            },
-                            canonical_source=source,
-                            licence="Pexels License",
-                            attribution=f"Photo by {photo.get('photographer', 'Pexels contributor')}",
-                            vendoring_policy="download and vendor",
-                        )
-                    )
-        unsplash_key = _env_value(settings, "unsplash_access_key_env")
-        if "unsplash" in providers and unsplash_key:
-            async with httpx.AsyncClient() as client:
-                response = await _get(
-                    client,
-                    "https://api.unsplash.com/search/photos",
-                    provider="unsplash",
-                    headers={"Authorization": f"Client-ID {unsplash_key}"},
-                    params={"query": query, "per_page": 5},
-                )
-            payload = response.json()
-            for photo in payload.get("results", []):
-                source = str(photo.get("urls", {}).get("regular", ""))
-                if source:
-                    candidates.append(
-                        ResourceCandidate(
-                            candidate_id=_stable_id("unsplash", str(photo.get("id", source))),
-                            provider_key="unsplash",
-                            provider_resource_id=str(photo.get("id", "")),
-                            category=self.category,
-                            title=str(photo.get("alt_description", "")) or "Editorial image",
-                            description=str(
-                                photo.get("description", "") or photo.get("alt_description", "")
-                            ),
-                            tags=sorted(
-                                _tokens(
-                                    str(
-                                        photo.get("description", "")
-                                        or photo.get("alt_description", "")
-                                    )
-                                )
-                            ),
-                            technical_metadata={
-                                "width": int(photo.get("width", 0) or 0),
-                                "height": int(photo.get("height", 0) or 0),
-                            },
-                            canonical_source=source,
-                            licence="Unsplash License",
-                            attribution=f"Photo by {photo.get('user', {}).get('name', 'Unsplash contributor')}",
-                            vendoring_policy="download and vendor",
-                        )
-                    )
-        return candidates
+        intent = intent_from_request(request).model_copy(
+            update={
+                "used_asset_ids": sorted(self._used_asset_ids),
+                "used_terms": sorted(self._used_terms),
+            }
+        )
+        candidates = await search_images(intent, settings, providers=providers)
+        self._used_asset_ids.update(item.provider_asset_id for item in candidates)
+        self._used_terms.update(
+            token for item in candidates for token in _tokens(item.title or item.description)
+        )
+        return [
+            ResourceCandidate(
+                candidate_id=_stable_id(item.provider, item.provider_asset_id),
+                provider_key=item.provider,
+                provider_resource_id=item.provider_asset_id,
+                category=self.category,
+                title=item.title or "Editorial image",
+                description=item.description,
+                tags=item.tags,
+                technical_metadata={
+                    "width": item.width,
+                    "height": item.height,
+                    "preview_url": item.preview_url,
+                    "source_url": item.source_url,
+                },
+                canonical_source=item.image_url,
+                licence=item.license,
+                attribution=f"Photo by {item.author or item.provider.title() + ' contributor'}",
+                vendoring_policy="download and vendor",
+            )
+            for item in candidates
+        ]
 
 
 class FontAdapter(_BaseAdapter):
