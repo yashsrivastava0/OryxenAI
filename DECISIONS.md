@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-030 — Priority-based dynamic component retrieval
+
+- **Date & Time:** 2026-08-18 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Portfolios vary from a single-page profile to multi-route, interaction-heavy sites. A fixed component count either wastes free-provider requests or leaves important roles unresolved.
+- **Decision:** Component count is derived per run from approved needs. Required roles are attempted first; optional roles are ranked by importance, distinct interaction role, and route/scene coverage, then admitted until the configured per-run maximum. Required roles are never silently discarded when they exceed the maximum; the run reports the condition and remains subject to provider request/rate limits. Build Preparation owns known approved roles and Code Generator applies the same policy only to genuinely emergent component requests. LLMs compose queries and rank candidates from a closed, policy-filtered metadata set; they cannot create provider IDs, URLs, source, dependencies, or budget exceptions.
+- **Rejected alternatives:** Fixed “always fetch N” component counts; date-based selection; letting the LLM decide the request budget; fetching every candidate's source; dropping required roles silently; treating Code Generator as a second source of already-resolved Build Preparation roles.
+- **Consequence:** Small portfolios spend little retrieval budget, complex portfolios receive broader real source coverage, and optional decoration degrades honestly before required interaction roles do. Rate protection is handled by per-run budgets and provider cooldowns, not durable response caching.
+
 ## D-029 — Cache-free live component retrieval
 
 - **Date & Time:** 2026-08-18 00:00 +05:30 — Codex (GPT-5 / OpenAI)

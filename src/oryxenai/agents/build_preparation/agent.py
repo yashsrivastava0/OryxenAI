@@ -59,6 +59,7 @@ from oryxenai.agents.build_preparation.validators import (
     validate_selection_plan,
 )
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
+from oryxenai.agents.shared.retrieval_policy import plan_component_retrieval
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
@@ -238,13 +239,60 @@ class BuildPreparationAgent(Agent):
         else:
             query_plan = _offline_query_plan(stage0.resource_needs)
         query_plan = normalize_query_plan(query_plan, stage0.resource_needs)
+        component_maximum = int(
+            payload.get(
+                "visual_component_maximum",
+                declared_policy.get(
+                    "component_maximum",
+                    getattr(self._settings.build_preparation, "visual_component_maximum", 6),
+                ),
+            )
+            or 0
+        )
+        component_policy = plan_component_retrieval(
+            stage0.resource_needs,
+            maximum=component_maximum,
+        )
+        deferred_optional_ids = set(component_policy.deferred_optional_ids)
+        policy_warnings: list[str] = []
+        if deferred_optional_ids:
+            policy_warnings.append(
+                f"Deferred {len(deferred_optional_ids)} optional component role(s) by priority and route coverage."
+            )
+        if component_policy.required_over_maximum:
+            policy_warnings.append(
+                "Required component roles exceed the configured retrieval maximum; all required roles remain attempted and provider limits still apply."
+            )
+        if policy_warnings:
+            query_plan = query_plan.model_copy(
+                update={
+                    "queries": [
+                        query.model_copy(
+                            update={
+                                "kind": "custom",
+                                "allowed_providers": [],
+                                "required_for_handoff": False,
+                                "fallback": query.fallback
+                                or "Implement the optional component role locally.",
+                            }
+                        )
+                        if query.kind == "component" and query.need_id in deferred_optional_ids
+                        else query
+                        for query in query_plan.queries
+                    ],
+                    "warnings": [*query_plan.warnings, *policy_warnings],
+                }
+            )
         validate_query_plan(query_plan, need_ids)
         await record(
             _event(
                 "stage_1_complete",
                 "stage_1",
                 "Resource queries composed.",
-                details={"query_count": len(query_plan.queries)},
+                details={
+                    "query_count": len(query_plan.queries),
+                    "component_retrieval_policy": component_policy.as_metadata(),
+                },
             )
         )
 
