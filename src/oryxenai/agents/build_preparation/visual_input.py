@@ -92,39 +92,43 @@ _IMAGE_ROLE_SPECS = (
         "16:9",
     ),
 )
-_COMPONENT_ROLE_SPECS = (
-    (
-        "capability-grouping",
-        "Capability grouping",
-        "capability grouping and progressive disclosure",
-        True,
+_COMPONENT_PROVIDER_VOCABULARY: dict[str, tuple[str, ...]] = {
+    "capability-grouping": (
+        "accordion",
+        "collapsible",
+        "disclosure",
+        "expandable",
+        "progressive disclosure",
+        "tabs",
     ),
-    (
-        "experience-timeline",
-        "Experience timeline",
-        "experience timeline and readable progression",
-        True,
+    "experience-timeline": (
+        "timeline",
+        "stepper",
+        "progression",
+        "milestones",
+        "chronology",
     ),
-    (
-        "selected-work-composition",
-        "Selected-work composition",
-        "selected work composition with varied project emphasis",
-        True,
+    "selected-work-detail": (
+        "project detail",
+        "expandable cards",
+        "dialog",
+        "drawer",
+        "tabs",
+        "case study",
     ),
-    (
-        "project-detail-interaction",
-        "Project detail interaction",
-        "keyboard-accessible project detail interaction",
-        False,
+    "navigation-disclosure": (
+        "mobile navigation",
+        "navigation disclosure",
+        "menu",
+        "drawer",
+        "popover",
     ),
-    ("connection-cta", "Connection CTA", "professional connection CTA treatment", False),
-    (
-        "navigation-disclosure",
-        "Navigation disclosure",
-        "in-page navigation and mobile disclosure control",
-        False,
-    ),
-)
+}
+
+
+def component_provider_terms(role_id: str) -> list[str]:
+    """Return provider-neutral interaction vocabulary for a semantic role."""
+    return list(_COMPONENT_PROVIDER_VOCABULARY.get(role_id, ()))
 
 
 @dataclass(frozen=True)
@@ -328,6 +332,157 @@ def _route_section_descriptors(
     return descriptors
 
 
+def _section_for(content: dict[str, Any], route_id: str, section_id: str) -> dict[str, Any]:
+    return next(
+        (
+            section
+            for section in _content_sections(content, route_id)
+            if _section_id(section, 0) == section_id
+        ),
+        {"section_id": section_id},
+    )
+
+
+def _semantic_item_count(value: Any) -> int:
+    """Count approved repeatable content without interpreting its claims."""
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, dict):
+        total = 0
+        for key, child in value.items():
+            if str(key).casefold() in {
+                "items",
+                "entries",
+                "groups",
+                "skills",
+                "capabilities",
+                "milestones",
+                "roles",
+                "projects",
+                "work",
+                "case_studies",
+            }:
+                total += _semantic_item_count(child)
+        return total
+    return 0
+
+
+def _semantic_component_intents(
+    *,
+    content: dict[str, Any],
+    route: dict[str, Any],
+    page: dict[str, Any],
+    section_id: str,
+    scene_id: str,
+    route_count: int,
+) -> list[dict[str, Any]]:
+    """Compile only interaction roles justified by section semantics."""
+    section = _section_for(content, str(route.get("route_id", "")), section_id)
+    scene = next(
+        (
+            item
+            for item in _as_list(page.get("scenes"))
+            if isinstance(item, dict) and str(item.get("scene_id", "")) == scene_id
+        ),
+        {},
+    )
+    section_text = _flatten_text(
+        [
+            section.get("purpose"),
+            section.get("content"),
+            section.get("interaction_direction"),
+            scene.get("narrative_goal"),
+            scene.get("interaction_direction"),
+            scene.get("interaction"),
+        ]
+    ).casefold()
+    items = _semantic_item_count(section.get("content", {}))
+    explicit_required = bool(re.search(r"\b(?:required|essential|must|primary)\b", section_text))
+    direction_terms = {
+        "capability-grouping": any(
+            term in section_text
+            for term in ("group", "disclos", "accordion", "collapsible", "expandable", "tabs")
+        ),
+        "experience-timeline": any(
+            term in section_text
+            for term in ("chronolog", "timeline", "progress", "milestone", "sequence")
+        ),
+        "selected-work-detail": any(
+            term in section_text
+            for term in ("detail", "expand", "drawer", "dialog", "case study", "explore")
+        ),
+        "navigation-disclosure": any(
+            term in section_text for term in ("mobile nav", "navigation disclosure", "menu drawer")
+        ),
+    }
+    candidates: list[tuple[str, str, bool]] = []
+    if _section_matches(section_id, ("capabil", "skill", "service")) and (
+        items >= 2 or direction_terms["capability-grouping"]
+    ):
+        candidates.append(
+            (
+                "capability-grouping",
+                "Group capability items with progressive disclosure.",
+                explicit_required,
+            )
+        )
+    if _section_matches(section_id, ("experience", "career", "timeline")) and (
+        items >= 2 or direction_terms["experience-timeline"]
+    ):
+        candidates.append(
+            ("experience-timeline", "Show chronological experience progression.", explicit_required)
+        )
+    if _section_matches(section_id, ("work", "project", "proof", "case")) and (
+        items >= 2 or direction_terms["selected-work-detail"]
+    ):
+        candidates.append(
+            (
+                "selected-work-detail",
+                "Let visitors explore approved work details.",
+                explicit_required,
+            )
+        )
+    if _section_matches(section_id, ("nav", "navigation")) and (
+        route_count > 1 or direction_terms["navigation-disclosure"]
+    ):
+        candidates.append(
+            ("navigation-disclosure", "Disclose route navigation on narrow screens.", True)
+        )
+
+    result: list[dict[str, Any]] = []
+    for role_id, outcome, required in candidates:
+        role_terms = list(_COMPONENT_PROVIDER_VOCABULARY[role_id])
+        interaction_class = {
+            "capability-grouping": "disclosure",
+            "experience-timeline": "progression",
+            "selected-work-detail": "detail-exploration",
+            "navigation-disclosure": "navigation-disclosure",
+        }[role_id]
+        result.append(
+            {
+                "role_id": role_id,
+                "route_id": str(route.get("route_id", "")),
+                "scene_id": scene_id,
+                "section_id": section_id,
+                "interaction_class": interaction_class,
+                "interaction_outcome": outcome,
+                "placement": f"{route.get('route_id', '')} / {section_id}",
+                "purpose": outcome,
+                "provider_terms": role_terms,
+                "negative_concepts": ["dashboard", "screenshot", "invented project detail"],
+                "required": required,
+                "fallback_type": "semantic_local",
+                "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+                "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+                "expected_exports": [],
+                "prohibitions": [
+                    "Do not add an interaction to a section that does not contain the approved items."
+                ],
+            }
+        )
+    return result
+
+
 def _image_target(image_target: int, image_maximum: int) -> int:
     return min(max(0, int(image_target)), max(0, min(6, int(image_maximum))))
 
@@ -343,16 +498,6 @@ def _existing_image_count(visual: dict[str, Any]) -> int:
         if isinstance(item, dict)
         and str(item.get("asset_type", "") or "").casefold()
         in {"image", "photo", "editorial_photo", "portrait"}
-    )
-
-
-def _existing_component_count(visual: dict[str, Any]) -> int:
-    return sum(
-        1
-        for item in _as_list(visual.get("resource_candidates"))
-        if isinstance(item, dict)
-        and str(item.get("category", "") or "").casefold()
-        in {"component", "visual_component", "registry_component"}
     )
 
 
@@ -444,9 +589,17 @@ def normalize_visual_input(
         for page in _as_list(visual.get("pages"))
         if isinstance(page, dict) and page.get("route_id")
     }
-    page_coverage_complete = bool(approved_routes) and {
-        str(route["route_id"]) for route in approved_routes
-    }.issubset(existing_route_ids)
+    page_coverage_complete = (
+        bool(approved_routes)
+        and {str(route["route_id"]) for route in approved_routes}.issubset(existing_route_ids)
+        and all(
+            bool(_as_list(page.get("scenes")))
+            for page in _as_list(visual.get("pages"))
+            if isinstance(page, dict)
+            and str(page.get("route_id", ""))
+            in {str(route["route_id"]) for route in approved_routes}
+        )
+    )
     needs_assumed_direction = not _has_meaningful_visual_input(original) or (
         bool(approved_routes) and not page_coverage_complete
     )
@@ -565,47 +718,69 @@ def normalize_visual_input(
             needed_images -= 1
             derived_any = True
 
-    needed_components = max(
-        0,
-        _component_target(requested_component_target, component_maximum)
-        - _existing_component_count(visual),
-    )
-    if enabled and not explicit_component_prohibition and needed_components:
-        ordered = _ordered_descriptors(descriptors)
-        for ordinal, (route, page, section_id, scene_id, _role_name) in enumerate(ordered):
-            if needed_components <= 0:
-                break
-            role_id, label, query, required = _COMPONENT_ROLE_SPECS[
-                ordinal % len(_COMPONENT_ROLE_SPECS)
-            ]
-            route_id = str(route["route_id"])
+    if enabled and not explicit_component_prohibition:
+        route_count = len(approved_routes)
+        semantic_intents: list[dict[str, Any]] = []
+        for route, page, section_id, scene_id in descriptors:
+            semantic_intents.extend(
+                _semantic_component_intents(
+                    content=content,
+                    route=route,
+                    page=page,
+                    section_id=section_id,
+                    scene_id=scene_id,
+                    route_count=route_count,
+                )
+            )
+        # The configured target is a ceiling for optional enrichment, never a
+        # reason to manufacture roles. Explicitly required roles always stay in
+        # the closed set even when they exceed that ceiling.
+        optional_ceiling = min(
+            max(0, _component_target(requested_component_target, component_maximum)),
+            max(0, int(component_maximum)),
+        )
+        selected_intents: list[dict[str, Any]] = [
+            item for item in semantic_intents if bool(item.get("required"))
+        ]
+        optional_intents = [item for item in semantic_intents if not bool(item.get("required"))]
+        selected_intents.extend(
+            optional_intents[: max(0, optional_ceiling - len(selected_intents))]
+        )
+        for intent in selected_intents:
+            route_id = str(intent["route_id"])
+            section_id = str(intent["section_id"])
+            role_id = str(intent["role_id"])
             resource_id = f"assumed-component:{route_id}:{section_id}:{role_id}"
             if resource_id in existing_resources:
                 continue
             resource = {
                 "resource_id": resource_id,
                 "category": "visual_component",
-                "why_it_matches": f"The approved '{section_id}' section needs a {label.casefold()} role.",
-                "where_it_may_help": f"{route_id} / {section_id}",
-                "priority": "important" if required else "optional",
-                "possible_use": query,
+                "why_it_matches": str(intent["interaction_outcome"]),
+                "where_it_may_help": str(intent["placement"]),
+                "priority": "important" if intent["required"] else "optional",
+                "possible_use": str(intent["purpose"]),
                 "adaptation_notes": "Use real registry source only; preserve keyboard access, responsive behavior, and reduced-motion static state.",
                 "fallback": "Use the approved semantic section structure without a registry component.",
-                "confidence": "build_preparation_assumed",
+                "confidence": "build_preparation_semantic_intent",
                 "lookup_status": "assumed_intent",
-                "required_for_handoff": required,
+                "required_for_handoff": bool(intent["required"]),
                 "section_id": section_id,
-                "scene_id": scene_id,
+                "section_ids": [section_id],
+                "scene_id": str(intent["scene_id"]),
                 "interaction_role": role_id,
-                "responsive_behavior": "Stack or disclose on narrow screens without hiding essential content.",
-                "reduced_motion_behavior": "Keep the complete interaction available in a static state.",
+                "responsive_behavior": str(intent["responsive_behavior"]),
+                "reduced_motion_behavior": str(intent["reduced_motion_behavior"]),
+                "provider_terms": list(intent["provider_terms"]),
+                "negative_concepts": list(intent["negative_concepts"]),
+                "component_intent": intent,
             }
             visual["resource_candidates"].append(resource)
+            page = _page_for(visual, route_id) or page
             page.setdefault("resource_candidates", []).append(resource_id)
             scene = _ensure_scene(page, section_id)
             scene.setdefault("resource_candidates", []).append(resource_id)
             existing_resources.add(resource_id)
-            needed_components -= 1
             derived_any = True
 
     policy = _as_dict(visual.get("resource_policy"))

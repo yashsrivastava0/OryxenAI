@@ -206,6 +206,17 @@ def validate_selection_plan(
                 "Stage 2 selected a resource that providers did not return.",
                 details={"resource_id": selection.selected_resource_id},
             )
+        unknown_alternates = set(selection.alternate_resource_ids) - candidate_ids
+        if unknown_alternates:
+            raise BuildPreparationValidationError(
+                "Stage 2 ranked an alternate resource that providers did not return.",
+                details={"resource_ids": sorted(unknown_alternates)},
+            )
+        if selection.selected_resource_id in set(selection.alternate_resource_ids):
+            raise BuildPreparationValidationError(
+                "Stage 2 cannot rank the selected resource as its own alternate.",
+                details={"need_id": selection.need_id},
+            )
         if not selection.selected_resource_id and not selection.fallback.strip():
             raise BuildPreparationValidationError(
                 "A rejected resource selection must include an explicit fallback.",

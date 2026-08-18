@@ -145,3 +145,54 @@ async def test_mcp_adapter_fetches_source_and_registry_dependencies_without_http
     assert discovered[0].name == "card"
     assert set(fetched.source_files) == {"card.tsx", "button.tsx"}
     assert fetched.dependencies == ("react",)
+
+
+@pytest.mark.asyncio
+async def test_registry_rate_limit_diagnostics_are_preserved_while_order_continues() -> None:
+    settings = Settings()
+    settings.resource_providers.registry_order = ["shadcn", "magicui"]
+    settings.resource_providers.shadcn_catalog_url = "https://registry.test/shadcn.json"
+    settings.resource_providers.shadcn_item_url_template = (
+        "https://registry.test/shadcn-{name}.json"
+    )
+    settings.resource_providers.magicui_catalog_url = "https://registry.test/magic.json"
+    settings.resource_providers.magicui_item_url_template = (
+        "https://registry.test/magic-{name}.json"
+    )
+    diagnostics: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/shadcn.json":
+            return httpx.Response(429, headers={"Retry-After": "2"}, request=request)
+        if request.url.path == "/magic.json":
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "name": "accordion",
+                            "title": "Accordion",
+                            "description": "Disclosure groups",
+                            "tags": ["accordion", "disclosure"],
+                        }
+                    ]
+                },
+                request=request,
+            )
+        return httpx.Response(200, json={"files": []}, request=request)
+
+    service = build_component_retrieval_service(settings)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        candidates = await service.discover(
+            "accordion disclosure",
+            allowed_providers=["shadcn", "magicui"],
+            client=client,
+            settings=settings,
+            diagnostics=diagnostics,
+        )
+
+    assert candidates[0].name == "accordion"
+    rate_limited = next(item for item in diagnostics if item["provider"] == "shadcn")
+    assert rate_limited["http_status"] == 429
+    assert rate_limited["rate_limit_event"] is True
+    assert rate_limited["error_code"] == "RATE_LIMITED"

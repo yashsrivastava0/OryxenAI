@@ -133,6 +133,7 @@ editorial_image_maximum = 6
 # from approved component roles; the maximum bounds optional role retrieval.
 visual_component_budget = 4
 visual_component_maximum = 6
+component_source_attempt_maximum = 3
 provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
 provider_max_requests = 32
@@ -315,8 +316,10 @@ shadcn_release_pin = "new-york-v4"
 magicui_release_pin = "registry-v1"
 smoothui_release_pin = "registry-v1"
 cultui_release_pin = "registry-v1"
-shadcn_allowed_components = ["accordion", "card", "dialog", "tabs", "tooltip"]
-magicui_allowed_components = ["border-beam", "magic-card", "marquee"]
+# Empty means discover the configured registry's live metadata. Deployments may
+# provide an explicit allowlist when their target contract requires one.
+shadcn_allowed_components = []
+magicui_allowed_components = []
 smoothui_allowed_components = []
 cultui_allowed_components = []
 motion_primitives_enabled = true

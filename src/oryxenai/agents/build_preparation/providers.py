@@ -475,6 +475,7 @@ async def search_components(
     client: httpx.AsyncClient | None = None,
     limit: int = 5,
     fetch_source: bool = False,
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> list[FetchedResource]:
     """Discover registry components and optionally fetch their source.
 
@@ -494,6 +495,7 @@ async def search_components(
             client=http,
             settings=settings,
             limit=limit,
+            diagnostics=diagnostics,
         )
         for candidate in candidates:
             fetched = None
@@ -536,7 +538,22 @@ def _fetched_resource_from_candidate(
             if fetched is not None
             else candidate.registry_dependencies
         ),
-        retrieval_metadata=candidate.as_metadata(),
+        retrieval_metadata={
+            **candidate.as_metadata(),
+            "query": query.query,
+            "provider_terms": list(query.provider_terms),
+            "interaction_class": query.interaction_class,
+            "interaction_outcome": query.interaction_outcome,
+            "placement": query.placement,
+            "expected_exports": list(query.expected_exports),
+            "provider_receipt": {
+                "provider": candidate.provider,
+                "query": query.query,
+                "attempt": 1,
+                "cache_state": "not_cached",
+                "candidate_count": 1,
+            },
+        },
         license=(fetched.license if fetched is not None else candidate.license),
         license_reference=(
             fetched.license_reference if fetched is not None else candidate.license_reference
@@ -996,14 +1013,40 @@ class ProviderLookup:
                     if len(token) > 2
                 )
             elif query.kind == "component":
+                receipt_start = len(self.provider_receipts)
                 found = await search_components(
-                    query, self.settings, client=self.client, fetch_source=False
+                    query,
+                    self.settings,
+                    client=self.client,
+                    fetch_source=False,
+                    diagnostics=self.provider_receipts,
+                )
+                self.rate_limit_events += sum(
+                    bool(item.get("rate_limit_event"))
+                    for item in self.provider_receipts[receipt_start:]
                 )
             elif query.kind == "icon":
                 found = await resolve_icon(query, self.settings, client=self.client)
             elif query.kind == "font":
                 found = await search_fontsource(query, self.settings, client=self.client)
-            if query.kind != "photo":
+            if query.kind == "component":
+                found = [
+                    item.model_copy(
+                        update={
+                            "retrieval_metadata": {
+                                **item.retrieval_metadata,
+                                "provider_attempts": [
+                                    dict(receipt)
+                                    for receipt in self.provider_receipts
+                                    if receipt.get("query") == query.query
+                                    and receipt.get("kind") == "component"
+                                ],
+                            }
+                        }
+                    )
+                    for item in found
+                ]
+            elif query.kind != "photo":
                 found = [
                     item.model_copy(
                         update={
@@ -1025,7 +1068,7 @@ class ProviderLookup:
                     )
                     for item in found
                 ]
-            if query.kind != "photo":
+            if query.kind not in {"photo", "component"}:
                 self.provider_receipts.append(
                     {
                         "provider": provider,

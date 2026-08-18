@@ -9,6 +9,7 @@ from oryxenai.agents.build_preparation.contracts import (
 )
 from oryxenai.agents.build_preparation.execution import compile_execution_contract
 from oryxenai.agents.build_preparation.schemas import (
+    FetchedResource,
     ResourceNeed,
     ResourceQuery,
     ResourceSelection,
@@ -40,6 +41,50 @@ def test_selection_plan_is_closed_over_candidates_and_needs() -> None:
         selections=[ResourceSelection(need_id="need-1", fallback="Build it locally.")]
     )
     assert validate_selection_plan(plan, {"need-1"}, []) == plan
+
+
+def test_selection_alternates_must_be_returned_and_distinct_from_primary() -> None:
+    candidates = [
+        FetchedResource(
+            resource_id="candidate-1",
+            need_id="need-1",
+            kind="component",
+            provider="shadcn",
+            provider_asset_id="accordion",
+            title="Accordion",
+            license="MIT",
+            license_reference="https://example.test/license",
+        )
+    ]
+    with pytest.raises(BuildPreparationValidationError, match="alternate resource"):
+        validate_selection_plan(
+            Stage2SelectionPlan(
+                selections=[
+                    ResourceSelection(
+                        need_id="need-1",
+                        selected_resource_id="candidate-1",
+                        alternate_resource_ids=["candidate-2"],
+                    )
+                ]
+            ),
+            {"need-1"},
+            candidates,
+        )
+
+    with pytest.raises(BuildPreparationValidationError, match="own alternate"):
+        validate_selection_plan(
+            Stage2SelectionPlan(
+                selections=[
+                    ResourceSelection(
+                        need_id="need-1",
+                        selected_resource_id="candidate-1",
+                        alternate_resource_ids=["candidate-1"],
+                    )
+                ]
+            ),
+            {"need-1"},
+            candidates,
+        )
 
 
 def test_required_visual_without_real_material_is_an_execution_gap() -> None:

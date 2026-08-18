@@ -83,9 +83,18 @@ def _enriched_content() -> dict[str, object]:
                 "route_id": "home",
                 "sections": [
                     {"section_id": "home:hero", "content": {"headline": "Build systems."}},
-                    {"section_id": "home:capabilities", "content": {"heading": "Capabilities"}},
-                    {"section_id": "home:experience", "content": {"heading": "Experience"}},
-                    {"section_id": "home:selected-work", "content": {"heading": "Selected work"}},
+                    {
+                        "section_id": "home:capabilities",
+                        "content": {"heading": "Capabilities", "items": ["APIs", "Delivery"]},
+                    },
+                    {
+                        "section_id": "home:experience",
+                        "content": {"heading": "Experience", "entries": ["One", "Two"]},
+                    },
+                    {
+                        "section_id": "home:selected-work",
+                        "content": {"heading": "Selected work", "projects": ["One", "Two"]},
+                    },
                     {"section_id": "home:connect", "content": {"heading": "Connect"}},
                 ],
             }
@@ -112,7 +121,7 @@ def test_missing_vdd_derives_deterministic_visual_direction_and_roles() -> None:
                 if item["category"] == "visual_component"
             ]
         )
-        == 4
+        == 3
     )
     result = compile_stage0(content, {})
     assert result.visual_input_mode == "assumed_from_content"
@@ -136,7 +145,7 @@ def test_partial_vdd_merges_roles_but_preserves_explicit_prohibition() -> None:
     normalized = normalize_visual_input(content, visual)
     assert normalized.mode == "merged_vdd_assumptions"
     assert normalized.visual["asset_briefs"] == []
-    assert len(normalized.visual["resource_candidates"]) == 4
+    assert len(normalized.visual["resource_candidates"]) == 3
     result = compile_stage0(content, visual)
     assert not any(need.category == "editorial_photo" for need in result.resource_needs)
     assert any(need.category == "visual_component" for need in result.resource_needs)
@@ -149,8 +158,31 @@ def test_component_roles_are_distinct_and_route_aware() -> None:
         for item in normalized.visual["resource_candidates"]
         if item["category"] == "visual_component"
     ]
-    assert len({item["interaction_role"] for item in roles}) == len(roles)
+    assert {item["interaction_role"] for item in roles} == {
+        "capability-grouping",
+        "experience-timeline",
+        "selected-work-detail",
+    }
     assert {item["where_it_may_help"].split(" / ")[0] for item in roles} == {"home"}
+
+
+def test_component_budget_does_not_create_roles_for_static_sections() -> None:
+    content, visual = _enriched_content(), {}
+    for section in content["page_content_packs"][0]["sections"]:
+        section["content"] = {"heading": section["section_id"]}
+
+    normalized = normalize_visual_input(
+        content,
+        visual,
+        component_target=4,
+        component_maximum=6,
+    )
+
+    assert [
+        item
+        for item in normalized.visual["resource_candidates"]
+        if item["category"] == "visual_component"
+    ] == []
 
 
 def test_stage0_compiles_routes_and_resource_needs_without_model_calls() -> None:

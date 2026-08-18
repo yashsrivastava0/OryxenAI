@@ -61,6 +61,29 @@ class RouteScope(BaseModel):
     resource_ids: list[str] = Field(default_factory=list)
 
 
+class ComponentIntent(BaseModel):
+    """Typed semantic contract for one registry-backed interaction role."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role_id: str
+    route_id: str
+    scene_id: str = ""
+    section_id: str = ""
+    interaction_class: str
+    interaction_outcome: str
+    placement: str = ""
+    purpose: str = ""
+    provider_terms: list[str] = Field(default_factory=list)
+    negative_concepts: list[str] = Field(default_factory=list)
+    required: bool = False
+    fallback_type: str = "semantic_local"
+    responsive_behavior: str = ""
+    reduced_motion_behavior: str = ""
+    expected_exports: list[str] = Field(default_factory=list)
+    prohibitions: list[str] = Field(default_factory=list)
+
+
 class ResourceNeed(BaseModel):
     """A deterministic need, not a fetched or selected resource."""
 
@@ -81,6 +104,7 @@ class ResourceNeed(BaseModel):
     query_terms: list[str] = Field(default_factory=list)
     fallback: str = ""
     details: dict[str, Any] = Field(default_factory=dict)
+    component_intent: ComponentIntent | None = None
 
 
 class Stage0Result(BaseModel):
@@ -129,6 +153,10 @@ class ResourceQuery(BaseModel):
     fallback: str = ""
     required_for_handoff: bool = False
     allowed_providers: list[str] = Field(default_factory=list)
+    interaction_class: str = ""
+    interaction_outcome: str = ""
+    placement: str = ""
+    expected_exports: list[str] = Field(default_factory=list)
 
 
 class Stage1QueryPlan(BaseModel):
@@ -189,6 +217,7 @@ class ResourceSelection(BaseModel):
 
     need_id: str
     selected_resource_id: str | None = None
+    alternate_resource_ids: list[str] = Field(default_factory=list)
     why_selected: str = ""
     fallback: str = ""
     adaptation_notes: str = ""
@@ -328,6 +357,7 @@ class HandoffQualityReport(BaseModel):
     issues: list[HandoffIssue] = Field(default_factory=list)
     handoff_summary: dict[str, Any] = Field(default_factory=dict)
     model_review: dict[str, Any] = Field(default_factory=dict)
+    run_analysis: dict[str, Any] = Field(default_factory=dict)
 
 
 class RouteBuildContext(BaseModel):
@@ -378,6 +408,8 @@ class Stage5HandoffReview(BaseModel):
     status: Literal["ready"] = "ready"
     summary: str = ""
     warnings: list[str] = Field(default_factory=list)
+    role_findings: list[dict[str, Any]] = Field(default_factory=list)
+    recommended_next_actions: list[str] = Field(default_factory=list)
 
 
 class MaterializedFile(BaseModel):
@@ -412,6 +444,8 @@ class MaterializationResult(BaseModel):
     execution_gaps: list[ExecutionGap] = Field(default_factory=list)
     execution_contract_path: str = ""
     resource_ledger_path: str = ""
+    analysis_path: str = ""
+    analysis_hash: str = ""
 
 
 class PackageResult(BaseModel):

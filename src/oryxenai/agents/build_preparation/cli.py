@@ -29,12 +29,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--live-model",
         action="store_true",
-        help="Use the configured Build Preparation model profile.",
+        help="Explicitly confirm the configured Build Preparation model profile.",
     )
     parser.add_argument(
         "--live-providers",
         action="store_true",
-        help="Use live resource providers; offline mode records visual gaps instead of fabricating assets.",
+        help="Explicitly confirm live resource providers.",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Diagnostic-only mode; do not advertise a production-ready handoff.",
     )
     parser.add_argument("--model-profile", default="", help="Optional configured model profile.")
     parser.add_argument(
@@ -67,7 +72,8 @@ async def _run(args: argparse.Namespace) -> None:
     content_override = _load_json(args.content_architect_input, "Content Architect")
 
     model_client = None
-    if args.live_model:
+    live_mode = not args.offline
+    if live_mode:
         model_client = build_provider_client(
             "build_preparation",
             settings.models,
@@ -82,8 +88,8 @@ async def _run(args: argparse.Namespace) -> None:
             settings,
             raw_override=visual_override,
             content_architect_override=content_override,
-            live_model=args.live_model,
-            live_providers=args.live_providers,
+            live_model=live_mode,
+            live_providers=live_mode,
             model_profile=args.model_profile,
             model_client=model_client,
         )
