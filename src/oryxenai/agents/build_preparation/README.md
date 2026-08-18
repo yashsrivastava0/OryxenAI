@@ -69,6 +69,41 @@ projections, resource projection, execution contract, resource ledger, and v3
 handoff report. Historical packs, including v2, are diagnostic-only and cannot
 be admitted by Code Generator.
 
+## What Code Generator consumes
+
+Code Generator does not treat `overview.md` as a hidden prompt or as a second
+source of truth. It admits the ZIP through the configured Build Preparation
+mirror, verifies the manifest, expiry, projection hashes, approvals, route
+contract, licenses, checksums, and execution contract, then constructs its
+planner context from the admitted JSON projections. The important handoff
+files are:
+
+- `site/contract.json` for the approved route/path/section/content contract;
+- `design/visual-direction.json` for visual, responsive, accessibility, and
+  reduced-motion intent;
+- `execution/contract.json` for one executable resolution per known slot,
+  including local paths, import paths, exports, dependencies, hashes,
+  provenance, and fallbacks;
+- `resources/projection.json` and `resources/ledger.json` for materialized
+  resources and decisions;
+- `provenance/` for approvals, target, licenses, and checksums; and
+- `routes/` plus `resources/` for the route-scoped content and local files.
+
+The consumer copies admitted local material into its generation workspace,
+imports prepared component source locally, references local images/fonts, and
+records a source manifest. It does not reacquire a known Build Preparation
+role. Only a genuinely emergent need absent from the execution contract can
+use the separate receipt-bound Code Generator acquisition path.
+
+The overview is intentionally more descriptive than prescriptive. The
+approved route and section IDs define public-scope coverage, but the overview
+does not impose a typical portfolio screen count, component count, card count,
+or layout. Within that approved scope, Code Generator chooses the visual
+composition and responsive grouping that fit the person and content—for
+example, an executive narrative may foreground trust and outcomes, while a
+software portfolio may foreground capabilities, experience, selected work, and
+technical evidence—without inventing facts or credentials.
+
 ## Folder structure
 
 ```text
