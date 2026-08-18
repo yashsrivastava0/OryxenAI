@@ -501,6 +501,12 @@ class BuildPreparationAgent(Agent):
         selection_plan = selection_plan.model_copy(
             update={"selections": normalized_selections, "warnings": selection_warnings}
         )
+        selection_plan, selection_warnings = _normalize_selection_ids(
+            selection_plan,
+            candidates,
+            stage0.resource_needs,
+        )
+        selection_plan = selection_plan.model_copy(update={"warnings": selection_warnings})
 
         forced_selections, forced_warnings = select_required_candidates(
             selection_plan.selections,
@@ -1305,6 +1311,50 @@ def _complete_alternate_rankings(
             )
         )
     return result
+
+
+def _normalize_selection_ids(
+    plan: Stage2SelectionPlan,
+    candidates: list[FetchedResource],
+    needs: list[Any],
+) -> tuple[Stage2SelectionPlan, list[str]]:
+    """Keep model-selected IDs inside the provider-returned closed set.
+
+    The model is allowed to rank and explain returned candidates, but it is
+    never allowed to create one.  A stale or invented ID becomes an explicit
+    fallback so the deterministic pipeline can continue to materialization and
+    report the resulting required-role gap instead of failing before analysis.
+    """
+    candidate_ids = {candidate.resource_id for candidate in candidates}
+    need_by_id = {need.need_id: need for need in needs}
+    warnings: list[str] = list(plan.warnings)
+    selections: list[ResourceSelection] = []
+    for selection in plan.selections:
+        need = need_by_id.get(selection.need_id)
+        selected_id = selection.selected_resource_id
+        if selected_id and selected_id not in candidate_ids:
+            warnings.append(
+                f"Model selected resource '{selected_id}' for need '{selection.need_id}', "
+                "but providers did not return it; the selection was discarded."
+            )
+            selected_id = None
+        alternate_ids = [
+            resource_id
+            for resource_id in dict.fromkeys(selection.alternate_resource_ids)
+            if resource_id in candidate_ids and resource_id != selected_id
+        ]
+        selections.append(
+            selection.model_copy(
+                update={
+                    "selected_resource_id": selected_id,
+                    "alternate_resource_ids": alternate_ids,
+                    "fallback": selection.fallback
+                    or (need.fallback if need is not None else "")
+                    or "Implement the approved intent using the typed local fallback.",
+                }
+            )
+        )
+    return plan.model_copy(update={"selections": selections}), warnings
 
 
 def _reconcile_model_context(

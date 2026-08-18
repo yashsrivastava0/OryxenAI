@@ -538,8 +538,8 @@ def compile_stage0(
     if routes and visual_component_budget > component_need_count:
         warnings.append(
             f"Approved Visual Design Director output contains {component_need_count} component roles; "
-            f"the configured component target is {visual_component_budget}. Missing roles remain an "
-            "execution gap until explicitly authorized upstream."
+            f"the configured component target is {visual_component_budget}. The target is advisory; "
+            "no component roles are manufactured and no quota gap is created."
         )
 
     # Typography is executable material too: give the downstream generator a
