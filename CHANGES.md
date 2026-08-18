@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 23:55 +05:30 - Codex (GPT-5 / OpenAI) - [6bdcb13] - Selected verified Build Preparation output for Code Generator
+Recorded the live-accepted pack `64801150-cb6d-4052-ae1e-2a30ab55fb20` as the current Code Generator working input, including its ZIP identity, route scope, local image/component/font bindings, projection hashes, R2 handoff distinction, and the static experience-timeline fallback. Marked the older ineligible pack as unusable.
+
 ### 2026-08-18 23:43 +05:30 - Codex (GPT-5 / OpenAI) - [da99302] - Build Preparation overview and Code Generator handoff context
 Made generated `overview.md` a detailed consumer briefing that documents the pack authority files, local resource flow, route inventory, and handoff review without imposing screen, route, component, card, or layout quotas. Updated the live context prompt and Build Preparation documentation to preserve exact upstream coverage while leaving composition and portfolio information architecture to Code Generator; added regression coverage.
 
