@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-18 23:43 +05:30 - Codex (GPT-5 / OpenAI) - [da99302] - Build Preparation overview and Code Generator handoff context
+Made generated `overview.md` a detailed consumer briefing that documents the pack authority files, local resource flow, route inventory, and handoff review without imposing screen, route, component, card, or layout quotas. Updated the live context prompt and Build Preparation documentation to preserve exact upstream coverage while leaving composition and portfolio information architecture to Code Generator; added regression coverage.
+
 ### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [273799b] - Reliable contextual visual enrichment and Code Generator handoff
 Removed role-count truncation and the static provider request quota while retaining per-role retries, rate-limit handling, source validation, image-size limits, and closed-set selection. Added contextual queries, alternate image recovery, complete local component/image provenance bindings, aggregate enrichment admission diagnostics, and Code Generator protection against reacquiring known Build Preparation roles. Focused Build Preparation, Code Generator, and API tests pass; live acceptance repeated the configured model connection failure before provider lookup, so no readiness claim is made.
 
