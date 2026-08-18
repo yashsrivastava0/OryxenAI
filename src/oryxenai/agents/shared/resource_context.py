@@ -40,6 +40,14 @@ class ResourceContextPacket(BaseModel):
     materialization_constraints: dict[str, Any] = Field(default_factory=dict)
     previous_attempt_analysis: dict[str, Any] = Field(default_factory=dict)
     quality_boundary: dict[str, Any] = Field(default_factory=dict)
+    approved_route_context: list[dict[str, Any]] = Field(default_factory=list)
+    approved_section_context: list[dict[str, Any]] = Field(default_factory=list)
+    approved_scene_context: list[dict[str, Any]] = Field(default_factory=list)
+    public_content_context: list[dict[str, Any]] = Field(default_factory=list)
+    interaction_context: list[dict[str, Any]] = Field(default_factory=list)
+    responsive_context: dict[str, Any] = Field(default_factory=dict)
+    reduced_motion_context: dict[str, Any] = Field(default_factory=dict)
+    semantic_subject_terms: list[str] = Field(default_factory=list)
 
 
 def build_resource_context_packet(
@@ -97,6 +105,64 @@ def build_resource_context_packet(
             forbidden.extend(negative_concepts)
     forbidden_concepts = list(
         dict.fromkeys(str(item).strip() for item in forbidden if str(item).strip())
+    )
+    approved_route_context = [
+        {
+            "route_id": item.get("route_id", ""),
+            "title": item.get("title", ""),
+            "purpose": item.get("purpose", ""),
+            "section_ids": item.get("section_ids", []),
+            "scene_ids": item.get("scene_ids", []),
+        }
+        for item in [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else dict(item)
+            for item in routes
+        ]
+    ]
+    public_content_context = [
+        item
+        for item in (content_architect.get("page_content_packs", []) or [])
+        if isinstance(item, dict)
+    ]
+    approved_section_context = [
+        {"route_id": item.get("route_id", ""), "section": section}
+        for item in public_content_context
+        for section in item.get("sections", []) or []
+        if isinstance(section, dict)
+    ]
+    approved_scene_context = [
+        {"route_id": page.get("route_id", ""), "scene": scene}
+        for page in visual.get("pages", []) or []
+        if isinstance(page, dict)
+        for scene in page.get("scenes", []) or []
+        if isinstance(scene, dict)
+    ]
+    interaction_context = [
+        {
+            "role_id": item.get("role_id", ""),
+            "interaction_class": item.get("interaction_class", ""),
+            "interaction_outcome": item.get("interaction_outcome", ""),
+            "placement": item.get("placement", ""),
+        }
+        for item in component_intents
+        if isinstance(item, dict)
+    ]
+    accessibility = dict(visual.get("accessibility_and_performance") or {})
+    semantic_subject_terms = list(
+        dict.fromkeys(
+            str(value).strip()
+            for value in [
+                visual.get("visual_language", {}).get("style", "")
+                if isinstance(visual.get("visual_language"), dict)
+                else "",
+                visual.get("visual_language", {}).get("palette", [])
+                if isinstance(visual.get("visual_language"), dict)
+                else [],
+                visual.get("global_visual_language", ""),
+            ]
+            for value in (value if isinstance(value, list) else [value])
+            if str(value).strip()
+        )
     )
     return ResourceContextPacket(
         approved_content=dict(content_architect),
@@ -156,4 +222,20 @@ def build_resource_context_packet(
                 "warnings_only": ["subjective_visual_quality", "candidate_style_preference"],
             }
         ),
+        approved_route_context=approved_route_context,
+        approved_section_context=approved_section_context,
+        approved_scene_context=approved_scene_context,
+        public_content_context=public_content_context,
+        interaction_context=interaction_context,
+        responsive_context={
+            key: accessibility.get(key, "")
+            for key in ("responsive", "touch", "responsive_accessibility")
+            if accessibility.get(key)
+        },
+        reduced_motion_context={
+            key: accessibility.get(key, "")
+            for key in ("reduced_motion", "motion", "performance_choices")
+            if accessibility.get(key)
+        },
+        semantic_subject_terms=semantic_subject_terms,
     )

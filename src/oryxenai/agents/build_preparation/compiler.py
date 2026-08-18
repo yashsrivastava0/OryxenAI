@@ -532,8 +532,8 @@ def compile_stage0(
     if routes and editorial_image_budget > image_need_count:
         warnings.append(
             f"Approved Visual Design Director output contains {image_need_count} image roles; "
-            f"the configured image target is {editorial_image_budget}. Missing roles remain an "
-            "execution gap until explicitly authorized upstream."
+            f"the configured image target is {editorial_image_budget}. The target is advisory; "
+            "no image roles are manufactured and no quota gap is created."
         )
     if routes and visual_component_budget > component_need_count:
         warnings.append(

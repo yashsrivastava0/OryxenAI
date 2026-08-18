@@ -55,7 +55,176 @@ _PROHIBITED_IMAGE_TERMS = frozenset(
 )
 
 
-def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = None) -> Any:
+_CONTEXT_VALUE_KEYS = frozenset(
+    {
+        "title",
+        "heading",
+        "label",
+        "purpose",
+        "summary",
+        "description",
+        "narrative_goal",
+        "background_intent",
+        "content",
+        "body",
+        "text",
+        "public_content",
+        "visual_goal",
+        "interaction_class",
+        "interaction_outcome",
+        "placement",
+        "provider_terms",
+        "style",
+        "palette",
+        "typography",
+        "responsive",
+        "responsive_behavior",
+        "reduced_motion",
+        "reduced_motion_behavior",
+        "accessibility",
+        "accessibility_requirements",
+        "performance_choices",
+    }
+)
+_CONTEXT_EXCLUDED_KEYS = frozenset(
+    {
+        "route_id",
+        "scene_id",
+        "section_id",
+        "role_id",
+        "need_id",
+        "source_id",
+        "resource_id",
+        "provider_id",
+        "provider_asset_id",
+        "url",
+        "urls",
+        "source_url",
+        "source_reference",
+        "source_files",
+        "dependencies",
+        "registry_dependencies",
+        "expected_exports",
+        "local_path",
+        "path",
+        "code",
+        "html",
+        "css",
+        "javascript",
+        "typescript",
+    }
+)
+
+
+def _context_terms(value: Any, *, key: str = "") -> list[str]:
+    """Extract bounded, human-facing semantic terms from approved context."""
+    if isinstance(value, dict):
+        terms: list[str] = []
+        for child_key, child_value in value.items():
+            normalized_key = str(child_key).casefold()
+            if normalized_key in _CONTEXT_EXCLUDED_KEYS:
+                continue
+            if normalized_key in _CONTEXT_VALUE_KEYS or isinstance(child_value, (dict, list)):
+                terms.extend(_context_terms(child_value, key=normalized_key))
+        return terms
+    if isinstance(value, (list, tuple, set)):
+        terms: list[str] = []
+        for item in value:
+            terms.extend(_context_terms(item, key=key))
+        return terms
+    if not isinstance(value, (str, int, float)):
+        return []
+    text = str(value).strip()
+    if not text or len(text) > 240 or key in _CONTEXT_EXCLUDED_KEYS:
+        return []
+    if re.search(r"(?:https?://|www\.|<[^>]+>|\b(?:import|export)\b)", text, re.I):
+        return []
+    # Keep query terms concrete and provider-safe; source code and URLs are
+    # excluded before this point, and punctuation is normalized for matching.
+    return [
+        token
+        for token in re.findall(r"[a-z0-9][a-z0-9'-]*", text.casefold())
+        if len(token) > 2 and token not in _GENERIC_TERMS
+    ]
+
+
+def _dedupe_terms(values: list[Any], *, limit: int = 32) -> list[str]:
+    terms: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for token in _context_terms(value):
+            normalized = str(token).strip().casefold()
+            if len(normalized) <= 2 or normalized in _GENERIC_TERMS or normalized in seen:
+                continue
+            seen.add(normalized)
+            terms.append(normalized)
+            if len(terms) >= limit:
+                return terms
+    return terms
+
+
+def _context_for_need(need: ResourceNeed, context: dict[str, Any] | None) -> list[str]:
+    if not isinstance(context, dict):
+        return []
+    route_ids = {str(item) for item in need.route_ids if str(item).strip()}
+    scene_ids = {str(item) for item in need.scene_ids if str(item).strip()}
+    section_ids = {str(item) for item in need.section_ids if str(item).strip()}
+    role_id = need.component_intent.role_id if need.component_intent else ""
+    selected: list[Any] = [context.get("semantic_subject_terms", [])]
+
+    for item in context.get("approved_route_context", []) or []:
+        if not isinstance(item, dict) or (
+            route_ids and str(item.get("route_id", "")) not in route_ids
+        ):
+            continue
+        selected.append({"title": item.get("title", ""), "purpose": item.get("purpose", "")})
+    for item in context.get("approved_section_context", []) or []:
+        if not isinstance(item, dict):
+            continue
+        section = item.get("section", {})
+        if not isinstance(section, dict):
+            continue
+        if route_ids and str(item.get("route_id", "")) not in route_ids:
+            continue
+        if section_ids and str(section.get("section_id", "")) not in section_ids:
+            continue
+        selected.append(section)
+    for item in context.get("approved_scene_context", []) or []:
+        if not isinstance(item, dict):
+            continue
+        scene = item.get("scene", {})
+        if not isinstance(scene, dict):
+            continue
+        if route_ids and str(item.get("route_id", "")) not in route_ids:
+            continue
+        if scene_ids and str(scene.get("scene_id", "")) not in scene_ids:
+            continue
+        selected.append(scene)
+    for item in context.get("public_content_context", []) or []:
+        if not isinstance(item, dict) or (
+            route_ids and str(item.get("route_id", "")) not in route_ids
+        ):
+            continue
+        selected.append(item)
+    for item in context.get("interaction_context", []) or []:
+        if not isinstance(item, dict) or (role_id and str(item.get("role_id", "")) != role_id):
+            continue
+        selected.append(item)
+    selected.extend(
+        [
+            context.get("responsive_context", {}),
+            context.get("reduced_motion_context", {}),
+        ]
+    )
+    return _dedupe_terms(selected, limit=40)
+
+
+def normalize_query_plan(
+    plan: Any,
+    needs: list[ResourceNeed],
+    settings: Any = None,
+    context: dict[str, Any] | None = None,
+) -> Any:
     """Keep model query intent inside the fixed visual and provider policy."""
     by_id = {need.need_id: need for need in needs}
     image_config = getattr(settings, "image_retrieval", None)
@@ -76,11 +245,32 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
     for query in plan.queries:
         need = by_id[query.need_id]
         details = need.details if isinstance(need.details, dict) else {}
+        contextual_terms = _context_for_need(need, context)
+        semantic_terms = _dedupe_terms(
+            [*need.query_terms, need.purpose, *contextual_terms], limit=40
+        )
+        merged_query_terms = _dedupe_terms(
+            [query.query, *semantic_terms],
+            limit=48,
+        )
+        contextual_negative = [
+            *(
+                details.get("negative_concepts", [])
+                if isinstance(details.get("negative_concepts", []), list)
+                else []
+            ),
+            *(
+                context.get("forbidden_concepts", [])
+                if isinstance(context, dict)
+                and isinstance(context.get("forbidden_concepts", []), list)
+                else []
+            ),
+        ]
         query = query.model_copy(
             update={
-                "query": query.query.strip() or " ".join([*need.query_terms, need.purpose]).strip(),
+                "query": " ".join(merged_query_terms).strip(),
                 "purpose": query.purpose or need.purpose,
-                "subject": query.subject or " ".join(need.query_terms),
+                "subject": query.subject or " ".join(semantic_terms),
                 "style_mood": query.style_mood or str(details.get("mood", "") or ""),
                 "theme_colors": query.theme_colors
                 or (
@@ -92,15 +282,13 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
                 "aspect_ratio": query.aspect_ratio
                 or str(details.get("aspect_ratio_need", "") or ""),
                 "category": query.category or need.category,
-                "negative_concepts": query.negative_concepts
-                or (
-                    [
-                        str(item)
-                        for item in details.get("negative_concepts", [])
-                        if str(item).strip()
-                    ]
-                    if isinstance(details.get("negative_concepts", []), list)
-                    else []
+                "negative_concepts": list(
+                    dict.fromkeys(
+                        [
+                            *query.negative_concepts,
+                            *[str(item) for item in contextual_negative if str(item).strip()],
+                        ]
+                    )
                 ),
                 "important": query.important
                 or any(
@@ -135,6 +323,11 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
             canonical_terms = [
                 str(item) for item in details.get("provider_terms", []) or [] if str(item).strip()
             ]
+            typed_terms = (
+                [str(item) for item in need.component_intent.provider_terms if str(item).strip()]
+                if need.component_intent
+                else []
+            )
             interaction_terms = [
                 str(details.get(key, "") or "")
                 for key in ("interaction_class", "interaction_outcome", "placement")
@@ -145,8 +338,10 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
                     [
                         *query.provider_terms,
                         *canonical_terms,
+                        *typed_terms,
                         *component_provider_terms(role_id),
                         *interaction_terms,
+                        *contextual_terms,
                     ]
                 )
             )
@@ -155,7 +350,7 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
                     [
                         *str(query.query or "").split(),
                         *provider_terms,
-                        *need.query_terms,
+                        *semantic_terms,
                     ]
                 )
             ).strip()
@@ -164,7 +359,7 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
                     update={
                         "kind": "component",
                         "query": query_text,
-                        "provider_terms": provider_terms[:16],
+                        "provider_terms": provider_terms[:24],
                         "allowed_providers": registry_order,
                         "required_for_handoff": need.required_for_handoff,
                         "interaction_class": (
@@ -241,6 +436,22 @@ def normalize_query_plan(plan: Any, needs: list[ResourceNeed], settings: Any = N
             update["kind"] = "photo"
             update["orientation"] = str(need.details.get("orientation", "landscape") or "landscape")
             update["allowed_providers"] = image_providers
+            update["minimum_width"] = int(
+                details.get("minimum_width")
+                or (
+                    getattr(image_config, "minimum_width", 1200)
+                    if image_config is not None
+                    else 1200
+                )
+            )
+            update["minimum_height"] = int(
+                details.get("minimum_height")
+                or (
+                    getattr(image_config, "minimum_height", 700)
+                    if image_config is not None
+                    else 700
+                )
+            )
         elif need.category in _CUSTOM_CATEGORIES:
             update["kind"] = "custom"
             update["allowed_providers"] = []
@@ -283,6 +494,8 @@ def _qualify(
     quality = 70
 
     if candidate.kind == "photo":
+        minimum_width = int(need.details.get("minimum_width", 1200) or 1200)
+        minimum_height = int(need.details.get("minimum_height", 700) or 700)
         if (
             candidate.provider == "generated-local"
             or candidate.provider_asset_id.casefold().startswith(("mock-", "generated-"))
@@ -297,10 +510,12 @@ def _qualify(
             technical_status = "rejected"
             codes.append("REMOTE_ASSET_NOT_ALLOWED")
             reasons.append("Required images must be materialized locally for the static target.")
-        if candidate.width < 1200 or candidate.height < 700:
+        if candidate.width < minimum_width or candidate.height < minimum_height:
             quality = 0
             codes.append("IMAGE_RESOLUTION_TOO_LOW")
-            reasons.append("Image dimensions are below the 1200x700 handoff minimum.")
+            reasons.append(
+                f"Image dimensions are below the {minimum_width}x{minimum_height} handoff minimum."
+            )
         if candidate.provider == "unsplash" and candidate.hotlink_url.startswith("https://"):
             technical_status = "rejected"
             codes.append("REMOTE_ASSET_NOT_ALLOWED")
@@ -320,7 +535,9 @@ def _qualify(
             reasons.append("The candidate may depict prohibited evidence-like or portrait content.")
         meaningful_terms = {
             token
-            for token in re.findall(r"[a-z0-9]+", " ".join(need.query_terms).lower())
+            for token in re.findall(
+                r"[a-z0-9]+", " ".join([*need.query_terms, *(query_terms or [])]).lower()
+            )
             if len(token) > 3 and token not in _GENERIC_TERMS
         }
         matched_terms = sum(1 for token in meaningful_terms if token in searchable)
@@ -595,7 +812,20 @@ def build_handoff_report(
                     next_action="Return to Content Architect and approve grounded content for this route.",
                 )
             )
-    required_ids = [need.need_id for need in needs if need.required_for_handoff]
+    visual_categories = {
+        "image",
+        "photo",
+        "editorial_photo",
+        "portrait",
+        "component",
+        "visual_component",
+        "registry_component",
+    }
+    required_ids = [
+        need.need_id
+        for need in needs
+        if need.required_for_handoff or need.category.casefold() in visual_categories
+    ]
     image_need_ids = {
         need.need_id
         for need in needs
@@ -611,6 +841,22 @@ def build_handoff_report(
         for entry in materialization.resources
         if isinstance(entry, dict)
     }
+    for need in needs:
+        if need.need_id not in materialized_by_need:
+            selected_id = selected_ids.get(need.need_id)
+            if selected_id and selected_id in materialized_by_id:
+                materialized_by_need[need.need_id] = materialized_by_id[selected_id]
+
+    def materialized_disposition(entry: dict[str, Any]) -> str:
+        disposition = str(entry.get("disposition", "") or "")
+        if disposition:
+            return disposition
+        if str(entry.get("local_path", "") or ""):
+            return "local_file"
+        if str(entry.get("local_directory", "") or "") or entry.get("source_files"):
+            return "adaptable_source"
+        return ""
+
     for need in needs:
         selected_resource = materialized_by_id.get(selected_ids.get(need.need_id, ""), {})
         if (
@@ -637,6 +883,44 @@ def build_handoff_report(
                         next_action="Supply the verified local media or use the declared fallback honestly.",
                     )
                 )
+        is_image_role = need.category.casefold() in {
+            "image",
+            "photo",
+            "editorial_photo",
+            "portrait",
+        }
+        is_component_role = need.category.casefold() in {
+            "component",
+            "visual_component",
+            "registry_component",
+        }
+        if is_image_role or is_component_role:
+            usable_dispositions = {"local_file", "adaptable_source"}
+            disposition = materialized_disposition(materialized_by_need.get(need.need_id, {}))
+            if not selected_ids.get(need.need_id) or disposition not in usable_dispositions:
+                role_label = "image" if is_image_role else "component"
+                issues.append(
+                    HandoffIssue(
+                        code=(
+                            "REQUIRED_RESOURCE_UNRESOLVED"
+                            if need.required_for_handoff and not selected_ids.get(need.need_id)
+                            else "REQUIRED_RESOURCE_NOT_MATERIALIZED"
+                            if need.required_for_handoff
+                            else "IMAGE_ROLE_UNRESOLVED"
+                            if is_image_role
+                            else "COMPONENT_ROLE_UNRESOLVED"
+                        ),
+                        need_id=need.need_id,
+                        message=(
+                            f"Known {role_label} role '{need.source_id}' did not materialize as local validated material."
+                        ),
+                        next_action=(
+                            "Retry the bounded provider/source attempts and inspect the materialization receipt, "
+                            "or explicitly remove the role upstream before rerunning."
+                        ),
+                    )
+                )
+            continue
         if not need.required_for_handoff:
             continue
         resource_id = selected_ids.get(need.need_id)
@@ -690,9 +974,7 @@ def build_handoff_report(
                     next_action="Regenerate Build Preparation after correcting the execution compiler.",
                 )
             )
-        missing_needs = sorted(
-            {need.source_id for need in needs if need.required_for_handoff} - known_need_slots
-        )
+        missing_needs = sorted({need.source_id for need in needs} - known_need_slots)
         if missing_needs:
             issues.append(
                 HandoffIssue(
@@ -791,20 +1073,84 @@ def build_handoff_report(
                         next_action="Materialize the selected bytes/source into the pack before handoff.",
                     )
                 )
+    image_materialized_count = sum(
+        1
+        for need_id in image_need_ids
+        if materialized_disposition(materialized_by_need.get(need_id, {})) == "local_file"
+    )
+    component_materialized_count = sum(
+        1
+        for need_id in component_need_ids
+        if materialized_disposition(materialized_by_need.get(need_id, {}))
+        in {"adaptable_source", "local_file"}
+    )
+    visual_role_count = len(image_need_ids) + len(component_need_ids)
+    unresolved_visual_roles = sorted(
+        [
+            need.need_id
+            for need in needs
+            if need.category.casefold() in visual_categories
+            and materialized_disposition(materialized_by_need.get(need.need_id, {}))
+            not in {"local_file", "adaptable_source"}
+        ]
+    )
+    total_enrichment_failure = bool(
+        visual_role_count and not image_materialized_count and not component_materialized_count
+    )
+    partial_enrichment_failure = bool(unresolved_visual_roles and not total_enrichment_failure)
+    if image_need_ids and not image_materialized_count:
+        issues.append(
+            HandoffIssue(
+                code="IMAGE_ENRICHMENT_EMPTY",
+                message="Approved image roles exist, but no image materialized locally.",
+                next_action="Retry approved image providers and validate at least one local image before handoff.",
+            )
+        )
+    if component_need_ids and not component_materialized_count:
+        issues.append(
+            HandoffIssue(
+                code="COMPONENT_ENRICHMENT_EMPTY",
+                message="Approved component roles exist, but no component source materialized locally.",
+                next_action="Retry configured registries and validate at least one local component source before handoff.",
+            )
+        )
+    if total_enrichment_failure:
+        issues.append(
+            HandoffIssue(
+                code="TOTAL_ENRICHMENT_FAILURE",
+                message="Approved image/component enrichment produced no local material at all.",
+                next_action="Resolve at least one approved image or component locally, or revise the upstream roles explicitly.",
+            )
+        )
+    role_statuses = []
+    for need in needs:
+        if need.category.casefold() not in visual_categories:
+            continue
+        entry = materialized_by_need.get(need.need_id, {})
+        role_statuses.append(
+            {
+                "need_id": need.need_id,
+                "role": "image"
+                if need.category.casefold() in {"image", "photo", "editorial_photo", "portrait"}
+                else "component",
+                "route_ids": list(need.route_ids),
+                "scene_ids": list(need.scene_ids),
+                "section_ids": list(need.section_ids),
+                "attempts": list(entry.get("materialization_attempts", []))
+                if isinstance(entry.get("materialization_attempts", []), list)
+                else [],
+                "final_classification": materialized_disposition(entry) or "unresolved",
+                "selected_provider": str(entry.get("provider", "") or ""),
+                "selected_resource_id": str(entry.get("id", "") or ""),
+            }
+        )
     handoff_summary = {
         "image_target": int(image_target),
-        "image_materialized": sum(
-            1
-            for need_id in image_need_ids
-            if str(materialized_by_need.get(need_id, {}).get("disposition", "")) == "local_file"
-        ),
+        "image_materialized": image_materialized_count,
+        "semantic_image_need_count": len(image_need_ids),
         "component_target": int(component_target),
-        "component_materialized": sum(
-            1
-            for need_id in component_need_ids
-            if str(materialized_by_need.get(need_id, {}).get("disposition", ""))
-            in {"adaptable_source", "local_file"}
-        ),
+        "component_materialized": component_materialized_count,
+        "semantic_component_need_count": len(component_need_ids),
         "font_materialized": sum(
             1
             for entry in materialization.resources
@@ -816,11 +1162,16 @@ def build_handoff_report(
         "cache_hits": int(cache_hits),
         "rate_limit_events": int(rate_limit_events),
         "deferred_optional_roles": list(deferred_optional_roles or []),
+        "unresolved_visual_roles": unresolved_visual_roles,
+        "role_statuses": role_statuses,
+        "total_enrichment_failure": total_enrichment_failure,
+        "partial_enrichment_failure": partial_enrichment_failure,
         "execution_gaps": len(materialization.execution_gaps),
         "visual_input_mode": visual_input_mode,
         "assumption_hash": assumption_hash,
     }
     eligible = not issues
+    handoff_summary["code_generator_eligible"] = eligible
     return HandoffQualityReport(
         projection_hashes=dict(materialization.projection_hashes),
         readiness=readiness,

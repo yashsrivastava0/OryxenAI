@@ -29,7 +29,11 @@ from oryxenai.agents.build_preparation.schemas import (
     ResourceSelection,
     RouteScope,
 )
-from oryxenai.agents.shared.image_retrieval import intent_from_values, prepare_image_bytes
+from oryxenai.agents.shared.image_retrieval import (
+    ImageDownloadError,
+    intent_from_values,
+    prepare_image_bytes,
+)
 
 DownloadImage = Callable[[FetchedResource], Awaitable[bytes]]
 TriggerDownload = Callable[[FetchedResource], Awaitable[None]]
@@ -319,6 +323,152 @@ def _resource_plan(
             "unlisted_resource_ids_are_forbidden": True,
         },
         "resource_decisions": entries,
+    }
+
+
+async def _materialize_image_candidate(
+    *,
+    root: Path,
+    resource_id: str,
+    candidate: FetchedResource,
+    need: ResourceNeed | None,
+    settings: Any,
+    download_image: DownloadImage | None,
+    files: list[MaterializedFile],
+    image_by_hash: dict[str, str],
+) -> dict[str, Any]:
+    """Download, inspect, optimize, and write one closed-set image candidate."""
+
+    if download_image is None:
+        raise ValueError(
+            "live provider download is required; offline image bytes are not admissible"
+        )
+    raw_bytes = await download_image(candidate)
+    details = need.details if need else {}
+    image_config = getattr(settings, "image_retrieval", None)
+    minimum_width = int(
+        details.get("minimum_width") or getattr(image_config, "minimum_width", 1200) or 1200
+    )
+    minimum_height = int(
+        details.get("minimum_height") or getattr(image_config, "minimum_height", 700) or 700
+    )
+    intent = intent_from_values(
+        purpose=need.purpose if need else candidate.title,
+        subject=candidate.title or candidate.description,
+        style_mood=str(details.get("style_mood", "") or ""),
+        orientation=candidate.orientation,
+        aspect_ratio=str(details.get("aspect_ratio", "") or ""),
+        minimum_width=minimum_width,
+        minimum_height=minimum_height,
+        queries=[candidate.title or candidate.description],
+    )
+    image_bytes, image_info = prepare_image_bytes(
+        raw_bytes,
+        intent,
+        max_bytes=int(getattr(image_config, "optimized_max_bytes", 8 * 1024 * 1024)),
+        max_dimension=int(getattr(image_config, "max_dimension", 2400)),
+    )
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            image.load()
+            pixel_width, pixel_height = image.size
+            sample = image.convert("RGB").resize((64, 64))
+            colors = sample.getcolors(maxcolors=4096)
+            channel_spread = sum(ImageStat.Stat(sample).stddev)
+            if colors is None or len(colors) < 8 or channel_spread < 6.0:
+                raise ImageDownloadError(
+                    "image pixels are flat or insufficiently varied",
+                    details={
+                        "rejection_reason": "flat_or_insufficient_pixel_variation",
+                        "raw_byte_size": len(raw_bytes),
+                        "optimized_byte_size": len(image_bytes),
+                        "pixel_width": pixel_width,
+                        "pixel_height": pixel_height,
+                    },
+                )
+    except ImageDownloadError:
+        raise
+    except Exception as exc:
+        raise ImageDownloadError(
+            "image bytes failed pixel verification",
+            details={
+                "rejection_reason": "pixel_inspection_failed",
+                "raw_byte_size": len(raw_bytes),
+                "optimized_byte_size": len(image_bytes),
+            },
+        ) from exc
+    if pixel_width < minimum_width or pixel_height < minimum_height:
+        raise ImageDownloadError(
+            "image dimensions are below the configured minimum",
+            details={
+                "rejection_reason": "final_dimensions_below_minimum",
+                "raw_byte_size": len(raw_bytes),
+                "optimized_byte_size": len(image_bytes),
+                "pixel_width": pixel_width,
+                "pixel_height": pixel_height,
+                "minimum_width": minimum_width,
+                "minimum_height": minimum_height,
+            },
+        )
+    content_hash = str(image_info["sha256"])
+    image_path = image_by_hash.get(content_hash, "")
+    if not image_path:
+        image_path = f"resources/images/{resource_id}.jpg"
+        files.append(_write(root, image_path, image_bytes, "image"))
+        image_by_hash[content_hash] = image_path
+    metadata = {
+        "resource_id": resource_id,
+        "alt_text": candidate.title,
+        "focal_point": need.details.get("focal_point", "") if need else "",
+        "source": candidate.source_reference,
+        "photographer": candidate.photographer,
+        "photographer_url": candidate.photographer_url,
+        "attribution_url": candidate.attribution_url,
+        "license": candidate.license,
+        "license_reference": candidate.license_reference,
+        "placement": need.details.get("placement", "") if need else "",
+        "decorative": True,
+        "pixel_width": pixel_width,
+        "pixel_height": pixel_height,
+        "original_width": image_info["original_width"],
+        "original_height": image_info["original_height"],
+        "content_hash": content_hash,
+        "inspection_level": "pixel_inspected",
+        "local_path": image_path,
+        "response_content_type": candidate.mime_type,
+        "raw_byte_size": len(raw_bytes),
+        "optimized_byte_size": len(image_bytes),
+    }
+    files.append(
+        _write(root, f"resources/images/{resource_id}.json", _json_bytes(metadata), "metadata")
+    )
+    return {
+        "local_path": image_path,
+        "import_path": f"./{image_path}",
+        "inspection_level": "pixel_inspected",
+        "pixel_width": pixel_width,
+        "pixel_height": pixel_height,
+        "final_width": pixel_width,
+        "final_height": pixel_height,
+        "attribution_url": candidate.attribution_url,
+        "provider": candidate.provider,
+        "provider_asset_id": candidate.provider_asset_id,
+        "source_reference": candidate.source_reference,
+        "license": candidate.license,
+        "license_reference": candidate.license_reference,
+        "source_version": candidate.source_version,
+        "source_hashes": [content_hash],
+        "disposition": "local_file",
+        "content_hash": content_hash,
+        "response_content_type": candidate.mime_type,
+        "raw_byte_size": len(raw_bytes),
+        "optimized_byte_size": len(image_bytes),
+        "usage_contract": {
+            "local_path": image_path,
+            "import_path": f"./{image_path}",
+            "sha256": content_hash,
+            "source_hashes": [content_hash],
+        },
     }
 
 
@@ -633,6 +783,8 @@ async def materialize_build_context(
     icon_names: list[str] = []
     seen_selected: set[str] = set()
     image_by_hash: dict[str, str] = {}
+    effective_selections = list(selections)
+    resource_attempts: list[dict[str, Any]] = []
     for selection in selections:
         resource_id = selection.selected_resource_id
         if not resource_id or resource_id in seen_selected:
@@ -661,14 +813,23 @@ async def materialize_build_context(
             "required_for_handoff": bool(need.required_for_handoff) if need else False,
             "placement": str(need.details.get("placement", "")) if need else "",
             "disposition": "selected_not_materialized",
+            "import_path": str(candidate.retrieval_metadata.get("import_path", "") or ""),
             "usage_contract": {
                 "route_ids": list(need.route_ids) if need else [],
                 "scene_ids": list(need.scene_ids) if need else [],
                 "section_ids": list(need.section_ids) if need else [],
                 "placement": str(need.details.get("placement", "")) if need else "",
-                "responsive_behavior": str(need.details.get("responsive_behavior", "") or "")
-                if need
-                else "",
+                "responsive_behavior": (
+                    str(
+                        (
+                            need.component_intent.responsive_behavior
+                            if need and need.component_intent
+                            else ""
+                        )
+                        or (need.details.get("responsive_behavior", "") if need else "")
+                        or ""
+                    )
+                ),
                 "alt_or_decorative_treatment": (
                     "decorative; use empty alt unless the final approved composition gives it meaning"
                     if candidate.kind == "photo"
@@ -689,7 +850,13 @@ async def materialize_build_context(
                     else candidate.retrieval_metadata.get("expected_exports", [])
                 ),
                 "reduced_motion_behavior": str(
-                    need.details.get("reduced_motion_behavior", "") or "static equivalent"
+                    (
+                        need.component_intent.reduced_motion_behavior
+                        if need and need.component_intent
+                        else ""
+                    )
+                    or (need.details.get("reduced_motion_behavior", "") if need else "")
+                    or "static equivalent"
                 )
                 if need
                 else "static equivalent",
@@ -702,30 +869,208 @@ async def materialize_build_context(
             "pixabay",
             "unsplash",
         }:
+            ordered_candidate_ids = list(
+                dict.fromkeys(
+                    [
+                        resource_id,
+                        *selection.alternate_resource_ids,
+                    ]
+                )
+            )
+            attempt_limit = max(
+                1,
+                int(
+                    getattr(
+                        getattr(settings, "build_preparation", None),
+                        "image_source_attempt_maximum",
+                        getattr(
+                            getattr(settings, "build_preparation", None),
+                            "component_source_attempt_maximum",
+                            3,
+                        ),
+                    )
+                    or 3
+                ),
+            )
+            attempts: list[dict[str, Any]] = []
+            resolved_candidate: FetchedResource | None = None
+            resolved_updates: dict[str, Any] = {}
+            for attempt_index, candidate_id in enumerate(ordered_candidate_ids[:attempt_limit], 1):
+                attempt_candidate = candidate_by_id.get(candidate_id)
+                if attempt_candidate is None or attempt_candidate.kind != "photo":
+                    continue
+                if attempt_candidate.provider not in {"pexels", "pixabay", "unsplash"}:
+                    continue
+                try:
+                    updates = await _materialize_image_candidate(
+                        root=root,
+                        resource_id=attempt_candidate.resource_id,
+                        candidate=attempt_candidate,
+                        need=need,
+                        settings=settings,
+                        download_image=download_image,
+                        files=files,
+                        image_by_hash=image_by_hash,
+                    )
+                except Exception as exc:
+                    rejection_details = getattr(exc, "details", {})
+                    if not isinstance(rejection_details, dict):
+                        rejection_details = {}
+                    details = {
+                        "response_content_type": attempt_candidate.mime_type,
+                        "configured_raw_limit": int(
+                            getattr(
+                                getattr(settings, "image_retrieval", None),
+                                "raw_download_max_bytes",
+                                24 * 1024 * 1024,
+                            )
+                        ),
+                        "configured_optimized_limit": int(
+                            getattr(
+                                getattr(settings, "image_retrieval", None),
+                                "optimized_max_bytes",
+                                8 * 1024 * 1024,
+                            )
+                        ),
+                        **rejection_details,
+                    }
+                    attempts.append(
+                        {
+                            "need_id": selection.need_id,
+                            "candidate_id": attempt_candidate.resource_id,
+                            "provider": attempt_candidate.provider,
+                            "attempt": attempt_index,
+                            "status": "rejected",
+                            "rejection_reason": str(exc),
+                            **details,
+                        }
+                    )
+                    resource_attempts.append(attempts[-1])
+                    continue
+                resolved_candidate = attempt_candidate
+                resolved_updates = updates
+                attempts.append(
+                    {
+                        "need_id": selection.need_id,
+                        "candidate_id": attempt_candidate.resource_id,
+                        "provider": attempt_candidate.provider,
+                        "attempt": attempt_index,
+                        "status": "materialized",
+                        "response_content_type": attempt_candidate.mime_type,
+                        "raw_byte_size": updates.get("raw_byte_size", 0),
+                        "optimized_byte_size": updates.get("optimized_byte_size", 0),
+                        "final_width": updates.get("final_width", 0),
+                        "final_height": updates.get("final_height", 0),
+                    }
+                )
+                resource_attempts.append(attempts[-1])
+                break
+            if resolved_candidate is not None:
+                if resolved_candidate.resource_id != resource_id:
+                    seen_selected.add(resolved_candidate.resource_id)
+                    base_entry.update(
+                        {
+                            "id": resolved_candidate.resource_id,
+                            "provider": resolved_candidate.provider,
+                            "provider_asset_id": resolved_candidate.provider_asset_id,
+                            "source_reference": resolved_candidate.source_reference,
+                            "license": resolved_candidate.license,
+                            "license_reference": resolved_candidate.license_reference,
+                            "source_version": resolved_candidate.source_version,
+                            "dependencies": list(resolved_candidate.dependencies),
+                            "registry_dependencies": list(resolved_candidate.registry_dependencies),
+                            "provider_receipt": dict(
+                                resolved_candidate.retrieval_metadata.get("provider_receipt", {})
+                            ),
+                        }
+                    )
+                    base_entry["usage_contract"].update(
+                        {
+                            "attribution": {
+                                "source_reference": resolved_candidate.source_reference,
+                                "attribution_url": resolved_candidate.attribution_url,
+                                "license": resolved_candidate.license,
+                                "license_reference": resolved_candidate.license_reference,
+                            },
+                            "dependencies": list(resolved_candidate.dependencies),
+                            "registry_dependencies": list(resolved_candidate.registry_dependencies),
+                            "source_version": resolved_candidate.source_version,
+                            "provider_receipt": dict(resolved_candidate.retrieval_metadata),
+                        }
+                    )
+                    effective_selections = [
+                        item.model_copy(
+                            update={
+                                "selected_resource_id": resolved_candidate.resource_id,
+                                "alternate_resource_ids": [
+                                    value
+                                    for value in ordered_candidate_ids
+                                    if value != resolved_candidate.resource_id
+                                ],
+                                "why_selected": item.why_selected
+                                or "First closed-set image candidate that passed local validation.",
+                            }
+                        )
+                        if item.need_id == selection.need_id
+                        else item
+                        for item in effective_selections
+                    ]
+                base_entry.update(resolved_updates)
+                base_entry["materialization_attempts"] = attempts
+                base_entry["usage_contract"].update(resolved_updates.get("usage_contract", {}))
+                resource_manifest.append(base_entry)
+            else:
+                base_entry.update(
+                    {
+                        "disposition": "custom_implementation_required",
+                        "fallback": selection.fallback or (need.fallback if need else ""),
+                        "materialization_attempts": attempts,
+                    }
+                )
+                resource_manifest.append(base_entry)
+            continue
+
+        if candidate.kind == "photo" and candidate.provider in {
+            "pexels",
+            "pixabay",
+            "unsplash",
+        }:
             try:
                 if download_image is None:
                     raise ValueError(
                         "live provider download is required; offline image bytes are not admissible"
                     )
                 downloader = download_image
-                image_bytes = await downloader(candidate)
+                raw_bytes = await downloader(candidate)
                 details = need.details if need else {}
+                image_config = getattr(settings, "image_retrieval", None)
+                minimum_width = int(
+                    details.get("minimum_width")
+                    or getattr(image_config, "minimum_width", 1200)
+                    or 1200
+                )
+                minimum_height = int(
+                    details.get("minimum_height")
+                    or getattr(image_config, "minimum_height", 700)
+                    or 700
+                )
                 intent = intent_from_values(
                     purpose=need.purpose if need else candidate.title,
                     subject=candidate.title or candidate.description,
                     style_mood=str(details.get("style_mood", "") or ""),
                     orientation=candidate.orientation,
                     aspect_ratio=str(details.get("aspect_ratio", "") or ""),
-                    minimum_width=1200 if need and need.required_for_handoff else 0,
-                    minimum_height=700 if need and need.required_for_handoff else 0,
+                    minimum_width=minimum_width,
+                    minimum_height=minimum_height,
                     queries=[candidate.title or candidate.description],
                 )
                 image_bytes, image_info = prepare_image_bytes(
-                    image_bytes,
+                    raw_bytes,
                     intent,
+                    max_bytes=int(getattr(image_config, "optimized_max_bytes", 8 * 1024 * 1024)),
                     max_dimension=int(
                         getattr(
-                            getattr(settings, "image_retrieval", None),
+                            image_config,
                             "max_dimension",
                             2400,
                         )
@@ -739,15 +1084,40 @@ async def materialize_build_context(
                         colors = sample.getcolors(maxcolors=4096)
                         channel_spread = sum(ImageStat.Stat(sample).stddev)
                         if colors is None or len(colors) < 8 or channel_spread < 6.0:
-                            raise ValueError("image pixels are flat or insufficiently varied")
-                    if (
-                        need
-                        and need.required_for_handoff
-                        and (pixel_width < 1200 or pixel_height < 700)
-                    ):
-                        raise ValueError("image dimensions are below the 1200x700 handoff minimum")
+                            raise ImageDownloadError(
+                                "image pixels are flat or insufficiently varied",
+                                details={
+                                    "rejection_reason": "flat_or_insufficient_pixel_variation",
+                                    "raw_byte_size": len(raw_bytes),
+                                    "optimized_byte_size": len(image_bytes),
+                                    "pixel_width": pixel_width,
+                                    "pixel_height": pixel_height,
+                                },
+                            )
+                    if pixel_width < minimum_width or pixel_height < minimum_height:
+                        raise ImageDownloadError(
+                            "image dimensions are below the configured minimum",
+                            details={
+                                "rejection_reason": "final_dimensions_below_minimum",
+                                "raw_byte_size": len(raw_bytes),
+                                "optimized_byte_size": len(image_bytes),
+                                "pixel_width": pixel_width,
+                                "pixel_height": pixel_height,
+                                "minimum_width": minimum_width,
+                                "minimum_height": minimum_height,
+                            },
+                        )
+                except ImageDownloadError:
+                    raise
                 except Exception as exc:
-                    raise ValueError("image bytes failed verification") from exc
+                    raise ImageDownloadError(
+                        "image bytes failed pixel verification",
+                        details={
+                            "rejection_reason": "pixel_inspection_failed",
+                            "raw_byte_size": len(raw_bytes),
+                            "optimized_byte_size": len(image_bytes),
+                        },
+                    ) from exc
                 extension = "jpg"
                 if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
                     extension = "png"
@@ -776,6 +1146,9 @@ async def materialize_build_context(
                     "content_hash": content_hash,
                     "inspection_level": "pixel_inspected",
                     "local_path": image_path,
+                    "response_content_type": candidate.mime_type,
+                    "raw_byte_size": len(raw_bytes),
+                    "optimized_byte_size": len(image_bytes),
                 }
                 files.append(
                     _write(
@@ -793,6 +1166,11 @@ async def materialize_build_context(
                         "pixel_height": pixel_height,
                         "attribution_url": candidate.attribution_url,
                         "disposition": "local_file",
+                        "response_content_type": candidate.mime_type,
+                        "raw_byte_size": len(raw_bytes),
+                        "optimized_byte_size": len(image_bytes),
+                        "final_width": pixel_width,
+                        "final_height": pixel_height,
                     }
                 )
                 base_entry["content_hash"] = content_hash
@@ -800,6 +1178,42 @@ async def materialize_build_context(
                     {"local_path": image_path, "sha256": content_hash}
                 )
             except Exception as exc:
+                rejection_details = getattr(exc, "details", {})
+                if not isinstance(rejection_details, dict):
+                    rejection_details = {}
+                rejection_details = {
+                    "response_content_type": candidate.mime_type,
+                    "configured_raw_limit": int(
+                        getattr(
+                            getattr(settings, "image_retrieval", None),
+                            "raw_download_max_bytes",
+                            24 * 1024 * 1024,
+                        )
+                    ),
+                    "configured_optimized_limit": int(
+                        getattr(
+                            getattr(settings, "image_retrieval", None),
+                            "optimized_max_bytes",
+                            8 * 1024 * 1024,
+                        )
+                    ),
+                    **rejection_details,
+                }
+                base_entry["materialization_rejection"] = {
+                    "reason": str(exc),
+                    **rejection_details,
+                }
+                resource_attempts.append(
+                    {
+                        "need_id": selection.need_id,
+                        "candidate_id": resource_id,
+                        "provider": candidate.provider,
+                        "attempt": 1,
+                        "status": "rejected",
+                        "rejection_reason": str(exc),
+                        **rejection_details,
+                    }
+                )
                 warnings.append(
                     f"Could not materialize {candidate.provider} resource {resource_id}: {exc}"
                 )
@@ -962,6 +1376,9 @@ async def materialize_build_context(
                         }
                     )
                     base_entry["expected_exports"] = export_names
+                    base_entry["exports"] = export_names
+                    base_entry["source_hashes"] = source_hashes
+                    base_entry["import_path"] = f"./{component_root}/source"
         elif candidate.kind == "icon":
             icon_names.append(candidate.icon_name)
             base_entry.update(
@@ -998,7 +1415,7 @@ async def materialize_build_context(
     resource_plan_path = "resources/plan.json" if compatibility_mode else "resources/ledger.json"
     ledger = _resource_plan(
         needs=needs,
-        selections=selections,
+        selections=effective_selections,
         candidates=candidates,
         materialized_resources=resource_manifest,
         settings=settings,
@@ -1129,11 +1546,16 @@ async def materialize_build_context(
     relative_root = (
         str(root.relative_to(Path.cwd())) if root.is_relative_to(Path.cwd()) else str(root)
     )
+    effective_resource_ids = [
+        selection.selected_resource_id
+        for selection in effective_selections
+        if selection.selected_resource_id
+    ]
     return MaterializationResult(
         root_path=str(root),
         relative_root=relative_root.replace("\\", "/"),
         files=files,
-        resource_ids=list(dict.fromkeys(selected_ids)),
+        resource_ids=list(dict.fromkeys(effective_resource_ids)),
         warnings=warnings,
         licenses=licenses,
         manifest_path="resources/manifest.json",
@@ -1146,6 +1568,8 @@ async def materialize_build_context(
         execution_gaps=execution_gaps,
         execution_contract_path=execution_contract_path,
         resource_ledger_path=(resource_plan_path if not compatibility_mode else ""),
+        effective_selections=effective_selections,
+        resource_attempts=resource_attempts,
     )
 
 

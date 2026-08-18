@@ -14,7 +14,7 @@ from oryxenai.agents.shared.retrieval_policy import plan_component_retrieval
 from oryxenai.core.settings import Settings
 
 
-def test_component_retrieval_policy_is_required_first_and_route_aware() -> None:
+def test_component_retrieval_policy_reports_priority_without_deferring_roles() -> None:
     plan = plan_component_retrieval(
         [
             SimpleNamespace(
@@ -42,8 +42,9 @@ def test_component_retrieval_policy_is_required_first_and_route_aware() -> None:
         maximum=2,
     )
 
-    assert plan.selected_ids == ("required-projects", "optional-shared")
-    assert plan.deferred_optional_ids == ("optional-home",)
+    assert plan.selected_ids == ("required-projects", "optional-shared", "optional-home")
+    assert plan.deferred_optional_ids == ()
+    assert plan.advisory_exceeded is True
     assert plan.required_over_maximum is False
 
 
