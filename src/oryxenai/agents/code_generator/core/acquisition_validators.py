@@ -38,7 +38,7 @@ _PROVIDER_BY_CATEGORY = {
     "illustration": {"pexels", "unsplash", "fixture"},
     "font": {"google_fonts", "fixture", "local"},
     "icon": {"lucide", "fixture", "local"},
-    "component_source": {"shadcn", "magicui", "fixture"},
+    "component_source": {"shadcn", "magicui", "smoothui", "cultui", "fixture"},
     "style_primitive": {"shadcn", "magicui", "fixture"},
 }
 
@@ -141,7 +141,11 @@ def validate_resource_request(
     if value.category == "icon":
         allowed_config = [_setting(settings, "allowlist_icon_package", "lucide")]
     if value.category == "component_source":
-        allowed_config = _setting(settings, "allowlist_component_registries", ["shadcn", "magicui"])
+        allowed_config = _setting(
+            settings,
+            "allowlist_component_registries",
+            ["shadcn", "magicui", "smoothui", "cultui"],
+        )
     if value.category == "style_primitive":
         allowed_config = _setting(
             settings, "allowlist_style_kinds", ["pattern", "token_preset", "helper"]

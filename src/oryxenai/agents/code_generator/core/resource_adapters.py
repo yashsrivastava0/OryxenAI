@@ -29,6 +29,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ResourceCandidate,
     ResourceRequest,
 )
+from oryxenai.agents.shared.component_retrieval import (
+    ComponentCandidate,
+    ComponentRetrievalError,
+    build_component_retrieval_service,
+)
 
 
 class ResourceProviderError(RuntimeError):
@@ -236,7 +241,7 @@ class _BaseAdapter:
         *,
         storage_root: Path,
         settings: Any,
-    ) -> LocalMaterialFile:
+    ) -> LocalMaterialFile | list[LocalMaterialFile]:
         data = await self._download(candidate)
         max_bytes = request.technical_constraints.max_bytes or _category_limit(
             self.category, settings
@@ -558,7 +563,45 @@ class ComponentSourceAdapter(_BaseAdapter):
         providers = list(
             getattr(settings.code_generator_acquisition, "allowlist_component_registries", [])
         )
-        return self._offline_candidates(request, [*providers, "fixture"])
+        offline = self._offline_candidates(request, [*providers, "fixture"])
+        if offline or self.registry is not None:
+            return offline
+        query = " ".join(
+            [
+                request.placement.purpose,
+                *request.query.positive_terms,
+                *request.query.negative_terms,
+            ]
+        ).strip()
+        service = build_component_retrieval_service(settings)
+        async with httpx.AsyncClient() as client:
+            discovered = await service.discover(
+                query,
+                allowed_providers=providers,
+                client=client,
+                settings=settings,
+                limit=5,
+            )
+        return [
+            ResourceCandidate(
+                candidate_id=item.candidate_id,
+                provider_key=item.provider,
+                provider_resource_id=item.name,
+                category=self.category,
+                title=item.title,
+                description=item.description,
+                tags=list(item.tags),
+                technical_metadata={
+                    "retrieval_candidate": item.as_metadata(),
+                    "file_paths": [],
+                },
+                canonical_source=item.item_url,
+                licence=item.license,
+                vendoring_policy="download and vendor source",
+                dependency_metadata={dependency: [] for dependency in item.dependencies},
+            )
+            for item in discovered
+        ]
 
     async def materialize(
         self,
@@ -567,7 +610,7 @@ class ComponentSourceAdapter(_BaseAdapter):
         *,
         storage_root: Path,
         settings: Any,
-    ) -> LocalMaterialFile:
+    ) -> LocalMaterialFile | list[LocalMaterialFile]:
         paths = candidate.technical_metadata.get("file_paths", [])
         if isinstance(paths, list):
             for path in paths:
@@ -585,6 +628,76 @@ class ComponentSourceAdapter(_BaseAdapter):
                 "COMPONENT_INSTALL_SCRIPT",
                 "Component source requiring install scripts is not admissible.",
             )
+        retrieval_value = candidate.technical_metadata.get("retrieval_candidate")
+        if isinstance(retrieval_value, dict) and self.registry is None:
+            selected = ComponentCandidate.from_metadata(retrieval_value)
+            service = build_component_retrieval_service(settings)
+            async with httpx.AsyncClient() as client:
+                try:
+                    fetched = await service.fetch(selected, client=client, settings=settings)
+                except ComponentRetrievalError as exc:
+                    raise AcquisitionValidationError(
+                        exc.code,
+                        f"The live component source could not be fetched: {exc}",
+                    ) from exc
+            if not fetched.source_files:
+                raise AcquisitionValidationError(
+                    "COMPONENT_SOURCE_MISSING", "The live component returned no source files."
+                )
+            root = Path(storage_root).resolve()
+            component_root = (
+                root / "component_source" / selected.provider / selected.name
+            ).resolve()
+            if not component_root.is_relative_to(root):
+                raise AcquisitionValidationError(
+                    "MATERIAL_ROOT_UNSAFE", "The component materialization root is unsafe."
+                )
+            component_root.mkdir(parents=True, exist_ok=True)
+            licence_dir = root / "licences"
+            licence_dir.mkdir(parents=True, exist_ok=True)
+            files: list[LocalMaterialFile] = []
+            for source_path, content in fetched.source_files.items():
+                safe_path = _safe_relative(source_path)
+                data = content.encode("utf-8")
+                inspection = inspect_bytes(
+                    data,
+                    category=self.category,
+                    max_bytes=_category_limit(self.category, settings),
+                )
+                target = (component_root / safe_path).resolve()
+                if not target.is_relative_to(component_root):
+                    raise AcquisitionValidationError(
+                        "SOURCE_PATH_UNSAFE", "The component source path escapes its provider root."
+                    )
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+                digest = str(inspection["sha256"])
+                license_path = licence_dir / f"{digest}.json"
+                license_path.write_text(
+                    json.dumps(
+                        {
+                            "provider": selected.provider,
+                            "canonical_source": selected.item_url,
+                            "licence": fetched.license,
+                            "licence_reference": fetched.license_reference,
+                            "sha256": digest,
+                        },
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                inspection = dict(inspection)
+                inspection["licence_path"] = license_path.relative_to(root).as_posix()
+                files.append(
+                    LocalMaterialFile(
+                        local_path=target.relative_to(root).as_posix(),
+                        media_type=str(inspection.get("media_type", "text/plain")),
+                        size=len(data),
+                        sha256=digest,
+                        inspection=inspection,
+                    )
+                )
+            return files
         return await super().materialize(
             candidate, request, storage_root=storage_root, settings=settings
         )

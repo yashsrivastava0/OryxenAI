@@ -115,7 +115,6 @@ editorial_image_budget = 5
 editorial_image_maximum = 6
 visual_component_budget = 4
 visual_component_maximum = 6
-provider_cache_ttl_seconds = 86400
 provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
 provider_max_requests = 32
@@ -145,7 +144,7 @@ build_preparation_mirror_root = "output/build-preparation"
 allowlist_image_providers = ["pexels", "unsplash"]
 allowlist_font_formats = ["woff2", "woff"]
 allowlist_icon_package = "lucide"
-allowlist_component_registries = ["shadcn", "magicui"]
+allowlist_component_registries = ["shadcn", "magicui", "smoothui", "cultui"]
 allowlist_style_kinds = ["pattern", "token_preset", "helper"]
 forbidden_subject_terms = []
 user_media_substitution_allowed = false
@@ -200,6 +199,16 @@ licence = "ISC"
 [code_generator_dependencies.supported_packages.motion]
 version_pin = "12.0.0"
 transitive = ["react@19.0.0"]
+licence = "MIT"
+
+[code_generator_dependencies.supported_packages.clsx]
+version_pin = "2.1.1"
+transitive = []
+licence = "MIT"
+
+[code_generator_dependencies.supported_packages.tailwind-merge]
+version_pin = "3.0.0"
+transitive = []
 licence = "MIT"
 
 [code_generator_verification]
@@ -263,12 +272,17 @@ shadcn_item_url_template = "https://ui.shadcn.com/r/styles/new-york-v4/{name}.js
 magicui_catalog_url = "https://magicui.design/r/registry.json"
 magicui_item_url_template = "https://magicui.design/r/{name}.json"
 magicui_enabled = true
+smoothui_api_base_url = "https://smoothui.dev/api/v1"
+smoothui_item_url_template = "https://smoothui.dev/r/{name}.json"
+smoothui_enabled = true
+cultui_catalog_url = "https://cult-ui.com/r/registry.json"
+cultui_item_url_template = "https://cult-ui.com/r/{name}.json"
+cultui_enabled = true
 aceternity_catalog_url = "https://ui.aceternity.com/registry/registry.json"
 aceternity_item_url_template = "https://ui.aceternity.com/registry/{name}.json"
 aceternity_enabled = false
-registry_order = ["shadcn", "magicui"]
-execution_provider_order = ["fontsource", "shadcn", "magicui", "motion_primitives", "lucide", "pexels"]
-provider_cache_policy = "content_hash"
+registry_order = ["shadcn", "magicui", "smoothui", "cultui"]
+execution_provider_order = ["fontsource", "shadcn", "magicui", "smoothui", "cultui", "motion_primitives", "lucide", "pexels"]
 licence_policy = "permissive-local-vendoring-only"
 fontsource_enabled = true
 fontsource_api_base_url = "https://api.fontsource.org/v1"
@@ -277,8 +291,12 @@ fontsource_latin_only = true
 font_profiles = { editorial_technical = { display = "space-grotesk", body = "manrope", utility = "jetbrains-mono" }, neutral_systems = { display = "geist", body = "geist", utility = "jetbrains-mono" }, warm_technical = { display = "hanken-grotesk", body = "manrope", utility = "jetbrains-mono" } }
 shadcn_release_pin = "new-york-v4"
 magicui_release_pin = "registry-v1"
+smoothui_release_pin = "registry-v1"
+cultui_release_pin = "registry-v1"
 shadcn_allowed_components = ["accordion", "card", "dialog", "tabs", "tooltip"]
 magicui_allowed_components = ["border-beam", "magic-card", "marquee"]
+smoothui_allowed_components = []
+cultui_allowed_components = []
 motion_primitives_enabled = true
 motion_primitives_commit = "immutable-pin-required"
 motion_primitives_allowed_components = ["cursor", "magnetic", "text-effect"]

@@ -6,9 +6,10 @@ public route scope and resource needs. Phase 2 then runs a bounded workflow:
 
 1. compose one provider query per deterministic need, including the configured
    image and component roles from the approved Visual Design Director output;
-2. search Pexels for photos, resolve Fontsource fonts, and resolve registry
-   components and Lucide icons through bounded, cached provider clients;
-3. select only from the returned closed candidate set, then resolve every
+2. search Pexels for photos, resolve Fontsource fonts, and discover registry
+   component metadata through bounded provider clients;
+3. select only from the returned closed candidate set, fetch the selected
+   component source recursively, then resolve every
    known need as local material, a verified target-package binding, a typed
    local recipe, or an explicit upstream execution gap;
 4. write route-scoped Build Context, optionally integrating cross-route
@@ -32,7 +33,7 @@ Image-rich directions target five real images (maximum six) and four real
 components (maximum six) by default. These are policy targets, not invented
 assets: the approved VDD projection may explicitly lower them for a text-led
 or privacy-limited portfolio. Build Preparation records the target policy,
-actual local material counts, provider calls/cache hits/rate-limit events, and
+actual local material counts, provider calls/rate-limit events, and
 every missing role in the handoff summary.
 
 For historical diagnostic trees only, `resources/plan.json` records every selected and unselected need, its routes
