@@ -10,6 +10,7 @@ import pytest
 from PIL import Image
 
 from oryxenai.agents.build_preparation.materializer import (
+    _overview_text,
     _safe_component_source_path,
     materialize_build_context,
 )
@@ -34,6 +35,29 @@ def _output_dir() -> Path:
     path = Path("output") / "test-build-preparation" / str(uuid4())
     path.mkdir(parents=True)
     return path
+
+
+def test_overview_explains_handoff_without_imposing_portfolio_quotas() -> None:
+    overview = _overview_text(
+        BuildContextDraft(
+            overview_markdown="# Portfolio context",
+            routes=[
+                RouteBuildContext(
+                    route_id="home",
+                    path="/",
+                    resource_ids=["resource-image"],
+                    acceptance_criteria=["Keyboard access"],
+                )
+            ],
+        )
+    )
+
+    assert "## How Code Generator consumes this pack" in overview
+    assert "`execution/contract.json`" in overview
+    assert "`resources/components/`" in overview
+    assert "`home` at `/`" in overview
+    assert "does not set a fixed screen count" in overview
+    assert "not a visual template" in overview
 
 
 @pytest.mark.parametrize("path", ["../escape.tsx", "/absolute.tsx", "C:\\escape.tsx"])
