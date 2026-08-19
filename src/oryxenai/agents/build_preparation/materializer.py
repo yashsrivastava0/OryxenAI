@@ -13,6 +13,8 @@ from typing import Any, cast
 from PIL import Image, ImageStat
 
 from oryxenai.agents.build_preparation.contracts import (
+    DELEGATED_PACK_VERSION,
+    DELEGATED_SCHEMA_VERSION,
     PACK_VERSION,
     compile_v3_projections,
     projection_hash,
@@ -266,6 +268,7 @@ def _resource_plan(
     candidates: list[FetchedResource],
     materialized_resources: list[dict[str, Any]],
     settings: Any,
+    pack_version: str = PACK_VERSION,
 ) -> dict[str, Any]:
     selection_by_need = {selection.need_id: selection for selection in selections}
     candidate_by_id = {candidate.resource_id: candidate for candidate in candidates}
@@ -316,7 +319,7 @@ def _resource_plan(
         )
     return {
         "schema_version": "build-preparation-resource-ledger-v3",
-        "pack_version": PACK_VERSION,
+        "pack_version": pack_version,
         "policy": {
             "runtime_network_fetch_allowed": False,
             "known_needs_require_execution_slot_coverage": True,
@@ -661,6 +664,43 @@ async def materialize_build_context(
     compatibility_mode = visual_design_director is None or (
         legacy_route_layout and not content_architect.get("route_plan")
     )
+    delegated_enabled = (
+        bool(
+            getattr(
+                getattr(settings, "build_preparation", None), "delegated_acquisition_enabled", False
+            )
+        )
+        and not compatibility_mode
+    )
+    pack_version = DELEGATED_PACK_VERSION if delegated_enabled else PACK_VERSION
+    schema_version = (
+        DELEGATED_SCHEMA_VERSION if delegated_enabled else "build-preparation-contract-v3"
+    )
+    delegation_policy = {
+        "enabled": delegated_enabled,
+        "allowed_categories": list(
+            getattr(
+                getattr(settings, "build_preparation", None),
+                "delegated_allowed_categories",
+                ["image", "font", "component_source"],
+            )
+        ),
+        "allowed_providers": list(
+            getattr(
+                getattr(settings, "build_preparation", None),
+                "delegated_allowed_providers",
+                [],
+            )
+        ),
+        "candidate_limit": int(
+            getattr(getattr(settings, "build_preparation", None), "delegated_candidate_limit", 8)
+        ),
+        "max_attempts": int(
+            getattr(getattr(settings, "build_preparation", None), "delegated_attempt_maximum", 3)
+        ),
+        "selection": "closed_set_only",
+        "llm_may_invent_candidates": False,
+    }
     legacy_content = content_architect
     if compatibility_mode:
         route_contexts = {item.route_id: item for item in context.routes}
@@ -791,6 +831,8 @@ async def materialize_build_context(
         source_ref=(content_architect.get("_build_preparation_source_ref") or {}),
         target_contract=target,
         max_routes=int(settings.build_preparation.max_routes),
+        pack_version=pack_version,
+        schema_version=schema_version,
     )
     projection_hashes = {name: projection_hash(value) for name, value in projections.items()}
     files.append(_write(root, "site/contract.json", _json_bytes(projections["site"]), "text"))
@@ -1530,6 +1572,7 @@ async def materialize_build_context(
         candidates=candidates,
         materialized_resources=resource_manifest,
         settings=settings,
+        pack_version=pack_version,
     )
     if compatibility_mode:
         # Direct utility callers are diagnostic-only and keep the legacy
@@ -1568,6 +1611,9 @@ async def materialize_build_context(
         site=projections["site"],
         visual=projections["visual"],
         target=target,
+        delegation_policy=delegation_policy,
+        pack_version=pack_version,
+        schema_version=schema_version,
     )
     slot_ids_by_route: dict[str, list[str]] = {}
     for slot in execution_slots:
@@ -1579,7 +1625,7 @@ async def materialize_build_context(
         )
     recipe_manifest = {
         "schema_version": "build-preparation-recipe-manifest-v1",
-        "pack_version": PACK_VERSION,
+        "pack_version": pack_version,
         "recipes": [recipe.model_dump(mode="json") for recipe in local_recipes],
     }
     files.append(
@@ -1624,7 +1670,7 @@ async def materialize_build_context(
     projection_hashes["recipes"] = projection_hash(recipe_manifest)
     resource_projection = {
         "schema_version": projections["site"]["schema_version"],
-        "pack_version": PACK_VERSION,
+        "pack_version": pack_version,
         "resources": resource_manifest,
         "resource_needs": [need.model_dump(mode="json") for need in needs],
     }
@@ -1645,8 +1691,10 @@ async def materialize_build_context(
         )
     files.append(_write(root, execution_contract_path, _json_bytes(execution_contract), "text"))
     manifest = {
-        "phase": "pack-v3" if not compatibility_mode else "diagnostic-phase3",
-        "pack_version": PACK_VERSION,
+        "phase": ("pack-v4" if delegated_enabled else "pack-v3")
+        if not compatibility_mode
+        else "diagnostic-phase3",
+        "pack_version": pack_version,
         "run_id": run_id,
         "plan_path": resource_plan_path,
         "resources": resource_manifest,
@@ -1672,7 +1720,7 @@ async def materialize_build_context(
         manifest_path="resources/manifest.json",
         resource_plan_path=resource_plan_path,
         resources=resource_manifest,
-        pack_version=PACK_VERSION if not compatibility_mode else "phase3",
+        pack_version=pack_version if not compatibility_mode else "phase3",
         projection_hashes=projection_hashes,
         execution_slots=execution_slots,
         local_recipes=local_recipes,

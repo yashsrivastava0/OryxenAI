@@ -294,6 +294,7 @@ class ResolvedResource(BaseModel):
         "local_materialized",
         "target_package_binding",
         "local_recipe",
+        "delegated_acquisition",
         "execution_gap",
     ]
     resource_id: str = ""
@@ -319,6 +320,7 @@ class ResolvedResource(BaseModel):
     responsive_behavior: str = ""
     reduced_motion_behavior: str = ""
     fallback_behavior: str = ""
+    delegation_policy: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExecutionSlot(BaseModel):

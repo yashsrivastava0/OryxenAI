@@ -13,6 +13,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from oryxenai.agents.build_preparation.contracts import (
+    DELEGATED_PACK_VERSION,
+    DELEGATED_SCHEMA_VERSION,
     PACK_VERSION,
     PackContractError,
     canonical_json,
@@ -384,9 +386,16 @@ class DevelopmentInputAdapter:
             manifest = verify_bundle_bytes(data, max_bytes=int(self._config.max_uncompressed_bytes))
         except PackageError as exc:
             raise DevelopmentInputError(exc.code, exc.message) from exc
-        if manifest.get("pack_version") != self._config.pack_version:
+        accepted_versions = set(
+            getattr(
+                self._config,
+                "accepted_pack_versions",
+                [self._config.pack_version, DELEGATED_PACK_VERSION],
+            )
+        )
+        if manifest.get("pack_version") not in accepted_versions:
             raise DevelopmentInputError(
-                "PACK_VERSION_UNSUPPORTED", "Only Build Preparation pack v3 is admissible."
+                "PACK_VERSION_UNSUPPORTED", "Only Build Preparation pack v3 or v4 is admissible."
             )
         expires_at = manifest.get("expires_at")
         try:
@@ -561,16 +570,31 @@ class DevelopmentInputAdapter:
         execution = projections["execution/contract.json"]
         ledger = projections["resources/ledger.json"]
         recipe_manifest = projections["resources/recipes/manifest.json"]
-        if site.get("schema_version") != self._config.schema_version:
+        accepted_versions = set(
+            getattr(
+                self._config,
+                "accepted_pack_versions",
+                [self._config.pack_version, DELEGATED_PACK_VERSION],
+            )
+        )
+        accepted_schema_versions = set(
+            getattr(
+                self._config,
+                "accepted_schema_versions",
+                [self._config.schema_version, DELEGATED_SCHEMA_VERSION],
+            )
+        )
+        if site.get("schema_version") not in accepted_schema_versions:
             raise DevelopmentInputError(
                 "PACK_SCHEMA_UNSUPPORTED", "The site contract schema is unsupported."
             )
         if any(
-            projection.get("pack_version") != PACK_VERSION
+            projection.get("pack_version") not in accepted_versions
             for projection in (site, visual, execution, ledger, recipe_manifest)
         ):
             raise DevelopmentInputError(
-                "PACK_VERSION_UNSUPPORTED", "The pack projections are not v3."
+                "PACK_VERSION_UNSUPPORTED",
+                "The pack projections are not an accepted contract version.",
             )
         if (
             not approvals.get("approved")
@@ -754,6 +778,13 @@ class DevelopmentInputAdapter:
         package_paths: set[str],
         route_resource_maps: dict[str, dict[str, Any]],
     ) -> None:
+        accepted_schema_versions = set(
+            getattr(
+                self._config,
+                "accepted_schema_versions",
+                [self._config.schema_version, DELEGATED_SCHEMA_VERSION],
+            )
+        )
         try:
             validate_execution_contract_shape(
                 execution=execution,
@@ -773,7 +804,7 @@ class DevelopmentInputAdapter:
                 "The v3 execution contract is not admissible.",
                 details={"contract_code": exc.code},
             ) from exc
-        if execution.get("schema_version") != self._config.schema_version:
+        if execution.get("schema_version") not in accepted_schema_versions:
             raise DevelopmentInputError(
                 "PACK_EXECUTION_SCHEMA_UNSUPPORTED", "The execution contract schema is unsupported."
             )
@@ -885,6 +916,23 @@ class DevelopmentInputAdapter:
                 if local_path not in package_paths:
                     raise DevelopmentInputError(
                         "PACK_RECIPE_PATH_INVALID", "A recipe file is missing from the archive."
+                    )
+            elif resolution_type == "delegated_acquisition":
+                policy = resolution.get("delegation_policy")
+                contract_policy = execution.get("policy", {}).get("delegated_acquisition", {})
+                if (
+                    execution.get("pack_version") != DELEGATED_PACK_VERSION
+                    or not isinstance(policy, dict)
+                    or not isinstance(contract_policy, dict)
+                    or not contract_policy.get("enabled")
+                    or policy.get("selection") != "closed_set_only"
+                    or policy.get("llm_may_invent_candidates") is not False
+                    or not policy.get("allowed_providers")
+                    or int(policy.get("candidate_limit", 0)) <= 0
+                ):
+                    raise DevelopmentInputError(
+                        "PACK_DELEGATION_POLICY_INVALID",
+                        "A delegated slot must carry the explicit closed-set acquisition policy.",
                     )
             else:
                 raise DevelopmentInputError(

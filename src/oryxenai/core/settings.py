@@ -259,6 +259,23 @@ class BuildPreparationConfig(BaseModel):
     provider_max_concurrency: int = 2
     require_live_visual_resources: bool = True
     auto_derive_visual_resources: bool = True
+    delegated_acquisition_enabled: bool = False
+    delegated_allowed_categories: list[str] = Field(
+        default_factory=lambda: ["image", "font", "component_source"]
+    )
+    delegated_allowed_providers: list[str] = Field(
+        default_factory=lambda: [
+            "pexels",
+            "pixabay",
+            "fontsource",
+            "shadcn",
+            "magicui",
+            "smoothui",
+            "cultui",
+        ]
+    )
+    delegated_candidate_limit: int = 8
+    delegated_attempt_maximum: int = 3
 
     @field_validator(
         "fixture_enabled",
@@ -269,6 +286,7 @@ class BuildPreparationConfig(BaseModel):
         "reasoning_enabled",
         "require_live_visual_resources",
         "auto_derive_visual_resources",
+        "delegated_acquisition_enabled",
         mode="before",
     )
     @classmethod
@@ -286,6 +304,15 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     fixture_map: dict[str, str] = Field(default_factory=dict)
     pack_version: str = "build-preparation-pack-v3"
     schema_version: str = "build-preparation-contract-v3"
+    accepted_pack_versions: list[str] = Field(
+        default_factory=lambda: ["build-preparation-pack-v3", "build-preparation-pack-v4"]
+    )
+    accepted_schema_versions: list[str] = Field(
+        default_factory=lambda: [
+            "build-preparation-contract-v3",
+            "build-preparation-contract-v4",
+        ]
+    )
     target_contract: str = "react-vite-v1"
     director_profile: str = "code_generator_director"
     planner_profile: str = "code_generator_planner"
@@ -450,6 +477,7 @@ class CodeGeneratorVerificationConfig(BaseModel):
             "runtime.accessibility",
             "runtime.geometry",
             "runtime.reduced_motion",
+            "runtime.interactions",
         ]
     )
     viewport_profiles: dict[str, dict[str, int]] = Field(

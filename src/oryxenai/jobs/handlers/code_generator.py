@@ -1004,8 +1004,15 @@ def _execution_resolved_slot_ids(projections: dict[str, dict[str, Any]]) -> set[
     return {
         str(slot.get("resource_slot_id", ""))
         for slot in slots
-        if isinstance(slot, dict) and str(slot.get("resource_slot_id", ""))
+        if isinstance(slot, dict)
+        and str(slot.get("resource_slot_id", ""))
+        and _resolution_type(slot) not in {"delegated_acquisition", "execution_gap"}
     }
+
+
+def _resolution_type(slot: dict[str, Any]) -> str:
+    resolution = slot.get("resolution")
+    return str(resolution.get("resolution_type", "")) if isinstance(resolution, dict) else ""
 
 
 def _execution_package_bindings(
@@ -1067,7 +1074,9 @@ def _build_initial_requests(
     # does NOT already resolve (D-018); re-acquiring resolved slots would
     # both duplicate bindings and risk stock substitutions for evidence.
     resolved_slot_ids = _execution_resolved_slot_ids(projections)
-    requests: list[ResourceRequest] = []
+    requests: list[ResourceRequest] = _build_delegated_requests(
+        plan, projections, input_hash, plan_hash
+    )
     for slot in plan.resource_slots:
         if slot.slot_id in resolved_slot_ids:
             continue
@@ -1154,6 +1163,87 @@ def _build_initial_requests(
     return requests
 
 
+def _build_delegated_requests(
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    input_hash: str,
+    plan_hash: str,
+) -> list[ResourceRequest]:
+    """Translate v4 delegated slots into deterministic provider-bound requests."""
+
+    execution = projections.get("execution/contract.json", {})
+    policy = execution.get("policy", {}).get("delegated_acquisition", {})
+    if not isinstance(policy, dict) or not policy.get("enabled"):
+        return []
+    providers = [str(value) for value in policy.get("allowed_providers", []) if str(value)]
+    requests: list[ResourceRequest] = []
+    for slot in execution.get("slots", []) if isinstance(execution, dict) else []:
+        if not isinstance(slot, dict):
+            continue
+        resolution = slot.get("resolution")
+        if (
+            not isinstance(resolution, dict)
+            or resolution.get("resolution_type") != "delegated_acquisition"
+        ):
+            continue
+        raw_category = str(slot.get("category", "")).casefold()
+        category = {
+            "photo": "image",
+            "editorial_photo": "image",
+            "visual_component": "component_source",
+            "component": "component_source",
+            "typography_system": "font",
+        }.get(raw_category, raw_category)
+        if category not in {"image", "font", "component_source"}:
+            continue
+        route_id = str(slot.get("route_id", ""))
+        section_ids = [str(value) for value in slot.get("section_ids", []) if str(value)]
+        unit_id = next(
+            (
+                unit.unit_id
+                for unit in plan.work_graph.units
+                if unit.kind in {"route", "route_batch"} and unit.route_id == route_id
+            ),
+            "foundation",
+        )
+        purpose = str(slot.get("rationale", "") or slot.get("component_placement", ""))
+        required = bool(slot.get("required"))
+        fallback = _fallback_for(category, required)
+        requests.append(
+            ResourceRequest(
+                request_id=f"delegated-{slot.get('resource_slot_id', '')}",
+                based_on=RequestBasis(input_receipt_hash=input_hash, site_plan_hash=plan_hash),
+                origin=RequestOrigin(work_unit_id=unit_id, origin_kind="initial_gap"),
+                category=category,  # type: ignore[arg-type]
+                placement=ResourcePlacement(
+                    route_id=route_id,
+                    section_id=section_ids[0] if section_ids else "",
+                    purpose=purpose,
+                ),
+                why_existing_is_insufficient=(
+                    "Build Preparation completed the configured upstream attempts; this v4 slot explicitly delegates the role."
+                ),
+                query=ResourceQuery(positive_terms=list(re_split_words(purpose))),
+                technical_constraints=ResourceTechnicalConstraints(
+                    max_bytes=_max_bytes_for(category),
+                    required_exports=[
+                        str(value) for value in resolution.get("expected_exports", []) if str(value)
+                    ],
+                ),
+                source_constraints=ResourceSourceConstraints(
+                    allowed_source_kinds=providers,
+                    upstream_source_policy="explicit_delegation_after_upstream_attempts",
+                ),
+                requiredness="required" if required else "preferred",
+                fallback=ResourceFallback.model_validate(
+                    {"kind": fallback, "implementation": _fallback_text(category)}
+                ),
+                affected_work_unit_ids=[unit_id],
+            )
+        )
+    return requests
+
+
 def _infer_category(purpose: str, need: dict[str, Any]) -> str:
     value = f"{purpose} {need.get('category', '')}".casefold()
     if "font" in value or "type" in value:
@@ -1176,7 +1266,7 @@ def _allowed_sources(category: str) -> list[str]:
         "image": ["pexels", "pixabay", "unsplash", "fixture"],
         "texture": ["pexels", "pixabay", "unsplash", "fixture"],
         "illustration": ["pexels", "pixabay", "unsplash", "fixture"],
-        "font": ["local", "fixture"],
+        "font": ["local", "fontsource", "fixture"],
         "icon": ["lucide", "fixture"],
         "component_source": ["shadcn", "magicui", "smoothui", "cultui", "fixture"],
         "style_primitive": ["pattern", "token_preset", "helper", "fixture"],

@@ -133,6 +133,9 @@ def compile_execution_contract(
     site: dict[str, Any],
     visual: dict[str, Any],
     target: dict[str, Any],
+    delegation_policy: dict[str, Any] | None = None,
+    pack_version: str = PACK_VERSION,
+    schema_version: str = SCHEMA_VERSION,
 ) -> tuple[dict[str, Any], list[LocalRecipe], list[ExecutionSlot], list[ExecutionGap]]:
     """Return the hashable v3 execution contract and its declared recipes.
 
@@ -151,6 +154,11 @@ def compile_execution_contract(
     slots: list[ExecutionSlot] = []
     recipes: list[LocalRecipe] = []
     gaps: list[ExecutionGap] = []
+    delegation = dict(delegation_policy or {})
+    delegated_enabled = bool(delegation.get("enabled"))
+    delegated_categories = {
+        str(value).casefold() for value in delegation.get("allowed_categories", [])
+    }
 
     for need in sorted(needs, key=lambda value: value.need_id):
         slot_id = _stable_id("slot", need.need_id)
@@ -170,6 +178,14 @@ def compile_execution_contract(
             for entry in resource.get("source_files", []) or []
             if isinstance(entry, dict) and str(entry.get("sha256", "") or "")
         )
+        need_category = str(need.category or need.kind).casefold()
+        need_category = {
+            "photo": "image",
+            "editorial_photo": "image",
+            "visual_component": "component_source",
+            "component": "component_source",
+            "typography_system": "font",
+        }.get(need_category, need_category)
         if disposition in {"local_file", "adaptable_source"} and _local_paths(resource):
             resolution = ResolvedResource(
                 resolution_type="local_materialized",
@@ -277,6 +293,25 @@ def compile_execution_contract(
                     import_path=str(resource.get("import_path", "") or ""),
                     fallback_behavior=str(resource.get("fallback", "") or need.fallback or ""),
                 )
+        elif delegated_enabled and need_category in delegated_categories:
+            resolution = ResolvedResource(
+                resolution_type="delegated_acquisition",
+                fallback_disposition=str(
+                    need.fallback or "Use the declared accessible fallback if acquisition fails."
+                ),
+                accessibility_treatment=str(
+                    need.details.get("reduced_motion_behavior", "static equivalent")
+                ),
+                delegation_policy={
+                    "allowed_providers": sorted(
+                        str(value) for value in delegation.get("allowed_providers", [])
+                    ),
+                    "candidate_limit": max(1, int(delegation.get("candidate_limit", 8))),
+                    "max_attempts": max(1, int(delegation.get("max_attempts", 3))),
+                    "selection": "closed_set_only",
+                    "llm_may_invent_candidates": False,
+                },
+            )
         elif _is_visual_resource(need):
             message = f"Known visual role '{need.source_id}' has no verified local image or component source."
             gap = ExecutionGap(
@@ -476,8 +511,8 @@ def compile_execution_contract(
     recipes.sort(key=lambda value: value.recipe_id)
     gaps.sort(key=lambda value: value.slot_id)
     contract = {
-        "schema_version": SCHEMA_VERSION,
-        "pack_version": PACK_VERSION,
+        "schema_version": schema_version,
+        "pack_version": pack_version,
         "slots": [slot.model_dump(mode="json") for slot in slots],
         "execution_gaps": [gap.model_dump(mode="json") for gap in gaps],
         "policy": {
@@ -488,12 +523,18 @@ def compile_execution_contract(
                 "local_materialized",
                 "target_package_binding",
                 "local_recipe",
+                "delegated_acquisition",
                 "execution_gap",
             ],
             "visual_resource_policy": {
                 "visual_slots_require_real_local_material": True,
                 "generated_local_visuals_forbidden": True,
                 "recipes_cannot_resolve_images_or_components": True,
+            },
+            "delegated_acquisition": {
+                **delegation,
+                "selection": "closed_set_only",
+                "llm_may_invent_candidates": False,
             },
         },
     }

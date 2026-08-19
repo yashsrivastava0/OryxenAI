@@ -33,6 +33,7 @@ from oryxenai.agents.build_preparation.state import (
     apply_result,
 )
 from oryxenai.agents.build_preparation.validators import BuildPreparationValidationError
+from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import Agent, AgentKey
 from oryxenai.agents.shared.providers.errors import ProviderConfigError, ProviderError
@@ -193,33 +194,46 @@ async def _execute_persisted(
     return await _apply_result(sessionmaker, session_id, run_id, result, attempt)
 
 
-def _approved_source_ref(content_architect: Any, visual_design_director: Any) -> Any:
-    return build_source_ref(
-        {
-            "approved": content_architect.approved.model_dump(mode="json")
-            if content_architect.approved
-            else {},
-            "route_plan": [route.model_dump(mode="json") for route in content_architect.route_plan],
-            "page_content_packs": [
-                {**pack.model_dump(mode="json"), "internal_notes": {}}
-                for pack in content_architect.page_content_packs
-            ],
-            "public_content_manifest": content_architect.public_content_manifest,
-        },
-        {
-            "approved": visual_design_director.approved.model_dump(mode="json")
-            if visual_design_director.approved
-            else {},
-            "pages": [page.model_dump(mode="json") for page in visual_design_director.pages],
-            "asset_briefs": [
-                asset.model_dump(mode="json") for asset in visual_design_director.asset_briefs
-            ],
-            "resource_candidates": [
-                resource.model_dump(mode="json")
-                for resource in visual_design_director.resource_candidates
-            ],
-        },
+def _approved_source_ref(content_architect: Any, visual_design_director: Any, settings: Any) -> Any:
+    content_projection = {
+        "approved": content_architect.approved.model_dump(mode="json")
+        if content_architect.approved
+        else {},
+        "route_plan": [route.model_dump(mode="json") for route in content_architect.route_plan],
+        "page_content_packs": [
+            {**pack.model_dump(mode="json"), "internal_notes": {}}
+            for pack in content_architect.page_content_packs
+        ],
+        "public_content_manifest": content_architect.public_content_manifest,
+    }
+    visual_projection = {
+        "approved": visual_design_director.approved.model_dump(mode="json")
+        if visual_design_director.approved
+        else {},
+        "visual_language": visual_design_director.visual_language,
+        "resource_policy": visual_design_director.resource_policy,
+        "visual_input_mode": getattr(visual_design_director, "visual_input_mode", ""),
+        "assumption_hash": getattr(visual_design_director, "assumption_hash", ""),
+        "assumptions": getattr(visual_design_director, "assumptions", []),
+        "pages": [page.model_dump(mode="json") for page in visual_design_director.pages],
+        "asset_briefs": [
+            asset.model_dump(mode="json") for asset in visual_design_director.asset_briefs
+        ],
+        "resource_candidates": [
+            resource.model_dump(mode="json")
+            for resource in visual_design_director.resource_candidates
+        ],
+    }
+    normalized = normalize_visual_input(
+        content_projection,
+        visual_projection,
+        image_target=int(settings.build_preparation.editorial_image_budget),
+        image_maximum=int(settings.build_preparation.editorial_image_maximum),
+        component_target=int(settings.build_preparation.visual_component_budget),
+        component_maximum=int(settings.build_preparation.visual_component_maximum),
+        enabled=bool(settings.build_preparation.auto_derive_visual_resources),
     )
+    return build_source_ref(content_projection, normalized.visual)
 
 
 async def _apply_result(
@@ -237,7 +251,11 @@ async def _apply_result(
         state = await repo.get_state(session_id)
         content_architect = await repo.get_content_architect_snapshot(session_id)
         visual_design_director = await repo.get_visual_design_director_snapshot(session_id)
-        current_ref = _approved_source_ref(content_architect, visual_design_director)
+        from oryxenai.core.settings import get_settings
+
+        current_ref = _approved_source_ref(
+            content_architect, visual_design_director, get_settings()
+        )
         if (
             current_ref.visual_design_director_direction_hash
             != state.source_ref.visual_design_director_direction_hash

@@ -36,7 +36,7 @@ _PROVIDER_BY_CATEGORY = {
     "image": {"pexels", "pixabay", "unsplash", "fixture"},
     "texture": {"pexels", "pixabay", "unsplash", "fixture"},
     "illustration": {"pexels", "pixabay", "unsplash", "fixture"},
-    "font": {"google_fonts", "fixture", "local"},
+    "font": {"google_fonts", "fontsource", "fixture", "local"},
     "icon": {"lucide", "fixture", "local"},
     "component_source": {"shadcn", "magicui", "smoothui", "cultui", "fixture"},
     "style_primitive": {"shadcn", "magicui", "fixture"},
