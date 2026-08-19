@@ -40,6 +40,27 @@ ExperienceBlueprintV2 requirements:
   sections, decorative pill overload, and blanket fade-on-scroll unless the
   admitted direction explicitly requires one.
 
+ExperienceBlueprintV3 requirements for an executable generation session:
+
+- Return typed `color`, `typography`, `spacing`, `shape`, and `motion` token
+  groups with concrete values and no fallback expressions. The host compiles
+  these values deterministically into `generated-tokens.css`; never rely on a
+  scaffold palette or a model-authored token file.
+- Return exactly one trusted route-shell contract per approved route, with the
+  exact section order and shell ownership. Return typed distinctive moves,
+  interaction assignments, resource placements, and motion beats that are
+  scoped to approved ids. Every declared interaction has exactly one typed
+  assignment and source marker.
+- Use the approved font binding and local material or configured system
+  disposition exactly. Do not introduce a font, image, component, package, URL,
+  or resource request during planning.
+- Plan route batches as section fragments. The deterministic compiler assigns
+  the sole route shell to a route composer and assigns interactions only once;
+  batches never own a second `<main>`, navigation, footer, or shell.
+- Use the approved public content as the only visible-copy source. Do not
+  include model reasoning, placeholder copy, or prior unrelated source in the
+  blueprint.
+
 The rest of SitePlan remains enforceable:
 
 - Give every route a content-specific composition, responsive strategy, exact

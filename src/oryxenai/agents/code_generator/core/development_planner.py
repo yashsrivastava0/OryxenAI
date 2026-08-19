@@ -7,7 +7,12 @@ import json
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
-from oryxenai.agents.code_generator.core.development_schemas import SitePlan
+from oryxenai.agents.code_generator.core.development_schemas import (
+    ExperienceBlueprintV3,
+    MotionBeatV3,
+    SitePlan,
+)
+from oryxenai.agents.code_generator.core.ownership import OwnershipError, validate_work_ownership
 
 
 class SitePlanValidationError(ValueError):
@@ -120,6 +125,11 @@ def validate_site_plan(
     if require_blueprint:
         _validate_experience_blueprint(value, expected_paths, expected_sections)
     _validate_work_graph(value, set(expected_paths), expected_sections)
+    if require_blueprint and isinstance(value.experience_blueprint, ExperienceBlueprintV3):
+        try:
+            validate_work_ownership(value, design_neutral=True)
+        except OwnershipError as exc:
+            raise SitePlanValidationError(exc.code, exc.message) from exc
     return value
 
 
@@ -132,7 +142,7 @@ def _validate_experience_blueprint(
     if blueprint is None:
         raise SitePlanValidationError(
             "PLAN_BLUEPRINT_REQUIRED",
-            "Session generation requires a measurable ExperienceBlueprintV2.",
+            "Session generation requires a measurable ExperienceBlueprintV3 or compatible V2 blueprint.",
         )
     region_ids = [item.region_id for item in blueprint.layout_regions]
     if len(region_ids) != len(set(region_ids)):
@@ -157,30 +167,77 @@ def _validate_experience_blueprint(
             "Each approved section must have exactly one layout region.",
         )
     regions = {item.region_id: item for item in blueprint.layout_regions}
+    v3_blueprint = blueprint if isinstance(blueprint, ExperienceBlueprintV3) else None
+    if v3_blueprint is not None:
+        shell_routes = {item.route_id for item in v3_blueprint.route_shells}
+        if shell_routes != set(expected_paths):
+            raise SitePlanValidationError(
+                "PLAN_ROUTE_SHELL_COVERAGE",
+                "A v3 blueprint must assign exactly one trusted route shell to every approved route.",
+            )
+        for shell in v3_blueprint.route_shells:
+            expected = expected_sections.get(shell.route_id, set())
+            if set(shell.section_order) != expected or len(shell.section_order) != len(expected):
+                raise SitePlanValidationError(
+                    "PLAN_ROUTE_SHELL_SECTION_ORDER",
+                    "A v3 route shell must cover each approved section exactly once.",
+                )
+        token_groups = {item.group_id for item in v3_blueprint.tokens.token_groups}
+        if token_groups != {"color", "typography", "spacing", "shape", "motion"}:
+            raise SitePlanValidationError(
+                "PLAN_TOKEN_GROUPS",
+                "A v3 blueprint must provide all typed semantic token groups.",
+            )
+        assigned = {item.interaction_id for item in v3_blueprint.assigned_interactions}
+        expected_interactions = {item.interaction_id for item in plan.interactions}
+        if assigned != expected_interactions:
+            raise SitePlanValidationError(
+                "PLAN_INTERACTION_ASSIGNMENTS",
+                "Every declared interaction must have exactly one v3 work-owner assignment.",
+            )
+        for assignment in v3_blueprint.assigned_interactions:
+            if assignment.route_id not in expected_paths or not assignment.source_marker.strip():
+                raise SitePlanValidationError(
+                    "PLAN_INTERACTION_ASSIGNMENT_SCOPE",
+                    "A v3 interaction assignment must stay within approved route scope.",
+                )
     binding_ids = {item.resource_slot_id for item in plan.execution_bindings}
     bindings = {item.resource_slot_id: item for item in plan.execution_bindings}
     typography_binding = bindings.get(blueprint.tokens.typography.resource_slot_id)
-    if typography_binding is None or "font" not in typography_binding.category.casefold():
+    if typography_binding is None or not (
+        "font" in typography_binding.category.casefold()
+        or "typograph" in typography_binding.category.casefold()
+        or typography_binding.font_family.strip()
+    ):
         raise SitePlanValidationError(
             "PLAN_TYPOGRAPHY_BINDING",
             "Blueprint typography must reference an admitted executable font binding.",
         )
     used_slots: set[str] = set()
-    for usage in blueprint.resource_usage:
-        usage_region = regions.get(usage.region_id)
+    usages: list[tuple[str, str, str, str]] = [
+        (usage.resource_slot_id, usage.route_id, usage.section_id, usage.region_id)
+        for usage in blueprint.resource_usage
+    ]
+    if v3_blueprint is not None:
+        usages.extend(
+            (item.resource_slot_id, item.route_id, item.section_id, item.region_id)
+            for item in v3_blueprint.resource_placements
+        )
+    for resource_slot_id, usage_route_id, usage_section_id, usage_region_id in usages:
+        usage_region = regions.get(usage_region_id)
         if (
-            usage.resource_slot_id not in binding_ids
-            or usage.route_id not in expected_paths
-            or usage.section_id not in expected_sections.get(usage.route_id, set())
+            resource_slot_id not in binding_ids
+            or usage_route_id not in expected_paths
+            or usage_section_id not in expected_sections.get(usage_route_id, set())
             or usage_region is None
-            or usage_region.route_id != usage.route_id
-            or usage_region.section_id != usage.section_id
+            or usage_region.route_id != usage_route_id
+            or usage_region.section_id != usage_section_id
         ):
             raise SitePlanValidationError(
                 "PLAN_RESOURCE_USAGE_SCOPE",
                 "Blueprint resource usage must reference an executable binding and approved region.",
             )
-        used_slots.add(usage.resource_slot_id)
+        used_slots.add(resource_slot_id)
     required_visual_slots = {
         item.resource_slot_id
         for item in plan.execution_bindings
@@ -196,7 +253,10 @@ def _validate_experience_blueprint(
             "Every required visual binding must have an approved section-level usage plan.",
         )
     for beat in blueprint.motion_beats:
-        beat_region = regions.get(beat.target_region_id)
+        target_region_id = (
+            beat.region_id if isinstance(beat, MotionBeatV3) else beat.target_region_id
+        )
+        beat_region = regions.get(target_region_id)
         if (
             beat_region is None
             or beat.route_id != beat_region.route_id

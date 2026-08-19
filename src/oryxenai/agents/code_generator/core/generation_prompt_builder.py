@@ -20,10 +20,10 @@ from oryxenai.agents.code_generator.core.generation_contract import (
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
     "director": "code_generator.director.v2",
-    "planner": "code_generator.planner.v6",
-    "foundation": "code_generator.foundation.v5",
-    "route_batch": "code_generator.route_batch.v5",
-    "route_compose": "code_generator.route_compose.v4",
+    "planner": "code_generator.planner.v7",
+    "foundation": "code_generator.foundation.v6",
+    "route_batch": "code_generator.route_batch.v7",
+    "route_compose": "code_generator.route_compose.v6",
     "integrate": "code_generator.integrate.v5",
     "integration_review": "code_generator.integration_review.v1",
     "repair": "code_generator.repair.v5",
@@ -76,7 +76,7 @@ def build_instructions(
         operation_id=operation,
         role_profile=str(context.get("role_profile", "")),
         prompt_versions={
-            "system": "code_generator.system.v3",
+            "system": "code_generator.system.v4",
             "operation": _VERSIONS[operation],
             "system_hash": _hash(system),
             # Hash the full composed instructions so a changed contract block

@@ -27,6 +27,9 @@ Non-negotiable rules:
   restrained and coherent visual language rather than adding generic effects.
 - Use local resources only. Do not emit arbitrary URLs, remote imports,
   package changes, shell commands, credentials, or files outside owned paths.
+- Treat `ExperienceBlueprintV3`, typed token groups, `SharedSystems`, the
+  generated content module, and the work-graph ownership map as executable
+  interfaces. Do not replace them with defaults or a parallel scaffold.
 - Keep semantics, keyboard behavior, focus states, contrast, and
   prefers-reduced-motion behavior first-class. Animation can enrich an
   experience but can never be required to read, navigate, or operate it.
