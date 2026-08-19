@@ -1207,6 +1207,19 @@ class BuildPreparationAgent(Agent):
         model = output_model_for(operation).model_validate(parsed)
         if not isinstance(model, (Stage3BuildContextResult, Stage4IntegratedContextResult)):
             raise BuildPreparationModelOutputError(f"Unexpected output model for {operation}.")
+        model = model.model_copy(
+            update={
+                "context": model.context.model_copy(
+                    update={
+                        "runtime_requirements": model.runtime_requirements
+                        or model.context.runtime_requirements,
+                        "fixed_facts": model.fixed_facts or model.context.fixed_facts,
+                        "freedoms": model.freedoms or model.context.freedoms,
+                        "warnings": model.warnings or model.context.warnings,
+                    }
+                )
+            }
+        )
         return model, version, _metadata(result, manifest, operation, packet)
 
 
