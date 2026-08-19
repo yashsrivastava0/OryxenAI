@@ -195,7 +195,54 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
                 **extra,
             )
         except Exception as exc:
-            raise self._map_sdk_error(exc) from exc
+            # OpenAI's strict schema dialect rejects otherwise valid JSON
+            # Schema objects that model a dictionary (``additionalProperties``
+            # with a value schema). Code Generator plans intentionally carry
+            # contextual maps such as design tokens and provenance, so a
+            # strict request can fail before the model sees the portfolio.
+            # Retry only this provider-side schema rejection as JSON mode; the
+            # prompt still contains the canonical schema and the caller still
+            # performs full Pydantic/semantic validation. Auth, transport,
+            # quota, and ordinary request failures remain fail-closed.
+            if strict_schema and self._is_schema_rejection(exc):
+                logger.warning(
+                    "provider=%s model=%s operation=%s strict schema rejected; "
+                    "retrying with JSON-object structured output",
+                    self.provider_name,
+                    self._profile.model,
+                    operation,
+                )
+                fallback_messages = list(messages)
+                if isinstance(response_format.get("json_schema"), dict):
+                    schema = response_format["json_schema"].get("schema")
+                    schema_message = {
+                        "role": "user",
+                        "content": (
+                            "The provider is using JSON-object mode for this call. "
+                            "Return exactly one JSON object conforming to this exact "
+                            "schema; preserve every property name and nesting, and "
+                            "do not use an older SitePlan shape:\n"
+                            + json.dumps(schema, ensure_ascii=False, sort_keys=True)
+                        ),
+                    }
+                    # Keep the schema next to the trusted task and before the
+                    # untrusted portfolio payload so it cannot be mistaken for
+                    # portfolio instructions.
+                    fallback_messages.insert(max(len(fallback_messages) - 1, 1), schema_message)
+                try:
+                    response = await self._client.chat.completions.create(
+                        model=self._profile.model,
+                        messages=fallback_messages,
+                        response_format={"type": "json_object"},
+                        timeout=self._profile.timeout_seconds,
+                        **{token_kwarg: self._profile.max_output_tokens},
+                        **self._structured_call_kwargs(),
+                        **extra,
+                    )
+                except Exception as retry_exc:
+                    raise self._map_sdk_error(retry_exc) from retry_exc
+            else:
+                raise self._map_sdk_error(exc) from exc
 
         latency_ms = (time.monotonic() - call_start) * 1000.0
 
@@ -346,6 +393,27 @@ class OpenCodeGoAdapter(BaseProviderAdapter):
             code="PROVIDER_UNKNOWN_ERROR",
             retryable=True,
         )
+
+    @staticmethod
+    def _is_schema_rejection(exc: Exception) -> bool:
+        """Return true only for a provider rejection of the response schema.
+
+        The OpenAI-compatible SDK exposes the provider body on status errors.
+        Do not downgrade unrelated 400s: malformed requests must remain
+        actionable instead of being retried with a different contract.
+        """
+
+        try:
+            import openai
+
+            if not isinstance(exc, openai.BadRequestError):
+                return False
+        except Exception:
+            return False
+        body = _safe_body(exc)
+        error = body.get("error") if body else None
+        message = error.get("message", "") if isinstance(error, dict) else str(exc)
+        return "invalid schema for response_format" in str(message).lower()
 
 
 def _safe_body(exc: Any) -> dict[str, Any] | None:

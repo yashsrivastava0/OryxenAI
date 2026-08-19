@@ -498,6 +498,20 @@ class RuntimeVerifier:
                   const visible = element => {
                     const style = getComputedStyle(element);
                     const rect = element.getBoundingClientRect();
+                    // Contract/skip-link markers may be deliberately kept in
+                    // the DOM for accessibility or source acceptance while
+                    // remaining non-rendered. They must not be treated as
+                    // user-facing controls in geometry checks.
+                    if (element.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
+                    const visuallyHidden = rect.width <= 2 && rect.height <= 2 &&
+                      style.overflow === 'hidden' && style.clip !== 'auto' &&
+                      style.clip !== 'rect(auto, auto, auto, auto)';
+                    if (visuallyHidden && !element.matches(':focus')) return false;
+                    // Skip links are intentionally translated just outside
+                    // the viewport until focus. They remain in document flow
+                    // for keyboard users but are not actionable touch
+                    // targets in the resting state.
+                    if (rect.right <= 0 || rect.left >= innerWidth || rect.bottom <= 0) return false;
                     return style.display !== 'none' && style.visibility !== 'hidden' &&
                       Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
                   };
@@ -553,7 +567,10 @@ class RuntimeVerifier:
                     if (fontSize < thresholds.minTextPx) {
                       violations.push({code: 'RUNTIME_TEXT_TOO_SMALL', message: `Text in ${label(element)} is ${fontSize}px.`});
                     }
-                    const minimumLineRatio = element.matches('p, li') ? 1.2 : 1.0;
+                    // Tight display typography is valid for headings; prose
+                    // still requires a readable 1.2 ratio.
+                    const minimumLineRatio = element.matches('p, li') ? 1.2 :
+                      (element.matches('h1, h2, h3') ? 0.9 : 1.0);
                     if (Number.isFinite(lineHeight) && lineHeight + 0.5 < fontSize * minimumLineRatio) {
                       violations.push({code: 'RUNTIME_LINE_HEIGHT_TOO_TIGHT', message: `Text in ${label(element)} has an unusably tight line height.`});
                     }

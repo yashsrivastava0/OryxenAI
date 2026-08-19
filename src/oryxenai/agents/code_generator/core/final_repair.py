@@ -135,6 +135,11 @@ class FinalRepairer:
                 repo_dir=workspace.repo_dir,
             )
             if deterministic_changes is None:
+                deterministic_changes = _deterministic_touch_target_repair(
+                    diagnostics=diagnostics,
+                    repo_dir=workspace.repo_dir,
+                )
+            if deterministic_changes is None:
                 raise FinalRepairError(
                     "REPAIR_NO_SOURCE_CHANGE",
                     "The repair operation did not return a bounded source correction.",
@@ -314,3 +319,48 @@ def _deterministic_marker_repair(
             )
         )
     return GenerationChanges(files=changes)
+
+
+def _deterministic_touch_target_repair(
+    *,
+    diagnostics: list[Diagnostic],
+    repo_dir: Any,
+) -> GenerationChanges | None:
+    """Give short navigation labels a real mobile touch target.
+
+    The model repairer cannot reliably infer rendered dimensions from a
+    diagnostic that only says ``a``. A route-scoped CSS guard is a bounded,
+    truth-preserving correction: it keeps the authored visual design while
+    ensuring every navigation link has enough inline hit area on narrow
+    screens. It is only activated for the specific runtime touch-target gate.
+    """
+
+    if not diagnostics or not any(
+        item.code == "RUNTIME_TOUCH_TARGET_TOO_SMALL" for item in diagnostics
+    ):
+        return None
+    changes: list[SourceFileChange] = []
+    for path in sorted((repo_dir / "src" / "routes").rglob("*.css")):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if "nav a" not in content and "navigation" not in content:
+            continue
+        if "/* OryxenAI deterministic touch-target repair */" in content:
+            continue
+        relative = path.relative_to(repo_dir).as_posix()
+        corrected = (
+            content.rstrip()
+            + "\n\n/* OryxenAI deterministic touch-target repair */\n"
+            + ':where(nav a, [role="navigation"] a) '
+            + "{ min-inline-size: 36px; justify-content: center; }\n"
+        )
+        changes.append(
+            SourceFileChange(
+                path=relative,
+                operation="replace",
+                complete_utf8_content=corrected,
+            )
+        )
+    return GenerationChanges(files=changes) if changes else None
