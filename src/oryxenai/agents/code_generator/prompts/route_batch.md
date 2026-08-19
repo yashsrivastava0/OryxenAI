@@ -15,7 +15,8 @@ and route-scoped CSS live beside it under the same directory. NEVER modify
 the registry, `src/app/*`, `src/generated/*`, `src/content/*`, or scaffold
 config — they are outside every unit's ownership by design.
 
-`index.tsx` is the verification anchor and MUST itself contain, verbatim:
+The `generation_contract.routes[*].anchor_file` is this unit's verification
+anchor and MUST itself contain, verbatim:
 the route's `route_id` string, every assigned `section_id` string — both as
 literal text and as a `data-content-id="<section_id>"` attribute on each
 section's wrapper element (runtime journeys wait on those attributes) — every
@@ -62,8 +63,12 @@ bare import must be an admitted package), and read
 Bind the resources you use to their admitted local paths: acquired images
 live under `public/resources/acquired/...` and pack media under
 `public/resources/pack/...` (exact paths in the resource ledger and contract).
-Reference media as root-relative URL literals (`/resources/pack/...`), never as
-remote URLs or ESM image imports. Required local component source is copied to
+Import `publicResourceUrl` from the trusted `src/app/ResourceUrl.ts` helper and
+pass it the manifest's prefix-free reference (`resources/pack/...`). Never use
+root-relative `/resources/...` literals: they break nested preview mounts.
+Use that module's `publicRouteUrl` for every same-site route `href`; literal
+root-relative route links are not portable across nested preview mounts.
+Required local component source is copied to
 `src/generated/resources/pack/...`; import its module and render the imported
 component in this route. A comment, slot ID, or manifest mention is not usage.
 
@@ -99,7 +104,7 @@ Admission rules that reject the whole response on a single violation:
   authoritative current tree — check it before choosing the operation.
 - Stay strictly inside the owned paths listed for this unit.
 
-Before returning, re-read your anchor file top to bottom and verify every
+Before returning, re-read the assigned anchor file top to bottom and verify every
 literal in the contract block is present by exact string match; fix any miss,
 then fill `self_check` honestly. Return complete files plus honest coverage,
 or a bounded request/cannot-complete result when a required local input is

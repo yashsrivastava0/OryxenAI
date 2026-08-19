@@ -39,12 +39,14 @@ from oryxenai.agents.code_generator.core.verification_plan import (
 )
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 from oryxenai.core.logging import get_logger
+from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
 from oryxenai.preview.gateway import create_candidate_app
 from oryxenai.preview.promotion import PreviewPromoter
 from oryxenai.preview.reconciler import reconcile_pending_promotion
 from oryxenai.preview.server import EphemeralServer, start_ephemeral_server
+from oryxenai.storage.artifacts import is_expired
 from oryxenai.storage.preview import create_preview_storage
 
 logger = get_logger("oryxenai.jobs.code_generator_verification")
@@ -83,7 +85,7 @@ async def _execute(
 ) -> dict[str, Any]:
     from oryxenai.core.settings import get_settings
 
-    run_id = UUID(str(payload["development_run_id"]))
+    run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     async with sessionmaker() as db:
@@ -112,6 +114,31 @@ async def _execute(
             DevelopmentRunStatus.NEEDS_ATTENTION.value,
         }:
             return {"status": "discarded", "run_id": str(run_id)}
+        if str(
+            getattr(run, "run_mode", "development")
+        ) == "session" and not await _session_source_is_current(CodeGeneratorRepository(db), run):
+            issue = SafeIssue(
+                code="CODE_GENERATOR_STALE_SOURCE",
+                message=(
+                    "Build Preparation changed or expired before preview promotion; "
+                    "the stale candidate was not promoted."
+                ),
+                next_action="Start Code Generator again from the latest eligible artifact.",
+            )
+            await _cas(
+                repo,
+                run,
+                DevelopmentRunStatus.NEEDS_ATTENTION.value,
+                {"issues": [issue.model_dump(mode="json")]},
+            )
+            await repo.append_event(
+                run_id,
+                event_type="stale_source",
+                level="error",
+                message=issue.message,
+            )
+            await db.commit()
+            return {"status": "needs_attention", "run_id": str(run_id)}
         if run.pending_promotion and run.verification_projection:
             try:
                 pending = PendingPromotion.model_validate(run.pending_promotion)
@@ -308,6 +335,7 @@ async def _execute(
             sessionmaker, run_id, projection, DevelopmentRunStatus.BUILDING.value
         )
         reused_manifest = _prior_build_manifest(prior_projection, identity.identity_hash)
+        build_diagnostics: list[Diagnostic]
         if reused_manifest is not None:
             manifest, build_diagnostics = reused_manifest, []
         else:
@@ -329,6 +357,14 @@ async def _execute(
             )
         )
         if build_diagnostics or manifest is None:
+            logger.warning(
+                "code_generator build gate failed run_id=%s diagnostics=%s",
+                run_id,
+                " | ".join(
+                    f"{item.code}:{item.normalized_message[:240]}" for item in build_diagnostics[:4]
+                )
+                or "manifest_missing",
+            )
             repaired = await _attempt_repair(
                 sessionmaker=sessionmaker,
                 run_id=run_id,
@@ -421,6 +457,11 @@ async def _execute(
             )
         )
         if runtime_diagnostics:
+            logger.warning(
+                "code_generator runtime gate failed run_id=%s codes=%s",
+                run_id,
+                ",".join(sorted({item.code for item in runtime_diagnostics})),
+            )
             if server is not None:
                 await server.close()
                 server = None
@@ -652,6 +693,32 @@ def _preview_host(run_id: str) -> str:
         .rstrip("=")
     )
     return f"preview-{encoded[:48]}"
+
+
+async def _session_source_is_current(repository: CodeGeneratorRepository, run: Any) -> bool:
+    session_id = getattr(run, "portfolio_session_id", None)
+    source = dict(getattr(run, "build_preparation_source_ref", None) or {})
+    if session_id is None or not source:
+        return False
+    try:
+        preparation = await repository.get_build_preparation_state(session_id)
+    except (LookupError, ValueError):
+        return False
+    if preparation.package is None or preparation.package.artifact is None:
+        return False
+    artifact = preparation.package.artifact
+    expected_artifact_value = source.get("artifact")
+    expected_artifact: dict[str, Any] = (
+        expected_artifact_value if isinstance(expected_artifact_value, dict) else {}
+    )
+    return bool(
+        preparation.run_id == str(source.get("build_preparation_run_id", ""))
+        and preparation.scope_hash == str(source.get("build_preparation_scope_hash", ""))
+        and preparation.package.archive_sha256 == str(source.get("archive_sha256", ""))
+        and artifact.sha256 == str(expected_artifact.get("sha256", ""))
+        and artifact.key == str(expected_artifact.get("key", ""))
+        and not is_expired(artifact)
+    )
 
 
 def _reference(run: Any) -> Any:

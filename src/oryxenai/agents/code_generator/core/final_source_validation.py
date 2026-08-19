@@ -233,8 +233,12 @@ def validate_final_source(
                 )
             )
             continue
-        route_source = files[route_file]
-        if route_id not in route_source:
+        route_anchor_source = files[route_file]
+        route_prefix = f"src/routes/{storage_key}/"
+        route_source = "\n".join(
+            text for file_path, text in files.items() if file_path.startswith(route_prefix)
+        )
+        if route_id not in route_anchor_source:
             diagnostics.append(
                 _diag(
                     "SOURCE_ROUTE_ID_MISSING",
@@ -332,9 +336,17 @@ def validate_final_source(
                 )
             )
     route_source_by_id = {
-        str(route.get("route_id", "")): files.get(
-            f"src/routes/{str(route.get('storage_key', route.get('route_id', ''))).replace(chr(92), '/').removeprefix('routes/').strip('/')}/index.tsx",
-            "",
+        str(route.get("route_id", "")): "\n".join(
+            text
+            for path, text in files.items()
+            if path.startswith(
+                "src/routes/"
+                + str(route.get("storage_key", route.get("route_id", "")))
+                .replace(chr(92), "/")
+                .removeprefix("routes/")
+                .strip("/")
+                + "/"
+            )
         )
         for route in routes
         if isinstance(route, dict)

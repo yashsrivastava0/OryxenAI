@@ -20,8 +20,12 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
     validate_resource_request,
 )
 from oryxenai.agents.code_generator.core.coordinator import advance_after
+from oryxenai.agents.code_generator.core.creative_operation import (
+    run_creative_direction_operation,
+)
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
+    DependencyPolicyError,
     build_dependency_ledger,
 )
 from oryxenai.agents.code_generator.core.development_input import (
@@ -40,6 +44,8 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
     ContextReceipt,
     DependencyLedger,
+    DependencyReceipt,
+    DependencyReceiptBasis,
     DependencyRequest,
     DevelopmentRunStatus,
     PlanDelta,
@@ -66,10 +72,17 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
 )
 from oryxenai.agents.code_generator.core.resource_scout import select_candidate_with_scout
 from oryxenai.agents.shared.model_client import build_provider_client
+from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
+from oryxenai.storage.artifacts import (
+    ArtifactReference,
+    ArtifactStorageError,
+    create_artifact_store,
+)
 
 _KIND = "code_generator.plan"
+logger = get_logger("oryxenai.jobs.handlers.code_generator")
 
 
 def _planner_failure_issue(exc: Exception) -> SafeIssue:
@@ -135,7 +148,7 @@ async def _execute(
 ) -> dict[str, Any]:
     from oryxenai.core.settings import get_settings
 
-    run_id = UUID(str(payload["development_run_id"]))
+    run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     async with sessionmaker() as db:
@@ -163,6 +176,74 @@ async def _execute(
         reference = AdmittedInputReference.model_validate(run.input_reference)
 
     adapter = DevelopmentInputAdapter(settings)
+    if reference.mode == "build_preparation_artifact":
+        try:
+            artifact = ArtifactReference.model_validate(run.artifact_reference)
+            data = await create_artifact_store(settings).get_verified(artifact)
+            reference = adapter.from_build_preparation_artifact(
+                source_id=reference.source_id,
+                filename=reference.original_filename,
+                data=data,
+            )
+            async with sessionmaker() as db:
+                repo = CodeGeneratorDevelopmentRepository(db)
+                current = await repo.get(run_id)
+                if current is None:
+                    return {"status": "discarded", "run_id": str(run_id)}
+                updated = await repo.compare_and_swap(
+                    run_id,
+                    expected_revision=current.revision,
+                    values={
+                        "input_reference": reference.model_dump(mode="json"),
+                        "artifact_receipt": {
+                            "artifact_sha256": artifact.sha256,
+                            "size_bytes": artifact.size_bytes,
+                            "stored_relative_path": reference.stored_relative_path,
+                            "verified": True,
+                        },
+                    },
+                )
+                if updated is None:
+                    raise RuntimeError("Code Generator run changed during artifact admission")
+                await repo.append_event(
+                    run_id,
+                    event_type="artifact_downloaded",
+                    level="info",
+                    message="Build Preparation artifact downloaded and copied immutably.",
+                    details={"sha256": artifact.sha256, "size_bytes": artifact.size_bytes},
+                )
+                await db.commit()
+                run = updated
+        except ArtifactStorageError as exc:
+            attempt = int(payload.get("attempt", 1))
+            max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+            if bool(exc.retryable) and attempt < max_attempts:
+                return {
+                    "status": "failed",
+                    "error": {"code": exc.code, "message": exc.message, "retryable": True},
+                }
+            await _needs_attention(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code=exc.code,
+                    message="The Build Preparation artifact could not be downloaded and verified.",
+                    next_action="Restore artifact-store access or regenerate Build Preparation.",
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        except DevelopmentInputError as exc:
+            await _needs_attention(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code=exc.code,
+                    message=exc.message,
+                    next_action="Regenerate a valid Build Preparation artifact.",
+                    details=exc.details,
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
     try:
         receipt, projections = adapter.admit(reference)
     except DevelopmentInputError as exc:
@@ -243,6 +324,102 @@ async def _execute(
             ),
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
+    require_blueprint = str(getattr(run, "run_mode", "development")) == "session"
+    if require_blueprint:
+        director_profile = settings.code_generator_development.director_profile
+        director_capabilities = settings.models.get_profile(director_profile)
+        if (
+            director_capabilities is None
+            or director_capabilities.capabilities is None
+            or not director_capabilities.capabilities.json_schema_mode
+        ):
+            await _needs_attention(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code="DIRECTOR_STRICT_SCHEMA_UNSUPPORTED",
+                    message=(
+                        "The configured creative-director profile does not declare native "
+                        "JSON-schema support."
+                    ),
+                    next_action="Configure a strict-schema director profile and retry.",
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        director = (
+            planner_factory()
+            if planner_factory is not None
+            else build_provider_client(director_profile, settings.models)
+        )
+        if director is None:
+            await _needs_attention(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code="DIRECTOR_PROFILE_UNAVAILABLE",
+                    message="The configured creative-director profile is unavailable.",
+                    next_action="Configure the director profile and retry the session run.",
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        try:
+            direction_context = {**context, "role_profile": director_profile}
+            direction, direction_receipt, direction_result = await run_creative_direction_operation(
+                director,
+                context=direction_context,
+                profile_name=director_profile,
+            )
+        except Exception as exc:
+            await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        direction_path = _write_context(
+            settings,
+            receipt.admitted_identity,
+            direction_receipt.context_hash,
+            direction_context,
+        )
+        direction_receipt = direction_receipt.model_copy(
+            update={"stored_relative_path": direction_path}
+        )
+        context = {**context, "creative_direction": direction.model_dump(mode="json")}
+        context_digest = context_hash(context)
+        context_path = _write_context(settings, receipt.admitted_identity, context_digest, context)
+        context_receipt = ContextReceipt(
+            receipt_id=f"context-{context_digest[:20]}",
+            context_hash=context_digest,
+            stored_relative_path=context_path,
+            route_ids=receipt.route_ids,
+            section_count=context_receipt.section_count,
+            resource_slot_count=context_receipt.resource_slot_count,
+        )
+        async with sessionmaker() as db:
+            repo = CodeGeneratorDevelopmentRepository(db)
+            current = await repo.get(run_id)
+            if current is None:
+                return {"status": "discarded", "run_id": str(run_id)}
+            updated = await repo.compare_and_swap(
+                run_id,
+                expected_revision=current.revision,
+                values={
+                    "creative_direction": {
+                        "direction": direction.model_dump(mode="json"),
+                        "context_receipt": direction_receipt.model_dump(mode="json"),
+                        "response_id": str(getattr(direction_result, "response_id", "") or ""),
+                    },
+                    "context_receipt": context_receipt.model_dump(mode="json"),
+                },
+            )
+            if updated is None:
+                raise RuntimeError("Code Generator run changed after creative direction")
+            await repo.append_event(
+                run_id,
+                event_type="creative_direction_ready",
+                level="info",
+                message="Two grounded creative concepts were evaluated before planning.",
+                details={"recommended_concept_id": direction.recommended_concept_id},
+            )
+            await db.commit()
+            run = updated
     try:
         plan, _prompt_version, prompt_receipt, result = await run_planner_operation(
             planner,
@@ -250,6 +427,8 @@ async def _execute(
             profile_name=settings.code_generator_development.planner_profile,
             projections=projections,
             max_work_units=int(settings.code_generator_development.max_work_units),
+            max_sections_per_unit=int(settings.code_generator_generation.max_route_batch_sections),
+            require_blueprint=require_blueprint,
         )
     except Exception as exc:
         await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
@@ -340,7 +519,7 @@ async def _execute_acquisition(
 ) -> dict[str, Any]:
     from oryxenai.core.settings import get_settings
 
-    run_id = UUID(str(payload["development_run_id"]))
+    run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     async with sessionmaker() as db:
@@ -431,7 +610,9 @@ async def _execute_acquisition(
                 resource_receipts,
                 authorized_hashes={
                     _execution_binding_hash(slot_id, package_name)
-                    for slot_id, package_name, _exports in _execution_package_bindings(projections)
+                    for slot_id, package_name, _exports, _required, _fallback in (
+                        _execution_package_bindings(projections)
+                    )
                 },
             )
         )
@@ -578,7 +759,13 @@ async def _execute_acquisition(
         # Admitted execution-contract package bindings go through the same
         # trusted dependency manager as receipt-bound requests: real npm
         # lockfile + offline install, never a hand-written manifest entry.
-        for slot_id, package_name, expected_exports in _execution_package_bindings(projections):
+        for (
+            slot_id,
+            package_name,
+            expected_exports,
+            required,
+            fallback_strategy,
+        ) in _execution_package_bindings(projections):
             if any(
                 item.package_name == package_name and item.decision in {"admitted", "existing"}
                 for item in dependency_receipts
@@ -595,15 +782,37 @@ async def _execute_acquisition(
                 ),
                 fallback_component_strategy="Use the plain DOM affordance without the bound package.",
             )
-            dependency_receipts.append(
-                await dependency_manager.resolve(
+            try:
+                dependency_receipt = await dependency_manager.resolve(
                     binding_request,
                     repo_dir=repo_dir,
                     prior_manifest=prior_manifest,
                     prior_lock=prior_lock,
                     settings=settings,
                 )
-            )
+            except DependencyPolicyError as exc:
+                if required:
+                    raise
+                dependency_receipt = DependencyReceipt(
+                    based_on=DependencyReceiptBasis(
+                        toolchain_profile="react-vite-v1",
+                        prior_manifest_hash=_model_hash(prior_manifest),
+                        prior_lock_hash=_model_hash(prior_lock),
+                        resource_receipt_hash=binding_request.requesting_resource_receipt_hash,
+                    ),
+                    decision="rejected_fallback",
+                    package_name=package_name,
+                    licence_result="install_unavailable",
+                    vulnerability_policy_result="not_evaluated",
+                    install_script_result="not_run",
+                    manifest_hash=_model_hash(prior_manifest),
+                    lock_hash=_model_hash(prior_lock),
+                    fallback={
+                        "strategy": fallback_strategy or "Use the plain DOM affordance.",
+                        "reason_code": exc.code,
+                    },
+                )
+            dependency_receipts.append(dependency_receipt)
             prior_manifest = _read_json(repo_dir / "package.json", prior_manifest)
             prior_lock = _read_json(repo_dir / "package-lock.json", prior_lock)
 
@@ -674,6 +883,11 @@ async def _execute_acquisition(
             attempts=run.current_attempt,
         )
     except Exception as exc:
+        logger.warning(
+            "code_generator acquisition failed code=%s type=%s",
+            getattr(exc, "code", "ACQUISITION_FAILED"),
+            type(exc).__name__,
+        )
         issue = SafeIssue(
             code=getattr(exc, "code", "ACQUISITION_FAILED"),
             message=getattr(exc, "message", "Resource acquisition could not complete safely."),
@@ -785,12 +999,12 @@ def _execution_resolved_slot_ids(projections: dict[str, dict[str, Any]]) -> set[
 
 def _execution_package_bindings(
     projections: dict[str, dict[str, Any]],
-) -> list[tuple[str, str, list[str]]]:
-    """Admitted target-package bindings (slot id, package, expected exports)."""
+) -> list[tuple[str, str, list[str], bool, str]]:
+    """Admitted target-package bindings and their required/fallback policy."""
 
     execution = projections.get("execution/contract.json", {})
     slots = execution.get("slots", []) if isinstance(execution, dict) else []
-    bindings: list[tuple[str, str, list[str]]] = []
+    bindings: list[tuple[str, str, list[str], bool, str]] = []
     for slot in slots:
         if not isinstance(slot, dict):
             continue
@@ -804,7 +1018,15 @@ def _execution_package_bindings(
         if not package_name:
             continue
         exports = [str(value) for value in resolution.get("expected_exports", []) or []]
-        bindings.append((str(slot.get("resource_slot_id", "")), package_name, exports))
+        bindings.append(
+            (
+                str(slot.get("resource_slot_id", "")),
+                package_name,
+                exports,
+                bool(slot.get("required")),
+                str(resolution.get("fallback_disposition", "")),
+            )
+        )
     return bindings
 
 
@@ -865,7 +1087,7 @@ def _build_initial_requests(
             (
                 unit.unit_id
                 for unit in plan.work_graph.units
-                if unit.kind == "route" and unit.route_id == slot.route_id
+                if unit.kind in {"route", "route_batch"} and unit.route_id == slot.route_id
             ),
             "foundation",
         )

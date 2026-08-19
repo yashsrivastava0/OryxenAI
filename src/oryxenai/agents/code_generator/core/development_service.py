@@ -52,6 +52,7 @@ class CodeGeneratorDevelopmentService:
         """Return non-secret prerequisites so the developer UI never implies readiness."""
 
         profile_names = {
+            "director": self._settings.code_generator_development.director_profile,
             "planner": self._settings.code_generator_development.planner_profile,
             "foundation": self._settings.code_generator_generation.foundation_profile,
             "route": self._settings.code_generator_generation.route_profile,
@@ -79,7 +80,7 @@ class CodeGeneratorDevelopmentService:
             key=lambda pack: tuple(pack.get("selection_rank", []) or []),
             default=None,
         )
-        browser_available = _browser_ready(self._settings.code_generator_verification)
+        browser_available = browser_ready(self._settings.code_generator_verification)
         generation_ready = all(
             profiles[operation]
             for operation in ("foundation", "route", "compose", "integration", "repair")
@@ -96,7 +97,7 @@ class CodeGeneratorDevelopmentService:
             if not ready
         ]
         return {
-            "planning_ready": profiles["planner"],
+            "planning_ready": profiles["director"] and profiles["planner"],
             "generation_ready": generation_ready,
             "package_manager_ready": npm_available,
             "profiles": profiles,
@@ -609,7 +610,7 @@ class CodeGeneratorDevelopmentService:
         return {"checkpoint": dict(run.source_checkpoint), "manifest": payload}
 
 
-def _browser_ready(verification: Any) -> bool:
+def browser_ready(verification: Any) -> bool:
     """Honest cheap probe: Playwright importable AND a browser build present.
 
     Deliberately does not launch the driver — the sync driver's teardown is
@@ -636,9 +637,17 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "status": run.status,
             "revision": run.revision,
             "current_attempt": run.current_attempt,
+            "run_mode": str(getattr(run, "run_mode", "development") or "development"),
+            "portfolio_session_id": str(getattr(run, "portfolio_session_id", "") or ""),
             "auto_advance": bool(getattr(run, "auto_advance", True)),
             "coordinator_stage": str(getattr(run, "coordinator_stage", "plan") or "plan"),
             "selected_pack_receipt": getattr(run, "selected_pack_receipt", None),
+            "build_preparation_source_ref": getattr(run, "build_preparation_source_ref", None),
+            "artifact_reference": getattr(run, "artifact_reference", None),
+            "artifact_receipt": getattr(run, "artifact_receipt", None),
+            "preflight_receipt": getattr(run, "preflight_receipt", None),
+            "creative_direction": getattr(run, "creative_direction", None),
+            "integration_review": getattr(run, "integration_review", None),
             "job_id": str(run.background_job_id or ""),
             "input": run.input_reference,
             "input_receipt": run.input_receipt,

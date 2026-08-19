@@ -153,6 +153,7 @@ fixture_map = { "privacy-safe-v3" = "tests/fixtures/code_generator_v3_privacy_sa
 pack_version = "build-preparation-pack-v3"
 schema_version = "build-preparation-contract-v3"
 target_contract = "react-vite-v1"
+director_profile = "code_generator_director"
 planner_profile = "code_generator_planner"
 max_upload_bytes = 16777216
 max_uncompressed_bytes = 67108864
@@ -163,7 +164,7 @@ max_work_units = 64
 max_events_page_size = 100
 # Local Build Preparation debug mirror consumed by the "from Build Preparation"
 # run source (newest eligible build-pack.zip wins).
-build_preparation_mirror_root = "output/build-preparation"
+build_preparation_mirror_root = "output/live-build-preparation"
 
 [code_generator_acquisition]
 allowlist_image_providers = ["pexels", "pixabay"]
@@ -200,7 +201,7 @@ max_source_bytes = 8388608
 max_request_rounds = 4
 max_repair_rounds_per_unit = 2
 max_repair_rounds_total = 6
-max_route_batch_sections = 8
+max_route_batch_sections = 3
 max_concurrency = 1
 typecheck_timeout_seconds = 120.0
 typecheck_command = ["npm.cmd", "run", "typecheck"]
@@ -271,6 +272,12 @@ export_timezone = "Asia/Kolkata"
 mobile = { width = 390, height = 844 }
 tablet = { width = 768, height = 1024 }
 desktop = { width = 1440, height = 900 }
+
+[code_generator_verification.geometry_thresholds]
+min_text_px = 12.0
+min_touch_target_px = 36.0
+max_section_gap_vh = 0.9
+max_section_overlap_ratio = 0.2
 
 [artifact_storage]
 # Non-secret coordinates for the configured private preparation bucket.

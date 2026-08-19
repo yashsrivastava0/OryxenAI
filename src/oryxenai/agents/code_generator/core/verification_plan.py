@@ -54,6 +54,12 @@ def build_verification_profile(settings: Any) -> VerificationProfile:
         browser_name=str(getattr(config, "browser_name", "chromium")),
         browser_executable=str(getattr(config, "browser_executable", "") or ""),
         viewport_profiles={str(key): dict(value) for key, value in viewports.items()},
+        geometry_thresholds={
+            str(key): float(value)
+            for key, value in dict(
+                getattr(config, "geometry_thresholds", {}) if config is not None else {}
+            ).items()
+        },
         build_command=[
             str(item) for item in getattr(config, "build_command", ["npm", "run", "build"])
         ],
@@ -89,29 +95,65 @@ def derive_verification_plan(
             if isinstance(section, dict) and section.get("section_id")
         ]
         expected_text = _content_strings(content)
-        journey_id = f"direct:{route_id}"
+        preferred_viewport = _viewport_for_route(plan, route_id)
+        viewport_names = list(profile.viewport_profiles) or [preferred_viewport]
+        viewport_names = [
+            preferred_viewport,
+            *[item for item in viewport_names if item != preferred_viewport],
+        ]
+        for index, viewport_name in enumerate(viewport_names):
+            journey_id = (
+                f"direct:{route_id}" if index == 0 else f"direct:{route_id}:{viewport_name}"
+            )
+            journeys.append(
+                VerificationJourney(
+                    journey_id=journey_id,
+                    route_id=route_id,
+                    start_path=path,
+                    viewport_profile=viewport_name,
+                    steps=[
+                        VerificationStep(
+                            step_id=f"{journey_id}:load",
+                            action="load",
+                            expected_url=path,
+                            expected_content_ids=expected_ids,
+                            expected_text=expected_text,
+                        ),
+                        VerificationStep(
+                            step_id=f"{journey_id}:overflow",
+                            action="assert_overflow",
+                        ),
+                        VerificationStep(
+                            step_id=f"{journey_id}:geometry",
+                            action="assert_geometry",
+                        ),
+                        VerificationStep(
+                            step_id=f"{journey_id}:main",
+                            action="assert_accessible",
+                            target="main",
+                        ),
+                    ],
+                )
+            )
+        reduced_id = f"reduced-motion:{route_id}"
         journeys.append(
             VerificationJourney(
-                journey_id=journey_id,
+                journey_id=reduced_id,
                 route_id=route_id,
                 start_path=path,
-                viewport_profile=_viewport_for_route(plan, route_id),
+                viewport_profile=preferred_viewport,
+                motion_profile="reduce",
                 steps=[
                     VerificationStep(
-                        step_id=f"{journey_id}:load",
+                        step_id=f"{reduced_id}:load",
                         action="load",
                         expected_url=path,
                         expected_content_ids=expected_ids,
                         expected_text=expected_text,
                     ),
                     VerificationStep(
-                        step_id=f"{journey_id}:overflow",
-                        action="assert_overflow",
-                    ),
-                    VerificationStep(
-                        step_id=f"{journey_id}:main",
-                        action="assert_accessible",
-                        target="main",
+                        step_id=f"{reduced_id}:geometry",
+                        action="assert_geometry",
                     ),
                 ],
             )

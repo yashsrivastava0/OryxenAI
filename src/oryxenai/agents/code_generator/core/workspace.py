@@ -24,6 +24,7 @@ TRUSTED_SHELL_FILES = (
     "src/main.tsx",
     "src/app/AppRouter.tsx",
     "src/app/PreviewBridge.ts",
+    "src/app/ResourceUrl.ts",
     "src/app/ErrorBoundary.tsx",
     "src/design/global.css",
 )
@@ -202,7 +203,7 @@ class GenerationWorkspace:
             # and render it. Keeping TSX under public/ made the old contract
             # effectively recipe-only: a model could mention the filename but
             # had no valid module path to bind.
-            if relative.startswith("components/") and source.suffix.lower() in {".ts", ".tsx"}:
+            if relative.startswith("components/") or relative.startswith("fonts/"):
                 destination = self.repo_dir / "src" / "generated" / "resources" / "pack" / relative
             else:
                 destination = self.repo_dir / "public" / "resources" / "pack" / relative
@@ -234,9 +235,7 @@ class GenerationWorkspace:
                 digest = str(material.get("sha256", ""))
                 suffix = source.suffix.lower() or ".bin"
                 destination_name = f"{digest}{suffix}"
-                destination = (
-                    self.repo_dir / "public" / "resources" / "acquired" / destination_name
-                ).resolve()
+                destination = self._acquired_destination(source, destination_name)
                 if not destination.is_relative_to(self.repo_dir.resolve()):
                     raise WorkspaceError(
                         "RESOURCE_PATH_UNSAFE", "An acquired resource destination is unsafe."
@@ -276,7 +275,7 @@ class GenerationWorkspace:
         return True
 
     def materialize_acquired_file(self, source: Path, relative_name: str) -> str:
-        target = (self.repo_dir / "public" / "resources" / "acquired" / relative_name).resolve()
+        target = self._acquired_destination(source, relative_name)
         if not target.is_relative_to(self.repo_dir.resolve()):
             raise WorkspaceError(
                 "RESOURCE_PATH_UNSAFE", "An acquired resource destination is unsafe."
@@ -288,6 +287,28 @@ class GenerationWorkspace:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
         return target.relative_to(self.repo_dir).as_posix()
+
+    def _acquired_destination(self, source: Path, relative_name: str) -> Path:
+        """Place executable source under src/ and browser-served media under public/."""
+
+        executable_suffixes = {
+            ".css",
+            ".js",
+            ".jsx",
+            ".mjs",
+            ".otf",
+            ".ts",
+            ".tsx",
+            ".ttf",
+            ".woff",
+            ".woff2",
+        }
+        root = (
+            self.repo_dir / "src" / "generated" / "resources" / "acquired"
+            if source.suffix.casefold() in executable_suffixes
+            else self.repo_dir / "public" / "resources" / "acquired"
+        )
+        return (root / relative_name).resolve()
 
     @staticmethod
     def _assert_tree_safe(root: Path) -> None:

@@ -39,6 +39,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationProjection,
     GenerationResult,
     GenerationWorkUnitProjection,
+    IntegrationReviewV1,
     PlanDelta,
     ResourceBinding,
     ResourceLedger,
@@ -51,6 +52,9 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 )
 from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.integration_review_operation import (
+    run_integration_review_operation,
+)
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     ResourceProviderError,
@@ -104,7 +108,7 @@ class CodeGeneratorGenerationOrchestrator:
         del instance_id
         from oryxenai.core.settings import get_settings
 
-        run_id = UUID(str(payload["development_run_id"]))
+        run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
         settings = get_settings()
         sessionmaker = get_sessionmaker(settings)
         async with sessionmaker() as db:
@@ -380,10 +384,10 @@ class CodeGeneratorGenerationOrchestrator:
         role_profile = _profile_for(operation, settings)
         unit_projection = _unit_projection(projection, unit)
         if unit.kind == "integration":
-            # Integration is intentionally a deterministic terminal audit.
-            # The scaffold shell is immutable and all mutable source paths
-            # were already checkpointed by foundation/route units, so asking
-            # a model for an empty change payload only adds a failure mode.
+            # Always run the deterministic source audit first. Session runs
+            # then add one bounded, structured whole-site review and an
+            # owner-scoped polish pass; standalone compatibility runs keep
+            # their historical provider-free terminal audit.
             diagnostics = await run_source_checks(
                 workspace.repo_dir,
                 allowed_packages=allowed_packages,
@@ -398,6 +402,20 @@ class CodeGeneratorGenerationOrchestrator:
                 raise GenerationError(
                     "INTEGRATION_SOURCE_CHECK_FAILED",
                     "The completed source tree failed the deterministic integration audit.",
+                )
+            if str(getattr(run, "run_mode", "development")) == "session":
+                await self._review_and_polish(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    settings=settings,
+                    run=run,
+                    plan=plan,
+                    projections=projections,
+                    workspace=workspace,
+                    projection=projection,
+                    checkpoint=checkpoint,
+                    allowed_packages=allowed_packages,
+                    public_text=public_text,
                 )
             return checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
@@ -529,6 +547,257 @@ class CodeGeneratorGenerationOrchestrator:
                 work_unit_id=unit.unit_id,
                 parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
             )
+
+    async def _review_and_polish(
+        self,
+        *,
+        sessionmaker: Any,
+        run_id: UUID,
+        settings: Any,
+        run: Any,
+        plan: SitePlan,
+        projections: dict[str, dict[str, Any]],
+        workspace: GenerationWorkspace,
+        projection: GenerationProjection,
+        checkpoint: SourceCheckpoint | None,
+        allowed_packages: set[str],
+        public_text: set[str],
+    ) -> None:
+        review = await self._integration_review(
+            sessionmaker=sessionmaker,
+            run_id=run_id,
+            settings=settings,
+            run=run,
+            plan=plan,
+            workspace=workspace,
+            projection=projection,
+            round_number=0,
+        )
+        if review.status == "accepted":
+            return
+        owners = {item.unit_id: item for item in plan.work_graph.units if not item.terminal}
+        grouped: dict[str, list[SourceDiagnostic]] = {}
+        for finding in review.findings:
+            owner = owners.get(finding.owner_work_unit_id)
+            if owner is None:
+                raise GenerationError(
+                    "INTEGRATION_REVIEW_OWNER_INVALID",
+                    "The integration reviewer returned a finding without a valid work owner.",
+                )
+            grouped.setdefault(owner.unit_id, []).append(
+                SourceDiagnostic(
+                    diagnostic_id=f"integration-{finding.finding_id}",
+                    group="source_contract",
+                    code=finding.code,
+                    severity=finding.severity,
+                    phase="integration_review",
+                    normalized_message=finding.requested_outcome,
+                    work_unit_id=owner.unit_id,
+                    route_id=finding.route_id,
+                    file=finding.section_id,
+                    observed=finding.evidence,
+                    expected=finding.requested_outcome,
+                    fingerprint=digest(
+                        {
+                            "finding_id": finding.finding_id,
+                            "owner": owner.unit_id,
+                            "code": finding.code,
+                        }
+                    ),
+                )
+            )
+        for owner_id, diagnostics in grouped.items():
+            owner = owners[owner_id]
+            projection.diagnostics.extend(diagnostics)
+            role_profile = str(settings.code_generator_generation.repair_profile)
+            context = _operation_context(
+                plan=plan,
+                projections=projections,
+                unit=owner,
+                operation="repair",
+                checkpoint=checkpoint,
+                workspace=workspace,
+                role_profile=role_profile,
+                output_ceiling=int(settings.code_generator_generation.max_response_bytes),
+                diagnostics=diagnostics,
+                repair_round=1,
+            )
+            system, instructions, context_receipt = build_instructions("repair", context)
+            context_path = (
+                workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
+            )
+            workspace.write_json(context_path, context)
+            context_receipt = context_receipt.model_copy(
+                update={"stored_relative_path": context_path.relative_to(workspace.root).as_posix()}
+            )
+            projection.context_receipts.append(context_receipt)
+            result, call_receipt = await self._model_result(
+                settings=settings,
+                operation="repair",
+                role_profile=role_profile,
+                context=context,
+                system=system,
+                instructions=instructions,
+                context_receipt=context_receipt,
+                workspace=workspace,
+                generation_id=projection.generation_id,
+                unit_id=f"{owner.unit_id}-integration-polish",
+                request_round=0,
+            )
+            projection.call_receipts.append(call_receipt)
+            if result.mode != "changes":
+                raise GenerationError(
+                    "INTEGRATION_POLISH_INCOMPLETE",
+                    "The bounded integration polish pass did not return owner-scoped source changes.",
+                )
+            self._apply_changes(
+                changes=result.changes,
+                unit=owner,
+                plan=plan,
+                projections=projections,
+                workspace=workspace,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                settings=settings,
+                checkpoint=checkpoint,
+            )
+        diagnostics = await run_source_checks(
+            workspace.repo_dir,
+            allowed_packages=allowed_packages,
+            public_text=public_text,
+            max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+            work_unit_id="integration-review",
+            settings=settings,
+        )
+        if diagnostics:
+            projection.diagnostics.extend(diagnostics)
+            raise GenerationError(
+                "INTEGRATION_POLISH_SOURCE_CHECK_FAILED",
+                "The bounded integration polish pass introduced source diagnostics.",
+            )
+        final_review = await self._integration_review(
+            sessionmaker=sessionmaker,
+            run_id=run_id,
+            settings=settings,
+            run=run,
+            plan=plan,
+            workspace=workspace,
+            projection=projection,
+            round_number=1,
+        )
+        if final_review.status != "accepted":
+            raise GenerationError(
+                "INTEGRATION_REVIEW_UNRESOLVED",
+                "The completed source tree did not pass the bounded whole-site quality review.",
+            )
+
+    async def _integration_review(
+        self,
+        *,
+        sessionmaker: Any,
+        run_id: UUID,
+        settings: Any,
+        run: Any,
+        plan: SitePlan,
+        workspace: GenerationWorkspace,
+        projection: GenerationProjection,
+        round_number: int,
+    ) -> IntegrationReviewV1:
+        profile = str(settings.code_generator_generation.integration_profile)
+        client = self._client(settings, profile)
+        if client is None:
+            raise GenerationError(
+                "INTEGRATION_PROFILE_UNAVAILABLE",
+                "No usable model profile is configured for whole-site integration review.",
+            )
+        source: dict[str, str] = {}
+        source_bytes = 0
+        for path in sorted(workspace.repo_dir.rglob("*")):
+            if (
+                not path.is_file()
+                or path.suffix.casefold() not in {".css", ".html", ".js", ".jsx", ".ts", ".tsx"}
+                or any(part in {"node_modules", "dist"} for part in path.parts)
+            ):
+                continue
+            relative = path.relative_to(workspace.repo_dir).as_posix()
+            try:
+                value = path.read_text(encoding="utf-8")[:30_000]
+            except (OSError, UnicodeDecodeError):
+                continue
+            encoded_size = len(value.encode("utf-8"))
+            if source and source_bytes + encoded_size > 500_000:
+                break
+            source[relative] = value
+            source_bytes += encoded_size
+        context = {
+            "role_profile": profile,
+            "round": round_number,
+            "creative_direction": dict(getattr(run, "creative_direction", None) or {}),
+            "experience_blueprint": (
+                plan.experience_blueprint.model_dump(mode="json")
+                if plan.experience_blueprint is not None
+                else {}
+            ),
+            "work_graph": plan.work_graph.model_dump(mode="json"),
+            "execution_bindings": [
+                item.model_dump(mode="json") for item in plan.execution_bindings
+            ],
+            "assembled_source": source,
+        }
+        review, context_receipt, raw = await run_integration_review_operation(
+            client, context=context, profile_name=profile
+        )
+        context_path = workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
+        workspace.write_json(context_path, context)
+        context_receipt = context_receipt.model_copy(
+            update={"stored_relative_path": context_path.relative_to(workspace.root).as_posix()}
+        )
+        projection.context_receipts.append(context_receipt)
+        projection.call_receipts.append(
+            GenerationCallReceipt(
+                receipt_id=f"call-review-{context_receipt.context_hash[:20]}",
+                operation_id="integration_review",
+                idempotency_key=f"{projection.generation_id}:integration-review:{round_number}",
+                context_receipt_hash=context_receipt.context_hash,
+                result_hash=digest(review.model_dump(mode="json")),
+                profile=profile,
+                response_id=str(getattr(raw, "response_id", "") or ""),
+                model=str(getattr(raw, "model", "") or ""),
+                usage={
+                    str(key): int(value)
+                    for key, value in dict(getattr(raw, "usage", {}) or {}).items()
+                    if isinstance(value, int)
+                },
+                finish_reason=str(getattr(raw, "finish_reason", "") or ""),
+            )
+        )
+        await self._persist_integration_review(
+            sessionmaker, run_id, projection, review.model_dump(mode="json")
+        )
+        return review
+
+    async def _persist_integration_review(
+        self,
+        sessionmaker: Any,
+        run_id: UUID,
+        projection: GenerationProjection,
+        review: dict[str, Any],
+    ) -> None:
+        async with sessionmaker() as db:
+            repo = CodeGeneratorDevelopmentRepository(db)
+            run = await repo.get(run_id)
+            if run is None:
+                raise GenerationError("RUN_NOT_FOUND", "The generation run was not found.")
+            await _cas(
+                repo,
+                run,
+                DevelopmentRunStatus.INTEGRATING.value,
+                {
+                    "generation_projection": projection.model_dump(mode="json"),
+                    "integration_review": review,
+                },
+            )
+            await db.commit()
 
     def _apply_changes(
         self,
@@ -1035,6 +1304,22 @@ def _operation_context(
     # alone are not enough to author compatible imports.
     shared_source: dict[str, str] = {}
     if unit.kind != "foundation":
+        dependency_ids = set(unit.depends_on)
+        dependency_paths = [
+            owned_path
+            for dependency in plan.work_graph.units
+            if dependency.unit_id in dependency_ids
+            for owned_path in dependency.owns_paths
+            if "*" not in owned_path
+        ]
+        for relative in dependency_paths:
+            path = workspace.repo_dir / relative
+            if not path.is_file() or path.suffix.lower() not in {".ts", ".tsx", ".css"}:
+                continue
+            try:
+                shared_source[relative] = path.read_text(encoding="utf-8")[:30_000]
+            except (OSError, UnicodeDecodeError):
+                continue
         for path in sorted(workspace.repo_dir.rglob("*")):
             if (
                 not path.is_file()
@@ -1047,7 +1332,7 @@ def _operation_context(
                 shared_source[relative] = path.read_text(encoding="utf-8")[:20_000]
             except (OSError, UnicodeDecodeError):
                 continue
-            if len(shared_source) >= 24:
+            if len(shared_source) >= 32:
                 break
     # The rejected files from a prior attempt, when its candidate tree is
     # still on disk — the repairer needs the exact content it must correct.
@@ -1133,6 +1418,8 @@ def _owned_paths(
     if unit.kind == "integration":
         return []
     if unit.kind in {"route", "route_batch", "route_compose"}:
+        if unit.owns_paths:
+            return list(unit.owns_paths)
         # Route ownership is fully determined by the trusted route-registry
         # wiring: the site contract's storage key, never the plan's prose.
         route_id = unit.route_id or (unit.route_ids[0] if unit.route_ids else "route")
@@ -1169,10 +1456,6 @@ def _owned_paths(
             "src/design/motion.css",
             "src/components/shared/**",
         ]
-    if unit.kind == "integration":
-        # The integrator reconciles the completed tree: every route path
-        # plus the shared/design system it must keep coherent.
-        return ["src/design/**", "src/components/shared/**", "src/routes/**"]
     return []
 
 
