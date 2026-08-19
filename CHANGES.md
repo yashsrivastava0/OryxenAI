@@ -11,6 +11,25 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [6e2c072] - TypeScript source audit and exact runtime verification
+Added the V3 source-contract audit for local imports/exports, route landmarks,
+section and interaction ownership, trusted SharedSystems, forbidden network
+code, and executable resource usage. Strengthened browser verification with
+exact route/section/interaction outcomes, mounted-route handling, accessibility
+state, local-resource, and non-empty evidence checks.
+
+### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [e8d6ec1] - Build Preparation pack-v4 delegated acquisition
+Added explicit opt-in pack-v4 delegation after upstream resource attempts,
+closed provider/candidate policy, strict v3/v4 reader compatibility, and
+deterministic delegated image/font/component requests using the existing local
+retrieval and provenance boundary.
+
+### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [86b3e8d] - Design-neutral Code Generator V3 generation
+Added typed ExperienceBlueprintV3 tokens, trusted behavioral SharedSystems,
+deterministic token/content compilation, route-batch ownership, isolated
+parallel scheduling, and prompt/source regressions that remove generic
+scaffold styling and duplicate shell ownership.
+
 ### 2026-08-20 00:00 +05:30 - Codex (GPT-5) - [0c4901f] - Add fenced stage attempts and immutable workflow artifacts
 Added the Code Generator reliability spine: normalized stage-attempt rows and
 partial active-attempt fencing, trace/contract metadata on runs and events,
