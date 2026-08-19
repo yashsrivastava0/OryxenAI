@@ -164,7 +164,7 @@ max_work_units = 64
 max_events_page_size = 100
 # Local Build Preparation debug mirror consumed by the "from Build Preparation"
 # run source (newest eligible build-pack.zip wins).
-build_preparation_mirror_root = "output/live-build-preparation"
+build_preparation_mirror_root = "output/live-build-preparation/build-preparation"
 
 [code_generator_acquisition]
 allowlist_image_providers = ["pexels", "pixabay"]
