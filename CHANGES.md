@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 16:53 +05:30 - Codex (live provider run) - [237e0ed] - Align Build Preparation live response schemas
+Accepted responsive/reduced-motion query fields and the complete Stage 3/4
+context envelope emitted by the configured live model, then normalized the
+context metadata before downstream validation. Focused Build Preparation tests
+passed, and the approved production session completed live model/provider
+execution through packaging and verified R2 read-back; handoff remained blocked
+by an unresolved approved component role and duplicate decorative image bytes.
+
 ### 2026-08-19 16:40 +05:30 - Codex (model/provider omitted) - [45eafdc] - doc/run/run.md
 Added the reusable Docker runbook for Discovery, Content Architect, and Visual
 Design Director, including the observed migration failures, non-destructive
