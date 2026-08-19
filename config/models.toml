@@ -139,6 +139,29 @@ context_cache_metadata = false
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
+[profiles.code_generator_director]
+provider = "openai"
+model = "gpt-5.6-luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 300
+max_retries = 1
+max_output_tokens = 16000
+reasoning_effort = "high"
+store = false
+
+[profiles.code_generator_director.capabilities]
+json_object_mode = true
+json_schema_mode = true
+thinking_mode = true
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = false
+supports_store_parameter = true
+uses_max_completion_tokens = true
+
 [profiles.code_generator_planner]
 # Same live-confirmed endpoint/model family as the other agents (see
 # [profiles.discovery] notes). Automated tests inject a deterministic planner

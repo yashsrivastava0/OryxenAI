@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import mimetypes
+import posixpath
 import re
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -24,11 +25,12 @@ class ArtifactValidationError(ValueError):
         super().__init__(message)
 
 
-_REFERENCE_RE = re.compile(
-    r"(?:src|href)\s*=\s*[\"']([^\"'#?]+)|url\(\s*[\"']?([^\"')?#]+)",
+_HTML_REFERENCE_RE = re.compile(r"(?:src|href)\s*=\s*[\"']([^\"'#?]+)", re.IGNORECASE)
+_CSS_REFERENCE_RE = re.compile(r"url\(\s*[\"']?([^\"')?#]+)", re.IGNORECASE)
+_MODULE_REFERENCE_RE = re.compile(
+    r"(?:\bimport\s*\(\s*|\bimport\s+|\bexport\s+[^;]*?\s+from\s*)[\"']([^\"'#?]+)",
     re.IGNORECASE,
 )
-_MODULE_REFERENCE_RE = re.compile(r"(?:from|import)\s*\(?\s*[\"']([^\"'#?]+)", re.IGNORECASE)
 _REMOTE_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//)", re.IGNORECASE)
 
 
@@ -52,8 +54,14 @@ def _references(data: bytes, path: str) -> list[str]:
         return []
     text = data.decode("utf-8", errors="replace")
     values: list[str] = []
-    for first, second in _REFERENCE_RE.findall(text):
-        value = first or second
+    references: list[str] = []
+    if path.endswith((".html", ".htm")):
+        references.extend(_HTML_REFERENCE_RE.findall(text))
+    if path.endswith(".css"):
+        references.extend(_CSS_REFERENCE_RE.findall(text))
+    if path.endswith((".js", ".mjs")):
+        references.extend(_MODULE_REFERENCE_RE.findall(text))
+    for value in references:
         if not value or value.startswith(("data:", "#")) or _REMOTE_RE.match(value):
             if value and _REMOTE_RE.match(value):
                 raise ArtifactValidationError(
@@ -63,15 +71,6 @@ def _references(data: bytes, path: str) -> list[str]:
                 )
             continue
         values.append(value)
-    for value in _MODULE_REFERENCE_RE.findall(text):
-        if value and not value.startswith(("data:", "#")) and not _REMOTE_RE.match(value):
-            values.append(value)
-        elif value and _REMOTE_RE.match(value):
-            raise ArtifactValidationError(
-                "BUILD_REMOTE_REFERENCE",
-                "The production artifact contains a remote module reference.",
-                path=path,
-            )
     return sorted(set(values))
 
 
@@ -144,7 +143,14 @@ def _verify_references(entries: list[BuildManifestEntry], known: set[str]) -> No
             if reference.startswith("/"):
                 target = _safe_relative(normalized)
             else:
-                target = _safe_relative((base / normalized).as_posix())
+                target_value = posixpath.normpath((base / normalized).as_posix())
+                if target_value == ".." or target_value.startswith("../"):
+                    raise ArtifactValidationError(
+                        "BUILD_ARTIFACT_PATH_UNSAFE",
+                        "A production-artifact reference escapes the build root.",
+                        path=f"{entry.path} -> {reference}",
+                    )
+                target = _safe_relative(target_value)
             if target not in known and target != "index.html":
                 raise ArtifactValidationError(
                     "BUILD_REFERENCE_MISSING",

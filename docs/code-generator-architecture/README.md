@@ -1,7 +1,9 @@
-# Code Generator v1 — implementation handoff
+# Code Generator — implementation handoff
 
-**Status:** standalone Phases 1-4 implemented; production integration remains
-deferred. This is the compact implementation contract for D-013 and D-015.
+**Status:** standalone and explicit production-session workflows implemented.
+The v2 production overlay is defined in
+[v2-production-architecture.md](v2-production-architecture.md); this file
+retains the detailed four-phase implementation contract from D-013/D-015.
 Verify runtime completeness in `src/oryxenai/agents/code_generator/`, its
 service/job/API wiring, and the test suite.
 
@@ -62,12 +64,11 @@ all the way into source.
 - There is no cross-stage supervisor and no automatic chaining. A caller
   explicitly starts Code Generator after Build Preparation is eligible.
 
-The current implementation sequence intentionally develops Code Generator
-standalone first. During the four phases in
-[Approval-gated implementation phases](implementation-phases.md), a
-development-only fixture/upload adapter supplies pack-v3 input and a separate
-developer frontend drives the stage. Build Preparation and the main session
-flow are not wired until a later, separately planned integration task.
+The original standalone sequence remains documented in
+[Approval-gated implementation phases](implementation-phases.md). The v2
+production overlay now binds the approved Build Preparation package and exact
+temporary object to the portfolio session, queues the same durable workflow,
+and keeps the developer fixture/upload UI as a separate diagnostic surface.
 
 ## Build Preparation pack v3
 
@@ -389,33 +390,33 @@ computed from current upstream approval and pack identity.
 
 ## Public API and preview invariant
 
-The production session routes remain:
+The production session routes are:
 
 - `GET /api/v1/sessions/{session_id}/code-generator`
 - `POST /api/v1/sessions/{session_id}/code-generator/start`
 - `POST /api/v1/sessions/{session_id}/code-generator/regenerate`
 
 There are no revise, approve, retry-step, candidate-preview, history,
-alternate-build, or public-hosting endpoints in v1.
+alternate-build, or public-hosting endpoints.
 
 Each session has exactly one stable current preview, or none before its first
 successful generation. Work in progress is never exposed. A passing
 regeneration atomically replaces the current preview; a failing one keeps the
 last known-good preview.
 
-## Implementation order
+## Implemented stages
 
-Implementation is controlled by
-[implementation-phases.md](implementation-phases.md). Each phase requires its
-own inspected plan, explicit user approval, implementation, and verification
-before the next phase may be planned:
+The historical implementation sequence is recorded in
+[implementation-phases.md](implementation-phases.md):
 
 1. standalone spine, admission, planning, and developer-frontend shell;
 2. controlled resource and dependency acquisition;
 3. progressive source generation and integration; and
 4. final verification, finite repair, stable preview, and hardening.
 
-Build Preparation/main-flow integration is deliberately outside these phases.
+Build Preparation still does not auto-chain. An explicit session start now
+binds and verifies its R2 artifact before using these phases through the
+production coordinator.
 
 ## Required acceptance scenarios
 

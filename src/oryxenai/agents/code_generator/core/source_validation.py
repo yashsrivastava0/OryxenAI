@@ -117,6 +117,7 @@ def validate_generation_changes(
             "src/main.tsx",
             "src/app/AppRouter.tsx",
             "src/app/PreviewBridge.ts",
+            "src/app/ResourceUrl.ts",
             "src/app/ErrorBoundary.tsx",
             "src/design/global.css",
         }:
@@ -210,6 +211,7 @@ def validate_repository(
                     "src/main.tsx",
                     "src/app/AppRouter.tsx",
                     "src/app/PreviewBridge.ts",
+                    "src/app/ResourceUrl.ts",
                     "src/app/ErrorBoundary.tsx",
                     "src/design/global.css",
                 }
@@ -294,7 +296,9 @@ def _allowed_public_literal(value: str, public_text: set[str]) -> bool:
 
 def _validate_imports(text: str, path: str, allowed_packages: set[str]) -> None:
     for imported in _IMPORT_RE.findall(text):
-        if imported.startswith(".") or imported.startswith("/"):
+        if imported.startswith((".", "/", "@/")):
+            continue
+        if imported.startswith("node:") and path == "vite.config.ts":
             continue
         package = (
             imported

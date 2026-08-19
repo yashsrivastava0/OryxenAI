@@ -54,6 +54,32 @@ def test_artifact_zip_excludes_unlisted_files(tmp_path) -> None:
     assert b"node_modules" not in archive
 
 
+def test_artifact_manifest_handles_bundled_url_code_and_parent_asset_references(tmp_path) -> None:
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "fonts").mkdir()
+    (dist / "index.html").write_text(
+        '<script type="module" src="./assets/app.js"></script>', encoding="utf-8"
+    )
+    (dist / "assets" / "app.js").write_text(
+        "const route = new URL(link.href, window.location.href); console.log(route);",
+        encoding="utf-8",
+    )
+    (dist / "assets" / "app.css").write_text(
+        '@font-face { src: url("../fonts/body.woff2"); }', encoding="utf-8"
+    )
+    (dist / "fonts" / "body.woff2").write_bytes(b"font")
+
+    manifest = build_manifest(dist, candidate_identity_hash="identity", max_total_bytes=10000)
+
+    assert {entry.path for entry in manifest.entries} == {
+        "assets/app.css",
+        "assets/app.js",
+        "fonts/body.woff2",
+        "index.html",
+    }
+
+
 def test_repair_budget_detects_recurrence() -> None:
     diagnostic = Diagnostic(
         diagnostic_id="d1",

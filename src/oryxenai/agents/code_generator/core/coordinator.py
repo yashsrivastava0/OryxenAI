@@ -46,9 +46,14 @@ async def advance_after(
             "source_ready": str((run.source_checkpoint or {}).get("checkpoint_hash", "")),
         }[completed_stage]
         idempotency_key = f"{run.id}:{stage}:{key_material}:{run.revision}"
+        payload_key = (
+            "code_generator_run_id"
+            if str(getattr(run, "run_mode", "development")) == "session"
+            else "development_run_id"
+        )
         job = await JobService(db).enqueue(
             kind,
-            {"development_run_id": str(run.id), "coordinator_stage": stage},
+            {payload_key: str(run.id), "coordinator_stage": stage},
             idempotency_scope=kind,
             idempotency_key=idempotency_key,
         )

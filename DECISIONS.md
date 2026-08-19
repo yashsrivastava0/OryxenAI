@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-032 — Session-bound Code Generator with compiled visual execution
+
+- **Date & Time:** 2026-08-19 12:34 +05:30 — Codex (model/provider omitted)
+- **Status:** decided-implemented
+- **Context:** The standalone generator could admit a local pack but production sessions had no exact R2 consumption path, provider failures occurred only after durable work began, model-authored work ownership conflicted with route batching, and text/DOM smoke lacked enforceable composition and geometry quality.
+- **Decision:** Production Code Generator is an explicit, idempotent session stage over the same durable core. Start binds the eligible Build Preparation run/scope/object key/ETag/size/SHA/expiry, performs fixed no-context provider and local-toolchain preflight, then downloads and re-verifies the artifact in the worker. Structured calls compare two grounded concepts, compile an `ExperienceBlueprintV2`, generate disjoint host-owned route batches, and perform one bounded owner-scoped integration polish. Known pack slots remain authoritative; only emergent gaps use mediated acquisition. Promotion requires non-stale input, final source/build closure, all-route mobile/tablet/desktop and reduced-motion browser journeys, configurable geometry checks, and atomic replacement of the session-stable preview.
+- **Rejected alternatives:** Local-mirror recency as production input; request-time model overrides; a free-running supervisor/tool-calling model; model-authored paths and dependencies; one giant source response; screenshot/vision gates; build-only acceptance; generic style prompts without typed spatial/resource/motion contracts; promoting a candidate after upstream Build Preparation changes.
+- **Consequence:** Production and development attempts share one persistence/workflow implementation while preserving explicit caller sequencing. Failures retain safe provider/artifact/contract diagnostics and the previous active preview. Visual distinctiveness is still model-authored, but resource identity, work ownership, quality thresholds, browser geometry, staleness, and promotion remain deterministic host authority.
+
 ## D-031 — Shared local Pexels/Pixabay image retrieval
 
 - **Date & Time:** 2026-08-18 00:00 +05:30 — Codex (GPT-5 / OpenAI)
@@ -277,10 +286,10 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-08-17)
+## Summary (as of last update — 2026-08-19)
 
-- Total decisions logged: 27
-- Active decisions: 23 (D-001–D-005, D-007–D-009, D-011, D-013, D-015–D-027)
+- Total decisions logged: 32
+- Active decisions: 28 (D-001–D-005, D-007–D-009, D-011, D-013, D-015–D-032)
 - Superseded decisions: 4 (D-006, D-010, D-012, D-014)
-- By tool: Codex (17), Claude Code (4), OpenCode (1), Unspecified/Retroactive (5)
-- Last updated: 2026-08-17 — Codex (GPT-5 / OpenAI)
+- By tool: Codex (22), Claude Code (4), OpenCode (1), Unspecified/Retroactive (5)
+- Last updated: 2026-08-19 — Codex (model/provider omitted)

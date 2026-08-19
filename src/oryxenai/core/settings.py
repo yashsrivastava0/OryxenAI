@@ -287,6 +287,7 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     pack_version: str = "build-preparation-pack-v3"
     schema_version: str = "build-preparation-contract-v3"
     target_contract: str = "react-vite-v1"
+    director_profile: str = "code_generator_director"
     planner_profile: str = "code_generator_planner"
     max_upload_bytes: int = 16 * 1024 * 1024
     max_uncompressed_bytes: int = 64 * 1024 * 1024
@@ -440,6 +441,8 @@ class CodeGeneratorVerificationConfig(BaseModel):
             "runtime.navigation",
             "runtime.assets",
             "runtime.accessibility",
+            "runtime.geometry",
+            "runtime.reduced_motion",
         ]
     )
     viewport_profiles: dict[str, dict[str, int]] = Field(
@@ -447,6 +450,14 @@ class CodeGeneratorVerificationConfig(BaseModel):
             "mobile": {"width": 390, "height": 844},
             "tablet": {"width": 768, "height": 1024},
             "desktop": {"width": 1440, "height": 900},
+        }
+    )
+    geometry_thresholds: dict[str, float] = Field(
+        default_factory=lambda: {
+            "min_text_px": 12.0,
+            "min_touch_target_px": 36.0,
+            "max_section_gap_vh": 0.9,
+            "max_section_overlap_ratio": 0.2,
         }
     )
     preview_root: str = ".workspace/code-generator-preview"

@@ -1,4 +1,4 @@
-"""Repository for standalone Code Generator Phase 1 development runs."""
+"""Repository for session and development Code Generator runs."""
 
 from __future__ import annotations
 
@@ -24,10 +24,24 @@ class CodeGeneratorDevelopmentRepository:
         input_reference: dict[str, object],
         idempotency_key: str | None,
         auto_advance: bool = False,
+        run_mode: str = "development",
+        portfolio_session_id: UUID | None = None,
+        idempotency_scope: str = "development",
+        build_preparation_source_ref: dict[str, object] | None = None,
+        artifact_reference: dict[str, object] | None = None,
+        preflight_receipt: dict[str, object] | None = None,
+        preview_host: str | None = None,
     ) -> CodeGeneratorDevelopmentRun:
         run = CodeGeneratorDevelopmentRun(
             input_reference=input_reference,
             idempotency_key=idempotency_key or None,
+            idempotency_scope=idempotency_scope,
+            run_mode=run_mode,
+            portfolio_session_id=portfolio_session_id,
+            build_preparation_source_ref=build_preparation_source_ref,
+            artifact_reference=artifact_reference,
+            preflight_receipt=preflight_receipt,
+            preview_host=preview_host,
             # Direct repository callers are diagnostic/manual by default. The
             # HTTP service opts into the durable coordinator explicitly.
             auto_advance=auto_advance,
@@ -37,11 +51,34 @@ class CodeGeneratorDevelopmentRepository:
         await self._session.refresh(run)
         return run
 
-    async def find_idempotent(self, key: str) -> CodeGeneratorDevelopmentRun | None:
+    async def find_idempotent(
+        self, key: str, *, scope: str = "development"
+    ) -> CodeGeneratorDevelopmentRun | None:
         result = await self._session.execute(
             select(CodeGeneratorDevelopmentRun).where(
-                CodeGeneratorDevelopmentRun.idempotency_key == key
+                CodeGeneratorDevelopmentRun.idempotency_key == key,
+                CodeGeneratorDevelopmentRun.idempotency_scope == scope,
             )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_for_session(
+        self, run_id: UUID, session_id: UUID
+    ) -> CodeGeneratorDevelopmentRun | None:
+        result = await self._session.execute(
+            select(CodeGeneratorDevelopmentRun).where(
+                CodeGeneratorDevelopmentRun.id == run_id,
+                CodeGeneratorDevelopmentRun.portfolio_session_id == session_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def latest_for_session(self, session_id: UUID) -> CodeGeneratorDevelopmentRun | None:
+        result = await self._session.execute(
+            select(CodeGeneratorDevelopmentRun)
+            .where(CodeGeneratorDevelopmentRun.portfolio_session_id == session_id)
+            .order_by(CodeGeneratorDevelopmentRun.created_at.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 

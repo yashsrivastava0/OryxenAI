@@ -43,7 +43,12 @@ class AdmittedInputReference(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["fixture", "upload", "build_preparation_mirror"]
+    mode: Literal[
+        "fixture",
+        "upload",
+        "build_preparation_mirror",
+        "build_preparation_artifact",
+    ]
     source_id: str
     original_filename: str
     mime_type: str = "application/zip"
@@ -485,6 +490,172 @@ class ResponsiveBehavior(BaseModel):
     touch_target_strategy: str = ""
 
 
+class CreativeConcept(BaseModel):
+    """One content-specific visual concept considered before planning source."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    concept_id: str
+    thesis: str
+    typography_direction: str
+    composition_direction: str
+    color_direction: str
+    motion_direction: str
+    resource_fit: list[str] = Field(default_factory=list)
+    distinguishing_moves: list[str] = Field(default_factory=list)
+    avoid: list[str] = Field(default_factory=list)
+
+
+class CreativeDirectionSetV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-creative-direction-v2"] = (
+        "code-generator-creative-direction-v2"
+    )
+    candidates: list[CreativeConcept]
+    recommended_concept_id: str
+    recommendation_basis: str
+
+    @model_validator(mode="after")
+    def validate_candidates(self) -> CreativeDirectionSetV2:
+        ids = [item.concept_id for item in self.candidates]
+        if len(ids) != 2 or len(set(ids)) != 2:
+            raise ValueError("creative direction requires exactly two distinct candidates")
+        if self.recommended_concept_id not in ids:
+            raise ValueError("recommended concept must reference a candidate")
+        if not all(
+            item.thesis.strip()
+            and item.typography_direction.strip()
+            and item.composition_direction.strip()
+            and item.distinguishing_moves
+            for item in self.candidates
+        ):
+            raise ValueError("creative candidates must be concrete and distinguishable")
+        return self
+
+
+class ResponsiveState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    viewport: Literal["mobile", "tablet", "desktop"]
+    layout_mode: str
+    column_count: int = Field(ge=1, le=12)
+    content_order: list[str] = Field(default_factory=list)
+    gutter_px: int = Field(ge=0, le=160)
+    gap_px: int = Field(ge=0, le=240)
+
+
+class LayoutRegion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    region_id: str
+    route_id: str
+    section_id: str
+    composition_intent: str
+    min_height_strategy: str
+    max_measure_ch: int = Field(default=72, ge=20, le=120)
+    responsive_states: list[ResponsiveState]
+    allowed_overlap_with: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_responsive_states(self) -> LayoutRegion:
+        if {item.viewport for item in self.responsive_states} != {
+            "mobile",
+            "tablet",
+            "desktop",
+        }:
+            raise ValueError("layout regions require mobile, tablet, and desktop states")
+        return self
+
+
+class TypographyBindingV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    family: str
+    weights: list[int]
+    body_size_min_rem: float = Field(gt=0)
+    body_size_max_rem: float = Field(gt=0)
+    heading_scale_ratio: float = Field(gt=1, le=2.5)
+    body_line_height: float = Field(ge=1, le=2.2)
+
+
+class DesignTokenSystemV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    colors: dict[str, str]
+    spacing_rem: list[float]
+    radii_rem: list[float] = Field(default_factory=list)
+    typography: TypographyBindingV2
+    container_max_px: int = Field(ge=720, le=2400)
+
+
+class MotionBeatV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    motion_id: str
+    route_id: str
+    section_id: str = ""
+    trigger: Literal["load", "viewport", "hover", "focus", "activate"]
+    target_region_id: str
+    properties: list[str]
+    duration_ms: int = Field(ge=0, le=2000)
+    easing: str
+    stagger_ms: int = Field(default=0, ge=0, le=500)
+    reduced_motion_replacement: str
+
+
+class ResourceUsagePlanV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    route_id: str
+    section_id: str
+    region_id: str
+    purpose: str
+    alt_policy: Literal["decorative", "approved_text", "contextual_description"]
+    crop_strategy: str = ""
+    loading: Literal["eager", "lazy"] = "lazy"
+
+
+class ExperienceBlueprintV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-experience-blueprint-v2"] = (
+        "code-generator-experience-blueprint-v2"
+    )
+    selected_concept_id: str
+    narrative_arc: str
+    tokens: DesignTokenSystemV2
+    layout_regions: list[LayoutRegion]
+    resource_usage: list[ResourceUsagePlanV2] = Field(default_factory=list)
+    motion_beats: list[MotionBeatV2] = Field(default_factory=list)
+    anti_patterns: list[str] = Field(default_factory=list)
+
+
+class ExecutionBindingV2(BaseModel):
+    """Compiled executable placement for one resolved pack or acquired slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    route_id: str
+    section_ids: list[str] = Field(default_factory=list)
+    category: str
+    purpose: str
+    resolution_type: str
+    local_paths: list[str] = Field(default_factory=list)
+    package_name: str = ""
+    expected_exports: list[str] = Field(default_factory=list)
+    font_family: str = ""
+    font_weights: list[str] = Field(default_factory=list)
+    required: bool = False
+    provenance: dict[str, str] = Field(default_factory=dict)
+    responsive_behavior: str = ""
+    reduced_motion_behavior: str = ""
+    fallback_behavior: str = ""
+
+
 class CreativeThesis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -599,7 +770,9 @@ class SitePlan(BaseModel):
     routes: list[RoutePlan]
     shared_systems: list[str] = Field(default_factory=list)
     resource_slots: list[ResourceSlot] = Field(default_factory=list)
-    work_graph: WorkGraph
+    # Path ownership is compiled deterministically after the model call.  The
+    # field remains in the transport schema for backward compatibility.
+    work_graph: WorkGraph = Field(default_factory=lambda: WorkGraph(units=[]))
     creative_thesis: CreativeThesis = Field(default_factory=CreativeThesis)
     visual_system: VisualSystem = Field(default_factory=VisualSystem)
     shell: ShellContract = Field(default_factory=ShellContract)
@@ -607,6 +780,8 @@ class SitePlan(BaseModel):
     interactions: list[InteractionContract] = Field(default_factory=list)
     resource_inventory: list[ResourceInventoryItem] = Field(default_factory=list)
     acceptance_coverage: list[AcceptanceCoverageItem] = Field(default_factory=list)
+    experience_blueprint: ExperienceBlueprintV2 | None = None
+    execution_bindings: list[ExecutionBindingV2] = Field(default_factory=list)
 
 
 class SourceFileChange(BaseModel):
@@ -644,6 +819,13 @@ class GenerationCannotComplete(BaseModel):
     missing_authority_or_capability: str = ""
 
 
+class GenerationAccepted(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    summary: str
+    verified_contracts: list[str] = Field(default_factory=list)
+
+
 class GenerationResult(BaseModel):
     """Strict, tagged result returned by foundation/route/repair operations."""
 
@@ -654,9 +836,10 @@ class GenerationResult(BaseModel):
     )
     operation_id: str
     based_on_context_receipt: str
-    mode: Literal["changes", "requests", "cannot_complete"]
+    mode: Literal["changes", "requests", "accepted", "cannot_complete"]
     changes: GenerationChanges | None = None
     requests: GenerationRequests | None = None
+    accepted: GenerationAccepted | None = None
     cannot_complete: GenerationCannotComplete | None = None
 
     @model_validator(mode="before")
@@ -669,19 +852,22 @@ class GenerationResult(BaseModel):
         if not isinstance(data, dict):
             return data
         present = [
-            key for key in ("changes", "requests", "cannot_complete") if data.get(key) is not None
+            key
+            for key in ("changes", "requests", "accepted", "cannot_complete")
+            if data.get(key) is not None
         ]
         mode = data.get("mode")
-        if mode in {"changes", "requests", "cannot_complete"} and data.get(mode) is None:
+        valid_modes = {"changes", "requests", "accepted", "cannot_complete"}
+        if mode in valid_modes and data.get(mode) is None:
             # The tag points at an empty payload; adopt the one present one.
             if len(present) == 1:
                 mode = present[0]
                 data["mode"] = mode
-        elif mode not in {"changes", "requests", "cannot_complete"} and len(present) == 1:
+        elif mode not in valid_modes and len(present) == 1:
             mode = present[0]
             data["mode"] = mode
-        if mode in {"changes", "requests", "cannot_complete"}:
-            for key in ("changes", "requests", "cannot_complete"):
+        if mode in valid_modes:
+            for key in ("changes", "requests", "accepted", "cannot_complete"):
                 if key != mode:
                     data[key] = None
         return data
@@ -691,6 +877,7 @@ class GenerationResult(BaseModel):
         payloads = {
             "changes": self.changes,
             "requests": self.requests,
+            "accepted": self.accepted,
             "cannot_complete": self.cannot_complete,
         }
         if payloads[self.mode] is None:
@@ -702,6 +889,53 @@ class GenerationResult(BaseModel):
             or not (self.requests.resource_requests or self.requests.dependency_requests)
         ):
             raise ValueError("requests mode requires a resource or dependency request")
+        return self
+
+
+class IntegrationFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    severity: Literal["blocking", "advisory"]
+    route_id: str = ""
+    section_id: str = ""
+    owner_work_unit_id: str
+    code: str
+    evidence: str
+    requested_outcome: str
+
+
+class IntegrationReviewV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-integration-review-v1"] = (
+        "code-generator-integration-review-v1"
+    )
+    status: Literal["accepted", "findings"]
+    findings: list[IntegrationFinding] = Field(default_factory=list)
+    distinctiveness_score: int = Field(ge=1, le=5)
+    composition_score: int = Field(ge=1, le=5)
+    typography_score: int = Field(ge=1, le=5)
+    resource_fit_score: int = Field(ge=1, le=5)
+    motion_score: int = Field(ge=1, le=5)
+
+    @model_validator(mode="after")
+    def validate_status(self) -> IntegrationReviewV1:
+        if self.status == "accepted" and self.findings:
+            raise ValueError("accepted integration review cannot contain findings")
+        scores = (
+            self.distinctiveness_score,
+            self.composition_score,
+            self.typography_score,
+            self.resource_fit_score,
+            self.motion_score,
+        )
+        if self.status == "accepted" and min(scores) < 4:
+            raise ValueError(
+                "accepted integration review requires every quality score to be at least 4"
+            )
+        if self.status == "findings" and not self.findings:
+            raise ValueError("findings integration review requires findings")
         return self
 
 
@@ -866,6 +1100,7 @@ class VerificationProfile(BaseModel):
     browser_name: str = "chromium"
     browser_executable: str = ""
     viewport_profiles: dict[str, dict[str, int]] = Field(default_factory=dict)
+    geometry_thresholds: dict[str, float] = Field(default_factory=dict)
     build_command: list[str] = Field(default_factory=lambda: ["npm", "run", "build"])
     typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
     profile_hash: str = ""
@@ -898,6 +1133,7 @@ class VerificationStep(BaseModel):
         "assert_content",
         "assert_accessible",
         "assert_overflow",
+        "assert_geometry",
     ]
     target: str = ""
     expected_url: str = ""
@@ -1049,6 +1285,7 @@ class RuntimeEvidence(BaseModel):
     csp_violations: list[str] = Field(default_factory=list)
     focus_results: list[dict[str, str | bool]] = Field(default_factory=list)
     overflow_results: list[dict[str, str | int | bool]] = Field(default_factory=list)
+    geometry_results: list[dict[str, Any]] = Field(default_factory=list)
     passed: bool
 
 
@@ -1219,9 +1456,17 @@ class DevelopmentRunProjection(BaseModel):
     status: DevelopmentRunStatus
     revision: int
     current_attempt: int = 0
+    run_mode: Literal["development", "session"] = "development"
+    portfolio_session_id: str = ""
     auto_advance: bool = True
     coordinator_stage: str = "plan"
     selected_pack_receipt: dict[str, Any] | None = None
+    build_preparation_source_ref: dict[str, Any] | None = None
+    artifact_reference: dict[str, Any] | None = None
+    artifact_receipt: dict[str, Any] | None = None
+    preflight_receipt: dict[str, Any] | None = None
+    creative_direction: dict[str, Any] | None = None
+    integration_review: dict[str, Any] | None = None
     job_id: str = ""
     input: AdmittedInputReference
     input_receipt: InputReceipt | None = None

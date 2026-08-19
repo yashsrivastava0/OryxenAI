@@ -78,6 +78,17 @@ All model-backed agents call their configured model through the provider-neutral
 per profile; never trust a model name written in prose documentation,
 including this one, since it changes independently of any doc.
 
+**Code Generator is implemented as both a standalone development harness and
+an explicit production session stage.** Production start requires one eligible
+Build Preparation artifact and binds its immutable object metadata before
+durable planning. The shared workflow performs structured creative direction
+and planning, deterministic work-graph/resource compilation, controlled
+acquisition, progressive generation, bounded integration review/repair, clean
+build, multi-viewport DOM/geometry verification, and atomic stable-preview
+promotion. It never auto-chains from Build Preparation. See
+`src/oryxenai/agents/code_generator/` and
+`docs/code-generator-architecture/v2-production-architecture.md`.
+
 To verify current status rather than trusting this document: run
 `uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
 **plus** a `service.py`/`state.py` — an agent directory with only
@@ -86,16 +97,17 @@ deterministic mock, not a live implementation.
 
 ## What is deliberately still mocked or excluded
 
-- The registry-compatible Code Generator agent exposes the same model-backed,
-  structured planner operation used by the durable workflow. Its feature-gated
-  standalone development workflow implements v3 admission, planning,
+- The registry-compatible Code Generator agent exposes the same structured
+  planner boundary used by the durable workflow. Its standalone development
+  harness and explicit production-session API share v3 admission, planning,
   controlled acquisition, progressive source generation, checkpoints, clean
-  build/runtime verification, finite repair, atomic preview promotion, and
-  source/preview API/UI. Production session integration remains deferred; see
-  `DECISIONS.md` D-015 and `docs/code-generator-architecture/`.
+  build/runtime verification, finite repair, and atomic preview promotion.
+  Build Preparation still does not auto-chain; see `DECISIONS.md` and
+  `docs/code-generator-architecture/`.
 - Normal tests use checked-in fixtures; live model calls are opt-in.
-- No automatic production-session portfolio generation, publishing, web
-  research, or automatic chaining between agents.
+- No automatic chaining, public publishing, or generated-site runtime web
+  access. Production Code Generator starts only through its explicit session
+  endpoint.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
 - No authentication, billing, Supabase, or published-portfolio deployment
@@ -137,7 +149,7 @@ src/oryxenai/
   agents/shared/             contracts, registry, executor, model_client
   agents/{discovery, content_architect, visual_design_director, code_generator}/
   runtime/                   state_service, mock_runner
-  api/routes/                health, agents, sessions, runs, system, discovery, content-architect, visual-design-director
+  api/routes/                stage/session APIs including build-preparation and code-generator
   web/                       Jinja2 templates + static assets
 config/                      committed non-secret TOML configuration
 migrations/                  Alembic (async, settings-driven)
@@ -326,10 +338,9 @@ Content Architect's architecture one stage down the pipeline:
 
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
-- **Code Generator production integration remains unimplemented** — the
-  standalone Phases 1-4 workflow is under
-  `docs/code-generator-architecture/`, and Build Preparation does not
-  auto-chain into it.
+- **Evaluate Code Generator production generations** with privacy-safe packs;
+  the explicit session integration is implemented, while Build Preparation
+  deliberately does not auto-chain into it.
 
 ## Multi-agent collaboration protocol
 

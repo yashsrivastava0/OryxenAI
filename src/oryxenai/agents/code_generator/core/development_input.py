@@ -133,6 +133,22 @@ class DevelopmentInputAdapter:
             mode="upload", source_id=_sha256(data), filename=filename, data=data
         )
 
+    def from_build_preparation_artifact(
+        self, *, source_id: str, filename: str, data: bytes
+    ) -> AdmittedInputReference:
+        """Store a verified object-store download in the common immutable input area."""
+
+        if len(data) > int(self._config.max_uncompressed_bytes):
+            raise DevelopmentInputError(
+                "ARTIFACT_TOO_LARGE", "The Build Preparation artifact exceeds the configured limit."
+            )
+        return self._store_source(
+            mode="build_preparation_artifact",
+            source_id=source_id,
+            filename=filename,
+            data=data,
+        )
+
     def list_build_preparation_packs(self) -> list[dict[str, Any]]:
         """Newest-first summary of local Build Preparation debug-mirror packs."""
 

@@ -70,7 +70,7 @@ def materialize_trusted_manifests(
             {
                 "path": path,
                 "usage": "module" if path.startswith("src/generated/resources/") else "url",
-                "reference": (path.removeprefix("public") if path.startswith("public/") else path),
+                "reference": (path.removeprefix("public/") if path.startswith("public/") else path),
             }
             for path in copied_resources
         ],

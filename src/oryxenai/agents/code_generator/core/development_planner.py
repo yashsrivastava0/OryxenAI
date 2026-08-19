@@ -54,7 +54,11 @@ def context_hash(context: dict[str, Any]) -> str:
 
 
 def validate_site_plan(
-    value: SitePlan, projections: dict[str, dict[str, Any]], *, max_work_units: int = 64
+    value: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    *,
+    max_work_units: int = 64,
+    require_blueprint: bool = False,
 ) -> SitePlan:
     site_routes = projections["site/contract.json"].get("routes", [])
     content = projections["site/contract.json"].get("public_content", [])
@@ -113,8 +117,96 @@ def validate_site_plan(
             "PLAN_WORK_UNIT_CEILING", "The WorkGraph exceeds the configured planning ceiling."
         )
     _validate_design_contract(value, expected_paths, site_routes, projections["site/contract.json"])
+    if require_blueprint:
+        _validate_experience_blueprint(value, expected_paths, expected_sections)
     _validate_work_graph(value, set(expected_paths), expected_sections)
     return value
+
+
+def _validate_experience_blueprint(
+    plan: SitePlan,
+    expected_paths: dict[str, str],
+    expected_sections: dict[str, set[str]],
+) -> None:
+    blueprint = plan.experience_blueprint
+    if blueprint is None:
+        raise SitePlanValidationError(
+            "PLAN_BLUEPRINT_REQUIRED",
+            "Session generation requires a measurable ExperienceBlueprintV2.",
+        )
+    region_ids = [item.region_id for item in blueprint.layout_regions]
+    if len(region_ids) != len(set(region_ids)):
+        raise SitePlanValidationError("PLAN_LAYOUT_REGION_IDS", "Layout-region IDs must be unique.")
+    covered: dict[str, set[str]] = {}
+    for region in blueprint.layout_regions:
+        if region.route_id not in expected_paths or region.section_id not in expected_sections.get(
+            region.route_id, set()
+        ):
+            raise SitePlanValidationError(
+                "PLAN_LAYOUT_REGION_SCOPE", "A layout region is outside approved route scope."
+            )
+        covered.setdefault(region.route_id, set()).add(region.section_id)
+    if covered != expected_sections:
+        raise SitePlanValidationError(
+            "PLAN_LAYOUT_REGION_COVERAGE",
+            "The experience blueprint must cover every approved section.",
+        )
+    if len(blueprint.layout_regions) != sum(len(items) for items in expected_sections.values()):
+        raise SitePlanValidationError(
+            "PLAN_LAYOUT_REGION_DUPLICATE",
+            "Each approved section must have exactly one layout region.",
+        )
+    regions = {item.region_id: item for item in blueprint.layout_regions}
+    binding_ids = {item.resource_slot_id for item in plan.execution_bindings}
+    bindings = {item.resource_slot_id: item for item in plan.execution_bindings}
+    typography_binding = bindings.get(blueprint.tokens.typography.resource_slot_id)
+    if typography_binding is None or "font" not in typography_binding.category.casefold():
+        raise SitePlanValidationError(
+            "PLAN_TYPOGRAPHY_BINDING",
+            "Blueprint typography must reference an admitted executable font binding.",
+        )
+    used_slots: set[str] = set()
+    for usage in blueprint.resource_usage:
+        usage_region = regions.get(usage.region_id)
+        if (
+            usage.resource_slot_id not in binding_ids
+            or usage.route_id not in expected_paths
+            or usage.section_id not in expected_sections.get(usage.route_id, set())
+            or usage_region is None
+            or usage_region.route_id != usage.route_id
+            or usage_region.section_id != usage.section_id
+        ):
+            raise SitePlanValidationError(
+                "PLAN_RESOURCE_USAGE_SCOPE",
+                "Blueprint resource usage must reference an executable binding and approved region.",
+            )
+        used_slots.add(usage.resource_slot_id)
+    required_visual_slots = {
+        item.resource_slot_id
+        for item in plan.execution_bindings
+        if item.required
+        and any(
+            value in item.category.casefold()
+            for value in ("image", "photo", "media", "illustration", "texture", "visual")
+        )
+    }
+    if not required_visual_slots.issubset(used_slots):
+        raise SitePlanValidationError(
+            "PLAN_REQUIRED_VISUAL_USAGE",
+            "Every required visual binding must have an approved section-level usage plan.",
+        )
+    for beat in blueprint.motion_beats:
+        beat_region = regions.get(beat.target_region_id)
+        if (
+            beat_region is None
+            or beat.route_id != beat_region.route_id
+            or (beat.section_id and beat.section_id != beat_region.section_id)
+            or not beat.reduced_motion_replacement.strip()
+        ):
+            raise SitePlanValidationError(
+                "PLAN_MOTION_SCOPE",
+                "Motion beats must target an approved region with an explicit reduced-motion replacement.",
+            )
 
 
 def _route_path(value: str) -> bool:
