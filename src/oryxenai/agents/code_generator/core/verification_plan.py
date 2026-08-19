@@ -48,6 +48,7 @@ def build_verification_profile(settings: Any) -> VerificationProfile:
                     "runtime.navigation",
                     "runtime.assets",
                     "runtime.accessibility",
+                    "runtime.interactions",
                 ],
             )
         ),
@@ -229,6 +230,7 @@ def derive_verification_plan(
         if not interaction_id or not route:
             continue
         trigger = str(interaction_data.get("trigger", "click")).casefold()
+        keyboard_behavior = str(interaction_data.get("keyboard_behavior", "")).casefold()
         planned_url = str(interaction_data.get("expected_url", ""))
         interaction_target = str(interaction_data.get("target", "")).strip()
         is_css_selector = bool(
@@ -275,6 +277,11 @@ def derive_verification_plan(
                         expected_outcome=str(interaction_data.get("outcome", "")),
                         expected_url=enforceable_url,
                         expected_accessible_name=str(interaction_data.get("accessible_name", "")),
+                        expected_accessible_state={
+                            "escape_closes": "escape" in keyboard_behavior,
+                            "focus_return": "focus" in keyboard_behavior
+                            and ("return" in keyboard_behavior or "restore" in keyboard_behavior),
+                        },
                     ),
                 ],
             )
@@ -294,6 +301,9 @@ def derive_verification_plan(
         source_checks=list(profile.source_check_ids),
         build_checks=list(profile.build_check_ids),
         runtime_journeys=journeys,
+        expected_route_paths=sorted(
+            {str(route.get("path", "/")) for route in routes if str(route.get("path", ""))}
+        ),
         expected_local_resources=sorted(set(expected_resources)),
         expected_check_ids=sorted(set(check_ids + [journey.journey_id for journey in journeys])),
     )
