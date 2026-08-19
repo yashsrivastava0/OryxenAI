@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 15:47 +05:30 - Codex (live provider run) - [3c1ff43] - Harden live Code Generator generation and runtime repair
+Added a narrowly scoped JSON-object fallback for provider rejection of strict
+dictionary schemas, encoding-safe approved-copy validation, semantic exclusion
+of hidden/off-screen controls from geometry checks, and a bounded route CSS
+touch-target repair with prompt guidance for future generations. Updated
+AGENTS.md so explicit run/generation requests use configured live LLM/API calls
+by default. Verified against the selected Build Preparation pack through a live
+ready run, passed source/build/DOM/runtime gates, all route/viewports and
+reduced-motion/unknown-route journeys, and promoted an atomic preview/export.
+
 ### 2026-08-19 13:49 +05:30 - Codex (model/provider omitted) - [8a85438] - Consume nested Build Preparation mirror output
 Pointed Code Generator's local mirror configuration at the actual `output/live-build-preparation/build-preparation` pack directory. The requested pack is now discovered and admitted through the normal workflow; a live planner retry remains provider-consent blocked.
 
