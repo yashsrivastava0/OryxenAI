@@ -28,7 +28,10 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
 )
-from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
+from oryxenai.agents.code_generator.core.development_input import (
+    DevelopmentInputAdapter,
+    DevelopmentInputError,
+)
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyLedger,
@@ -68,7 +71,11 @@ from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
 )
-from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace, WorkspaceError
+from oryxenai.agents.code_generator.core.workspace import (
+    GenerationWorkspace,
+    WorkspaceError,
+    repository_root,
+)
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
@@ -92,6 +99,11 @@ class GenerationError(ValueError):
         self.code = code
         self.message = message
         super().__init__(message)
+
+
+def _resolve_config_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else (repository_root() / path).resolve()
 
 
 class CodeGeneratorGenerationOrchestrator:
@@ -192,12 +204,17 @@ class CodeGeneratorGenerationOrchestrator:
                 acquisition_ledger=run.resource_ledger,
                 # Receipt local_paths are recorded relative to the configured
                 # materials root (already prefixed with the run id).
-                acquisition_materials_root=Path(
+                acquisition_materials_root=_resolve_config_path(
                     settings.code_generator_acquisition.materials_root
-                ).resolve(),
+                ),
             )
+            configured_workspace_root = Path(settings.code_generator_dependencies.workspaces_root)
             dependency_repo = (
-                Path(settings.code_generator_dependencies.workspaces_root).resolve()
+                (
+                    configured_workspace_root
+                    if configured_workspace_root.is_absolute()
+                    else (repository_root() / configured_workspace_root).resolve()
+                )
                 / str(run_id)
                 / "repo"
             )
@@ -285,6 +302,18 @@ class CodeGeneratorGenerationOrchestrator:
                     code=code,
                     message=message,
                     next_action="Review the generation issue and start a corrected run.",
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        except DevelopmentInputError as exc:
+            await self._fail(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code=exc.code,
+                    message=exc.message,
+                    next_action="Review the generation input and start a corrected run.",
+                    details=exc.details,
                 ),
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
@@ -962,9 +991,9 @@ class CodeGeneratorGenerationOrchestrator:
         bindings = list(resource_ledger.active_bindings)
         deltas = list(resource_ledger.plan_deltas)
         adapters = self._adapters(settings)
-        materials_root = Path(settings.code_generator_acquisition.materials_root).resolve() / str(
-            run_id
-        )
+        materials_root = _resolve_config_path(
+            settings.code_generator_acquisition.materials_root
+        ) / str(run_id)
         for request in requests.resource_requests:
             if any(receipt.request_hash == request.request_hash for receipt in receipts):
                 continue

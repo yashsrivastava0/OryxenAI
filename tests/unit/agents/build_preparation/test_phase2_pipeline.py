@@ -6,7 +6,10 @@ from uuid import uuid4
 
 import pytest
 
-from oryxenai.agents.build_preparation.agent import BuildPreparationAgent
+from oryxenai.agents.build_preparation.agent import (
+    BuildPreparationAgent,
+    _normalize_context_payload,
+)
 from oryxenai.agents.build_preparation.fixture import _offline_candidates
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
@@ -53,6 +56,24 @@ def _output_dir() -> Path:
     path = Path("output") / "test-build-preparation" / str(uuid4())
     path.mkdir(parents=True)
     return path
+
+
+def test_normalize_context_payload_drops_well_typed_top_level_context_duplicates() -> None:
+    normalized, warnings = _normalize_context_payload(
+        {
+            "stage": "stage_3",
+            "routes": [{"route_id": "home"}],
+            "resource_ids": [],
+            "acceptance_criteria": ["Keep approved content reachable."],
+            "free_to_change": ["Visual composition."],
+        },
+        {"home"},
+    )
+
+    assert normalized == {"stage": "stage_3"}
+    assert warnings == [
+        "Dropped closed-set duplicate top-level context fields: routes, resource_ids, acceptance_criteria, free_to_change."
+    ]
 
 
 class _Phase2Model:
@@ -150,6 +171,41 @@ class _NoisyContextModel(_Phase2Model):
         return await super().generate_structured(
             operation=operation, output_model=output_model, **kwargs
         )
+
+
+class _DuplicateTopLevelRouteModel(_Phase2Model):
+    async def generate_structured(self, *, operation, output_model, **kwargs):
+        result = await super().generate_structured(
+            operation=operation, output_model=output_model, **kwargs
+        )
+        if output_model is Stage3BuildContextResult:
+            payload = dict(result.parsed_output)
+            payload["routes"] = [
+                {
+                    "route_id": "home",
+                    "path": "/model-path-must-be-ignored",
+                    "brief_markdown": "Model duplicate is not authoritative.",
+                }
+            ]
+            return result.model_copy(update={"parsed_output": payload})
+        return result
+
+
+class _RouteFallbackNoteModel(_Phase2Model):
+    async def generate_structured(self, *, operation, output_model, **kwargs):
+        result = await super().generate_structured(
+            operation=operation, output_model=output_model, **kwargs
+        )
+        if output_model is Stage3BuildContextResult:
+            payload = dict(result.parsed_output)
+            payload["context"]["routes"][0]["data_fallback_note"] = (
+                "Use the approved custom data fallback for this route."
+            )
+            payload["context"]["routes"][0]["warnings"] = [
+                "Selected resource IDs are authoritative for this route."
+            ]
+            return result.model_copy(update={"parsed_output": payload})
+        return result
 
 
 class _FailingHandoffModel(_Phase2Model):
@@ -434,5 +490,83 @@ async def test_live_context_output_is_reconciled_to_approved_route_and_resource_
             event["event_id"] for event in result.output["events"]
         }
         assert any("unknown model route" in warning for warning in result.output["warnings"])
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_live_context_drops_closed_set_duplicate_top_level_route_scope() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        settings.build_preparation.fixture_output_dir = str(output_dir)
+        settings.build_preparation.integration_route_threshold = 99
+        context = build_context(
+            portfolio_session_id=uuid4(),
+            agent_key=AgentKey.BUILD_PREPARATION,
+            current_state={},
+            agent_input={
+                "operation": "build",
+                "visual_design_director": _visual(),
+                "content_architect": _content(),
+                "live_model": True,
+                "live_providers": False,
+                "output_dir": str(output_dir),
+                "integration_route_threshold": 99,
+            },
+        )
+
+        result = await BuildPreparationAgent(
+            model_client=_DuplicateTopLevelRouteModel(),
+            live_model=True,
+            live_providers=False,
+            settings=settings,
+        ).run(context)
+
+        assert result.output["build_context"]["routes"][0]["path"] == "/"
+        assert any(
+            "closed-set duplicate top-level route scope" in warning
+            for warning in result.output["warnings"]
+        )
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_live_context_accepts_grounded_route_data_fallback_note() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        settings.build_preparation.fixture_output_dir = str(output_dir)
+        settings.build_preparation.integration_route_threshold = 99
+        context = build_context(
+            portfolio_session_id=uuid4(),
+            agent_key=AgentKey.BUILD_PREPARATION,
+            current_state={},
+            agent_input={
+                "operation": "build",
+                "visual_design_director": _visual(),
+                "content_architect": _content(),
+                "live_model": True,
+                "live_providers": False,
+                "output_dir": str(output_dir),
+                "integration_route_threshold": 99,
+            },
+        )
+
+        result = await BuildPreparationAgent(
+            model_client=_RouteFallbackNoteModel(),
+            live_model=True,
+            live_providers=False,
+            settings=settings,
+        ).run(context)
+
+        assert (
+            result.output["build_context"]["routes"][0]["data_fallback_note"]
+            == "Use the approved custom data fallback for this route."
+        )
+        assert result.output["build_context"]["routes"][0]["warnings"] == [
+            "Selected resource IDs are authoritative for this route."
+        ]
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)

@@ -411,6 +411,15 @@ async def _materialize_image_candidate(
             },
         )
     content_hash = str(image_info["sha256"])
+    if content_hash in image_by_hash:
+        raise ImageDownloadError(
+            "image content duplicates an earlier local role",
+            details={
+                "rejection_reason": "duplicate_local_content_hash",
+                "content_hash": content_hash,
+                "existing_local_path": image_by_hash[content_hash],
+            },
+        )
     image_path = image_by_hash.get(content_hash, "")
     if not image_path:
         image_path = f"resources/images/{resource_id}.jpg"

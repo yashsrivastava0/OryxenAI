@@ -17,6 +17,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     Diagnostic,
 )
 from oryxenai.agents.code_generator.core.process_runner import ProcessResult, run_command
+from oryxenai.agents.code_generator.core.workspace import repository_root
 
 
 class BuildRunnerError(ValueError):
@@ -75,7 +76,11 @@ def _npm_cache_environment(settings: Any) -> dict[str, str] | None:
     if not cache_root:
         return None
     # Extras only — run_command merges these onto its safe base environment.
-    return {"npm_config_cache": str(Path(cache_root).resolve())}
+    cache_path = Path(cache_root)
+    resolved_cache = (
+        cache_path if cache_path.is_absolute() else (repository_root() / cache_path).resolve()
+    )
+    return {"npm_config_cache": str(resolved_cache)}
 
 
 async def _run(

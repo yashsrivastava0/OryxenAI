@@ -133,6 +133,118 @@ async def test_empty_image_responses_are_not_cached(tmp_path, monkeypatch) -> No
     assert list(tmp_path.rglob("*.json")) == []
 
 
+@pytest.mark.asyncio
+async def test_image_search_prefers_unused_provider_assets(tmp_path, monkeypatch) -> None:
+    settings = Settings()
+    settings.image_retrieval.cache_root = str(tmp_path)
+    settings.image_retrieval.retry_count = 0
+    monkeypatch.setenv("PEXELS_API_KEY", "pexels-test")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "photos": [
+                    {
+                        "id": 1,
+                        "alt": "reused result",
+                        "width": 2400,
+                        "height": 1350,
+                        "url": "https://pexels.test/photo/1",
+                        "src": {"large2x": "https://images.pexels.com/photo/1.jpg"},
+                    },
+                    {
+                        "id": 2,
+                        "alt": "distinct result",
+                        "width": 2400,
+                        "height": 1350,
+                        "url": "https://pexels.test/photo/2",
+                        "src": {"large2x": "https://images.pexels.com/photo/2.jpg"},
+                    },
+                ]
+            },
+            request=request,
+        )
+
+    intent = ImageSearchIntent(
+        subject="editorial architecture",
+        queries=["editorial architecture"],
+        used_asset_ids=["1"],
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        candidates = await search_images(
+            intent, settings, providers=["pexels"], client=client, limit=2
+        )
+
+    assert candidates
+    assert all(candidate.provider_asset_id != "1" for candidate in candidates)
+
+
+@pytest.mark.asyncio
+async def test_image_search_tries_next_provider_when_first_returns_only_used_assets(
+    tmp_path, monkeypatch
+) -> None:
+    settings = Settings()
+    settings.image_retrieval.cache_root = str(tmp_path)
+    settings.image_retrieval.retry_count = 0
+    monkeypatch.setenv("PEXELS_API_KEY", "pexels-test")
+    monkeypatch.setenv("PIXABAY_API_KEY", "pixabay-test")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.pexels.com":
+            return httpx.Response(
+                200,
+                json={
+                    "photos": [
+                        {
+                            "id": 1,
+                            "alt": "reused architecture",
+                            "width": 2400,
+                            "height": 1350,
+                            "url": "https://pexels.test/photo/1",
+                            "src": {"large2x": "https://images.pexels.com/photo/1.jpg"},
+                        }
+                    ]
+                },
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            json={
+                "hits": [
+                    {
+                        "id": 3,
+                        "tags": "fresh editorial architecture",
+                        "imageWidth": 2400,
+                        "imageHeight": 1350,
+                        "largeImageURL": "https://cdn.pixabay.com/photo-3.jpg",
+                        "pageURL": "https://pixabay.com/photos/3",
+                    }
+                ]
+            },
+            request=request,
+        )
+
+    intent = ImageSearchIntent(
+        purpose="editorial architecture atmosphere",
+        subject="editorial architecture",
+        queries=["editorial architecture"],
+        used_asset_ids=["1"],
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        candidates = await search_images(
+            intent,
+            settings,
+            providers=["pexels", "pixabay"],
+            client=client,
+            limit=2,
+        )
+
+    assert candidates
+    assert any(candidate.provider == "pixabay" for candidate in candidates)
+    assert all(candidate.provider_asset_id != "1" for candidate in candidates)
+
+
 def test_image_processing_rejects_corrupt_and_undersized_bytes() -> None:
     intent = ImageSearchIntent(minimum_width=1200, minimum_height=700)
     with pytest.raises(ImageDownloadError, match="corrupt"):
