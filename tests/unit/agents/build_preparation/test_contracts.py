@@ -4,6 +4,7 @@ import pytest
 
 from oryxenai.agents.build_preparation.agent import _normalize_selection_ids
 from oryxenai.agents.build_preparation.contracts import (
+    DELEGATED_PACK_VERSION,
     PACK_VERSION,
     PackContractError,
     compile_v2_projections,
@@ -169,6 +170,44 @@ def test_required_visual_without_real_material_is_an_execution_gap() -> None:
         for slot in slots
     )
     assert contract["execution_gaps"][0]["code"] == "VDD_EXECUTION_GAP"
+
+
+def test_v4_delegation_is_explicit_closed_set_and_not_an_execution_gap() -> None:
+    need = ResourceNeed(
+        need_id="need-image",
+        kind="asset",
+        source_id="editorial-image-1",
+        category="editorial_photo",
+        purpose="a quiet editorial hero image",
+        route_ids=["home"],
+        required_for_handoff=True,
+    )
+    contract, _recipes, slots, gaps = compile_execution_contract(
+        routes=[RouteScope(route_id="home", path="/")],
+        needs=[need],
+        materialized_resources=[],
+        site={"routes": [{"route_id": "home", "section_sequence": ["hero"]}]},
+        visual={},
+        target={"allowed_dependencies": []},
+        delegation_policy={
+            "enabled": True,
+            "allowed_categories": ["image"],
+            "allowed_providers": ["pexels", "pixabay"],
+            "candidate_limit": 8,
+            "max_attempts": 3,
+        },
+        pack_version=DELEGATED_PACK_VERSION,
+        schema_version="build-preparation-contract-v4",
+    )
+
+    assert gaps == []
+    assert contract["pack_version"] == DELEGATED_PACK_VERSION
+    assert contract["policy"]["delegated_acquisition"]["selection"] == "closed_set_only"
+    assert contract["policy"]["delegated_acquisition"]["llm_may_invent_candidates"] is False
+    delegated = next(
+        slot for slot in slots if slot.resolution.resolution_type == "delegated_acquisition"
+    )
+    assert delegated.resolution.delegation_policy["allowed_providers"] == ["pexels", "pixabay"]
 
 
 def test_component_target_is_advisory_and_never_creates_quota_gaps() -> None:

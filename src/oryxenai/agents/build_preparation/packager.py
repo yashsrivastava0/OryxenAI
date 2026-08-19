@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from oryxenai.agents.build_preparation.contracts import PACK_VERSION
+from oryxenai.agents.build_preparation.contracts import SUPPORTED_PACK_VERSIONS
 from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationSourceRef,
     MaterializationResult,
@@ -197,7 +197,7 @@ def verify_bundle_bytes(data: bytes, *, max_bytes: int) -> dict[str, Any]:
             raise PackageError(
                 "BUILD_PACK_MANIFEST_INVALID", "The build-pack manifest does not cover every file."
             )
-        if manifest.get("pack_version") == PACK_VERSION:
+        if manifest.get("pack_version") in SUPPORTED_PACK_VERSIONS:
             required = {
                 "site/contract.json",
                 "design/visual-direction.json",
@@ -334,7 +334,7 @@ async def package_and_store(
             "The staging tree already contains a top-level manifest.",
         )
     base_files = _manifest_files(existing_entries)
-    is_v3 = materialization.pack_version == PACK_VERSION and "site/contract.json" in {
+    is_pack = materialization.pack_version in SUPPORTED_PACK_VERSIONS and "site/contract.json" in {
         path for path, _ in existing_entries
     }
     checksums = {entry["path"]: entry["sha256"] for entry in base_files}
@@ -342,7 +342,7 @@ async def package_and_store(
     _write(staging_root, "provenance/checksums.json", checksums_bytes)
     entries_with_checksums = _read_tree(staging_root)
     manifest = {
-        "pack_version": PACK_VERSION if is_v3 else "phase3",
+        "pack_version": materialization.pack_version if is_pack else "phase3",
         "run_id": run_id,
         "scope_hash": scope_hash,
         "source_ref": source_ref.model_dump(mode="json"),
@@ -417,7 +417,7 @@ async def package_and_store(
     verify_bundle_bytes(restored_bytes, max_bytes=max_bundle_bytes)
 
     package = PackageResult(
-        pack_version=PACK_VERSION if is_v3 else "phase3",
+        pack_version=materialization.pack_version if is_pack else "phase3",
         archive_sha256=archive_hash,
         archive_size_bytes=len(archive_bytes),
         file_count=len(verified_manifest["files"]) + 1,

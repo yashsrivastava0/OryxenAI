@@ -857,6 +857,16 @@ class BuildPreparationAgent(Agent):
                 else 0,
                 deferred_optional_roles=[],
             )
+            handoff_report = handoff_report.model_copy(
+                update={
+                    "pack_version": materialization.pack_version,
+                    "schema_version": (
+                        "build-preparation-handoff-v4"
+                        if materialization.pack_version == "build-preparation-pack-v4"
+                        else handoff_report.schema_version
+                    ),
+                }
+            )
             if not live_model and not live_providers:
                 handoff_report = handoff_report.model_copy(
                     update={

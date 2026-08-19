@@ -20,6 +20,10 @@ LEGACY_PACK_VERSION = "build-preparation-pack-v2"
 LEGACY_SCHEMA_VERSION = "build-preparation-contract-v2"
 PACK_VERSION = "build-preparation-pack-v3"
 SCHEMA_VERSION = "build-preparation-contract-v3"
+DELEGATED_PACK_VERSION = "build-preparation-pack-v4"
+DELEGATED_SCHEMA_VERSION = "build-preparation-contract-v4"
+SUPPORTED_PACK_VERSIONS = frozenset({PACK_VERSION, DELEGATED_PACK_VERSION})
+SUPPORTED_SCHEMA_VERSIONS = frozenset({SCHEMA_VERSION, DELEGATED_SCHEMA_VERSION})
 
 
 class PackContractError(ValueError):
@@ -352,6 +356,22 @@ def validate_execution_contract_shape(
                     "BUILD_PACK_V3_RECIPE_DANGLING",
                     "A local recipe does not bind a packaged recipe file.",
                 )
+        elif kind == "delegated_acquisition":
+            policy = resolution.get("delegation_policy")
+            contract_policy = execution.get("policy", {}).get("delegated_acquisition", {})
+            if (
+                execution.get("pack_version") != DELEGATED_PACK_VERSION
+                or not isinstance(policy, dict)
+                or not isinstance(contract_policy, dict)
+                or not contract_policy.get("enabled")
+                or policy.get("selection") != "closed_set_only"
+                or policy.get("llm_may_invent_candidates") is not False
+                or not policy.get("allowed_providers")
+            ):
+                raise PackContractError(
+                    "BUILD_PACK_V4_DELEGATION_INVALID",
+                    "A delegated slot must carry an explicit closed-set acquisition policy.",
+                )
         elif kind == "execution_gap":
             if slot_id not in gap_ids:
                 raise PackContractError(
@@ -454,6 +474,8 @@ def compile_v2_projections(
     source_ref: dict[str, Any],
     target_contract: dict[str, Any],
     max_routes: int,
+    pack_version: str = PACK_VERSION,
+    schema_version: str = SCHEMA_VERSION,
 ) -> dict[str, dict[str, Any]]:
     """Compile hashable consumer projections; fail closed on any scope drift."""
     routes = _public_routes(content_architect)
@@ -544,8 +566,8 @@ def compile_v2_projections(
         }
 
     site = {
-        "schema_version": SCHEMA_VERSION,
-        "pack_version": PACK_VERSION,
+        "schema_version": schema_version,
+        "pack_version": pack_version,
         "routes": routes,
         "public_content": [content[route["route_id"]] for route in routes],
         "facts": facts,
@@ -571,8 +593,8 @@ def compile_v2_projections(
         ),
     }
     visual = {
-        "schema_version": SCHEMA_VERSION,
-        "pack_version": PACK_VERSION,
+        "schema_version": schema_version,
+        "pack_version": pack_version,
         "global": {
             key: _strip_reasoning(visual_design_director.get(key, {}))
             for key in (
@@ -633,8 +655,8 @@ def compile_v2_projections(
         or source_ref.get("visual_design_director_direction_hash", "")
     )
     approvals = {
-        "schema_version": SCHEMA_VERSION,
-        "pack_version": PACK_VERSION,
+        "schema_version": schema_version,
+        "pack_version": pack_version,
         "content_architect_content_hash": content_hash,
         "visual_design_director_direction_hash": visual_hash,
         "source_projection_hash": str(source_ref.get("input_projection_hash", "")),
@@ -646,8 +668,8 @@ def compile_v2_projections(
             "Both upstream approvals must be present for a v2 pack.",
         )
     targets = {
-        "schema_version": SCHEMA_VERSION,
-        "pack_version": PACK_VERSION,
+        "schema_version": schema_version,
+        "pack_version": pack_version,
         "target": _strip_reasoning(target_contract),
     }
     validate_route_section_contract(site)
@@ -661,6 +683,8 @@ def compile_v3_projections(
     source_ref: dict[str, Any],
     target_contract: dict[str, Any],
     max_routes: int,
+    pack_version: str = PACK_VERSION,
+    schema_version: str = SCHEMA_VERSION,
 ) -> dict[str, dict[str, Any]]:
     """Compile the v3 authoritative projections.
 
@@ -676,4 +700,6 @@ def compile_v3_projections(
         source_ref=source_ref,
         target_contract=target_contract,
         max_routes=max_routes,
+        pack_version=pack_version,
+        schema_version=schema_version,
     )

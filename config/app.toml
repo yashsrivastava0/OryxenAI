@@ -144,6 +144,13 @@ provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
 require_live_visual_resources = true
 auto_derive_visual_resources = true
+# v4 delegated acquisition is opt-in and only applies after every configured
+# upstream role/provider attempt has been recorded.
+delegated_acquisition_enabled = false
+delegated_allowed_categories = ["image", "font", "component_source"]
+delegated_allowed_providers = ["pexels", "pixabay", "fontsource", "shadcn", "magicui", "smoothui", "cultui"]
+delegated_candidate_limit = 8
+delegated_attempt_maximum = 3
 
 [code_generator_development]
 # Standalone Phase 1 developer workflow. It has no portfolio-session coupling.
@@ -152,6 +159,8 @@ input_root = ".workspace/code-generator-development"
 fixture_map = { "privacy-safe-v3" = "tests/fixtures/code_generator_v3_privacy_safe", "privacy-safe-v3-rich" = "tests/fixtures/code_generator_v3_rich_privacy_safe" }
 pack_version = "build-preparation-pack-v3"
 schema_version = "build-preparation-contract-v3"
+accepted_pack_versions = ["build-preparation-pack-v3", "build-preparation-pack-v4"]
+accepted_schema_versions = ["build-preparation-contract-v3", "build-preparation-contract-v4"]
 target_contract = "react-vite-v1"
 director_profile = "code_generator_director"
 planner_profile = "code_generator_planner"
