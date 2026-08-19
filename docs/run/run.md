@@ -214,10 +214,10 @@ approved Content Architect projection and Visual Design Director output, check
 both live options, and select `Run Phase 3`. The page links to the run details
 and the local debug package when the run completes.
 
-Use the production session route when possible. The Docker app container does
-not automatically see arbitrary host files such as
-`Input-Output-Of-Engine`; use the detached page's paste/upload controls or
-approved state in the production session instead.
+Use the production session route when possible. The Compose app mounts
+`Input-Output-Of-Engine` read-only, so the detached page can auto-pick the
+attached CA/VDD outputs. Use the paste/upload controls for an explicit
+override or use approved state in the production session instead.
 
 ### Issues found during the verified live run
 
@@ -230,6 +230,14 @@ approved state in the production session instead.
   fields and Stage 3/4 context envelope fields that the strict input schemas
   did not accept. The schemas and normalization were aligned in commit
   `237e0ed`, and the focused Build Preparation tests passed.
+- One live Stage 2 response returned a need ID with a trailing comma while
+  matching candidates. The pipeline now closes model selections against the
+  deterministic Stage 0 need set, discards unknown/duplicate IDs, and records
+  an explicit fallback instead of raising a `KeyError`.
+- A live Stage 5 handoff-review request returned a provider HTTP `400` after
+  deterministic admission had completed. Stage 5 review is advisory now: the
+  error is recorded as `MODEL_REVIEW_UNAVAILABLE`, eligibility remains fail-
+  closed, and the local/R2 package is retained for review.
 - The verified live run completed model calls, provider retrieval, packaging,
   and R2 upload/read-back, but correctly returned `handoff_eligible=false`.
   The remaining gaps were one unresolved approved component role, duplicate
