@@ -10,7 +10,7 @@ import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from oryxenai.agents.code_generator.core import fs_safe
@@ -23,6 +23,7 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
 )
 from oryxenai.agents.code_generator.core.check_runner import prepare_toolchain, run_source_checks
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointError, CheckpointStore
+from oryxenai.agents.code_generator.core.content_compiler import write_content_module
 from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
@@ -36,6 +37,7 @@ from oryxenai.agents.code_generator.core.development_planner import validate_sit
 from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyLedger,
     DevelopmentRunStatus,
+    ExperienceBlueprintV3,
     GenerationCallReceipt,
     GenerationChanges,
     GenerationContextReceipt,
@@ -58,6 +60,10 @@ from oryxenai.agents.code_generator.core.generation_prompt_builder import build_
 from oryxenai.agents.code_generator.core.integration_review_operation import (
     run_integration_review_operation,
 )
+from oryxenai.agents.code_generator.core.parallel_scheduler import (
+    execute_waves,
+    isolated_workspace_path,
+)
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     ResourceProviderError,
@@ -71,6 +77,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
 )
+from oryxenai.agents.code_generator.core.token_compiler import write_generated_tokens
 from oryxenai.agents.code_generator.core.workspace import (
     GenerationWorkspace,
     WorkspaceError,
@@ -353,9 +360,12 @@ class CodeGeneratorGenerationOrchestrator:
     ) -> SourceCheckpoint:
         units = _topological_units(plan.work_graph.units)
         checkpoint: SourceCheckpoint | None = projection.accepted_checkpoint
-        for unit in units:
+        index = 0
+        while index < len(units):
+            unit = units[index]
             existing_unit = _unit_projection(projection, unit)
             if existing_unit.status == "checkpointed" and existing_unit.checkpoint_after:
+                index += 1
                 continue
             if unit.kind == "integration":
                 status = DevelopmentRunStatus.INTEGRATING.value
@@ -363,6 +373,43 @@ class CodeGeneratorGenerationOrchestrator:
                 status = DevelopmentRunStatus.GENERATING_FOUNDATION.value
             else:
                 status = DevelopmentRunStatus.GENERATING_ROUTES.value
+
+            if (
+                isinstance(plan.experience_blueprint, ExperienceBlueprintV3)
+                and unit.kind == "route_batch"
+            ):
+                batch_units: list[WorkUnit] = []
+                while index < len(units) and units[index].kind == "route_batch":
+                    batch_units.append(units[index])
+                    index += 1
+                projection.phase = status
+                projection.active_work_unit_id = batch_units[0].unit_id
+                for batch in batch_units:
+                    batch_projection = _unit_projection(projection, batch)
+                    batch_projection.status = "context_ready"
+                    batch_projection.checkpoint_before = (
+                        checkpoint.checkpoint_hash if checkpoint else ""
+                    )
+                await self._persist(sessionmaker, run_id, projection, status=status)
+                checkpoint = await self._run_route_batch_wave(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    settings=settings,
+                    run=run,
+                    plan=plan,
+                    projections=projections,
+                    workspace=workspace,
+                    checkpoint_store=checkpoint_store,
+                    projection=projection,
+                    units=batch_units,
+                    checkpoint=checkpoint,
+                    allowed_packages=allowed_packages,
+                    public_text=public_text,
+                )
+                await self._persist(sessionmaker, run_id, projection, status=status)
+                continue
+
+            index += 1
             projection.phase = status
             projection.active_work_unit_id = unit.unit_id
             unit_projection = _unit_projection(projection, unit)
@@ -392,6 +439,151 @@ class CodeGeneratorGenerationOrchestrator:
             raise GenerationError("SOURCE_CHECKPOINT_MISSING", "No source checkpoint was accepted.")
         return checkpoint
 
+    async def _run_route_batch_wave(
+        self,
+        *,
+        sessionmaker: Any,
+        run_id: UUID,
+        settings: Any,
+        run: Any,
+        plan: SitePlan,
+        projections: dict[str, dict[str, Any]],
+        workspace: GenerationWorkspace,
+        checkpoint_store: CheckpointStore,
+        projection: GenerationProjection,
+        units: list[WorkUnit],
+        checkpoint: SourceCheckpoint | None,
+        allowed_packages: set[str],
+        public_text: set[str],
+    ) -> SourceCheckpoint:
+        async def execute(unit: WorkUnit) -> tuple[GenerationProjection, SourceCheckpoint, Path]:
+            isolated_root = isolated_workspace_path(workspace.root, unit)
+            if not isolated_root.resolve().is_relative_to(workspace.root.resolve()):
+                raise GenerationError(
+                    "PARALLEL_WORKSPACE_PATH_UNSAFE",
+                    "A parallel route workspace escaped the generation workspace.",
+                )
+            if isolated_root.exists():
+                shutil.rmtree(isolated_root)
+            isolated_root.mkdir(parents=True, exist_ok=True)
+            isolated_repo = isolated_root / "repo"
+            shutil.copytree(
+                workspace.repo_dir,
+                isolated_repo,
+                ignore=shutil.ignore_patterns("node_modules", "dist"),
+            )
+            isolated = GenerationWorkspace(
+                isolated_root,
+                workspace.input_dir,
+                workspace.checkpoint_root,
+            )
+            isolated.scaffold_dir = workspace.scaffold_dir
+            isolated.ledger_dir.mkdir(parents=True, exist_ok=True)
+            local_checkpoint_store = CheckpointStore(
+                isolated, generation_id=projection.generation_id
+            )
+            local_projection = projection.model_copy(deep=True)
+            local_checkpoint = await self._run_unit(
+                sessionmaker=sessionmaker,
+                run_id=run_id,
+                settings=settings,
+                run=run,
+                plan=plan,
+                projections=projections,
+                workspace=isolated,
+                checkpoint_store=local_checkpoint_store,
+                projection=local_projection,
+                unit=unit,
+                checkpoint=checkpoint,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                persist_projection=False,
+            )
+            return local_projection, local_checkpoint, isolated_root
+
+        scheduled = await execute_waves(
+            units,
+            execute,
+            max_concurrency=int(settings.code_generator_generation.route_concurrency),
+        )
+        merged_projection = projection.model_copy(deep=True)
+        merged_checkpoints: list[tuple[WorkUnit, SourceCheckpoint, Path]] = []
+        for item in scheduled:
+            local_projection, local_checkpoint, isolated_root = cast(
+                tuple[GenerationProjection, SourceCheckpoint, Path], item.value
+            )
+            unit = next(unit for unit in units if unit.unit_id == item.unit_id)
+            for relative in unit.owns_paths:
+                source = isolated_root / "repo" / relative
+                target = workspace.repo_dir / relative
+                if source.is_file():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, target)
+            local_contexts = isolated_root / "ledger" / "contexts"
+            if local_contexts.is_dir():
+                target_contexts = workspace.ledger_dir / "contexts"
+                target_contexts.mkdir(parents=True, exist_ok=True)
+                for context in local_contexts.glob("*.json"):
+                    shutil.copyfile(context, target_contexts / context.name)
+            local_unit = _unit_projection(local_projection, unit)
+            main_unit = _unit_projection(merged_projection, unit)
+            main_unit.status = local_unit.status
+            main_unit.request_round = local_unit.request_round
+            main_unit.repair_round = local_unit.repair_round
+            main_unit.call_receipt_id = local_unit.call_receipt_id
+            main_unit.diagnostics = list(local_unit.diagnostics)
+            merged_projection.context_receipts.extend(
+                receipt
+                for receipt in local_projection.context_receipts
+                if receipt.receipt_id
+                not in {existing.receipt_id for existing in merged_projection.context_receipts}
+            )
+            merged_projection.call_receipts.extend(
+                receipt
+                for receipt in local_projection.call_receipts
+                if receipt.receipt_id
+                not in {existing.receipt_id for existing in merged_projection.call_receipts}
+            )
+            merged_projection.diagnostics.extend(
+                diagnostic
+                for diagnostic in local_projection.diagnostics
+                if diagnostic.diagnostic_id
+                not in {existing.diagnostic_id for existing in merged_projection.diagnostics}
+            )
+            merged_checkpoints.append((unit, local_checkpoint, isolated_root))
+
+        diagnostics = await run_source_checks(
+            workspace.repo_dir,
+            allowed_packages=allowed_packages,
+            public_text=public_text,
+            max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+            work_unit_id="route-batch-wave",
+            settings=settings,
+        )
+        if diagnostics:
+            raise GenerationError(
+                "PARALLEL_ROUTE_SOURCE_CHECK_FAILED",
+                "The merged route-batch wave failed the deterministic source audit.",
+            )
+        projection.context_receipts = merged_projection.context_receipts
+        projection.call_receipts = merged_projection.call_receipts
+        projection.diagnostics = merged_projection.diagnostics
+        for unit, _local_checkpoint, _isolated_root in merged_checkpoints:
+            checkpoint = checkpoint_store.accept(
+                work_unit_id=unit.unit_id,
+                parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
+            )
+            unit_projection = _unit_projection(projection, unit)
+            unit_projection.status = "checkpointed"
+            unit_projection.checkpoint_after = checkpoint.checkpoint_hash
+            projection.accepted_checkpoint = checkpoint
+        if checkpoint is None:
+            raise GenerationError(
+                "SOURCE_CHECKPOINT_MISSING",
+                "The route-batch wave did not produce an accepted checkpoint.",
+            )
+        return checkpoint
+
     async def _run_unit(
         self,
         *,
@@ -408,7 +600,46 @@ class CodeGeneratorGenerationOrchestrator:
         checkpoint: SourceCheckpoint | None,
         allowed_packages: set[str],
         public_text: set[str],
+        persist_projection: bool = True,
     ) -> SourceCheckpoint:
+        if unit.kind == "foundation" and isinstance(
+            plan.experience_blueprint, ExperienceBlueprintV3
+        ):
+            # V3 foundation material is a deterministic compiler boundary, not
+            # a model-authored surface. This keeps tokens and approved copy
+            # stable across retries and makes the trusted shared systems the
+            # only shell implementation.
+            write_generated_tokens(
+                workspace.repo_dir,
+                plan.experience_blueprint,
+                plan.execution_bindings,
+            )
+            public_content = projections.get("site/contract.json", {}).get("public_content", [])
+            if not isinstance(public_content, list):
+                raise GenerationError(
+                    "PUBLIC_CONTENT_MISSING", "The admitted public content projection is invalid."
+                )
+            write_content_module(workspace.repo_dir, public_content)
+            diagnostics = await run_source_checks(
+                workspace.repo_dir,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+                work_unit_id=unit.unit_id,
+                settings=settings,
+            )
+            if diagnostics:
+                projection.diagnostics.extend(diagnostics)
+                unit_projection = _unit_projection(projection, unit)
+                unit_projection.diagnostics.extend(item.diagnostic_id for item in diagnostics)
+                raise GenerationError(
+                    "FOUNDATION_SOURCE_CHECK_FAILED",
+                    "The deterministic foundation failed the source audit.",
+                )
+            return checkpoint_store.accept(
+                work_unit_id=unit.unit_id,
+                parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
+            )
         operation = _operation_for(unit)
         role_profile = _profile_for(operation, settings)
         unit_projection = _unit_projection(projection, unit)
@@ -465,6 +696,10 @@ class CodeGeneratorGenerationOrchestrator:
                 diagnostics=projection.diagnostics,
                 repair_round=repair_round,
             )
+            context = _enforce_context_ceiling(
+                context,
+                int(settings.code_generator_generation.max_context_chars),
+            )
             system, instructions, context_receipt = build_instructions(operation, context)
             context_path = (
                 workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
@@ -476,7 +711,8 @@ class CodeGeneratorGenerationOrchestrator:
             projection.context_receipts.append(context_receipt)
             unit_projection.status = "model_requested"
             unit_projection.request_round = request_round
-            await self._persist(sessionmaker, run_id, projection, status=projection.phase)
+            if persist_projection:
+                await self._persist(sessionmaker, run_id, projection, status=projection.phase)
             result, call_receipt = await self._model_result(
                 settings=settings,
                 operation=operation,
@@ -501,6 +737,11 @@ class CodeGeneratorGenerationOrchestrator:
                     result.cannot_complete.code, result.cannot_complete.safe_reason
                 )
             if result.mode == "requests":
+                if not persist_projection:
+                    raise GenerationError(
+                        "PARALLEL_RESOURCE_REQUEST_UNSUPPORTED",
+                        "A parallel route batch requested mutable resources; retry it in the serial acquisition path.",
+                    )
                 if request_round >= int(settings.code_generator_generation.max_request_rounds):
                     raise GenerationError(
                         "GENERATION_REQUEST_ROUND_LIMIT",
@@ -508,7 +749,8 @@ class CodeGeneratorGenerationOrchestrator:
                     )
                 unit_projection.status = "needs_resources"
                 projection.request_rounds += 1
-                await self._persist(sessionmaker, run_id, projection, status="acquiring")
+                if persist_projection:
+                    await self._persist(sessionmaker, run_id, projection, status="acquiring")
                 await self._resolve_requests(
                     sessionmaker=sessionmaker,
                     run_id=run_id,
@@ -650,6 +892,10 @@ class CodeGeneratorGenerationOrchestrator:
                 output_ceiling=int(settings.code_generator_generation.max_response_bytes),
                 diagnostics=diagnostics,
                 repair_round=1,
+            )
+            context = _enforce_context_ceiling(
+                context,
+                int(settings.code_generator_generation.max_context_chars),
             )
             system, instructions, context_receipt = build_instructions("repair", context)
             context_path = (
@@ -1018,6 +1264,17 @@ class CodeGeneratorGenerationOrchestrator:
                 candidates = filter_candidates_by_policy(
                     await adapter.search(request, settings=settings), request
                 )
+                if request.request_id.startswith("delegated-"):
+                    delegated_limit = int(
+                        getattr(
+                            getattr(settings, "build_preparation", None),
+                            "delegated_candidate_limit",
+                            8,
+                        )
+                    )
+                    candidates = sorted(candidates, key=lambda item: item.candidate_id)[
+                        : max(1, delegated_limit)
+                    ]
                 if not candidates:
                     if request.requiredness == "required" and request.fallback.kind == "none":
                         raise GenerationError(
@@ -1436,6 +1693,18 @@ def _operation_context(
         "repair_round": repair_round,
         "output_ceiling": output_ceiling,
     }
+
+
+def _enforce_context_ceiling(context: dict[str, Any], maximum: int) -> dict[str, Any]:
+    """Reject oversized model context before a provider call is attempted."""
+
+    serialized = json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    if maximum <= 0 or len(serialized) > maximum:
+        raise GenerationError(
+            "GENERATION_CONTEXT_LIMIT",
+            "The bounded generation context exceeds the configured character ceiling.",
+        )
+    return context
 
 
 def _owned_paths(

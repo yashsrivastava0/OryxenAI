@@ -31,3 +31,10 @@ export function publicRouteUrl(path: string): string {
   const url = new URL(normalized, runtimeBaseUrl());
   return `${url.pathname}${url.search}${url.hash}`;
 }
+
+export function publicSectionUrl(routePath: string, domId: string): string {
+  if (!/^[A-Za-z][A-Za-z0-9:_-]*$/.test(domId)) {
+    throw new Error("Unsafe compiler-supplied section ID");
+  }
+  return `${publicRouteUrl(routePath)}#${domId}`;
+}

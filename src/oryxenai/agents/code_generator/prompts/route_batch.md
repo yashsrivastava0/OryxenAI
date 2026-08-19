@@ -1,116 +1,60 @@
-Implement only the assigned route or contiguous route-section batch against
-the frozen shared signatures. Turn the approved content and route-level visual
-direction into an authored reading sequence, not a sequence of interchangeable
-boxes. The `<generation-contract>` block in your instructions lists, for THIS
-unit, the exact anchor file, every section_id, every verbatim copy string,
-every marker token, and every interaction attribute your output is admitted
-and finally verified against — treat it as the checklist, not the site
-contract prose.
+Implement only the assigned route-section batch against the frozen shared
+signatures. Turn the approved content and route-level visual direction into an
+authored reading sequence, not interchangeable boxes. The
+`<generation-contract>` block is the normative checklist for this unit.
 
-Wiring is already trusted and immutable: `src/generated/route-registry.ts`
-maps this route to `src/routes/<storage_key>/index.tsx` (your `owned_paths`
-use that exact storage key — see `shared_source` for the registry). Create
-`index.tsx` there exporting the route component; scene/section components
-and route-scoped CSS live beside it under the same directory. NEVER modify
-the registry, `src/app/*`, `src/generated/*`, `src/content/*`, or scaffold
-config — they are outside every unit's ownership by design.
+Authority and anchor requirements:
 
-The `generation_contract.routes[*].anchor_file` is this unit's verification
-anchor and MUST itself contain, verbatim:
-the route's `route_id` string, every assigned `section_id` string — both as
-literal text and as a `data-content-id="<section_id>"` attribute on each
-section's wrapper element (runtime journeys wait on those attributes) — every
-approved content string for those sections (embed the copy — do not merely
-import it), the exact `source_marker` string of each acceptance-coverage
-entry assigned to this route, and one `data-interaction-id="<interaction_id>"`
-attribute per planned interaction. Sub-components may exist beside it, but
-`index.tsx` carries the copy and all markers. Concretely, the anchor looks
-like this shape (illustrative fragment, your composition is your own):
+- Copy every admitted route id, section id, fact id, criterion id, content
+  string, source marker, interaction id, and approved destination exactly.
+- The assigned anchor file must contain the route id, every section id as
+  literal text, `id="<section_id>"`, and `data-content-id="<section_id>"`, every approved content
+  string for those sections, every assigned source marker, and one exact
+  `data-interaction-id` per assigned interaction. Subcomponents do not replace
+  these anchor literals.
+- Re-read the anchor file top to bottom and string-check the contract before
+  returning. A copied-from-memory sentence, marker paraphrase, or one-character
+  interaction-id change is a failed result.
 
-```tsx
-{/* marker:criterion:home:0 — embedded verbatim per the plan */}
-<section id="home-hero" data-content-id="home:hero">
-  <h1>{content.hero.headline}</h1>
-  <p>{content.hero.body}</p>
-  <a
-    href="#featured-projects"
-    data-interaction-id="interaction:home:explore-projects"
-  >
-    {content.hero.primary_cta.label}
-  </a>
-</section>
-```
+Ownership and shell boundary:
 
-BAD (rejected): copying the headline from memory with different wording;
-putting the copy only in a data file the anchor imports; a marker sentence
-instead of the short token; a `data-interaction-id` whose id differs from the
-plan's interaction id by one character. GOOD: the literal strings from the
-contract block, byte-for-byte, inside the anchor file.
+- A route batch owns section fragments only. It must not create or modify a
+  route shell, `<main>`, skip link, site navigation, footer, route registry,
+  generated manifest, content module, or same-site URL policy.
+- The route composer owns the shell and receives only frozen batch signatures
+  plus approved interaction assignments. Import only the exact trusted exports
+  listed in `shared_source`.
+- Stay strictly inside `owned_paths`; use `create` only for absent files and
+  `replace` only for existing files.
 
-Compose with the scaffold's system: spacing strictly through the `--space-*`,
-`--element-gap`, `--content-gap`, and `--section-gap` tokens (consistent
-cadence, deliberate pauses — never arbitrary margins), type through the fluid
-`--text-*` scale with real hierarchy jumps, surfaces through `.card` /
-`.frame` / `.surface` variants, and layout through `.stack`, `.cluster`,
-`.grid`, `.grid--sidebar`. This target has no utility-class framework: write
-route-scoped CSS against the tokens; vendored component source must be
-rewritten into this idiom, never copied with foreign utility classes. The
-mobile interaction floor is non-negotiable: every visible navigation link,
-button, and disclosure control must have at least a 36px inline and block hit
-area (give short labels such as "Hero" explicit horizontal padding or a
-minimum inline size), while visually hidden skip links and contract markers
-remain excluded from the rendered control surface. The context's
-`shared_source` holds the frozen foundation files — import ONLY
-from those exact paths and exports (relative imports must resolve; every
-bare import must be an admitted package), and read
-`site_contract.public_content` for the approved copy you are rendering.
+Visual and implementation contract:
 
-Bind the resources you use to their admitted local paths: acquired images
-live under `public/resources/acquired/...` and pack media under
-`public/resources/pack/...` (exact paths in the resource ledger and contract).
-Import `publicResourceUrl` from the trusted `src/app/ResourceUrl.ts` helper and
-pass it the manifest's prefix-free reference (`resources/pack/...`). Never use
-root-relative `/resources/...` literals: they break nested preview mounts.
-Use that module's `publicRouteUrl` for every same-site route `href`; literal
-root-relative route links are not portable across nested preview mounts.
-Required local component source is copied to
-`src/generated/resources/pack/...`; import its module and render the imported
-component in this route. A comment, slot ID, or manifest mention is not usage.
+- Use the exact token names and values emitted from the v3 blueprint. Do not
+  assume or recreate a default palette, `.card`, `.surface`, `.grid`,
+  `.reveal`, `.stagger`, or other generic scaffold primitive. Do not add a
+  second token system, arbitrary gradients, glass panels, floating blobs,
+  dashboard card repetition, decorative pill overload, or uniform centering.
+- Use route-scoped CSS and approved responsive composition. Layout must remain
+  readable at mobile, tablet, and desktop widths. Use spacing and typography
+  from the blueprint instead of arbitrary margins or a utility framework.
+- Implement only motion beats assigned to this batch. Every animated state
+  must have a static, fully visible `prefers-reduced-motion` equivalent.
+- Every visible link, button, and disclosure has a keyboard name, focus state,
+  and at least a 36px inline and block hit area.
 
-Choreograph the entrance: sections and key elements use `.reveal` variants
-with `.stagger` so the route composes itself in sequence — sparingly, in
-service of the thesis, with the reduced-motion equivalent being fully visible
-static content (the scaffold guarantees this under the media query). Each
-route must commit to its planned layout strategy so two routes never read as
-the same template with different text.
+Resource and content contract:
 
-For every assigned section, preserve its exact content identifier, facts,
-criterion IDs, resource placement, responsive outcome, reduced-motion
-equivalent, and keyboard-accessible interaction outcome. All visible copy
-comes verbatim from `site_contract.public_content` — connective micro-labels
-(buttons, aria-labels, alt text) must be copied from approved content or kept
-under three words; never author new sentences of visible text. Express the
-planned composition with concrete DOM hierarchy and CSS. Use asymmetry,
-editorial spacing, data/evidence treatment, contrast, and controlled visual
-pauses only when the admitted direction supports them. Avoid generic
-gradients, glassmorphism, dashboard-like card repetition, and decorative
-animation.
+- Render only admitted local resources. Images use the trusted
+  `publicResourceUrl` helper with prefix-free local references; same-site links
+  use `publicRouteUrl`; approved external URLs must exactly match the contract.
+- A required component binding is used by importing its materialized local
+  module and rendering it. A slot id, filename comment, or manifest mention is
+  not usage. Never use remote imports, fetch, network URLs, or package changes.
+- All visible copy comes verbatim from `site_contract.public_content`.
+  Connective labels and aria text must be approved content or at most three
+  words. Never invent claims, metrics, clients, testimonials, credentials,
+  project details, image subjects, or capabilities.
 
-Admission rules that reject the whole response on a single violation:
-
-- Network references are banned with exactly one exception: approved
-  external links rendered as `href="https://..."` attributes whose URL is in
-  the contract's approved-URL list (render those approved links faithfully).
-  Everything else — remote `@import url(...)`, remote fonts/images/scripts,
-  protocol-relative `//...`, `fetch(`, `WebSocket`, `XMLHttpRequest`,
-  `EventSource`, and any URL in comments or metadata — is forbidden.
-- Mark a file `replace` ONLY when it already exists in the candidate tree;
-  every new file must be `create`. The context's `existing_files` list is the
-  authoritative current tree — check it before choosing the operation.
-- Stay strictly inside the owned paths listed for this unit.
-
-Before returning, re-read the assigned anchor file top to bottom and verify every
-literal in the contract block is present by exact string match; fix any miss,
-then fill `self_check` honestly. Return complete files plus honest coverage,
-or a bounded request/cannot-complete result when a required local input is
-genuinely unavailable.
+Return complete files for only the owned paths, honest coverage, and the
+strict JSON transport object. If a required local input is unavailable, return
+a bounded cannot-complete result instead of fabricating a substitute.

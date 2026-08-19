@@ -456,6 +456,9 @@ class WorkUnit(BaseModel):
     required_shared_exports: list[str] = Field(default_factory=list)
     resource_slot_ids: list[str] = Field(default_factory=list)
     criterion_ids: list[str] = Field(default_factory=list)
+    interaction_ids: list[str] = Field(default_factory=list)
+    owns_route_shell: bool = False
+    isolated_workspace_key: str = ""
     context_estimate: int = 0
     output_estimate: int = 0
     terminal: bool = False
@@ -633,6 +636,140 @@ class ExperienceBlueprintV2(BaseModel):
     anti_patterns: list[str] = Field(default_factory=list)
 
 
+class TypedTokenGroupV3(BaseModel):
+    """One portfolio-authored semantic token group.
+
+    Values are intentionally concrete.  The compiler rejects hidden fallback
+    values so the scaffold cannot quietly reintroduce a house palette.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    group_id: Literal["color", "typography", "spacing", "shape", "motion"]
+    values: dict[str, str | int | float]
+
+    @model_validator(mode="after")
+    def validate_values(self) -> TypedTokenGroupV3:
+        if not self.values or any(not str(key).strip() for key in self.values):
+            raise ValueError("typed token groups require named concrete values")
+        for value in self.values.values():
+            if isinstance(value, str) and "var(" in value and "," in value:
+                raise ValueError("token values may not contain CSS fallback expressions")
+        return self
+
+
+class DesignTokenSystemV3(DesignTokenSystemV2):
+    model_config = ConfigDict(extra="forbid")
+
+    token_groups: list[TypedTokenGroupV3]
+
+    @model_validator(mode="after")
+    def validate_groups(self) -> DesignTokenSystemV3:
+        groups = [item.group_id for item in self.token_groups]
+        if len(groups) != len(set(groups)):
+            raise ValueError("typed token group IDs must be unique")
+        required = {"color", "typography", "spacing", "shape", "motion"}
+        if set(groups) != required:
+            raise ValueError(
+                "v3 tokens require color, typography, spacing, shape, and motion groups"
+            )
+        return self
+
+
+class RouteShellV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    route_id: str
+    navigation_owner: str
+    main_owner: str
+    footer_owner: str
+    h1_owner: str
+    section_order: list[str]
+
+
+class DistinctiveMoveV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    move_id: str
+    route_id: str
+    thesis: str
+    implementation_constraint: str
+    anti_pattern_avoided: str = ""
+
+
+class InteractionAssignmentV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: str
+    route_id: str
+    owner_work_unit_id: str
+    source_marker: str
+    accessible_outcome: str
+
+
+class ResourcePlacementV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    route_id: str
+    section_id: str
+    region_id: str
+    purpose: str
+    executable_path: str = ""
+
+
+class MotionBeatV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    motion_id: str
+    route_id: str
+    section_id: str
+    region_id: str
+    trigger: Literal["load", "viewport", "hover", "focus", "activate"]
+    properties: list[str]
+    duration_ms: int = Field(ge=0, le=2000)
+    easing: str
+    reduced_motion_replacement: str
+
+
+class ExperienceBlueprintV3(BaseModel):
+    """Design-neutral blueprint with explicit ownership and placement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-experience-blueprint-v3"] = (
+        "code-generator-experience-blueprint-v3"
+    )
+    selected_concept_id: str
+    narrative_arc: str
+    tokens: DesignTokenSystemV3
+    layout_regions: list[LayoutRegion]
+    resource_usage: list[ResourceUsagePlanV2] = Field(default_factory=list)
+    route_shells: list[RouteShellV3]
+    distinctive_moves: list[DistinctiveMoveV3]
+    assigned_interactions: list[InteractionAssignmentV3] = Field(default_factory=list)
+    resource_placements: list[ResourcePlacementV3] = Field(default_factory=list)
+    motion_beats: list[MotionBeatV3] = Field(default_factory=list)
+    anti_patterns: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_v3_fields(self) -> ExperienceBlueprintV3:
+        if not self.distinctive_moves:
+            raise ValueError("v3 blueprints require at least one distinctive move")
+        shell_ids = [item.route_id for item in self.route_shells]
+        if len(shell_ids) != len(set(shell_ids)):
+            raise ValueError("route shell IDs must be unique")
+        if any(
+            not item.thesis.strip() or not item.implementation_constraint.strip()
+            for item in self.distinctive_moves
+        ):
+            raise ValueError("distinctive moves require a thesis and implementation constraint")
+        interaction_ids = [item.interaction_id for item in self.assigned_interactions]
+        if len(interaction_ids) != len(set(interaction_ids)):
+            raise ValueError("assigned interaction IDs must be unique")
+        return self
+
+
 class ExecutionBindingV2(BaseModel):
     """Compiled executable placement for one resolved pack or acquired slot."""
 
@@ -780,7 +917,7 @@ class SitePlan(BaseModel):
     interactions: list[InteractionContract] = Field(default_factory=list)
     resource_inventory: list[ResourceInventoryItem] = Field(default_factory=list)
     acceptance_coverage: list[AcceptanceCoverageItem] = Field(default_factory=list)
-    experience_blueprint: ExperienceBlueprintV2 | None = None
+    experience_blueprint: ExperienceBlueprintV3 | ExperienceBlueprintV2 | None = None
     execution_bindings: list[ExecutionBindingV2] = Field(default_factory=list)
 
 
@@ -1166,6 +1303,7 @@ class VerificationPlan(BaseModel):
     source_checks: list[str] = Field(default_factory=list)
     build_checks: list[str] = Field(default_factory=list)
     runtime_journeys: list[VerificationJourney] = Field(default_factory=list)
+    expected_route_paths: list[str] = Field(default_factory=list)
     expected_local_resources: list[str] = Field(default_factory=list)
     expected_check_ids: list[str] = Field(default_factory=list)
     plan_hash: str = ""

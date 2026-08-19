@@ -27,6 +27,7 @@ TRUSTED_SHELL_FILES = (
     "src/app/ResourceUrl.ts",
     "src/app/ErrorBoundary.tsx",
     "src/design/global.css",
+    "src/components/generated/SharedSystems.tsx",
 )
 
 
