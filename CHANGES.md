@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 16:40 +05:30 - Codex (model/provider omitted) - [45eafdc] - doc/run/run.md
+Added the reusable Docker runbook for Discovery, Content Architect, and Visual
+Design Director, including the observed migration failures, non-destructive
+database repair, live-provider configuration check, startup commands, and
+verification steps.
+
 ### 2026-08-19 15:47 +05:30 - Codex (live provider run) - [3c1ff43] - Harden live Code Generator generation and runtime repair
 Added a narrowly scoped JSON-object fallback for provider rejection of strict
 dictionary schemas, encoding-safe approved-copy validation, semantic exclusion
