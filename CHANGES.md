@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 17:42 +05:30 - Codex (live provider run) - [a01c030] - Harden Build Preparation live fixture execution
+Fixed the Docker provider-cache permission failure, mounted attached CA/VDD
+inputs read-only for the Compose frontend, reconciled malformed Stage 2 need
+IDs to the deterministic Stage 0 set, and retained packages when the advisory
+Stage 5 model review receives a provider rejection. Focused tests passed, and
+the final live frontend run reached packaging plus verified R2 read-back;
+handoff remained correctly blocked by four deterministic resource/VDD issues.
+
 ### 2026-08-19 17:03 +05:30 - Codex (live provider run) - [33b7113] - Document Build Preparation execution
 Added the requested `docs/run/run.md` runbook with verified frontend links,
 config-driven secret names, production and detached live-run commands, the
