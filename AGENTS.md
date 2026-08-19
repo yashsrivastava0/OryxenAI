@@ -104,7 +104,11 @@ deterministic mock, not a live implementation.
   build/runtime verification, finite repair, and atomic preview promotion.
   Build Preparation still does not auto-chain; see `DECISIONS.md` and
   `docs/code-generator-architecture/`.
-- Normal tests use checked-in fixtures; live model calls are opt-in.
+- Normal tests use checked-in fixtures; live model calls are opt-in. When a
+  user explicitly asks to run an agent or generate a portfolio, execute the
+  configured live LLM/API workflow against the supplied input by default;
+  never silently substitute a mock or fixture response. Mocks are reserved
+  for isolated tests, diagnostics, or a deliberately requested offline run.
 - No automatic chaining, public publishing, or generated-site runtime web
   access. Production Code Generator starts only through its explicit session
   endpoint.

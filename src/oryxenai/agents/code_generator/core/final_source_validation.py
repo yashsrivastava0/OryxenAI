@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import Diagnostic, SitePlan
-from oryxenai.agents.code_generator.core.source_validation import validate_repository
+from oryxenai.agents.code_generator.core.source_validation import (
+    _canonical_visible_text,
+    validate_repository,
+)
 
 _IMPORT_RE = re.compile(
     r"(?:import\s+(?:[^;]*?\s+from\s+)?|export\s+[^;]*?\s+from\s+|import\s*\()\s*[\"']([^\"']+)[\"']"
@@ -238,6 +241,12 @@ def validate_final_source(
         route_source = "\n".join(
             text for file_path, text in files.items() if file_path.startswith(route_prefix)
         )
+        # Model responses occasionally contain UTF-8 text decoded as
+        # Windows-1252 (for example ``Iâ€™m``) or harmless JSX quote wrappers.
+        # Compare approved copy in the same canonical visible-text space used
+        # by the source validator so encoding noise cannot trigger a repair
+        # loop or make an otherwise grounded route fail closed.
+        canonical_route_source = _canonical_visible_text(route_source)
         if route_id not in route_anchor_source:
             diagnostics.append(
                 _diag(
@@ -267,7 +276,11 @@ def validate_final_source(
             for text in _strings(section.get("content", {})):
                 # Prose only: single-word enum-ish values are data shape,
                 # not rendered copy the route must carry verbatim.
-                if " " in text and len(text) >= 6 and text not in route_source:
+                if (
+                    " " in text
+                    and len(text) >= 6
+                    and _canonical_visible_text(text) not in canonical_route_source
+                ):
                     diagnostics.append(
                         _diag(
                             "SOURCE_CONTENT_COVERAGE_MISSING",
