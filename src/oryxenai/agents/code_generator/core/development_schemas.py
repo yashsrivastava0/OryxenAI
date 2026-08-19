@@ -1460,6 +1460,13 @@ class DevelopmentRunProjection(BaseModel):
     portfolio_session_id: str = ""
     auto_advance: bool = True
     coordinator_stage: str = "plan"
+    pipeline_contract_version: str = "code-generator-v3"
+    trace_id: str = ""
+    active_attempt_id: str = ""
+    retry_status: str = ""
+    stage_durations_ms: dict[str, float] = Field(default_factory=dict)
+    worker_storage_readiness: dict[str, str | bool] = Field(default_factory=dict)
+    advisories: list[SafeIssue] = Field(default_factory=list)
     selected_pack_receipt: dict[str, Any] | None = None
     build_preparation_source_ref: dict[str, Any] | None = None
     artifact_reference: dict[str, Any] | None = None

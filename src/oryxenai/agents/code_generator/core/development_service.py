@@ -647,6 +647,12 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "portfolio_session_id": str(getattr(run, "portfolio_session_id", "") or ""),
             "auto_advance": bool(getattr(run, "auto_advance", True)),
             "coordinator_stage": str(getattr(run, "coordinator_stage", "plan") or "plan"),
+            "pipeline_contract_version": str(
+                getattr(run, "pipeline_contract_version", "code-generator-v3")
+                or "code-generator-v3"
+            ),
+            "trace_id": str(getattr(run, "trace_id", "") or ""),
+            "active_attempt_id": str(getattr(run, "active_attempt_id", "") or ""),
             "selected_pack_receipt": getattr(run, "selected_pack_receipt", None),
             "build_preparation_source_ref": getattr(run, "build_preparation_source_ref", None),
             "artifact_reference": getattr(run, "artifact_reference", None),

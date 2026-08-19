@@ -9,7 +9,7 @@ import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, NoReturn
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from oryxenai.agents.build_preparation.schemas import BuildPreparationStatus
 from oryxenai.agents.code_generator.core.development_schemas import (
@@ -17,6 +17,12 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunStatus,
 )
 from oryxenai.agents.code_generator.core.development_service import browser_ready
+from oryxenai.agents.code_generator.core.stage_attempt import (
+    StageAttemptToken,
+    StageCoordinator,
+    fingerprint_input,
+    stage_idempotency_key,
+)
 from oryxenai.agents.code_generator.session_schemas import (
     CodeGeneratorSessionState,
     CodeGeneratorSessionStatus,
@@ -171,6 +177,7 @@ class CodeGeneratorService:
             size_bytes=artifact.size_bytes,
         )
         host = _session_preview_host(session_id)
+        trace_id = uuid4().hex
         run = await self._repo.runs.create(
             input_reference=input_reference.model_dump(mode="json"),
             idempotency_key=idempotency_key,
@@ -182,7 +189,34 @@ class CodeGeneratorService:
             artifact_reference=artifact.model_dump(mode="json"),
             preflight_receipt={**preflight, "artifact_head": stored.model_dump(mode="json")},
             preview_host=host,
+            pipeline_contract_version=str(
+                getattr(
+                    self._settings.code_generator_development,
+                    "pipeline_contract_version",
+                    "code-generator-v3",
+                )
+            ),
+            trace_id=trace_id,
         )
+        stage_attempt = None
+        create_stage_attempt = getattr(self._repo.runs, "create_stage_attempt", None)
+        if create_stage_attempt is not None:
+            input_fingerprint = fingerprint_input(source_ref.model_dump(mode="json"))
+            stage_attempt = await create_stage_attempt(
+                run.id,
+                stage="plan",
+                input_fingerprint=input_fingerprint,
+                idempotency_key=stage_idempotency_key(run.id, "plan", input_fingerprint),
+                expected_run_revision=run.revision,
+                trace_id=trace_id,
+                worker_version=str(
+                    getattr(
+                        self._settings.code_generator_development,
+                        "pipeline_contract_version",
+                        "code-generator-v3",
+                    )
+                ),
+            )
         await self._repo.runs.append_event(
             run.id,
             event_type="created",
@@ -192,7 +226,20 @@ class CodeGeneratorService:
         )
         job = await self._jobs.enqueue(
             "code_generator.plan",
-            {"code_generator_run_id": str(run.id)},
+            StageCoordinator.payload_for_attempt(
+                StageAttemptToken(
+                    attempt_id=stage_attempt.id,
+                    run_id=run.id,
+                    stage="plan",
+                    attempt_no=stage_attempt.attempt_no,
+                    expected_run_revision=run.revision,
+                    input_fingerprint=stage_attempt.input_fingerprint,
+                    trace_id=trace_id,
+                ),
+                {"code_generator_run_id": str(run.id)},
+            )
+            if stage_attempt is not None
+            else {"code_generator_run_id": str(run.id)},
             max_attempts=int(self._settings.worker_retry.max_attempts),
             idempotency_scope="code_generator.plan",
             idempotency_key=f"{run.id}:{artifact.sha256}",
@@ -200,13 +247,21 @@ class CodeGeneratorService:
         updated = await self._repo.runs.compare_and_swap(
             run.id,
             expected_revision=run.revision,
-            values={"status": DevelopmentRunStatus.QUEUED.value, "background_job_id": job.id},
+            values={
+                "status": DevelopmentRunStatus.QUEUED.value,
+                "background_job_id": job.id,
+                **({"active_attempt_id": stage_attempt.id} if stage_attempt is not None else {}),
+            },
         )
         if updated is None:
             raise CodeGeneratorOperationError(
                 "CODE_GENERATOR_REVISION_CONFLICT",
                 "The Code Generator run changed while it was being queued.",
             )
+        if stage_attempt is not None:
+            bind_stage_attempt_job = getattr(self._repo.runs, "bind_stage_attempt_job", None)
+            if bind_stage_attempt_job is not None:
+                await bind_stage_attempt_job(stage_attempt.id, job_id=job.id)
         retained_preview = (
             dict(current.active_preview)
             if current is not None and current.active_preview
@@ -219,6 +274,14 @@ class CodeGeneratorService:
             source_ref=source_ref,
             active_preview=retained_preview,
             started_at=datetime.now(UTC).isoformat(),
+            pipeline_contract_version=str(
+                getattr(
+                    self._settings.code_generator_development,
+                    "pipeline_contract_version",
+                    "code-generator-v3",
+                )
+            ),
+            trace_id=trace_id,
         )
         saved = await self._repo.save_state(session_id, next_state, session.revision)
         if saved is None:
@@ -253,6 +316,12 @@ class CodeGeneratorService:
             payload["status"] = _session_status(run.status)
             payload["phase"] = run.status
             payload["run_revision"] = run.revision
+            payload["pipeline_contract_version"] = str(
+                getattr(run, "pipeline_contract_version", "code-generator-v3")
+                or "code-generator-v3"
+            )
+            payload["trace_id"] = str(getattr(run, "trace_id", "") or "")
+            payload["active_attempt_id"] = str(getattr(run, "active_attempt_id", "") or "")
             payload["issues"] = list(run.issues or [])
             payload["active_preview"] = run.active_preview or state.active_preview
             payload["progress"] = {
@@ -261,6 +330,17 @@ class CodeGeneratorService:
                 "plan_summary": run.plan_summary or {},
                 "source_summary": run.source_summary or {},
             }
+            active_attempt_loader = getattr(self._repo.runs, "active_stage_attempt", None)
+            if active_attempt_loader is not None:
+                active_attempt = await active_attempt_loader(run.id)
+                if active_attempt is not None:
+                    payload["current_stage_attempt"] = {
+                        "id": str(active_attempt.id),
+                        "stage": active_attempt.stage,
+                        "attempt_no": active_attempt.attempt_no,
+                        "status": active_attempt.status,
+                        "trace_id": active_attempt.trace_id or payload["trace_id"],
+                    }
             if run.terminal_failure:
                 payload["latest_error"] = run.terminal_failure
             for job_id in (
