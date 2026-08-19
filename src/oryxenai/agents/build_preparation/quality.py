@@ -841,6 +841,12 @@ def build_handoff_report(
         for entry in materialization.resources
         if isinstance(entry, dict)
     }
+    delegated_need_ids = {
+        source_id
+        for slot in materialization.execution_slots
+        if slot.resolution.resolution_type == "delegated_acquisition"
+        for source_id in slot.source_ids
+    }
     for need in needs:
         if need.need_id not in materialized_by_need:
             selected_id = selected_ids.get(need.need_id)
@@ -895,6 +901,10 @@ def build_handoff_report(
             "registry_component",
         }
         if is_image_role or is_component_role:
+            if need.need_id in delegated_need_ids:
+                # v4 explicitly transfers this role only after the configured
+                # upstream attempts; Code Generator owns the bounded follow-up.
+                continue
             usable_dispositions = {"local_file", "adaptable_source"}
             disposition = materialized_disposition(materialized_by_need.get(need.need_id, {}))
             if not selected_ids.get(need.need_id) or disposition not in usable_dispositions:
@@ -960,10 +970,14 @@ def build_handoff_report(
             slot.resolution.resolution_type == "local_recipe"
             for slot in materialization.execution_slots
         ),
+        "delegated_acquisition": sum(
+            slot.resolution.resolution_type == "delegated_acquisition"
+            for slot in materialization.execution_slots
+        ),
         "execution_gap": len(materialization.execution_gaps),
     }
     if (
-        materialization.pack_version == "build-preparation-pack-v3"
+        materialization.pack_version in {"build-preparation-pack-v3", "build-preparation-pack-v4"}
         and materialization.execution_contract_path
     ):
         if not slot_ids or len(slot_ids) != len(set(slot_ids)):
@@ -1015,6 +1029,18 @@ def build_handoff_report(
                             code="EXECUTION_PACKAGE_BINDING_INVALID",
                             message=f"Execution slot '{slot.resource_slot_id}' lacks a usable package binding.",
                             next_action="Use a configured target dependency or a typed local recipe.",
+                        )
+                    )
+            elif resolution.resolution_type == "delegated_acquisition":
+                if (
+                    not resolution.delegation_policy
+                    or resolution.delegation_policy.get("selection") != "closed_set_only"
+                ):
+                    issues.append(
+                        HandoffIssue(
+                            code="DELEGATED_POLICY_INVALID",
+                            message=f"Execution slot '{slot.resource_slot_id}' has no closed delegated policy.",
+                            next_action="Regenerate the v4 pack with explicit delegation settings.",
                         )
                     )
             elif resolution.resolution_type == "execution_gap":
