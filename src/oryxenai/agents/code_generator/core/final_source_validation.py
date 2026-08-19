@@ -12,6 +12,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
     validate_repository,
 )
+from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_typescript_source
 
 _IMPORT_RE = re.compile(
     r"(?:import\s+(?:[^;]*?\s+from\s+)?|export\s+[^;]*?\s+from\s+|import\s*\()\s*[\"']([^\"']+)[\"']"
@@ -113,6 +114,16 @@ def _local_binding_tokens(local_paths: list[str]) -> set[str]:
                     f"src/generated/resources/pack/{relative}",
                 }
             )
+        if normalized.startswith("src/generated/resources/acquired/"):
+            relative = normalized.removeprefix("src/generated/resources/acquired/")
+            tokens.update(
+                {
+                    f"/resources/acquired/{relative}",
+                    f"resources/acquired/{relative}",
+                    f"public/resources/acquired/{relative}",
+                    f"src/generated/resources/acquired/{relative}",
+                }
+            )
         tokens.add(Path(normalized).name)
     return tokens
 
@@ -201,6 +212,14 @@ def validate_final_source(
         for item in source_diagnostics
     )
     files = _all_text(repo_dir)
+    diagnostics.extend(
+        audit_typescript_source(
+            repo_dir,
+            files=files,
+            plan=plan,
+            projections=projections,
+        )
+    )
     combined = "\n".join(files.values())
     registry = files.get("src/generated/route-registry.ts", "")
     site = projections.get("site/contract.json", {})
@@ -290,6 +309,17 @@ def validate_final_source(
                         )
                     )
     execution = projections.get("execution/contract.json", {})
+    resource_ledger = projections.get("resources/ledger.json", {})
+    requests_by_id = {
+        str(item.get("request_id", "")): item
+        for item in resource_ledger.get("requests", [])
+        if isinstance(item, dict)
+    }
+    bindings_by_request_hash = {
+        str(item.get("request_id_or_pack_need_id", "")): item
+        for item in resource_ledger.get("active_bindings", [])
+        if isinstance(item, dict)
+    }
     for slot in execution.get("slots", []) if isinstance(execution, dict) else []:
         if not isinstance(slot, dict):
             continue
@@ -297,14 +327,21 @@ def validate_final_source(
         resolution_type = (
             str(resolution.get("resolution_type", "")) if isinstance(resolution, dict) else ""
         )
+        local_paths = resolution.get("local_paths", []) if isinstance(resolution, dict) else []
+        if resolution_type == "delegated_acquisition":
+            delegated_request = requests_by_id.get(
+                f"delegated-{slot.get('resource_slot_id', '')}", {}
+            )
+            request_hash = str(delegated_request.get("request_hash", ""))
+            delegated_binding = bindings_by_request_hash.get(request_hash, {})
+            local_paths = delegated_binding.get("local_paths", [])
+            resolution_type = "local_materialized" if local_paths else resolution_type
         # Local recipes are intentionally non-binding design guidance. The
         # required visual floor is concrete local material or a package import.
         binding_slot = {
             "category": str(slot.get("category", "")),
             "resolution_type": resolution_type,
-            "local_paths": (
-                resolution.get("local_paths", []) if isinstance(resolution, dict) else []
-            ),
+            "local_paths": local_paths,
             "package_name": (
                 str(resolution.get("package_name", "")) if isinstance(resolution, dict) else ""
             ),

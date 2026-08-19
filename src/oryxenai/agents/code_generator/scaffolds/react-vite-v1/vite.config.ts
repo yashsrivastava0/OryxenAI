@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { fileURLToPath, URL } from "node:url";
+import { resolve } from "node:path";
 
 export default defineConfig({
   // Generated portfolios are served from both the root and a nested preview
@@ -9,7 +9,10 @@ export default defineConfig({
   base: "./",
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // process.cwd() is the disposable candidate root. Resolving from it is
+      // stable on Windows nested workspaces where esbuild cannot safely walk
+      // a file URL parent chain.
+      "@": resolve(process.cwd(), "src"),
     },
   },
   plugins: [react()],

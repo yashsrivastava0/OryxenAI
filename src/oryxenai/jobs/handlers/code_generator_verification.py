@@ -443,6 +443,46 @@ async def _execute(
             timeout_ms=int(settings.code_generator_verification.runtime_timeout_ms),
             verification_token=token,
         )
+        executed_runtime_check_ids = sorted(
+            set(profile.runtime_check_ids).union(item.journey_id for item in evidence)
+        )
+        expected_runtime_check_ids = sorted(
+            set(profile.runtime_check_ids).union(
+                item.journey_id for item in verification_plan.runtime_journeys
+            )
+        )
+        if executed_runtime_check_ids != expected_runtime_check_ids:
+            runtime_diagnostics.append(
+                Diagnostic(
+                    diagnostic_id="diagnostic-runtime-check-set-mismatch",
+                    group="dom_runtime",
+                    code="RUNTIME_CHECK_ID_SET_MISMATCH",
+                    phase="dom_runtime",
+                    normalized_message=(
+                        "The runtime verifier did not execute the exact configured route and "
+                        "journey check set."
+                    ),
+                    expected=",".join(expected_runtime_check_ids),
+                    observed=",".join(executed_runtime_check_ids),
+                    fingerprint=hashlib.sha256(
+                        f"runtime-check-set:{expected_runtime_check_ids}:{executed_runtime_check_ids}".encode()
+                    ).hexdigest()[:24],
+                )
+            )
+        if not evidence:
+            runtime_diagnostics.append(
+                Diagnostic(
+                    diagnostic_id="diagnostic-runtime-evidence-empty",
+                    group="dom_runtime",
+                    code="RUNTIME_EVIDENCE_EMPTY",
+                    phase="dom_runtime",
+                    normalized_message="The runtime verifier produced no journey evidence.",
+                    fingerprint=hashlib.sha256(b"runtime-evidence-empty").hexdigest()[:24],
+                )
+            )
+        evidence_hash = hashlib.sha256(
+            _canonical([item.model_dump(mode="json") for item in evidence])
+        ).hexdigest()
         projection.runtime_evidence = evidence
         projection.diagnostics.extend(runtime_diagnostics)
         projection.gate_results.append(
@@ -451,9 +491,10 @@ async def _execute(
                 status="failed" if runtime_diagnostics else "passed",
                 candidate_identity_hash=identity.identity_hash,
                 build_hash=manifest.build_hash,
-                expected_check_ids=profile.runtime_check_ids,
-                executed_check_ids=profile.runtime_check_ids,
+                expected_check_ids=expected_runtime_check_ids,
+                executed_check_ids=executed_runtime_check_ids,
                 diagnostics=runtime_diagnostics,
+                evidence_hash=evidence_hash,
             )
         )
         if runtime_diagnostics:
