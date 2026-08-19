@@ -5,6 +5,7 @@ from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.code_generator_development import (
     CodeGeneratorDevelopmentEvent,
     CodeGeneratorDevelopmentRun,
+    CodeGeneratorStageAttempt,
 )
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.models.service_heartbeat import ServiceHeartbeat
@@ -14,6 +15,7 @@ __all__ = [
     "BackgroundJob",
     "CodeGeneratorDevelopmentEvent",
     "CodeGeneratorDevelopmentRun",
+    "CodeGeneratorStageAttempt",
     "PortfolioSession",
     "ServiceHeartbeat",
 ]

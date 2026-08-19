@@ -97,7 +97,7 @@ class Worker:
             await repo.upsert(
                 self._instance_id,
                 "oryxenai-worker",
-                {"process": f"worker-{self._instance_id}"},
+                self._worker_metadata(),
             )
             await session.commit()
 
@@ -109,7 +109,9 @@ class Worker:
             try:
                 async with self._sessionmaker() as session:
                     repo = HeartbeatRepository(session)
-                    await repo.upsert(self._instance_id, "oryxenai-worker")
+                    await repo.upsert(
+                        self._instance_id, "oryxenai-worker", self._worker_metadata()
+                    )
                     await session.commit()
             except Exception as exc:
                 logger.warning("worker heartbeat transient error=%s", type(exc).__name__)
@@ -192,6 +194,11 @@ class Worker:
             payload = dict(job.payload or {})
             payload["attempt"] = job.attempt
             payload["max_attempts"] = job.max_attempts
+            payload["job_id"] = str(job.id)
+            payload["job_kind"] = kind
+            payload["worker_instance"] = self._instance_id
+            if job.lease_token:
+                payload["lease_token"] = job.lease_token
             result = await asyncio.wait_for(
                 handler.execute(payload, self._instance_id),
                 timeout=self._settings.worker_job.timeout_for(kind),
@@ -250,6 +257,21 @@ class Worker:
             )
             return
         await self._complete_job(job, result)
+
+    def _worker_metadata(self) -> dict[str, str | int | bool]:
+        development = self._settings.code_generator_development
+        generation = self._settings.code_generator_generation
+        return {
+            "process": f"worker-{self._instance_id}",
+            "release_id": str(getattr(development, "worker_release_id", "oryxenai-worker")),
+            "pipeline_contract_version": str(
+                getattr(development, "pipeline_contract_version", "code-generator-v3")
+            ),
+            "artifact_store_provider": str(
+                getattr(generation, "artifact_store_provider", "local_fs")
+            ),
+            "code_generator_capability": True,
+        }
 
     async def _renew_lease_loop(self, job: Any) -> None:
         """Keep a claimed job's heartbeat fresh while its handler is running.
