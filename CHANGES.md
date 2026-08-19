@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 17:03 +05:30 - Codex (live provider run) - [33b7113] - Document Build Preparation execution
+Added the requested `docs/run/run.md` runbook with verified frontend links,
+config-driven secret names, production and detached live-run commands, the
+`handoff_eligible` gate, and the Docker/network/schema/resource issues found
+during the live Build Preparation run.
+
 ### 2026-08-19 16:53 +05:30 - Codex (live provider run) - [237e0ed] - Align Build Preparation live response schemas
 Accepted responsive/reduced-motion query fields and the complete Stage 3/4
 context envelope emitted by the configured live model, then normalized the
