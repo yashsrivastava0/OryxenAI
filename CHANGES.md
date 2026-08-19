@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-20 00:00 +05:30 - Codex (GPT-5) - [0c4901f] - Add fenced stage attempts and immutable workflow artifacts
+Added the Code Generator reliability spine: normalized stage-attempt rows and
+partial active-attempt fencing, trace/contract metadata on runs and events,
+safe retry/input/repair classification, worker release/readiness metadata,
+content-addressed local and R2-compatible workflow artifact repositories, and
+phase-level regression coverage. Existing v3 development/session behavior stays
+compatible while later stages adopt the normalized coordinator.
+
 ### 2026-08-19 21:23 +05:30 - Codex (live provider run) - [8259231] - Grounded Build Preparation to Code Generator execution
 Hardened live Build Preparation context normalization, duplicate-resource fallback, and Code Generator repository-root path resolution so the exact eligible pack survives admission, acquisition, generation, and verification from any Windows launch directory. The live run promoted a verified single-route portfolio preview and persistent local export; focused tests passed.
 
