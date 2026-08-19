@@ -157,6 +157,8 @@ class ResourceQuery(BaseModel):
     interaction_outcome: str = ""
     placement: str = ""
     expected_exports: list[str] = Field(default_factory=list)
+    responsive_behavior: str = ""
+    reduced_motion_behavior: str = ""
 
 
 class Stage1QueryPlan(BaseModel):
@@ -390,6 +392,9 @@ class BuildContextDraft(BaseModel):
 
     overview_markdown: str = ""
     routes: list[RouteBuildContext] = Field(default_factory=list)
+    resource_ids: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    free_to_change: list[str] = Field(default_factory=list)
     runtime_requirements: dict[str, Any] = Field(default_factory=dict)
     fixed_facts: list[str] = Field(default_factory=list)
     freedoms: list[str] = Field(default_factory=list)
@@ -402,6 +407,10 @@ class Stage3BuildContextResult(BaseModel):
     stage: Literal["stage_3"] = "stage_3"
     status: Literal["ready"] = "ready"
     context: BuildContextDraft
+    runtime_requirements: dict[str, Any] = Field(default_factory=dict)
+    fixed_facts: list[str] = Field(default_factory=list)
+    freedoms: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class Stage4IntegratedContextResult(BaseModel):
@@ -410,6 +419,10 @@ class Stage4IntegratedContextResult(BaseModel):
     stage: Literal["stage_4"] = "stage_4"
     status: Literal["ready"] = "ready"
     context: BuildContextDraft
+    runtime_requirements: dict[str, Any] = Field(default_factory=dict)
+    fixed_facts: list[str] = Field(default_factory=list)
+    freedoms: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class Stage5HandoffReview(BaseModel):
