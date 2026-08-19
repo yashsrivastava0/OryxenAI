@@ -20,6 +20,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyRequest,
     ResourceReceipt,
 )
+from oryxenai.agents.code_generator.core.workspace import repository_root
 
 
 def _canonical_hash(value: Any) -> str:
@@ -238,7 +239,10 @@ async def _run_npm(command: list[str], repo_dir: Path, settings: Any, *, stage: 
     if cache_root:
         # Absolute: npm resolves a relative cache against repo_dir, which
         # would silently create a fresh empty cache per workspace.
-        environment["npm_config_cache"] = str(Path(cache_root).resolve())
+        cache_path = Path(cache_root)
+        environment["npm_config_cache"] = str(
+            cache_path if cache_path.is_absolute() else (repository_root() / cache_path).resolve()
+        )
     try:
         result = await asyncio.to_thread(
             subprocess.run,

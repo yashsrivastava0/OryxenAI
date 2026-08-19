@@ -12,6 +12,7 @@ from oryxenai.agents.code_generator.core.process_runner import (
     ProcessRunnerError,
     run_command,
 )
+from oryxenai.agents.code_generator.core.workspace import repository_root
 
 
 async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnostic | None:
@@ -32,7 +33,14 @@ async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnosti
     # Offline installs read the warmed npm cache; the path must be absolute
     # because npm resolves a relative cache against the repo directory.
     cache_root = str(getattr(settings.code_generator_dependencies, "npm_cache_root", "") or "")
-    environment = {"npm_config_cache": str(Path(cache_root).resolve())} if cache_root else None
+    if cache_root:
+        cache_path = Path(cache_root)
+        resolved_cache = (
+            cache_path if cache_path.is_absolute() else (repository_root() / cache_path).resolve()
+        )
+        environment = {"npm_config_cache": str(resolved_cache)}
+    else:
+        environment = None
     try:
         result = await run_command(
             [npm, "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"],

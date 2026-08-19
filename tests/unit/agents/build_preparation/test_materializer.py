@@ -209,6 +209,104 @@ async def test_materializer_tries_closed_set_image_alternate_after_validation_fa
 
 
 @pytest.mark.asyncio
+async def test_materializer_tries_image_alternate_after_duplicate_local_content() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        route = RouteScope(route_id="home", path="/", title="Home")
+        first_need = ResourceNeed(
+            need_id="first-photo-need",
+            kind="asset",
+            source_id="asset-1",
+            category="photo",
+            purpose="Opening image",
+            route_ids=["home"],
+        )
+        second_need = first_need.model_copy(
+            update={"need_id": "second-photo-need", "source_id": "asset-2"}
+        )
+        first = FetchedResource(
+            resource_id="resource-first",
+            need_id=first_need.need_id,
+            kind="photo",
+            provider="pexels",
+            provider_asset_id="first",
+            image_url="https://images.pexels.com/first.jpg",
+        )
+        duplicate = FetchedResource(
+            resource_id="resource-duplicate",
+            need_id=second_need.need_id,
+            kind="photo",
+            provider="pexels",
+            provider_asset_id="duplicate",
+            image_url="https://images.pexels.com/duplicate.jpg",
+        )
+        alternate = duplicate.model_copy(
+            update={
+                "resource_id": "resource-distinct",
+                "provider_asset_id": "distinct",
+                "image_url": "https://images.pexels.com/distinct.jpg",
+            }
+        )
+
+        # The first two candidates intentionally share bytes; the alternate
+        # uses a different deterministic image so the duplicate guard can
+        # exercise the closed-set retry path.
+        first_bytes = _png()
+        alternate_bytes = Image.effect_noise((1200, 700), 90).convert("RGB")
+        alternate_buffer = io.BytesIO()
+        alternate_bytes.save(alternate_buffer, format="PNG")
+        payloads = {
+            first.resource_id: first_bytes,
+            duplicate.resource_id: first_bytes,
+            alternate.resource_id: alternate_buffer.getvalue(),
+        }
+
+        async def download_distinct(candidate: FetchedResource) -> bytes:
+            return payloads[candidate.resource_id]
+
+        result = await materialize_build_context(
+            output_dir=output_dir,
+            run_id="run-image-duplicate",
+            routes=[route],
+            needs=[first_need, second_need],
+            selections=[
+                ResourceSelection(
+                    need_id=first_need.need_id,
+                    selected_resource_id=first.resource_id,
+                ),
+                ResourceSelection(
+                    need_id=second_need.need_id,
+                    selected_resource_id=duplicate.resource_id,
+                    alternate_resource_ids=[alternate.resource_id],
+                ),
+            ],
+            candidates=[first, duplicate, alternate],
+            context=BuildContextDraft(
+                overview_markdown="# Build context",
+                routes=[RouteBuildContext(route_id="home", brief_markdown="# Home")],
+            ),
+            content_architect={},
+            settings=settings,
+            download_image=download_distinct,
+        )
+
+        assert result.effective_selections[1].selected_resource_id == alternate.resource_id
+        assert [item["status"] for item in result.resource_attempts] == [
+            "materialized",
+            "rejected",
+            "materialized",
+        ]
+        assert {item["id"] for item in result.resources} == {
+            first.resource_id,
+            alternate.resource_id,
+        }
+        assert len({item["content_hash"] for item in result.resources}) == 2
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
 async def test_materializer_rejects_generated_local_visuals() -> None:
     output_dir = _output_dir()
     try:

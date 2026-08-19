@@ -15,6 +15,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunProjection,
     DevelopmentRunStatus,
 )
+from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.service import JobService
@@ -593,7 +594,12 @@ class CodeGeneratorDevelopmentService:
             return {"checkpoint": dict(run.source_checkpoint), "files": []}
         from pathlib import Path
 
-        root = Path(self._settings.code_generator_development.input_root).resolve()
+        configured_root = Path(self._settings.code_generator_development.input_root)
+        root = (
+            configured_root
+            if configured_root.is_absolute()
+            else (repository_root() / configured_root).resolve()
+        )
         path = (root / manifest_path).resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise DevelopmentRunError(

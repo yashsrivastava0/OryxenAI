@@ -821,12 +821,28 @@ async def search_images(
                     except (ImageDownloadError, ValueError, httpx.HTTPError):
                         batch = []
                     found.extend(batch)
-                    if batch and not _weak(batch, intent):
+                    has_unused_asset = any(
+                        candidate.provider_asset_id not in set(intent.used_asset_ids)
+                        for candidate in batch
+                    )
+                    if batch and has_unused_asset and not _weak(batch, intent):
                         break
         unique: dict[tuple[str, str], ImageCandidate] = {}
         for candidate in found:
             unique.setdefault((candidate.provider, candidate.provider_asset_id), candidate)
-        return rank_image_candidates(unique.values(), intent)[
+        unique_candidates = list(unique.values())
+        used_ids = set(intent.used_asset_ids)
+        unused_candidates = [
+            candidate
+            for candidate in unique_candidates
+            if candidate.provider_asset_id not in used_ids
+        ]
+        # Provider search results are often stable across semantically
+        # different queries. Prefer a genuinely new provider asset whenever
+        # one exists; only reuse a prior asset when the closed provider result
+        # set has no unused candidate at all.
+        ranked_pool = unused_candidates or unique_candidates
+        return rank_image_candidates(ranked_pool, intent)[
             : max(1, int(_value(settings, "max_candidates_total", 12)))
         ]
     finally:

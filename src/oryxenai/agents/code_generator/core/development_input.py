@@ -28,6 +28,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
     InputReceipt,
 )
+from oryxenai.agents.code_generator.core.workspace import repository_root
 
 
 class DevelopmentInputError(ValueError):
@@ -46,6 +47,11 @@ class DevelopmentInputError(ValueError):
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _resolve_config_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else (repository_root() / path).resolve()
 
 
 def _safe_relative(value: str) -> str:
@@ -90,7 +96,7 @@ class DevelopmentInputAdapter:
 
     def __init__(self, settings: Any) -> None:
         self._config = settings.code_generator_development
-        self._root = Path(self._config.input_root).resolve()
+        self._root = _resolve_config_path(self._config.input_root)
 
     def fixtures(self) -> list[dict[str, str]]:
         return [
@@ -104,7 +110,7 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "FIXTURE_NOT_FOUND", "The requested development fixture is not configured."
             )
-        fixture_root = Path(source).resolve()
+        fixture_root = _resolve_config_path(source)
         if not fixture_root.is_dir():
             raise DevelopmentInputError(
                 "FIXTURE_UNAVAILABLE", "The configured development fixture is unavailable."
@@ -224,7 +230,7 @@ class DevelopmentInputAdapter:
         )
 
     def _mirror_entries(self) -> list[Path]:
-        root = Path(self._config.build_preparation_mirror_root).resolve()
+        root = _resolve_config_path(self._config.build_preparation_mirror_root)
         if not root.is_dir():
             return []
         return sorted(
@@ -348,7 +354,13 @@ class DevelopmentInputAdapter:
         candidate = (self._root / reference.stored_relative_path).resolve()
         if not candidate.is_relative_to(self._root) or not candidate.is_file():
             raise DevelopmentInputError(
-                "INPUT_COPY_MISSING", "The immutable input copy is unavailable."
+                "INPUT_COPY_MISSING",
+                "The immutable input copy is unavailable.",
+                details={
+                    "input_root": str(self._root),
+                    "stored_relative_path": reference.stored_relative_path,
+                    "resolved_candidate": str(candidate),
+                },
             )
         data = candidate.read_bytes()
         if _sha256(data) != reference.source_sha256:
