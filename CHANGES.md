@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 13:26 +05:30 - Codex (model/provider omitted) - [6afd672] - Production Code Generator v2 and visual compiler
+Connected explicit portfolio-session starts to exact verified Build Preparation artifacts, added structured creative comparison and experience-blueprint calls, compiled deterministic resource bindings and non-overlapping work ownership, and hardened local assets, nested routes, whole-site review, responsive geometry, reduced motion, staleness, and atomic preview retention/promotion. Verified the complete Code Generator Python surface, the clean Vite build/browser promotion path, frontend tests, scoped lint/format/type checks, migration head, scaffold typecheck/build, and offline admission of the selected pack; the broader repository still has unrelated provider-dependent and pre-existing type-check failures.
+
 ### 2026-08-18 23:55 +05:30 - Codex (GPT-5 / OpenAI) - [6bdcb13] - Selected verified Build Preparation output for Code Generator
 Recorded the live-accepted pack `64801150-cb6d-4052-ae1e-2a30ab55fb20` as the current Code Generator working input, including its ZIP identity, route scope, local image/component/font bindings, projection hashes, R2 handoff distinction, and the static experience-timeline fallback. Marked the older ineligible pack as unusable.
 
