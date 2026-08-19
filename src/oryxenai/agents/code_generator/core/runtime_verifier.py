@@ -35,6 +35,21 @@ def _diagnostic(
     )
 
 
+def _mounted_route_paths(base_url: str, route_paths: list[str]) -> list[str]:
+    """Accept logical route paths and their nested preview mount paths.
+
+    ``publicRouteUrl`` deliberately emits the browser-visible mounted path
+    while the plan stores the portfolio's logical route path. Keeping both
+    representations in the runtime allow-list preserves the route contract
+    without mistaking the preview gateway prefix for an unapproved route.
+    """
+
+    base_path = urlsplit(base_url).path or "/"
+    prefix = "/" + base_path.strip("/") + "/" if base_path.strip("/") else "/"
+    mounted = {f"{prefix}{path.lstrip('/')}" if prefix != "/" else path for path in route_paths}
+    return sorted({*route_paths, *mounted})
+
+
 class RuntimeVerifier:
     """Runs deterministic journeys against a promoted-candidate gateway."""
 
@@ -68,6 +83,7 @@ class RuntimeVerifier:
             ]
         evidence: list[RuntimeEvidence] = []
         diagnostics: list[Diagnostic] = []
+        expected_runtime_paths = _mounted_route_paths(base_url, plan.expected_route_paths)
         async with async_playwright() as playwright:
             browser_type = getattr(playwright, profile.browser_name, None)
             if browser_type is None:
@@ -106,6 +122,7 @@ class RuntimeVerifier:
                         origin.netloc,
                         journey,
                         profile,
+                        expected_runtime_paths,
                         timeout_ms,
                         verification_token,
                     )
@@ -122,6 +139,7 @@ class RuntimeVerifier:
         expected_netloc: str,
         journey: VerificationJourney,
         profile: VerificationProfile,
+        expected_route_paths: list[str],
         timeout_ms: int,
         verification_token: str,
     ) -> tuple[RuntimeEvidence, list[Diagnostic]]:
@@ -243,13 +261,31 @@ class RuntimeVerifier:
                         )
                     )
             visual_state = await page.evaluate(
-                """() => ({
+                """expectedPaths => ({
                   bodyText: document.body?.innerText?.trim().length ?? 0,
                   mainCount: document.querySelectorAll('main').length,
+                  h1Count: document.querySelectorAll('main h1').length,
+                  sectionIds: Array.from(document.querySelectorAll('main [data-content-id]'))
+                    .map(element => element.getAttribute('data-content-id') || ''),
+                  duplicateDomIds: Array.from(document.querySelectorAll('[id]'))
+                    .map(element => element.id)
+                    .filter((value, index, values) => values.indexOf(value) !== index),
+                  duplicateInteractionIds: Array.from(document.querySelectorAll('[data-interaction-id]'))
+                    .map(element => element.getAttribute('data-interaction-id') || '')
+                    .filter((value, index, values) => values.indexOf(value) !== index),
+                  unresolvedAnchors: Array.from(document.querySelectorAll('a[href^="#"]'))
+                    .map(anchor => anchor.getAttribute('href') || '')
+                    .filter(href => href.length > 1 && !document.getElementById(href.slice(1))),
+                  unresolvedInternalRoutes: Array.from(document.querySelectorAll('a[href]'))
+                    .map(anchor => anchor.getAttribute('href') || '')
+                    .filter(href => href.startsWith('/') &&
+                      !href.startsWith('//') &&
+                      !new Set(expectedPaths).has((href.split('#')[0] || '/'))),
                   brokenImages: Array.from(document.images)
                     .filter(image => image.complete && image.naturalWidth === 0)
                     .map(image => image.currentSrc || image.src),
-                })"""
+                })""",
+                [str(item) for item in expected_route_paths],
             )
             if (
                 int(visual_state.get("bodyText", 0)) == 0
@@ -260,6 +296,109 @@ class RuntimeVerifier:
                     _diagnostic(
                         "RUNTIME_EMPTY_SHELL",
                         "The route rendered without a visible body or main landmark.",
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            if int(visual_state.get("mainCount", 0)) != 1:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_MAIN_COUNT_INVALID",
+                        "The rendered route must contain exactly one main landmark.",
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            if journey.route_id and int(visual_state.get("h1Count", 0)) != 1:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_H1_COUNT_INVALID",
+                        "The rendered route must contain exactly one h1 heading.",
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            expected_content_ids = next(
+                (
+                    list(step.expected_content_ids)
+                    for step in journey.steps
+                    if step.expected_content_ids
+                ),
+                [],
+            )
+            observed_content_ids = [
+                str(value) for value in visual_state.get("sectionIds", []) if str(value)
+            ]
+            if expected_content_ids and observed_content_ids != expected_content_ids:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_SECTION_ORDER_INVALID",
+                        "Rendered section anchors do not match the approved route order.",
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            duplicate_ids = sorted(
+                {str(value) for value in visual_state.get("duplicateDomIds", []) if str(value)}
+            )
+            if duplicate_ids:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_DOM_ID_DUPLICATE",
+                        "The rendered route contains duplicate DOM identifiers: "
+                        + ", ".join(duplicate_ids[:4]),
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            duplicate_interactions = sorted(
+                {
+                    str(value)
+                    for value in visual_state.get("duplicateInteractionIds", [])
+                    if str(value)
+                }
+            )
+            if duplicate_interactions:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_INTERACTION_ID_DUPLICATE",
+                        "The rendered route contains duplicate interaction identifiers: "
+                        + ", ".join(duplicate_interactions[:4]),
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            unresolved_anchors = [
+                str(value) for value in visual_state.get("unresolvedAnchors", []) if str(value)
+            ]
+            if unresolved_anchors:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_ANCHOR_TARGET_MISSING",
+                        "The rendered route contains an anchor without a local target: "
+                        + ", ".join(unresolved_anchors[:4]),
+                        journey_id=journey.journey_id,
+                        route_id=journey.route_id,
+                    )
+                )
+            unresolved_routes = [
+                str(value)
+                for value in visual_state.get("unresolvedInternalRoutes", [])
+                if str(value)
+            ]
+            if unresolved_routes:
+                passed = False
+                diagnostics.append(
+                    _diagnostic(
+                        "RUNTIME_INTERNAL_ROUTE_UNRESOLVED",
+                        "The rendered route contains a link to an unapproved internal path: "
+                        + ", ".join(unresolved_routes[:4]),
                         journey_id=journey.journey_id,
                         route_id=journey.route_id,
                     )
@@ -435,7 +574,14 @@ class RuntimeVerifier:
         elif step.action in {"click", "focus", "press"}:
             locator = page.locator(step.target).first
             if step.action == "click":
-                await locator.click()
+                if "download" in step.expected_outcome.casefold():
+                    async with page.expect_download() as download_info:
+                        await locator.click()
+                    download = await download_info.value
+                    if not str(download.suggested_filename or download.path):
+                        raise AssertionError("The declared download interaction produced no file.")
+                else:
+                    await locator.click()
             elif step.action == "focus":
                 await locator.focus()
             else:
@@ -458,6 +604,44 @@ class RuntimeVerifier:
                     raise AssertionError(
                         f"Expected accessible name {step.expected_accessible_name}, observed {observed}"
                     )
+            outcome = step.expected_outcome.casefold()
+            state = await locator.evaluate(
+                "element => ({expanded: element.getAttribute('aria-expanded'), "
+                "pressed: element.getAttribute('aria-pressed')})"
+            )
+            if any(token in outcome for token in ("open", "expand", "show")):
+                if state.get("expanded") is not None and state.get("expanded") != "true":
+                    raise AssertionError(
+                        "The interaction did not open or expand its controlled state."
+                    )
+                if state.get("expanded") is None and any(
+                    token in outcome for token in ("menu", "disclosure", "expand")
+                ):
+                    raise AssertionError(
+                        "The declared expandable interaction has no aria-expanded state."
+                    )
+            if (
+                any(token in outcome for token in ("close", "collapse", "hide"))
+                and state.get("expanded") == "true"
+            ):
+                raise AssertionError("The interaction left its declared collapsed state open.")
+            if (
+                bool(step.expected_accessible_state.get("escape_closes"))
+                and state.get("expanded") == "true"
+            ):
+                await page.keyboard.press("Escape")
+                await page.wait_for_function(
+                    "selector => document.querySelector(selector)?.getAttribute('aria-expanded') !== 'true'",
+                    step.target,
+                )
+                if bool(step.expected_accessible_state.get("focus_return")):
+                    focused = await locator.evaluate(
+                        "element => document.activeElement === element"
+                    )
+                    if not focused:
+                        raise AssertionError(
+                            "Escape did not return focus to the interaction trigger."
+                        )
             focus_results.append(
                 {
                     "step_id": step.step_id,
