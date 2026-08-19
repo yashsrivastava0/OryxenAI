@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-19 13:49 +05:30 - Codex (model/provider omitted) - [8a85438] - Consume nested Build Preparation mirror output
+Pointed Code Generator's local mirror configuration at the actual `output/live-build-preparation/build-preparation` pack directory. The requested pack is now discovered and admitted through the normal workflow; a live planner retry remains provider-consent blocked.
+
 ### 2026-08-19 13:26 +05:30 - Codex (model/provider omitted) - [6afd672] - Production Code Generator v2 and visual compiler
 Connected explicit portfolio-session starts to exact verified Build Preparation artifacts, added structured creative comparison and experience-blueprint calls, compiled deterministic resource bindings and non-overlapping work ownership, and hardened local assets, nested routes, whole-site review, responsive geometry, reduced motion, staleness, and atomic preview retention/promotion. Verified the complete Code Generator Python surface, the clean Vite build/browser promotion path, frontend tests, scoped lint/format/type checks, migration head, scaffold typecheck/build, and offline admission of the selected pack; the broader repository still has unrelated provider-dependent and pre-existing type-check failures.
 
