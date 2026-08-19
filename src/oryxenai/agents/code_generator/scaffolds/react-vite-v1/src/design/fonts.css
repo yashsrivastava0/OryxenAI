@@ -1,3 +1,11 @@
-/* Font stacks are token-backed (see tokens.css); the foundation layer maps
-   the admitted typography recipe onto these variables. No remote fonts. */
-body { font-family: var(--font-body); }
+/* The compiler emits local @font-face rules from execution bindings. */
+:root {
+  --font-body: system-ui, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, monospace;
+}
+:root {
+  --font-body: system-ui, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, monospace;
+}

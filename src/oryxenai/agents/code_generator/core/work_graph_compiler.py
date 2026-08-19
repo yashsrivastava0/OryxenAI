@@ -7,6 +7,7 @@ from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExecutionBindingV2,
+    ExperienceBlueprintV3,
     SitePlan,
     WorkGraph,
     WorkUnit,
@@ -18,6 +19,7 @@ def compile_site_plan(
     projections: dict[str, dict[str, Any]],
     *,
     max_sections_per_unit: int = 3,
+    design_neutral: bool = False,
 ) -> SitePlan:
     """Replace model-authored paths/dependencies with one canonical graph and binding set."""
 
@@ -34,15 +36,22 @@ def compile_site_plan(
             planned_usage.setdefault(usage.resource_slot_id, set()).add(
                 (usage.route_id, usage.section_id)
             )
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV3):
+            for placement in plan.experience_blueprint.resource_placements:
+                planned_usage.setdefault(placement.resource_slot_id, set()).add(
+                    (placement.route_id, placement.section_id)
+                )
+    design_neutral = design_neutral or isinstance(plan.experience_blueprint, ExperienceBlueprintV3)
     units: list[WorkUnit] = [
         WorkUnit(
             unit_id="foundation",
             kind="foundation",
             owns_paths=[
                 "src/design/generated-tokens.css",
-                "src/components/generated/SharedSystems.tsx",
-            ],
+            ]
+            + (["src/content/generated-content.ts"] if design_neutral else []),
             required_shared_exports=["SharedSystems"],
+            isolated_workspace_key="foundation",
             resource_slot_ids=[
                 item.resource_slot_id
                 for item in bindings
@@ -88,7 +97,7 @@ def compile_site_plan(
                     else not item.section_ids or set(item.section_ids).intersection(sections)
                 )
             ]
-            split = len(batches) > 1
+            split = design_neutral or len(batches) > 1
             unit_id = (
                 f"route-{_slug(route.route_id)}-batch-{index}"
                 if split
@@ -115,13 +124,24 @@ def compile_site_plan(
                     section_ids=sections,
                     required_shared_exports=["SharedSystems"],
                     resource_slot_ids=resource_ids,
-                    criterion_ids=[] if split else criteria,
+                    criterion_ids=[] if split or design_neutral else criteria,
+                    interaction_ids=(
+                        [
+                            item.interaction_id
+                            for item in plan.interactions
+                            if item.route_id in {"", route.route_id}
+                            and any(section in sections for section in route.section_ids)
+                        ]
+                        if not design_neutral
+                        else []
+                    ),
+                    isolated_workspace_key=f"{_slug(route.route_id)}-batch-{index}",
                     context_estimate=14000,
                     output_estimate=18000,
                 )
             )
             batch_ids.append(unit_id)
-        if len(batch_ids) > 1:
+        if len(batch_ids) > 1 or design_neutral:
             units.append(
                 WorkUnit(
                     unit_id=f"route-{_slug(route.route_id)}-compose",
@@ -135,6 +155,13 @@ def compile_site_plan(
                     depends_on=["foundation", *batch_ids],
                     required_shared_exports=["SharedSystems"],
                     criterion_ids=criteria,
+                    interaction_ids=[
+                        item.interaction_id
+                        for item in plan.interactions
+                        if item.route_id in {"", route.route_id}
+                    ],
+                    owns_route_shell=True,
+                    isolated_workspace_key=f"{_slug(route.route_id)}-composer",
                     context_estimate=8000,
                     output_estimate=8000,
                 )
