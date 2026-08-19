@@ -60,6 +60,7 @@ services:
       - "8000:8000"
     volumes:
       - ./output:/app/output
+      - ./Input-Output-Of-Engine:/app/Input-Output-Of-Engine:ro
     command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')\""]
@@ -127,6 +128,7 @@ services:
       OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
     volumes:
       - ./output:/app/output
+      - ./Input-Output-Of-Engine:/app/Input-Output-Of-Engine:ro
       - oryxen_image_cache:/app/.workspace/image-search-cache
     command: ["python", "-m", "oryxenai.agents.build_preparation.cli"]
 
