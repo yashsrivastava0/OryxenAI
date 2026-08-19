@@ -55,7 +55,12 @@ cadence, deliberate pauses — never arbitrary margins), type through the fluid
 `.grid`, `.grid--sidebar`. This target has no utility-class framework: write
 route-scoped CSS against the tokens; vendored component source must be
 rewritten into this idiom, never copied with foreign utility classes. The
-context's `shared_source` holds the frozen foundation files — import ONLY
+mobile interaction floor is non-negotiable: every visible navigation link,
+button, and disclosure control must have at least a 36px inline and block hit
+area (give short labels such as "Hero" explicit horizontal padding or a
+minimum inline size), while visually hidden skip links and contract markers
+remain excluded from the rendered control surface. The context's
+`shared_source` holds the frozen foundation files — import ONLY
 from those exact paths and exports (relative imports must resolve; every
 bare import must be an admitted package), and read
 `site_contract.public_content` for the approved copy you are rendering.

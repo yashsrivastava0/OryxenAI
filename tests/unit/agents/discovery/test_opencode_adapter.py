@@ -310,6 +310,60 @@ class TestOpenCodeGoAdapterStructured:
 
 
 class TestOpenCodeGoAdapterErrors:
+    def test_retries_provider_schema_rejection_as_json_object(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+
+        import openai
+
+        from oryxenai.agents.shared.providers.capabilities import ModelCapabilities
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        capabilities = ModelCapabilities(
+            json_object_mode=True,
+            json_schema_mode=True,
+            thinking_mode=True,
+            reasoning_content=False,
+            temperature_control=False,
+            usage_metadata=True,
+            response_id=True,
+            context_cache_metadata=False,
+            supports_store_parameter=True,
+            uses_max_completion_tokens=True,
+        )
+        schema_error = openai.BadRequestError(
+            message="Invalid schema",
+            response=MagicMock(status_code=400),
+            body={
+                "error": {
+                    "message": "Invalid schema for response_format 'siteplan'",
+                }
+            },
+        )
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[schema_error, _mock_chat_response('{"questions": []}')]
+        )
+        adapter = OpenCodeGoAdapter(_make_profile(capabilities=capabilities))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            result = asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                    strict_schema=True,
+                )
+            )
+
+        assert result.parsed_output["questions"] == []
+        calls = mock_client.chat.completions.create.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["response_format"]["type"] == "json_schema"
+        assert calls[1].kwargs["response_format"] == {"type": "json_object"}
+
     def test_maps_auth_error(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
 
