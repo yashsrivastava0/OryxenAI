@@ -1262,9 +1262,14 @@ class BuildPreparationAgent(Agent):
             model_profile=model_profile,
         )
         parsed = _parsed(result)
+        parsed, dropped_context_fields = _normalize_context_payload(parsed, route_ids)
         model = output_model_for(operation).model_validate(parsed)
         if not isinstance(model, (Stage3BuildContextResult, Stage4IntegratedContextResult)):
             raise BuildPreparationModelOutputError(f"Unexpected output model for {operation}.")
+        if dropped_context_fields:
+            model = model.model_copy(
+                update={"warnings": [*model.warnings, *dropped_context_fields]}
+            )
         model = model.model_copy(
             update={
                 "context": model.context.model_copy(
@@ -1279,6 +1284,62 @@ class BuildPreparationAgent(Agent):
             }
         )
         return model, version, _metadata(result, manifest, operation, packet)
+
+
+def _normalize_context_payload(parsed: Any, route_ids: set[str]) -> tuple[Any, list[str]]:
+    """Drop only a closed-set duplicate route scope from live context output.
+
+    Some live model responses repeat deterministic route/context fields at
+    the envelope level even though Stage 3/4 owns them under ``context``.
+    These repeated fields are not authoritative and must not be merged into
+    the build context.  Accept them only when they are well-formed; any
+    unknown, duplicate, or malformed route remains a hard failure.
+    """
+
+    if not isinstance(parsed, dict):
+        return parsed, []
+    normalized = dict(parsed)
+    dropped_fields: list[str] = []
+    if "routes" in normalized:
+        routes = normalized["routes"]
+        if not isinstance(routes, list):
+            raise BuildPreparationModelOutputError(
+                "Live context output contains a malformed top-level route scope."
+            )
+        observed: list[str] = []
+        for route in routes:
+            if not isinstance(route, dict) or not isinstance(route.get("route_id"), str):
+                raise BuildPreparationModelOutputError(
+                    "Live context output contains a malformed top-level route scope."
+                )
+            observed.append(route["route_id"])
+        if len(observed) != len(set(observed)) or set(observed) != route_ids:
+            raise BuildPreparationModelOutputError(
+                "Live context output contains a top-level route scope outside the approved route set."
+            )
+        normalized.pop("routes")
+        dropped_fields.append("routes")
+
+    for field in ("resource_ids", "acceptance_criteria", "free_to_change"):
+        if field not in parsed:
+            continue
+        value = parsed[field]
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise BuildPreparationModelOutputError(
+                f"Live context output contains a malformed top-level {field} scope."
+            )
+        normalized.pop(field, None)
+        dropped_fields.append(field)
+
+    if not dropped_fields:
+        return normalized, []
+    if dropped_fields == ["routes"]:
+        return normalized, [
+            "Dropped a closed-set duplicate top-level route scope from live context output."
+        ]
+    return normalized, [
+        "Dropped closed-set duplicate top-level context fields: " + ", ".join(dropped_fields) + "."
+    ]
 
 
 def _metadata(

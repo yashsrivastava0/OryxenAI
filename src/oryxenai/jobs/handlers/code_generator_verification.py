@@ -37,7 +37,7 @@ from oryxenai.agents.code_generator.core.verification_plan import (
     build_verification_profile,
     derive_verification_plan,
 )
-from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
+from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace, repository_root
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -223,10 +223,10 @@ async def _execute(
             run.resource_ledger,
             # Receipt local_paths are relative to the configured materials
             # root (already prefixed with the run id).
-            Path(settings.code_generator_acquisition.materials_root).resolve(),
+            _resolve_config_path(settings.code_generator_acquisition.materials_root),
         )
         workspace.synchronize_dependency_manifest(
-            Path(settings.code_generator_dependencies.workspaces_root).resolve()
+            _resolve_config_path(settings.code_generator_dependencies.workspaces_root)
             / str(run_id)
             / "repo"
         )
@@ -725,6 +725,11 @@ def _reference(run: Any) -> Any:
     from oryxenai.agents.code_generator.core.development_schemas import AdmittedInputReference
 
     return AdmittedInputReference.model_validate(run.input_reference)
+
+
+def _resolve_config_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else (repository_root() / path).resolve()
 
 
 def _checkpoint(run: Any) -> Any:

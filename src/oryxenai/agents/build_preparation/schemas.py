@@ -382,6 +382,8 @@ class RouteBuildContext(BaseModel):
     path: str = ""
     brief_markdown: str = ""
     data: dict[str, Any] = Field(default_factory=dict)
+    data_fallback_note: str = ""
+    warnings: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)
     acceptance_criteria: list[str] = Field(default_factory=list)
     free_to_change: list[str] = Field(default_factory=list)

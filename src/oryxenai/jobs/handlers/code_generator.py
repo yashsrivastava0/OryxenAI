@@ -71,6 +71,7 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
     default_adapters,
 )
 from oryxenai.agents.code_generator.core.resource_scout import select_candidate_with_scout
+from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.agents.shared.model_client import build_provider_client
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -596,9 +597,19 @@ async def _execute_acquisition(
             if adapter_factory is not None
             else _default_adapter_factory(settings)
         )
-        materials_root = Path(settings.code_generator_acquisition.materials_root).resolve()
+        configured_materials_root = Path(settings.code_generator_acquisition.materials_root)
+        materials_root = (
+            configured_materials_root
+            if configured_materials_root.is_absolute()
+            else (repository_root() / configured_materials_root).resolve()
+        )
         run_material_root = materials_root / str(run_id)
-        workspace_root = Path(settings.code_generator_dependencies.workspaces_root).resolve()
+        configured_workspace_root = Path(settings.code_generator_dependencies.workspaces_root)
+        workspace_root = (
+            configured_workspace_root
+            if configured_workspace_root.is_absolute()
+            else (repository_root() / configured_workspace_root).resolve()
+        )
         repo_dir = workspace_root / str(run_id) / "repo"
         _seed_dependency_workspace(settings, repo_dir)
         prior_manifest = _read_json(repo_dir / "package.json", {})
@@ -1287,7 +1298,12 @@ def _build_planner(settings: Any) -> Any | None:
 def _write_context(settings: Any, identity: str, digest: str, context: dict[str, Any]) -> str:
     from oryxenai.agents.code_generator.core import fs_safe
 
-    root = Path(settings.code_generator_development.input_root).resolve()
+    configured_root = Path(settings.code_generator_development.input_root)
+    root = (
+        configured_root
+        if configured_root.is_absolute()
+        else (repository_root() / configured_root).resolve()
+    )
     relative = Path("contexts") / identity[:2] / f"{identity}-{digest}.json"
     target = (root / relative).resolve()
     if not target.is_relative_to(root):
