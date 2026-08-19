@@ -31,6 +31,7 @@ _TRUSTED_FILES = (
     "src/main.tsx",
     "src/app/AppRouter.tsx",
     "src/app/PreviewBridge.ts",
+    "src/app/ResourceUrl.ts",
     "src/app/ErrorBoundary.tsx",
     "src/design/global.css",
 )
@@ -119,14 +120,22 @@ def build_generation_contract(
     for route_id in scope:
         route = routes_by_id.get(route_id, {})
         storage_key = _storage_key(route, route_id)
-        anchor_file = f"src/routes/{storage_key}/index.tsx"
+        owned_tsx = [
+            path
+            for path in (unit.owns_paths if unit is not None else [])
+            if path.endswith(".tsx") and "*" not in path
+        ]
+        anchor_file = owned_tsx[0] if owned_tsx else f"src/routes/{storage_key}/index.tsx"
         content_pack = content_by_route.get(route_id, {})
+        assigned_sections = set(unit.section_ids) if unit is not None else set()
         sections: list[dict[str, Any]] = []
         verbatim: list[str] = []
         for section in content_pack.get("sections", []) if isinstance(content_pack, dict) else []:
             if not isinstance(section, dict):
                 continue
             section_id = str(section.get("section_id", ""))
+            if assigned_sections and section_id not in assigned_sections:
+                continue
             prose = [
                 text
                 for text in _normalized_strings(section.get("content", {}))
@@ -136,7 +145,8 @@ def build_generation_contract(
             ]
             if section_id:
                 sections.append({"section_id": section_id, "verbatim_strings": prose})
-            verbatim.extend(prose)
+            if unit is None or unit.kind != "route_compose":
+                verbatim.extend(prose)
         route_contracts.append(
             {
                 "route_id": route_id,
@@ -145,6 +155,8 @@ def build_generation_contract(
                 "section_ids": [item["section_id"] for item in sections],
                 "sections": sections,
                 "verbatim_copy": sorted(set(verbatim))[:_MAX_VERBATIM_STRINGS],
+                "section_anchors_required": unit is None or unit.kind != "route_compose",
+                "verbatim_in_anchor": unit is None or unit.kind != "route_compose",
             }
         )
 
@@ -155,7 +167,8 @@ def build_generation_contract(
             "source_marker": coverage.source_marker,
         }
         for coverage in plan.acceptance_coverage
-        if coverage.route_id in scope or not scope
+        if (coverage.route_id in scope or not scope)
+        and (unit is None or coverage.criterion_id in unit.criterion_ids)
     ]
     interactions = [
         {
@@ -164,7 +177,8 @@ def build_generation_contract(
             "attribute": f'data-interaction-id="{interaction.interaction_id}"',
         }
         for interaction in plan.interactions
-        if interaction.route_id in scope or not scope
+        if (interaction.route_id in scope or not scope)
+        and (unit is None or unit.kind != "route_batch")
     ]
 
     execution = projections.get("execution/contract.json", {})
@@ -174,6 +188,11 @@ def build_generation_contract(
             if not isinstance(slot, dict):
                 continue
             if scope and str(slot.get("route_id", "")) and str(slot.get("route_id")) not in scope:
+                continue
+            if unit is not None and (
+                not unit.resource_slot_ids
+                or str(slot.get("resource_slot_id", "")) not in unit.resource_slot_ids
+            ):
                 continue
             resolution = slot.get("resolution", {})
             local_paths = (
@@ -224,6 +243,8 @@ def build_generation_contract(
         },
         "runtime_shell": {
             "router_file": "src/app/AppRouter.tsx",
+            "local_resource_helper": "src/app/ResourceUrl.ts#publicResourceUrl",
+            "local_route_helper": "src/app/ResourceUrl.ts#publicRouteUrl",
             "required_behaviors": [
                 "Render the component selected by src/generated/route-registry.ts for the current pathname.",
                 'Render a visible <h1>Page not found</h1> for an unknown pathname; do not substitute route content such as "Projects".',
@@ -290,6 +311,16 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
     if shell:
         lines.append("")
         lines.append(f"RUNTIME SHELL CONTRACT: {shell.get('router_file', '')}")
+        if shell.get("local_resource_helper"):
+            lines.append(
+                "- Resolve browser-served local media through "
+                f"{shell.get('local_resource_helper')}; never hardcode a root-relative asset URL."
+            )
+        if shell.get("local_route_helper"):
+            lines.append(
+                "- Resolve same-site route href values through "
+                f"{shell.get('local_route_helper')} so links work at root and nested preview bases."
+            )
         for behavior in shell.get("required_behaviors", []):
             lines.append(f"- {behavior}")
 
@@ -303,7 +334,7 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         )
         lines.append(f'- the route_id string "{route.get("route_id", "")}"')
         section_ids = route.get("section_ids", [])
-        if section_ids:
+        if section_ids and route.get("section_anchors_required", True):
             lines.append(
                 "- every section_id twice: as a literal string AND as a wrapper "
                 'attribute data-content-id="<section_id>" on that section\'s '
@@ -324,19 +355,25 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         if attributes:
             lines.append(f"- one attribute per interaction: {' '.join(attributes)}")
             lines.append(
-                "- Write every interaction attribute literally in this index.tsx file. "
+                "- Write every interaction attribute literally in this anchor file. "
                 "Do not use data-interaction-id={...}, helper props, generated maps, "
                 "or a shared component to hide the required literal attribute."
             )
-        lines.append(
-            "- every verbatim copy string listed for this route below (embed the copy "
-            "directly in this file's JSX; do not merely import it, do not paraphrase, "
-            "do not fix grammar or split sentences)"
-        )
-        for section in route.get("sections", []):
-            lines.append(f"  [{section.get('section_id')}]")
-            for text in section.get("verbatim_strings", []):
-                lines.append(f"    - {text}")
+        if route.get("verbatim_in_anchor", True):
+            lines.append(
+                "- every verbatim copy string listed for this route below (embed the copy "
+                "directly in this file's JSX; do not merely import it, do not paraphrase, "
+                "do not fix grammar or split sentences)"
+            )
+            for section in route.get("sections", []):
+                lines.append(f"  [{section.get('section_id')}]")
+                for text in section.get("verbatim_strings", []):
+                    lines.append(f"    - {text}")
+        elif section_ids:
+            lines.append(
+                "- import and render the completed section batches in approved order; "
+                "their section anchors and verbatim copy remain in those owned modules"
+            )
 
     lines.append("")
     lines.append("COPY POLICY")
@@ -374,10 +411,11 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         lines.append("REQUIRED RESOURCE-SLOT BINDINGS")
         lines.append(
             "Each required slot must be bound by executable source usage. Comments, "
-            "slot IDs, manifest text, and prose do not count. Image/media slots "
-            "must use their local /resources/pack URL in JSX/CSS; component slots "
-            "must import and render the local module; package slots must import the "
-            "declared package/export."
+            "slot IDs, manifest text, and prose do not count. Browser-served image/media "
+            "slots use publicResourceUrl with a prefix-free resources/pack path; font "
+            "slots use the importable generated resource path from CSS; component slots "
+            "import and render the local module; package slots import the declared "
+            "package/export."
         )
         for slot in required_slots:
             lines.append(

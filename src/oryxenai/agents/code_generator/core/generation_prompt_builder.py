@@ -19,19 +19,23 @@ from oryxenai.agents.code_generator.core.generation_contract import (
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
+    "director": "code_generator.director.v2",
     "planner": "code_generator.planner.v6",
     "foundation": "code_generator.foundation.v5",
     "route_batch": "code_generator.route_batch.v5",
     "route_compose": "code_generator.route_compose.v4",
     "integrate": "code_generator.integrate.v5",
+    "integration_review": "code_generator.integration_review.v1",
     "repair": "code_generator.repair.v5",
 }
 _FILES = {
+    "director": "director.md",
     "planner": "planner.md",
     "foundation": "foundation.md",
     "route_batch": "route_batch.md",
     "route_compose": "route_compose.md",
     "integrate": "integrate.md",
+    "integration_review": "integration_review.md",
     "repair": "repair_source.md",
 }
 
@@ -56,12 +60,15 @@ def build_instructions(
         f"{operation_prompt}\n\n"
         + (f"{contract_block}\n\n" if contract_block else "")
         + "Return exactly one JSON object. The transport enforces the declared output schema; "
-        "do not include prose, Markdown, or reasoning outside that object.\n"
-        "Copy the input's context_receipt_hash value EXACTLY, unchanged, into "
-        "based_on_context_receipt.\n"
-        "Set mode to exactly one of changes/requests/cannot_complete; the two payload "
-        "fields that do not match your mode MUST be null."
+        "do not include prose, Markdown, or reasoning outside that object."
     )
+    if output_model is GenerationResult:
+        task += (
+            "\nCopy the input's context_receipt_hash value EXACTLY, unchanged, into "
+            "based_on_context_receipt.\n"
+            "Set mode to exactly one of changes/requests/accepted/cannot_complete; every payload "
+            "field that does not match your mode MUST be null."
+        )
     context_hash = _hash(context)
     schema_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()
     receipt = GenerationContextReceipt(

@@ -29,6 +29,24 @@ export function AppRouter() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || anchor.target || anchor.hasAttribute("download")) return;
+      const rawHref = anchor.getAttribute("href") || "";
+      const base = previewBasePath();
+      if (base === "/" || !rawHref.startsWith("/") || rawHref.startsWith(base)) return;
+      const target = new URL(anchor.href, window.location.href);
+      if (target.origin !== window.location.origin) return;
+      event.preventDefault();
+      const mountedPath = `${base}${rawHref.replace(/^\/+/, "")}`;
+      window.history.pushState({}, "", mountedPath);
+      setPath(currentPath());
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
   useEffect(() => notifyPreviewRoute(path), [path]);
   const route = ROUTES.find((candidate) => candidate.path === path);
   if (!route) {

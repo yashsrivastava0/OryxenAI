@@ -11,6 +11,11 @@ from oryxenai.jobs.handlers.code_generator_verification import CodeGeneratorVeri
 from oryxenai.storage.preview import MemoryPreviewStorage
 
 
+class _UnexpectedRepairModel:
+    async def generate_structured(self, **_kwargs):
+        raise AssertionError("A clean verification fixture must not invoke repair.")
+
+
 def _plan() -> SitePlan:
     return SitePlan.model_validate(
         {
@@ -130,15 +135,24 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
     materialize_trusted_manifests(workspace, projections, plan)
     route_file = workspace.repo_dir / "src" / "routes" / "home-4ea140588150" / "index.tsx"
     route_file.write_text(
-        'import "./route.css";\n\n'
+        'import "./route.css";\n'
+        'import { publicRouteUrl } from "../../app/ResourceUrl";\n\n'
         "export default function RoutePage() {\n"
         '  return <main data-route-id="home" data-criterion-id="criterion:home:0">\n'
         '    <section data-content-id="hero"><h1>Durable systems</h1></section>\n'
         '    <section data-content-id="project"><h2>QueueGuard</h2><p>Designed durable job lifecycles.</p></section>\n'
-        '    <a data-navigation-target="home" data-interaction-id="home-nav" href="/">Home</a>\n'
+        '    <a data-navigation-target="home" data-interaction-id="home-nav" href={publicRouteUrl("/")}>Home</a>\n'
         "    {/* slot-abf48c82a3ef77ddba4e slot-fa09c3c4a6256f2edce6 */}\n"
         "  </main>;\n"
         "}\n",
+        encoding="utf-8",
+    )
+    route_file.with_name("route.css").write_text(
+        "main { width: min(calc(100% - 2rem), 64rem); min-height: 16rem; "
+        "margin-inline: auto; padding: 2rem 0; }\n"
+        "section { min-height: 4.5rem; padding-block: 1rem; }\n"
+        "a { display: inline-flex; min-width: 2.75rem; min-height: 2.75rem; "
+        "align-items: center; }\n",
         encoding="utf-8",
     )
     checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
@@ -172,6 +186,7 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
 
     storage = MemoryPreviewStorage()
     result = await CodeGeneratorVerificationHandler(
+        model_factory=lambda _profile: _UnexpectedRepairModel(),
         storage_factory=lambda _settings: storage,
     ).execute({"development_run_id": str(run.id)}, "test-worker")
     refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)

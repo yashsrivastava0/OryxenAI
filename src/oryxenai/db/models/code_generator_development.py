@@ -1,4 +1,4 @@
-"""Standalone persistence for Code Generator development runs."""
+"""Durable persistence for production and development Code Generator runs."""
 
 from __future__ import annotations
 
@@ -17,15 +17,28 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class CodeGeneratorDevelopmentRun(Base):
-    """A session-independent, optimistic-concurrency Phase 1 run."""
+class CodeGeneratorRun(Base):
+    """One optimistic-concurrency Code Generator attempt.
 
-    __tablename__ = "code_generator_development_runs"
+    ``run_mode=session`` binds an attempt to the portfolio aggregate.  The
+    development routes use the same engine with ``run_mode=development`` so
+    fixtures and uploads continue to exercise production behavior.
+    """
+
+    __tablename__ = "code_generator_runs"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="created")
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    run_mode: Mapped[str] = mapped_column(
+        Text, nullable=False, default="development", server_default="development"
+    )
+    portfolio_session_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("portfolio_sessions.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     auto_advance: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
@@ -41,6 +54,14 @@ class CodeGeneratorDevelopmentRun(Base):
     issues: Mapped[list[dict[str, object]]] = mapped_column(JSONB, nullable=False, default=list)
     admitted_identity: Mapped[str | None] = mapped_column(Text, nullable=True)
     selected_pack_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    build_preparation_source_ref: Mapped[dict[str, object] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    artifact_reference: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    artifact_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    preflight_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    creative_direction: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    integration_review: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     background_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     acquire_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     generation_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
@@ -65,6 +86,9 @@ class CodeGeneratorDevelopmentRun(Base):
     active_preview: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     terminal_failure: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     preview_host: Mapped[str | None] = mapped_column(Text, nullable=True)
+    idempotency_scope: Mapped[str] = mapped_column(
+        Text, nullable=False, default="development", server_default="development"
+    )
     idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_utcnow
@@ -74,9 +98,11 @@ class CodeGeneratorDevelopmentRun(Base):
     )
 
     __table_args__ = (
-        Index("ix_codegen_development_runs_status_created", "status", "created_at"),
+        Index("ix_codegen_runs_status_created", "status", "created_at"),
+        Index("ix_codegen_runs_session_created", "portfolio_session_id", "created_at"),
         Index(
-            "ux_codegen_development_runs_idempotency",
+            "ux_codegen_runs_idempotency",
+            "idempotency_scope",
             "idempotency_key",
             unique=True,
             postgresql_where=text("idempotency_key IS NOT NULL"),
@@ -84,15 +110,15 @@ class CodeGeneratorDevelopmentRun(Base):
     )
 
 
-class CodeGeneratorDevelopmentEvent(Base):
-    """Append-only safe event stream for a standalone development run."""
+class CodeGeneratorEvent(Base):
+    """Append-only safe event stream for a Code Generator run."""
 
-    __tablename__ = "code_generator_development_events"
+    __tablename__ = "code_generator_events"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     run_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("code_generator_development_runs.id", ondelete="CASCADE"),
+        ForeignKey("code_generator_runs.id", ondelete="CASCADE"),
         nullable=False,
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -105,6 +131,12 @@ class CodeGeneratorDevelopmentEvent(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("run_id", "sequence", name="ux_codegen_development_event_sequence"),
-        Index("ix_codegen_development_events_run_sequence", "run_id", "sequence"),
+        UniqueConstraint("run_id", "sequence", name="ux_codegen_event_sequence"),
+        Index("ix_codegen_events_run_sequence", "run_id", "sequence"),
     )
+
+
+# Import compatibility for the standalone development API.  Runtime code is
+# migrated incrementally without creating a second ORM mapping or table.
+CodeGeneratorDevelopmentRun = CodeGeneratorRun
+CodeGeneratorDevelopmentEvent = CodeGeneratorEvent

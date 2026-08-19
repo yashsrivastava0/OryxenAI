@@ -15,6 +15,7 @@ from typing import Any
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import SitePlan
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.shared.contracts import ModelClient
 
 PLANNER_OPERATION = "code_generator.plan"
@@ -66,6 +67,8 @@ async def run_planner_operation(
     profile_name: str,
     projections: dict[str, Any] | None = None,
     max_work_units: int = 64,
+    max_sections_per_unit: int = 3,
+    require_blueprint: bool = False,
 ) -> tuple[SitePlan, str, Any, Any]:
     """Run the structured planner call.
 
@@ -107,13 +110,34 @@ async def run_planner_operation(
             "PLANNER_OUTPUT_INVALID",
             "The planner output failed SitePlan schema validation.",
         ) from exc
-    plan = _canonicalize_work_graph(plan)
     if projections is not None:
         try:
-            plan = validate_site_plan(plan, projections, max_work_units=max_work_units)
+            plan = compile_site_plan(
+                plan,
+                projections,
+                max_sections_per_unit=max_sections_per_unit,
+            )
+            if require_blueprint and plan.experience_blueprint is not None:
+                concepts = context.get("creative_direction", {}).get("candidates", [])
+                concept_ids = {
+                    str(item.get("concept_id", "")) for item in concepts if isinstance(item, dict)
+                }
+                if plan.experience_blueprint.selected_concept_id not in concept_ids:
+                    raise PlannerOperationError(
+                        "PLAN_CREATIVE_CONCEPT_UNKNOWN",
+                        "The experience blueprint selected an unknown creative concept.",
+                    )
+            plan = validate_site_plan(
+                plan,
+                projections,
+                max_work_units=max_work_units,
+                require_blueprint=require_blueprint,
+            )
         except Exception as exc:
             raise PlannerOperationError(
                 str(getattr(exc, "code", "") or "PLANNER_PLAN_INVALID"),
                 "The planner output failed semantic SitePlan validation.",
             ) from exc
+    else:
+        plan = _canonicalize_work_graph(plan)
     return plan, prompt_version, receipt, result

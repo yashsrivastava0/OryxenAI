@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.agents.build_preparation.service import BuildPreparationService
 from oryxenai.agents.code_generator.core.development_service import CodeGeneratorDevelopmentService
+from oryxenai.agents.code_generator.service import CodeGeneratorService
 from oryxenai.agents.content_architect.service import ContentArchitectService
 from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
@@ -17,6 +18,7 @@ from oryxenai.agents.shared.registry import AgentRegistry, default_registry
 from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
+from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.repositories.discovery import DiscoveryRepository
@@ -104,4 +106,13 @@ def get_code_generator_development_service(
 ) -> CodeGeneratorDevelopmentService:
     return CodeGeneratorDevelopmentService(
         CodeGeneratorDevelopmentRepository(db), JobService(db), request.app.state.settings
+    )
+
+
+def get_code_generator_service(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> CodeGeneratorService:
+    return CodeGeneratorService(
+        CodeGeneratorRepository(db), JobService(db), request.app.state.settings
     )

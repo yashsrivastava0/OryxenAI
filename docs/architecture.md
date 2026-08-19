@@ -132,11 +132,11 @@ worker container.
   consume their respective upstream approved output through exactly this
   kind of explicit product decision (each stage requires an explicit
   `/start` call after the previous stage's approval, never auto-chained).
-  The registry-compatible Code Generator exposes the model-backed structured
-  planner operation, while its feature-gated standalone workflow covers the
-  complete explicit-start, progressive text-only generation and verification
-  boundary decided in D-015. Production session integration remains deferred;
-  see `AGENTS.md` and `docs/code-generator-architecture/` for the handoff.
+  Code Generator exposes the model-backed structured planner through the agent
+  registry, while its standalone harness and explicit production-session API
+  share the durable progressive generation and verification core. Production
+  start binds one eligible Build Preparation object; no stage auto-chains. See
+  `AGENTS.md` and `docs/code-generator-architecture/` for the current boundary.
 - **Model client:** Additional providers can implement the same contract;
   Discovery currently uses OpenCode Go only.
 - **Agent sequencing:** A future task may add cross-agent sequencing or a

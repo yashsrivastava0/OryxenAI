@@ -1,38 +1,38 @@
-Build the shared visual foundation for the admitted portfolio using only the
-owned paths in the input. Treat the SitePlan as an implementation contract;
-the `<generation-contract>` block is the mechanical checklist.
+# Operation: build the shared visual foundation
 
-The scaffold provides a token-backed design baseline under `src/design`:
-color, type, space, radius, shadow, and motion custom properties in
-`tokens.css`; font variables in `fonts.css`; and reduced-motion-safe reveal
-recipes in `motion.css`. The global utility entrypoint `src/design/global.css`
-and the runtime shell are trusted and immutable. Override token values and
-extend route-agnostic primitives in `src/components/shared/**`, but do not
-create a parallel styles tree or re-derive a second scale.
+Build the owned visual foundation from the selected ExperienceBlueprintV2 and
+the normative `<generation-contract>` block. Do not create route content.
 
-Establish a clear creative thesis in token values, type hierarchy, rhythm,
-surface treatment, responsive behavior, and meaningful interaction states.
-Use the admitted typography recipe for `--font-display`, `--font-body`, and
-`--font-mono`; use the fluid `--text-*` scale rather than fixed heading/body
-sizes. Rewrite any vendored component source into this scaffold's token/CSS
-idiom; never copy foreign utility classes or assume unadmitted frameworks.
+The scaffold already owns `src/design/global.css`, its baseline token files,
+the runtime shell, and generated manifests. Create exactly the compiler-owned
+foundation surfaces:
 
-The trusted shell already owns route loading, accessible navigation, the
-unknown-path fallback, generated manifests, and the global CSS import. Do not
-build route-specific content, duplicate route sections, modify package files,
-or touch `src/generated/**`, `src/content/**`, `src/app/**`, `src/main.tsx`, or
-`src/design/global.css`.
+- `src/design/generated-tokens.css`: deliberate `:root` overrides for the
+  blueprint's semantic colors, spacing cadence, containers, type scale,
+  surfaces, focus treatment, and motion timing; plus local `@font-face` rules.
+- `src/components/generated/SharedSystems.tsx`: import
+  `../../design/generated-tokens.css`, export `SharedSystems`, and implement
+  only route-agnostic systems the plan actually needs. Route units render this
+  export, which is how the generated token layer enters the application.
 
-Use local resources only. Required media must be rendered from its admitted
-`/resources/pack/...` URL; required component source must be imported and
-rendered from `src/generated/resources/pack/...`. A comment, slot ID, filename
-in a manifest, or prose mention is not resource usage. Package icons must use
-their admitted package/export. Provide static reduced-motion equivalents.
+Use the admitted font binding and weights exactly. Pack fonts are copied under
+`src/generated/resources/pack/fonts/...`; reference their exact relative paths
+from `generated-tokens.css` so Vite fingerprints them and the result works at
+nested preview bases. Never use a remote font, root-relative provider URL, or
+unbound family name.
 
-Admission rules reject the complete response on any violation:
+Make the visual thesis observable in hierarchy and rhythm. Preserve readable
+line height and measure, visible focus, strong contrast, responsive spacing,
+and a restrained motion vocabulary. Any reveal or transition primitive must
+be fully visible and usable under `prefers-reduced-motion: reduce`. Avoid a
+second token system, utility-framework syntax, generic gradient/glass effects,
+and interchangeable card primitives.
 
-- No remote imports, fonts, images, scripts, runtime network calls, or
-  unapproved URLs. Approved links may appear only as faithful content hrefs.
-- `create` is only for a missing file; `replace` is only for an existing file.
-- Stay strictly inside the owned paths and use only admitted bare imports.
-- Fill `self_check` honestly after rereading the generated files.
+The trusted shell already owns route loading and unknown-path behavior. Never
+modify package files, `src/generated/**`, `src/content/**`, `src/app/**`,
+`src/main.tsx`, the baseline design files, or any path outside `owned_paths`.
+
+Admission rejects the complete response for remote assets/network calls,
+unapproved URLs, unadmitted bare imports, incorrect create/replace operations,
+or dishonest self-checks. Return only complete owned files or a bounded
+cannot-complete result.
