@@ -165,6 +165,8 @@ max_events_page_size = 100
 # Local Build Preparation debug mirror consumed by the "from Build Preparation"
 # run source (newest eligible build-pack.zip wins).
 build_preparation_mirror_root = "output/live-build-preparation/build-preparation"
+pipeline_contract_version = "code-generator-v3"
+worker_release_id = "oryxenai-code-generator-v3"
 
 [code_generator_acquisition]
 allowlist_image_providers = ["pexels", "pixabay"]
@@ -207,6 +209,11 @@ typecheck_timeout_seconds = 120.0
 typecheck_command = ["npm.cmd", "run", "typecheck"]
 format_command = []
 use_real_typecheck = true
+route_concurrency = 3
+artifact_store_provider = "local_fs"
+artifact_root = ".workspace/code-generator-artifacts"
+max_context_chars = 120000
+stable_prompt_prefix_version = "code-generator-prompts-v3"
 
 [code_generator_dependencies]
 workspaces_root = ".workspace/code-generator-workspaces"

@@ -299,6 +299,8 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     # Local Build Preparation debug-mirror root: directories produced by the
     # Build Preparation stage, each holding build-context/ + build-pack.zip.
     build_preparation_mirror_root: str = "output/build-preparation"
+    pipeline_contract_version: str = "code-generator-v3"
+    worker_release_id: str = "oryxenai-code-generator-v3"
 
     @field_validator("enabled", mode="before")
     @classmethod
@@ -332,6 +334,11 @@ class CodeGeneratorGenerationConfig(BaseModel):
     typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
     format_command: list[str] = Field(default_factory=list)
     use_real_typecheck: bool = True
+    route_concurrency: int = 3
+    artifact_store_provider: str = "local_fs"
+    artifact_root: str = ".workspace/code-generator-artifacts"
+    max_context_chars: int = 120000
+    stable_prompt_prefix_version: str = "code-generator-prompts-v3"
 
     @field_validator("use_real_typecheck", mode="before")
     @classmethod

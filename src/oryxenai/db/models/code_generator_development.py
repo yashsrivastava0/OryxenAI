@@ -62,6 +62,11 @@ class CodeGeneratorRun(Base):
     preflight_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     creative_direction: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     integration_review: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    pipeline_contract_version: Mapped[str] = mapped_column(
+        Text, nullable=False, default="code-generator-v3", server_default="code-generator-v3"
+    )
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    active_attempt_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     background_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     acquire_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     generation_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
@@ -100,12 +105,64 @@ class CodeGeneratorRun(Base):
     __table_args__ = (
         Index("ix_codegen_runs_status_created", "status", "created_at"),
         Index("ix_codegen_runs_session_created", "portfolio_session_id", "created_at"),
+        Index("ix_codegen_runs_active_attempt", "active_attempt_id"),
         Index(
             "ux_codegen_runs_idempotency",
             "idempotency_scope",
             "idempotency_key",
             unique=True,
             postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
+    )
+
+
+class CodeGeneratorStageAttempt(Base):
+    """Normalized fencing record for one durable Code Generator stage.
+
+    Run JSON remains a projection for the developer/session APIs, while this
+    row is the authoritative caller token for finalization.  A late worker
+    therefore cannot win merely because it holds an older run revision.
+    """
+
+    __tablename__ = "code_generator_stage_attempts"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    run_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("code_generator_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    stage: Mapped[str] = mapped_column(Text, nullable=False)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="queued")
+    job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_run_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    worker_instance: Mapped[str | None] = mapped_column(Text, nullable=True)
+    worker_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    artifact_references: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    safe_error: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "stage", "attempt_no", name="ux_codegen_stage_attempt_no"),
+        Index("ix_codegen_stage_attempts_run_stage", "run_id", "stage", "attempt_no"),
+        Index(
+            "ux_codegen_stage_attempts_active",
+            "run_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running', 'retrying')"),
         ),
     )
 
@@ -121,6 +178,15 @@ class CodeGeneratorEvent(Base):
         ForeignKey("code_generator_runs.id", ondelete="CASCADE"),
         nullable=False,
     )
+    attempt_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("code_generator_stage_attempts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    pipeline_contract_version: Mapped[str] = mapped_column(
+        Text, nullable=False, default="code-generator-v3", server_default="code-generator-v3"
+    )
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     level: Mapped[str] = mapped_column(Text, nullable=False, default="info")
@@ -133,6 +199,7 @@ class CodeGeneratorEvent(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "sequence", name="ux_codegen_event_sequence"),
         Index("ix_codegen_events_run_sequence", "run_id", "sequence"),
+        Index("ix_codegen_events_attempt", "attempt_id"),
     )
 
 
