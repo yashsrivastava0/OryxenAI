@@ -888,34 +888,92 @@ class BuildPreparationAgent(Agent):
                 )
             )
             if live_model:
-                review, prompt_version, meta = await self._call_handoff_stage(
-                    {
-                        "handoff_report": handoff_report.model_dump(mode="json"),
-                        "resource_context_packet": context_packet,
-                        "query_plan": query_plan.model_dump(mode="json"),
-                        "candidate_resources": candidate_payload,
-                        "candidate_qualifications": [
-                            item.model_dump(mode="json") for item in qualifications
-                        ],
-                        "resource_needs": [
-                            need.model_dump(mode="json") for need in stage0.resource_needs
-                        ],
-                        "selections": [
-                            selection.model_dump(mode="json")
-                            for selection in selection_plan.selections
-                        ],
-                        "materialized_resources": materialization.resources,
-                        "provider_attempts": list(getattr(lookup, "provider_receipts", [])),
-                        "context_packet_hash": context_packet_hash,
-                        "authority": {"model_may_not_grant_handoff": True},
-                    },
-                    model_profile,
-                )
-                model_calls += 1
-                stages_meta.append(meta)
-                handoff_report = handoff_report.model_copy(
-                    update={"model_review": review.model_dump(mode="json")}
-                )
+                handoff_packet = {
+                    "handoff_report": handoff_report.model_dump(mode="json"),
+                    "resource_context_packet": context_packet,
+                    "query_plan": query_plan.model_dump(mode="json"),
+                    "candidate_resources": candidate_payload,
+                    "candidate_qualifications": [
+                        item.model_dump(mode="json") for item in qualifications
+                    ],
+                    "resource_needs": [
+                        need.model_dump(mode="json") for need in stage0.resource_needs
+                    ],
+                    "selections": [
+                        selection.model_dump(mode="json") for selection in selection_plan.selections
+                    ],
+                    "materialized_resources": materialization.resources,
+                    "provider_attempts": list(getattr(lookup, "provider_receipts", [])),
+                    "context_packet_hash": context_packet_hash,
+                    "authority": {"model_may_not_grant_handoff": True},
+                }
+                try:
+                    review, prompt_version, meta = await self._call_handoff_stage(
+                        handoff_packet,
+                        model_profile,
+                    )
+                except Exception as exc:
+                    # Deterministic admission is authoritative. A live Stage 5
+                    # review is advisory, so a provider rejection must retain
+                    # the package for review while never granting eligibility.
+                    error_code = str(
+                        getattr(exc, "code", "MODEL_REVIEW_UNAVAILABLE")
+                        or "MODEL_REVIEW_UNAVAILABLE"
+                    )
+                    handoff_report = handoff_report.model_copy(
+                        update={
+                            "handoff_eligible": False,
+                            "status": "needs_attention",
+                            "summary": (
+                                "The deterministic handoff report is retained, but the live "
+                                "Stage 5 review was unavailable."
+                            ),
+                            "issues": [
+                                *handoff_report.issues,
+                                HandoffIssue(
+                                    code="MODEL_REVIEW_UNAVAILABLE",
+                                    message=(
+                                        "The live Stage 5 handoff review could not be completed; "
+                                        "deterministic admission remains authoritative."
+                                    ),
+                                    next_action=(
+                                        "Retry the live handoff review after the configured model "
+                                        "provider accepts the request."
+                                    ),
+                                ),
+                            ],
+                            "model_review": {
+                                "stage": "stage_5",
+                                "mode": "live_model_unavailable",
+                                "summary": "Live model review failed; no model eligibility decision was used.",
+                                "error_code": error_code,
+                            },
+                        }
+                    )
+                    model_calls += 1
+                    stages_meta.append(
+                        {
+                            "operation": "review_handoff_quality",
+                            "status": "failed",
+                            "error_code": error_code,
+                            "input_packet_hash": _packet_hash(handoff_packet),
+                        }
+                    )
+                    await self._emit_event(
+                        _event(
+                            "stage_5_model_review_failed",
+                            "stage_5",
+                            "Live handoff review failed; deterministic admission was retained.",
+                            level="warning",
+                            details={"error_code": error_code},
+                        )
+                    )
+                else:
+                    model_calls += 1
+                    stages_meta.append(meta)
+                    handoff_report = handoff_report.model_copy(
+                        update={"model_review": review.model_dump(mode="json")}
+                    )
             else:
                 handoff_report = handoff_report.model_copy(
                     update={
@@ -1318,19 +1376,30 @@ def _normalize_selection_ids(
     candidates: list[FetchedResource],
     needs: list[Any],
 ) -> tuple[Stage2SelectionPlan, list[str]]:
-    """Keep model-selected IDs inside the provider-returned closed set.
+    """Keep model-selected IDs inside the deterministic closed sets.
 
     The model is allowed to rank and explain returned candidates, but it is
-    never allowed to create one.  A stale or invented ID becomes an explicit
-    fallback so the deterministic pipeline can continue to materialization and
-    report the resulting required-role gap instead of failing before analysis.
+    never allowed to create a need or candidate. A stale or invented ID becomes
+    an explicit fallback so the deterministic pipeline can continue to
+    materialization and report the resulting required-role gap instead of
+    failing before analysis.
     """
     candidate_ids = {candidate.resource_id for candidate in candidates}
     need_by_id = {need.need_id: need for need in needs}
     warnings: list[str] = list(plan.warnings)
-    selections: list[ResourceSelection] = []
+    selections_by_need: dict[str, ResourceSelection] = {}
     for selection in plan.selections:
         need = need_by_id.get(selection.need_id)
+        if need is None:
+            warnings.append(
+                f"Model referenced unknown need '{selection.need_id}'; the selection was discarded."
+            )
+            continue
+        if selection.need_id in selections_by_need:
+            warnings.append(
+                f"Model produced duplicate selections for need '{selection.need_id}'; the later selection was discarded."
+            )
+            continue
         selected_id = selection.selected_resource_id
         if selected_id and selected_id not in candidate_ids:
             warnings.append(
@@ -1343,17 +1412,28 @@ def _normalize_selection_ids(
             for resource_id in dict.fromkeys(selection.alternate_resource_ids)
             if resource_id in candidate_ids and resource_id != selected_id
         ]
-        selections.append(
-            selection.model_copy(
-                update={
-                    "selected_resource_id": selected_id,
-                    "alternate_resource_ids": alternate_ids,
-                    "fallback": selection.fallback
-                    or (need.fallback if need is not None else "")
-                    or "Implement the approved intent using the typed local fallback.",
-                }
-            )
+        selections_by_need[selection.need_id] = selection.model_copy(
+            update={
+                "selected_resource_id": selected_id,
+                "alternate_resource_ids": alternate_ids,
+                "fallback": selection.fallback
+                or need.fallback
+                or "Implement the approved intent using the typed local fallback.",
+            }
         )
+    selections: list[ResourceSelection] = []
+    for need in needs:
+        selection = selections_by_need.get(need.need_id)
+        if selection is None:
+            warnings.append(
+                f"Model did not produce a valid selection for need '{need.need_id}'; an explicit fallback was recorded."
+            )
+            selection = ResourceSelection(
+                need_id=need.need_id,
+                fallback=need.fallback
+                or "Implement the approved intent using the typed local fallback.",
+            )
+        selections.append(selection)
     return plan.model_copy(update={"selections": selections}), warnings
 
 

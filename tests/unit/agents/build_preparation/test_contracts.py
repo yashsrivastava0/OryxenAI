@@ -117,6 +117,33 @@ def test_model_selection_ids_are_discarded_when_not_in_provider_closed_set() -> 
     assert any("invented-resource" in warning for warning in warnings)
 
 
+def test_model_selection_need_ids_are_reconciled_to_stage0_needs() -> None:
+    plan, warnings = _normalize_selection_ids(
+        Stage2SelectionPlan(
+            selections=[
+                ResourceSelection(
+                    need_id="need-1,",
+                    selected_resource_id="candidate-1",
+                )
+            ]
+        ),
+        [
+            FetchedResource(
+                resource_id="candidate-1",
+                need_id="need-1",
+                kind="component",
+                provider="shadcn",
+            )
+        ],
+        [ResourceNeed(need_id="need-1", kind="resource", source_id="component")],
+    )
+
+    assert [selection.need_id for selection in plan.selections] == ["need-1"]
+    assert plan.selections[0].selected_resource_id is None
+    assert plan.selections[0].fallback
+    assert any("unknown need" in warning for warning in warnings)
+
+
 def test_required_visual_without_real_material_is_an_execution_gap() -> None:
     need = ResourceNeed(
         need_id="need-image",

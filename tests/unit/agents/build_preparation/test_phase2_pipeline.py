@@ -152,6 +152,15 @@ class _NoisyContextModel(_Phase2Model):
         )
 
 
+class _FailingHandoffModel(_Phase2Model):
+    async def generate_structured(self, *, operation, output_model, **kwargs):
+        if output_model is Stage5HandoffReview:
+            raise RuntimeError("provider rejected the advisory handoff review")
+        return await super().generate_structured(
+            operation=operation, output_model=output_model, **kwargs
+        )
+
+
 class _FallbackLookup:
     calls_made = 1
     cache_hits = 0
@@ -348,6 +357,44 @@ async def test_live_model_path_uses_structured_handoff_review_when_integration_i
             "review_handoff_quality",
         ]
         assert result.output["handoff_report"]["handoff_eligible"] is True
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_live_handoff_review_failure_retains_deterministic_package() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        settings.build_preparation.fixture_output_dir = str(output_dir)
+        settings.build_preparation.integration_route_threshold = 99
+        context = build_context(
+            portfolio_session_id=uuid4(),
+            agent_key=AgentKey.BUILD_PREPARATION,
+            current_state={},
+            agent_input={
+                "operation": "build",
+                "visual_design_director": _visual(),
+                "content_architect": _content(),
+                "live_model": True,
+                "live_providers": False,
+                "output_dir": str(output_dir),
+                "integration_route_threshold": 99,
+            },
+        )
+
+        result = await BuildPreparationAgent(
+            model_client=_FailingHandoffModel(),
+            live_model=True,
+            live_providers=False,
+            settings=settings,
+        ).run(context)
+
+        report = result.output["handoff_report"]
+        assert result.output["model_calls"] == 4
+        assert report["handoff_eligible"] is False
+        assert any(issue["code"] == "MODEL_REVIEW_UNAVAILABLE" for issue in report["issues"])
+        assert result.output["package"]["archive_size_bytes"] > 0
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
