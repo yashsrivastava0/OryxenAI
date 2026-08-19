@@ -23,6 +23,33 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-036 - Enforce generated source and runtime contracts without visual evidence
+
+- **Date & Time:** 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Build and coarse browser smoke could pass while generated routes still contained duplicate landmarks, broken fragments, ignored interactions/resources, or runtime paths hidden behind the preview mount.
+- **Decision:** Add a deterministic TypeScript source audit and exact DOM/runtime gate. V3 source must resolve local imports/exports, expose the trusted SharedSystems behavior, use approved route sections and distinctive-move markers, avoid runtime network APIs, and preserve ownership. Browser journeys must cover every configured route/interaction check with exact route/section/landmark, accessibility-state, local-resource, reduced-motion, geometry, and evidence-set assertions. Preview-mounted paths are normalized against the logical route allow-list.
+- **Rejected alternatives:** Screenshots or vision review as a required gate; build-only validation; coarse category checks that omit individual journeys; trusting logical URLs without accounting for the preview mount.
+- **Consequence:** A candidate cannot promote with an inert, structurally contradictory, remotely dependent, or incompletely exercised generated site; the gate remains text/DOM based and deterministic.
+
+## D-035 - Explicit Build Preparation v4 delegated acquisition
+
+- **Date & Time:** 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Some approved visual roles can remain unresolved after Build Preparation has exhausted its configured providers, but letting Code Generator invent resources would break provenance, privacy, and reproducibility.
+- **Decision:** Build Preparation emits pack-v4 delegated slots only when the explicit delegation feature is enabled and upstream attempts have completed. Each delegated slot carries a closed provider/category policy, bounded candidate and retry limits, and no-invention semantics. Code Generator translates only those slots into deterministic requests and uses the existing Pexels/Pixabay, Fontsource, and component-source retrieval boundaries; v3 packs remain readable for rollback.
+- **Rejected alternatives:** Silent delegation in every pack; model-invented URLs, IDs, dependencies, or budgets; treating unresolved delegation as an execution gap; removing strict v3 compatibility.
+- **Consequence:** Required delegated roles fail closed without promotion, optional roles use only declared fallbacks, and every acquired byte/source remains locally materialized with provenance and executable-use requirements.
+
+## D-034 - Design-neutral Code Generator V3 with compiler-owned behavior
+
+- **Date & Time:** 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The prior generation contract allowed generic scaffold palettes, no-op shared systems, route-batch shell duplication, retyped approved copy, and unassigned interactions to survive model output.
+- **Decision:** Replace the active creative contract with typed ExperienceBlueprintV3 fields for token groups, route shells, layout regions, distinctive moves, interaction assignments, resource placements, motion beats, and anti-patterns. Compile tokens and approved content deterministically, keep only semantic behavior in trusted SharedSystems, give route composers sole shell ownership, and execute independent route batches in isolated workspaces before deterministic merge. Styling and composition remain portfolio-authored model output; defaults are not a substitute.
+- **Rejected alternatives:** A fixed house palette or generic scaffold; model-authored behavior primitives; one full accumulated source tree in every route prompt; route batches that emit their own landmarks; mandatory screenshot/vision review.
+- **Consequence:** The same contract governs development and explicit production starts, visual values remain portfolio-specific, and structural ownership/resource/content drift is rejectable before browser verification.
+
 ## D-033 - Fenced Code Generator stage attempts and immutable workflow artifacts
 
 - **Date & Time:** 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI)
