@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-033 - Fenced Code Generator stage attempts and immutable workflow artifacts
+
+- **Date & Time:** 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** At-least-once jobs and mutable run JSON allowed duplicate or late workers to overwrite newer Code Generator state, while checkpoints and candidate material still depended on workspace paths.
+- **Decision:** Every Code Generator stage may carry a normalized attempt token bound to run, stage, job, expected revision, input fingerprint, worker release, and trace. Finalization is accepted only while that token remains current. Workflow input, acquisition, checkpoints, accepted source, and candidates use immutable content-addressed artifact references; local filesystem storage is the development implementation and the existing S3-compatible boundary is the production adapter. Safe failure classification is centralized into retryable infrastructure, permanent input/policy, repairable generated-source, and terminal classes.
+- **Rejected alternatives:** Extending mutable run JSON as the only attempt record; accepting a late handler based on run ID alone; mutable path-based artifact references; provider-specific artifact logic in handlers; treating every failure as retryable or terminal.
+- **Consequence:** Duplicate delivery and stale workers can be discarded without regressing state, workers can rehydrate exact bytes from a fresh workspace, and UI diagnostics can expose trace/attempt/readiness metadata without portfolio content or secrets. Existing v3 callers remain compatible until the remaining generation and verification phases adopt the new contracts.
+
 ## D-032 — Session-bound Code Generator with compiled visual execution
 
 - **Date & Time:** 2026-08-19 12:34 +05:30 — Codex (model/provider omitted)
