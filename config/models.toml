@@ -3,10 +3,10 @@
 # Discovery uses the configured profile only when a durable real operation is
 # requested. The app and worker can start without any model key.
 #
-# Each profile describes how a ModelClient adapter should talk to an
-# OpenAI-compatible endpoint (vLLM, llama.cpp, TGI, Ollama gateways, hosted
-# open-model providers, ...). Agent code never references provider-specific
-# variable names; it only knows the abstract ModelClient protocol.
+# Each profile describes how a ModelClient adapter should talk to its provider.
+# OpenAI-compatible profiles use chat/completions; Anthropic profiles use the
+# native Messages API. Agent code never references provider-specific variable
+# names; it only knows the abstract ModelClient protocol.
 #
 # An API key is resolved INDIRECTLY: the profile names the environment
 # variable that holds the key (api_key_env); the application reads that
@@ -140,10 +140,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_director]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 16000
@@ -163,13 +163,13 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_planner]
-# Same live-confirmed endpoint/model family as the other agents (see
-# [profiles.discovery] notes). Automated tests inject a deterministic planner
-# and never require this credential.
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+# Code Generator is independently configurable from the upstream agents. Its
+# Claude credential remains optional at startup; live calls resolve it lazily.
+# Automated tests inject deterministic clients and never require this key.
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 24000
@@ -189,10 +189,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_resource_scout]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 180
 max_retries = 1
 max_output_tokens = 4096
@@ -212,10 +212,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_foundation_builder]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
@@ -235,10 +235,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_route_builder]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
@@ -258,10 +258,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_route_composer]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 16000
@@ -281,10 +281,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_integrator]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 20000
@@ -304,10 +304,10 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_repairer]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 12000

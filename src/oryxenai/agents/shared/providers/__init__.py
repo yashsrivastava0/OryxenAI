@@ -10,6 +10,7 @@ Adding a new provider:
   4. Add the new profile section to `config/models.toml`.
 """
 
+from oryxenai.agents.shared.providers.anthropic import AnthropicAdapter
 from oryxenai.agents.shared.providers.base import BaseProviderAdapter
 from oryxenai.agents.shared.providers.errors import (
     ProviderAuthError,
@@ -27,6 +28,7 @@ from oryxenai.agents.shared.providers.factory import build_adapter, can_build
 from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
 
 __all__ = [
+    "AnthropicAdapter",
     "BaseProviderAdapter",
     "OpenCodeGoAdapter",
     "ProviderAuthError",
