@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-20 - Codex (live Docker run) - [3ced105] - Restore standalone Code Generator Docker runtime
+Accepted the configured system Chromium executable in standalone readiness,
+finalized completed durable stage attempts before advancing, and added focused
+coverage. The existing standalone stack reached live route generation from an
+eligible Build Preparation pack; the provider then failed closed with
+`insufficient_quota`.
+
 ### 2026-08-20 - Codex (live Docker run) - [8cdbfb8] - Complete Docker route generation
 Fixed the Docker generation path so npm's disposable `node_modules/.bin`
 symlinks do not fail workspace safety checks, route-batch waves retain their
