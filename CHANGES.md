@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-20 - Codex (live Docker run) - [8cdbfb8] - Complete Docker route generation
+Fixed the Docker generation path so npm's disposable `node_modules/.bin`
+symlinks do not fail workspace safety checks, route-batch waves retain their
+already-satisfied foundation dependency, and isolated route workspaces retain
+the receipt-bound toolchain for real typechecks. Focused Code Generator tests
+and Ruff passed; the live run remains provider-backed and fail-closed.
+
 ### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [6e2c072] - TypeScript source audit and exact runtime verification
 Added the V3 source-contract audit for local imports/exports, route landmarks,
 section and interaction ownership, trusted SharedSystems, forbidden network
