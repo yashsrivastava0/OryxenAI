@@ -31,9 +31,15 @@ def build_adapter(profile: ModelProfile) -> ModelClient:
         # OpenAI-compatible provider — just set base_url and model.
         return OpenCodeGoAdapter(profile)
 
+    if provider == "anthropic":
+        from oryxenai.agents.shared.providers.anthropic import AnthropicAdapter
+
+        return AnthropicAdapter(profile)
+
     raise ValueError(
         f"Unknown provider '{profile.provider}'. "
-        f"Supported providers: opencode_go, openai, openai_compatible, openai_responses"
+        "Supported providers: opencode_go, openai, openai_compatible, "
+        "openai_responses, anthropic"
     )
 
 
@@ -45,4 +51,5 @@ def can_build(profile: ModelProfile) -> bool:
         "openai",
         "openai_compatible",
         "openai_responses",
+        "anthropic",
     }
