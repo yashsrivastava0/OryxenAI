@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-20 - Codex - [f726d03] - Add Claude Sonnet 5 Code Generator provider
+Added an optional native Anthropic Messages API adapter with schema-guided
+structured output, extended-thinking budgets, usage normalization, provider
+retry/error handling, and lazy `ANTHROPIC_API_KEY` resolution. Only the Code
+Generator profiles now target `claude-sonnet-5`; all upstream agents retain
+their existing providers.
+
 ### 2026-08-20 - Codex (live Docker run) - [3ced105] - Restore standalone Code Generator Docker runtime
 Accepted the configured system Chromium executable in standalone readiness,
 finalized completed durable stage attempts before advancing, and added focused
