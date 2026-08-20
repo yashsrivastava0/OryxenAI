@@ -15,6 +15,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunProjection,
     DevelopmentRunStatus,
 )
+from oryxenai.agents.code_generator.core.provider_preflight import (
+    ProviderPreflightError,
+    run_provider_preflight,
+)
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -30,10 +34,18 @@ _VERIFY_SCOPE = "code_generator.verify_and_preview"
 
 
 class DevelopmentRunError(ValueError):
-    def __init__(self, code: str, message: str, *, status_code: int = 422) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        status_code: int = 422,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
         self.message = message
         self.status_code = status_code
+        self.details = details or {}
         super().__init__(message)
 
 
@@ -48,6 +60,29 @@ class CodeGeneratorDevelopmentService:
 
     def fixtures(self) -> list[dict[str, str]]:
         return self._inputs.fixtures()
+
+    async def provider_preflight(self) -> dict[str, Any]:
+        """Run the same no-context provider check used by production starts."""
+
+        profile_names = [
+            self._settings.code_generator_development.director_profile,
+            self._settings.code_generator_development.planner_profile,
+            self._settings.code_generator_generation.foundation_profile,
+            self._settings.code_generator_generation.route_profile,
+            self._settings.code_generator_generation.compose_profile,
+            self._settings.code_generator_generation.integration_profile,
+            self._settings.code_generator_generation.repair_profile,
+        ]
+        try:
+            result = await run_provider_preflight(self._settings, profile_names)
+        except ProviderPreflightError as exc:
+            raise DevelopmentRunError(
+                exc.code,
+                exc.message,
+                status_code=503,
+                details=exc.details,
+            ) from exc
+        return result
 
     def readiness(self) -> dict[str, Any]:
         """Return non-secret prerequisites so the developer UI never implies readiness."""
@@ -110,6 +145,11 @@ class CodeGeneratorDevelopmentService:
             "build_preparation_latest": latest_pack,
             "build_preparation_best": best_pack,
             "browser_ready": browser_available,
+            "provider_preflight": {
+                "status": "required",
+                "checked": False,
+                "private_context_sent": False,
+            },
             "can_start_latest": not readiness_blockers,
             "can_start_best": not readiness_blockers,
             "readiness_blockers": readiness_blockers,
@@ -129,7 +169,10 @@ class CodeGeneratorDevelopmentService:
         self, pack: str, *, idempotency_key: str
     ) -> DevelopmentRunProjection:
         return await self._create(
-            self._inputs.from_build_preparation_mirror(pack), idempotency_key=idempotency_key
+            self._inputs.from_build_preparation_mirror(pack),
+            idempotency_key=idempotency_key,
+            pack_selection="best" if pack in {"best", "latest"} else "explicit",
+            requested_pack=pack,
         )
 
     async def create_upload(
@@ -141,7 +184,12 @@ class CodeGeneratorDevelopmentService:
         )
 
     async def _create(
-        self, reference: AdmittedInputReference, *, idempotency_key: str
+        self,
+        reference: AdmittedInputReference,
+        *,
+        idempotency_key: str,
+        pack_selection: str = "",
+        requested_pack: str = "",
     ) -> DevelopmentRunProjection:
         if not idempotency_key.strip():
             raise DevelopmentRunError(
@@ -166,7 +214,8 @@ class CodeGeneratorDevelopmentService:
             selected_pack_receipt = {
                 "source_id": reference.source_id,
                 "source_sha256": reference.source_sha256,
-                "selection": "best",
+                "selection": pack_selection or "explicit",
+                "requested_pack": requested_pack or reference.source_id,
                 "selected_at": run.created_at.isoformat(),
             }
             run = (

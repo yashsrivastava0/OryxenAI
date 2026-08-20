@@ -31,7 +31,12 @@ if (root) {
   const request = async (path, options = {}) => {
     const response = await fetch(`${apiRoot}${path}`, options);
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.message || body.detail || 'The development request failed.');
+    if (!response.ok) {
+      const error = body.error || body;
+      const code = error.code ? `${error.code}: ` : '';
+      const message = error.message || error.detail || 'The development request failed.';
+      throw new Error(`${code}${message}`);
+    }
     return body;
   };
   const requestKey = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -42,6 +47,7 @@ if (root) {
   let selectedRoutePath = '';
   let selectedViewport = 'fit';
   let currentPreview = null;
+  let providerPreflightReady = false;
 
   const setError = (message = '') => {
     const error = view('start-error');
@@ -63,13 +69,15 @@ if (root) {
     if (!readiness.package_manager_ready) fallbackBlockers.push('npm');
     if (!readiness.browser_ready) fallbackBlockers.push('verification browser');
     if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('eligible Build Preparation pack');
-    readinessReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
+    const staticReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
+    const preflightRequired = readiness.provider_preflight?.status === 'required';
+    readinessReady = Boolean(staticReady || (preflightRequired && fallbackBlockers.length === 0));
     const blockers = Array.isArray(readiness.readiness_blockers) && readiness.readiness_blockers.length
       ? readiness.readiness_blockers
       : fallbackBlockers;
     const target = readiness.build_preparation_best?.pack_dir;
     view('readiness').textContent = readinessReady
-      ? `Ready to run${target ? ` with ${target}` : ''}.`
+      ? `${providerPreflightReady || !preflightRequired ? 'Ready to run' : 'Provider check runs before start'}${target ? ` with ${target}` : ''}.`
       : `Waiting for ${blockers.join(', ')}.`;
     view('readiness').dataset.state = readinessReady ? 'ready' : 'waiting';
     updateLaunchButton();
@@ -79,9 +87,16 @@ if (root) {
     const entries = Array.isArray(packs) ? packs : [];
     const eligible = entries.filter((pack) => pack.eligible);
     const invalid = entries.filter((pack) => !pack.eligible);
-    const best = eligible.slice().sort((a, b) =>
-      JSON.stringify(b.selection_rank || []).localeCompare(JSON.stringify(a.selection_rank || []))
-    )[0];
+    const compareRank = (a, b) => {
+      const left = a.selection_rank || [];
+      const right = b.selection_rank || [];
+      for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+        const delta = Number(right[index] || 0) - Number(left[index] || 0);
+        if (delta) return delta;
+      }
+      return String(b.pack_dir || '').localeCompare(String(a.pack_dir || ''));
+    };
+    const best = eligible.slice().sort(compareRank)[0];
     selectedPack = best?.pack_dir || '';
     const select = view('pack');
     select.replaceChildren(
@@ -254,7 +269,12 @@ if (root) {
       createFixture: (fixture_id) => request('/runs', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ fixture_id }) }),
       createUpload: (file) => request('/runs/upload', { method: 'POST', headers: { 'content-type': 'application/zip', 'X-Upload-Filename': file.name, 'Idempotency-Key': requestKey() }, body: file }),
       getBuildPreparationPacks: () => request('/build-preparation-packs'),
-      createBuildPreparation: (pack) => request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'best' }) }),
+      providerPreflight: () => request('/provider-preflight', { method: 'POST' }),
+      createBuildPreparation: async (pack) => {
+        await request('/provider-preflight', { method: 'POST' });
+        providerPreflightReady = true;
+        return request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'best' }) });
+      },
     },
     storage: localStorage,
     location,

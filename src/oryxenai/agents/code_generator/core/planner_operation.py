@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import ValidationError
+
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
@@ -20,6 +22,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.shared.contracts import ModelClient
+from oryxenai.agents.shared.providers.errors import (
+    ModelJsonInvalidError,
+    ModelOutputTruncatedError,
+)
 
 PLANNER_OPERATION = "code_generator.plan"
 
@@ -95,24 +101,49 @@ async def run_planner_operation(
             "The trusted planner prompt set could not be assembled.",
         ) from exc
 
-    result = await planner.generate_structured(
-        operation=PLANNER_OPERATION,
-        instructions=instructions,
-        input_payload=context,
-        output_model=SitePlan,
-        system_prompt=system_prompt,
-        model_profile=profile_name,
-        strict_schema=True,
-    )
     prompt_version = str(receipt.prompt_versions.get("operation", ""))
-    parsed = getattr(result, "parsed_output", result)
-    try:
-        plan = SitePlan.model_validate(parsed)
-    except Exception as exc:
+    last_issue = ""
+    result: Any = None
+    plan: SitePlan | None = None
+    for attempt in range(2):
+        call_instructions = instructions
+        if last_issue:
+            call_instructions += (
+                "\n\nThe previous planner response did not satisfy the local SitePlan "
+                "validator. Return a complete replacement object and correct these "
+                f"structural issues: {last_issue}. Do not omit required fields, use "
+                "null for required values, or include commentary."
+            )
+        try:
+            result = await planner.generate_structured(
+                operation=PLANNER_OPERATION,
+                instructions=call_instructions,
+                input_payload=context,
+                output_model=SitePlan,
+                system_prompt=system_prompt,
+                model_profile=profile_name,
+                strict_schema=True,
+            )
+        except (ModelJsonInvalidError, ModelOutputTruncatedError) as exc:
+            last_issue = _safe_planner_issue(exc)
+            if attempt == 0:
+                continue
+            raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
+
+        parsed = getattr(result, "parsed_output", result)
+        try:
+            plan = SitePlan.model_validate(parsed)
+            break
+        except ValidationError as exc:
+            last_issue = _safe_validation_summary(exc)
+            if attempt == 0:
+                continue
+            raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
+    if plan is None:
         raise PlannerOperationError(
             "PLANNER_OUTPUT_INVALID",
-            "The planner output failed SitePlan schema validation.",
-        ) from exc
+            last_issue or "The planner output failed SitePlan schema validation.",
+        )
     if projections is not None:
         try:
             plan = compile_site_plan(
@@ -146,3 +177,17 @@ async def run_planner_operation(
     else:
         plan = _canonicalize_work_graph(plan)
     return plan, prompt_version, receipt, result
+
+
+def _safe_planner_issue(exc: Exception) -> str:
+    message = str(exc).strip()
+    return message[:400] or "The planner response could not be parsed."
+
+
+def _safe_validation_summary(exc: ValidationError) -> str:
+    entries: list[str] = []
+    for error in exc.errors(include_url=False)[:8]:
+        location = ".".join(str(part) for part in error.get("loc", ())) or "root"
+        message = str(error.get("msg", "invalid value"))[:160]
+        entries.append(f"{location}: {message}")
+    return "; ".join(entries)[:500] or "The planner output failed SitePlan schema validation."
