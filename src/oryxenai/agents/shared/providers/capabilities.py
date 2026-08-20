@@ -12,7 +12,13 @@ opt-in live capability smoke test (``tests/live/``).
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
+
+StructuredOutputMode = Literal["prompted_json", "json_object", "native_json_schema"]
+ThinkingStrategy = Literal["disabled", "default", "adaptive", "manual_budget"]
+EffortParameter = Literal["none", "reasoning_effort", "output_config_effort"]
 
 
 class ModelCapabilities(BaseModel):
@@ -30,6 +36,11 @@ class ModelCapabilities(BaseModel):
     context_cache_metadata: bool
     supports_store_parameter: bool
     uses_max_completion_tokens: bool
+    # These typed declarations make provider wire behavior explicit. The
+    # legacy booleans above remain for existing OpenAI-compatible callers.
+    structured_output_mode: StructuredOutputMode = "json_object"
+    thinking_strategy: ThinkingStrategy = "default"
+    effort_parameter: EffortParameter = "none"
 
 
 DEFAULT_OPENCODE_GO = ModelCapabilities(

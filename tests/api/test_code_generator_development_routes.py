@@ -31,6 +31,7 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     app = create_app(settings)
     assert "/api/v1/development/code-generator/fixtures" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/readiness" in app.openapi()["paths"]
+    assert "/api/v1/development/code-generator/provider-preflight" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/runs/{run_id}/acquire" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/runs/{run_id}/acquisition" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/runs/{run_id}/generate" in app.openapi()["paths"]

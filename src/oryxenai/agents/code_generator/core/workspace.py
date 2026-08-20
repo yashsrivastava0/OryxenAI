@@ -35,6 +35,13 @@ def repository_root() -> Path:
     for parent in Path(__file__).resolve().parents:
         if (parent / "pyproject.toml").is_file() and (parent / "src").is_dir():
             return parent
+    # Production images intentionally omit repository metadata such as
+    # pyproject.toml, but retain the checked-in source/scaffold tree. Resolve
+    # that layout directly so relative generator paths remain usable in
+    # Docker instead of failing at the first acquisition workspace.
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "src" / "oryxenai").is_dir():
+            return parent
     raise WorkspaceError(
         "REPOSITORY_ROOT_UNAVAILABLE", "The repository root could not be resolved."
     )

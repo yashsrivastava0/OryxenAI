@@ -107,12 +107,17 @@ class ProviderInvalidRequestError(ProviderError):
         self,
         message: str = "Provider rejected the request",
         status_code: int = 400,
+        *,
+        details: dict[str, Any] | None = None,
     ) -> None:
+        merged_details = {"status_code": status_code}
+        if details:
+            merged_details.update(details)
         super().__init__(
             message,
             code="PROVIDER_INVALID_REQUEST_ERROR",
             retryable=False,
-            details={"status_code": status_code},
+            details=merged_details,
         )
 
 
@@ -198,7 +203,11 @@ def map_http_error(status_code: int, body: dict[str, Any] | None = None) -> Prov
     if 400 <= status_code < 500 and status_code not in {401, 402, 403, 408, 429}:
         if _is_content_filter(body):
             return ProviderContentFilterError(message or "Content refused")
-        return ProviderInvalidRequestError(message or "Invalid request", status_code=status_code)
+        return ProviderInvalidRequestError(
+            message or "Invalid request",
+            status_code=status_code,
+            details=_safe_error_details(body),
+        )
 
     return ProviderError(
         message or f"Unexpected HTTP {status_code}",
@@ -217,6 +226,29 @@ def _extract_message(body: dict[str, Any] | None) -> str | None:
     if isinstance(error, str):
         return error
     return str(body.get("message", "") or "")
+
+
+def _safe_error_details(body: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract small, non-secret provider diagnostics without the raw body."""
+
+    if not body:
+        return {}
+    error = body.get("error", {})
+    if not isinstance(error, dict):
+        return {}
+    details: dict[str, Any] = {}
+    for source, target in (
+        ("type", "provider_error_type"),
+        ("code", "provider_error_code"),
+        ("param", "provider_parameter"),
+    ):
+        value = error.get(source)
+        if isinstance(value, (str, int, float, bool)) and str(value):
+            details[target] = value
+    request_id = body.get("request_id") or body.get("requestId")
+    if isinstance(request_id, (str, int, float, bool)) and str(request_id):
+        details["provider_request_id"] = request_id
+    return details
 
 
 def _extract_retry_after(body: dict[str, Any] | None) -> float | None:

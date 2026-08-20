@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-037 - Provider wire contracts and no-context Code Generator admission
+
+- **Date & Time:** 2026-08-21 00:30 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The configured Anthropic Code Generator profiles used generic thinking/schema flags. Sonnet rejected typed mapping schemas before planning, while readiness could claim success without exercising the configured provider.
+- **Decision:** Declare structured-output, thinking, and effort wire capabilities in config; let the Anthropic adapter emit native JSON Schema only for its supported subset and use trusted schema prompting plus local validation for incompatible typed mappings. Require a fixed no-context provider preflight before live development starts, preserve safe provider diagnostics, and retry one structurally invalid planner response with bounded validator feedback.
+- **Rejected alternatives:** Provider/model branches in agent logic; hardcoded portfolio schemas or visual fallbacks; silently switching providers; treating a credential check or heartbeat as provider readiness; unbounded planner retries.
+- **Consequence:** Provider request incompatibilities fail before portfolio context is sent when possible, arbitrary portfolio-specific token maps remain supported without input-specific hardcoding, and the UI receives an actionable admission/error state before durable work begins.
+
 ## D-036 - Enforce generated source and runtime contracts without visual evidence
 
 - **Date & Time:** 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI)
