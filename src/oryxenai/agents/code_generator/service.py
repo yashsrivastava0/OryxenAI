@@ -420,7 +420,11 @@ class CodeGeneratorService:
                     status_code=503,
                     details={"profile": name},
                 )
-            if profile.capabilities is None or not profile.capabilities.json_schema_mode:
+            if (
+                profile.capabilities is None
+                or not profile.capabilities.json_schema_mode
+                or profile.capabilities.structured_output_mode != "native_json_schema"
+            ):
                 raise CodeGeneratorOperationError(
                     "CODE_GENERATOR_STRICT_SCHEMA_UNSUPPORTED",
                     "A required Code Generator profile does not declare strict JSON Schema support.",
@@ -464,18 +468,23 @@ class CodeGeneratorService:
                     if client is None:
                         raise RuntimeError("configured provider client is unavailable")
                     profile = self._settings.models.get_profile(profile_name)
-                    result = await client.generate_structured(
-                        operation="code_generator.provider_preflight",
-                        instructions=(
-                            "Return ok=true and protocol=code-generator-preflight-v1. "
-                            "This fixed request contains no user or portfolio data."
-                        ),
-                        input_payload={"protocol": "code-generator-preflight-v1"},
-                        output_model=ProviderPreflightEnvelope,
-                        system_prompt="You are a transport preflight. Return only the required schema.",
-                        model_profile=profile_name,
-                        strict_schema=True,
-                    )
+                    try:
+                        result = await client.generate_structured(
+                            operation="code_generator.provider_preflight",
+                            instructions=(
+                                "Return ok=true and protocol=code-generator-preflight-v1. "
+                                "This fixed request contains no user or portfolio data."
+                            ),
+                            input_payload={"protocol": "code-generator-preflight-v1"},
+                            output_model=ProviderPreflightEnvelope,
+                            system_prompt="You are a transport preflight. Return only the required schema.",
+                            model_profile=profile_name,
+                            strict_schema=True,
+                        )
+                    finally:
+                        close = getattr(client, "aclose", None)
+                        if close is not None:
+                            await close()
                     envelope = ProviderPreflightEnvelope.model_validate(
                         getattr(result, "parsed_output", result)
                     )
@@ -483,11 +492,22 @@ class CodeGeneratorService:
                         raise RuntimeError("provider preflight returned an invalid envelope")
             except Exception as exc:
                 code = str(getattr(exc, "code", "PROVIDER_PREFLIGHT_FAILED"))
+                raw_details = getattr(exc, "details", {})
+                details: dict[str, Any] = {"profile": profile_name}
+                if isinstance(raw_details, dict):
+                    details.update(
+                        {
+                            str(key): value
+                            for key, value in raw_details.items()
+                            if isinstance(key, str) and isinstance(value, (str, int, float, bool))
+                        }
+                    )
                 raise CodeGeneratorOperationError(
                     code,
-                    "The configured Code Generator provider did not pass its no-context preflight.",
+                    str(exc)[:500]
+                    or "The configured Code Generator provider did not pass its no-context preflight.",
                     status_code=503,
-                    details={"profile": profile_name},
+                    details=details,
                 ) from exc
             _PREFLIGHT_CACHE[identity] = time.monotonic()
             checked.append(profile_name)

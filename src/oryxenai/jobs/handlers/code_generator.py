@@ -103,6 +103,13 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
             "Wait for the provider rate-limit window to reset, then retry once."
         ),
         "PROVIDER_SERVER_ERROR": "Retry after the planner provider recovers.",
+        "PROVIDER_INVALID_REQUEST_ERROR": (
+            "Correct the configured planner request capabilities (thinking/effort/schema), "
+            "run provider preflight again, then retry."
+        ),
+        "MODEL_CAPABILITY_UNSUPPORTED": (
+            "Configure a planner profile that supports the required structured-output contract, then retry."
+        ),
     }
     messages = {
         "PROVIDER_CONNECTION_ERROR": "The configured planner provider could not be reached before it produced a SitePlan.",
@@ -110,6 +117,8 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
         "PROVIDER_AUTH_ERROR": "The configured planner provider rejected its API key before it produced a SitePlan.",
         "PROVIDER_RATE_LIMIT_ERROR": "The configured planner provider rate-limited the SitePlan request.",
         "PROVIDER_SERVER_ERROR": "The configured planner provider returned a server error before it produced a SitePlan.",
+        "PROVIDER_INVALID_REQUEST_ERROR": "The configured planner provider rejected the planner request before producing a SitePlan.",
+        "MODEL_CAPABILITY_UNSUPPORTED": "The configured planner profile does not support the required structured-output contract.",
     }
     raw_details = getattr(exc, "details", {})
     allowed = (str, int, float, bool)
@@ -122,9 +131,13 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
         if isinstance(raw_details, dict)
         else {}
     )
+    message = messages.get(code)
+    if code in {"PROVIDER_INVALID_REQUEST_ERROR", "PLANNER_OUTPUT_INVALID"} and str(exc):
+        message = f"{message} Detail: {str(exc)[:400]}"
     return SafeIssue(
         code=code,
-        message=messages.get(code, "The planner could not produce a valid SitePlan."),
+        message=message
+        or (str(exc)[:300] if str(exc) else "The planner could not produce a valid SitePlan."),
         next_action=actions.get(
             code,
             "Review the planner diagnostics and admitted pack projections, then retry after correcting the failure.",
@@ -302,14 +315,21 @@ async def _execute(
         await db.commit()
 
     profile = settings.models.get_profile(settings.code_generator_development.planner_profile)
-    if profile is None or profile.capabilities is None or not profile.capabilities.json_schema_mode:
+    if (
+        profile is None
+        or profile.capabilities is None
+        or not profile.capabilities.json_schema_mode
+        or profile.capabilities.structured_output_mode != "native_json_schema"
+    ):
         await _needs_attention(
             sessionmaker,
             run_id,
             SafeIssue(
                 code="PLANNER_STRICT_SCHEMA_UNSUPPORTED",
                 message="The configured planner profile does not declare native JSON-schema support.",
-                next_action="Configure code_generator_planner with json_schema_mode before retrying.",
+                next_action=(
+                    "Configure code_generator_planner with native_json_schema support before retrying."
+                ),
             ),
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
@@ -333,6 +353,7 @@ async def _execute(
             director_capabilities is None
             or director_capabilities.capabilities is None
             or not director_capabilities.capabilities.json_schema_mode
+            or director_capabilities.capabilities.structured_output_mode != "native_json_schema"
         ):
             await _needs_attention(
                 sessionmaker,

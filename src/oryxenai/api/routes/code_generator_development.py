@@ -56,6 +56,18 @@ async def readiness(
     return service.readiness()
 
 
+@router.post("/provider-preflight")
+async def provider_preflight(
+    service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
+) -> dict[str, Any]:
+    """Verify the configured provider request contract without portfolio data."""
+
+    try:
+        return await service.provider_preflight()
+    except DevelopmentRunError as exc:
+        _error(exc)
+
+
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
 async def create_fixture_run(
     request: Request,
