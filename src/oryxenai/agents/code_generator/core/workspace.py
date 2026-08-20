@@ -314,6 +314,12 @@ class GenerationWorkspace:
     @staticmethod
     def _assert_tree_safe(root: Path) -> None:
         for path in root.rglob("*"):
+            # npm creates platform launcher symlinks under node_modules/.bin.
+            # Dependencies are disposable and are never exported or treated
+            # as generated source, so those package-manager links must not
+            # invalidate the trusted workspace boundary.
+            if "node_modules" in path.parts:
+                continue
             if path.is_symlink():
                 raise WorkspaceError(
                     "WORKSPACE_SYMLINK", "Generation workspaces cannot contain symlinks."

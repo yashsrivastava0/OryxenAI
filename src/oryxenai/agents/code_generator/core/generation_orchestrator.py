@@ -472,6 +472,17 @@ class CodeGeneratorGenerationOrchestrator:
                 isolated_repo,
                 ignore=shutil.ignore_patterns("node_modules", "dist"),
             )
+            # Route batches run source checks inside their disposable copies.
+            # Keep the already receipt-bound dependency tree available there;
+            # npm's .bin launchers are symlinks within this disposable subtree
+            # and are excluded from source/export validation.
+            dependency_tree = workspace.repo_dir / "node_modules"
+            if dependency_tree.is_dir():
+                shutil.copytree(
+                    dependency_tree,
+                    isolated_repo / "node_modules",
+                    symlinks=True,
+                )
             isolated = GenerationWorkspace(
                 isolated_root,
                 workspace.input_dir,
@@ -501,8 +512,24 @@ class CodeGeneratorGenerationOrchestrator:
             )
             return local_projection, local_checkpoint, isolated_root
 
+        # The foundation dependency has already been accepted by the caller's
+        # preceding sequential wave.  The bounded scheduler receives only the
+        # current route-batch wave, so retain only dependencies that are also
+        # in this subset; otherwise an already-satisfied external dependency
+        # is indistinguishable from an unknown graph edge.
+        batch_ids = {unit.unit_id for unit in units}
+        schedulable_units = [
+            unit.model_copy(
+                update={
+                    "depends_on": [
+                        dependency for dependency in unit.depends_on if dependency in batch_ids
+                    ]
+                }
+            )
+            for unit in units
+        ]
         scheduled = await execute_waves(
-            units,
+            schedulable_units,
             execute,
             max_concurrency=int(settings.code_generator_generation.route_concurrency),
         )
