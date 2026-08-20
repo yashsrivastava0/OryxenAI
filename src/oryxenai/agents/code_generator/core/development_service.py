@@ -617,23 +617,32 @@ class CodeGeneratorDevelopmentService:
 
 
 def browser_ready(verification: Any) -> bool:
-    """Honest cheap probe: Playwright importable AND a browser build present.
+    """Honest cheap probe: Playwright importable and a browser is available.
 
     Deliberately does not launch the driver — the sync driver's teardown is
-    unreliable on Windows; the verification path itself launches async.
+    unreliable on Windows; the verification path itself launches async. A
+    configured executable is a valid browser installation even when the
+    browser was installed by the container OS rather than Playwright.
     """
 
     try:
         import playwright  # noqa: F401
     except Exception:
         return False
+    configured_executable = str(getattr(verification, "browser_executable", "") or "").strip()
+    if configured_executable:
+        configured_path = Path(configured_executable)
+        if configured_path.is_file() and os.access(configured_path, os.X_OK):
+            return True
+        if shutil.which(configured_executable):
+            return True
     root = Path(
         os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")
         or Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ms-playwright"
     )
     if not root.is_dir():
         return False
-    return any(root.glob(f"{verification.browser_name!s}-*"))
+    return any(root.glob(f"{getattr(verification, 'browser_name', 'chromium')!s}-*"))
 
 
 def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
