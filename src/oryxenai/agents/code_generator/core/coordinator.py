@@ -37,6 +37,9 @@ async def advance_after(
     if transition is None:
         return False
     stage, kind, status, job_field = transition
+    completed_attempt_stage = {"acquired": "acquire", "source_ready": "generate"}.get(
+        completed_stage
+    )
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
         run = await repo.get(run_id)
@@ -46,6 +49,22 @@ async def advance_after(
             return False
         if str(getattr(run, "coordinator_stage", "plan")) == stage:
             return False
+        if completed_attempt_stage:
+            completed_attempt = await repo.active_stage_attempt(run.id)
+            if completed_attempt is not None:
+                if completed_attempt.stage != completed_attempt_stage:
+                    return False
+                finalized = await repo.finalize_stage_attempt(
+                    completed_attempt.id,
+                    run_id=run.id,
+                    stage=completed_attempt.stage,
+                    job_id=completed_attempt.job_id,
+                    expected_run_revision=completed_attempt.expected_run_revision,
+                    input_fingerprint=completed_attempt.input_fingerprint,
+                    status="succeeded",
+                )
+                if finalized is None:
+                    return False
         key_material = {
             "planned": str((run.planner_receipt or {}).get("plan_hash", "")),
             "acquired": str((run.resource_ledger or {}).get("ledger_hash", "")),

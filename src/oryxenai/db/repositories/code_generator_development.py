@@ -302,7 +302,7 @@ class CodeGeneratorDevelopmentRepository:
             CodeGeneratorStageAttempt.id == attempt_id,
             CodeGeneratorStageAttempt.run_id == run_id,
             CodeGeneratorStageAttempt.stage == stage,
-            CodeGeneratorStageAttempt.status == "running",
+            CodeGeneratorStageAttempt.status.in_(("queued", "running", "retrying")),
             CodeGeneratorStageAttempt.expected_run_revision == expected_run_revision,
             CodeGeneratorStageAttempt.input_fingerprint == input_fingerprint,
         ]
