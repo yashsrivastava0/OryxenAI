@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 - Codex (live provider run) - [0e965fd] - Code Generator provider contract, planner admission, Docker workspace portability
+Added config-driven Anthropic wire capabilities, no-context provider preflight, safe provider diagnostics, typed-mapping schema fallback, bounded planner validation retry, exact pack selection receipts, frontend preflight/error states, and Docker runtime repository-root fallback. The live exact-pack run now passes provider preflight, planning, and acquisition; the remaining route-builder attempt is still provider-backed and bounded by the existing durable job policy.
+
 ### 2026-08-20 - Codex - [f726d03] - Add Claude Sonnet 5 Code Generator provider
 Added an optional native Anthropic Messages API adapter with schema-guided
 structured output, extended-thinking budgets, usage normalization, provider
