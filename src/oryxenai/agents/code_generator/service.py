@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import shutil
 import time
 from collections.abc import Awaitable, Callable
@@ -439,7 +440,19 @@ class CodeGeneratorService:
                     details={"profile": name},
                 )
             identity = hashlib.sha256(
-                f"{profile.provider}:{profile.base_url}:{profile.api_key_env}:{profile.model}".encode()
+                json.dumps(
+                    {
+                        "provider": profile.provider,
+                        "base_url": profile.base_url,
+                        "model": profile.model,
+                        "capabilities": profile.capabilities.model_dump(mode="json")
+                        if profile.capabilities is not None
+                        else {},
+                        "max_output_tokens": profile.max_output_tokens,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
             ).hexdigest()
             identities.setdefault(identity, name)
         npm = str(self._settings.code_generator_dependencies.npm_executable or "")
@@ -581,6 +594,7 @@ def _session_status(run_status: str) -> str:
     if run_status in {
         DevelopmentRunStatus.BUILDING.value,
         DevelopmentRunStatus.SMOKE_TESTING.value,
+        DevelopmentRunStatus.PREVIEW_PENDING.value,
         DevelopmentRunStatus.REPAIRING.value,
     }:
         return CodeGeneratorSessionStatus.VERIFYING.value

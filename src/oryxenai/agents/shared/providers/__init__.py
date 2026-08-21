@@ -26,6 +26,11 @@ from oryxenai.agents.shared.providers.errors import (
 )
 from oryxenai.agents.shared.providers.factory import build_adapter, can_build
 from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+from oryxenai.agents.shared.providers.schema_compatibility import (
+    SchemaCompatibilityError,
+    ensure_schema_compatible,
+    schema_compatibility_issues,
+)
 
 __all__ = [
     "AnthropicAdapter",
@@ -43,4 +48,7 @@ __all__ = [
     "ProviderTimeoutError",
     "build_adapter",
     "can_build",
+    "SchemaCompatibilityError",
+    "ensure_schema_compatible",
+    "schema_compatibility_issues",
 ]

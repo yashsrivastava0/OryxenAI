@@ -328,6 +328,7 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     build_preparation_mirror_root: str = "output/build-preparation"
     pipeline_contract_version: str = "code-generator-v3"
     worker_release_id: str = "oryxenai-code-generator-v3"
+    quality_gate_version: str = "quality-gate-v1"
 
     @field_validator("enabled", mode="before")
     @classmethod
@@ -500,6 +501,9 @@ class CodeGeneratorVerificationConfig(BaseModel):
     preview_host: str = "127.0.0.1"
     preview_port: int = 4174
     preview_parent_origin: str = "http://127.0.0.1:8000"
+    preview_embed_origins: list[str] = Field(
+        default_factory=lambda: ["http://127.0.0.1:8000", "http://localhost:8000"]
+    )
     preview_retention_days: int = 3
     preview_route_prefix: str = "/preview"
     # Local development uses the filesystem. Hosted API/worker/gateway

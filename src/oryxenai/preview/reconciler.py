@@ -20,7 +20,7 @@ async def reconcile_pending_promotion(
 ) -> Any:
     """Resume the receipt/pointer boundary without inventing new bytes."""
 
-    promoter = PreviewPromoter(storage, preview_base_url=preview_base_url)
+    promoter = PreviewPromoter(storage, preview_base_url=preview_base_url, require_readback=True)
     pointer = {
         "candidate_prefix": pending.candidate.key,
         "manifest": manifest.model_dump(mode="json"),

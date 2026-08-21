@@ -11,15 +11,19 @@ from uuid import UUID
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
 from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
+    CreativeDirectionSetV3,
     DevelopmentEvent,
     DevelopmentRunProjection,
     DevelopmentRunStatus,
+    ExperienceBlueprintV4,
+    SourceGenerationEnvelopeV2,
 )
 from oryxenai.agents.code_generator.core.provider_preflight import (
     ProviderPreflightError,
     run_provider_preflight,
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
+from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.service import JobService
@@ -107,6 +111,7 @@ class CodeGeneratorDevelopmentService:
                 and bool(os.environ.get(profile.api_key_env))
                 and profile.capabilities
                 and profile.capabilities.json_schema_mode
+                and profile.capabilities.structured_output_mode == "native_json_schema"
             )
         npm = str(self._settings.code_generator_dependencies.npm_executable or "")
         npm_available = bool(npm and shutil.which(npm))
@@ -139,6 +144,20 @@ class CodeGeneratorDevelopmentService:
             )
             if not ready
         ]
+        wire_schema_issues = {
+            model.__name__: schema_compatibility_issues(model)
+            for model in (CreativeDirectionSetV3, ExperienceBlueprintV4, SourceGenerationEnvelopeV2)
+        }
+        provider_wire_ready = all(not issues for issues in wire_schema_issues.values())
+        if not provider_wire_ready:
+            readiness_blockers.append("provider_wire_schema")
+        preview_config = self._settings.code_generator_verification
+        preview_gateway_ready = bool(
+            getattr(preview_config, "preview_host", "")
+            and int(getattr(preview_config, "preview_port", 0) or 0) > 0
+        )
+        if not preview_gateway_ready:
+            readiness_blockers.append("preview_gateway")
         return {
             "planning_ready": profiles["director"] and profiles["planner"],
             "generation_ready": generation_ready,
@@ -153,6 +172,20 @@ class CodeGeneratorDevelopmentService:
             "build_preparation_best": best_pack,
             "browser_ready": browser_available,
             "preview_storage_ready": preview_storage_available,
+            "provider_wire_ready": provider_wire_ready,
+            "provider_wire_schema_issues": wire_schema_issues,
+            "preview_gateway_ready": preview_gateway_ready,
+            "preview_embed_origins": list(
+                getattr(preview_config, "preview_embed_origins", []) or []
+            ),
+            "pipeline_contract_version": str(
+                getattr(self._settings.code_generator_development, "pipeline_contract_version", "")
+                or ""
+            ),
+            "quality_gate_version": str(
+                getattr(self._settings.code_generator_development, "quality_gate_version", "") or ""
+            ),
+            "blocker_codes": list(readiness_blockers),
             "provider_preflight": {
                 "status": "required",
                 "checked": False,
@@ -219,9 +252,28 @@ class CodeGeneratorDevelopmentService:
         )
         selected_pack_receipt = None
         if reference.mode == "build_preparation_mirror":
+            pack_info = next(
+                (
+                    item
+                    for item in self._inputs.list_build_preparation_packs()
+                    if item.get("pack_dir") == reference.source_id
+                ),
+                {},
+            )
             selected_pack_receipt = {
+                "pack_id": reference.source_id,
                 "source_id": reference.source_id,
+                "pack_sha256": reference.source_sha256,
                 "source_sha256": reference.source_sha256,
+                "pack_version": pack_info.get("pack_version", ""),
+                "schema_version": pack_info.get("schema_version", ""),
+                "eligible": bool(pack_info.get("eligible", False)),
+                "expiry": pack_info.get("expires_at", ""),
+                "resource_counts": {
+                    "execution_gaps": pack_info.get("execution_gaps", 0),
+                    "resource_coverage": pack_info.get("resource_coverage", 0),
+                    "visual_readiness": pack_info.get("visual_readiness", 0),
+                },
                 "selection": pack_selection or "explicit",
                 "requested_pack": requested_pack or reference.source_id,
                 "selected_at": run.created_at.isoformat(),
@@ -550,6 +602,7 @@ class CodeGeneratorDevelopmentService:
         if run.status in {
             DevelopmentRunStatus.BUILDING.value,
             DevelopmentRunStatus.SMOKE_TESTING.value,
+            DevelopmentRunStatus.PREVIEW_PENDING.value,
             DevelopmentRunStatus.REPAIRING.value,
         }:
             if run.verification_job_id is not None:
@@ -632,6 +685,22 @@ class CodeGeneratorDevelopmentService:
             "active_preview": dict(run.active_preview) if run.active_preview else None,
             "candidate": dict(run.candidate_artifact) if run.candidate_artifact else None,
             "pending_promotion": dict(run.pending_promotion) if run.pending_promotion else None,
+        }
+
+    async def quality(self, run_id: UUID) -> dict[str, Any]:
+        """Return the hash-bound whole-site quality receipt, when available."""
+
+        run = await self._repo.get(run_id)
+        if run is None:
+            raise DevelopmentRunError(
+                "RUN_NOT_FOUND", "Development run was not found.", status_code=404
+            )
+        generation = dict(run.generation_projection or {})
+        return {
+            "status": run.status,
+            "quality_review": generation.get("quality_review"),
+            "integration_review": dict(run.integration_review or {}) or None,
+            "source_checkpoint": dict(run.source_checkpoint or {}) or None,
         }
 
     async def source_manifest(self, run_id: UUID) -> dict[str, Any]:
@@ -808,6 +877,9 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "preflight_receipt": getattr(run, "preflight_receipt", None),
             "creative_direction": getattr(run, "creative_direction", None),
             "integration_review": getattr(run, "integration_review", None),
+            "quality_review": (run.generation_projection or {}).get("quality_review")
+            if isinstance(run.generation_projection, dict)
+            else None,
             "job_id": str(run.background_job_id or ""),
             "input": run.input_reference,
             "input_receipt": run.input_receipt,

@@ -10,13 +10,13 @@ if (root) {
   const activeStatuses = new Set([
     'queued', 'planning', 'planned', 'acquiring', 'generating_foundation',
     'generating_routes', 'integrating', 'source_ready', 'building',
-    'smoke_testing', 'repairing',
+    'smoke_testing', 'repairing', 'preview_pending',
   ]);
   const stageStatuses = {
     prepare: new Set(['queued', 'planning', 'planned']),
     resources: new Set(['acquiring', 'acquired']),
     source: new Set(['generating_foundation', 'generating_routes', 'integrating', 'source_ready']),
-    verify: new Set(['building', 'smoke_testing', 'repairing', 'ready']),
+    verify: new Set(['building', 'smoke_testing', 'repairing', 'preview_pending', 'ready']),
   };
   const stageOrder = ['prepare', 'resources', 'source', 'verify'];
   const statusLabels = {
@@ -25,7 +25,7 @@ if (root) {
     generating_foundation: 'Building visual foundation', generating_routes: 'Building routes',
     integrating: 'Connecting the portfolio', source_ready: 'Source ready',
     building: 'Building production output', smoke_testing: 'Testing the preview',
-    repairing: 'Applying bounded repair', ready: 'Preview promoted',
+    repairing: 'Applying bounded repair', preview_pending: 'Verified; waiting for preview publication', ready: 'Preview promoted',
     needs_attention: 'Needs attention',
   };
   const request = async (path, options = {}) => {
@@ -101,11 +101,15 @@ if (root) {
     const best = eligible.slice().sort(compareRank)[0];
     selectedPack = best?.pack_dir || '';
     const select = view('pack');
+    const labelFor = (pack) => {
+      const counts = pack.resource_counts || {};
+      const version = pack.pack_version || 'unknown version';
+      const resources = Number(pack.resource_coverage || counts.resource_coverage || 0);
+      const visuals = Number(pack.visual_readiness || counts.visual_readiness || 0);
+      return `${pack.pack_dir} - ${version} - ${resources} resource(s), ${visuals} visual route(s) - expires ${String(pack.expires_at || '').slice(0, 16).replace('T', ' ')}`;
+    };
     select.replaceChildren(
-      ...eligible.map((pack) => new Option(
-        `${pack.pack_dir} - expires ${String(pack.expires_at || '').slice(0, 16).replace('T', ' ')}`,
-        pack.pack_dir,
-      )),
+      ...eligible.map((pack) => new Option(labelFor(pack), pack.pack_dir)),
       ...invalid.map((pack) => new Option(`${pack.pack_dir} - ${pack.issue || 'not eligible'}`, '')),
     );
     select.value = selectedPack;
@@ -113,7 +117,10 @@ if (root) {
     if (!entries.length) {
       view('pack-status').textContent = 'No eligible Build Preparation output found. Run Build Preparation first.';
     } else if (selectedPack) {
-      view('pack-status').textContent = `Using best eligible pack ${selectedPack}.`;
+      const selected = eligible.find((pack) => pack.pack_dir === selectedPack);
+      view('pack-status').textContent = selected
+        ? `Using ${selected.pack_dir} (${selected.pack_version || 'unknown version'}; hash-bound ZIP ${selected.size_bytes || 0} bytes; eligible).`
+        : `Using best eligible pack ${selectedPack}.`;
     } else {
       view('pack-status').textContent = `No eligible pack is available (${entries[0].issue || 'unknown reason'}).`;
     }
@@ -237,7 +244,10 @@ if (root) {
     view('status').textContent = label;
     view('status-pill').textContent = label;
     view('status-pill').dataset.state = run.status === 'ready' ? 'ready' : run.status === 'needs_attention' ? 'error' : 'active';
-    view('receipt').textContent = run.input_receipt?.admitted_identity ? `Receipt ${run.input_receipt.admitted_identity}` : '';
+    const selectedPackReceipt = run.selected_pack_receipt;
+    view('receipt').textContent = selectedPackReceipt?.pack_id
+      ? `Pack ${selectedPackReceipt.pack_id} · ${selectedPackReceipt.pack_version || 'unknown version'} · ${selectedPackReceipt.pack_sha256 || 'hash pending'}`
+      : run.input_receipt?.admitted_identity ? `Receipt ${run.input_receipt.admitted_identity}` : '';
     const latestEvent = events.at(-1);
     view('event').textContent = latestEvent ? latestEvent.message : '';
     view('events').replaceChildren(...events.map((event) => Object.assign(document.createElement('li'), { textContent: `${event.sequence}. ${event.message}` })));

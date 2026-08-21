@@ -296,10 +296,16 @@ class DevelopmentInputAdapter:
             manifest, handoff = {}, {}
             issue = f"unreadable pack: {type(exc).__name__}"
         pack_version = str(manifest.get("pack_version", ""))
+        accepted_pack_versions = set(
+            getattr(self._config, "accepted_pack_versions", [self._config.pack_version])
+        )
+        accepted_schema_versions = set(
+            getattr(self._config, "accepted_schema_versions", [self._config.schema_version])
+        )
         expires_at = str(manifest.get("expires_at", ""))
         expired = False
         if not issue:
-            if pack_version != self._config.pack_version:
+            if pack_version not in accepted_pack_versions:
                 issue = f"pack version {pack_version or 'unknown'} is not admissible"
             else:
                 try:
@@ -311,6 +317,14 @@ class DevelopmentInputAdapter:
                     issue = f"pack expired at {expires_at}"
                 elif not issue and not bool(handoff.get("handoff_eligible", False)):
                     issue = "handoff report is not eligible"
+                elif not issue:
+                    manifest_schema = str(manifest.get("schema_version", ""))
+                    if (
+                        manifest_schema
+                        and manifest_schema not in accepted_schema_versions
+                        and not manifest_schema.startswith("build-preparation-handoff-")
+                    ):
+                        issue = "pack schema version is not admissible"
         if not issue:
             try:
                 self._validate_admitted_data(zip_path.read_bytes())
@@ -325,6 +339,7 @@ class DevelopmentInputAdapter:
             "size_bytes": stat.st_size,
             "modified_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
             "pack_version": pack_version,
+            "schema_version": str(manifest.get("schema_version", "")),
             "expires_at": expires_at,
             "handoff_eligible": bool(handoff.get("handoff_eligible", False)),
             "execution_gaps": execution_gaps,
@@ -610,7 +625,7 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "PACK_TARGET_UNSUPPORTED", "The pack target contract is unsupported."
             )
-        if targets.get("schema_version") != self._config.schema_version:
+        if targets.get("schema_version") not in accepted_schema_versions:
             raise DevelopmentInputError(
                 "PACK_TARGET_SCHEMA_UNSUPPORTED", "The target projection schema is unsupported."
             )

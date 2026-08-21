@@ -6,6 +6,7 @@ import json
 import mimetypes
 import re
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -50,13 +51,39 @@ def _safe_path(value: str) -> str:
     return path.as_posix()
 
 
-def _headers(*, parent_origin: str, asset: bool) -> dict[str, str]:
+def _normalize_embed_origins(
+    origins: list[str] | tuple[str, ...] | None,
+    parent_origin: str,
+) -> tuple[str, ...]:
+    values = list(origins) if origins else [parent_origin]
+    result: list[str] = []
+    for value in values:
+        origin = str(value or "").strip().rstrip("/")
+        if not origin:
+            continue
+        if origin == "*":
+            raise ValueError("wildcard preview embed origins are not allowed")
+        parsed = urlsplit(origin)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.path not in {"", "/"}
+        ):
+            raise ValueError("preview embed origins must be exact HTTP(S) origins")
+        if origin not in result:
+            result.append(origin)
+    if not result:
+        raise ValueError("at least one exact preview embed origin is required")
+    return tuple(result)
+
+
+def _headers(*, embed_origins: tuple[str, ...], asset: bool) -> dict[str, str]:
     return {
         "Content-Security-Policy": (
             "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "
             "font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; "
             "form-action 'none'; worker-src 'none'; manifest-src 'none'; "
-            f"frame-ancestors {parent_origin}"
+            f"frame-ancestors {' '.join(embed_origins)}"
         ),
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "no-referrer",
@@ -83,10 +110,14 @@ def _inject_preview_base(data: bytes, base_path: str) -> bytes:
 
 class PreviewGateway:
     def __init__(
-        self, storage: PreviewStorage, *, parent_origin: str = "http://127.0.0.1:8000"
+        self,
+        storage: PreviewStorage,
+        *,
+        parent_origin: str = "http://127.0.0.1:8000",
+        embed_origins: list[str] | tuple[str, ...] | None = None,
     ) -> None:
         self.storage = storage
-        self.parent_origin = parent_origin
+        self.embed_origins = _normalize_embed_origins(embed_origins, parent_origin)
 
     async def serve(self, request: Request) -> Response:
         if request.method not in {"GET", "HEAD"}:
@@ -147,7 +178,7 @@ class PreviewGateway:
                 return Response(
                     "Not found",
                     status_code=404,
-                    headers=_headers(parent_origin=self.parent_origin, asset=True),
+                    headers=_headers(embed_origins=self.embed_origins, asset=True),
                 )
             requested = "index.html"
         entry = entries.get(requested)
@@ -159,7 +190,11 @@ class PreviewGateway:
             return JSONResponse({"status": "unavailable"}, status_code=503)
         if stored is None or stored[0].sha256 != str(entry.get("sha256", "")):
             return JSONResponse({"status": "unavailable"}, status_code=503)
-        headers = _headers(parent_origin=self.parent_origin, asset=asset)
+        # index.html is an active pointer response, never an immutable asset.
+        headers = _headers(
+            embed_origins=self.embed_origins,
+            asset=requested != "index.html",
+        )
         body = stored[1]
         if requested == "index.html":
             body = _inject_preview_base(body, f"/preview/{host}/")
@@ -174,15 +209,32 @@ def create_preview_app(
     storage: PreviewStorage,
     *,
     parent_origin: str = "http://127.0.0.1:8000",
+    embed_origins: list[str] | tuple[str, ...] | None = None,
     route_prefix: str = "/preview",
 ) -> Starlette:
-    gateway = PreviewGateway(storage, parent_origin=parent_origin)
+    gateway = PreviewGateway(
+        storage,
+        parent_origin=parent_origin,
+        embed_origins=embed_origins,
+    )
 
     async def preview(request: Request) -> Response:
         return await gateway.serve(request)
 
+    async def health_live(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok", "service": "preview-gateway"})
+
+    async def health_ready(_request: Request) -> JSONResponse:
+        return JSONResponse(
+            {"status": "ready", "service": "preview-gateway", "storage": "configured"}
+        )
+
     return Starlette(
-        routes=[Route(f"{route_prefix}/{{host}}/{{path:path}}", preview, methods=["GET", "HEAD"])]
+        routes=[
+            Route("/health/live", health_live, methods=["GET"]),
+            Route("/health/ready", health_ready, methods=["GET"]),
+            Route(f"{route_prefix}/{{host}}/{{path:path}}", preview, methods=["GET", "HEAD"]),
+        ]
     )
 
 
@@ -195,11 +247,12 @@ class CandidateGateway:
         *,
         token: str,
         parent_origin: str = "http://127.0.0.1:8000",
+        embed_origins: list[str] | tuple[str, ...] | None = None,
         mount_prefix: str = "/",
     ) -> None:
         self.dist_dir = dist_dir.resolve()
         self.token = token
-        self.parent_origin = parent_origin
+        self.embed_origins = _normalize_embed_origins(embed_origins, parent_origin)
         self.mount_prefix = "/" + mount_prefix.strip("/") + "/" if mount_prefix.strip("/") else "/"
 
     async def serve(self, request: Request) -> Response:
@@ -253,7 +306,10 @@ class CandidateGateway:
         return Response(
             content=b"" if request.method == "HEAD" else data,
             media_type=mimetypes.guess_type(target.name)[0] or "application/octet-stream",
-            headers=_headers(parent_origin=self.parent_origin, asset=target.name != "index.html"),
+            headers=_headers(
+                embed_origins=self.embed_origins,
+                asset=target.relative_to(self.dist_dir).as_posix() != "index.html",
+            ),
         )
 
 
@@ -262,12 +318,14 @@ def create_candidate_app(
     *,
     token: str,
     parent_origin: str = "http://127.0.0.1:8000",
+    embed_origins: list[str] | tuple[str, ...] | None = None,
     mount_prefix: str = "/",
 ) -> Starlette:
     gateway = CandidateGateway(
         dist_dir,
         token=token,
         parent_origin=parent_origin,
+        embed_origins=embed_origins,
         mount_prefix=mount_prefix,
     )
 
@@ -285,10 +343,15 @@ def main() -> None:
 
     settings = get_settings()
     storage = create_preview_storage(settings)
+    parent_origin = str(settings.code_generator_verification.preview_parent_origin)
+    configured_origins = list(
+        getattr(settings.code_generator_verification, "preview_embed_origins", []) or []
+    )
     uvicorn.run(
         create_preview_app(
             storage,
-            parent_origin=str(settings.code_generator_verification.preview_parent_origin),
+            parent_origin=parent_origin,
+            embed_origins=[*configured_origins, parent_origin],
             route_prefix=str(settings.code_generator_verification.preview_route_prefix),
         ),
         host=str(settings.code_generator_verification.preview_host),

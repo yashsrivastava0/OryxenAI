@@ -19,6 +19,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunStatus,
     Diagnostic,
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
     GateResult,
     PendingPromotion,
     SafeIssue,
@@ -118,6 +119,7 @@ async def _execute(
             DevelopmentRunStatus.SOURCE_READY.value,
             DevelopmentRunStatus.BUILDING.value,
             DevelopmentRunStatus.SMOKE_TESTING.value,
+            DevelopmentRunStatus.PREVIEW_PENDING.value,
             DevelopmentRunStatus.REPAIRING.value,
             DevelopmentRunStatus.NEEDS_ATTENTION.value,
         }:
@@ -582,6 +584,7 @@ async def _execute(
         promoter = PreviewPromoter(
             storage,
             preview_base_url=str(settings.code_generator_verification.preview_base_url),
+            require_readback=True,
         )
         host = str(run.preview_host or _preview_host(str(run_id)))
         candidate_id = f"candidate-{identity.identity_hash[:24]}"
@@ -616,13 +619,45 @@ async def _execute(
                 "preview_host": host,
             },
         )
-        active = await promoter.promote(
-            run_id=str(run_id),
-            host=host,
-            pending=pending,
-            candidate_pointer=candidate_pointer,
-            verification_report_hash=stored_report_hash,
-        )
+        try:
+            active = await promoter.promote(
+                run_id=str(run_id),
+                host=host,
+                pending=pending,
+                candidate_pointer=candidate_pointer,
+                verification_report_hash=stored_report_hash,
+            )
+        except Exception as exc:
+            code = str(getattr(exc, "code", "PREVIEW_PUBLICATION_UNAVAILABLE"))
+            message = str(
+                getattr(
+                    exc,
+                    "message",
+                    "The verified candidate is retained while public preview publication is unavailable.",
+                )
+            )
+            projection.status = "preview_pending"
+            projection.phase = "preview_pending"
+            await _persist_projection(
+                sessionmaker,
+                run_id,
+                projection,
+                DevelopmentRunStatus.PREVIEW_PENDING.value,
+                values={
+                    "candidate_artifact": artifact.model_dump(mode="json"),
+                    "pending_promotion": pending.model_dump(mode="json"),
+                    "preview_host": host,
+                    "issues": [
+                        SafeIssue(
+                            code=code,
+                            message=message,
+                            next_action="Retry publication after preview storage or gateway recovery.",
+                        ).model_dump(mode="json")
+                    ],
+                },
+                event=("preview_pending", message),
+            )
+            return {"status": "preview_pending", "run_id": str(run_id), "code": code}
         projection.status = "ready"
         projection.phase = "ready"
         projection.active_gate = ""
@@ -895,7 +930,10 @@ async def _normalize_host_generated_tokens(
         site_contract=projections.get("site/contract.json", {}),
     )
     blueprint = plan.experience_blueprint
-    if isinstance(blueprint, ExperienceBlueprintV3) and plan.execution_bindings:
+    if (
+        isinstance(blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4))
+        and plan.execution_bindings
+    ):
         target = workspace.repo_dir / "src" / "design" / "generated-tokens.css"
         if target.is_file():
             # Older source checkpoints placed pack fonts under src/generated

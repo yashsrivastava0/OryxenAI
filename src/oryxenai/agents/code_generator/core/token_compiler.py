@@ -8,6 +8,7 @@ from pathlib import Path
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExecutionBindingV2,
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
 )
 
 
@@ -22,10 +23,13 @@ _FONT_FILE_SUFFIXES = frozenset({".otf", ".ttf", ".woff", ".woff2"})
 
 
 def compile_generated_tokens(
-    blueprint: ExperienceBlueprintV3,
+    blueprint: ExperienceBlueprintV3 | ExperienceBlueprintV4,
     bindings: list[ExecutionBindingV2] | tuple[ExecutionBindingV2, ...] = (),
 ) -> str:
     """Return stable CSS with no scaffold palette or token fallback values."""
+
+    if isinstance(blueprint, ExperienceBlueprintV4):
+        return _compile_v4_tokens(blueprint, bindings)
 
     lines = [
         "/* Generated from the admitted ExperienceBlueprintV3. Do not edit. */",
@@ -56,6 +60,7 @@ def compile_generated_tokens(
         ]
     )
     typography = blueprint.tokens.typography
+    font_style = str(getattr(typography, "style", "normal") or "normal")
     matching = [
         item
         for item in bindings
@@ -81,11 +86,17 @@ def compile_generated_tokens(
                 public_path = f"resources/pack/{normalized_path.removeprefix('resources/')}"
             else:
                 public_path = normalized_path
+            weight = _font_weight_for_path(normalized_path, binding, typography.weights)
+            font_format = Path(normalized_path).suffix.casefold().lstrip(".")
+            if font_format not in {"woff2", "woff", "ttf", "otf"}:
+                continue
             lines.extend(
                 [
                     "@font-face {",
                     f'  font-family: "{family}";',
-                    f'  src: url("/{public_path}") format("woff2");',
+                    f"  font-style: {font_style};",
+                    f"  font-weight: {weight};",
+                    f'  src: url("/{public_path}") format("{font_format}");',
                     "  font-display: swap;",
                     "}",
                     "",
@@ -94,9 +105,109 @@ def compile_generated_tokens(
     return "\n".join(lines)
 
 
+def _compile_v4_tokens(
+    blueprint: ExperienceBlueprintV4,
+    bindings: list[ExecutionBindingV2] | tuple[ExecutionBindingV2, ...],
+) -> str:
+    lines = [
+        "/* Generated from the admitted ExperienceBlueprintV4. Do not edit. */",
+        ":root {",
+    ]
+
+    def emit(name: str, value: str) -> None:
+        normalized = name.strip().replace("_", "-")
+        if not _SAFE_NAME.fullmatch(normalized):
+            raise TokenCompilationError(f"unsafe token name: {name}")
+        rendered = value.strip()
+        if (
+            not rendered
+            or "var(" in rendered.casefold()
+            or ("," in rendered and "cubic-bezier" not in rendered)
+        ):
+            raise TokenCompilationError(f"token {name} has a fallback or composite value")
+        if any(character in rendered for character in ("{", "}", ";", "\n", "\r")):
+            raise TokenCompilationError(f"token {name} contains unsafe CSS")
+        lines.append(f"  --{normalized}: {rendered};")
+
+    for color_token in sorted(blueprint.tokens.colors, key=lambda item: item.name):
+        emit(f"color-{color_token.name}", color_token.value)
+    for group, values in (
+        ("space", blueprint.tokens.spacing),
+        ("size", blueprint.tokens.sizes),
+        ("radius", blueprint.tokens.radii),
+    ):
+        for length_token in sorted(values, key=lambda item: item.name):
+            emit(
+                f"{group}-{length_token.name}",
+                f"{length_token.value:g}{length_token.unit}",
+            )
+    for border_token in sorted(blueprint.tokens.borders, key=lambda item: item.name):
+        emit(
+            f"border-{border_token.name}",
+            f"{border_token.width.value:g}{border_token.width.unit} {border_token.style} var(--color-{border_token.color_token})",
+        )
+    for motion_token in sorted(blueprint.tokens.motion, key=lambda item: item.name):
+        emit(f"motion-{motion_token.name}-duration", f"{motion_token.duration_ms}ms")
+        emit(f"motion-{motion_token.name}-easing", motion_token.easing)
+    typography = blueprint.tokens.typography
+    emit("font-body", f'"{typography.family}"')
+    emit("font-display", f'"{typography.family}"')
+    emit("type-body-min", f"{typography.body_min_rem:g}rem")
+    emit("type-body-max", f"{typography.body_max_rem:g}rem")
+    emit("type-heading-ratio", f"{typography.heading_ratio:g}")
+    emit("type-body-line-height", f"{typography.body_line_height:g}")
+    lines.extend(["}", ""])
+
+    matching = [
+        item
+        for item in bindings
+        if item.resource_slot_id == typography.approved_font_slot and item.local_paths
+    ]
+    for binding in sorted(matching, key=lambda item: item.resource_slot_id):
+        family = binding.font_family or typography.family
+        for path in sorted(binding.local_paths):
+            normalized_path = path.replace("\\", "/").lstrip("/")
+            suffix = Path(normalized_path).suffix.casefold().lstrip(".")
+            if suffix not in {"woff2", "woff", "ttf", "otf"}:
+                continue
+            if ".." in Path(normalized_path).parts or normalized_path.startswith(
+                ("http:", "https:")
+            ):
+                raise TokenCompilationError("font binding must point to local material")
+            public_path = (
+                f"resources/pack/{normalized_path.removeprefix('resources/')}"
+                if normalized_path.startswith("resources/")
+                else normalized_path
+            )
+            weight = _font_weight_for_path(normalized_path, binding, typography.weights)
+            lines.extend(
+                [
+                    "@font-face {",
+                    f'  font-family: "{family}";',
+                    f"  font-style: {typography.style};",
+                    f"  font-weight: {weight};",
+                    f'  src: url("/{public_path}") format("{suffix}");',
+                    "  font-display: swap;",
+                    "}",
+                    "",
+                ]
+            )
+    return "\n".join(lines)
+
+
+def _font_weight_for_path(
+    normalized_path: str, binding: ExecutionBindingV2, fallback: list[int]
+) -> int:
+    match = re.search(r"(?:^|[-_])([1-9][0-9]{2})(?:[-_.]|$)", normalized_path)
+    if match is not None:
+        return int(match.group(1))
+    weights = [int(value) for value in binding.font_weights if str(value).isdigit()]
+    return weights[0] if weights else (fallback[0] if fallback else 400)
+
+
 def write_generated_tokens(
     repo_dir: Path,
-    blueprint: ExperienceBlueprintV3,
+    blueprint: ExperienceBlueprintV3 | ExperienceBlueprintV4,
     bindings: list[ExecutionBindingV2] | tuple[ExecutionBindingV2, ...] = (),
 ) -> Path:
     target = repo_dir / "src" / "design" / "generated-tokens.css"

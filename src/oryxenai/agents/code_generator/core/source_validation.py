@@ -419,18 +419,16 @@ def _normalize_route_interactions(
         if accessible_name:
             path = selected[0]
             text = contents[path]
-            match = next(
-                (
-                    item
-                    for item in _INTERACTION_ATTR_RE.finditer(text)
-                    if item.group("id") == interaction_id
-                ),
-                None,
-            )
-            if match is not None:
-                tag_start = text.rfind("<", 0, match.start())
-                tag_end = text.find(">", match.end())
-                if tag_start >= 0 and tag_end >= match.end():
+            matches = [
+                item
+                for item in _INTERACTION_ATTR_RE.finditer(text)
+                if item.group("id") == interaction_id
+            ]
+            selected_match = matches[0] if matches else None
+            if selected_match is not None:
+                tag_start = text.rfind("<", 0, selected_match.start())
+                tag_end = text.find(">", selected_match.end())
+                if tag_start >= 0 and tag_end >= selected_match.end():
                     tag = text[tag_start : tag_end + 1]
                     escaped = html.escape(accessible_name, quote=True)
                     aria = _STATIC_ARIA_LABEL_RE.search(tag)
