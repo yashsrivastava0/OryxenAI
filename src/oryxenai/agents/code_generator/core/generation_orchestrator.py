@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hashlib
 import json
@@ -12,6 +13,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
+
+from pydantic import ValidationError
 
 from oryxenai.agents.code_generator.core import fs_safe
 from oryxenai.agents.code_generator.core.acquisition_validators import (
@@ -77,11 +80,19 @@ from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
 )
-from oryxenai.agents.code_generator.core.token_compiler import write_generated_tokens
+from oryxenai.agents.code_generator.core.token_compiler import (
+    TokenCompilationError,
+    write_generated_tokens,
+)
 from oryxenai.agents.code_generator.core.workspace import (
     GenerationWorkspace,
     WorkspaceError,
     repository_root,
+)
+from oryxenai.agents.shared.providers.errors import (
+    ModelJsonInvalidError,
+    ModelOutputTruncatedError,
+    ProviderError,
 )
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -103,9 +114,47 @@ def _unit_dir_slug(unit_id: str) -> str:
 
 class GenerationError(ValueError):
     def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
         self.code = code
         self.message = message
-        super().__init__(message)
+
+
+async def _prepare_isolated_route_repo(source_repo: Path, isolated_root: Path) -> Path:
+    """Create a source-only route workspace without blocking the event loop.
+
+    Route batches never execute the toolchain inside their disposable copies;
+    dependency and build trees are explicitly excluded by source and export
+    validation. Keeping the copy source-only avoids multiplying a potentially
+    large ``node_modules`` tree and running the recursive filesystem work on
+    the worker's event loop.
+    """
+
+    if isolated_root.exists():
+        await asyncio.to_thread(shutil.rmtree, isolated_root)
+    isolated_root.mkdir(parents=True, exist_ok=True)
+    isolated_repo = isolated_root / "repo"
+    await asyncio.to_thread(
+        shutil.copytree,
+        source_repo,
+        isolated_repo,
+        ignore=shutil.ignore_patterns("node_modules", "dist"),
+    )
+    dependency_tree = source_repo / "node_modules"
+    if dependency_tree.is_dir():
+        isolated_dependencies = isolated_repo / "node_modules"
+        try:
+            isolated_dependencies.symlink_to(dependency_tree, target_is_directory=True)
+        except OSError:
+            # Some Windows hosts do not grant directory-symlink creation to
+            # the worker account. Preserve the same toolchain contract with a
+            # bounded background copy rather than blocking the event loop.
+            await asyncio.to_thread(
+                shutil.copytree,
+                dependency_tree,
+                isolated_dependencies,
+                symlinks=True,
+            )
+    return isolated_repo
 
 
 def _resolve_config_path(value: str) -> Path:
@@ -324,6 +373,49 @@ class CodeGeneratorGenerationOrchestrator:
                 ),
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
+        except ValidationError as exc:
+            summary = _safe_generation_validation_summary(exc)
+            await self._fail(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code="GENERATION_OUTPUT_INVALID",
+                    message=f"The generated structured result failed local validation: {summary}",
+                    next_action="Retry generation with the bounded schema-correction path.",
+                    details={
+                        "exception_type": type(exc).__name__,
+                        "validation_summary": summary,
+                    },
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        except TokenCompilationError as exc:
+            reason = str(exc).strip()[:400] or "The visual token blueprint could not be compiled."
+            await self._fail(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code="TOKEN_COMPILATION_INVALID",
+                    message=f"The visual token blueprint could not be compiled safely: {reason}",
+                    next_action="Retry with a corrected typed visual blueprint.",
+                    details={"exception_type": type(exc).__name__, "reason": reason},
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        except ProviderError as exc:
+            details = dict(exc.details)
+            details["exception_type"] = type(exc).__name__
+            await self._fail(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code=exc.code,
+                    message=exc.message,
+                    next_action="Review the provider contract and start a corrected run.",
+                    details=details,
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
         except Exception as exc:
             logger.error(
                 "code generator generation failed run_id=%s error=%s",
@@ -463,26 +555,10 @@ class CodeGeneratorGenerationOrchestrator:
                     "PARALLEL_WORKSPACE_PATH_UNSAFE",
                     "A parallel route workspace escaped the generation workspace.",
                 )
-            if isolated_root.exists():
-                shutil.rmtree(isolated_root)
-            isolated_root.mkdir(parents=True, exist_ok=True)
-            isolated_repo = isolated_root / "repo"
-            shutil.copytree(
+            await _prepare_isolated_route_repo(
                 workspace.repo_dir,
-                isolated_repo,
-                ignore=shutil.ignore_patterns("node_modules", "dist"),
+                isolated_root,
             )
-            # Route batches run source checks inside their disposable copies.
-            # Keep the already receipt-bound dependency tree available there;
-            # npm's .bin launchers are symlinks within this disposable subtree
-            # and are excluded from source/export validation.
-            dependency_tree = workspace.repo_dir / "node_modules"
-            if dependency_tree.is_dir():
-                shutil.copytree(
-                    dependency_tree,
-                    isolated_repo / "node_modules",
-                    symlinks=True,
-                )
             isolated = GenerationWorkspace(
                 isolated_root,
                 workspace.input_dir,
@@ -1202,17 +1278,45 @@ class CodeGeneratorGenerationOrchestrator:
                 "GENERATION_PROFILE_UNAVAILABLE",
                 f"No usable model profile is configured for {operation}.",
             )
-        raw = await client.generate_structured(
-            operation=f"code_generator.{operation}",
-            instructions=instructions,
-            input_payload={**context, "context_receipt_hash": context_receipt.context_hash},
-            output_model=GenerationResult,
-            system_prompt=system,
-            model_profile=role_profile,
-            strict_schema=True,
-        )
-        parsed = getattr(raw, "parsed_output", raw)
-        result = GenerationResult.model_validate(parsed)
+        raw: Any = None
+        result: GenerationResult | None = None
+        last_issue = ""
+        for attempt in range(2):
+            call_instructions = instructions
+            if last_issue:
+                call_instructions += (
+                    "\n\nThe previous structured generation response failed local "
+                    "validation. Return a complete replacement object and correct "
+                    f"this safe schema summary: {last_issue}. Do not include commentary."
+                )
+            try:
+                raw = await client.generate_structured(
+                    operation=f"code_generator.{operation}",
+                    instructions=call_instructions,
+                    input_payload={**context, "context_receipt_hash": context_receipt.context_hash},
+                    output_model=GenerationResult,
+                    system_prompt=system,
+                    model_profile=role_profile,
+                    strict_schema=True,
+                )
+                parsed = getattr(raw, "parsed_output", raw)
+                if isinstance(parsed, dict) and not str(parsed.get("operation_id", "")).strip():
+                    # The operation id is host-owned execution metadata, not
+                    # portfolio content. Complete it deterministically when
+                    # a provider omits the envelope field; all creative and
+                    # source-bearing fields remain strictly model-validated.
+                    parsed = {**parsed, "operation_id": f"{operation}:{unit_id}"}
+                result = GenerationResult.model_validate(parsed)
+                break
+            except (ModelJsonInvalidError, ModelOutputTruncatedError, ValidationError) as exc:
+                last_issue = _safe_generation_model_issue(exc)
+                if attempt == 1:
+                    raise
+        if result is None or raw is None:
+            raise GenerationError(
+                "GENERATION_OUTPUT_INVALID",
+                "The model did not produce a locally valid generation result.",
+            )
         if result.based_on_context_receipt not in {
             context_receipt.context_hash,
             context_receipt.receipt_id,
@@ -1917,6 +2021,21 @@ def _consume_repair_budget(
     projection.repair_strategies.append(
         "bounded-simplification" if recurrence else "bounded-correction"
     )
+
+
+def _safe_generation_model_issue(exc: Exception) -> str:
+    if isinstance(exc, ValidationError):
+        entries: list[str] = []
+        for error in exc.errors(include_url=False)[:8]:
+            location = ".".join(str(part) for part in error.get("loc", ())) or "root"
+            message = str(error.get("msg", "invalid value"))[:160]
+            entries.append(f"{location}: {message}")
+        return "; ".join(entries)[:500] or "The generation result failed local schema validation."
+    return str(exc).strip()[:500] or "The model response was not usable."
+
+
+def _safe_generation_validation_summary(exc: ValidationError) -> str:
+    return _safe_generation_model_issue(exc)
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:

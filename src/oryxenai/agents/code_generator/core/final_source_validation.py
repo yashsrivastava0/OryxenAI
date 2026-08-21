@@ -21,6 +21,7 @@ _COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\r\n]*|<!--[\s\S]*?-->", re.DOTALL)
 _COMPONENT_IMPORT_RE = re.compile(
     r"import\s+(?P<bindings>[\s\S]*?)\s+from\s+[\"'](?P<module>[^\"']+)[\"']"
 )
+_HEADING_TEXT_RE = re.compile(r"<h[1-6]\b[^>]*>([^<]*)</h[1-6]>", re.DOTALL)
 
 
 def _diag(code: str, message: str, *, file: str = "", route_id: str = "") -> Diagnostic:
@@ -292,7 +293,23 @@ def validate_final_source(
                         route_id=route_id,
                     )
                 )
-            for text in _strings(section.get("content", {})):
+            section_content = section.get("content", {})
+            if isinstance(section_content, dict):
+                heading = str(section_content.get("heading", "")).strip()
+                heading_present = any(
+                    _canonical_visible_text(match.group(1)) == _canonical_visible_text(heading)
+                    for match in _HEADING_TEXT_RE.finditer(route_source)
+                )
+                if heading and not heading_present:
+                    diagnostics.append(
+                        _diag(
+                            "SOURCE_CONTENT_COVERAGE_MISSING",
+                            "Approved public content is absent from route source.",
+                            file=route_file,
+                            route_id=route_id,
+                        )
+                    )
+            for text in _strings(section_content):
                 # Prose only: single-word enum-ish values are data shape,
                 # not rendered copy the route must carry verbatim.
                 if (
@@ -415,7 +432,12 @@ def validate_final_source(
     for interaction in plan.interactions:
         marker = f'data-interaction-id="{interaction.interaction_id}"'
         route_source = route_source_by_id.get(interaction.route_id, combined)
-        if interaction.interaction_id and marker not in route_source:
+        trace_marker = f"OryxenAI interaction marker: {interaction.interaction_id}"
+        if (
+            interaction.interaction_id
+            and marker not in route_source
+            and trace_marker not in route_source
+        ):
             diagnostics.append(
                 _diag(
                     "SOURCE_INTERACTION_MARKER_MISSING",

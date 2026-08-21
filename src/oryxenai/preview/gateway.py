@@ -206,7 +206,11 @@ class CandidateGateway:
         if request.method not in {"GET", "HEAD"}:
             return Response("Method not allowed", status_code=405, headers={"Allow": "GET, HEAD"})
         if request.headers.get("x-preview-verify-token", "") != self.token:
-            return Response("Not found", status_code=404)
+            return Response(
+                "Not found",
+                status_code=404,
+                headers={"X-OryxenAI-Candidate-404": "token"},
+            )
         raw_path = str(request.path_params.get("path", ""))
         if self.mount_prefix != "/":
             prefix = self.mount_prefix.strip("/")
@@ -215,18 +219,34 @@ class CandidateGateway:
             elif raw_path.startswith(prefix + "/"):
                 raw_path = raw_path[len(prefix) + 1 :]
             else:
-                return Response("Not found", status_code=404)
+                return Response(
+                    "Not found",
+                    status_code=404,
+                    headers={"X-OryxenAI-Candidate-404": "mount"},
+                )
         try:
             relative = _safe_path(raw_path) if raw_path else "index.html"
         except ValueError:
-            return Response("Not found", status_code=404)
+            return Response(
+                "Not found",
+                status_code=404,
+                headers={"X-OryxenAI-Candidate-404": "path"},
+            )
         target = (self.dist_dir / relative).resolve()
         if not target.is_relative_to(self.dist_dir) or not target.is_file():
             if PurePosixPath(relative).suffix.casefold() in _ASSET_SUFFIXES:
-                return Response("Not found", status_code=404)
+                return Response(
+                    "Not found",
+                    status_code=404,
+                    headers={"X-OryxenAI-Candidate-404": "artifact"},
+                )
             target = self.dist_dir / "index.html"
         if not target.is_file():
-            return Response("Not found", status_code=404)
+            return Response(
+                "Not found",
+                status_code=404,
+                headers={"X-OryxenAI-Candidate-404": "artifact"},
+            )
         data = target.read_bytes()
         if relative == "index.html":
             data = _inject_preview_base(data, self.mount_prefix)
