@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [1b37748] — docs/run/run.md, standalone Code Generator Docker runbook
+Documented the isolated Code Generator development workflow: local Docker
+overlay and database setup, API/worker/preview-gateway startup, shared
+workspace debugging, readiness checks, UI/API usage, output locations, and
+safe shutdown/troubleshooting.
+
 ### 2026-08-21 — Codex (GPT-5 / OpenAI) — [0b7a806] — Backend-only Docker, hosted shared previews, and source-linked Code Generator debugging
 Implemented D-039: generated portfolios remain portable Vite/React source plus verified `dist/` with Docker artifacts excluded from exports; hosted previews use configurable S3-compatible immutable storage and conditional promotion pointers; local development keeps filesystem storage; readiness fails closed when preview storage is unavailable; and the developer UI/API can open bounded accepted-source slices from file/line diagnostics. Added the free-host deployment contract covering Render-like ephemeral filesystems, worker limitations, managed PostgreSQL, private object storage, and the shared preview gateway.
 
