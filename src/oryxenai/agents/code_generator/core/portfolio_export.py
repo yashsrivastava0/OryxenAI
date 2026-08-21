@@ -112,7 +112,11 @@ def export_portfolio(
         )
 
     payload = {
-        "schema_version": "oryxenai-portfolio-export-v1",
+        # v2 is additive: readers must continue accepting v1 exports while
+        # new exports carry the quality/resource/route receipt references
+        # supplied by the promotion handler.
+        "schema_version": "oryxenai-portfolio-export-v2",
+        "legacy_schema_version": "oryxenai-portfolio-export-v1",
         "run_id": run_id,
         "exported_at": exported_at.astimezone(UTC).isoformat(),
         "export_timezone": timezone_name,
