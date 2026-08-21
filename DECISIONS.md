@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-038 — Promotion requires content-addressed artifact reuse and terminal diagnostics
+
+- **Date & Time:** 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Live Code Generator attempts could fail before or after planning because provider schemas were not wire-compatible, generated plans were semantically invalid, route workers duplicated heavyweight dependency trees, browser verification could crash or miss mounted interactions, and a stale or root-owned build artifact could make a valid candidate appear unavailable.
+- **Decision:** Keep provider capability negotiation and local validation at the shared boundary; use one bounded correction attempt for invalid structured output; make route workspaces source-only with shared dependencies and single-flight installs; normalize only deterministic source-contract defects; materialize and hash-check pack resources; run browser checks in writable isolated directories with explicit preview tokens; verify every persisted manifest before reuse; and persist terminal reports with candidate-gateway diagnostics without silently reclassifying them as retryable jobs.
+- **Rejected alternatives:** Hardcoded portfolio-specific output repairs; unbounded model retries; copying or installing dependencies independently in every route wave; accepting heartbeat/readiness as generation success; reusing a path-only `dist`; deleting/resetting the shared persistent volume; or hiding a terminal provider/build error behind worker retries.
+- **Consequence:** Generation remains portfolio-specific and fail-closed while common environmental and contract failures become deterministic, diagnosable, and bounded. Promotion is allowed only after source, build, and DOM/runtime evidence agree on the same materialized candidate.
+
 ## D-037 - Provider wire contracts and no-context Code Generator admission
 
 - **Date & Time:** 2026-08-21 00:30 +05:30 - Codex (GPT-5 / OpenAI)
