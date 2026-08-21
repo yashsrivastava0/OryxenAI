@@ -108,7 +108,7 @@ def _build_discovery_agent(override_profile_name: str = "") -> Any:
         raise ProviderConfigError(
             "Discovery agent requires a configured model profile. "
             "Check config/models.toml [profiles.discovery] and ensure "
-            "OPENCODE_GO_API_KEY is set in .env"
+            "the environment variable named by api_key_env is set in .env"
         )
     return DiscoveryAgent(model_client=client, profile_name=override_profile_name or "discovery")
 

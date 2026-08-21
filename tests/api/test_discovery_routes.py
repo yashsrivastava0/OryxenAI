@@ -24,6 +24,17 @@ def test_all_discovery_endpoints_are_registered() -> None:
     assert "post" in paths["/api/v1/sessions/{session_id}/discovery/approve"]
 
 
+def test_model_profile_endpoint_is_config_driven_and_safe() -> None:
+    paths = create_app().openapi()["paths"]
+    assert "/api/v1/model-profiles" in paths
+    schema = paths["/api/v1/model-profiles"]["get"]["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+    assert schema["type"] == "array"
+    assert "api_key_env" not in str(schema).lower()
+    assert "base_url" not in str(schema).lower()
+
+
 def test_removed_endpoints_are_gone() -> None:
     paths = create_app().openapi()["paths"]
     for removed in (

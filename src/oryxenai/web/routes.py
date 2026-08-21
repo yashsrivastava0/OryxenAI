@@ -10,6 +10,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from oryxenai.agents.shared.model_router import ModelRouter
+
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -37,6 +39,9 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
             context={
                 "app_name": settings.app.name,
                 "dev_ui": settings.is_dev_ui_enabled,
+                "model_profiles": [
+                    option.as_dict() for option in ModelRouter(settings.models).public_options()
+                ],
                 "app_js_version": _asset_version("app.js"),
                 "app_css_version": _asset_version("app.css"),
             },

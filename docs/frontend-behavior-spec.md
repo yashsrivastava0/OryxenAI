@@ -143,20 +143,19 @@ for debugging and are only reachable via the raw-JSON panel.
 
 ## 6. Provider-selection contract
 
-A model/provider dropdown exists on the home page (`#provider-select`,
-separate from the unrelated dev-harness `#agent-select` used for mock agent
-runs under "Advanced"). Today it has one enabled option ("OpenAI — GPT-5.6
-Luna", value `""`, meaning "use the default configured profile") and two
-disabled placeholder entries ("Anthropic Claude", "Google Gemini") for
-providers that don't have a working adapter yet.
+A model/profile dropdown exists on the home page (`#provider-select`, separate
+from the unrelated dev-harness `#agent-select` used for mock agent runs under
+"Advanced"). Its options are generated from the safe, non-secret model-profile
+metadata in `config/models.toml`. The empty value means "use the configured
+default route"; explicitly selectable profile IDs are added through
+`[routing].selectable_profiles`.
 
 The selection flows end-to-end, not just cosmetically:
 
 1. The frontend sends `model_profile` in the Discovery/Content Architect
    `start` request bodies.
-2. `DiscoveryService.start()` validates it against an enabled-profile
-   allow-list (currently just `{""}` — matching what the dropdown can
-   actually send) and stores it on `DiscoveryState.model_profile`, then
+2. `DiscoveryService.start()` validates it against the configured selectable
+   profile list and stores it on `DiscoveryState.model_profile`, then
    copies it into every subsequent run's `input_payload` (answers, revise)
    so the choice is **sticky for the whole session** without the frontend
    resending it. The dropdown is disabled once a session starts, since
@@ -165,20 +164,16 @@ The selection flows end-to-end, not just cosmetically:
    Discovery snapshot by default if none is explicitly passed — one
    coherent per-session choice rather than asking twice.
 3. Job handlers read `model_profile` from `input_payload` and pass it as
-   `override_profile_name` to `build_provider_client(default_profile_name,
-   model_config, override_profile_name=...)`. If the override profile
-   doesn't exist, isn't a supported provider, or has no resolvable API key,
-   this logs a warning and **silently falls back** to the agent's default
-   profile — an unknown or disabled selection must never break the agent.
+   `override_profile_name` to the central model router/client factory. An
+   unknown or unselectable override is ignored and the engine's configured
+   route remains in force. Missing credentials fail the real operation with a
+   controlled provider configuration error; they never silently become a
+   model-generated result.
 4. The resolved profile name is threaded into `DiscoveryAgent`/
-   `ContentArchitectAgent` and passed through as the (previously declared
-   but unused) `model_profile` parameter on `ModelClient.generate_structured`
-   for traceability/logging — it does not dynamically switch providers
-   mid-call, since each adapter instance is bound to one profile at
-   construction. A genuine per-call dynamic provider switch would need every
-   adapter to support rebuilding its client from an arbitrary profile at
-   call time, which is a larger change than what today's single-working-
-   provider dropdown warrants.
+   `ContentArchitectAgent` and passed through as the `model_profile` parameter
+   on `ModelClient.generate_structured` for traceability. Each adapter remains
+   bound to one resolved profile for a call; future per-engine/provider changes
+   happen by editing routing/profile configuration or adding one adapter.
 
 ## 7. Streaming-readiness notes
 
@@ -202,9 +197,6 @@ browser tab; it does not imply that every server-side event was captured.
   extraction is explicitly rejected with a message, not silently dropped.
 - The activity view is polling-based and best-effort until a server-side event
   stream is added; it does not show token-level model progress.
-- The provider dropdown only has one functioning value; the other entries
-  are visible but disabled until a second real provider adapter (e.g.
-  Anthropic, Gemini) is built — those providers don't speak the same
-  OpenAI-compatible chat/completions protocol the current single adapter
-  class handles, so adding one is a new adapter class, not just a config
-  entry.
+- The provider dropdown is intentionally config-driven. Only profiles listed
+  as selectable are offered, and the UI exposes labels/model IDs only; key
+  names, endpoints, and credentials remain server-side.

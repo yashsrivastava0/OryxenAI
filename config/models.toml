@@ -1,153 +1,191 @@
 # OryxenAI provider-neutral model configuration (non-secret, committed).
 #
-# Discovery uses the configured profile only when a durable real operation is
-# requested. The app and worker can start without any model key.
+# Active model-backed engines use the configured Anthropic profile only when a
+# durable real operation is requested. The app and worker can start without a
+# model key.
 #
 # Each profile describes how a ModelClient adapter should talk to its provider.
-# OpenAI-compatible profiles use chat/completions; Anthropic profiles use the
-# native Messages API. Agent code never references provider-specific variable
-# names; it only knows the abstract ModelClient protocol.
+# Each adapter is selected by the provider-neutral ModelClient boundary. Agent
+# code never references provider-specific variable names or model names.
 #
 # An API key is resolved INDIRECTLY: the profile names the environment
 # variable that holds the key (api_key_env); the application reads that
 # named secret from .env only when a real model call is eventually made.
 #
-# Set the matching environment variable in .env for real Discovery calls.
+# Set the matching environment variable in .env for real model calls.
 # Changing provider/base_url/model/api_key_env
 # must NOT require edits to agent implementations or business logic.
 
-[profiles.default]
-provider = "openai_compatible"
-model = ""
-base_url = ""
-api_key_env = ""        # e.g. "OPENCODE_GO_API_KEY" — name of the env var
-request_params = {}     # extra request parameters (temperature, max_tokens, ...)
+[routing]
+fallback_profile = "default"
+# Add a profile name here when it should become a safe UI/API selection.
+selectable_profiles = []
 
-[profiles.discovery]
-# Real OpenAI API (the same "gpt-5.6-luna" model is also reachable through
-# the opencode_go provider/profile below, but that gateway's own monthly
-# quota is a separate pool from this account's OpenAI credit). Override
-# with ORA_SMOK_MODEL for a smoke comparison without changing committed
-# configuration.
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
-timeout_seconds = 150
+[routing.engine_profiles]
+discovery = "discovery"
+content_architect = "content_architect"
+visual_design_director = "visual_design_director"
+build_preparation = "build_preparation"
+code_generator_director = "code_generator_director"
+code_generator_planner = "code_generator_planner"
+code_generator_resource_scout = "code_generator_resource_scout"
+code_generator_foundation_builder = "code_generator_foundation_builder"
+code_generator_route_builder = "code_generator_route_builder"
+code_generator_route_composer = "code_generator_route_composer"
+code_generator_integrator = "code_generator_integrator"
+code_generator_repairer = "code_generator_repairer"
+
+[profiles.default]
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
+timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 32000
-# Confirmed live: valid values are none/low/medium/high/xhigh. "low" cut
-# reasoning-token overhead by ~70% in a direct comparison with near-identical
-# visible output length — trims latency without shortening the deliverable
-# content itself. Not "none": Discovery's task has real grounding/consistency
-# requirements worth some reasoning budget.
-reasoning_effort = "low"
-store = false
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
+request_params = {}
 
-# gpt-5.6-luna is a reasoning-family model on the real OpenAI endpoint:
-# confirmed live that it rejects a non-default temperature and requires
-# max_completion_tokens instead of max_tokens (OpenCode Go's gateway
-# normalizes both away, which is why this only surfaced here). thinking_mode
-# confirmed live too: reasoning_effort is a real, supported flat parameter.
-[profiles.discovery.capabilities]
+[profiles.default.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
+supports_store_parameter = true
+uses_max_completion_tokens = true
+
+[profiles.discovery]
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
+timeout_seconds = 150
+max_retries = 1
+max_output_tokens = 32000
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
+store = false
+
+[profiles.discovery.capabilities]
+json_object_mode = true
+json_schema_mode = true
+thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.content_architect]
-# Same underlying model as Discovery today, under its own profile name so it
-# can be swapped independently later without touching Discovery's config.
-# reasoning_effort/thinking_mode mirror Discovery's own live-confirmed
-# settings above (same model, same endpoint, same real-provider quirks).
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 150
 max_retries = 1
 max_output_tokens = 32000
-reasoning_effort = "low"
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.content_architect.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.visual_design_director]
-# Same underlying model as Discovery/Content Architect today, under its own
-# profile name so it can be swapped independently later without touching
-# either of them. reasoning_effort/thinking_mode mirror the other two
-# profiles' own live-confirmed settings (same model, same endpoint, same
-# real-provider quirks).
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 150
 max_retries = 1
 max_output_tokens = 32000
-reasoning_effort = "low"
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.visual_design_director.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.build_preparation]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
-timeout_seconds = 120
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
+timeout_seconds = 180
 max_retries = 1
-max_output_tokens = 16000
-reasoning_effort = "low"
+max_output_tokens = 24000
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.build_preparation.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_director]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 16000
 reasoning_effort = "high"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_director.capabilities]
@@ -155,13 +193,13 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
@@ -171,12 +209,14 @@ uses_max_completion_tokens = true
 # Automated tests inject deterministic clients and never require this key.
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 32000
 reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_planner.capabilities]
@@ -184,25 +224,27 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_resource_scout]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 180
 max_retries = 1
 max_output_tokens = 4096
 reasoning_effort = "low"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_resource_scout.capabilities]
@@ -210,25 +252,27 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_foundation_builder]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
 reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_foundation_builder.capabilities]
@@ -236,25 +280,27 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_route_builder]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
 reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_route_builder.capabilities]
@@ -262,25 +308,27 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_route_composer]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 16000
 reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_route_composer.capabilities]
@@ -288,25 +336,27 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_integrator]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 20000
 reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_integrator.capabilities]
@@ -314,25 +364,27 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_repairer]
 provider = "anthropic"
 model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 12000
 reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_repairer.capabilities]
@@ -340,13 +392,13 @@ json_object_mode = true
 json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
-thinking_strategy = "default"
+thinking_strategy = "adaptive"
 effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 

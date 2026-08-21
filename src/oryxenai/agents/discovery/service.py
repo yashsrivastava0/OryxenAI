@@ -24,19 +24,13 @@ from oryxenai.agents.discovery.state import (
     apply_brief_running,
     apply_start,
 )
+from oryxenai.agents.shared.model_router import ModelRouter
 from oryxenai.core.logging import get_logger
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.jobs.service import JobService
 
 logger = get_logger("oryxenai.agents.discovery.service")
-
-# Model/provider choices the home-page dropdown may actually select today.
-# "" is the only enabled value ("use the default discovery profile") — the
-# dropdown's other entries are shown but disabled until a second working
-# provider adapter exists. A non-empty request is logged and ignored rather
-# than rejected, so an unrecognised choice never blocks a session starting.
-_ENABLED_MODEL_PROFILES = frozenset({""})
 
 
 class DiscoveryOperationError(Exception):
@@ -361,17 +355,20 @@ class DiscoveryService:
         }
 
     def _resolve_model_profile(self, requested: str, sticky: str) -> str:
-        """Validate a requested model-profile override against the enabled set.
+        """Validate a requested model-profile override against model config.
 
         An empty request keeps whatever the session already committed to
         (sticky, set once at the first successful start()). An unrecognised
         request is logged and ignored — it never blocks the session.
         """
+        router = ModelRouter(self._settings.models)
         if not requested:
-            return sticky
-        if requested not in _ENABLED_MODEL_PROFILES:
-            logger.warning("requested model_profile '%s' is not enabled — using default", requested)
-            return sticky
+            return sticky if not sticky or router.is_selectable(sticky) else ""
+        if not router.is_selectable(requested):
+            logger.warning(
+                "requested model_profile '%s' is not selectable - using default", requested
+            )
+            return sticky if not sticky or router.is_selectable(sticky) else ""
         return requested
 
     async def _require_session(self, session_id: UUID) -> Any:

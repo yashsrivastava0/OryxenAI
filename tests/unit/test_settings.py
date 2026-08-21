@@ -47,12 +47,28 @@ def test_model_config_extra_ignore():
 
 
 def test_model_profiles_loaded():
-    """Model profiles are loaded from config/models.toml (may be empty)."""
+    """Model profiles and logical routes load from committed TOML."""
     s = Settings()
     profile = s.models.get_profile("default")
     assert profile is not None
-    assert profile.provider == "openai_compatible"
-    assert profile.model == ""
+    assert profile.provider == "anthropic"
+    assert profile.model == "claude-sonnet-5"
+    assert profile.api_key_env == "ANTHROPIC_API_KEY"
+    assert profile.prompt_cache_ttl == "5m"
+    assert s.models.routing.fallback_profile == "default"
+    assert s.models.routing.engine_profiles["discovery"] == "discovery"
+    for engine in (
+        "discovery",
+        "content_architect",
+        "visual_design_director",
+        "build_preparation",
+        "code_generator_director",
+        "code_generator_planner",
+    ):
+        routed = s.models.get_profile(s.models.routing.engine_profiles[engine])
+        assert routed is not None
+        assert routed.provider == "anthropic"
+        assert routed.api_key_env == "ANTHROPIC_API_KEY"
 
 
 def test_secrets_not_in_repr():
