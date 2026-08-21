@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from oryxenai.agents.code_generator.core.content_compiler import compile_content_module
 from oryxenai.agents.code_generator.core.development_schemas import (
     DesignTokenSystemV3,
+    ExecutionBindingV2,
     ExperienceBlueprintV3,
     InteractionContract,
     RoutePlan,
@@ -59,7 +60,7 @@ def _blueprint() -> ExperienceBlueprintV3:
                 ),
                 TypedTokenGroupV3(
                     group_id="spacing",
-                    values={"section": "clamp(3rem, 10vw, 9rem)"},
+                    values={"2xl": "6", "section": "clamp(3rem, 10vw, 9rem)"},
                 ),
                 TypedTokenGroupV3(group_id="shape", values={"radius": "0.25rem"}),
                 TypedTokenGroupV3(
@@ -95,6 +96,7 @@ def test_v3_tokens_are_typed_and_compile_without_scaffold_fallbacks() -> None:
     compiled = compile_generated_tokens(blueprint)
     assert compiled == compile_generated_tokens(blueprint)
     assert "--color-ink: #181818;" in compiled
+    assert "--spacing-2xl: 6;" in compiled
     assert "--spacing-section: clamp(3rem, 10vw, 9rem);" in compiled
     assert "var(,--" not in compiled
     with pytest.raises(TokenCompilationError):
@@ -114,6 +116,33 @@ def test_v3_tokens_are_typed_and_compile_without_scaffold_fallbacks() -> None:
                 }
             )
         )
+
+
+def test_v3_font_tokens_ignore_materialized_directory_roots() -> None:
+    compiled = compile_generated_tokens(
+        _blueprint(),
+        [
+            ExecutionBindingV2(
+                resource_slot_id="font-slot",
+                route_id="home",
+                category="font",
+                purpose="approved typography",
+                resolution_type="local_materialized",
+                local_paths=[
+                    "resources/fonts/font-id",
+                    "resources/fonts/font-id/400-normal.woff2",
+                    "resources/fonts/font-id/700-normal.woff2",
+                    "resources/fonts/font-id/font.json",
+                ],
+                font_family="Local Sans",
+            )
+        ],
+    )
+    assert 'src: url("/resources/fonts/font-id");' not in compiled
+    assert 'src: url("/resources/fonts/font-id/font.json")' not in compiled
+    assert 'src: url("/resources/pack/fonts/font-id/400-normal.woff2")' in compiled
+    assert 'src: url("/resources/pack/fonts/font-id/700-normal.woff2")' in compiled
+    assert compiled.count('format("woff2")') == 2
 
 
 def test_v3_schema_rejects_missing_typed_token_group() -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from pathlib import Path
@@ -25,6 +26,14 @@ class BuildRunnerError(ValueError):
         self.code = code
         self.message = message
         super().__init__(message)
+
+
+# npm's cache and registry connection pool are shared by all verification
+# jobs in a worker.  Concurrent clean installs can starve each other and hit
+# the command timeout even though either install succeeds in isolation.  Keep
+# the expensive package-manager section single-flight while allowing the
+# subsequent typecheck/build/runtime work to remain concurrent.
+_PACKAGE_INSTALL_LOCK = asyncio.Lock()
 
 
 def _normalize(value: str) -> str:
@@ -159,13 +168,14 @@ async def run_clean_build(
         "install_command",
         ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"],
     )
-    _, issue = await _run(
-        npm_ci,
-        repo_dir=repo_dir,
-        settings=settings,
-        timeout_name="install_timeout_seconds",
-        phase="install",
-    )
+    async with _PACKAGE_INSTALL_LOCK:
+        _, issue = await _run(
+            npm_ci,
+            repo_dir=repo_dir,
+            settings=settings,
+            timeout_name="install_timeout_seconds",
+            phase="install",
+        )
     if issue is not None:
         diagnostics.append(issue)
         return None, diagnostics

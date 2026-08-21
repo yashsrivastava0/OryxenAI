@@ -57,7 +57,12 @@ COPY --chown=oryxen:oryxen migrations/ ./migrations/
 COPY --chown=oryxen:oryxen alembic.ini ./
 COPY --chown=oryxen:oryxen scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 
-RUN chmod +x ./scripts/docker-entrypoint.sh
+# Named preview/image-cache volumes are mounted over these paths at runtime.
+# Seed them with the worker's ownership so Docker's first volume copy-up does
+# not leave the non-root worker unable to promote a verified candidate.
+RUN mkdir -p /app/.workspace/code-generator-preview /app/.workspace/image-search-cache \
+    && chown -R oryxen:oryxen /app/.workspace \
+    && chmod +x ./scripts/docker-entrypoint.sh
 
 USER oryxen
 

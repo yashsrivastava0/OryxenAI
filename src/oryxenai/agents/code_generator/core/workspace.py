@@ -206,12 +206,12 @@ class GenerationWorkspace:
             if not source.is_file() or source.name in {"ledger.json", "projection.json"}:
                 continue
             relative = source.relative_to(source_root).as_posix()
-            # Binary media is served from public/, while component source is
-            # copied into the generated source tree so route units can import
-            # and render it. Keeping TSX under public/ made the old contract
-            # effectively recipe-only: a model could mention the filename but
-            # had no valid module path to bind.
-            if relative.startswith("components/") or relative.startswith("fonts/"):
+            # Browser-served material, including fonts, belongs under public/.
+            # Component source is copied into the generated source tree so
+            # route units can import and render it. Keeping TSX under public/
+            # made the old contract effectively recipe-only: a model could
+            # mention the filename but had no valid module path to bind.
+            if relative.startswith("components/"):
                 destination = self.repo_dir / "src" / "generated" / "resources" / "pack" / relative
             else:
                 destination = self.repo_dir / "public" / "resources" / "pack" / relative

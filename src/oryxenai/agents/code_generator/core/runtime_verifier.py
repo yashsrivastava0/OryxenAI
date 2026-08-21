@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
+import tempfile
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -48,6 +51,61 @@ def _mounted_route_paths(base_url: str, route_paths: list[str]) -> list[str]:
     prefix = "/" + base_path.strip("/") + "/" if base_path.strip("/") else "/"
     mounted = {f"{prefix}{path.lstrip('/')}" if prefix != "/" else path for path in route_paths}
     return sorted({*route_paths, *mounted})
+
+
+def _validate_interaction_state(
+    state_before: dict[str, Any], state_after: dict[str, Any], outcome: str
+) -> None:
+    """Validate directional and bidirectional disclosure outcomes."""
+
+    normalized = outcome.casefold()
+    expands = any(token in normalized for token in ("open", "expand", "show"))
+    collapses = any(token in normalized for token in ("close", "collapse", "hide"))
+    if expands and collapses:
+        # A toggle contract intentionally allows either final state. Verify
+        # that the action changed the controlled state instead of imposing one
+        # branch of the approved behavior.
+        before_expanded = state_before.get("expanded")
+        after_expanded = state_after.get("expanded")
+        if (
+            before_expanded is not None
+            and after_expanded is not None
+            and before_expanded == after_expanded
+        ):
+            raise AssertionError("The toggle interaction did not change its controlled state.")
+    elif expands:
+        if state_after.get("expanded") is not None and state_after.get("expanded") != "true":
+            raise AssertionError("The interaction did not open or expand its controlled state.")
+        if state_after.get("expanded") is None and any(
+            token in normalized for token in ("menu", "disclosure", "expand")
+        ):
+            raise AssertionError("The declared expandable interaction has no aria-expanded state.")
+    elif collapses and state_after.get("expanded") == "true":
+        raise AssertionError("The interaction left its declared collapsed state open.")
+
+
+def _browser_environment() -> dict[str, str]:
+    """Give the browser an isolated writable profile root.
+
+    The worker image runs as a non-root user with ``HOME=/app``.  The image
+    owns the application files but not that directory itself, so Chromium's
+    crashpad setup can terminate before Playwright connects.  Browser state
+    is disposable verification state and belongs in the OS temp directory,
+    never in the generated portfolio or the user's home directory.
+    """
+
+    root = Path(tempfile.gettempdir()) / "oryxenai-browser"
+    directories = {
+        "HOME": root / "home",
+        "XDG_CONFIG_HOME": root / "config",
+        "XDG_CACHE_HOME": root / "cache",
+        "XDG_RUNTIME_DIR": root / "runtime",
+    }
+    for directory in directories.values():
+        directory.mkdir(parents=True, exist_ok=True)
+    environment = {key: str(value) for key, value in os.environ.items()}
+    environment.update({key: str(value) for key, value in directories.items()})
+    return environment
 
 
 class RuntimeVerifier:
@@ -95,6 +153,7 @@ class RuntimeVerifier:
                     )
                 ]
             launch_kwargs: dict[str, Any] = {"headless": True}
+            launch_kwargs["env"] = _browser_environment()
             if profile.browser_executable:
                 launch_kwargs["executable_path"] = profile.browser_executable
             browser: Any = None
@@ -155,6 +214,13 @@ class RuntimeVerifier:
                 {"X-Preview-Verify-Token": verification_token} if verification_token else None
             ),
         )
+        if verification_token:
+            # Keep the auth header on the context as well as on construction.
+            # Playwright can recreate the initial document request while a
+            # route handler is installed; the context-level setter guarantees
+            # that the protected candidate gateway sees the token on every
+            # navigation and subresource request.
+            await context.set_extra_http_headers({"X-Preview-Verify-Token": verification_token})
         page = await context.new_page()
         page.set_default_timeout(timeout_ms)
         requests: list[dict[str, str | int | bool]] = []
@@ -186,13 +252,15 @@ class RuntimeVerifier:
         def record_response(response: Any) -> None:
             status = int(response.status)
             if status >= 400:
-                requests.append(
-                    {
-                        "url": str(response.url),
-                        "status": status,
-                        "failed": True,
-                    }
-                )
+                failure: dict[str, str | int | bool] = {
+                    "url": str(response.url),
+                    "status": status,
+                    "failed": True,
+                }
+                gateway_reason = str(response.headers.get("x-oryxenai-candidate-404", ""))
+                if gateway_reason:
+                    failure["gateway_reason"] = gateway_reason
+                requests.append(failure)
 
         def record_request_failed(request: Any) -> None:
             requests.append(
@@ -223,6 +291,15 @@ class RuntimeVerifier:
                     }
                 )
                 await route.abort("blockedbyclient")
+                return
+            if verification_token:
+                # Route interception can rebuild a request's headers. Inject
+                # the ephemeral token at the final request boundary so a
+                # protected candidate cannot intermittently become a 404
+                # merely because the browser recreated a navigation request.
+                headers = await route.request.all_headers()
+                headers["x-preview-verify-token"] = verification_token
+                await route.continue_(headers=headers)
                 return
             await route.continue_()
 
@@ -556,6 +633,7 @@ class RuntimeVerifier:
             await page.go_forward(wait_until="networkidle")
         elif step.action == "assert_link":
             locator = page.locator(step.target).first
+            await self._ensure_interaction_visible(page, locator)
             await locator.wait_for(state="attached")
             observed_href = await locator.get_attribute("href")
             if step.expected_url and observed_href != step.expected_url:
@@ -573,6 +651,11 @@ class RuntimeVerifier:
                     )
         elif step.action in {"click", "focus", "press"}:
             locator = page.locator(step.target).first
+            await self._ensure_interaction_visible(page, locator)
+            state_before = await locator.evaluate(
+                "element => ({expanded: element.getAttribute('aria-expanded'), "
+                "pressed: element.getAttribute('aria-pressed')})"
+            )
             if step.action == "click":
                 if "download" in step.expected_outcome.casefold():
                     async with page.expect_download() as download_info:
@@ -604,27 +687,11 @@ class RuntimeVerifier:
                     raise AssertionError(
                         f"Expected accessible name {step.expected_accessible_name}, observed {observed}"
                     )
-            outcome = step.expected_outcome.casefold()
             state = await locator.evaluate(
                 "element => ({expanded: element.getAttribute('aria-expanded'), "
                 "pressed: element.getAttribute('aria-pressed')})"
             )
-            if any(token in outcome for token in ("open", "expand", "show")):
-                if state.get("expanded") is not None and state.get("expanded") != "true":
-                    raise AssertionError(
-                        "The interaction did not open or expand its controlled state."
-                    )
-                if state.get("expanded") is None and any(
-                    token in outcome for token in ("menu", "disclosure", "expand")
-                ):
-                    raise AssertionError(
-                        "The declared expandable interaction has no aria-expanded state."
-                    )
-            if (
-                any(token in outcome for token in ("close", "collapse", "hide"))
-                and state.get("expanded") == "true"
-            ):
-                raise AssertionError("The interaction left its declared collapsed state open.")
+            _validate_interaction_state(state_before, state, step.expected_outcome)
             if (
                 bool(step.expected_accessible_state.get("escape_closes"))
                 and state.get("expanded") == "true"
@@ -632,7 +699,7 @@ class RuntimeVerifier:
                 await page.keyboard.press("Escape")
                 await page.wait_for_function(
                     "selector => document.querySelector(selector)?.getAttribute('aria-expanded') !== 'true'",
-                    step.target,
+                    arg=step.target,
                 )
                 if bool(step.expected_accessible_state.get("focus_return")):
                     focused = await locator.evaluate(
@@ -787,6 +854,20 @@ class RuntimeVerifier:
                 thresholds,
             )
             geometry_results.append({"step_id": step.step_id, **result})
+
+    async def _ensure_interaction_visible(self, page: Any, locator: Any) -> None:
+        """Open a collapsed navigation container before testing its child link."""
+
+        if await locator.is_visible():
+            return
+        toggle = page.locator('[data-interaction-id$=":nav-toggle"]').first
+        if (
+            await toggle.count()
+            and await toggle.is_visible()
+            and await toggle.get_attribute("aria-expanded") != "true"
+        ):
+            await toggle.click()
+        await locator.wait_for(state="visible")
 
     @staticmethod
     def _application_path(current_url: str, base_url: str) -> str:

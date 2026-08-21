@@ -110,9 +110,10 @@ async def run_planner_operation(
         if last_issue:
             call_instructions += (
                 "\n\nThe previous planner response did not satisfy the local SitePlan "
-                "validator. Return a complete replacement object and correct these "
-                f"structural issues: {last_issue}. Do not omit required fields, use "
-                "null for required values, or include commentary."
+                "schema or semantic validator. Return a complete replacement object "
+                "and correct this safe validator summary: "
+                f"{last_issue}. Do not omit required fields, use null for required "
+                "values, or include commentary."
             )
         try:
             result = await planner.generate_structured(
@@ -133,50 +134,64 @@ async def run_planner_operation(
         parsed = getattr(result, "parsed_output", result)
         try:
             plan = SitePlan.model_validate(parsed)
-            break
         except ValidationError as exc:
             last_issue = _safe_validation_summary(exc)
             if attempt == 0:
                 continue
             raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
-    if plan is None:
-        raise PlannerOperationError(
-            "PLANNER_OUTPUT_INVALID",
-            last_issue or "The planner output failed SitePlan schema validation.",
-        )
-    if projections is not None:
-        try:
-            plan = compile_site_plan(
-                plan,
-                projections,
-                max_sections_per_unit=max_sections_per_unit,
-                design_neutral=require_blueprint
-                and isinstance(plan.experience_blueprint, ExperienceBlueprintV3),
-            )
-            if require_blueprint and plan.experience_blueprint is not None:
-                concepts = context.get("creative_direction", {}).get("candidates", [])
-                concept_ids = {
-                    str(item.get("concept_id", "")) for item in concepts if isinstance(item, dict)
-                }
-                if plan.experience_blueprint.selected_concept_id not in concept_ids:
-                    raise PlannerOperationError(
-                        "PLAN_CREATIVE_CONCEPT_UNKNOWN",
-                        "The experience blueprint selected an unknown creative concept.",
-                    )
-            plan = validate_site_plan(
-                plan,
-                projections,
-                max_work_units=max_work_units,
-                require_blueprint=require_blueprint,
-            )
-        except Exception as exc:
+        if plan is None:
             raise PlannerOperationError(
-                str(getattr(exc, "code", "") or "PLANNER_PLAN_INVALID"),
-                "The planner output failed semantic SitePlan validation.",
-            ) from exc
-    else:
-        plan = _canonicalize_work_graph(plan)
-    return plan, prompt_version, receipt, result
+                "PLANNER_OUTPUT_INVALID",
+                last_issue or "The planner output failed SitePlan schema validation.",
+            )
+        if projections is not None:
+            try:
+                plan = compile_site_plan(
+                    plan,
+                    projections,
+                    max_sections_per_unit=max_sections_per_unit,
+                    design_neutral=require_blueprint
+                    and isinstance(plan.experience_blueprint, ExperienceBlueprintV3),
+                )
+                if require_blueprint and plan.experience_blueprint is not None:
+                    concepts = context.get("creative_direction", {}).get("candidates", [])
+                    concept_ids = {
+                        str(item.get("concept_id", ""))
+                        for item in concepts
+                        if isinstance(item, dict)
+                    }
+                    if plan.experience_blueprint.selected_concept_id not in concept_ids:
+                        raise PlannerOperationError(
+                            "PLAN_CREATIVE_CONCEPT_UNKNOWN",
+                            "The experience blueprint selected an unknown creative concept.",
+                        )
+                plan = validate_site_plan(
+                    plan,
+                    projections,
+                    max_work_units=max_work_units,
+                    require_blueprint=require_blueprint,
+                )
+            except PlannerOperationError as exc:
+                last_issue = _safe_semantic_issue(exc)
+                if attempt == 0:
+                    continue
+                raise
+            except Exception as exc:
+                semantic_error = PlannerOperationError(
+                    str(getattr(exc, "code", "") or "PLANNER_PLAN_INVALID"),
+                    "The planner output failed semantic SitePlan validation.",
+                )
+                last_issue = _safe_semantic_issue(semantic_error)
+                if attempt == 0:
+                    continue
+                raise semantic_error from exc
+        else:
+            plan = _canonicalize_work_graph(plan)
+        return plan, prompt_version, receipt, result
+    raise PlannerOperationError(
+        "PLANNER_OUTPUT_INVALID",
+        last_issue or "The planner output failed SitePlan validation.",
+    )
 
 
 def _safe_planner_issue(exc: Exception) -> str:
@@ -191,3 +206,9 @@ def _safe_validation_summary(exc: ValidationError) -> str:
         message = str(error.get("msg", "invalid value"))[:160]
         entries.append(f"{location}: {message}")
     return "; ".join(entries)[:500] or "The planner output failed SitePlan schema validation."
+
+
+def _safe_semantic_issue(exc: PlannerOperationError) -> str:
+    code = str(exc.code or "PLANNER_PLAN_INVALID")[:120]
+    message = str(exc.message or "The planner output failed semantic SitePlan validation.")
+    return f"{code}: {message[:320]}"

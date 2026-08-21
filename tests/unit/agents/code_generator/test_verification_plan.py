@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     InteractionContract,
@@ -8,7 +12,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     VerificationProfile,
     WorkGraph,
 )
-from oryxenai.agents.code_generator.core.runtime_verifier import RuntimeVerifier
+from oryxenai.agents.code_generator.core.runtime_verifier import (
+    RuntimeVerifier,
+    _browser_environment,
+    _validate_interaction_state,
+)
 from oryxenai.agents.code_generator.core.verification_plan import derive_verification_plan
 
 
@@ -192,3 +200,32 @@ def test_runtime_verifier_translates_nested_preview_urls_to_application_paths() 
 
     assert RuntimeVerifier._application_path(base, base) == "/"
     assert RuntimeVerifier._application_path(f"{base}projects", base) == "/projects"
+
+
+def test_browser_environment_uses_isolated_writable_directories(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+
+    environment = _browser_environment()
+
+    assert environment["HOME"] == str(tmp_path / "oryxenai-browser" / "home")
+    assert all(
+        Path(environment[key]).is_dir()
+        for key in ("HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR")
+    )
+
+
+def test_runtime_verifier_accepts_a_bidirectional_toggle_when_state_changes() -> None:
+    _validate_interaction_state(
+        {"expanded": "false"},
+        {"expanded": "true"},
+        "Expands or collapses the section navigation.",
+    )
+
+
+def test_runtime_verifier_rejects_a_bidirectional_toggle_that_does_not_change_state() -> None:
+    with pytest.raises(AssertionError, match="did not change"):
+        _validate_interaction_state(
+            {"expanded": "false"},
+            {"expanded": "false"},
+            "Expands or collapses the section navigation.",
+        )

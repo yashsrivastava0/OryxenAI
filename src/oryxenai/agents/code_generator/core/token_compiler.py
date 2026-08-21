@@ -15,7 +15,10 @@ class TokenCompilationError(ValueError):
     pass
 
 
-_SAFE_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
+# The group prefix makes the emitted custom property safe even when a token
+# suffix follows a conventional scale name such as ``2xl``.
+_SAFE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+_FONT_FILE_SUFFIXES = frozenset({".otf", ".ttf", ".woff", ".woff2"})
 
 
 def compile_generated_tokens(
@@ -62,17 +65,27 @@ def compile_generated_tokens(
         family = binding.font_family or typography.family
         if not family.strip() or any(character in family for character in ('"', "\n", "\r", ";")):
             raise TokenCompilationError("font binding has no family")
+        # Resource receipts may include the materialized directory as a
+        # convenient import root alongside its files.  Only emit actual font
+        # files into @font-face; a directory URL passes source checks but is a
+        # missing production artifact reference after bundling.
         for path in sorted(binding.local_paths):
             normalized_path = path.replace("\\", "/").lstrip("/")
             if ".." in Path(normalized_path).parts or normalized_path.startswith(
                 ("http:", "https:")
             ):
                 raise TokenCompilationError("font binding must point to local material")
+            if Path(normalized_path).suffix.casefold() not in _FONT_FILE_SUFFIXES:
+                continue
+            if normalized_path.startswith("resources/"):
+                public_path = f"resources/pack/{normalized_path.removeprefix('resources/')}"
+            else:
+                public_path = normalized_path
             lines.extend(
                 [
                     "@font-face {",
                     f'  font-family: "{family}";',
-                    f'  src: url("/{normalized_path}") format("woff2");',
+                    f'  src: url("/{public_path}") format("woff2");',
                     "  font-display: swap;",
                     "}",
                     "",

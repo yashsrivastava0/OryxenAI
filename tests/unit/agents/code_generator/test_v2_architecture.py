@@ -138,6 +138,23 @@ def test_acquired_executable_source_is_importable_and_media_is_public(tmp_path: 
     assert (workspace.repo_dir / image_path).is_file()
 
 
+def test_pack_fonts_are_browser_public_but_components_are_importable(tmp_path: Path) -> None:
+    workspace = GenerationWorkspace(tmp_path / "run", tmp_path / "inputs", tmp_path / "checkpoints")
+    (workspace.input_dir / "resources" / "fonts" / "local").mkdir(parents=True)
+    (workspace.input_dir / "resources" / "components" / "local").mkdir(parents=True)
+    (workspace.input_dir / "resources" / "fonts" / "local" / "body.woff2").write_bytes(b"font")
+    (workspace.input_dir / "resources" / "components" / "local" / "Card.tsx").write_text(
+        "export const Card = () => null;", encoding="utf-8"
+    )
+
+    copied = workspace.materialize_pack_resources()
+
+    assert "public/resources/pack/fonts/local/body.woff2" in copied
+    assert "src/generated/resources/pack/components/local/Card.tsx" in copied
+    assert (workspace.repo_dir / "public/resources/pack/fonts/local/body.woff2").is_file()
+    assert (workspace.repo_dir / "src/generated/resources/pack/components/local/Card.tsx").is_file()
+
+
 def test_work_graph_compiler_keeps_an_empty_approved_route_executable() -> None:
     plan = SitePlan(
         plan_id="empty-route",

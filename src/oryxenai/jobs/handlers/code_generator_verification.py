@@ -18,6 +18,7 @@ from oryxenai.agents.code_generator.core.development_planner import validate_sit
 from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunStatus,
     Diagnostic,
+    ExperienceBlueprintV3,
     GateResult,
     PendingPromotion,
     SafeIssue,
@@ -33,6 +34,13 @@ from oryxenai.agents.code_generator.core.generation_orchestrator import (
 )
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 from oryxenai.agents.code_generator.core.runtime_verifier import RuntimeVerifier
+from oryxenai.agents.code_generator.core.source_validation import (
+    normalize_generated_route_contract,
+)
+from oryxenai.agents.code_generator.core.token_compiler import (
+    compile_generated_tokens,
+    write_generated_tokens,
+)
 from oryxenai.agents.code_generator.core.verification_plan import (
     build_verification_profile,
     derive_verification_plan,
@@ -236,6 +244,17 @@ async def _execute(
                 "SOURCE_CHECKPOINT_DRIFT",
                 "The restored source checkpoint does not match its source manifest.",
             )
+        checkpoint = await _normalize_host_generated_tokens(
+            sessionmaker=sessionmaker,
+            run_id=run_id,
+            run=run,
+            plan=plan,
+            projections=projections,
+            workspace=workspace,
+            checkpoint_store=checkpoint_store,
+            checkpoint=checkpoint,
+        )
+        source_manifest = checkpoint.source_manifest_hash
         identity = build_candidate_identity(
             run=run,
             plan=plan,
@@ -335,6 +354,13 @@ async def _execute(
             sessionmaker, run_id, projection, DevelopmentRunStatus.BUILDING.value
         )
         reused_manifest = _prior_build_manifest(prior_projection, identity.identity_hash)
+        if reused_manifest is not None and not _materialized_manifest_matches(
+            workspace.repo_dir / "dist", reused_manifest
+        ):
+            # A persisted manifest is evidence about a previous workspace,
+            # not the files served by this attempt. Rebuild when a retry or
+            # repair restored source without its disposable dist tree.
+            reused_manifest = None
         build_diagnostics: list[Diagnostic]
         if reused_manifest is not None:
             manifest, build_diagnostics = reused_manifest, []
@@ -709,6 +735,26 @@ def _prior_build_manifest(
     return projection.build_manifest
 
 
+def _materialized_manifest_matches(dist_dir: Path, manifest: Any) -> bool:
+    """Prove that a reused build manifest has a matching local artifact tree."""
+
+    entries = getattr(manifest, "entries", None)
+    if not isinstance(entries, list) or not entries or not (dist_dir / "index.html").is_file():
+        return False
+    for entry in entries:
+        relative = str(getattr(entry, "path", ""))
+        target = (dist_dir / relative).resolve()
+        if (
+            not relative
+            or not target.is_relative_to(dist_dir.resolve())
+            or not target.is_file()
+            or target.stat().st_size != int(getattr(entry, "size_bytes", -1))
+            or hashlib.sha256(target.read_bytes()).hexdigest() != str(getattr(entry, "sha256", ""))
+        ):
+            return False
+    return True
+
+
 def _has_infrastructure_diagnostic(diagnostics: list[Diagnostic]) -> bool:
     return any(item.owner == "infrastructure" for item in diagnostics)
 
@@ -822,6 +868,94 @@ async def _persist_projection(
         await db.commit()
 
 
+async def _normalize_host_generated_tokens(
+    *,
+    sessionmaker: Any,
+    run_id: UUID,
+    run: Any,
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    workspace: GenerationWorkspace,
+    checkpoint_store: CheckpointStore,
+    checkpoint: Any,
+) -> Any:
+    """Re-emit trusted v3 tokens before final gates when an old checkpoint predates a fix.
+
+    The foundation token file is host-owned deterministic output.  Older
+    checkpoints may contain a materialized resource directory as a CSS URL;
+    re-emitting it through the current compiler removes that invalid artifact
+    reference without asking the provider for a creative repair.  The corrected
+    tree receives a new checkpoint and is persisted so retries remain bound to
+    the same deterministic source.
+    """
+
+    changed = normalize_generated_route_contract(
+        workspace.repo_dir,
+        plan=plan,
+        site_contract=projections.get("site/contract.json", {}),
+    )
+    blueprint = plan.experience_blueprint
+    if isinstance(blueprint, ExperienceBlueprintV3) and plan.execution_bindings:
+        target = workspace.repo_dir / "src" / "design" / "generated-tokens.css"
+        if target.is_file():
+            # Older source checkpoints placed pack fonts under src/generated
+            # because the materialization rule treated fonts like importable
+            # components. Copy the same admitted pack material through the
+            # current host-owned rule before recompiling tokens, so retries
+            # repair the resource boundary without asking the provider for a
+            # creative response.
+            workspace.materialize_pack_resources()
+            expected = compile_generated_tokens(blueprint, plan.execution_bindings)
+            if target.read_text(encoding="utf-8") != expected:
+                write_generated_tokens(workspace.repo_dir, blueprint, plan.execution_bindings)
+                changed = True
+    if not changed:
+        return checkpoint
+    corrected = checkpoint_store.accept(
+        work_unit_id="deterministic-token-normalization",
+        parent_hash=checkpoint.checkpoint_hash,
+    )
+    async with sessionmaker() as db:
+        repo = CodeGeneratorDevelopmentRepository(db)
+        current = await repo.get(run_id)
+        if current is None:
+            raise VerificationFailure("RUN_NOT_FOUND", "The verification run was not found.")
+        updated = await repo.compare_and_swap(
+            run_id,
+            expected_revision=current.revision,
+            values={
+                "source_checkpoint": corrected.model_dump(mode="json"),
+                "source_summary": {
+                    "file_count": corrected.file_count,
+                    "total_bytes": corrected.total_bytes,
+                    "source_ready": True,
+                    "checkpoint_hash": corrected.checkpoint_hash,
+                },
+            },
+        )
+        if updated is None:
+            raise VerificationFailure(
+                "RUN_REVISION_CONFLICT",
+                "The generated source changed while deterministic normalization was saved.",
+            )
+        await repo.append_event(
+            run_id,
+            event_type="deterministic_source_normalized",
+            level="info",
+            message="Host-owned generated tokens were recompiled before final verification.",
+            details={"parent_checkpoint": checkpoint.checkpoint_hash},
+        )
+        await db.commit()
+    logger.info(
+        "normalized host-owned route contract run_id=%s prior_checkpoint=%s new_checkpoint=%s",
+        run_id,
+        checkpoint.checkpoint_hash,
+        corrected.checkpoint_hash,
+    )
+    del run
+    return corrected
+
+
 async def _terminal(
     sessionmaker: Any,
     run_id: UUID,
@@ -864,13 +998,12 @@ async def _terminal(
         values={"terminal_failure": report.model_dump(mode="json"), "pending_promotion": None},
         event=("needs_attention", summary),
     )
-    if report.owner == "infrastructure":
-        return {
-            "status": "failed",
-            "run_id": str(run_id),
-            "code": code,
-            "error": {"code": code, "message": summary, "retryable": True},
-        }
+    # The run already contains a complete, fail-closed terminal report. Do
+    # not return a retryable job error here: the generic worker would launch a
+    # hidden second verification attempt and could overwrite this report (or
+    # a passing projection) with a later race. Callers can explicitly retry
+    # through the idempotent verify endpoint after the infrastructure issue is
+    # understood.
     return {"status": "needs_attention", "run_id": str(run_id), "code": code}
 
 

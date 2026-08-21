@@ -19,6 +19,10 @@ class _MapOutput(BaseModel):
     values: dict[str, str]
 
 
+class _NullableOutput(BaseModel):
+    value: str | None = None
+
+
 def _profile(**overrides: object) -> ModelProfile:
     values: dict[str, object] = {
         "provider": "anthropic",
@@ -140,6 +144,46 @@ async def test_anthropic_adapter_falls_back_for_typed_mapping_schema(monkeypatch
     await adapter.aclose()
 
     assert result.parsed_output == {"values": {"accent": "#fff"}}
+    payload = json.loads(requests[0].content)
+    assert "format" not in payload["output_config"]
+    assert "JSON Schema" in payload["system"]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_adapter_falls_back_for_composed_schema(monkeypatch):
+    monkeypatch.setenv("TEST_ANTHROPIC_API_KEY", "sk-ant-test")
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg_nullable",
+                "model": "claude-sonnet-5",
+                "content": [{"type": "text", "text": '{"value":"grounded"}'}],
+                "stop_reason": "end_turn",
+            },
+            request=request,
+        )
+
+    adapter = AnthropicAdapter(_profile())
+    adapter._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.anthropic.com/v1",
+        headers={"x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01"},
+    )
+    result = await adapter.generate_structured(
+        operation="code_generator.generation",
+        instructions="Generate the result.",
+        input_payload={"untrusted": "portfolio data"},
+        output_model=_NullableOutput,
+        system_prompt="You are the generator.",
+        strict_schema=True,
+    )
+    await adapter.aclose()
+
+    assert result.parsed_output == {"value": "grounded"}
     payload = json.loads(requests[0].content)
     assert "format" not in payload["output_config"]
     assert "JSON Schema" in payload["system"]
