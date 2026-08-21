@@ -46,9 +46,9 @@ __all__ = [
     "ProviderRateLimitError",
     "ProviderServerError",
     "ProviderTimeoutError",
+    "SchemaCompatibilityError",
     "build_adapter",
     "can_build",
-    "SchemaCompatibilityError",
     "ensure_schema_compatible",
     "schema_compatibility_issues",
 ]
