@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-040 — Configuration-driven Anthropic default and model routing
+
+- **Date & Time:** 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** OpenAI credits are temporarily unavailable, while every model-backed engine must use the Anthropic credential now. Future provider/model changes must remain easy to make per engine without scattering provider branches through agents, handlers, or the UI.
+- **Decision:** Route every active engine through the shared `ModelRouter` and provider-neutral `ModelClient` factory. The committed profiles use Anthropic Claude Sonnet 5 with `ANTHROPIC_API_KEY`, adaptive thinking, native JSON-schema capability declarations, and bounded prompt caching. The routing table and selectable UI profiles live in `config/models.toml`; the API/UI expose only non-secret profile metadata. Real operations fail closed when the configured credential or adapter is unavailable; deterministic test clients remain test-only.
+- **Rejected alternatives:** Hard-coding Anthropic branches in each agent; retaining a frontend-only provider dropdown; making OpenAI the active default while its balance is unavailable; silently falling back to mocks for live jobs; or adding Batch API semantics to the interactive durable workflow now.
+- **Consequence:** Reassigning an engine to another configured profile or adding a provider requires a profile/routing change plus one shared adapter/factory implementation, rather than agent rewrites. Batch submission remains a future cost optimization for suitable asynchronous workloads, not part of current interactive execution.
+
 ## D-039 — Backend-only Docker and shared hosted portfolio previews
 
 - **Date & Time:** 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI)

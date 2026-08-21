@@ -1,13 +1,13 @@
 """Explicit provider capability model.
 
 Capabilities represent what a provider endpoint supports. They are
-declared, never silently assumed. The OpenCode Go adapter consults this
-model before sending parameters such as ``store`` or thinking-mode keys,
-so an unsupported parameter is never relied on.
+declared, never silently assumed. Provider adapters consult this model before
+sending parameters such as ``store`` or thinking-mode keys, so an unsupported
+parameter is never relied on.
 
-The defaults in ``DEFAULT_OPENCODE_GO`` describe the observed shape of
-the configured OpenCode Go endpoint and are confirmed/refuted by the
-opt-in live capability smoke test (``tests/live/``).
+The defaults in ``DEFAULT_OPENCODE_GO`` preserve the observed shape of the
+legacy OpenCode Go endpoint. Active profiles declare their own provider/model
+wire capabilities in ``config/models.toml``.
 """
 
 from __future__ import annotations

@@ -216,6 +216,43 @@ def test_anthropic_manual_thinking_is_only_sent_when_declared() -> None:
     assert body["thinking"] == {"type": "enabled", "budget_tokens": 3072}
 
 
+def test_anthropic_adaptive_profile_controls_thinking_and_sampling() -> None:
+    profile = _profile(
+        prompt_cache_ttl="5m",
+        capabilities=ModelCapabilities(
+            json_object_mode=True,
+            json_schema_mode=True,
+            thinking_mode=True,
+            reasoning_content=False,
+            temperature_control=False,
+            usage_metadata=True,
+            response_id=True,
+            context_cache_metadata=True,
+            supports_store_parameter=True,
+            uses_max_completion_tokens=True,
+            structured_output_mode="native_json_schema",
+            thinking_strategy="adaptive",
+            effort_parameter="output_config_effort",
+        ),
+    )
+    body = AnthropicAdapter(profile)._request_body(
+        system_prompt="Stable instructions",
+        messages=[{"role": "user", "content": "test"}],
+        request_params={
+            "temperature": 0.2,
+            "top_p": 0.5,
+            "top_k": 2,
+            "thinking": {"type": "enabled"},
+        },
+    )
+
+    assert body["thinking"] == {"type": "adaptive"}
+    assert "temperature" not in body
+    assert "top_p" not in body
+    assert "top_k" not in body
+    assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
+
+
 def test_provider_invalid_request_keeps_safe_provider_details() -> None:
     from oryxenai.agents.shared.providers.errors import map_http_error
 

@@ -43,7 +43,7 @@ pack in temporary object storage
   R2 by default); PostgreSQL stores metadata and hashes only
 - **Frontend:** Jinja2 templates + vanilla JS/CSS (no framework, no CDN)
 - **Agents:** Ordinary Python protocols + Pydantic models (no agent framework)
-- **Model:** Provider-neutral `ModelClient` protocol with OpenCode Go JSON-mode adapter for Discovery
+- **Model:** Provider-neutral `ModelClient` protocol with config-driven Anthropic Messages API defaults and extensible provider adapters
 - **Config:** Secrets in `.env`; non-secret config in committed `config/app.toml` + `config/models.toml`
 - **Docker:** One app image (API + testing UI) + one PostgreSQL container
 
@@ -98,8 +98,9 @@ Non-secret configuration (app name, host, port, DB host/port, model profiles) li
 committed files under `config/`:
 
 - `config/app.toml` — `[app]` and `[database]` settings
-- `config/models.toml` — provider-neutral model profiles; Discovery uses the
-  OpenCode Go provider (see `[profiles.discovery]` for the current model)
+- `config/models.toml` — provider-neutral model profiles and logical engine
+  routing; active engines currently use the configured Anthropic profile
+  (see `[routing.engine_profiles]` and `[profiles.*]`)
 
 ## Windows PowerShell setup
 
@@ -348,7 +349,9 @@ for the complete flow.
 - The app and worker still start without model credentials
 - A real Discovery job fails safely with a controlled configuration error
 - Normal tests use the deterministic fake client and require no model credential
-- Set the environment variable named by `[profiles.discovery].api_key_env` for real OpenCode Go runs
+- Set the environment variable named by the active profile's `api_key_env` for
+  real model runs. The committed default is Anthropic; change routing/profile
+  configuration to add or assign another provider without changing agents.
 
 ### Development UI is disabled
 

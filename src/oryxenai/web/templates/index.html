@@ -7,9 +7,9 @@
     <div class="model-select-row">
       <label for="provider-select">Model</label>
       <select id="provider-select">
-        <option value="" selected>OpenAI — GPT-5.6 Luna (default)</option>
-        <option value="anthropic_claude" disabled>Anthropic Claude — coming soon</option>
-        <option value="google_gemini" disabled>Google Gemini — coming soon</option>
+        {% for option in model_profiles %}
+        <option value="{{ option.id }}"{% if option.is_default %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
       </select>
     </div>
     <button id="open-agent-workspace" class="workspace-launcher" type="button">Open outputs &amp; live activity</button>
