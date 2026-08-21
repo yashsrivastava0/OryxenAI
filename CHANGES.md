@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [5fcbdd4] — Anthropic model routing, adapter hardening, profile API/UI
+Implemented D-040: all active engines now resolve through the shared
+`ModelRouter` and provider-neutral client factory to Anthropic Claude Sonnet 5
+using the credential named by the active profile. Added adaptive-thinking/
+native-schema capability configuration, prompt caching, safe selectable-profile metadata, live
+fail-closed behavior, and regression coverage; Batch API submission remains
+deferred for a future asynchronous workload.
+
 ### 2026-08-21 - Codex (GPT-5 / OpenAI) - [0240f57] - Lightweight LLM observability research
 Recorded a research-only recommendation for simple cost and tracing visibility:
 Langfuse first, Phoenix as a local alternative, and one metadata-only
