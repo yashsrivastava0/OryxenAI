@@ -295,6 +295,17 @@ async def get_preview(
         _error(exc)
 
 
+@router.get("/runs/{run_id}/quality")
+async def get_quality(
+    run_id: str,
+    service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
+) -> dict[str, Any]:
+    try:
+        return await service.quality(_run_id(run_id))
+    except DevelopmentRunError as exc:
+        _error(exc)
+
+
 @router.get("/runs/{run_id}/source-manifest")
 async def get_source_manifest(
     run_id: str,

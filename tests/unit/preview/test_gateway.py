@@ -49,7 +49,7 @@ async def test_gateway_serves_active_spa_and_returns_asset_404() -> None:
         content_type="application/json",
         expected_etag=None,
     )
-    app = create_preview_app(storage)
+    app = create_preview_app(storage, embed_origins=["https://app.example"])
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -57,8 +57,23 @@ async def test_gateway_serves_active_spa_and_returns_asset_404() -> None:
         missing = await client.get("/preview/preview-abcdefghijklmnop/assets/missing.js")
     assert response.status_code == 200
     assert response.text == html.decode()
-    assert response.headers["content-security-policy"]
+    assert response.headers["cache-control"] == "no-store"
+    assert "frame-ancestors https://app.example" in response.headers["content-security-policy"]
+    assert "127.0.0.1:8000" not in response.headers["content-security-policy"]
     assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_gateway_has_gateway_specific_health_endpoints() -> None:
+    app = create_preview_app(MemoryPreviewStorage())
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        live = await client.get("/health/live")
+        ready = await client.get("/health/ready")
+    assert live.status_code == 200
+    assert ready.status_code == 200
+    assert live.json()["service"] == "preview-gateway"
 
 
 @pytest.mark.asyncio

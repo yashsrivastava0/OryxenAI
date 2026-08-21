@@ -27,6 +27,7 @@ from oryxenai.agents.shared.component_retrieval import (
 )
 from oryxenai.agents.shared.image_retrieval import (
     ImageCandidate,
+    bounded_provider_query,
     download_image_bytes,
     intent_from_values,
     search_images,
@@ -286,8 +287,9 @@ async def search_pexels(
         return []
     http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
     try:
+        sent_query = bounded_provider_query(query.query, "pexels")
         params: dict[str, str | int] = {
-            "query": query.query[:180],
+            "query": sent_query,
             "per_page": min(max(limit, 1), 80),
         }
         if query.orientation in {"landscape", "portrait", "square"}:
@@ -350,6 +352,7 @@ async def search_pexels(
                     image_url=image_url,
                     license="Pexels license",
                     license_reference="https://www.pexels.com/legal-pages/license/",
+                    retrieval_metadata={"sent_query": sent_query},
                 )
             )
         return result
@@ -381,7 +384,10 @@ async def search_unsplash(
             http,
             "https://api.unsplash.com/search/photos",
             headers={"Authorization": f"Client-ID {key}", "Accept": "application/json"},
-            params={"query": query.query[:180], "per_page": min(max(limit, 1), 5)},
+            params={
+                "query": bounded_provider_query(query.query, "unsplash"),
+                "per_page": min(max(limit, 1), 5),
+            },
             timeout_seconds=settings.build_preparation.network_timeout_seconds,
             retry_count=settings.build_preparation.network_retry_count,
             provider="unsplash",
@@ -438,6 +444,9 @@ async def search_unsplash(
                     mime_type="image/*",
                     license="Unsplash license",
                     license_reference="https://unsplash.com/license",
+                    retrieval_metadata={
+                        "sent_query": bounded_provider_query(query.query, "unsplash")
+                    },
                 )
             )
         return result

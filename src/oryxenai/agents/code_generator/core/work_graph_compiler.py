@@ -8,6 +8,7 @@ from typing import Any
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExecutionBindingV2,
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
     SitePlan,
     WorkGraph,
     WorkUnit,
@@ -31,17 +32,21 @@ def compile_site_plan(
     }
     bindings = compile_execution_bindings(projections)
     planned_usage: dict[str, set[tuple[str, str]]] = {}
-    if plan.experience_blueprint is not None:
+    if plan.experience_blueprint is not None and hasattr(
+        plan.experience_blueprint, "resource_usage"
+    ):
         for usage in plan.experience_blueprint.resource_usage:
             planned_usage.setdefault(usage.resource_slot_id, set()).add(
                 (usage.route_id, usage.section_id)
             )
-        if isinstance(plan.experience_blueprint, ExperienceBlueprintV3):
-            for placement in plan.experience_blueprint.resource_placements:
-                planned_usage.setdefault(placement.resource_slot_id, set()).add(
-                    (placement.route_id, placement.section_id)
-                )
-    design_neutral = design_neutral or isinstance(plan.experience_blueprint, ExperienceBlueprintV3)
+    if isinstance(plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)):
+        for placement in plan.experience_blueprint.resource_placements:
+            planned_usage.setdefault(placement.resource_slot_id, set()).add(
+                (placement.route_id, placement.section_id)
+            )
+    design_neutral = design_neutral or isinstance(
+        plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
+    )
     units: list[WorkUnit] = [
         WorkUnit(
             unit_id="foundation",
@@ -103,23 +108,38 @@ def compile_site_plan(
                 if split
                 else f"route-{_slug(route.route_id)}"
             )
-            path = (
-                f"src/routes/{storage_key}/sections/Batch{index}.tsx"
-                if split
-                else f"src/routes/{storage_key}/index.tsx"
-            )
-            style_path = (
-                f"src/routes/{storage_key}/sections/Batch{index}.css"
-                if split
-                else f"src/routes/{storage_key}/route.css"
-            )
+            if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) and split:
+                # V4 gives every approved section a semantic, stable host-owned
+                # path.  A model call may still batch several sections, but it
+                # cannot collapse them into opaque BatchN files.
+                owned_paths = [
+                    path
+                    for section in sections
+                    for path in (
+                        f"src/routes/{storage_key}/sections/{_slug(section)}.tsx",
+                        f"src/routes/{storage_key}/sections/{_slug(section)}.css",
+                    )
+                ]
+            else:
+                owned_paths = [
+                    (
+                        f"src/routes/{storage_key}/sections/Batch{index}.tsx"
+                        if split
+                        else f"src/routes/{storage_key}/index.tsx"
+                    ),
+                    (
+                        f"src/routes/{storage_key}/sections/Batch{index}.css"
+                        if split
+                        else f"src/routes/{storage_key}/route.css"
+                    ),
+                ]
             units.append(
                 WorkUnit(
                     unit_id=unit_id,
                     kind="route_batch" if split else "route",
                     route_id=route.route_id,
                     route_ids=[route.route_id],
-                    owns_paths=[path, style_path],
+                    owns_paths=owned_paths,
                     depends_on=["foundation"],
                     section_ids=sections,
                     required_shared_exports=["SharedSystems"],

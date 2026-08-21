@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
     SitePlan,
 )
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
@@ -151,10 +152,13 @@ async def run_planner_operation(
                     projections,
                     max_sections_per_unit=max_sections_per_unit,
                     design_neutral=require_blueprint
-                    and isinstance(plan.experience_blueprint, ExperienceBlueprintV3),
+                    and isinstance(
+                        plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
+                    ),
                 )
                 if require_blueprint and plan.experience_blueprint is not None:
-                    concepts = context.get("creative_direction", {}).get("candidates", [])
+                    direction = context.get("creative_direction", {})
+                    concepts = direction.get("candidates", direction.get("concepts", []))
                     concept_ids = {
                         str(item.get("concept_id", ""))
                         for item in concepts

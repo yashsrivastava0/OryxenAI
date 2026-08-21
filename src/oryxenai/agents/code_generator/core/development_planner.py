@@ -9,6 +9,7 @@ from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
     MotionBeatV3,
     SitePlan,
 )
@@ -125,7 +126,9 @@ def validate_site_plan(
     if require_blueprint:
         _validate_experience_blueprint(value, expected_paths, expected_sections)
     _validate_work_graph(value, set(expected_paths), expected_sections)
-    if require_blueprint and isinstance(value.experience_blueprint, ExperienceBlueprintV3):
+    if require_blueprint and isinstance(
+        value.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
+    ):
         try:
             validate_work_ownership(value, design_neutral=True)
         except OwnershipError as exc:
@@ -144,6 +147,9 @@ def _validate_experience_blueprint(
             "PLAN_BLUEPRINT_REQUIRED",
             "Session generation requires a measurable ExperienceBlueprintV3 or compatible V2 blueprint.",
         )
+    if isinstance(blueprint, ExperienceBlueprintV4):
+        _validate_v4_experience_blueprint(blueprint, expected_paths, expected_sections)
+        return
     region_ids = [item.region_id for item in blueprint.layout_regions]
     if len(region_ids) != len(set(region_ids)):
         raise SitePlanValidationError("PLAN_LAYOUT_REGION_IDS", "Layout-region IDs must be unique.")
@@ -377,6 +383,85 @@ def _validate_design_contract(
             "Acceptance coverage must exactly cover admitted criteria with source evidence markers.",
         )
     del site_routes
+
+
+def _validate_v4_experience_blueprint(
+    blueprint: ExperienceBlueprintV4,
+    expected_paths: dict[str, str],
+    expected_sections: dict[str, set[str]],
+) -> None:
+    """Validate the closed, measurable v4 blueprint against admitted scope."""
+
+    route_ids = set(expected_paths)
+    shell_ids = {item.route_id for item in blueprint.route_shells}
+    if shell_ids != route_ids:
+        raise SitePlanValidationError(
+            "PLAN_ROUTE_SHELL_COVERAGE",
+            "A v4 blueprint must assign exactly one trusted route shell to every route.",
+        )
+    for shell in blueprint.route_shells:
+        expected = expected_sections.get(shell.route_id, set())
+        if set(shell.section_order) != expected or len(shell.section_order) != len(expected):
+            raise SitePlanValidationError(
+                "PLAN_ROUTE_SHELL_SECTION_ORDER",
+                "A v4 route shell must cover each approved section exactly once.",
+            )
+    regions = {item.region_id: item for item in blueprint.regions}
+    covered = {
+        route_id: {item.section_id for item in blueprint.regions if item.route_id == route_id}
+        for route_id in route_ids
+    }
+    if covered != expected_sections:
+        raise SitePlanValidationError(
+            "PLAN_LAYOUT_REGION_COVERAGE",
+            "A v4 blueprint must provide one responsive region for every approved section.",
+        )
+    if len(blueprint.regions) != sum(len(items) for items in expected_sections.values()):
+        raise SitePlanValidationError(
+            "PLAN_LAYOUT_REGION_DUPLICATE",
+            "A v4 blueprint cannot duplicate a section region.",
+        )
+    move_routes = {item.route_id for item in blueprint.distinctive_moves}
+    if move_routes != route_ids:
+        raise SitePlanValidationError(
+            "PLAN_DISTINCTIVE_MOVE_COVERAGE",
+            "Every route needs at least one content-specific distinctive move.",
+        )
+    for move in blueprint.distinctive_moves:
+        region = regions.get(move.region_id)
+        if (
+            region is None
+            or region.route_id != move.route_id
+            or region.section_id != move.section_id
+            or move.section_id not in expected_sections.get(move.route_id, set())
+        ):
+            raise SitePlanValidationError(
+                "PLAN_DISTINCTIVE_MOVE_SCOPE",
+                "A v4 distinctive move must target its approved route section region.",
+            )
+    for placement in blueprint.resource_placements:
+        region = next(
+            (
+                item
+                for item in blueprint.regions
+                if item.route_id == placement.route_id and item.section_id == placement.section_id
+            ),
+            None,
+        )
+        if region is None:
+            raise SitePlanValidationError(
+                "PLAN_RESOURCE_USAGE_SCOPE",
+                "A v4 resource placement must target an approved route section.",
+            )
+    for beat in blueprint.motion_beats:
+        if not any(
+            item.route_id == beat.route_id and item.section_id == beat.section_id
+            for item in blueprint.regions
+        ):
+            raise SitePlanValidationError(
+                "PLAN_MOTION_SCOPE",
+                "A v4 motion beat must target an approved route section.",
+            )
 
 
 def _validate_work_graph(

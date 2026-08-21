@@ -91,6 +91,76 @@ class ImageDownloadError(ValueError):
         super().__init__(message)
 
 
+def compile_search_queries(
+    intent: ImageSearchIntent,
+    *,
+    provider: str = "",
+    max_variants: int | None = None,
+    max_terms: int = 6,
+) -> list[str]:
+    """Compile bounded provider queries from semantic intent only.
+
+    Negative concepts, colors, breakpoints, and route copy stay structured
+    filters.  The exact returned string is the string sent to the provider and
+    recorded on each candidate/diagnostic receipt.
+    """
+
+    limit = 100 if provider == "pixabay" else 180
+    count = max(1, int(max_variants or 3))
+
+    def terms(value: str) -> list[str]:
+        result: list[str] = []
+        for token in re.findall(r"[a-z0-9][a-z0-9-]*", value.casefold()):
+            if len(token) < 3 or token in {"the", "and", "with", "for", "from", "portfolio"}:
+                continue
+            if token not in result:
+                result.append(token)
+            if len(result) >= max_terms:
+                break
+        return result
+
+    subject = terms(intent.subject)
+    purpose = terms(intent.purpose)
+    style = terms(intent.style_mood)
+    variants: list[list[str]] = [subject, subject[:4] + purpose[:2], subject[:3] + style[:3]]
+    if not any(variants):
+        variants = [terms("editorial portfolio")]
+    compiled: list[str] = []
+    for candidate in variants[:count]:
+        words = list(dict.fromkeys(candidate))[:max_terms]
+        query = " ".join(words).strip()
+        if not query:
+            continue
+        if len(query) > limit:
+            query = query[:limit].rsplit(" ", 1)[0] or query[:limit]
+        if query not in compiled:
+            compiled.append(query)
+    return compiled[:count]
+
+
+def compile_provider_query(intent: ImageSearchIntent, query: str, provider: str) -> str:
+    """Bound one already-compiled query to a provider's transport limit."""
+
+    limit = 100 if provider == "pixabay" else 180
+    del intent
+    words = re.findall(r"[a-z0-9][a-z0-9-]*", str(query).casefold())
+    normalized = " ".join(list(dict.fromkeys(words))[:6])
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit].rsplit(" ", 1)[0] or normalized[:limit]
+
+
+def bounded_provider_query(query: str, provider: str, *, max_terms: int = 6) -> str:
+    """Bound a legacy string query before a provider request and receipt."""
+
+    words = re.findall(r"[a-z0-9][a-z0-9-]*", str(query).casefold())
+    normalized = " ".join(list(dict.fromkeys(words))[: max(2, max_terms)])
+    limit = 100 if provider == "pixabay" else 180
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit].rsplit(" ", 1)[0] or normalized[:limit]
+
+
 _RATE_STATE: dict[str, dict[str, float]] = {}
 _SCHEMA_VERSION = "image-search-v1"
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -437,7 +507,7 @@ def _filters(intent: ImageSearchIntent) -> dict[str, Any]:
 
 def _pixabay_params(intent: ImageSearchIntent, query: str, limit: int) -> dict[str, Any]:
     params: dict[str, Any] = {
-        "q": query[:100],
+        "q": query,
         "per_page": min(max(limit, 1), 20),
         "safesearch": "true",
         "order": "popular",
@@ -576,7 +646,7 @@ async def _search_provider(
                     }
                 )
             return []
-        params: dict[str, Any] = {"query": query[:180], "per_page": min(max(limit, 1), 20)}
+        params: dict[str, Any] = {"query": query, "per_page": min(max(limit, 1), 20)}
         if intent.orientation in {"landscape", "portrait", "square"}:
             params["orientation"] = intent.orientation
         if max(intent.minimum_width, intent.minimum_height) >= 2000:
@@ -652,7 +722,7 @@ async def _search_provider(
             provider=provider,
             settings=settings,
             headers={"Authorization": f"Client-ID {key}", "Accept": "application/json"},
-            params={"query": query[:180], "per_page": min(max(limit, 1), 5)},
+            params={"query": query, "per_page": min(max(limit, 1), 5)},
             diagnostics=diagnostics,
         )
         payload = response.json()
@@ -781,7 +851,19 @@ async def search_images(
     configured = [item for item in configured if item in {"pexels", "pixabay", "unsplash"}]
     if not configured:
         return []
-    queries = intent.queries[: max(1, int(_value(settings, "max_queries", 3)))]
+    query_limit = max(1, int(_value(settings, "max_queries", 3)))
+    logical_queries = compile_search_queries(intent, max_variants=query_limit)
+    if intent.queries:
+        # Preserve explicit, already-approved variants but normalize their
+        # term/length budget before transport.
+        explicit = [
+            compile_provider_query(intent, value, "")
+            for value in intent.queries[:query_limit]
+            if str(value).strip()
+        ]
+        queries = list(dict.fromkeys(explicit or logical_queries))[:query_limit]
+    else:
+        queries = logical_queries
     candidate_limit = limit or int(_value(settings, "max_candidates_per_query", 6))
     own_client = client is None
     http = client or httpx.AsyncClient()
@@ -792,12 +874,13 @@ async def search_images(
                 continue
             if intent.important:
                 for provider in configured:
+                    sent_query = compile_provider_query(intent, query, provider)
                     try:
                         found.extend(
                             await _search_provider(
                                 provider,
                                 intent,
-                                query,
+                                sent_query,
                                 settings,
                                 http,
                                 candidate_limit,
@@ -808,11 +891,12 @@ async def search_images(
                         continue
             else:
                 for provider in configured:
+                    sent_query = compile_provider_query(intent, query, provider)
                     try:
                         batch = await _search_provider(
                             provider,
                             intent,
-                            query,
+                            sent_query,
                             settings,
                             http,
                             candidate_limit,

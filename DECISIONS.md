@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-041 - Code Generator V4 provider-compatible contracts and preview truth
+
+- **Date & Time:** 2026-08-21 22:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** V3 generation was structurally strong but still allowed a development/session quality-path split, provider-sized resource queries to drift from receipts, marker-only visual intent, and a preview gateway with incorrect CSP/cache/health behavior.
+- **Decision:** Add mapping-free v4 creative, blueprint, search-intent, source-envelope, quality-receipt, typed-token, and design-realization contracts while retaining v3 read compatibility. Compile semantic route ownership and measurable runtime obligations deterministically; run the same whole-site review for v4 development and production paths; use exact bounded provider query strings; preserve verified candidates as `preview_pending` on publication failure; and make the shared gateway expose its own health endpoints, exact embed-origin allowlists, and no-store active HTML.
+- **Rejected alternatives:** Replacing v3 in place; accepting arbitrary token maps or nullable tagged unions; using marker text as visual evidence; truncating provider queries after hashing; treating object upload as public preview readiness; wildcard iframe CSP; or inheriting the API health check for the gateway.
+- **Consequence:** V4 runs fail closed on missing executable evidence or stale upstream authority, provider receipts identify the exact transport query, and a verified prior preview remains available through storage/gateway outages. Existing v3 fixtures and exports remain readable during migration.
+
 ## D-040 — Configuration-driven Anthropic default and model routing
 
 - **Date & Time:** 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI)

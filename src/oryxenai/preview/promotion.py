@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from oryxenai.agents.code_generator.core.development_schemas import (
     ActivePreview,
     BuildManifest,
+    BuildManifestEntry,
     CandidateArtifact,
     CandidateIdentity,
     PendingPromotion,
@@ -40,10 +41,15 @@ class PromotionError(ValueError):
 
 class PreviewPromoter:
     def __init__(
-        self, storage: PreviewStorage, *, preview_base_url: str = "http://127.0.0.1:4174/preview"
+        self,
+        storage: PreviewStorage,
+        *,
+        preview_base_url: str = "http://127.0.0.1:4174/preview",
+        require_readback: bool = False,
     ) -> None:
         self.storage = storage
         self.preview_base_url = preview_base_url.rstrip("/")
+        self.require_readback = require_readback
 
     async def store_candidate(
         self,
@@ -210,6 +216,31 @@ class PreviewPromoter:
                     "PROMOTION_RECEIPT_READBACK_FAILED",
                     "The promotion receipt failed read-back verification.",
                 )
+            index_entry = next(
+                (
+                    item
+                    for item in pending_manifest_entries(candidate_pointer["manifest"])
+                    if item.path == "index.html"
+                ),
+                None,
+            )
+            if index_entry is None:
+                raise PromotionError(
+                    "PREVIEW_READBACK_FAILED", "The promoted preview manifest has no index.html."
+                )
+            stored_index = await self.storage.get(
+                f"{candidate_pointer['candidate_prefix']}/dist/index.html"
+            )
+            if stored_index is not None and stored_index[0].sha256 != index_entry.sha256:
+                raise PromotionError(
+                    "PREVIEW_READBACK_FAILED",
+                    "The promoted preview index failed storage read-back verification.",
+                )
+            if self.require_readback and stored_index is None:
+                raise PromotionError(
+                    "PREVIEW_READBACK_FAILED",
+                    "The promoted preview index failed storage read-back verification.",
+                )
             pointer = {
                 "schema_version": "code-generator-active-preview-v1",
                 "host": host,
@@ -262,3 +293,14 @@ class PreviewPromoter:
             )
         except PreviewStorageError as exc:
             raise PromotionError(exc.code, exc.message) from exc
+
+
+def pending_manifest_entries(manifest: dict[str, Any]) -> list[BuildManifestEntry]:
+    """Parse the pointer manifest through the same typed build contract."""
+
+    try:
+        return BuildManifest.model_validate(manifest).entries
+    except ValidationError as exc:
+        raise PromotionError(
+            "PROMOTION_MANIFEST_INVALID", "The promotion manifest is invalid."
+        ) from exc

@@ -367,6 +367,7 @@ class ImageAdapter(_BaseAdapter):
                     "height": item.height,
                     "preview_url": item.preview_url,
                     "source_url": item.source_url,
+                    "sent_query": item.query,
                 },
                 canonical_source=item.image_url,
                 licence=item.license,
@@ -491,7 +492,7 @@ class FontAdapter(_BaseAdapter):
                         "FONT_SOURCE_UNSAFE", "The font source is not approved."
                     )
                 data = await (
-                    self._download(candidate)
+                    self._download(candidate, settings)
                     if url == candidate.canonical_source
                     else _download_url(client, url)
                 )

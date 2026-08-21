@@ -50,7 +50,7 @@ export function createCodeGeneratorDevelopmentController({
     if (!activeRun) return null;
     const run = await api.getRun(activeRun);
     const eventResponse = await api.getEvents(activeRun);
-    const plan = ["planned", "acquiring", "acquired", "generating_foundation", "generating_routes", "integrating", "source_ready", "queued", "building", "smoke_testing", "repairing", "ready", "needs_attention"].includes(run.status)
+    const plan = ["planned", "acquiring", "acquired", "generating_foundation", "generating_routes", "integrating", "source_ready", "queued", "building", "smoke_testing", "repairing", "preview_pending", "ready", "needs_attention"].includes(run.status)
       ? await api.getPlan(activeRun).catch(() => null)
       : null;
     const acquisition = ["acquired", "needs_attention"].includes(run.status) && api.getAcquisition
@@ -62,13 +62,13 @@ export function createCodeGeneratorDevelopmentController({
     const planDeltas = ["acquired", "needs_attention"].includes(run.status) && api.getPlanDeltas
       ? await api.getPlanDeltas(activeRun).catch(() => null)
       : null;
-    const generation = api.getGeneration && ["queued", "generating_foundation", "generating_routes", "integrating", "source_ready", "building", "smoke_testing", "repairing", "ready", "needs_attention"].includes(run.status)
+    const generation = api.getGeneration && ["queued", "generating_foundation", "generating_routes", "integrating", "source_ready", "building", "smoke_testing", "repairing", "preview_pending", "ready", "needs_attention"].includes(run.status)
       ? await api.getGeneration(activeRun).catch(() => null)
       : null;
-    const verification = api.getVerification && ["queued", "building", "smoke_testing", "repairing", "ready", "needs_attention"].includes(run.status)
+    const verification = api.getVerification && ["queued", "building", "smoke_testing", "repairing", "preview_pending", "ready", "needs_attention"].includes(run.status)
       ? await api.getVerification(activeRun).catch(() => null)
       : null;
-    const preview = api.getPreview && ["ready", "building", "smoke_testing", "repairing", "needs_attention"].includes(run.status)
+    const preview = api.getPreview && ["ready", "preview_pending", "building", "smoke_testing", "repairing", "needs_attention"].includes(run.status)
       ? await api.getPreview(activeRun).catch(() => null)
       : null;
     const result = { run, events: eventResponse.events || [], plan, acquisition, dependencies, planDeltas, generation, verification, preview };

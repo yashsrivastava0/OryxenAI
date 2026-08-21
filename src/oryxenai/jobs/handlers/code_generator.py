@@ -309,7 +309,7 @@ async def _execute(
             run_id,
             event_type="admitted",
             level="info",
-            message="Pack v3 admitted; immutable planner context written.",
+            message=f"Pack {receipt.pack_version} admitted; immutable planner context written.",
             details={"route_count": len(receipt.route_ids)},
         )
         await db.commit()
@@ -345,7 +345,12 @@ async def _execute(
             ),
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
-    require_blueprint = str(getattr(run, "run_mode", "development")) == "session"
+    # V4 development runs use the same creative/planning contract as
+    # production sessions.  Legacy v3 fixtures remain readable without being
+    # forced through the new provider schema.
+    require_blueprint = str(getattr(run, "run_mode", "development")) == "session" or str(
+        receipt.pack_version
+    ).endswith("-v4")
     if require_blueprint:
         director_profile = settings.code_generator_development.director_profile
         director_capabilities = settings.models.get_profile(director_profile)
@@ -390,6 +395,7 @@ async def _execute(
                 director,
                 context=direction_context,
                 profile_name=director_profile,
+                output_version="v3" if str(receipt.pack_version).endswith("-v4") else "v2",
             )
         except Exception as exc:
             await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
