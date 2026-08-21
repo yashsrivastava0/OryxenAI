@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-039 — Backend-only Docker and shared hosted portfolio previews
+
+- **Date & Time:** 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Free hosted services have ephemeral filesystems, sleep/cold starts, and uneven worker support. Generating a Docker image or public deployment for every portfolio would be expensive, difficult to inspect, and unnecessary for a static Vite/React result. Code Generator failures also need source-linked evidence during development.
+- **Decision:** Docker packages only the OryxenAI API, durable worker, migration/toolchain environment, browser verifier, and shared preview gateway. Every generated portfolio remains a portable source tree plus verified `dist/`; generated Docker artifacts are excluded from exports. Hosted previews use immutable S3-compatible objects and a conditional active pointer behind one shared gateway, while local development uses filesystem storage. The developer surface exposes bounded accepted-source slices for file/line diagnostics. Hosted readiness fails closed when durable worker or preview storage prerequisites are unavailable.
+- **Rejected alternatives:** One Docker container, deployment, or public URL per generated portfolio; serving previews from a container's local filesystem; publishing unverified source; embedding the generated app as a long-running development server; or treating a free web service heartbeat as proof that the durable worker is available.
+- **Consequence:** The generated app is easy to inspect, repair, and preview without a per-portfolio runtime. Free-host deployments must provide managed PostgreSQL, private object storage, a real worker runtime, and a shared preview origin; sleep and cold-start behavior remain platform constraints rather than hidden application state.
+
 ## D-038 — Promotion requires content-addressed artifact reuse and terminal diagnostics
 
 - **Date & Time:** 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI)

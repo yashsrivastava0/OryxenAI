@@ -304,3 +304,19 @@ async def get_source_manifest(
         return await service.source_manifest(_run_id(run_id))
     except DevelopmentRunError as exc:
         _error(exc)
+
+
+@router.get("/runs/{run_id}/source-file")
+async def get_source_file(
+    run_id: str,
+    path: str,
+    start_line: int = 1,
+    end_line: int = 0,
+    service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
+) -> dict[str, Any]:
+    try:
+        return await service.source_file(
+            _run_id(run_id), path, start_line=start_line, end_line=end_line
+        )
+    except DevelopmentRunError as exc:
+        _error(exc)

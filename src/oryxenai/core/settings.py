@@ -502,6 +502,11 @@ class CodeGeneratorVerificationConfig(BaseModel):
     preview_parent_origin: str = "http://127.0.0.1:8000"
     preview_retention_days: int = 3
     preview_route_prefix: str = "/preview"
+    # Local development uses the filesystem. Hosted API/worker/gateway
+    # deployments switch this to ``artifact_storage`` so previews survive
+    # container restarts without creating a container per portfolio.
+    preview_storage_provider: str = "local_fs"
+    preview_storage_prefix: str = "preview"
     # Where the complete generated portfolio (source project + built dist +
     # metadata) is exported after a successful promotion. Advisory: export
     # failures never fail a promoted run.

@@ -23,6 +23,7 @@ from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.service import JobService
+from oryxenai.storage.preview import PreviewStorageError, create_preview_storage
 
 _PLAN_JOB_KIND = "code_generator.plan"
 _ACQUIRE_JOB_KIND = "code_generator.acquire"
@@ -117,6 +118,11 @@ class CodeGeneratorDevelopmentService:
             default=None,
         )
         browser_available = browser_ready(self._settings.code_generator_verification)
+        try:
+            create_preview_storage(self._settings)
+            preview_storage_available = True
+        except PreviewStorageError:
+            preview_storage_available = False
         generation_ready = all(
             profiles[operation]
             for operation in ("foundation", "route", "compose", "integration", "repair")
@@ -128,6 +134,7 @@ class CodeGeneratorDevelopmentService:
                 ("generation_profiles", generation_ready),
                 ("npm", npm_available),
                 ("verification_browser", browser_available),
+                ("preview_storage", preview_storage_available),
                 ("build_preparation_pack", best_pack is not None),
             )
             if not ready
@@ -145,6 +152,7 @@ class CodeGeneratorDevelopmentService:
             "build_preparation_latest": latest_pack,
             "build_preparation_best": best_pack,
             "browser_ready": browser_available,
+            "preview_storage_ready": preview_storage_available,
             "provider_preflight": {
                 "status": "required",
                 "checked": False,
@@ -663,6 +671,88 @@ class CodeGeneratorDevelopmentService:
                 "SOURCE_MANIFEST_INVALID", "The source manifest could not be read.", status_code=409
             ) from exc
         return {"checkpoint": dict(run.source_checkpoint), "manifest": payload}
+
+    async def source_file(
+        self,
+        run_id: UUID,
+        relative_path: str,
+        *,
+        start_line: int = 1,
+        end_line: int = 0,
+    ) -> dict[str, Any]:
+        """Return a bounded source slice for a diagnostic-linked debug view."""
+
+        run = await self._repo.get(run_id)
+        if run is None:
+            raise DevelopmentRunError(
+                "RUN_NOT_FOUND", "Development run was not found.", status_code=404
+            )
+        checkpoint = run.source_checkpoint or {}
+        stored = str(checkpoint.get("stored_relative_path", ""))
+        if not stored:
+            raise DevelopmentRunError(
+                "SOURCE_NOT_READY",
+                "An accepted source checkpoint is not available yet.",
+                status_code=409,
+            )
+        requested = Path(relative_path.replace("\\", "/"))
+        if not relative_path.strip() or requested.is_absolute() or ".." in requested.parts:
+            raise DevelopmentRunError(
+                "SOURCE_FILE_UNSAFE", "The requested source path is unsafe.", status_code=422
+            )
+        normalized = requested.as_posix()
+        if any(part.casefold().startswith(".env") for part in requested.parts):
+            raise DevelopmentRunError(
+                "SOURCE_FILE_FORBIDDEN",
+                "Environment files are not available in diagnostics.",
+                status_code=403,
+            )
+
+        manifest_result = await self.source_manifest(run_id)
+        manifest = manifest_result.get("manifest") or {}
+        allowed = {
+            str(item.get("path", ""))
+            for item in manifest.get("files", [])
+            if isinstance(item, dict)
+        }
+        if normalized not in allowed:
+            raise DevelopmentRunError(
+                "SOURCE_FILE_NOT_FOUND",
+                "The requested source file is not in the accepted checkpoint.",
+                status_code=404,
+            )
+        root = Path(stored)
+        if not root.is_absolute():
+            root = repository_root() / root
+        source_root = (root / "repo").resolve()
+        path = (source_root / requested).resolve()
+        if not path.is_relative_to(source_root) or not path.is_file():
+            raise DevelopmentRunError(
+                "SOURCE_FILE_NOT_FOUND",
+                "The requested source file is unavailable.",
+                status_code=404,
+            )
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise DevelopmentRunError(
+                "SOURCE_FILE_UNREADABLE",
+                "The requested source file could not be read.",
+                status_code=409,
+            ) from exc
+        lines = content.splitlines()
+        first = max(1, int(start_line))
+        last = int(end_line) if end_line > 0 else min(len(lines), first + 199)
+        last = max(first, min(last, first + 199, len(lines))) if lines else first
+        selected = lines[first - 1 : last] if lines else []
+        return {
+            "path": normalized,
+            "content": "\n".join(selected),
+            "start_line": first,
+            "end_line": last if lines else 0,
+            "total_lines": len(lines),
+            "checkpoint_hash": str(checkpoint.get("checkpoint_hash", "")),
+        }
 
 
 def browser_ready(verification: Any) -> bool:

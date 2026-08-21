@@ -48,6 +48,7 @@ if (root) {
   let selectedViewport = 'fit';
   let currentPreview = null;
   let providerPreflightReady = false;
+  let activeRunId = '';
 
   const setError = (message = '') => {
     const error = view('start-error');
@@ -68,6 +69,7 @@ if (root) {
     if (!readiness.generation_ready) fallbackBlockers.push('generation profiles');
     if (!readiness.package_manager_ready) fallbackBlockers.push('npm');
     if (!readiness.browser_ready) fallbackBlockers.push('verification browser');
+    if (readiness.preview_storage_ready === false) fallbackBlockers.push('preview storage');
     if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('eligible Build Preparation pack');
     const staticReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
     const preflightRequired = readiness.provider_preflight?.status === 'required';
@@ -132,6 +134,49 @@ if (root) {
     return item;
   };
 
+  const renderDiagnostics = (target, issues) => {
+    target.replaceChildren(...(issues || []).map((issue) => {
+      const item = document.createElement('li');
+      const location = issue.file
+        ? ` (${issue.file}${issue.line ? `:${issue.line}${issue.column ? `:${issue.column}` : ''}` : ''})`
+        : '';
+      item.append(Object.assign(document.createElement('span'), {
+        textContent: `${issue.code}: ${issue.normalized_message}${location}`,
+      }));
+      if (issue.file) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'cg-dev__source-link';
+        button.dataset.sourcePath = issue.file;
+        button.dataset.sourceLine = String(issue.line || 1);
+        button.textContent = 'Open source';
+        item.append(document.createTextNode(' '), button);
+      }
+      return item;
+    }));
+  };
+
+  const loadSource = async (path, line) => {
+    const panel = view('source-debug');
+    const status = view('source-debug-status');
+    const code = view('source-code');
+    panel.hidden = false;
+    status.textContent = `Loading ${path}...`;
+    code.textContent = '';
+    const query = new URLSearchParams({ path, start_line: String(Math.max(1, Number(line) - 8)) });
+    try {
+      const result = await request(`/runs/${encodeURIComponent(activeRunId)}/source-file?${query.toString()}`);
+      const first = result.start_line || 1;
+      code.textContent = result.content
+        .split('\n')
+        .map((sourceLine, index) => `${String(first + index).padStart(5, ' ')} | ${sourceLine}`)
+        .join('\n');
+      status.textContent = `${result.path} — checkpoint ${String(result.checkpoint_hash || '').slice(0, 16)}`;
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  };
+
   const stageForRun = (run) => {
     if (run.status !== 'needs_attention') {
       return stageOrder.findIndex((stage) => stageStatuses[stage].has(run.status));
@@ -186,6 +231,7 @@ if (root) {
   };
 
   const render = ({ run, events, plan, acquisition, dependencies, generation, verification, preview }) => {
+    activeRunId = run.run_id;
     activeRunStatus = run.status;
     const label = statusLabels[run.status] || run.status;
     view('status').textContent = label;
@@ -227,7 +273,7 @@ if (root) {
         ? `${generation.source_file_count || checkpoint.file_count} generated file(s), checkpoint ${checkpoint.checkpoint_hash.slice(0, 16)}.`
         : `${generation.work_units?.length || 0} work unit(s), ${generation.request_rounds || 0} request round(s), ${generation.repair_rounds || 0} repair round(s).`;
       view('work-units').replaceChildren(...(generation.work_units || []).map((unit) => card('cg-dev__resource-card', unit.unit_id, unit.status, `${unit.kind} - ${unit.checkpoint_after ? unit.checkpoint_after.slice(0, 12) : 'pending'}`)));
-      view('generation-diagnostics').replaceChildren(...(generation.diagnostics || []).map((issue) => Object.assign(document.createElement('li'), { textContent: `${issue.code}: ${issue.normalized_message}` })));
+      renderDiagnostics(view('generation-diagnostics'), generation.diagnostics);
     } else {
       view('generation-summary').textContent = 'No source checkpoint yet.';
       view('work-units').replaceChildren();
@@ -238,7 +284,7 @@ if (root) {
     verifyButton.disabled = run.status !== 'source_ready' || Boolean(run.verification_job_id);
     view('verify-status').textContent = verification ? `${verification.phase || run.status} - ${verification.active_gate || 'complete'}` : 'Final verification has not started.';
     view('verification-gates').replaceChildren(...((verification?.gate_results || []).map((gate) => card('cg-dev__gate-card', gate.gate_id, gate.status, `${gate.diagnostics?.length || 0} diagnostic(s)`))));
-    view('verification-diagnostics').replaceChildren(...((verification?.diagnostics || []).map((issue) => Object.assign(document.createElement('li'), { textContent: `${issue.code}: ${issue.normalized_message}` }))));
+    renderDiagnostics(view('verification-diagnostics'), verification?.diagnostics || []);
 
     currentPreview = preview?.active_preview || run.active_preview;
     const routeSelect = view('preview-route');
@@ -319,6 +365,10 @@ if (root) {
   view('preview-refresh').addEventListener('click', () => {
     const frame = view('preview-frame');
     if (!frame.hidden) frame.contentWindow?.location.reload();
+  });
+  root.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-source-path]');
+    if (button) loadSource(button.dataset.sourcePath, button.dataset.sourceLine);
   });
 
   const previewFrame = view('preview-frame');
