@@ -228,6 +228,11 @@ history, alternate-build activation, and persistent development environments
 are outside the Code Generator implementation. They require a separate product
 decision and are not optional adapters hidden in this plan.
 
+For the free-service deployment constraints and the exact Docker boundary, see
+[Free-host deployment contract](free-host-deployment.md). In particular, free
+hosted services must persist preview objects outside the container and must not
+be treated as if they provide a free background worker automatically.
+
 ## Primary references
 
 - Cloudflare Browser Rendering: [Playwright support](https://developers.cloudflare.com/browser-run/playwright/)

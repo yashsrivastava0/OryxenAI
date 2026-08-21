@@ -14,6 +14,12 @@ _UUID_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b", re.IGNORECASE)
 _WINDOWS_ROOT_RE = re.compile(r"[A-Za-z]:\\[^\s:]+")
 _POSIX_ROOT_RE = re.compile(r"/(?:[^\s/]+/)+(?:src|dist|node_modules)/[^\s]+")
 _LINE_RE = re.compile(r"(:\d+)(?::\d+)?")
+_PAREN_LOCATION_RE = re.compile(
+    r"(?P<file>(?:[A-Za-z]:[\\/])?[^\s()]+)\((?P<line>\d+),(?P<column>\d+)\)"
+)
+_COLON_LOCATION_RE = re.compile(
+    r"(?P<file>(?:[A-Za-z]:[\\/])?[^\s:()]+):(?P<line>\d+)(?::(?P<column>\d+))?"
+)
 
 
 def normalize_message(value: str) -> str:
@@ -23,6 +29,26 @@ def normalize_message(value: str) -> str:
     value = _UUID_RE.sub("<id>", value)
     value = _LINE_RE.sub("", value)
     return " ".join(value.split())[:4000]
+
+
+def _location_from_message(message: str, file: str) -> tuple[str, int, int]:
+    for pattern in (_PAREN_LOCATION_RE, _COLON_LOCATION_RE):
+        match = pattern.search(message)
+        if match is None:
+            continue
+        parsed_file = file or match.group("file")
+        parsed_file = parsed_file.replace("\\", "/")
+        # Keep diagnostics portable when a compiler reports an absolute path.
+        marker = "/src/"
+        if "/src/" in parsed_file:
+            parsed_file = parsed_file.split(marker, 1)[1]
+            parsed_file = f"src/{parsed_file}"
+        return (
+            parsed_file,
+            int(match.group("line")),
+            int(match.group("column") or 0),
+        )
+    return file.replace("\\", "/"), 0, 0
 
 
 def make_diagnostic(
@@ -39,10 +65,15 @@ def make_diagnostic(
     expected: str = "",
     observed: str = "",
     receipts: list[str] | None = None,
+    line: int = 0,
+    column: int = 0,
 ) -> Diagnostic:
+    file, parsed_line, parsed_column = _location_from_message(message, file)
+    line = line or parsed_line
+    column = column or parsed_column
     normalized = normalize_message(message)
     fingerprint = hashlib.sha256(
-        f"{group}:{code}:{file}:{route_id}:{interaction_id}:{normalized}".encode()
+        f"{group}:{code}:{file}:{line}:{column}:{route_id}:{interaction_id}:{normalized}".encode()
     ).hexdigest()[:24]
     return Diagnostic(
         diagnostic_id=f"diagnostic-{fingerprint}",
@@ -55,6 +86,8 @@ def make_diagnostic(
         command=command,
         normalized_message=normalized,
         file=file,
+        line=line,
+        column=column,
         expected=expected,
         observed=observed,
         relevant_receipt_hashes=list(receipts or []),

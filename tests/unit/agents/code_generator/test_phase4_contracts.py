@@ -11,6 +11,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     Diagnostic,
     VerificationProfile,
 )
+from oryxenai.agents.code_generator.core.diagnostics import make_diagnostic
 from oryxenai.agents.code_generator.core.final_repair import _deterministic_marker_repair
 from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
@@ -108,6 +109,8 @@ def test_portfolio_export_contains_source_dist_and_metadata(tmp_path) -> None:
     (repo / "src" / "main.tsx").write_text("export {};", encoding="utf-8")
     (repo / "dist" / "index.html").write_text("<main>ok</main>", encoding="utf-8")
     (repo / "node_modules" / "ignored.txt").write_text("ignored", encoding="utf-8")
+    (repo / "Dockerfile").write_text("FROM node:latest", encoding="utf-8")
+    (repo / "docker-compose.yml").write_text("services: {}", encoding="utf-8")
     settings = SimpleNamespace(
         code_generator_verification=SimpleNamespace(export_root=str(tmp_path / "exports"))
     )
@@ -127,11 +130,28 @@ def test_portfolio_export_contains_source_dist_and_metadata(tmp_path) -> None:
     assert (exported / "source" / "src" / "main.tsx").is_file()
     assert (exported / "dist" / "index.html").is_file()
     assert not (exported / "source" / "node_modules").exists()
+    assert not (exported / "source" / "Dockerfile").exists()
+    assert not (exported / "source" / "docker-compose.yml").exists()
     assert re.fullmatch(r"\d{2}-\d{2}-\d{2}-\d{2}-\d{4}-[a-z0-9]+", exported.name)
     metadata = (exported / "portfolio.json").read_text(encoding="utf-8")
     assert '"candidate_identity_hash": "identity-1"' in metadata
     assert '"pack_reference": "pack-1"' in metadata
     assert '"export_folder": "' + exported.name + '"' in metadata
+    assert '"docker": false' in metadata
+    assert '"Dockerfile"' in metadata
+
+
+def test_diagnostics_capture_source_location_without_putting_it_in_message() -> None:
+    diagnostic = make_diagnostic(
+        group="type_build_artifact",
+        code="TYPECHECK_FAILED",
+        message="src/routes/home.tsx:27:9 - error TS2304: Cannot find name 'x'",
+        phase="typecheck",
+    )
+    assert diagnostic.file == "src/routes/home.tsx"
+    assert diagnostic.line == 27
+    assert diagnostic.column == 9
+    assert ":27" not in diagnostic.normalized_message
 
 
 def test_fs_safe_directory_rename_retries_transient_permission_errors(

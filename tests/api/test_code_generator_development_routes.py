@@ -39,6 +39,7 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     assert "/api/v1/development/code-generator/runs/{run_id}/verify" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/runs/{run_id}/verification" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/runs/{run_id}/preview" in app.openapi()["paths"]
+    assert "/api/v1/development/code-generator/runs/{run_id}/source-file" in app.openapi()["paths"]
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

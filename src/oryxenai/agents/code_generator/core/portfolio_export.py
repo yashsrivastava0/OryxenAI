@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import UTC, datetime
+from collections.abc import Callable
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -21,9 +22,39 @@ from oryxenai.agents.code_generator.core.workspace import repository_root
 DEFAULT_EXPORT_ROOT = "output/code-gen-output"
 DEFAULT_EXPORT_TIMEZONE = "Asia/Kolkata"
 
+_DOCKER_ARTIFACT_NAMES = {
+    "dockerfile",
+    ".dockerignore",
+    "compose.yaml",
+    "compose.yml",
+    "docker-compose.yaml",
+    "docker-compose.yml",
+}
+_DISPOSABLE_SOURCE_NAMES = {"node_modules", "dist", ".workspace", ".git"}
+
+
+def _is_docker_artifact(name: str) -> bool:
+    lowered = name.casefold()
+    return lowered in _DOCKER_ARTIFACT_NAMES or lowered.startswith("dockerfile.")
+
+
+def _export_ignore(root: Path, excluded: list[str]) -> Callable[[str, list[str]], set[str]]:
+    def ignore(path: str, names: list[str]) -> set[str]:
+        current = Path(path)
+        ignored: set[str] = set()
+        for name in names:
+            if name in _DISPOSABLE_SOURCE_NAMES or _is_docker_artifact(name):
+                ignored.add(name)
+                relative = (current / name).relative_to(root).as_posix()
+                excluded.append(relative)
+        return ignored
+
+    return ignore
+
 
 def _export_timestamp(config: Any) -> tuple[datetime, str]:
     timezone_name = str(getattr(config, "export_timezone", DEFAULT_EXPORT_TIMEZONE) or "")
+    timezone: tzinfo
     try:
         timezone = ZoneInfo(timezone_name or DEFAULT_EXPORT_TIMEZONE)
     except Exception:
@@ -64,15 +95,21 @@ def export_portfolio(
         if target.exists():
             fs_safe.remove_tree(target, required=False)
 
+    excluded: list[str] = []
     shutil.copytree(
         repo_dir,
         target / "source",
         symlinks=False,
-        ignore=shutil.ignore_patterns("node_modules", "dist"),
+        ignore=_export_ignore(repo_dir, excluded),
     )
     dist_dir = repo_dir / "dist"
     if dist_dir.is_dir():
-        shutil.copytree(dist_dir, target / "dist", symlinks=False)
+        shutil.copytree(
+            dist_dir,
+            target / "dist",
+            symlinks=False,
+            ignore=_export_ignore(dist_dir, excluded),
+        )
 
     payload = {
         "schema_version": "oryxenai-portfolio-export-v1",
@@ -81,6 +118,13 @@ def export_portfolio(
         "export_timezone": timezone_name,
         "export_folder": target.name,
         **metadata,
+        "runtime": {
+            "kind": "static-vite",
+            "docker": False,
+            "preview": "shared-static-gateway",
+            "entrypoint": "dist/index.html",
+        },
+        "excluded_source_artifacts": sorted(set(excluded)),
     }
     fs_safe.write_text_atomic(
         target / "portfolio.json",

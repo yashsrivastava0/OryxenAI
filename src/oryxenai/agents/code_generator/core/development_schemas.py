@@ -1141,6 +1141,8 @@ class SourceDiagnostic(BaseModel):
     command: str = ""
     normalized_message: str
     file: str = ""
+    line: int = 0
+    column: int = 0
     symbol: str = ""
     expected: str = ""
     observed: str = ""
@@ -1367,6 +1369,8 @@ class Diagnostic(BaseModel):
     command: str = ""
     normalized_message: str
     file: str = ""
+    line: int = 0
+    column: int = 0
     symbol: str = ""
     import_chain: list[str] = Field(default_factory=list)
     expected: str = ""
