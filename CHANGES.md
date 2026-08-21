@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 22:20 +05:30 - Codex (GPT-5 / OpenAI) - [3437075] - V4 promotion quality/read-back gate
+Required an accepted v4 quality receipt before final verification can promote,
+verified the candidate index before changing the active pointer, and upgraded
+new portfolio exports to additive metadata schema v2 while retaining v1 reader
+compatibility.
+
 ### 2026-08-21 22:00 +05:30 - Codex (GPT-5 / OpenAI) - [26890c5] - Code Generator V4 reliability and preview quality contracts
 Added provider-compatible v4 creative/blueprint/search/source/quality DTOs,
 typed token compilation, semantic route ownership, measurable design
