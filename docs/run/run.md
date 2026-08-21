@@ -120,10 +120,10 @@ Observed results:
   Design Director.
 - The database revision was `0013_codegen_stage_attempts`.
 - API, worker, and PostgreSQL were healthy.
-- The three live profiles resolved their configured API-key environment name
-  to `OPENAI_API_KEY`, and the key was present inside the app container. The
-  key value was never printed. Startup verification did not make a live model
-  request; the user starts that from the frontend.
+- The live profiles resolved their configured API-key environment names from
+  `config/models.toml`, and the required key was present inside the app
+  container. The key value was never printed. Startup verification did not
+  make a live model request; the user starts that from the frontend.
 
 ## If the run fails again
 
@@ -234,9 +234,9 @@ notepad .env
 Build Preparation's configured secret names are:
 
 - `POSTGRES_PASSWORD` for PostgreSQL.
-- `OPENAI_API_KEY` for the configured live model profile. The active model,
-  provider, endpoint, and limits remain config-driven in `config/models.toml`;
-  do not hardcode them in this runbook.
+- `ANTHROPIC_API_KEY` for the currently committed default live model profile.
+  The active model, provider, endpoint, key name, and limits remain
+  config-driven in `config/models.toml`; do not hardcode them in this runbook.
 - `PEXELS_API_KEY` and `PIXABAY_API_KEY` for live image retrieval. The
   configured provider policy is in `config/app.toml`.
 - `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` for verified temporary artifact

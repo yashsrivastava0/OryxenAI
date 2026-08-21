@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.contracts import ModelClient
+from oryxenai.agents.shared.model_router import ModelRouter
 from oryxenai.core.logging import get_logger
 
 if TYPE_CHECKING:
@@ -325,7 +326,9 @@ def build_model_client(model_config: ModelConfig) -> ModelClient:
     """
     from oryxenai.agents.shared.providers.factory import build_adapter, can_build
 
-    profile = model_config.get_profile("default")
+    router = ModelRouter(model_config)
+    profile_name = router.resolve_profile_name("default")
+    profile = model_config.get_profile(profile_name)
     if profile is not None and profile.provider and can_build(profile):
         key = resolve_api_key(profile)
         if key:
@@ -344,7 +347,8 @@ def build_model_client(model_config: ModelConfig) -> ModelClient:
 
     if profile is not None:
         logger.info(
-            "model profile 'default' provider='%s' not recognised — using mock client",
+            "model profile '%s' provider='%s' not recognised — using mock client",
+            profile_name,
             profile.provider,
         )
     return MockModelClient()
@@ -356,49 +360,28 @@ def build_provider_client(
     *,
     override_profile_name: str | None = None,
 ) -> ModelClient | None:
-    """Build a provider adapter for a named profile, or None if not possible.
-
-    If override_profile_name is supplied and differs from profile_name, try it
-    first (e.g. a user-selected model/provider from the frontend dropdown). If
-    the override profile doesn't exist, isn't a supported provider, or has no
-    resolvable API key, this logs a warning and silently falls back to
-    profile_name unchanged — an unknown or disabled override must never break
-    the agent's default, working profile.
-
-    Returns None when the (possibly-defaulted) profile is missing,
-    unrecognised, or has no API key. Callers should fall back to
-    MockModelClient or choose a different profile.
-    """
+    """Build the configured provider adapter for a logical engine/profile."""
     from oryxenai.agents.shared.providers.factory import build_adapter, can_build
 
-    if override_profile_name and override_profile_name != profile_name:
-        override_profile = model_config.get_profile(override_profile_name)
-        if (
-            override_profile is not None
-            and override_profile.provider
-            and can_build(override_profile)
-            and resolve_api_key(override_profile)
-        ):
-            logger.info(
-                "using override profile '%s' instead of default '%s'",
-                override_profile_name,
-                profile_name,
-            )
-            return build_adapter(override_profile)
+    router = ModelRouter(model_config)
+    requested_override = str(override_profile_name or "").strip()
+    if requested_override and not router.is_selectable(requested_override):
         logger.warning(
-            "override profile '%s' is not usable — falling back to default profile '%s'",
-            override_profile_name,
+            "override profile '%s' is not selectable - using configured route for '%s'",
+            requested_override,
             profile_name,
         )
+        requested_override = ""
+    resolved_name = router.resolve_profile_name(profile_name, requested_override)
 
-    profile = model_config.get_profile(profile_name)
+    profile = model_config.get_profile(resolved_name)
     if profile is None:
-        logger.warning("profile '%s' not found in config/models.toml", profile_name)
+        logger.warning("profile '%s' not found in config/models.toml", resolved_name)
         return None
 
     if not profile.provider or not can_build(profile):
         logger.warning(
-            "profile '%s' provider '%s' is not supported", profile_name, profile.provider
+            "profile '%s' provider '%s' is not supported", resolved_name, profile.provider
         )
         return None
 
@@ -406,10 +389,11 @@ def build_provider_client(
     if not key:
         logger.warning(
             "profile '%s' API key env var '%s' is not set",
-            profile_name,
+            resolved_name,
             profile.api_key_env,
         )
         return None
 
-    logger.info("building %s adapter for profile '%s'", profile.provider, profile_name)
+    logger.info("using model route '%s' -> profile '%s'", profile_name, resolved_name)
+    logger.info("building %s adapter for profile '%s'", profile.provider, resolved_name)
     return build_adapter(profile)

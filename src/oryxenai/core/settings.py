@@ -623,6 +623,7 @@ class ModelProfile(BaseModel):
 
     provider: str = "openai_compatible"
     model: str = ""
+    display_name: str = ""
     base_url: str = ""
     api_key_env: str = ""
     request_params: dict[str, Any] = Field(default_factory=dict)
@@ -630,14 +631,24 @@ class ModelProfile(BaseModel):
     max_retries: int = 0
     max_output_tokens: int = 4096
     reasoning_effort: str = ""
+    prompt_cache_ttl: str = ""
     store: bool = False
     capabilities: ModelCapabilities | None = None
+
+
+class ModelRoutingConfig(BaseModel):
+    """Logical engine-to-profile routing from the model configuration."""
+
+    fallback_profile: str = "default"
+    selectable_profiles: list[str] = Field(default_factory=list)
+    engine_profiles: dict[str, str] = Field(default_factory=dict)
 
 
 class ModelConfig(BaseModel):
     """All model profiles loaded from config/models.toml."""
 
     profiles: dict[str, ModelProfile] = Field(default_factory=dict)
+    routing: ModelRoutingConfig = Field(default_factory=ModelRoutingConfig)
 
     def get_profile(self, name: str = "default") -> ModelProfile | None:
         return self.profiles.get(name)
@@ -781,7 +792,9 @@ class Settings(BaseSettings):
             for name, raw in models_data["profiles"].items():
                 if isinstance(raw, dict):
                     profiles[name] = ModelProfile(**raw)
-        self.models = ModelConfig(profiles=profiles)
+        routing_raw = models_data.get("routing", {})
+        routing = ModelRoutingConfig(**routing_raw) if isinstance(routing_raw, dict) else None
+        self.models = ModelConfig(profiles=profiles, routing=routing or ModelRoutingConfig())
         return self
 
     @property

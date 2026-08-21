@@ -25,24 +25,24 @@ AutoGen, etc.).
 
 ## 2. Why the model boundary is provider-neutral
 
-Discovery uses a configured OpenCode Go adapter for real worker operations and a
-deterministic fake client for normal tests. The domain only depends on the
-provider-neutral `ModelClient` contract.
+All model-backed stages use the provider-neutral `ModelClient` contract. Real
+operations currently route through the configured Anthropic profile, while
+normal tests inject deterministic clients. A central `ModelRouter` resolves a
+logical engine to a profile from `config/models.toml`, so changing a provider,
+model, or per-engine assignment does not require agent-code changes.
 
 **Rationale:**
-- The future models will be open-weight or open-code models served via
-  OpenAI-compatible endpoints (vLLM, llama.cpp, TGI, Ollama gateways, hosted
-  providers). Coupling to one provider now would be premature.
-- The OpenCode Go adapter talks to `chat/completions` with
-  `response_format={"type":"json_object"}`. This is JSON mode, not strict
-  Responses API parsing. The specific model is whatever `[profiles.discovery]`
-  names in `config/models.toml` — deliberately not hardcoded here or in
-  agent code, so swapping models needs no code change.
-- API keys are resolved **indirectly**: a profile declares
-  `api_key_env = "OPENCODE_GO_API_KEY"` (the name of the env var), and the
-  application reads that named secret from `.env` only when a real model call
-  is eventually made. Agent code never references provider-specific variable
-  names.
+- Provider adapters implement the same contract, including the Anthropic
+  Messages API adapter and existing OpenAI-compatible adapters. A future
+  provider is added at the adapter factory/config boundary, not inside each
+  agent.
+- The logical route is whatever `[routing.engine_profiles]` assigns in
+  `config/models.toml`. The profile controls provider, model, endpoint, key
+  name, structured-output capability, thinking strategy, and limits.
+- API keys are resolved **indirectly**: a profile declares an `api_key_env`
+  name, and the application reads that named secret from `.env` only when a
+  real model call is eventually made. Agent code never references
+  provider-specific variable names.
 - This lets the application and worker start without credentials; only an
   attempted real Discovery operation needs the configured secret.
 
@@ -137,8 +137,8 @@ worker container.
   share the durable progressive generation and verification core. Production
   start binds one eligible Build Preparation object; no stage auto-chains. See
   `AGENTS.md` and `docs/code-generator-architecture/` for the current boundary.
-- **Model client:** Additional providers can implement the same contract;
-  Discovery currently uses OpenCode Go only.
+- **Model client:** Additional providers can implement the same contract; the
+  active default and per-engine assignments are configuration decisions.
 - **Agent sequencing:** A future task may add cross-agent sequencing or a
   supervisor. The executor currently runs one agent per request; sequencing
   will be an explicit layer above the executor, not embedded in agents.

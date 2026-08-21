@@ -17,7 +17,7 @@
   var analyzingBubbleId = null;
   var answeringQuestionId = null;
   var awaitingNextAgentConfirmation = null; // {startFn, label} while a "move to next agent?" prompt is active
-  var selectedModelProfile = ""; // "" = default/enabled profile; other dropdown entries are disabled today
+  var selectedModelProfile = ""; // Empty means the config-routed default; other values are config-approved profile IDs.
 
   var RUNNING_STATUSES = ["questions_queued", "questions_running", "brief_running", "answers_in_progress"];
   var TERMINAL_STATUSES = ["questions_ready", "brief_review", "approved", "needs_attention"];

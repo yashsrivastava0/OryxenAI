@@ -155,12 +155,24 @@ class AnthropicAdapter(BaseProviderAdapter):
             "max_tokens": max_tokens,
             "messages": messages,
         }
-        if system_prompt:
-            body["system"] = system_prompt
-
         reasoning_effort = str(self._profile.reasoning_effort or "").strip().lower()
         capabilities = self._profile.capabilities
         thinking_strategy = capabilities.thinking_strategy if capabilities else "default"
+        if system_prompt:
+            cache_ttl = str(getattr(self._profile, "prompt_cache_ttl", "") or "").strip()
+            if cache_ttl in {"5m", "1h"}:
+                cache_control: dict[str, str] = {"type": "ephemeral"}
+                if cache_ttl == "1h":
+                    cache_control["ttl"] = "1h"
+                body["system"] = [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": cache_control,
+                    }
+                ]
+            else:
+                body["system"] = system_prompt
         if thinking_strategy == "adaptive":
             body["thinking"] = {"type": "adaptive"}
         elif thinking_strategy == "disabled":
@@ -189,34 +201,41 @@ class AnthropicAdapter(BaseProviderAdapter):
         if output_config:
             body["output_config"] = output_config
 
+        sampling_keys = {"temperature", "top_p", "top_k"}
+        allowed_keys = {
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "stop_sequences",
+            "metadata",
+            "thinking",
+            "output_config",
+            "tools",
+            "tool_choice",
+        }
         for key, value in self._profile.request_params.items():
-            if key in {
-                "max_tokens",
-                "temperature",
-                "top_p",
-                "top_k",
-                "stop_sequences",
-                "metadata",
-                "thinking",
-                "output_config",
-                "tools",
-                "tool_choice",
-            }:
+            if key in allowed_keys:
+                if (
+                    capabilities is not None
+                    and not capabilities.temperature_control
+                    and key in sampling_keys
+                ):
+                    continue
+                if key == "thinking" and thinking_strategy in {"adaptive", "disabled"}:
+                    continue
                 body[key] = value
         if request_params:
             for key, value in request_params.items():
-                if key in {
-                    "max_tokens",
-                    "temperature",
-                    "top_p",
-                    "top_k",
-                    "stop_sequences",
-                    "metadata",
-                    "thinking",
-                    "output_config",
-                    "tools",
-                    "tool_choice",
-                }:
+                if key in allowed_keys:
+                    if (
+                        capabilities is not None
+                        and not capabilities.temperature_control
+                        and key in sampling_keys
+                    ):
+                        continue
+                    if key == "thinking" and thinking_strategy in {"adaptive", "disabled"}:
+                        continue
                     body[key] = value
         return body
 
