@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 - Codex (GPT-5 / OpenAI) - [0240f57] - Lightweight LLM observability research
+Recorded a research-only recommendation for simple cost and tracing visibility:
+Langfuse first, Phoenix as a local alternative, and one metadata-only
+integration point at the shared `ModelClient` boundary. No runtime code,
+dependency, dashboard, or architecture decision was added.
+
 ### 2026-08-21 - Codex (GPT-5 / OpenAI) - [b6a2be5] - First-three-agent startup recovery runbook
 Updated `docs/run/run.md` with the current migration head, Docker engine and
 stale-worker recovery, the guarded empty-database migration replay, and the
