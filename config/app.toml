@@ -280,6 +280,8 @@ preview_port = 4174
 preview_parent_origin = "http://127.0.0.1:8000"
 preview_retention_days = 3
 preview_route_prefix = "/preview"
+preview_storage_provider = "local_fs"
+preview_storage_prefix = "preview"
 # Complete-portfolio export destination (source + built dist + metadata).
 export_root = "output/code-gen-output"
 export_timezone = "Asia/Kolkata"

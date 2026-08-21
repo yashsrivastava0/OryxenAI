@@ -52,3 +52,7 @@ preview_base_url = "http://localhost:4174/preview"
 preview_host = "0.0.0.0"
 preview_port = 4174
 browser_executable = "/usr/bin/chromium"
+# Hosted previews are immutable objects behind the shared gateway. The
+# generated portfolio is never built or deployed as its own Docker service.
+preview_storage_provider = "artifact_storage"
+preview_storage_prefix = "preview"
