@@ -335,6 +335,12 @@ def _native_schema_compatible(schema: object) -> bool:
     """Check the provider's native structured-output schema subset."""
 
     if isinstance(schema, dict):
+        # Anthropic's native subset rejects composition and reference nodes
+        # used by Pydantic for nullable fields and nested models. Keep the
+        # original schema in the trusted prompt and validate the parsed object
+        # locally for those models instead of sending an invalid wire schema.
+        if any(key in schema for key in ("$ref", "$defs", "anyOf", "oneOf", "allOf")):
+            return False
         additional = schema.get("additionalProperties")
         if additional is True or isinstance(additional, dict):
             return False

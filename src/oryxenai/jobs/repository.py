@@ -6,8 +6,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import bindparam, select, update
 from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.db.models.background_job import BackgroundJob
@@ -131,14 +132,24 @@ class JobRepository:
         worker_instance: str,
         lease_seconds: float,
         batch_size: int,
+        *,
+        exclude_job_ids: set[UUID] | None = None,
     ) -> list[BackgroundJob]:
-        """Recover jobs whose heartbeat has expired."""
+        """Recover expired jobs not already active in this worker process.
+
+        A provider or toolchain call can temporarily starve lease renewal. A
+        worker must not recover its own still-running task in that window:
+        doing so starts a concurrent duplicate and invalidates the original
+        lease token. A process restart has an empty active set and can still
+        recover abandoned jobs normally.
+        """
         cutoff = datetime.now(UTC) - timedelta(seconds=lease_seconds)
         raw = sa_text(
             """
             WITH stale AS (
                 SELECT id FROM background_jobs
                 WHERE status = :status AND heartbeat_at <= :cutoff
+                  AND id NOT IN :exclude_job_ids
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )
@@ -149,6 +160,12 @@ class JobRepository:
             WHERE id IN (SELECT id FROM stale)
             RETURNING *
             """
+        ).bindparams(
+            bindparam(
+                "exclude_job_ids",
+                expanding=True,
+                type_=PostgreSQLUUID(as_uuid=True),
+            )
         )
         result = await self._session.execute(
             raw,
@@ -158,6 +175,7 @@ class JobRepository:
                 "limit": batch_size,
                 "w": worker_instance,
                 "now": datetime.now(UTC),
+                "exclude_job_ids": list(exclude_job_ids or set()),
             },
         )
         return [_bg_from_row(r) for r in result.fetchall()]

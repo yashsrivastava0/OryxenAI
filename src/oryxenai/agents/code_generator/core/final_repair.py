@@ -97,7 +97,28 @@ class FinalRepairer:
             f"{identity.identity_hash}:{checkpoint.checkpoint_hash}:{round_number}:{context_receipt.context_hash}".encode()
         ).hexdigest()
         result_path = workspace.ledger_dir / "repairs" / f"{key}.json"
-        if result_path.is_file():
+        # These are host-owned mechanical repairs. Apply them before consulting
+        # a model or reusing a cached model response so a stale response cannot
+        # mask a deterministic verifier defect.
+        deterministic_changes = _deterministic_marker_repair(
+            diagnostics=diagnostics,
+            plan=plan,
+            projections=projections,
+            repo_dir=workspace.repo_dir,
+        )
+        if deterministic_changes is None:
+            deterministic_changes = _deterministic_touch_target_repair(
+                diagnostics=diagnostics,
+                repo_dir=workspace.repo_dir,
+            )
+        if deterministic_changes is not None:
+            result = GenerationResult(
+                operation_id="code-generator.repair.deterministic-host-fallback",
+                based_on_context_receipt=context_receipt.context_hash,
+                mode="changes",
+                changes=deterministic_changes,
+            )
+        elif result_path.is_file():
             result = GenerationResult.model_validate(
                 json.loads(result_path.read_text(encoding="utf-8"))
             )
@@ -345,16 +366,16 @@ def _deterministic_touch_target_repair(
             content = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if "nav a" not in content and "navigation" not in content:
-            continue
         if "/* OryxenAI deterministic touch-target repair */" in content:
             continue
         relative = path.relative_to(repo_dir).as_posix()
         corrected = (
             content.rstrip()
             + "\n\n/* OryxenAI deterministic touch-target repair */\n"
-            + ':where(nav a, [role="navigation"] a) '
-            + "{ min-inline-size: 36px; justify-content: center; }\n"
+            + "@media (max-width: 768px) {\n"
+            + "  :where([data-interaction-id]) "
+            + "{ min-inline-size: 36px; min-block-size: 36px; }\n"
+            + "}\n"
         )
         changes.append(
             SourceFileChange(

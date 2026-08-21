@@ -50,6 +50,7 @@ class Worker:
         self._instance_id = uuid.uuid4().hex
         self._running = True
         self._active_tasks: set[asyncio.Task[None]] = set()
+        self._active_job_ids: set[uuid.UUID] = set()
 
     # ── public entry points ────────────────────────────────────────────────
 
@@ -109,9 +110,7 @@ class Worker:
             try:
                 async with self._sessionmaker() as session:
                     repo = HeartbeatRepository(session)
-                    await repo.upsert(
-                        self._instance_id, "oryxenai-worker", self._worker_metadata()
-                    )
+                    await repo.upsert(self._instance_id, "oryxenai-worker", self._worker_metadata())
                     await session.commit()
             except Exception as exc:
                 logger.warning("worker heartbeat transient error=%s", type(exc).__name__)
@@ -165,6 +164,7 @@ class Worker:
                     limit or self._settings.worker.claim_batch_size,
                     self._settings.worker.claim_batch_size,
                 ),
+                exclude_job_ids=set(self._active_job_ids),
             )
             await session.commit()
         return stale
@@ -172,9 +172,15 @@ class Worker:
     # ── dispatch ───────────────────────────────────────────────────────────
 
     def _dispatch(self, job: Any) -> None:
+        self._active_job_ids.add(job.id)
         task = asyncio.create_task(self._execute_one(job))
         self._active_tasks.add(task)
-        task.add_done_callback(self._active_tasks.discard)
+
+        def forget_active(done: asyncio.Task[None]) -> None:
+            self._active_tasks.discard(done)
+            self._active_job_ids.discard(job.id)
+
+        task.add_done_callback(forget_active)
 
     async def _execute_one(self, job: Any) -> None:
         kind = job.job_kind
