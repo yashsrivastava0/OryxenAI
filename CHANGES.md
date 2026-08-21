@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 — Codex (GPT-5 / OpenAI) — [0b7a806] — Backend-only Docker, hosted shared previews, and source-linked Code Generator debugging
+Implemented D-039: generated portfolios remain portable Vite/React source plus verified `dist/` with Docker artifacts excluded from exports; hosted previews use configurable S3-compatible immutable storage and conditional promotion pointers; local development keeps filesystem storage; readiness fails closed when preview storage is unavailable; and the developer UI/API can open bounded accepted-source slices from file/line diagnostics. Added the free-host deployment contract covering Render-like ephemeral filesystems, worker limitations, managed PostgreSQL, private object storage, and the shared preview gateway.
+
 ### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [7eac824] — Code Generator generation, source/runtime verification, build isolation, preview promotion
 Hardened the provider-to-preview path with config-compatible structured output, bounded semantic/schema retries, source-only route workspaces, serialized package installs, deterministic route/content/interaction normalization, pack-resource materialization, writable browser/runtime environments, stale-artifact rejection, and diagnostic candidate-gateway failures (D-038). Verified two live generations from pack `20-35-19-08-6d3c4909` reached `ready` with all source/build/DOM gates passing and stable previews returning HTTP 200.
 
