@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 - Codex (GPT-5 / OpenAI) - [b6a2be5] - First-three-agent startup recovery runbook
+Updated `docs/run/run.md` with the current migration head, Docker engine and
+stale-worker recovery, the guarded empty-database migration replay, and the
+verified API/worker/frontend startup state. The instructions preserve the
+PostgreSQL volume and unrelated dirty worktree changes.
+
 ### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [1b37748] — docs/run/run.md, standalone Code Generator Docker runbook
 Documented the isolated Code Generator development workflow: local Docker
 overlay and database setup, API/worker/preview-gateway startup, shared
