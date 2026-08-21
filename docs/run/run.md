@@ -2,8 +2,9 @@
 
 This runbook records the verified Docker startup for the Discovery, Content
 Architect, Visual Design Director, and Build Preparation stages. It is for
-local reuse on the Windows checkout and does not create agents, source files,
-or a second frontend.
+local reuse on the Windows checkout. The standalone Code Generator workflow is
+documented separately below and uses its own Docker Compose project, database,
+API port, and preview gateway.
 
 ## Frontend and services
 
@@ -14,6 +15,8 @@ or a second frontend.
 - API container: `oryxenai-app-1`
 - Worker container: `oryxenai-worker-1`
 - Database container: `oryxenai-postgres-1`
+- Standalone Code Generator API/UI: `http://127.0.0.1:8001`
+- Standalone Code Generator preview gateway: `http://127.0.0.1:4174`
 
 The frontend root contains the Discovery flow and the persisted Agent
 Workspace for later outputs. Discovery approval does not automatically start
@@ -246,3 +249,230 @@ override or use approved state in the production session instead.
 - Do not start a second worker to work around a slow run. The API and one
   durable worker must share the same database; duplicate workers can make
   diagnosis ambiguous even though job claiming is protected.
+
+## Standalone Code Generator Docker run
+
+This section runs only the Code Generator development harness, its durable
+worker, and the shared preview gateway. It does not start Discovery, Content
+Architect, Visual Design Director, or Build Preparation.
+
+The generated portfolio is not a Docker service. Docker supplies the
+OryxenAI API/worker, Node/npm, Chromium, PostgreSQL migration environment, and
+preview gateway. A successful generation is exported as a portable source
+project plus `dist/` under `output/code-gen-output`; the preview gateway serves
+the verified static artifact.
+
+### Prerequisites
+
+Run from `C:\Users\yashx\Desktop\OryxenAI` in PowerShell:
+
+```powershell
+Set-Location C:\Users\yashx\Desktop\OryxenAI
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+$Workspace = (Resolve-Path (New-Item -ItemType Directory -Force .workspace)).Path
+```
+
+Fill in `.env` locally. Do not print or commit secrets. A real generation
+requires the API key environment variables referenced by the Code Generator
+profiles in `config/models.toml`; the provider, model, endpoint, and limits
+remain config-driven. `POSTGRES_PASSWORD` is also required by Compose.
+
+The standalone Docker overlay must exist at:
+
+```text
+config/app.docker.codegen-run.toml
+```
+
+Keep this overlay local. It enables `code_generator_development`, uses the
+isolated database `oryxenai_codegen_run`, enables Chromium verification, uses
+Linux commands (`npm`, not `npm.cmd`), and sets the preview parent origin to
+`http://127.0.0.1:8001`. Do not use `config/app.docker.toml` for this workflow;
+that normal deployment overlay intentionally disables the development harness.
+
+### Start the isolated stack
+
+Use a separate Compose project so its containers and named volumes cannot be
+confused with the normal OryxenAI stack:
+
+```powershell
+$Project = "oryxenai-codegen"
+$Overlay = "config/app.docker.codegen-run.toml"
+$Workspace = (Resolve-Path (New-Item -ItemType Directory -Force .workspace)).Path
+
+if (-not (Test-Path $Overlay)) {
+  throw "Missing $Overlay"
+}
+
+docker compose -p $Project --profile codegen build migrate app worker preview-gateway
+docker compose -p $Project up -d postgres
+
+$ready = $false
+while (-not $ready) {
+  docker compose -p $Project exec -T postgres pg_isready -U oryxen -d oryxenai *> $null
+  $ready = $LASTEXITCODE -eq 0
+  if (-not $ready) { Start-Sleep -Seconds 2 }
+}
+
+# Create the isolated database once; the query makes reruns safe.
+$dbExists = docker compose -p $Project exec -T postgres psql -U oryxen -d oryxenai -Atc `
+  "SELECT 1 FROM pg_database WHERE datname = 'oryxenai_codegen_run';"
+if (($dbExists | Out-String).Trim() -ne "1") {
+  docker compose -p $Project exec -T postgres psql -U oryxen -d oryxenai -c `
+    "CREATE DATABASE oryxenai_codegen_run;"
+}
+
+docker compose -p $Project run --rm --no-deps `
+  -e OryxenAI_CONFIG_OVERLAY=$Overlay migrate
+
+docker compose -p $Project run --rm -d --no-deps -p 8001:8000 `
+  -v "${Workspace}:/app/.workspace" `
+  -e OryxenAI_CONFIG_OVERLAY=$Overlay `
+  app uvicorn oryxenai.main:app --host 0.0.0.0 --port 8000
+
+docker compose -p $Project run --rm -d --no-deps `
+  -v "${Workspace}:/app/.workspace" `
+  -e OryxenAI_CONFIG_OVERLAY=$Overlay `
+  worker python -m oryxenai.jobs.worker
+
+docker compose -p $Project --profile codegen run --rm -d --no-deps -p 4174:4174 `
+  -v "${Workspace}:/app/.workspace" `
+  -e OryxenAI_CONFIG_OVERLAY=$Overlay `
+  preview-gateway python -m oryxenai.preview.gateway
+
+docker compose -p $Project ps
+```
+
+The `--no-deps` flags are deliberate: the isolated PostgreSQL database is
+created and migrated first, then the API, worker, and gateway are started with
+the Code Generator overlay instead of the normal app overlay. The shared
+`.workspace` bind mount lets the API inspect the worker's accepted source
+checkpoint and lets the worker and gateway share local preview objects during
+debugging.
+
+### Check the run before generating
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/health/live
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/code-generator-development
+
+$readiness = Invoke-RestMethod `
+  -Uri http://127.0.0.1:8001/api/v1/development/code-generator/readiness
+$readiness | Select-Object planning_ready, generation_ready, package_manager_ready,
+  browser_ready, preview_storage_ready, readiness_blockers
+
+docker compose -p $Project logs --tail 100 app worker preview-gateway
+```
+
+The development page must load at
+`http://127.0.0.1:8001/code-generator-development`. Readiness must not have
+`preview_storage` or `verification_browser` blockers. Provider preflight is a
+separate no-portfolio-data check and must pass before a live run.
+
+### Run the Code Generator
+
+1. Open `http://127.0.0.1:8001/code-generator-development`.
+2. Run **Provider preflight** when the page requests it.
+3. Choose the privacy-safe `privacy-safe-v3` fixture for a controlled input,
+   or select an eligible Build Preparation mirror/ZIP.
+4. Start the run and let the durable stages finish:
+
+   ```text
+   queued → planning → planned → acquiring → acquired
+          → generating → source_ready → building
+          → smoke_testing → ready
+   ```
+
+5. Use the **Advanced / debug controls** to run a stage manually when
+   diagnosing a failure. Do not start a second worker for the same database.
+6. When the run reaches `ready`, open the promoted preview from the preview
+   panel. The URL is served by the shared gateway at port `4174`; it is not a
+   separate generated-app container.
+
+The page's run-specific API endpoints are:
+
+```text
+GET  /api/v1/development/code-generator/runs/{run_id}
+GET  /api/v1/development/code-generator/runs/{run_id}/events
+GET  /api/v1/development/code-generator/runs/{run_id}/plan
+GET  /api/v1/development/code-generator/runs/{run_id}/acquisition
+GET  /api/v1/development/code-generator/runs/{run_id}/generation
+GET  /api/v1/development/code-generator/runs/{run_id}/verification
+GET  /api/v1/development/code-generator/runs/{run_id}/preview
+GET  /api/v1/development/code-generator/runs/{run_id}/source-manifest
+GET  /api/v1/development/code-generator/runs/{run_id}/source-file?path=src/main.tsx
+```
+
+The source-file endpoint returns only a bounded slice from the accepted source
+checkpoint. Use it with a diagnostic's file, line, and column to inspect the
+actual generated source while debugging.
+
+### Output and preview locations
+
+| Purpose | Location |
+| --- | --- |
+| disposable generation workspace | `.workspace/code-generator-generation/` |
+| accepted source checkpoints | `.workspace/code-generator-checkpoints/` |
+| dependency workspaces | `.workspace/code-generator-workspaces/` |
+| local preview objects | `.workspace/code-generator-preview/` |
+| complete successful export | `output/code-gen-output/<timestamp-run>/` |
+| exported source | `output/code-gen-output/<timestamp-run>/source/` |
+| exported verified site | `output/code-gen-output/<timestamp-run>/dist/` |
+| export metadata | `output/code-gen-output/<timestamp-run>/portfolio.json` |
+
+`portfolio.json` identifies the runtime as static and records excluded Docker
+artifacts. `.workspace` is disposable debugging state; `output` is a local
+debug/export mirror. Hosted deployments must use private S3-compatible preview
+storage instead of relying on container disk.
+
+### Stop the isolated Code Generator stack
+
+Stop the one-off containers and the isolated PostgreSQL service without
+deleting its volume:
+
+```powershell
+docker compose -p $Project rm -f -s app worker preview-gateway
+docker compose -p $Project stop postgres
+docker compose -p $Project ps
+```
+
+Do not run `docker compose down -v` during normal debugging. It deletes the
+isolated database/preview volumes and can remove evidence needed to diagnose a
+run. Only remove the isolated project volumes after explicitly deciding to
+reset this separate Code Generator environment and verifying `$Project` is not
+the normal `oryxenai` project.
+
+### Standalone Code Generator troubleshooting
+
+#### The development page returns 404
+
+Check that the app was started with
+`OryxenAI_CONFIG_OVERLAY=config/app.docker.codegen-run.toml` and that the
+overlay contains `[code_generator_development] enabled = true`.
+
+#### `preview_storage` is a readiness blocker
+
+For local standalone Docker, the overlay must use the local filesystem preview
+provider and the API, worker, and gateway must share the `.workspace` bind
+mount. For hosted Docker, configure the S3-compatible endpoint, bucket, and
+credential environment names; never fall back to ephemeral disk.
+
+#### The worker does not process the run
+
+Check that exactly one worker is connected to the isolated database:
+
+```powershell
+docker compose -p $Project ps
+docker compose -p $Project logs --tail 200 worker
+```
+
+The API, worker, and migration command must all use the same overlay and
+`oryxenai_codegen_run` database. A heartbeat or container status alone is not a
+completed generation; inspect the run status and durable events.
+
+#### The run fails during provider, npm, or browser verification
+
+Read the first blocking diagnostic from the run's generation or verification
+projection. Confirm the configured provider key is present without printing
+its value, ensure the Linux npm commands in the overlay are available, and
+check that Chromium is available at `/usr/bin/chromium`. Fix the reported
+source or configuration issue, then retry the affected durable stage.
