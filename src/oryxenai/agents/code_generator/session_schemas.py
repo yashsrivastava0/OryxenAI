@@ -18,6 +18,7 @@ class CodeGeneratorSessionStatus(StrEnum):
     GENERATING = "generating"
     VERIFYING = "verifying"
     READY = "ready"
+    PREVIEW_PENDING = "preview_pending"
     NEEDS_ATTENTION = "needs_attention"
 
 

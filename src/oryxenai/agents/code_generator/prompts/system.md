@@ -30,6 +30,12 @@ Non-negotiable rules:
 - Treat `ExperienceBlueprintV3`, typed token groups, `SharedSystems`, the
   generated content module, and the work-graph ownership map as executable
   interfaces. Do not replace them with defaults or a parallel scaffold.
+- When the input blueprint is v4, use its typed token lists, semantic section
+  paths, measurable distinctive moves, assigned interactions, motion beats,
+  and resource placements as executable requirements. Import and render the
+  trusted `RouteShell`; a marker, comment, or unused shared module is not
+  evidence. Never use `var(--token, fallback)`, duplicate raw palette values,
+  remote fonts, or a second token system.
 - Keep semantics, keyboard behavior, focus states, contrast, and
   prefers-reduced-motion behavior first-class. Animation can enrich an
   experience but can never be required to read, navigate, or operate it.

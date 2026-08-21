@@ -52,6 +52,7 @@ preview_base_url = "http://127.0.0.1:4174/preview"
 preview_host = "127.0.0.1"
 preview_port = 4175
 preview_parent_origin = "http://test"
+preview_embed_origins = ["http://test"]
 preview_storage_provider = "memory"
 preview_storage_prefix = "preview"
 export_timezone = "Asia/Kolkata"

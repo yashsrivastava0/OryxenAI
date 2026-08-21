@@ -12,11 +12,12 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from oryxenai.agents.code_generator.core.development_schemas import (
     Diagnostic,
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
     SitePlan,
 )
 
@@ -155,15 +156,62 @@ def audit_typescript_source(
     token contract is intentionally activated only for an admitted V3 plan.
     """
 
-    if not isinstance(plan.experience_blueprint, ExperienceBlueprintV3):
+    if not isinstance(plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)):
         return []
-    del projections
     diagnostics: list[Diagnostic] = []
     clean_files = {
         path: _without_comments(text)
         for path, text in files.items()
         if path.endswith((".ts", ".tsx"))
     }
+
+    blueprint_v4 = isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+    v4_blueprint = cast(ExperienceBlueprintV4, plan.experience_blueprint)
+    route_css = {
+        path: _without_comments(text)
+        for path, text in files.items()
+        if path.startswith("src/routes/") and path.endswith(".css")
+    }
+    if blueprint_v4:
+        # V4 route code must use the trusted shell, not merely coexist with an
+        # unused SharedSystems module in the candidate tree.
+        for route in plan.routes:
+            route_file = _route_source_path(route.model_dump(mode="json"))
+            route_source = clean_files.get(route_file, "")
+            if not re.search(r"\bRouteShell\b", route_source) or not re.search(
+                r"import\s+\{[^}]*\bRouteShell\b[^}]*\}\s+from\s+[\"'](?:\.\.?/)+components/generated/SharedSystems",
+                route_source,
+            ):
+                diagnostics.append(
+                    _diagnostic(
+                        "SOURCE_ROUTE_SHELL_UNUSED",
+                        "Every v4 route must import and render the trusted RouteShell.",
+                        file=route_file,
+                        route_id=str(route.route_id),
+                    )
+                )
+        token_values = {
+            item.value.casefold() for item in v4_blueprint.tokens.colors if item.value.strip()
+        }
+        for path, css in route_css.items():
+            if re.search(r"var\([^)]*,", css):
+                diagnostics.append(
+                    _diagnostic(
+                        "SOURCE_CSS_TOKEN_FALLBACK",
+                        "Generated route CSS may not hide an unbound token behind a fallback.",
+                        file=path,
+                    )
+                )
+            for literal in sorted(token_values):
+                if css.casefold().count(literal) > 0:
+                    diagnostics.append(
+                        _diagnostic(
+                            "SOURCE_RAW_PALETTE_LITERAL",
+                            "Generated route CSS must reference canonical color tokens instead of raw palette literals.",
+                            file=path,
+                            symbol=literal,
+                        )
+                    )
 
     shared_path = "src/components/generated/SharedSystems.tsx"
     shared = clean_files.get(shared_path, "")
@@ -247,6 +295,12 @@ def audit_typescript_source(
         route_data = route.model_dump(mode="json")
         route_id = str(route_data.get("route_id", ""))
         route_file = _route_source_path(route_data)
+        route_storage_key = (
+            str(route_data.get("storage_key", route_id)).replace("\\", "/").strip("/")
+        )
+        if route_storage_key.startswith("routes/"):
+            route_storage_key = route_storage_key.removeprefix("routes/")
+        route_prefix = f"src/routes/{route_storage_key}/"
         route_source = clean_files.get(route_file, "")
         if not route_source:
             continue
@@ -406,7 +460,10 @@ def audit_typescript_source(
         ]
         for move in route_moves:
             marker = f'data-distinctive-move-id="{move.move_id}"'
-            if marker not in route_source:
+            route_files_source = "\n".join(
+                value for path, value in clean_files.items() if path.startswith(route_prefix)
+            )
+            if marker not in route_files_source:
                 diagnostics.append(
                     _diagnostic(
                         "SOURCE_BLUEPRINT_MOVE_UNUSED",
@@ -416,6 +473,75 @@ def audit_typescript_source(
                         symbol=move.move_id,
                     )
                 )
+            elif blueprint_v4:
+                evidence = "\n".join(route_css.values()) + "\n" + route_files_source
+                if not re.search(
+                    r"(?:grid|flex|width|margin|padding|position|sticky|transform|gap|align-items|justify-content)",
+                    evidence,
+                    re.IGNORECASE,
+                ):
+                    diagnostics.append(
+                        _diagnostic(
+                            "SOURCE_BLUEPRINT_MOVE_MARKER_ONLY",
+                            "A distinctive-move marker is present without executable layout or behavior evidence.",
+                            file=route_file,
+                            route_id=route_id,
+                            symbol=move.move_id,
+                        )
+                    )
+
+        if blueprint_v4:
+            for beat in v4_blueprint.motion_beats:
+                if beat.route_id != route_id:
+                    continue
+                route_files_source = "\n".join(
+                    value for path, value in clean_files.items() if path.startswith(route_prefix)
+                )
+                marker_present = beat.target_marker in route_files_source
+                motion_present = bool(
+                    re.search(r"(?:transition|animation|transform)", route_files_source, re.I)
+                )
+                reduced_present = bool(
+                    re.search(r"prefers-reduced-motion", "\n".join(route_css.values()), re.I)
+                )
+                if not marker_present or not motion_present:
+                    diagnostics.append(
+                        _diagnostic(
+                            "SOURCE_MOTION_BEAT_UNIMPLEMENTED",
+                            "Every v4 motion beat needs a target marker and executable source behavior.",
+                            file=route_file,
+                            route_id=route_id,
+                            symbol=beat.motion_id,
+                        )
+                    )
+                if not reduced_present:
+                    diagnostics.append(
+                        _diagnostic(
+                            "SOURCE_MOTION_REDUCED_MOTION_MISSING",
+                            "Every v4 motion beat needs a prefers-reduced-motion replacement.",
+                            file=route_file,
+                            route_id=route_id,
+                            symbol=beat.motion_id,
+                        )
+                    )
+            for assignment in v4_blueprint.interactions:
+                if assignment.route_id != route_id:
+                    continue
+                route_files_source = "\n".join(
+                    value for path, value in clean_files.items() if path.startswith(route_prefix)
+                )
+                if assignment.literal_marker not in route_files_source or not re.search(
+                    r"(?:onClick|onKeyDown|href=|download=)", route_files_source
+                ):
+                    diagnostics.append(
+                        _diagnostic(
+                            "SOURCE_INTERACTION_UNIMPLEMENTED",
+                            "Every v4 interaction assignment needs a literal marker and state/navigation behavior.",
+                            file=route_file,
+                            route_id=route_id,
+                            symbol=assignment.interaction_id,
+                        )
+                    )
 
     return _dedupe(diagnostics)
 

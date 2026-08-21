@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -76,7 +77,18 @@ async def run_provider_preflight(
                 "A required Code Generator provider credential is not configured.",
                 details={"profile": profile_name},
             )
-        identity = hashlib.sha256(profile.model_dump_json().encode("utf-8")).hexdigest()
+        identity_payload = {
+            "provider": profile.provider,
+            "base_url": profile.base_url,
+            "model": profile.model,
+            "capabilities": profile.capabilities.model_dump(mode="json")
+            if profile.capabilities is not None
+            else {},
+            "max_output_tokens": profile.max_output_tokens,
+        }
+        identity = hashlib.sha256(
+            json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         identities.setdefault(identity, profile_name)
 
     checked: list[str] = []
@@ -148,6 +160,7 @@ async def run_provider_preflight(
         "checked_at": datetime.now(UTC).isoformat(),
         "private_context_sent": False,
         "protocol": _PREFLIGHT_PROTOCOL,
+        "checked_identity_count": len(identities),
     }
 
 

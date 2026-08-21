@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class DevelopmentRunStatus(StrEnum):
@@ -26,6 +28,7 @@ class DevelopmentRunStatus(StrEnum):
     SMOKE_TESTING = "smoke_testing"
     REPAIRING = "repairing"
     READY = "ready"
+    PREVIEW_PENDING = "preview_pending"
     NEEDS_ATTENTION = "needs_attention"
 
 
@@ -93,6 +96,8 @@ class PlannerCallReceipt(BaseModel):
     model: str = ""
     usage: dict[str, int] = Field(default_factory=dict)
     finish_reason: str = ""
+    attempt: int = 1
+    retry_class: str = ""
     prompt_receipt: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -770,6 +775,642 @@ class ExperienceBlueprintV3(BaseModel):
         return self
 
 
+# ---------------------------------------------------------------------------
+# V4 transport contracts
+# ---------------------------------------------------------------------------
+# These DTOs deliberately use closed lists and concrete scalar values.  The
+# provider boundary can therefore send the same schema to Anthropic/OpenAI
+# native structured-output endpoints without arbitrary JSON maps or tagged
+# nullable unions.  The existing V2/V3 models remain readable for old packs.
+
+
+_CSS_COLOR_RE = re.compile(
+    r"^(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([^;{}]+\)|[a-z][a-z0-9-]*)$",
+    re.IGNORECASE,
+)
+_CSS_UNIT_RE = re.compile(r"^(?:px|rem|em|%|vw|vh|vmin|vmax|ch|ex|fr|ms|s)$")
+_EASING_RE = re.compile(
+    r"^(?:linear|ease(?:-in|-out|-in-out)?|cubic-bezier\([^()]+\)|steps\([^()]+\))$",
+    re.IGNORECASE,
+)
+
+
+class NamedColorTokenV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    value: str
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        normalized = value.strip().replace("_", "-")
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
+            raise ValueError("color token names must be lowercase semantic identifiers")
+        return normalized
+
+    @field_validator("value")
+    @classmethod
+    def _value(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if not normalized or not _CSS_COLOR_RE.fullmatch(normalized):
+            raise ValueError("color tokens must be concrete CSS color values")
+        if "var(" in normalized.casefold() or "url(" in normalized.casefold():
+            raise ValueError("color tokens may not reference variables or URLs")
+        return normalized
+
+
+class LengthTokenV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    value: float
+    unit: Literal["px", "rem", "em", "%", "vw", "vh", "vmin", "vmax", "ch", "ex", "fr"]
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        normalized = value.strip().replace("_", "-")
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
+            raise ValueError("length token names must be lowercase semantic identifiers")
+        return normalized
+
+    @field_validator("value")
+    @classmethod
+    def _finite(cls, value: float) -> float:
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("length token values must be finite and non-negative")
+        return value
+
+
+class BorderTokenV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    width: LengthTokenV4
+    style: Literal["solid", "dashed", "dotted", "double", "none"] = "solid"
+    color_token: str
+
+
+class MotionTokenV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    duration_ms: int = Field(ge=0, le=5000)
+    easing: str
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        normalized = value.strip().replace("_", "-")
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
+            raise ValueError("motion token names must be lowercase semantic identifiers")
+        return normalized
+
+    @field_validator("easing")
+    @classmethod
+    def _easing(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if not _EASING_RE.fullmatch(normalized):
+            raise ValueError("motion easing must be a validated CSS easing value")
+        return normalized
+
+
+class TypographyBindingV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approved_font_slot: str
+    family: str
+    weights: list[int] = Field(min_length=1, max_length=8)
+    style: Literal["normal", "italic", "oblique"] = "normal"
+    body_min_rem: float = Field(gt=0, le=4)
+    body_max_rem: float = Field(gt=0, le=8)
+    heading_ratio: float = Field(gt=1, le=3)
+    body_line_height: float = Field(ge=1, le=2.4)
+
+    @field_validator("approved_font_slot", "family")
+    @classmethod
+    def _required_text(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if not normalized or any(char in normalized for char in ('"', "'", ";", "\n", "\r")):
+            raise ValueError("typography bindings require safe non-empty text")
+        return normalized
+
+    @field_validator("weights")
+    @classmethod
+    def _weights(cls, value: list[int]) -> list[int]:
+        if any(item < 100 or item > 1000 or item % 100 for item in value):
+            raise ValueError("font weights must be CSS numeric weights")
+        return sorted(set(value))
+
+    @model_validator(mode="after")
+    def _size_order(self) -> TypographyBindingV4:
+        if self.body_min_rem > self.body_max_rem:
+            raise ValueError("body_min_rem must not exceed body_max_rem")
+        return self
+
+
+class DesignTokenSystemV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    colors: list[NamedColorTokenV4] = Field(min_length=1, max_length=32)
+    spacing: list[LengthTokenV4] = Field(min_length=1, max_length=32)
+    sizes: list[LengthTokenV4] = Field(default_factory=list, max_length=32)
+    radii: list[LengthTokenV4] = Field(default_factory=list, max_length=16)
+    borders: list[BorderTokenV4] = Field(default_factory=list, max_length=16)
+    motion: list[MotionTokenV4] = Field(default_factory=list, max_length=16)
+    typography: TypographyBindingV4
+    container_max_px: int = Field(ge=480, le=2400)
+
+    @model_validator(mode="after")
+    def _unique_names_and_bindings(self) -> DesignTokenSystemV4:
+        for values in (
+            self.colors,
+            self.spacing,
+            self.sizes,
+            self.radii,
+            self.borders,
+            self.motion,
+        ):
+            names = [item.name for item in values]
+            if len(names) != len(set(names)):
+                raise ValueError("token names must be unique within each group")
+        color_names = {item.name for item in self.colors}
+        if any(item.color_token not in color_names for item in self.borders):
+            raise ValueError("border tokens must reference an approved color token")
+        return self
+
+
+class RouteShellV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    route_id: str
+    storage_key: str
+    navigation_owner: Literal["trusted_shell"] = "trusted_shell"
+    main_owner: Literal["trusted_shell"] = "trusted_shell"
+    footer_owner: Literal["trusted_shell"] = "trusted_shell"
+    h1_owner: str
+    section_order: list[str] = Field(min_length=1)
+
+
+class SectionRegionV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    region_id: str
+    route_id: str
+    section_id: str
+    order_mobile: int = Field(ge=0, le=100)
+    order_tablet: int = Field(ge=0, le=100)
+    order_desktop: int = Field(ge=0, le=100)
+    columns_mobile: int = Field(ge=1, le=4)
+    columns_tablet: int = Field(ge=1, le=12)
+    columns_desktop: int = Field(ge=1, le=12)
+    max_measure_ch: int = Field(ge=20, le=120)
+    gap: LengthTokenV4
+    allowable_overlap: bool = False
+
+
+class DistinctiveMoveV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    move_id: str
+    route_id: str
+    section_id: str
+    region_id: str
+    implementation_kind: Literal[
+        "asymmetric_width",
+        "alignment_spine",
+        "controlled_overlap",
+        "sticky_narrative_rail",
+        "framed_evidence_sequence",
+        "isolated_closing_composition",
+        "custom",
+    ]
+    thesis: str
+    runtime_marker: str
+    observable_relationship: str
+    css_evidence: str
+
+    @model_validator(mode="after")
+    def _concrete(self) -> DistinctiveMoveV4:
+        if not all(
+            value.strip()
+            for value in (
+                self.move_id,
+                self.route_id,
+                self.section_id,
+                self.region_id,
+                self.thesis,
+                self.runtime_marker,
+                self.observable_relationship,
+                self.css_evidence,
+            )
+        ):
+            raise ValueError("distinctive moves require executable runtime evidence")
+        return self
+
+
+class InteractionAssignmentV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: str
+    route_id: str
+    owner_work_unit_id: str
+    literal_marker: str
+    trigger: Literal["click", "activate", "disclosure", "navigation", "download"]
+    keyboard_behavior: str
+    state_transition: str
+    focus_behavior: str
+    expected_navigation: str = ""
+
+
+class ResourcePlacementV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    route_id: str
+    section_id: str
+    element_marker: str
+    alt_policy: Literal["decorative", "approved_text", "contextual_description"]
+    fit: Literal["cover", "contain", "natural"]
+    focal_position: str = "center"
+    loading: Literal["eager", "lazy"] = "lazy"
+    responsive_behavior: str
+
+
+class MotionBeatV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    motion_id: str
+    route_id: str
+    section_id: str
+    target_marker: str
+    trigger: Literal["load", "viewport", "hover", "focus", "activate"]
+    changed_properties: list[str] = Field(min_length=1, max_length=8)
+    duration_min_ms: int = Field(ge=0, le=5000)
+    duration_max_ms: int = Field(ge=0, le=5000)
+    easing: str
+    reduced_motion_replacement: str
+
+    @model_validator(mode="after")
+    def _range(self) -> MotionBeatV4:
+        if (
+            self.duration_min_ms > self.duration_max_ms
+            or not self.reduced_motion_replacement.strip()
+        ):
+            raise ValueError("motion beats require a valid duration range and reduced-motion rule")
+        if not _EASING_RE.fullmatch(self.easing.strip()):
+            raise ValueError("motion beats require a validated CSS easing value")
+        return self
+
+
+class CreativeConceptV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    concept_id: str
+    thesis: str
+    hierarchy: str
+    composition: str
+    typography: str
+    color_logic: str
+    motion_vocabulary: str
+    resource_use: str
+    distinguishing_moves: list[str] = Field(min_length=1, max_length=8)
+    anti_patterns: list[str] = Field(default_factory=list, max_length=12)
+
+
+class CreativeDirectionSetV3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-creative-direction-v3"] = (
+        "code-generator-creative-direction-v3"
+    )
+    concepts: list[CreativeConceptV3] = Field(
+        min_length=2,
+        max_length=2,
+        validation_alias=AliasChoices("concepts", "candidates"),
+        serialization_alias="concepts",
+    )
+    recommended_concept_id: str
+    recommendation_basis: str
+
+    @model_validator(mode="after")
+    def _materially_distinct(self) -> CreativeDirectionSetV3:
+        ids = [item.concept_id for item in self.concepts]
+        if len(set(ids)) != 2 or self.recommended_concept_id not in ids:
+            raise ValueError("creative direction requires exactly two distinct concepts")
+
+        def signature(item: CreativeConceptV3) -> tuple[str, ...]:
+            return tuple(
+                " ".join(value.casefold().split())
+                for value in (
+                    item.hierarchy,
+                    item.composition,
+                    item.typography,
+                    item.motion_vocabulary,
+                    item.resource_use,
+                )
+            )
+
+        if signature(self.concepts[0]) == signature(self.concepts[1]):
+            raise ValueError(
+                "creative concepts must differ in hierarchy, composition, typography, motion, or resource use"
+            )
+        if not self.recommendation_basis.strip():
+            raise ValueError("creative direction requires a recommendation basis")
+        return self
+
+    @property
+    def candidates(self) -> list[CreativeConceptV3]:
+        return self.concepts
+
+
+class ExperienceBlueprintV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-experience-blueprint-v4"] = (
+        "code-generator-experience-blueprint-v4"
+    )
+    selected_concept_id: str
+    narrative_arc: str
+    tokens: DesignTokenSystemV4
+    route_shells: list[RouteShellV4] = Field(min_length=1, max_length=32)
+    section_regions: list[SectionRegionV4] = Field(
+        min_length=1,
+        max_length=256,
+        validation_alias=AliasChoices("section_regions", "regions"),
+        serialization_alias="section_regions",
+    )
+    distinctive_moves: list[DistinctiveMoveV4] = Field(min_length=1, max_length=64)
+    interaction_assignments: list[InteractionAssignmentV4] = Field(
+        default_factory=list,
+        max_length=128,
+        validation_alias=AliasChoices("interaction_assignments", "interactions"),
+        serialization_alias="interaction_assignments",
+    )
+    resource_placements: list[ResourcePlacementV4] = Field(default_factory=list, max_length=256)
+    motion_beats: list[MotionBeatV4] = Field(default_factory=list, max_length=128)
+    anti_patterns: list[str] = Field(default_factory=list, max_length=24)
+
+    @model_validator(mode="after")
+    def _scope(self) -> ExperienceBlueprintV4:
+        routes = {item.route_id for item in self.route_shells}
+        if len(routes) != len(self.route_shells):
+            raise ValueError("route shell IDs must be unique")
+        region_ids = {item.region_id for item in self.section_regions}
+        if len(region_ids) != len(self.section_regions):
+            raise ValueError("region IDs must be unique")
+        move_ids = {item.move_id for item in self.distinctive_moves}
+        if len(move_ids) != len(self.distinctive_moves):
+            raise ValueError("distinctive move IDs must be unique")
+        if any(
+            item.route_id not in routes for item in self.section_regions + self.distinctive_moves
+        ):
+            raise ValueError("blueprint item references an unknown route")
+        if any(item.region_id not in region_ids for item in self.distinctive_moves):
+            raise ValueError("distinctive move references an unknown region")
+        if any(not item.thesis.strip() for item in self.distinctive_moves):
+            raise ValueError("distinctive moves require content-specific theses")
+        for route in self.route_shells:
+            if not any(item.route_id == route.route_id for item in self.distinctive_moves):
+                raise ValueError("every route needs at least one distinctive move")
+        return self
+
+    @property
+    def regions(self) -> list[SectionRegionV4]:
+        """Internal compatibility spelling for the explicit section_regions field."""
+
+        return self.section_regions
+
+    @property
+    def layout_regions(self) -> list[SectionRegionV4]:
+        return self.section_regions
+
+    @property
+    def interactions(self) -> list[InteractionAssignmentV4]:
+        """Internal compatibility spelling for interaction_assignments."""
+
+        return self.interaction_assignments
+
+
+class DesignRealizationContract(BaseModel):
+    """Deterministic runtime-observable realization compiled from v4 intent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["design-realization-contract-v1"] = "design-realization-contract-v1"
+    route_id: str
+    section_order: list[str] = Field(min_length=1)
+    signature_move_ids: list[str] = Field(min_length=1)
+    region_ids: list[str] = Field(min_length=1)
+    motion_ids: list[str] = Field(default_factory=list)
+    resource_slot_ids: list[str] = Field(default_factory=list)
+    interaction_ids: list[str] = Field(default_factory=list)
+    acceptance_markers: list[str] = Field(default_factory=list)
+    contract_hash: str = ""
+
+    @model_validator(mode="after")
+    def _stamp_hash(self) -> DesignRealizationContract:
+        payload = self.model_dump(mode="json", exclude={"contract_hash"})
+        computed = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+        if self.contract_hash and self.contract_hash != computed:
+            raise ValueError("contract_hash does not match the design realization contract")
+        self.contract_hash = computed
+        return self
+
+
+class ResourceSearchIntentV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["resource-search-intent-v2"] = "resource-search-intent-v2"
+    slot_id: str
+    subject_terms: list[str] = Field(min_length=2, max_length=6)
+    context_terms: list[str] = Field(
+        default_factory=list,
+        max_length=4,
+        validation_alias=AliasChoices("context_terms", "contextual_modifiers"),
+        serialization_alias="context_terms",
+    )
+    negative_concepts: list[str] = Field(default_factory=list, max_length=12)
+    provider_filters: list[str] = Field(default_factory=list, max_length=8)
+    orientation: Literal["landscape", "portrait", "square", "any"] = "any"
+    minimum_width: int = Field(default=0, ge=0, le=10000)
+    minimum_height: int = Field(default=0, ge=0, le=10000)
+    category: str = ""
+    colors: list[str] = Field(default_factory=list, max_length=4)
+    alt_policy: Literal["decorative", "approved_text", "contextual_description"]
+    crop_policy: Literal["cover", "contain", "natural"] = "cover"
+    query_variants: list[str] = Field(default_factory=list, max_length=3)
+
+    @field_validator("subject_terms", "context_terms", "negative_concepts", "provider_filters")
+    @classmethod
+    def _terms(cls, value: list[str]) -> list[str]:
+        result = [" ".join(str(item).strip().split()) for item in value if str(item).strip()]
+        if any(len(item) > 48 for item in result):
+            raise ValueError("resource search terms are too long")
+        return result
+
+    @model_validator(mode="after")
+    def _query_bounds(self) -> ResourceSearchIntentV2:
+        variants = self.query_variants or [" ".join(self.subject_terms + self.context_terms)]
+        if len(variants) > 3 or any(
+            len(re.findall(r"[a-z0-9][a-z0-9-]*", variant.casefold())) not in range(2, 7)
+            for variant in variants
+        ):
+            raise ValueError("resource search intents require two to six terms per variant")
+        self.query_variants = [
+            " ".join(dict.fromkeys(re.findall(r"[a-z0-9][a-z0-9-]*", variant.casefold())))
+            for variant in variants
+        ]
+        return self
+
+    @property
+    def contextual_modifiers(self) -> list[str]:
+        return self.context_terms
+
+
+class FailureDetailV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    next_action: str
+
+
+class SourceGenerationEnvelopeV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["source-generation-envelope-v2"] = "source-generation-envelope-v2"
+    result: Literal["changes", "requests", "accepted", "cannot_complete"] = Field(
+        validation_alias=AliasChoices("result", "result_tag"),
+        serialization_alias="result_tag",
+    )
+    files: list[SourceFileChange] = Field(min_length=0)
+    resource_requests: list[ResourceRequest] = Field(min_length=0)
+    coverage: list[str] = Field(min_length=0)
+    failure_details: list[FailureDetailV2] = Field(min_length=0)
+
+    @model_validator(mode="after")
+    def _matching_payload(self) -> SourceGenerationEnvelopeV2:
+        if self.result == "changes" and not self.files:
+            raise ValueError("changes result requires files")
+        if self.result == "requests" and not self.resource_requests:
+            raise ValueError("requests result requires resource requests")
+        if self.result == "cannot_complete" and not self.failure_details:
+            raise ValueError("cannot_complete result requires safe failure details")
+        if self.result == "accepted" and self.files:
+            raise ValueError("accepted result cannot include source files")
+        return self
+
+    @property
+    def result_tag(self) -> str:
+        return self.result
+
+
+class QualityFindingV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    severity: Literal["blocking", "advisory"]
+    owner_work_unit_id: str
+    code: str
+    evidence: str
+    requested_outcome: str
+
+
+class QualityReviewReceiptV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["quality-review-receipt-v1"] = "quality-review-receipt-v1"
+    source_hash: str
+    plan_hash: str
+    context_hash: str
+    hierarchy_score: int = Field(
+        ge=1,
+        le=5,
+        validation_alias=AliasChoices("hierarchy_score", "hierarchy"),
+        serialization_alias="hierarchy_score",
+    )
+    composition_score: int = Field(
+        ge=1,
+        le=5,
+        validation_alias=AliasChoices("composition_score", "composition"),
+        serialization_alias="composition_score",
+    )
+    typography_score: int = Field(
+        ge=1,
+        le=5,
+        validation_alias=AliasChoices("typography_score", "typography"),
+        serialization_alias="typography_score",
+    )
+    resource_fit_score: int = Field(
+        ge=1,
+        le=5,
+        validation_alias=AliasChoices("resource_fit_score", "resource_fit"),
+        serialization_alias="resource_fit_score",
+    )
+    motion_score: int = Field(
+        ge=1,
+        le=5,
+        validation_alias=AliasChoices("motion_score", "motion"),
+        serialization_alias="motion_score",
+    )
+    findings: list[QualityFindingV1] = Field(default_factory=list)
+    reviewer_receipt: str
+    accepted: bool
+
+    @model_validator(mode="after")
+    def _acceptance(self) -> QualityReviewReceiptV1:
+        if not all(
+            value.strip()
+            for value in (
+                self.source_hash,
+                self.plan_hash,
+                self.context_hash,
+                self.reviewer_receipt,
+            )
+        ):
+            raise ValueError(
+                "quality receipts must bind source, plan, context, and reviewer identity"
+            )
+        blocking = any(item.severity == "blocking" for item in self.findings)
+        scores_ok = (
+            min(
+                self.hierarchy_score,
+                self.composition_score,
+                self.typography_score,
+                self.resource_fit_score,
+                self.motion_score,
+            )
+            >= 4
+        )
+        if self.accepted and not (scores_ok and not blocking):
+            raise ValueError("accepted quality reviews require scores >=4 and no blocking findings")
+        return self
+
+    @property
+    def hierarchy(self) -> int:
+        return self.hierarchy_score
+
+    @property
+    def composition(self) -> int:
+        return self.composition_score
+
+    @property
+    def typography(self) -> int:
+        return self.typography_score
+
+    @property
+    def resource_fit(self) -> int:
+        return self.resource_fit_score
+
+    @property
+    def motion(self) -> int:
+        return self.motion_score
+
+
 class ExecutionBindingV2(BaseModel):
     """Compiled executable placement for one resolved pack or acquired slot."""
 
@@ -917,7 +1558,9 @@ class SitePlan(BaseModel):
     interactions: list[InteractionContract] = Field(default_factory=list)
     resource_inventory: list[ResourceInventoryItem] = Field(default_factory=list)
     acceptance_coverage: list[AcceptanceCoverageItem] = Field(default_factory=list)
-    experience_blueprint: ExperienceBlueprintV3 | ExperienceBlueprintV2 | None = None
+    experience_blueprint: (
+        ExperienceBlueprintV4 | ExperienceBlueprintV3 | ExperienceBlueprintV2 | None
+    ) = None
     execution_bindings: list[ExecutionBindingV2] = Field(default_factory=list)
 
 
@@ -1107,6 +1750,8 @@ class GenerationCallReceipt(BaseModel):
     model: str = ""
     usage: dict[str, int] = Field(default_factory=dict)
     finish_reason: str = ""
+    attempt: int = 1
+    retry_class: str = ""
 
 
 class SourceCheckpoint(BaseModel):
@@ -1194,6 +1839,7 @@ class GenerationProjection(BaseModel):
     source_file_count: int = 0
     source_total_bytes: int = 0
     issues: list[SafeIssue] = Field(default_factory=list)
+    quality_review: QualityReviewReceiptV1 | None = None
 
 
 class CandidateIdentity(BaseModel):
@@ -1575,7 +2221,13 @@ class VerificationProjection(BaseModel):
     terminal_failure: TerminalFailureReport | None = None
     repair_rounds: int = 0
     status: Literal[
-        "queued", "building", "smoke_testing", "repairing", "ready", "needs_attention"
+        "queued",
+        "building",
+        "smoke_testing",
+        "repairing",
+        "preview_pending",
+        "ready",
+        "needs_attention",
     ] = "queued"
     verification_report_hash: str = ""
 
@@ -1616,6 +2268,7 @@ class DevelopmentRunProjection(BaseModel):
     preflight_receipt: dict[str, Any] | None = None
     creative_direction: dict[str, Any] | None = None
     integration_review: dict[str, Any] | None = None
+    quality_review: QualityReviewReceiptV1 | None = None
     job_id: str = ""
     input: AdmittedInputReference
     input_receipt: InputReceipt | None = None

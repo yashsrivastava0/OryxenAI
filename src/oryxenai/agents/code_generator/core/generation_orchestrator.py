@@ -41,6 +41,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyLedger,
     DevelopmentRunStatus,
     ExperienceBlueprintV3,
+    ExperienceBlueprintV4,
     GenerationCallReceipt,
     GenerationChanges,
     GenerationContextReceipt,
@@ -49,6 +50,8 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationWorkUnitProjection,
     IntegrationReviewV1,
     PlanDelta,
+    QualityFindingV1,
+    QualityReviewReceiptV1,
     ResourceBinding,
     ResourceLedger,
     ResourceReceipt,
@@ -56,6 +59,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
     SourceCheckpoint,
     SourceDiagnostic,
+    SourceGenerationEnvelopeV2,
     WorkUnit,
 )
 from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
@@ -467,7 +471,9 @@ class CodeGeneratorGenerationOrchestrator:
                 status = DevelopmentRunStatus.GENERATING_ROUTES.value
 
             if (
-                isinstance(plan.experience_blueprint, ExperienceBlueprintV3)
+                isinstance(
+                    plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
+                )
                 and unit.kind == "route_batch"
             ):
                 batch_units: list[WorkUnit] = []
@@ -706,7 +712,7 @@ class CodeGeneratorGenerationOrchestrator:
         persist_projection: bool = True,
     ) -> SourceCheckpoint:
         if unit.kind == "foundation" and isinstance(
-            plan.experience_blueprint, ExperienceBlueprintV3
+            plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
         ):
             # V3 foundation material is a deterministic compiler boundary, not
             # a model-authored surface. This keeps tokens and approved copy
@@ -766,7 +772,9 @@ class CodeGeneratorGenerationOrchestrator:
                     "INTEGRATION_SOURCE_CHECK_FAILED",
                     "The completed source tree failed the deterministic integration audit.",
                 )
-            if str(getattr(run, "run_mode", "development")) == "session":
+            if str(getattr(run, "run_mode", "development")) == "session" or isinstance(
+                plan.experience_blueprint, ExperienceBlueprintV4
+            ):
                 await self._review_and_polish(
                     sessionmaker=sessionmaker,
                     run_id=run_id,
@@ -803,7 +811,14 @@ class CodeGeneratorGenerationOrchestrator:
                 context,
                 int(settings.code_generator_generation.max_context_chars),
             )
-            system, instructions, context_receipt = build_instructions(operation, context)
+            output_model = (
+                SourceGenerationEnvelopeV2
+                if _context_uses_v4_contract(context)
+                else GenerationResult
+            )
+            system, instructions, context_receipt = build_instructions(
+                operation, context, output_model=output_model
+            )
             context_path = (
                 workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
             )
@@ -949,9 +964,16 @@ class CodeGeneratorGenerationOrchestrator:
         )
         if review.status == "accepted":
             return
+        blocking_findings = [
+            finding for finding in review.findings if finding.severity == "blocking"
+        ]
+        if not blocking_findings:
+            # Advisory observations are persisted for the receipt but cannot
+            # spend the single owner-scoped polish call.
+            return
         owners = {item.unit_id: item for item in plan.work_graph.units if not item.terminal}
         grouped: dict[str, list[SourceDiagnostic]] = {}
-        for finding in review.findings:
+        for finding in blocking_findings:
             owner = owners.get(finding.owner_work_unit_id)
             if owner is None:
                 raise GenerationError(
@@ -1149,9 +1171,47 @@ class CodeGeneratorGenerationOrchestrator:
                 finish_reason=str(getattr(raw, "finish_reason", "") or ""),
             )
         )
-        await self._persist_integration_review(
-            sessionmaker, run_id, projection, review.model_dump(mode="json")
-        )
+        review_payload = review.model_dump(mode="json")
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+            quality = QualityReviewReceiptV1(
+                source_hash=digest(source),
+                plan_hash=digest(plan.model_dump(mode="json")),
+                context_hash=context_receipt.context_hash,
+                hierarchy_score=review.distinctiveness_score,
+                composition_score=review.composition_score,
+                typography_score=review.typography_score,
+                resource_fit_score=review.resource_fit_score,
+                motion_score=review.motion_score,
+                findings=[
+                    QualityFindingV1(
+                        finding_id=item.finding_id,
+                        severity=item.severity,
+                        owner_work_unit_id=item.owner_work_unit_id,
+                        code=item.code,
+                        evidence=item.evidence,
+                        requested_outcome=item.requested_outcome,
+                    )
+                    for item in review.findings
+                ],
+                reviewer_receipt=digest(review.model_dump(mode="json")),
+                accepted=(
+                    review.status == "accepted"
+                    or (
+                        min(
+                            review.distinctiveness_score,
+                            review.composition_score,
+                            review.typography_score,
+                            review.resource_fit_score,
+                            review.motion_score,
+                        )
+                        >= 4
+                        and not any(item.severity == "blocking" for item in review.findings)
+                    )
+                ),
+            )
+            projection.quality_review = quality
+            review_payload["quality_receipt"] = quality.model_dump(mode="json")
+        await self._persist_integration_review(sessionmaker, run_id, projection, review_payload)
         return review
 
     async def _persist_integration_review(
@@ -1253,6 +1313,9 @@ class CodeGeneratorGenerationOrchestrator:
         unit_id: str,
         request_round: int,
     ) -> tuple[GenerationResult, GenerationCallReceipt]:
+        output_model = (
+            SourceGenerationEnvelopeV2 if _context_uses_v4_contract(context) else GenerationResult
+        )
         # The cache key binds the prompt text (via the operation-prompt hash)
         # so a prompt change invalidates previously cached model calls.
         prompt_hash = str((context_receipt.prompt_versions or {}).get("operation_hash", ""))
@@ -1261,16 +1324,18 @@ class CodeGeneratorGenerationOrchestrator:
         ).hexdigest()
         result_path = workspace.ledger_dir / "calls" / f"{key}.json"
         if result_path.is_file():
-            result = GenerationResult.model_validate(
+            cached_result = GenerationResult.model_validate(
                 json.loads(result_path.read_text(encoding="utf-8"))
             )
-            return result, GenerationCallReceipt(
+            return cached_result, GenerationCallReceipt(
                 receipt_id=f"call-{key[:20]}",
                 operation_id=operation,
                 idempotency_key=key,
                 context_receipt_hash=context_receipt.context_hash,
-                result_hash=digest(result.model_dump(mode="json")),
+                result_hash=digest(cached_result.model_dump(mode="json")),
                 profile=role_profile,
+                attempt=0,
+                retry_class="cache_hit",
             )
         client = self._client(settings, role_profile)
         if client is None:
@@ -1294,19 +1359,30 @@ class CodeGeneratorGenerationOrchestrator:
                     operation=f"code_generator.{operation}",
                     instructions=call_instructions,
                     input_payload={**context, "context_receipt_hash": context_receipt.context_hash},
-                    output_model=GenerationResult,
+                    output_model=output_model,
                     system_prompt=system,
                     model_profile=role_profile,
                     strict_schema=True,
                 )
                 parsed = getattr(raw, "parsed_output", raw)
-                if isinstance(parsed, dict) and not str(parsed.get("operation_id", "")).strip():
+                if (
+                    output_model is GenerationResult
+                    and isinstance(parsed, dict)
+                    and not str(parsed.get("operation_id", "")).strip()
+                ):
                     # The operation id is host-owned execution metadata, not
                     # portfolio content. Complete it deterministically when
                     # a provider omits the envelope field; all creative and
                     # source-bearing fields remain strictly model-validated.
                     parsed = {**parsed, "operation_id": f"{operation}:{unit_id}"}
-                result = GenerationResult.model_validate(parsed)
+                if output_model is SourceGenerationEnvelopeV2:
+                    result = _adapt_v4_generation_result(
+                        SourceGenerationEnvelopeV2.model_validate(parsed),
+                        operation_id=f"{operation}:{unit_id}",
+                        context_receipt=context_receipt,
+                    )
+                else:
+                    result = GenerationResult.model_validate(parsed)
                 break
             except (ModelJsonInvalidError, ModelOutputTruncatedError, ValidationError) as exc:
                 last_issue = _safe_generation_model_issue(exc)
@@ -1341,6 +1417,8 @@ class CodeGeneratorGenerationOrchestrator:
                 if isinstance(v, int)
             },
             finish_reason=str(getattr(raw, "finish_reason", "") or ""),
+            attempt=attempt + 1,
+            retry_class="schema_correction" if attempt else "",
         )
 
     async def _resolve_requests(
@@ -2036,6 +2114,70 @@ def _safe_generation_model_issue(exc: Exception) -> str:
 
 def _safe_generation_validation_summary(exc: ValidationError) -> str:
     return _safe_generation_model_issue(exc)
+
+
+def _context_uses_v4_contract(context: dict[str, Any]) -> bool:
+    plan = context.get("plan")
+    if not isinstance(plan, dict):
+        return False
+    blueprint = plan.get("experience_blueprint")
+    return isinstance(blueprint, dict) and str(blueprint.get("schema_version", "")).endswith("-v4")
+
+
+def _adapt_v4_generation_result(
+    envelope: SourceGenerationEnvelopeV2,
+    *,
+    operation_id: str,
+    context_receipt: GenerationContextReceipt,
+) -> GenerationResult:
+    """Adapt the mapping-free v4 envelope into the legacy internal domain DTO."""
+
+    if envelope.result == "changes":
+        return GenerationResult(
+            operation_id=operation_id,
+            based_on_context_receipt=context_receipt.context_hash,
+            mode="changes",
+            changes=GenerationChanges(
+                files=list(envelope.files),
+                content_coverage=list(envelope.coverage),
+                criterion_coverage=list(envelope.coverage),
+                resource_usage=list(envelope.coverage),
+            ),
+        )
+    if envelope.result == "requests":
+        from oryxenai.agents.code_generator.core.development_schemas import GenerationRequests
+
+        return GenerationResult(
+            operation_id=operation_id,
+            based_on_context_receipt=context_receipt.context_hash,
+            mode="requests",
+            requests=GenerationRequests(resource_requests=list(envelope.resource_requests)),
+        )
+    if envelope.result == "accepted":
+        from oryxenai.agents.code_generator.core.development_schemas import GenerationAccepted
+
+        return GenerationResult(
+            operation_id=operation_id,
+            based_on_context_receipt=context_receipt.context_hash,
+            mode="accepted",
+            accepted=GenerationAccepted(
+                summary="The v4 source work unit was accepted.",
+                verified_contracts=list(envelope.coverage),
+            ),
+        )
+    from oryxenai.agents.code_generator.core.development_schemas import GenerationCannotComplete
+
+    detail = envelope.failure_details[0]
+    return GenerationResult(
+        operation_id=operation_id,
+        based_on_context_receipt=context_receipt.context_hash,
+        mode="cannot_complete",
+        cannot_complete=GenerationCannotComplete(
+            code=detail.code,
+            safe_reason=detail.message,
+            missing_authority_or_capability=detail.next_action,
+        ),
+    )
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:

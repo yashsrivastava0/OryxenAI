@@ -113,6 +113,12 @@ services:
     depends_on:
       worker:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   # This service is intentionally outside the default main workflow. Run it
   # explicitly with the build-validation profile for a detached, session-free

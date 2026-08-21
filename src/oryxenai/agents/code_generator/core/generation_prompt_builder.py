@@ -69,15 +69,24 @@ def build_instructions(
             "Set mode to exactly one of changes/requests/accepted/cannot_complete; every payload "
             "field that does not match your mode MUST be null."
         )
+    elif output_model.__name__ == "SourceGenerationEnvelopeV2":
+        task += (
+            "\nSet result_tag to exactly one of changes/requests/accepted/cannot_complete. "
+            "Always include files, resource_requests, coverage, and failure_details as arrays; "
+            "use empty arrays when a result kind does not need that payload."
+        )
     context_hash = _hash(context)
     schema_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()
+    operation_version = _VERSIONS[operation]
+    if output_model.__name__ == "SourceGenerationEnvelopeV2":
+        operation_version = f"{operation_version}.v4"
     receipt = GenerationContextReceipt(
         receipt_id=f"context-{context_hash[:20]}",
         operation_id=operation,
         role_profile=str(context.get("role_profile", "")),
         prompt_versions={
             "system": "code_generator.system.v4",
-            "operation": _VERSIONS[operation],
+            "operation": operation_version,
             "system_hash": _hash(system),
             # Hash the full composed instructions so a changed contract block
             # invalidates cached model calls, not just a changed prompt file.
