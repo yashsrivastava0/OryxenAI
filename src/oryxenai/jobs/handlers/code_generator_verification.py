@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from oryxenai.agents.code_generator.core.build_runner import run_clean_build
 from oryxenai.agents.code_generator.core.candidate_identity import build_candidate_identity
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
@@ -22,6 +24,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     GateResult,
     PendingPromotion,
+    QualityReviewReceiptV1,
     SafeIssue,
     SitePlan,
     TerminalFailureReport,
@@ -114,6 +117,44 @@ async def _execute(
                     "retryable": False,
                 },
             }
+        try:
+            admitted_plan = SitePlan.model_validate(run.plan)
+        except Exception:
+            admitted_plan = None
+        if admitted_plan is not None and isinstance(
+            admitted_plan.experience_blueprint, ExperienceBlueprintV4
+        ):
+            quality_payload = (
+                run.generation_projection.get("quality_review")
+                if isinstance(run.generation_projection, dict)
+                else None
+            )
+            quality_ok = False
+            if isinstance(quality_payload, dict):
+                try:
+                    quality_ok = QualityReviewReceiptV1.model_validate(quality_payload).accepted
+                except ValidationError:
+                    quality_ok = False
+            if not quality_ok:
+                issue = SafeIssue(
+                    code="QUALITY_REVIEW_MISSING_OR_STALE",
+                    message="The v4 source has no accepted hash-bound whole-site quality review.",
+                    next_action="Run the bounded quality review before requesting preview promotion.",
+                )
+                await _cas(
+                    repo,
+                    run,
+                    DevelopmentRunStatus.NEEDS_ATTENTION.value,
+                    {"issues": [issue.model_dump(mode="json")]},
+                )
+                await repo.append_event(
+                    run_id,
+                    event_type="quality_review_required",
+                    level="error",
+                    message=issue.message,
+                )
+                await db.commit()
+                return {"status": "needs_attention", "run_id": str(run_id)}
         if run.status not in {
             DevelopmentRunStatus.QUEUED.value,
             DevelopmentRunStatus.SOURCE_READY.value,
