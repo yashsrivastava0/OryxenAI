@@ -45,7 +45,38 @@ Rebuild the image when migration files or application code changed. The
 Compose image copies the repository into the container; using an old cached
 image can hide current migration files.
 
-## What happened during the verified run
+The current migration head is `0013_codegen_stage_attempts`. Do not use an
+older revision from a previous run as the expected final state.
+
+## Latest startup recovery (2026-08-21)
+
+The normal startup completed after these safe, repeatable recovery steps:
+
+1. Docker Desktop was started because the Linux engine pipe was unavailable.
+   `docker info` must succeed before running Compose.
+2. The application images were rebuilt. An exited stale
+   `oryxenai-worker-1` container then blocked recreation; after inspecting its
+   exact metadata and mounts, only that container was removed with `docker rm`
+   (no `-v`), and the normal Compose command was retried.
+3. Migration failed at `0013_codegen_stage_attempts` because the database was
+   stamped at `0012_codegen_session` but contained only `alembic_version` and
+   no application tables. Read-only inspection confirmed there were no rows or
+   tables to preserve.
+4. The empty database was repaired by resetting only the migration marker and
+   replaying the checked-in migrations:
+
+   ```powershell
+   docker compose run --rm --no-deps migrate alembic stamp base
+   docker compose run --rm --no-deps migrate alembic upgrade head
+   docker compose up -d migrate app worker
+   ```
+
+   This preserved the PostgreSQL volume and did not use `down -v`, `DROP`, or
+   `TRUNCATE`.
+5. The final migration revision was `0013_codegen_stage_attempts`; API,
+   worker, PostgreSQL, and the frontend then became healthy.
+
+## Prior verified run (2026-08-19)
 
 1. The initial Docker inspection was blocked by Windows permission on the
    Docker named pipe. Running Docker commands with the required local Docker
@@ -87,7 +118,7 @@ Observed results:
 - Frontend root returned HTTP `200`.
 - The agent endpoint returned Discovery, Content Architect, and Visual
   Design Director.
-- The database revision was `0012_codegen_session`.
+- The database revision was `0013_codegen_stage_attempts`.
 - API, worker, and PostgreSQL were healthy.
 - The three live profiles resolved their configured API-key environment name
   to `OPENAI_API_KEY`, and the key was present inside the app container. The
@@ -113,7 +144,46 @@ revision and table list read-only. If the database is again stamped at
 `0011_codegen_coordinator` while only the old Code Generator tables exist,
 repair only the missing shared tables using the current ORM/migration schema,
 then rerun the normal Compose startup. Preserve existing rows and verify the
-final migration revision is `0012_codegen_session`.
+final migration revision is `0013_codegen_stage_attempts`.
+
+### `relation "code_generator_runs" does not exist` at `0013_codegen_stage_attempts`
+
+First inspect the database read-only:
+
+```powershell
+docker exec oryxenai-postgres-1 psql -U oryxen -d oryxenai -Atc `
+  "select version_num from alembic_version;"
+docker exec oryxenai-postgres-1 psql -U oryxen -d oryxenai -Atc `
+  "select schemaname, tablename from pg_tables where schemaname not in ('pg_catalog','information_schema') order by schemaname, tablename;"
+```
+
+Only if the result contains `alembic_version` and no application tables, use
+the empty-database repair from the latest recovery:
+
+```powershell
+docker compose run --rm --no-deps migrate alembic stamp base
+docker compose run --rm --no-deps migrate alembic upgrade head
+docker compose up -d migrate app worker
+```
+
+If application tables or user rows exist, do not stamp `base`; stop and make a
+targeted, data-preserving migration diagnosis instead.
+
+### `Conflict. The container name "/oryxenai-worker-1" is already in use`
+
+Inspect the exact stale container before removing it:
+
+```powershell
+docker inspect --format '{{.Name}}|{{.State.Status}}|{{.Config.Image}}|{{json .Mounts}}' oryxenai-worker-1
+```
+
+If it is an exited stale container, remove only that container (never its
+volumes), then retry the normal startup:
+
+```powershell
+docker rm oryxenai-worker-1
+docker compose up -d migrate app worker
+```
 
 ### Docker named-pipe access denied
 
