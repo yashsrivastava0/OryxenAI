@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-21 22:00 +05:30 - Codex (GPT-5 / OpenAI) - [26890c5] - Code Generator V4 reliability and preview quality contracts
+Added provider-compatible v4 creative/blueprint/search/source/quality DTOs,
+typed token compilation, semantic route ownership, measurable design
+realization, exact bounded provider-query receipts, v4 development quality
+review parity, hash-bound quality API/reporting, and `preview_pending`
+publication retention. Fixed preview CSP origin allowlists, gateway-specific
+health checks, index caching, storage read-back, and pack-v4 mirror admission;
+added focused v4 and gateway coverage while preserving v3 compatibility.
+
 ### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [5fcbdd4] — Anthropic model routing, adapter hardening, profile API/UI
 Implemented D-040: all active engines now resolve through the shared
 `ModelRouter` and provider-neutral client factory to Anthropic Claude Sonnet 5
