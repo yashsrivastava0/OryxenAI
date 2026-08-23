@@ -7,10 +7,11 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urljoin, urlsplit
 
 from oryxenai.agents.code_generator.core.development_schemas import (
+    DesignRealizationContract,
     Diagnostic,
     RuntimeEvidence,
     VerificationJourney,
@@ -175,6 +176,14 @@ class RuntimeVerifier:
                 ]
             try:
                 for journey in plan.runtime_journeys:
+                    realization_contract = next(
+                        (
+                            item
+                            for item in plan.realization_contracts
+                            if item.route_id == journey.route_id
+                        ),
+                        None,
+                    )
                     journey_evidence, journey_diagnostics = await self._run_journey(
                         browser,
                         base_url,
@@ -184,6 +193,7 @@ class RuntimeVerifier:
                         expected_runtime_paths,
                         timeout_ms,
                         verification_token,
+                        realization_contract,
                     )
                     evidence.append(journey_evidence)
                     diagnostics.extend(journey_diagnostics)
@@ -201,6 +211,7 @@ class RuntimeVerifier:
         expected_route_paths: list[str],
         timeout_ms: int,
         verification_token: str,
+        realization_contract: DesignRealizationContract | None,
     ) -> tuple[RuntimeEvidence, list[Diagnostic]]:
         viewport = profile.viewport_profiles.get(journey.viewport_profile) or {
             "width": 1440,
@@ -311,6 +322,7 @@ class RuntimeVerifier:
         focus_results: list[dict[str, str | bool]] = []
         overflow_results: list[dict[str, str | int | bool]] = []
         geometry_results: list[dict[str, Any]] = []
+        realization_results: list[dict[str, Any]] = []
         try:
             for step in journey.steps:
                 await self._step(
@@ -333,6 +345,30 @@ class RuntimeVerifier:
                         _diagnostic(
                             str(violation.get("code", "RUNTIME_GEOMETRY_INVALID")),
                             str(violation.get("message", "The page failed a geometry check.")),
+                            journey_id=journey.journey_id,
+                            route_id=journey.route_id,
+                        )
+                    )
+            if realization_contract is not None and journey.journey_id.startswith(
+                ("direct:", "reduced-motion:")
+            ):
+                realization_result = await self._assert_design_realization(
+                    page,
+                    realization_contract,
+                    viewport_name=journey.viewport_profile,
+                    reduced_motion=journey.motion_profile == "reduce",
+                )
+                realization_results.append(realization_result)
+                for violation in realization_result.get("violations", []):
+                    if not isinstance(violation, dict):
+                        continue
+                    passed = False
+                    diagnostics.append(
+                        _diagnostic(
+                            str(violation.get("code", "RUNTIME_REALIZATION_INVALID")),
+                            str(
+                                violation.get("message", "The design-realization contract failed.")
+                            ),
                             journey_id=journey.journey_id,
                             route_id=journey.route_id,
                         )
@@ -583,6 +619,7 @@ class RuntimeVerifier:
                 focus_results=focus_results,
                 overflow_results=overflow_results,
                 geometry_results=geometry_results,
+                realization_results=realization_results,
                 passed=passed,
             ),
             diagnostics,
@@ -854,6 +891,282 @@ class RuntimeVerifier:
                 thresholds,
             )
             geometry_results.append({"step_id": step.step_id, **result})
+
+    async def _assert_design_realization(
+        self,
+        page: Any,
+        contract: DesignRealizationContract,
+        *,
+        viewport_name: str,
+        reduced_motion: bool,
+    ) -> dict[str, Any]:
+        payload = {
+            "contract": contract.model_dump(mode="json"),
+            "viewport": viewport_name,
+            "reducedMotion": reduced_motion,
+        }
+        result = cast(
+            dict[str, Any],
+            await page.evaluate(
+                r"""async payload => {
+              const contract = payload.contract;
+              const viewport = payload.viewport;
+              const violations = [];
+              const checked = [];
+              const visible = element => {
+                if (!element) return false;
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+              };
+              const one = (selector, code, label) => {
+                let values;
+                try { values = document.querySelectorAll(selector); }
+                catch (_error) {
+                  violations.push({code, message: `${label} uses an invalid selector: ${selector}`});
+                  return null;
+                }
+                if (values.length !== 1) {
+                  violations.push({code, message: `${label} selector ${selector} matched ${values.length} elements.`});
+                  return values[0] || null;
+                }
+                if (!visible(values[0])) {
+                  violations.push({code, message: `${label} selector ${selector} has no visible geometry.`});
+                }
+                return values[0];
+              };
+              const propertyValue = (style, name) => style.getPropertyValue(name).trim() || style[name] || '';
+              const expectedField = (prefix, item) => item[`${prefix}_${viewport}`];
+              const main = document.querySelector('main');
+              const mainRect = main?.getBoundingClientRect();
+              const observedSectionOrder = [...document.querySelectorAll('[data-content-id]')]
+                .map(element => element.getAttribute('data-content-id'))
+                .filter(Boolean);
+              if (JSON.stringify(observedSectionOrder) !== JSON.stringify(contract.section_order)) {
+                violations.push({code: 'RUNTIME_SECTION_ORDER', message: `Observed section order ${observedSectionOrder.join(',')} does not match the approved order ${contract.section_order.join(',')}.`});
+              }
+              const lengthPixels = (token, style) => {
+                if (!token || token.unit === 'fr' || token.unit === '%') return Number.NaN;
+                const rootSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+                const localSize = Number.parseFloat(style.fontSize) || rootSize;
+                const factors = {px: 1, rem: rootSize, em: localSize, ch: localSize * 0.5, ex: localSize * 0.5, vw: innerWidth / 100, vh: innerHeight / 100, vmin: Math.min(innerWidth, innerHeight) / 100, vmax: Math.max(innerWidth, innerHeight) / 100};
+                return Number(token.value) * Number(factors[token.unit]);
+              };
+              const regionRecords = [];
+              for (const item of contract.region_checks) {
+                const section = one(item.section_selector, 'RUNTIME_REGION_SECTION_SELECTOR', `Region ${item.region_id}`);
+                const region = one(item.region_selector, 'RUNTIME_REGION_SELECTOR', `Region ${item.region_id}`);
+                if (!section || !region || !mainRect) continue;
+                const rect = region.getBoundingClientRect();
+                const style = getComputedStyle(region);
+                regionRecords.push({item, section: item.section_id, rect});
+                const widthRatio = rect.width / Math.max(1, mainRect.width);
+                if (widthRatio + 0.01 < item.width_ratio_min || widthRatio - 0.01 > item.width_ratio_max) {
+                  violations.push({code: 'RUNTIME_REGION_WIDTH_RATIO', message: `Region ${item.region_id} width ratio ${widthRatio.toFixed(3)} is outside ${item.width_ratio_min}-${item.width_ratio_max}.`});
+                }
+                const expectedColumns = Number(expectedField('columns', item));
+                const computedColumns = style.gridTemplateColumns && style.gridTemplateColumns !== 'none'
+                  ? style.gridTemplateColumns.split(/\s+/).filter(Boolean).length
+                  : 1;
+                if (computedColumns !== expectedColumns) {
+                  violations.push({code: 'RUNTIME_REGION_COLUMN_COUNT', message: `Region ${item.region_id} rendered ${computedColumns} columns; expected ${expectedColumns}.`});
+                }
+                const expectedGap = lengthPixels(item.gap, style);
+                const observedGap = Number.parseFloat(style.columnGap || style.gap || style.rowGap);
+                if (Number.isFinite(expectedGap) && Number.isFinite(observedGap) && Math.abs(expectedGap - observedGap) > 1.5) {
+                  violations.push({code: 'RUNTIME_REGION_GAP', message: `Region ${item.region_id} gap ${observedGap}px does not match the approved ${expectedGap}px.`});
+                }
+                if (!item.sticky_allowed && style.position === 'sticky') {
+                  violations.push({code: 'RUNTIME_REGION_STICKY_UNAUTHORIZED', message: `Region ${item.region_id} is sticky without blueprint authority.`});
+                }
+                const fontSize = Number.parseFloat(style.fontSize) || 16;
+                const estimatedMeasure = rect.width / Math.max(1, fontSize * 0.5);
+                if (estimatedMeasure > item.max_measure_ch * 1.2) {
+                  violations.push({code: 'RUNTIME_REGION_MEASURE', message: `Region ${item.region_id} exceeds its readable measure.`});
+                }
+                checked.push({kind: 'region', id: item.region_id, widthRatio, computedColumns});
+              }
+              for (let left = 0; left < regionRecords.length; left += 1) {
+                for (let right = left + 1; right < regionRecords.length; right += 1) {
+                  const first = regionRecords[left];
+                  const second = regionRecords[right];
+                  if (first.section !== second.section) continue;
+                  const intersection = Math.max(0, Math.min(first.rect.right, second.rect.right) - Math.max(first.rect.left, second.rect.left)) * Math.max(0, Math.min(first.rect.bottom, second.rect.bottom) - Math.max(first.rect.top, second.rect.top));
+                  const smaller = Math.max(1, Math.min(first.rect.width * first.rect.height, second.rect.width * second.rect.height));
+                  const overlap = intersection / smaller;
+                  const allowed = Math.max(first.item.overlap_ratio_max, second.item.overlap_ratio_max);
+                  if (overlap > allowed + 0.02) {
+                    violations.push({code: 'RUNTIME_REGION_OVERLAP', message: `Regions ${first.item.region_id} and ${second.item.region_id} overlap by ${overlap.toFixed(3)} beyond ${allowed}.`});
+                  }
+                }
+              }
+              const relationshipRatio = (kind, source, target) => {
+                const a = source.getBoundingClientRect();
+                const b = target.getBoundingClientRect();
+                if (kind === 'width_ratio') return a.width / Math.max(1, b.width);
+                if (kind === 'horizontal_offset') return (a.left - b.left) / Math.max(1, b.width);
+                if (kind === 'vertical_overlap') return Math.max(0, a.bottom - b.top) / Math.max(1, Math.min(a.height, b.height));
+                if (kind === 'shared_alignment_axis') return Math.abs(a.left - b.left) / Math.max(1, innerWidth);
+                if (kind === 'sticky_within_section') return getComputedStyle(source).position === 'sticky' ? 1 : 0;
+                if (kind === 'isolated_spacing') return Math.max(0, a.top - b.bottom) / Math.max(1, innerHeight);
+                return Number.NaN;
+              };
+              for (const item of contract.distinctive_move_checks) {
+                if (!item.viewports.includes(viewport)) continue;
+                const source = one(item.source_selector, 'RUNTIME_DISTINCTIVE_SOURCE_SELECTOR', `Move ${item.move_id}`);
+                const target = one(item.target_selector, 'RUNTIME_DISTINCTIVE_TARGET_SELECTOR', `Move ${item.move_id}`);
+                if (!source || !target) continue;
+                const ratio = relationshipRatio(item.relationship, source, target);
+                if (!Number.isFinite(ratio) || ratio + 0.01 < item.minimum_ratio || ratio - 0.01 > item.maximum_ratio) {
+                  violations.push({code: 'RUNTIME_DISTINCTIVE_RELATIONSHIP', message: `Move ${item.move_id} selector relationship measured ${ratio}; expected ${item.minimum_ratio}-${item.maximum_ratio}.`});
+                }
+                const sourceStyle = getComputedStyle(source);
+                for (const property of item.required_css_properties) {
+                  const value = propertyValue(sourceStyle, property);
+                  if (!value || value === 'none' || value === 'normal' || value === 'auto') {
+                    violations.push({code: 'RUNTIME_DISTINCTIVE_PROPERTY', message: `Move ${item.move_id} selector lacks required ${property} evidence.`});
+                  }
+                }
+                checked.push({kind: 'distinctive_move', id: item.move_id, ratio});
+              }
+              for (const item of contract.resource_checks) {
+                const element = one(item.element_selector, 'RUNTIME_RESOURCE_SELECTOR', `Resource ${item.resource_slot_id}`);
+                if (!element) continue;
+                const image = element instanceof HTMLImageElement ? element : element.querySelector('img');
+                if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+                  violations.push({code: 'RUNTIME_RESOURCE_DECODE', message: `Resource ${item.resource_slot_id} has no decoded local image.`});
+                  continue;
+                }
+                const ratio = image.naturalWidth / image.naturalHeight;
+                if (ratio < item.aspect_ratio_min || ratio > item.aspect_ratio_max) {
+                  violations.push({code: 'RUNTIME_RESOURCE_ASPECT_RATIO', message: `Resource ${item.resource_slot_id} aspect ratio ${ratio.toFixed(3)} is outside contract.`});
+                }
+                if (item.require_srcset && !image.getAttribute('srcset')) {
+                  violations.push({code: 'RUNTIME_RESOURCE_SRCSET_MISSING', message: `Resource ${item.resource_slot_id} has no responsive srcset.`});
+                }
+                if (item.require_dimensions && (!Number(image.getAttribute('width')) || !Number(image.getAttribute('height')))) {
+                  violations.push({code: 'RUNTIME_RESOURCE_DIMENSIONS_MISSING', message: `Resource ${item.resource_slot_id} has no intrinsic dimensions.`});
+                }
+                const loading = image.getAttribute('loading') || 'eager';
+                if (loading !== item.loading) {
+                  violations.push({code: 'RUNTIME_RESOURCE_LOADING_POLICY', message: `Resource ${item.resource_slot_id} loading policy is ${loading}, expected ${item.loading}.`});
+                }
+                const rect = image.getBoundingClientRect();
+                const section = image.closest('[data-content-id], section')?.getBoundingClientRect();
+                const intersection = section ? Math.max(0, Math.min(rect.right, section.right) - Math.max(rect.left, section.left)) * Math.max(0, Math.min(rect.bottom, section.bottom) - Math.max(rect.top, section.top)) : rect.width * rect.height;
+                const visibleRatio = intersection / Math.max(1, rect.width * rect.height);
+                if (visibleRatio < item.minimum_visible_ratio) {
+                  violations.push({code: 'RUNTIME_RESOURCE_VISIBLE_USE', message: `Resource ${item.resource_slot_id} visible ratio ${visibleRatio.toFixed(3)} is below contract.`});
+                }
+                checked.push({kind: 'resource', id: item.resource_slot_id, ratio, visibleRatio});
+              }
+              for (const item of contract.interaction_checks) {
+                const target = one(item.target_selector, 'RUNTIME_INTERACTION_SELECTOR', `Interaction ${item.interaction_id}`);
+                if (!target) continue;
+                if (item.expected_state_attribute && !target.hasAttribute(item.expected_state_attribute)) {
+                  violations.push({code: 'RUNTIME_INTERACTION_STATE_ATTRIBUTE', message: `Interaction ${item.interaction_id} lacks ${item.expected_state_attribute}.`});
+                }
+                checked.push({kind: 'interaction', id: item.interaction_id});
+              }
+              for (const item of contract.font_checks) {
+                const element = document.querySelector(item.selector);
+                if (!element || !visible(element)) {
+                  violations.push({code: 'RUNTIME_FONT_SELECTOR', message: `Font role ${item.role} has no visible target.`});
+                  continue;
+                }
+                const style = getComputedStyle(element);
+                const family = style.fontFamily.toLowerCase();
+                if (!family.includes(item.family.toLowerCase())) {
+                  violations.push({code: 'RUNTIME_FONT_FAMILY', message: `Font role ${item.role} computed family does not match ${item.family}.`});
+                }
+                const computedWeight = style.fontWeight === 'normal' ? 400
+                  : style.fontWeight === 'bold' ? 700 : Number(style.fontWeight);
+                if (!item.weights.includes(computedWeight)) {
+                  violations.push({code: 'RUNTIME_FONT_WEIGHT', message: `Font role ${item.role} computed weight ${style.fontWeight} is not one of ${item.weights.join(', ')}.`});
+                }
+                for (const weight of item.weights) {
+                  if (!document.fonts.check(`${weight} 16px "${item.family}"`)) {
+                    violations.push({code: 'RUNTIME_FONT_LOAD_FAILED', message: `Font role ${item.role} weight ${weight} failed document.fonts.check.`});
+                  }
+                }
+                checked.push({kind: 'font', id: item.role, family: style.fontFamily, weight: style.fontWeight});
+              }
+              return {contractHash: contract.contract_hash, checked, violations};
+            }""",
+                payload,
+            ),
+        )
+        motion_results: list[dict[str, Any]] = []
+        for motion in contract.motion_checks:
+            target = page.locator(motion.target_selector).first
+            if await target.count() != 1 or not await target.is_visible():
+                result["violations"].append(
+                    {
+                        "code": "RUNTIME_MOTION_SELECTOR",
+                        "message": f"Motion {motion.motion_id} target selector is not uniquely visible.",
+                    }
+                )
+                continue
+            if reduced_motion:
+                state = await target.evaluate(
+                    """element => { const style = getComputedStyle(element); return {animationName: style.animationName, animationDuration: style.animationDuration, visibility: style.visibility, opacity: style.opacity}; }"""
+                )
+                if state["visibility"] == "hidden" or float(state["opacity"] or 0) <= 0:
+                    result["violations"].append(
+                        {
+                            "code": "RUNTIME_MOTION_REDUCED_CONTENT_HIDDEN",
+                            "message": f"Motion {motion.motion_id} hides content under reduced motion.",
+                        }
+                    )
+                motion_results.append({"id": motion.motion_id, "reduced": True, **state})
+                continue
+            properties = [item.property_name for item in motion.changed_properties]
+            before = await target.evaluate(
+                "(element, properties) => Object.fromEntries(properties.map(name => [name, getComputedStyle(element).getPropertyValue(name).trim()]))",
+                properties,
+            )
+            trigger = page.locator(motion.trigger_selector).first
+            if motion.trigger == "hover":
+                await trigger.hover()
+            elif motion.trigger == "focus":
+                await trigger.focus()
+            elif motion.trigger == "activate":
+                await trigger.click()
+            elif motion.trigger == "viewport":
+                await target.scroll_into_view_if_needed()
+            await page.wait_for_timeout(min(max(motion.duration_max_ms, 30), 1000))
+            after = await target.evaluate(
+                "(element, properties) => Object.fromEntries(properties.map(name => [name, getComputedStyle(element).getPropertyValue(name).trim()]))",
+                properties,
+            )
+            for expectation in motion.changed_properties:
+                changed = before.get(expectation.property_name) != after.get(
+                    expectation.property_name
+                )
+                expected_after = expectation.after_value.strip()
+                matches_after = not expected_after or expected_after in str(
+                    after.get(expectation.property_name, "")
+                )
+                if not changed and motion.trigger not in {"load", "viewport"}:
+                    result["violations"].append(
+                        {
+                            "code": "RUNTIME_MOTION_STATE_UNCHANGED",
+                            "message": f"Motion {motion.motion_id} did not change {expectation.property_name} on its declared selector.",
+                        }
+                    )
+                if not matches_after:
+                    result["violations"].append(
+                        {
+                            "code": "RUNTIME_MOTION_STATE_MISMATCH",
+                            "message": f"Motion {motion.motion_id} did not reach the declared {expectation.property_name} state.",
+                        }
+                    )
+            motion_results.append(
+                {"id": motion.motion_id, "reduced": False, "before": before, "after": after}
+            )
+        result["motion"] = motion_results
+        return result
 
     async def _ensure_interaction_visible(self, page: Any, locator: Any) -> None:
         """Open a collapsed navigation container before testing its child link."""

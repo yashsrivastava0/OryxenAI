@@ -25,10 +25,6 @@ export function installPreviewBridge(): void {
       trustedParentOrigin,
     );
   });
-  window.parent.postMessage(
-    { type: "preview:ready", version: PREVIEW_BRIDGE_VERSION, path: currentPath() },
-    "*",
-  );
 }
 
 export function notifyPreviewRoute(path: string): void {

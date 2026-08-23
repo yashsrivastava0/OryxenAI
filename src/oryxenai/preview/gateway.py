@@ -225,8 +225,21 @@ def create_preview_app(
         return JSONResponse({"status": "ok", "service": "preview-gateway"})
 
     async def health_ready(_request: Request) -> JSONResponse:
+        try:
+            # A harmless missing-object HEAD proves that the configured
+            # backend is reachable without mutating shared preview state.
+            await gateway.storage.head("preview/health/readiness")
+        except PreviewStorageError:
+            return JSONResponse(
+                {
+                    "status": "unavailable",
+                    "service": "preview-gateway",
+                    "storage": "unreadable",
+                },
+                status_code=503,
+            )
         return JSONResponse(
-            {"status": "ready", "service": "preview-gateway", "storage": "configured"}
+            {"status": "ready", "service": "preview-gateway", "storage": "readable"}
         )
 
     return Starlette(

@@ -7,7 +7,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from oryxenai.agents.code_generator.core.development_schemas import Diagnostic, SitePlan
+from oryxenai.agents.code_generator.core.content_compiler import content_ids_by_section
+from oryxenai.agents.code_generator.core.development_schemas import (
+    Diagnostic,
+    ExperienceBlueprintV4,
+    SitePlan,
+)
+from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
     validate_repository,
@@ -230,12 +236,19 @@ def validate_final_source(
         for item in site.get("public_content", [])
         if isinstance(item, dict)
     }
+    blueprint_v4 = isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+    content_keys = content_ids_by_section(
+        [item for item in site.get("public_content", []) if isinstance(item, dict)],
+        [item for item in site.get("facts", []) if isinstance(item, dict)],
+    )
     for route in routes:
         route_id = str(route.get("route_id", ""))
         path = str(route.get("path", ""))
-        storage_key = str(route.get("storage_key", route_id)).replace("\\", "/").strip("/")
+        storage_key = str(route.get("storage_key") or route_id).replace("\\", "/").strip("/")
         if storage_key.startswith("routes/"):
             storage_key = storage_key.removeprefix("routes/")
+        if blueprint_v4:
+            storage_key = semantic_segment(storage_key or route_id)
         route_file = f"src/routes/{storage_key}/index.tsx"
         if route_id not in registry or path not in registry:
             diagnostics.append(
@@ -261,6 +274,7 @@ def validate_final_source(
         route_source = "\n".join(
             text for file_path, text in files.items() if file_path.startswith(route_prefix)
         )
+        executable_route_source = _without_comments(route_source)
         # Model responses occasionally contain UTF-8 text decoded as
         # Windows-1252 (for example ``Iâ€™m``) or harmless JSX quote wrappers.
         # Compare approved copy in the same canonical visible-text space used
@@ -294,13 +308,25 @@ def validate_final_source(
                     )
                 )
             section_content = section.get("content", {})
+            approved_content_ids = content_keys.get((route_id, section_id), [])
+            if blueprint_v4:
+                for content_id in approved_content_ids:
+                    if content_id not in executable_route_source:
+                        diagnostics.append(
+                            _diag(
+                                "SOURCE_CONTENT_KEY_MISSING",
+                                "An approved content key is not referenced by executable route source.",
+                                file=route_file,
+                                route_id=route_id,
+                            )
+                        )
             if isinstance(section_content, dict):
                 heading = str(section_content.get("heading", "")).strip()
                 heading_present = any(
                     _canonical_visible_text(match.group(1)) == _canonical_visible_text(heading)
                     for match in _HEADING_TEXT_RE.finditer(route_source)
                 )
-                if heading and not heading_present:
+                if heading and not heading_present and not blueprint_v4:
                     diagnostics.append(
                         _diag(
                             "SOURCE_CONTENT_COVERAGE_MISSING",
@@ -313,7 +339,8 @@ def validate_final_source(
                 # Prose only: single-word enum-ish values are data shape,
                 # not rendered copy the route must carry verbatim.
                 if (
-                    " " in text
+                    not blueprint_v4
+                    and " " in text
                     and len(text) >= 6
                     and _canonical_visible_text(text) not in canonical_route_source
                 ):
@@ -402,22 +429,20 @@ def validate_final_source(
                     file="src/generated/content-manifest.ts",
                 )
             )
-    route_source_by_id = {
-        str(route.get("route_id", "")): "\n".join(
-            text
-            for path, text in files.items()
-            if path.startswith(
-                "src/routes/"
-                + str(route.get("storage_key", route.get("route_id", "")))
-                .replace(chr(92), "/")
-                .removeprefix("routes/")
-                .strip("/")
-                + "/"
-            )
+    route_source_by_id: dict[str, str] = {}
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", ""))
+        storage_key = str(route.get("storage_key") or route_id).replace("\\", "/").strip("/")
+        if storage_key.startswith("routes/"):
+            storage_key = storage_key.removeprefix("routes/")
+        if blueprint_v4:
+            storage_key = semantic_segment(storage_key or route_id)
+        prefix = f"src/routes/{storage_key}/"
+        route_source_by_id[route_id] = "\n".join(
+            text for path, text in files.items() if path.startswith(prefix)
         )
-        for route in routes
-        if isinstance(route, dict)
-    }
     for coverage in plan.acceptance_coverage:
         marker = coverage.source_marker.strip()
         route_source = route_source_by_id.get(coverage.route_id, combined)

@@ -27,7 +27,8 @@ Non-negotiable rules:
   restrained and coherent visual language rather than adding generic effects.
 - Use local resources only. Do not emit arbitrary URLs, remote imports,
   package changes, shell commands, credentials, or files outside owned paths.
-- Treat `ExperienceBlueprintV3`, typed token groups, `SharedSystems`, the
+- Treat the active `ExperienceBlueprintV3` or `ExperienceBlueprintV4`, typed
+  token groups, `SharedSystems`, the
   generated content module, and the work-graph ownership map as executable
   interfaces. Do not replace them with defaults or a parallel scaffold.
 - When the input blueprint is v4, use its typed token lists, semantic section

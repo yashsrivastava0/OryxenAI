@@ -10,12 +10,16 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     Diagnostic,
     VerificationProfile,
+    WorkUnit,
 )
 from oryxenai.agents.code_generator.core.diagnostics import make_diagnostic
 from oryxenai.agents.code_generator.core.final_repair import _deterministic_marker_repair
+from oryxenai.agents.code_generator.core.generation_orchestrator import _bisect_v4_work_unit
+from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
+from oryxenai.jobs.handlers.code_generator_verification import _export_call_ledger
 
 
 def test_candidate_identity_is_canonical_and_stable() -> None:
@@ -31,6 +35,32 @@ def test_candidate_identity_is_canonical_and_stable() -> None:
     first = CandidateIdentity.model_validate(values)
     second = CandidateIdentity.model_validate({**values, "identity_hash": first.identity_hash})
     assert first.identity_hash == second.identity_hash
+
+
+def test_v4_truncation_bisects_semantic_section_paths() -> None:
+    unit = WorkUnit(
+        unit_id="route-home-batch-1",
+        kind="route_batch",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero", "proof", "contact"],
+        owns_paths=[
+            f"src/routes/home/sections/{semantic_segment(section)}.{extension}"
+            for section in ("hero", "proof", "contact")
+            for extension in ("tsx", "css")
+        ],
+        isolated_workspace_key="home-batch-1",
+        context_estimate=12000,
+        output_estimate=18000,
+    )
+
+    children = _bisect_v4_work_unit(unit)
+
+    assert [child.section_ids for child in children] == [["hero"], ["proof", "contact"]]
+    assert [path for child in children for path in child.owns_paths] == unit.owns_paths
+    assert all(child.unit_id.startswith(f"{unit.unit_id}-split-") for child in children)
+    assert all(child.context_estimate == 6000 for child in children)
+    assert all(child.output_estimate == 9000 for child in children)
 
 
 def test_clean_artifact_manifest_rejects_missing_references(tmp_path) -> None:
@@ -139,6 +169,34 @@ def test_portfolio_export_contains_source_dist_and_metadata(tmp_path) -> None:
     assert '"export_folder": "' + exported.name + '"' in metadata
     assert '"docker": false' in metadata
     assert '"Dockerfile"' in metadata
+
+
+def test_export_call_ledger_contains_references_without_prompt_or_source() -> None:
+    ledger = _export_call_ledger(
+        {
+            "generation_id": "generation-1",
+            "call_receipts": [
+                {
+                    "receipt_id": "call-1",
+                    "result_hash": "result-1",
+                    "prompt": "private prompt must not be exported",
+                }
+            ],
+            "context_receipts": [{"context_hash": "context-1", "source": "private source"}],
+            "repair_rounds": 1,
+            "request_rounds": 2,
+        }
+    )
+
+    assert ledger == {
+        "generation_id": "generation-1",
+        "call_count": 1,
+        "call_receipt_ids": ["call-1"],
+        "call_result_hashes": ["result-1"],
+        "context_receipt_hashes": ["context-1"],
+        "repair_rounds": 1,
+        "request_rounds": 2,
+    }
 
 
 def test_diagnostics_capture_source_location_without_putting_it_in_message() -> None:

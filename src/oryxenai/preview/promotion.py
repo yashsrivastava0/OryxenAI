@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, urlsplit
 
+import httpx
 from pydantic import ValidationError
 
 from oryxenai.agents.code_generator.core.development_schemas import (
@@ -18,6 +22,8 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     PendingPromotion,
     PromotionReceipt,
+    PublicReadbackEntryV1,
+    PublicReadbackReceiptV1,
 )
 from oryxenai.storage.preview import PreviewStorage, PreviewStorageError
 
@@ -39,6 +45,13 @@ class PromotionError(ValueError):
         super().__init__(message)
 
 
+PublicReadback = Callable[
+    [str, str, CandidateArtifact, BuildManifest, str],
+    Awaitable[PublicReadbackReceiptV1],
+]
+_PREVIEW_HOST_RE = re.compile(r"^[a-z2-7][a-z2-7-]{15,63}$")
+
+
 class PreviewPromoter:
     def __init__(
         self,
@@ -46,10 +59,12 @@ class PreviewPromoter:
         *,
         preview_base_url: str = "http://127.0.0.1:4174/preview",
         require_readback: bool = False,
+        public_readback: PublicReadback | None = None,
     ) -> None:
         self.storage = storage
         self.preview_base_url = preview_base_url.rstrip("/")
         self.require_readback = require_readback
+        self.public_readback = public_readback
 
     async def store_candidate(
         self,
@@ -80,21 +95,45 @@ class PreviewPromoter:
                     "CANDIDATE_FILE_CHANGED", "A verified build file changed before storage."
                 )
             try:
+                key = f"{prefix}/dist/{entry.path}"
                 await self.storage.put_immutable(
-                    key=f"{prefix}/dist/{entry.path}",
+                    key=key,
                     data=data,
                     content_type=entry.media_type,
                 )
+                stored = await self.storage.get(key)
+                if (
+                    stored is None
+                    or stored[0].sha256 != entry.sha256
+                    or stored[0].size_bytes != entry.size_bytes
+                    or stored[1] != data
+                ):
+                    raise PromotionError(
+                        "CANDIDATE_STORAGE_READBACK_FAILED",
+                        "A candidate build object failed storage read-back verification.",
+                    )
             except PreviewStorageError as exc:
                 raise PromotionError(exc.code, exc.message) from exc
         report_data = _canonical(verification_report)
         report_hash = hashlib.sha256(report_data).hexdigest()
         try:
+            report_key = f"preview/verification/{candidate_id}/{report_hash}.json"
             await self.storage.put_immutable(
-                key=f"preview/verification/{candidate_id}/{report_hash}.json",
+                key=report_key,
                 data=report_data,
                 content_type="application/json",
             )
+            stored_report = await self.storage.get(report_key)
+            if (
+                stored_report is None
+                or stored_report[0].sha256 != report_hash
+                or stored_report[0].size_bytes != len(report_data)
+                or stored_report[1] != report_data
+            ):
+                raise PromotionError(
+                    "CANDIDATE_STORAGE_READBACK_FAILED",
+                    "The verification report failed storage read-back verification.",
+                )
         except PreviewStorageError as exc:
             raise PromotionError(exc.code, exc.message) from exc
         expires = expires_at or (datetime.now(UTC) + timedelta(days=3)).isoformat()
@@ -134,13 +173,28 @@ class PreviewPromoter:
         verification_report_hash: str,
         expected_revision: int,
     ) -> PendingPromotion:
-        current = await self.storage.head(f"preview/hosts/{host}/active.json")
+        current = await self.storage.get(f"preview/hosts/{host}/active.json")
+        previous_pointer: dict[str, Any] = {}
+        previous_pointer_sha256 = ""
+        if current is not None:
+            try:
+                decoded = json.loads(current[1].decode("utf-8"))
+                if isinstance(decoded, dict):
+                    previous_pointer = decoded
+                    previous_pointer_sha256 = current[0].sha256
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                raise PromotionError(
+                    "PROMOTION_POINTER_INVALID",
+                    "The existing active preview pointer is invalid.",
+                ) from None
         return PendingPromotion(
             promotion_id=f"promotion-{hashlib.sha256(f'{run_id}:{artifact.build_hash}:{expected_revision}'.encode()).hexdigest()[:24]}",
             candidate=artifact,
             verification_report_hash=verification_report_hash,
             expected_revision=expected_revision,
-            previous_pointer_etag=current.etag if current else "",
+            previous_pointer_etag=current[0].etag if current else "",
+            previous_pointer_sha256=previous_pointer_sha256,
+            previous_pointer=previous_pointer,
             created_at=_now(),
         )
 
@@ -153,10 +207,9 @@ class PreviewPromoter:
         candidate_pointer: dict[str, Any],
         verification_report_hash: str,
     ) -> ActivePreview:
-        if (
-            pending.candidate.candidate_id
-            != candidate_pointer.get("candidate_prefix", "").split("/")[2]
-        ):
+        candidate_prefix = str(candidate_pointer.get("candidate_prefix", ""))
+        candidate_parts = candidate_prefix.split("/")
+        if len(candidate_parts) < 4 or pending.candidate.candidate_id != candidate_parts[2]:
             raise PromotionError(
                 "PROMOTION_CANDIDATE_MISMATCH",
                 "The pending candidate does not match the stored candidate.",
@@ -241,16 +294,19 @@ class PreviewPromoter:
                     "PREVIEW_READBACK_FAILED",
                     "The promoted preview index failed storage read-back verification.",
                 )
+            manifest = BuildManifest.model_validate(candidate_pointer["manifest"])
             pointer = {
                 "schema_version": "code-generator-active-preview-v1",
                 "host": host,
-                "candidate_prefix": candidate_pointer["candidate_prefix"],
+                "candidate_prefix": candidate_prefix,
                 "manifest": candidate_pointer["manifest"],
                 "receipt_key": receipt_key,
                 "receipt_hash": receipt_object.sha256,
                 "candidate_id": pending.candidate.candidate_id,
                 "candidate_identity_hash": pending.candidate.candidate_identity_hash,
                 "build_hash": pending.candidate.build_hash,
+                "route_ids": pending.candidate.route_ids,
+                "route_paths": pending.candidate.route_paths,
                 "promoted_at": receipt.promoted_at,
             }
             pointer_data = _canonical(pointer)
@@ -279,6 +335,29 @@ class PreviewPromoter:
                     content_type="application/json",
                     expected_etag=pending.previous_pointer_etag or None,
                 )
+            public_readback: PublicReadbackReceiptV1 | None = None
+            if self.require_readback:
+                try:
+                    reader = self.public_readback or self._default_public_readback
+                    public_readback = await reader(
+                        self.preview_base_url,
+                        host,
+                        pending.candidate,
+                        manifest,
+                        pending.promotion_id,
+                    )
+                except Exception as exc:
+                    await self._restore_previous_pointer(
+                        pointer_key=pointer_key,
+                        pointer_object=pointer_object,
+                        pending=pending,
+                    )
+                    if isinstance(exc, PromotionError):
+                        raise
+                    raise PromotionError(
+                        "PREVIEW_PUBLIC_READBACK_FAILED",
+                        "The promoted preview did not pass public URL read-back verification.",
+                    ) from exc
             return ActivePreview(
                 host=host,
                 url=f"{self.preview_base_url}/{host}/",
@@ -289,10 +368,133 @@ class PreviewPromoter:
                 receipt_hash=receipt_object.sha256,
                 pointer_etag=pointer_object.etag,
                 route_ids=pending.candidate.route_ids,
+                route_paths=pending.candidate.route_paths,
                 promoted_at=receipt.promoted_at,
+                public_readback=public_readback,
             )
         except PreviewStorageError as exc:
             raise PromotionError(exc.code, exc.message) from exc
+
+    async def _restore_previous_pointer(
+        self,
+        *,
+        pointer_key: str,
+        pointer_object: Any,
+        pending: PendingPromotion,
+    ) -> None:
+        """Undo a failed public promotion only if this attempt still owns it."""
+
+        current = await self.storage.head(pointer_key)
+        if current is None or current.etag != pointer_object.etag:
+            # A newer promotion won the race.  Never delete or overwrite it.
+            return
+        if pending.previous_pointer:
+            await self.storage.put_conditional(
+                key=pointer_key,
+                data=_canonical(pending.previous_pointer),
+                content_type="application/json",
+                expected_etag=pointer_object.etag,
+            )
+        elif not pending.previous_pointer_etag:
+            await self.storage.delete(pointer_key)
+
+    async def _default_public_readback(
+        self,
+        base_url: str,
+        host: str,
+        candidate: CandidateArtifact,
+        manifest: BuildManifest,
+        promotion_id: str,
+    ) -> PublicReadbackReceiptV1:
+        parsed_base = urlsplit(base_url)
+        if (
+            parsed_base.scheme not in {"http", "https"}
+            or not parsed_base.netloc
+            or parsed_base.username is not None
+            or parsed_base.password is not None
+            or parsed_base.query
+            or parsed_base.fragment
+            or not _PREVIEW_HOST_RE.fullmatch(host)
+        ):
+            raise PromotionError(
+                "PREVIEW_PUBLIC_READBACK_FAILED",
+                "The configured public preview URL is not a safe HTTP(S) origin.",
+            )
+        root_url = f"{base_url}/{host}/"
+        checks: list[tuple[str, str, BuildManifestEntry | None]] = [
+            # The gateway injects the mount metadata into index.html for the
+            # runtime base URL, so the public root is intentionally checked
+            # for reachability and evidence, not byte identity with the
+            # immutable artifact. Static assets below remain hash-bound.
+            (root_url, "root", None)
+        ]
+        for route_path in candidate.route_paths:
+            normalized = str(route_path or "/").strip()
+            if not normalized.startswith("/"):
+                normalized = f"/{normalized}"
+            encoded_route = quote(normalized.lstrip("/"), safe="/:@-._~")
+            url = f"{root_url}{encoded_route}" if normalized != "/" else root_url
+            checks.append((url, "route", None))
+        for entry in manifest.entries:
+            if entry.path == "index.html":
+                continue
+            url = f"{root_url}{quote(entry.path, safe='/:@-._~')}"
+            checks.append((url, _public_readback_kind(entry.path), entry))
+        seen: set[str] = set()
+        evidence: list[PublicReadbackEntryV1] = []
+        try:
+            async with httpx.AsyncClient(follow_redirects=False, timeout=8.0) as client:
+                for url, kind, expected in checks:
+                    if url in seen:
+                        continue
+                    seen.add(url)
+                    response = await client.get(url)
+                    if response.status_code < 200 or response.status_code >= 300:
+                        raise PromotionError(
+                            "PREVIEW_PUBLIC_READBACK_FAILED",
+                            f"Public preview read-back returned HTTP {response.status_code}.",
+                        )
+                    body_hash = hashlib.sha256(response.content).hexdigest()
+                    if expected is not None and body_hash != expected.sha256:
+                        raise PromotionError(
+                            "PREVIEW_PUBLIC_READBACK_FAILED",
+                            "A public preview asset differed from the verified build.",
+                        )
+                    evidence.append(
+                        PublicReadbackEntryV1(
+                            url=url,
+                            kind=kind,  # type: ignore[arg-type]
+                            status_code=response.status_code,
+                            sha256=body_hash,
+                            media_type=response.headers.get("content-type", "").split(";", 1)[0],
+                        )
+                    )
+        except httpx.HTTPError as exc:
+            raise PromotionError(
+                "PREVIEW_PUBLIC_READBACK_FAILED",
+                "The public preview gateway could not be reached for read-back.",
+            ) from exc
+        return PublicReadbackReceiptV1(
+            promotion_id=promotion_id,
+            candidate_id=candidate.candidate_id,
+            build_hash=candidate.build_hash,
+            public_origin=f"{parsed_base.scheme}://{parsed_base.netloc}",
+            entries=evidence,
+            checked_at=_now(),
+        )
+
+
+def _public_readback_kind(path: str) -> str:
+    suffix = Path(path).suffix.casefold()
+    if suffix in {".js", ".mjs"}:
+        return "javascript"
+    if suffix == ".css":
+        return "stylesheet"
+    if suffix in {".woff", ".woff2", ".ttf", ".otf"}:
+        return "font"
+    if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}:
+        return "image"
+    return "route"
 
 
 def pending_manifest_entries(manifest: dict[str, Any]) -> list[BuildManifestEntry]:
