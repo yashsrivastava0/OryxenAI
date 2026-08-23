@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.registry import AgentRegistry
-from oryxenai.api.dependencies import get_agent_registry
+from oryxenai.api.dependencies import get_agent_registry, require_onboarded_user
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -20,6 +20,7 @@ class AgentInfo(BaseModel):
 
 @router.get("", response_model=list[AgentInfo])
 async def list_agents(
+    _user: object = Depends(require_onboarded_user),
     registry: AgentRegistry = Depends(get_agent_registry),
 ) -> list[AgentInfo]:
     """Return registered mock agents with minimal metadata."""

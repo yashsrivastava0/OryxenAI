@@ -1,7 +1,7 @@
 # OryxenAI
 
-Production-oriented OryxenAI backend, Phase 1 authentication foundation, and
-developer testing harness.
+Production-oriented OryxenAI backend, Phase 2 authentication/ownership
+foundation, and developer testing harness.
 
 > **Discovery, Content Architect, Visual Design Director, and the hidden
 > Portfolio Build Preparation stage are implemented end to end.** Code
@@ -30,8 +30,8 @@ pack in temporary object storage
 - Portfolio generation, code-generation sandbox, and downstream agent chaining
 - Agent chaining, supervisor agent, LangChain/LangGraph, or any agent framework
 - Queue/worker (Redis, Celery, Temporal, Kafka)
-- Phase 2-4 authorization: owner-scoping existing portfolio resources,
-  entitlements, worker fencing, and administrator lifecycle
+- Phase 3-4 authorization: one-portfolio/variant/success entitlements, durable
+  worker fencing, administrator lifecycle, and production deployment handoff
 - Billing, published-portfolio hosting automation, and production cloud setup
 - React frontend, visual editor, SEO, analytics, and published-portfolio hosting
 - Vector database, embeddings, prompt-management platform, observability SaaS
@@ -113,9 +113,16 @@ PS > uv run alembic upgrade head
 PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000` for the temporary authentication shell. After
-authentication, the explicit developer harness remains at
-`http://127.0.0.1:8000/dev`.
+Open `http://127.0.0.1:8000` for the temporary Google-only authentication
+shell. After authentication and username onboarding, `/app` boots the
+owner-scoped temporary workspace with a Supabase bearer token; `/dev` remains
+an explicit admin-only developer harness when enabled. Existing sessions are
+legacy-quarantined for normal users, while admins may inspect them.
+
+Phase 2 deliberately does not add the one-portfolio entitlement, durable worker
+fencing, administrator lifecycle, or production deployment. Run
+`uv run alembic upgrade head` before using a database with pre-existing
+`portfolio_sessions` rows.
 
 ## Linux/macOS setup
 

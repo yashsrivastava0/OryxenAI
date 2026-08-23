@@ -1,0 +1,287 @@
+/**
+ * Side-effect-free browser auth runtime shared by product and developer
+ * shells.  It owns Supabase session access, bearer injection, the single 401
+ * refresh boundary, and private browser-state cleanup.
+ */
+
+export const REVIEWED_DESTINATIONS = Object.freeze(["/app", "/admin"]);
+export const PRIVATE_SESSION_KEYS = Object.freeze([
+  "oryxenai.session_id",
+  "oryxenai.discovery.session",
+  "oryxenai.private",
+]);
+
+export class AuthRequestError extends Error {
+  constructor(message, { status = 0, code = "AUTH_INVALID" } = {}) {
+    super(message);
+    this.name = "AuthRequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function safeSession(result) {
+  return result?.data?.session ?? result?.session ?? null;
+}
+
+export function clearPrivateState(storage) {
+  try {
+    for (const key of PRIVATE_SESSION_KEYS) storage?.removeItem?.(key);
+  } catch {
+    // Storage errors are reported by the session restore boundary.
+  }
+}
+
+export function isReviewedDestination(value, origin = "http://localhost") {
+  if (typeof value !== "string" || !value || value.includes("\\") || value.includes("%")) {
+    return false;
+  }
+  try {
+    const safeOrigin = new URL(origin).origin;
+    const parsed = new URL(value, origin);
+    return (
+      parsed.origin === safeOrigin &&
+      !parsed.search &&
+      !parsed.hash &&
+      REVIEWED_DESTINATIONS.includes(parsed.pathname) &&
+      value === parsed.pathname
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function safeRelativePath(value, fallback) {
+  if (typeof value !== "string" || !value || value.includes("\\") || value.includes("%")) {
+    return fallback;
+  }
+  try {
+    const parsed = new URL(value, "http://localhost");
+    return parsed.origin === "http://localhost" &&
+      parsed.pathname === value &&
+      !parsed.search &&
+      !parsed.hash &&
+      value.startsWith("/") &&
+      !value.startsWith("//")
+      ? value
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function errorMessage(code) {
+  switch (code) {
+    case "AUTH_REQUIRED":
+      return "Authentication is required.";
+    case "ACCESS_NOT_APPROVED":
+      return "This Google account is not approved for OryxenAI access.";
+    case "ACCOUNT_SUSPENDED":
+    case "ACCOUNT_DELETED":
+      return "This OryxenAI account is currently unavailable.";
+    case "USER_CAPACITY_REACHED":
+      return "Normal-user access is currently at capacity.";
+    case "USERNAME_TAKEN":
+      return "That username is already taken.";
+    case "ONBOARDING_REQUIRED":
+      return "Complete username onboarding before using this page.";
+    case "AUTH_PROVIDER_UNAVAILABLE":
+      return "Authentication is temporarily unavailable. Please try again shortly.";
+    default:
+      return "Your authentication session is no longer valid.";
+  }
+}
+
+export async function responseError(response) {
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  const code = body?.error?.code || (response.status === 401 ? "AUTH_INVALID" : "REQUEST_FAILED");
+  return new AuthRequestError(errorMessage(code), { status: response.status, code });
+}
+
+export function createAuthorizedFetch({
+  auth,
+  fetchImpl = globalThis.fetch,
+  onAuthFailure = () => {},
+  initialSession = undefined,
+}) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("A fetch implementation is required.");
+  }
+  const request = async (url, init = {}, session) => {
+    if (!session?.access_token) {
+      await onAuthFailure();
+      throw new AuthRequestError(errorMessage("AUTH_REQUIRED"), {
+        status: 401,
+        code: "AUTH_REQUIRED",
+      });
+    }
+    const headers = new Headers(init.headers || {});
+    headers.set("Authorization", `Bearer ${session.access_token}`);
+    headers.set("Accept", "application/json");
+    return fetchImpl(url, { ...init, headers });
+  };
+
+  return async (url, init = {}) => {
+    let session = initialSession;
+    if (session === undefined) {
+      let sessionResult;
+      try {
+        sessionResult = await auth.getSession();
+      } catch {
+        await onAuthFailure();
+        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
+      }
+      if (sessionResult?.error) {
+        await onAuthFailure();
+        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
+      }
+      session = safeSession(sessionResult);
+    }
+
+    let response = await request(url, init, session);
+    if (response.status === 401) {
+      let refreshed;
+      try {
+        refreshed = await auth.refreshSession();
+      } catch {
+        refreshed = null;
+      }
+      session = safeSession(refreshed);
+      if (refreshed?.error || !session?.access_token) {
+        await onAuthFailure();
+        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
+      }
+      response = await request(url, init, session);
+    }
+    if (!response.ok) throw await responseError(response);
+    return response;
+  };
+}
+
+export function readAuthConfig(documentRef = globalThis.document) {
+  const read = (name) => documentRef?.querySelector?.(`meta[name="${name}"]`)?.content || "";
+  return {
+    supabaseUrl: read("oryxenai-supabase-url"),
+    publishableKey: read("oryxenai-publishable-key"),
+    callbackUrl: read("oryxenai-callback-url"),
+    paths: {
+      signIn: read("oryxenai-sign-in-path") || "/sign-in",
+      callback: read("oryxenai-callback-path") || "/auth/callback",
+      access: read("oryxenai-access-not-approved-path") || "/access-not-approved",
+      unavailable: read("oryxenai-account-unavailable-path") || "/account-unavailable",
+      onboarding: read("oryxenai-onboarding-path") || "/onboarding",
+      app: read("oryxenai-app-path") || "/app",
+      admin: read("oryxenai-admin-path") || "/admin",
+    },
+  };
+}
+
+export function createBrowserAuth(config, globalRef = globalThis) {
+  if (!config?.supabaseUrl || !config?.publishableKey) {
+    throw new AuthRequestError("Authentication is not configured for this application.", {
+      code: "AUTH_CONFIG_INVALID",
+    });
+  }
+  const factory = globalRef?.OryxenAISupabaseClient?.createClient;
+  if (typeof factory !== "function") {
+    throw new AuthRequestError("Authentication is not configured for this application.", {
+      code: "AUTH_CONFIG_INVALID",
+    });
+  }
+  const client = factory(config.supabaseUrl, config.publishableKey, {
+    auth: {
+      flowType: "pkce",
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+    },
+  });
+  return {
+    client,
+    auth: {
+      getSession: () => client.auth.getSession(),
+      refreshSession: () => client.auth.refreshSession(),
+      exchangeCodeForSession: (code, options) => client.auth.exchangeCodeForSession(code, options),
+      signOut: () => client.auth.signOut(),
+      signInWithOAuth: (options) => client.auth.signInWithOAuth(options),
+    },
+  };
+}
+
+export function getBrowserStorage(globalRef = globalThis) {
+  try {
+    return globalRef?.sessionStorage || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveAuthenticatedContext({
+  auth,
+  fetchImpl = globalThis.fetch,
+  location,
+  storage,
+  onAuthFailure = () => {},
+}) {
+  let sessionResult;
+  try {
+    sessionResult = await auth.getSession();
+  } catch {
+    return { kind: "storage_error" };
+  }
+  if (sessionResult?.error) return { kind: "storage_error" };
+  const session = safeSession(sessionResult);
+  if (!session?.access_token) {
+    clearPrivateState(storage);
+    return { kind: "signed_out" };
+  }
+
+  const authorizedFetch = createAuthorizedFetch({
+    auth,
+    fetchImpl,
+    initialSession: session,
+    onAuthFailure,
+  });
+  try {
+    const response = await authorizedFetch("/api/v1/me", { method: "GET" });
+    const me = await response.json();
+    return { kind: "authenticated", me, session, authorizedFetch };
+  } catch (error) {
+    if (error instanceof AuthRequestError) {
+      if (error.code === "ACCESS_NOT_APPROVED" || error.code === "USER_CAPACITY_REACHED") {
+        return { kind: "access_not_approved", error };
+      }
+      if (error.code === "ACCOUNT_SUSPENDED" || error.code === "ACCOUNT_DELETED") {
+        return { kind: "account_unavailable", error };
+      }
+      if (error.code === "ONBOARDING_REQUIRED") return { kind: "onboarding", error };
+    }
+    await onAuthFailure();
+    return { kind: "auth_failure", error };
+  }
+}
+
+export async function logoutCurrentBrowser({
+  auth,
+  storage,
+  ui = {},
+  location,
+  signInPath = "/sign-in",
+  stopActivity = () => {},
+}) {
+  stopActivity();
+  clearPrivateState(storage);
+  ui.clearPrivate?.();
+  try {
+    await auth.signOut();
+  } catch {
+    // Local state is already gone; route away even if remote sign-out fails.
+  } finally {
+    location?.replace?.(safeRelativePath(signInPath, "/sign-in"));
+  }
+}

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import Any, NoReturn
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,8 +11,9 @@ from oryxenai.agents.code_generator.service import (
     CodeGeneratorOperationError,
     CodeGeneratorService,
 )
-from oryxenai.api.dependencies import get_code_generator_service
-from oryxenai.api.errors import AppError, ValidationError
+from oryxenai.api.dependencies import get_code_generator_service, require_session_owner_or_admin
+from oryxenai.api.errors import AppError
+from oryxenai.auth.authorization import PortfolioAccess
 
 router = APIRouter(prefix="/sessions/{session_id}/code-generator", tags=["code-generator"])
 
@@ -29,13 +29,6 @@ class CodeGeneratorStateResponse(BaseModel):
     jobs: list[dict[str, Any]] = Field(default_factory=list)
 
 
-def _session_uuid(value: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID format: '{value}'") from exc
-
-
 def _translate(exc: CodeGeneratorOperationError) -> NoReturn:
     raise AppError(
         exc.message,
@@ -48,10 +41,11 @@ def _translate(exc: CodeGeneratorOperationError) -> NoReturn:
 @router.get("", response_model=CodeGeneratorStateResponse)
 async def get_code_generator_state(
     session_id: str,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:
-        return CodeGeneratorStateResponse(**await service.get_state(_session_uuid(session_id)))
+        return CodeGeneratorStateResponse(**await service.get_state(access.session.id))
     except CodeGeneratorOperationError as exc:
         _translate(exc)
 
@@ -63,12 +57,13 @@ async def start_code_generator(
     session_id: str,
     request: Request,
     _body: StartRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:
         return CodeGeneratorStateResponse(
             **await service.start(
-                _session_uuid(session_id),
+                access.session.id,
                 idempotency_key=request.headers.get("Idempotency-Key", ""),
             )
         )
@@ -85,12 +80,13 @@ async def regenerate_code_generator(
     session_id: str,
     request: Request,
     _body: StartRequest | None = None,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:
         return CodeGeneratorStateResponse(
             **await service.regenerate(
-                _session_uuid(session_id),
+                access.session.id,
                 idempotency_key=request.headers.get("Idempotency-Key", ""),
             )
         )
@@ -107,12 +103,13 @@ async def retry_code_generator(
     session_id: str,
     request: Request,
     _body: StartRequest | None = None,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:
         return CodeGeneratorStateResponse(
             **await service.retry(
-                _session_uuid(session_id),
+                access.session.id,
                 idempotency_key=request.headers.get("Idempotency-Key", ""),
             )
         )

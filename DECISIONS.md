@@ -41,6 +41,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Rejected alternatives:** Treating `/me` as complete portfolio authorization; auto-chaining the existing developer UI into authenticated product routes; deriving role from email on every returning request or from `user_metadata`; and implementing Phase 2-4 ownership/lifecycle work opportunistically in the Phase 1 commit.
 - **Consequence:** Phase 1 can prove identity, admission, refresh, logout, route progression, and local database constraints without claiming production authorization. Phase 2 must retrofit owner/admin dependencies and resource scoping before existing portfolio APIs are suitable for normal-user production use.
 
+## D-045 - Execute Phase 2 as session ownership and API authorization retrofit
+
+- **Date & Time:** 2026-08-24 02:00 +05:30 - Codex (model/provider omitted)
+- **Status:** decided-implemented
+- **Context:** Phase 1 established the Supabase identity boundary while existing portfolio sessions and nested APIs remained globally ID-addressable. The next bounded phase must isolate normal users without silently adding entitlement, worker, administrator-lifecycle, or deployment work.
+- **Decision:** Add `portfolio_sessions.owner_user_id` with `ON DELETE RESTRICT` and an explicit fail-closed `legacy_quarantined` state in one Alembic revision. Quarantine every pre-Phase-2 session, create new product sessions only from the authenticated local user, and centralize active/onboarded/owner/admin decisions in FastAPI dependencies and `PortfolioAccess`. Normal SQL queries are owner-scoped and exclude legacy rows; active onboarded admins can operate across owned and legacy sessions. Protect every existing session-nested API family, make system/model/development/fixture/mock surfaces admin-only or production-absent, and require the bearer-authenticated product/developer browser boot to resolve `/me` before protected workspace code.
+- **Rejected alternatives:** Assigning legacy rows to the first login; trusting session IDs, email, browser storage, request bodies, or JSONB for ownership; filtering global queries in Python; adding owner/actor fields to jobs/runs before the worker-fencing phase; enabling browser Data API policies; or leaving developer endpoints mounted behind runtime-only 404s.
+- **Consequence:** Phase 2 proves cross-user session isolation and admin legacy access while preserving existing stage state machines. Multiple normal-owned sessions remain temporarily allowed until Phase 3 entitlement; durable owner/actor bindings and worker finalization fencing remain deferred to Phase 3, administrator lifecycle/audit to Phase 4, and no production cloud resource is created.
+
 ## D-042 - Stable retry and explicit new-variant semantics
 
 - **Date & Time:** 2026-08-23 00:00 +05:30 - Codex (model/provider omitted)

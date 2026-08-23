@@ -3,6 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
+  <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
+  <meta name="oryxenai-callback-url" content="{{ auth_config.callbackUrl }}">
+  <meta name="oryxenai-sign-in-path" content="{{ auth_config.signInPath }}">
+  <meta name="oryxenai-access-not-approved-path" content="{{ auth_config.accessNotApprovedPath }}">
+  <meta name="oryxenai-account-unavailable-path" content="{{ auth_config.accountUnavailablePath }}">
+  <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
+  <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
   <title>Code Generator - {{ app_name }}</title>
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/code-generator-development.css?v={{ css_version }}">
 </head>
@@ -124,6 +132,6 @@
       </div>
     </details>
   </main>
-  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/code-generator-development.js?v={{ js_version }}"></script>
+  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/dev-auth-bootstrap.mjs?v={{ dev_auth_bootstrap_version }}"></script>
 </body>
 </html>

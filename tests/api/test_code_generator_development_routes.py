@@ -6,6 +6,7 @@ from httpx import ASGITransport
 
 from oryxenai.core.settings import Settings
 from oryxenai.main import create_app
+from tests.conftest import override_test_identity
 
 
 @pytest.mark.asyncio
@@ -29,6 +30,7 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     settings = Settings()
     settings.code_generator_development.enabled = True
     app = create_app(settings)
+    override_test_identity(app, role="admin")
     assert "/api/v1/development/code-generator/fixtures" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/readiness" in app.openapi()["paths"]
     assert "/api/v1/development/code-generator/provider-preflight" in app.openapi()["paths"]

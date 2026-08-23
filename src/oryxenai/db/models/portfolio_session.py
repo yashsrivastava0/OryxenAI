@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Integer, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -23,6 +23,17 @@ class PortfolioSession(Base):
     __tablename__ = "portfolio_sessions"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    owner_user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    legacy_quarantined: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("true"),
+    )
     name: Mapped[str] = mapped_column(Text, nullable=False, default="Untitled session")
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
     current_state: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
@@ -32,4 +43,17 @@ class PortfolioSession(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(owner_user_id IS NOT NULL AND legacy_quarantined = false) OR "
+            "(owner_user_id IS NULL AND legacy_quarantined = true)",
+            name="ck_portfolio_sessions_owner_legacy_consistency",
+        ),
+        Index(
+            "ix_portfolio_sessions_owner_created",
+            "owner_user_id",
+            "created_at",
+        ),
     )

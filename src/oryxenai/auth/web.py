@@ -24,7 +24,7 @@ def _asset_version(filename: str) -> str:
         return "0"
 
 
-def _auth_csp(supabase_url: str) -> str:
+def auth_csp(supabase_url: str) -> str:
     parsed = urlsplit(supabase_url.rstrip("/"))
     sources = ["'self'"]
     if parsed.scheme in {"http", "https"} and parsed.hostname:
@@ -61,9 +61,10 @@ def create_auth_web_router() -> APIRouter:
                 "auth_css_version": _asset_version("auth.css"),
                 "auth_client_version": _asset_version("auth-client.js"),
                 "auth_controller_version": _asset_version("auth-controller.mjs"),
+                "auth_page_version": _asset_version("auth-page.mjs"),
             },
         )
-        response.headers["Content-Security-Policy"] = _auth_csp(settings.supabase_url)
+        response.headers["Content-Security-Policy"] = auth_csp(settings.supabase_url)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Frame-Options"] = "DENY"
         return response
@@ -92,13 +93,13 @@ def create_auth_web_router() -> APIRouter:
     async def onboarding(request: Request) -> Any:
         return await render_shell(request, "onboarding")
 
-    @router.get("/app", response_class=HTMLResponse)
-    async def app_page(request: Request) -> Any:
-        return await render_shell(request, "app")
-
     @router.get("/admin", response_class=HTMLResponse)
     async def admin(request: Request) -> Any:
         return await render_shell(request, "admin")
 
     router.mount("/auth-static", app=StaticFiles(directory=str(_STATIC_DIR)), name="auth-static")
+    # Browser shells import the same local runtime through a relative module
+    # specifier.  Keep this reviewed, self-hosted alias aligned with the
+    # canonical auth-static mount; it contains no credentials or API data.
+    router.mount("/auth/static", app=StaticFiles(directory=str(_STATIC_DIR)), name="auth-runtime")
     return router

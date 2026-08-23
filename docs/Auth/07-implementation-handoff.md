@@ -1,12 +1,13 @@
 # Implementation handoff
 
 This is the accepted architecture handoff and remains the boundary for the
-full authorization project. Phase 1 of the execution plan is now implemented:
-the auth boundary, local identity/capacity foundation, `/me` API, username
-onboarding, and temporary browser route shell are in the repository. Do not
-interpret this handoff as permission to implement Phases 2-4 in the same task;
-follow [10-implementation-plan.md](10-implementation-plan.md) for the later
-ownership, entitlement, administrator, and deployment work.
+full authorization project. Phases 1 and 2 of the execution plan are now
+implemented: the auth boundary, local identity/capacity foundation, `/me` API,
+username onboarding, session ownership/legacy quarantine, route policy, and
+authenticated browser boot are in the repository. Entitlement, worker
+fencing, administrator lifecycle, and deployment remain Phases 3 and 4; follow
+[10-implementation-plan.md](10-implementation-plan.md) for those deferred
+work packages.
 
 ## Scope statement
 
@@ -31,9 +32,9 @@ durable worker and separate generated-preview trust boundary.
 - Existing sessions will be legacy-quarantined.
 - AWS and production projects are intentionally not created.
 
-Pending after the local Phase 1 implementation: complete the real Google
-callback, onboarding, normal-user, and administrator browser flows in a later
-acceptance phase. Production resources remain intentionally uncreated.
+Pending after the local Phase 2 implementation: complete the real Google
+callback, onboarding, normal-user, and administrator browser flows in the
+Phase 4 acceptance gate. Production resources remain intentionally uncreated.
 
 ## Work packages
 
@@ -99,6 +100,10 @@ FastAPI ownership.
 - Do not add a provider webhook unless a later proven requirement needs one.
 
 ### 5. Ownership retrofit
+
+Implemented in Phase 2 by migration `0015_portfolio_ownership`, explicit
+repository scopes, `PortfolioAccess`, route inventory coverage, and product /
+developer browser boot integration.
 
 Inventory routes again at implementation time. Protect:
 

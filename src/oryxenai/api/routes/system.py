@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oryxenai.api.dependencies import get_db_session
+from oryxenai.api.dependencies import get_db_session, require_admin
 from oryxenai.api.errors import NotFoundError, PayloadTooLargeError, ValidationError
 from oryxenai.core.logging import get_logger
 from oryxenai.jobs.contracts import SYSTEM_PROBE_KIND, EnqueueRequest, ProbePayload
@@ -20,7 +20,11 @@ from oryxenai.jobs.registry import is_registered
 from oryxenai.jobs.repository import JobRepository
 from oryxenai.jobs.service import JobService
 
-router = APIRouter(prefix="/system", tags=["system"])
+router = APIRouter(
+    prefix="/system",
+    tags=["system"],
+    dependencies=[Depends(require_admin)],
+)
 logger = get_logger("oryxenai.api.system")
 
 
