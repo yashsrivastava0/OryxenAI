@@ -106,8 +106,9 @@ The git-ignored `.env` exists. Redaction-safe inspection confirmed:
 | `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` | Yes | Yes | Two distinct expected entries; values not printed |
 | `ORYXENAI_ALLOWED_USER_EMAILS` | Yes | Yes | One separate normal test entry; value not printed |
 
-The application does not read these auth settings yet. Presence proves owner
-setup only, not implemented auth.
+Phase 1 now reads these settings through typed startup validation and keeps
+secret/admission values server-only. Presence of the entries is still not
+evidence of a successful real browser callback or production deployment.
 
 ## Live verification evidence
 
@@ -136,14 +137,17 @@ printed. The checks prove:
 They do not prove the Google Client Secret completes token exchange. That
 requires a real browser login after the app callback exists.
 
-## Remaining verification after implementation
+## Remaining live/browser acceptance
 
 Owner-controlled prerequisites are complete. A separate normal test identity
-exists and must remain distinct from both administrators. No further account,
-key, table, cloud resource, or payment setup is required before the later auth
-implementation begins.
+exists and must remain distinct from both administrators. Phase 1 now owns the
+local Alembic identity/capacity tables; later phases will add ownership,
+entitlement, worker-fencing, and administrator-lifecycle tables. No further
+provider account, key, cloud resource, or payment setup is required for local
+Phase 1 verification.
 
-After the callback and protected application routes exist:
+The local Phase 1 implementation and direct HTML routes now exist. A visible
+browser run is still required for provider-side callback/session confirmation:
 
 1. restart the API/worker so private settings load;
 2. sign in with the separate normal test identity through a visible browser;
@@ -158,7 +162,8 @@ After the callback and protected application routes exist:
 - no production Supabase project;
 - no production Google OAuth client;
 - no paid cloud resource;
-- no application auth tables;
+- no production application auth tables or dashboard-created schema (Phase 1
+  tables are code-managed by Alembic);
 - no Clerk tenant/configuration; and
 - no downloaded Google OAuth JSON in the repository.
 

@@ -89,6 +89,17 @@ promotion. It never auto-chains from Build Preparation. See
 `src/oryxenai/agents/code_generator/` and
 `docs/code-generator-architecture/v2-production-architecture.md`.
 
+**Authentication Phase 1 is implemented as an independent foundation.** It
+provides Supabase Google-only session restoration through a self-hosted pinned
+browser client, asymmetric JWT/JWKS verification, verified-provider
+just-in-time admission, two bootstrap administrators, a 15-normal-user
+capacity gate, one-time username onboarding, `GET /api/v1/me`, and the
+temporary auth page controller/shell at `/`, `/sign-in`, `/auth/callback`,
+`/access-not-approved`, `/account-unavailable`, `/onboarding`, `/app`, and
+`/admin`. Existing portfolio/session/stage APIs are intentionally not
+owner-scoped yet; that is Phase 2. No Phase 1 claim represents the complete
+authorization project or production deployment.
+
 To verify current status rather than trusting this document: run
 `uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
 **plus** a `service.py`/`state.py` — an agent directory with only
@@ -114,9 +125,11 @@ deterministic mock, not a live implementation.
   endpoint.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
-- No authentication, billing, Supabase, or published-portfolio deployment
-  automation. Cloudflare R2 is used only for temporary Build Preparation
-  packs.
+- Phase 2-4 authorization work remains excluded: existing portfolio resources
+  are not owner-scoped, entitlements and worker fencing are not added, and
+  administrator lifecycle is not implemented. Billing and published-portfolio
+  deployment automation remain excluded. Cloudflare R2 is used only for
+  temporary Build Preparation packs.
 - No Redis, Celery, Kafka, or external queue.
 
 ## Config-driven policy — never hardcode
@@ -151,6 +164,7 @@ src/oryxenai/
   db/                        async engine, session, models, repositories
   jobs/                      durable PostgreSQL job queue, worker, heartbeat
   agents/shared/             contracts, registry, executor, model_client
+  auth/                      Phase 1 identity, admission, JWT, API, and web shell
   agents/{discovery, content_architect, visual_design_director, code_generator}/
   runtime/                   state_service, mock_runner
   api/routes/                stage/session APIs including build-preparation and code-generator
@@ -205,6 +219,18 @@ Browser → FastAPI API
   → browser polls state, saves answers/edits, and POSTs explicit approval
   → approved snapshot is persisted; the flow stops until the next stage is explicitly started
 ```
+
+The Phase 1 auth flow is separate and stops at the local identity boundary:
+
+```text
+Browser → Supabase session restore/PKCE callback
+  → one authorized GET /api/v1/me
+  → provider identity resolution on first approved subject
+  → local app_users admission and safe projection
+  → username onboarding or temporary /app and /admin shell
+```
+
+The existing portfolio routes still require the later ownership retrofit.
 
 All agent input, output, state snapshots, and errors are stored as JSONB.
 Agent code never receives database sessions or HTTP requests.
@@ -340,6 +366,8 @@ Content Architect's architecture one stage down the pipeline:
 
 ## What to implement next
 
+- **Phase 2:** retrofit ownership and authorization across existing APIs and
+  resources; do not treat Phase 1 `/me` as complete portfolio authorization.
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
 - **Evaluate Code Generator production generations** with privacy-safe packs;

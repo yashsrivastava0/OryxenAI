@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -143,6 +144,30 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content=_build_envelope(exc.code, exc.message, details),
+    )
+
+
+async def request_validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Keep framework validation failures in the same redacted envelope."""
+    fields: list[dict[str, Any]] = []
+    for error in exc.errors():
+        location = error.get("loc", ())
+        fields.append(
+            {
+                "location": [str(part) for part in location],
+                "message": str(error.get("msg", "Invalid request.")),
+                "type": str(error.get("type", "validation_error")),
+            }
+        )
+    return JSONResponse(
+        status_code=422,
+        content=_build_envelope(
+            "VALIDATION_ERROR",
+            "The request could not be validated.",
+            {"fields": fields},
+        ),
     )
 
 

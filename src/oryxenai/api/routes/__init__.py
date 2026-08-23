@@ -16,11 +16,13 @@ from oryxenai.api.routes import (
     system,
     visual_design_director,
 )
+from oryxenai.auth import api as auth_api
 
 
 def create_api_router(settings: object | None = None) -> APIRouter:
     """Build the /api/v1 router with all sub-routers."""
     router = APIRouter(prefix="/api/v1")
+    router.include_router(auth_api.router)
     router.include_router(agents.router)
     router.include_router(sessions.router)
     router.include_router(runs.router)

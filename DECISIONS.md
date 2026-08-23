@@ -32,6 +32,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Rejected alternatives:** Clerk plus Supabase, because it adds a second token/user lifecycle and another service; public first-come registration, because strangers could consume model credit and the 15 slots; application passwords/OTP/phone or self-built OAuth/session handling, because they add recovery and abuse/security ownership; client metadata roles or frontend-only quota; assigning legacy sessions to the first login; one deployment per generated portfolio; and creating AWS early enough to waste its promotional clock.
 - **Consequence:** Implementation must add config/secret validation, a pinned Supabase browser client, server JWT/JWKS verification, Alembic-owned user/capacity/entitlement/ownership/audit schema, full route/repository ownership retrofits, worker finalization fencing, Google/onboarding/admin UI, deterministic and live-browser tests, and a fail-closed production configuration. An authenticated but unapproved identity creates no application or generation state. A separate non-admin Google test identity is now configured privately, but it cannot prove the live normal-user flow until runtime auth exists; no AWS resource is authorized by this decision.
 
+## D-044 - Execute authentication Phase 1 without advancing authorization phases
+
+- **Date & Time:** 2026-08-23 23:45 +05:30 - Codex (model/provider omitted)
+- **Status:** decided-implemented
+- **Context:** The owner authorized the first execution phase of D-043 in a dirty multi-agent checkout. The authentication foundation must be independently testable and useful while existing portfolio resources remain unowned; silently adding ownership, entitlements, worker fencing, or administrator lifecycle would cross the explicit phase boundary.
+- **Decision:** Phase 1 consists of Supabase Google-only session restoration, server-side asymmetric JWT/provider verification, allowlisted just-in-time `app_users` admission, two bootstrap administrators outside the 15-normal-user capacity row, unique username onboarding, `/api/v1/me`, and a temporary direct HTML route/controller shell. The existing portfolio APIs and generated-preview authorization remain unchanged until their explicitly authorized later phases. No production cloud resource is created.
+- **Rejected alternatives:** Treating `/me` as complete portfolio authorization; auto-chaining the existing developer UI into authenticated product routes; deriving role from email on every returning request or from `user_metadata`; and implementing Phase 2-4 ownership/lifecycle work opportunistically in the Phase 1 commit.
+- **Consequence:** Phase 1 can prove identity, admission, refresh, logout, route progression, and local database constraints without claiming production authorization. Phase 2 must retrofit owner/admin dependencies and resource scoping before existing portfolio APIs are suitable for normal-user production use.
+
 ## D-042 - Stable retry and explicit new-variant semantics
 
 - **Date & Time:** 2026-08-23 00:00 +05:30 - Codex (model/provider omitted)

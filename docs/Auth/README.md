@@ -1,8 +1,9 @@
 # OryxenAI authentication handoff
 
-Status: provider, product policy, private development setup, and the future
-implementation handoff are complete. Runtime authentication is deliberately
-deferred; this documentation phase adds no auth code, tables, or dependencies.
+Status: Phase 1 authentication foundation is implemented and locally tested.
+Phase 2 ownership/authorization, Phase 3 portfolio entitlement and worker
+fencing, and Phase 4 administrator lifecycle/live deployment acceptance remain
+deferred. No production cloud resources were created by Phase 1.
 
 Last verified: 2026-08-23. Provider behavior, prices, SDKs, and dashboard
 screens are time-sensitive; recheck the linked primary sources when coding or
@@ -69,10 +70,11 @@ Redaction-safe verification confirmed:
 - OAuth initiation redirects to Google; and
 - the strict online prerequisite run completed with `0 failures, 0 warnings`.
 
-This does **not** yet prove a completed browser login, token exchange, username
-onboarding, FastAPI authorization, or normal-user flow. Those require the later
-implementation and visible browser acceptance. No additional account or secret
-is currently required before planning that implementation.
+The local implementation proves the deterministic controller, callback/session
+logic, server-side JWT/provider boundaries, safe `/me` projection, admission
+constraints, and temporary route shells through unit/API tests. A real Google
+browser login and the production-origin flow remain later acceptance work; no
+additional account or secret is created by this phase.
 
 Run the safe setup checker from the repository root:
 
@@ -82,6 +84,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prereq
 
 The checker reports presence and booleans only. It never prints a key, token,
 password, administrator email, or allowlist entry.
+
+For a deployment, select a deployment-owned TOML overlay with
+`[app].env = "production"`, `[app].enable_dev_ui = false`, and
+`[auth].required = true`. Replace the local origins with exactly one reviewed
+HTTPS `primary_origin` and one matching `allowed_origins` entry. Startup then
+fails closed for the committed localhost origins, missing provider
+coordinates, mismatched issuer, wildcard origins, or an empty required
+admission policy. The local base configuration intentionally keeps the two
+port-8000 origins for development and tests.
 
 ## Minimal user flow
 
@@ -106,15 +117,16 @@ Use a full-page redirect. Do not automate a real Google password in CI.
 - On first login, resolve verified identity through Supabase Auth before
   allowlist or admin bootstrap decisions.
 - Returning requests resolve the external `sub` to current local role/status.
-- Every object lookup includes owner-or-admin authorization.
+- Phase 1 protects the identity boundary and `/me`/username routes. Every
+  portfolio object lookup still requires the Phase 2 owner-or-admin retrofit.
 - Business tables remain backend-only; do not rely on the browser Data API.
 - Production starts fail closed if auth is required but provider coordinates,
   keys, issuer/audience, or exact origins are invalid.
 
 ## Deployment boundary
 
-Do not create AWS resources in this documentation phase or the later local auth
-implementation. Create the AWS Free account only when deployment is ready so
+Do not create AWS resources during Phase 1. Create the AWS Free account only
+when deployment is ready so
 its promotional clock is not wasted. Production will use separate
 Supabase/Google configuration and final HTTPS origins.
 
