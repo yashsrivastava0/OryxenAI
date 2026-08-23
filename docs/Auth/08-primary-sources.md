@@ -1,127 +1,99 @@
-# Primary sources
+# Authentication primary sources
 
-Research date: 2026-08-23. These are official provider/project sources. No
-third-party tutorial or other AI output is treated as authoritative. Recheck
-time-sensitive pricing, limits, SDK signatures, and dashboard instructions at
-implementation/deployment time.
+Last reviewed: 2026-08-23.
 
-## Clerk
+Provider APIs, limits, pricing, keys, and dashboard behavior change. Recheck
+these official sources before implementation and deployment. No tutorial or AI
+output is authoritative.
 
-- [Pricing](https://clerk.com/pricing) — Hobby capacity, custom domain,
-  session/log and feature limits.
-- [Set up a Clerk application](https://clerk.com/docs/getting-started/quickstart/setup-clerk)
-  — dashboard/application start.
-- [JavaScript quickstart](https://clerk.com/docs/js-frontend/getting-started/quickstart)
-  — package or official script tags, UI bundle, publishable key, `Clerk.load()`.
-- [JavaScript SignIn view](https://clerk.com/docs/js-frontend/reference/components/authentication/sign-in)
-  — prebuilt `mountSignIn()` behavior.
-- [JavaScript Session object](https://clerk.com/docs/js-frontend/reference/objects/session)
-  — short-lived session token retrieval/caching.
-- [Official Python SDK repository](https://github.com/clerk/clerk-sdk-python) —
-  package install, request authentication, authorized parties, async Backend
-  API support.
-- [Google social connection](https://clerk.com/docs/guides/configure/auth-strategies/social-connections/google)
-  — shared development credentials, production custom credentials, Google
-  origins/redirect URI, testing/production status.
-- [Production deployment](https://clerk.com/docs/guides/development/deployment/production)
-  — owned domain, production keys, DNS, OAuth, CSP, authorized parties.
-- [Development and production environments](https://clerk.com/docs/guides/development/managing-environments)
-  — why development instances/keys are not production substitutes.
-- [Redirect customization](https://clerk.com/docs/guides/development/customize-redirect-urls)
-  — sign-in/up redirect rules.
-- [Sign-up and sign-in options](https://clerk.com/docs/guides/configure/auth-strategies/sign-up-sign-in-options)
-  — provider, username, password, and user-model options.
-- [Request authentication](https://clerk.com/docs/reference/backend/authenticate-request)
-  — request/token verification and `authorizedParties`.
-- [Manual JWT verification](https://clerk.com/docs/guides/sessions/manual-jwt-verification)
-  — cookie/header token sources and claim validation.
-- [Session tokens](https://clerk.com/docs/guides/sessions/session-tokens) —
-  default claims including authorized party.
-- [User metadata](https://clerk.com/docs/guides/users/extending) — metadata
-  visibility, token size/freshness and Backend API tradeoffs.
-- [Manage/delete users](https://clerk.com/docs/guides/users/managing) —
-  dashboard and Backend API deletion.
-- [Ban a user](https://clerk.com/docs/reference/backend/user/ban-user) — ban
-  revokes sessions and prevents sign-in.
-- [Sync data with webhooks](https://clerk.com/docs/guides/development/webhooks/syncing)
-  — eventual consistency, retry/failure caveat, user events.
-- [Webhook overview](https://clerk.com/docs/guides/development/webhooks/overview)
-  — signature verification, replay, retry.
-- [CSP requirements](https://clerk.com/docs/guides/secure/best-practices/csp-headers)
-  — required script/connect/image/worker/style/frame sources.
-- [System limits](https://clerk.com/docs/guides/how-clerk-works/system-limits) —
-  environment-specific rate limits.
-- [Testing overview](https://clerk.com/docs/guides/development/testing/overview)
-  and [Playwright auth-state testing](https://clerk.com/docs/guides/development/testing/playwright/test-authenticated-flows)
-  — deterministic auth testing without real Google UI automation.
+## Supabase Auth
 
-## Supabase
-
-- [Changelog](https://supabase.com/changelog) — reviewed first for recent Auth,
-  API, and platform changes.
-- [Pricing](https://supabase.com/pricing) — Free Auth/DB allowances and pause
-  summary.
+- [Changelog](https://supabase.com/changelog) - scan breaking changes first.
+  At the review date, relevant changes include new publishable/secret key
+  handling, asymmetric JWT signing, and changed Data API auto-exposure.
+- [Auth overview](https://supabase.com/docs/guides/auth)
 - [Google login](https://supabase.com/docs/guides/auth/social-login/auth-google)
-  — Google project, scopes, origins, Supabase callback, browser OAuth flow.
-- [Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls) — Site URL
-  and allowlisted redirects.
-- [JWT guidance](https://supabase.com/docs/guides/auth/jwts) — claims, JWKS, and
-  verified-token guidance.
-- [Python get claims](https://supabase.com/docs/reference/python/auth-getclaims)
-  — Python verification option.
-- [Free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
-  — low-activity pause and restoration.
-- [Connect to PostgreSQL](https://supabase.com/docs/guides/database/connecting-to-postgres)
-  — direct, shared session pooler, and transaction pooler use cases.
+  - project, scopes, origins, provider callback, and browser OAuth flow.
+- [Social login](https://supabase.com/docs/guides/auth/social-login)
+- [Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls) - Site URL,
+  exact callback allowlist, wildcard warnings, and error redirects.
+- [JWT guidance](https://supabase.com/docs/guides/auth/jwts) - issuer, claims,
+  JWKS, asymmetric/shared-secret verification guidance.
+- [JWT signing keys](https://supabase.com/docs/guides/auth/signing-keys) -
+  rotation, caches, current/standby/revoked behavior.
+- [JWT claims reference](https://supabase.com/docs/guides/auth/jwt-fields)
+- [Sessions](https://supabase.com/docs/guides/auth/sessions)
+- [Auth security](https://supabase.com/docs/guides/auth/security)
+- [General Auth configuration](https://supabase.com/docs/guides/auth/general-configuration)
+- [Python Auth reference](https://supabase.com/docs/reference/python/auth-getclaims)
+- [Admin user management](https://supabase.com/docs/reference/python/admin-api)
+  - recheck exact ban, revoke, update, and delete operations before coding.
+
+## Supabase data and platform
+
+- [Billing](https://supabase.com/docs/guides/platform/billing-on-supabase) - Free
+  project, Auth/database/storage allowances.
+- [Project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
+  - low-activity pause and restore behavior.
+- [Database connections](https://supabase.com/docs/guides/database/connecting-to-postgres)
+  - direct and pooler modes.
+- [Securing the Data API](https://supabase.com/docs/guides/api/securing-your-api)
+  - grants, exposed schemas, RLS, and browser roles.
+- [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Product security](https://supabase.com/docs/guides/security/product-security)
+- [NPM security](https://supabase.com/docs/guides/security/npm-security)
 
 ## Google OAuth
 
-- [OAuth 2.0 policies](https://developers.google.com/identity/protocols/oauth2/policies)
-  — owned/authorized domains, secure origins, production homepage, privacy,
-  terms, and prohibition on embedded user-agents.
-- [Manage app audience and publishing status](https://support.google.com/cloud/answer/15549945)
-  — Testing versus In production behavior, test-user limit, and testing-mode
-  authorization lifetime.
-- [OAuth app verification help](https://support.google.com/cloud/answer/13463073)
-  — when scope or brand verification applies.
+- [Google Identity web setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid)
+- [OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect)
+- [OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies)
+  - secure origins, authorized domains, homepage/privacy, and secret handling.
+- [OAuth app verification](https://support.google.com/cloud/answer/13463073)
+- [When verification is not needed](https://support.google.com/cloud/answer/13464323)
+- [Manage OAuth clients](https://support.google.com/cloud/answer/15549257)
 - [Brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
-  — authorized-domain ownership and homepage/privacy-policy requirements.
+- [Google testing versus production audience](https://support.google.com/cloud/answer/15549945)
 
-## Other evaluated providers
+## Security and standards
 
-- [Firebase Google sign-in](https://firebase.google.com/docs/auth/web/google-signin)
-- [Firebase server ID-token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)
-- [Firebase pricing](https://firebase.google.com/pricing)
-- [Auth0 pricing](https://auth0.com/pricing)
-- [Auth0 FastAPI API quickstart](https://auth0.com/docs/quickstart/backend/fastapi)
+- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
+- [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+- [OWASP OAuth 2.0 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/OAuth2_Cheat_Sheet.html)
+- [OWASP JWT Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)
+- [OAuth 2.0 Security Best Current Practice, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700)
 
-## Hosting constraints
+## AWS timing and cost
 
-- [Render free services](https://render.com/docs/free) — sleep, cold start,
-  ephemeral filesystem, database expiry, and unsupported free service types.
-- [Render Blueprint specification](https://render.com/docs/blueprint-spec) —
-  free plan is not available to background workers.
-- [Render background workers](https://render.com/docs/background-workers) —
-  worker service model.
-- [Vercel function limits](https://vercel.com/docs/functions/limitations) —
-  maximum duration and runtime constraints.
+- [AWS Free plan](https://aws.amazon.com/free/) - current credits and duration.
+- [AWS free-plan selection](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier-plans.html)
+  - no-charge/free-plan boundary, closure, auto-upgrade triggers.
+- [AWS India account setup](https://docs.aws.amazon.com/accounts/latest/reference/managing-accounts-india.html)
+  - current identity/payment verification behavior.
+- [Track Free Tier usage](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/tracking-free-tier-usage.html)
 
-## Repository sources
+## Repository sources of truth
 
-These checked-in files establish the current integration surface and remain
-more authoritative than a static research summary if code changes later:
+Reinspect at implementation time:
 
-- `AGENTS.md`
-- `DECISIONS.md`
-- `src/oryxenai/main.py`
-- `src/oryxenai/api/dependencies.py`
-- `src/oryxenai/api/routes/`
-- `src/oryxenai/db/models/portfolio_session.py`
-- `src/oryxenai/db/repositories/portfolio_sessions.py`
-- `src/oryxenai/jobs/handlers/`
-- `src/oryxenai/agents/code_generator/service.py`
-- `src/oryxenai/preview/gateway.py`
-- `src/oryxenai/web/routes.py`
-- `src/oryxenai/web/static/app.js`
-- `docs/code-generator-architecture/free-host-deployment.md`
-- `docs/code-generator-architecture/live-preview-and-deployment.md`
+- `AGENTS.md`, `DECISIONS.md`, and `CHANGES.md`;
+- `src/oryxenai/core/settings.py`;
+- `src/oryxenai/main.py` and `src/oryxenai/api/dependencies.py`;
+- every module in `src/oryxenai/api/routes/`;
+- `src/oryxenai/db/models/` and repositories;
+- `src/oryxenai/jobs/` and each agent service/handler;
+- `src/oryxenai/web/routes.py`, templates, and static JavaScript;
+- `src/oryxenai/preview/gateway.py`;
+- `migrations/versions/` and `tests/`;
+- `docs/code-generator-architecture/free-host-deployment.md`; and
+- `docs/code-generator-architecture/live-preview-and-deployment.md`.
+
+## Verified development evidence
+
+The sanitized current setup and check output are recorded in
+[09-confirmed-setup.md](09-confirmed-setup.md). Run the reusable checker rather
+than trusting the dated record:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+```

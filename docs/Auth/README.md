@@ -1,125 +1,149 @@
-# OryxenAI authentication research
+# OryxenAI authentication handoff
 
-Status: research and implementation handoff only. No authentication code,
-database migration, Clerk tenant, Google OAuth client, or deployed environment
-is created by these documents.
+Status: provider and product policy are decided, the development provider is
+configured, and implementation has not started.
 
-Last researched: 2026-08-23. Provider prices and dashboard steps are
-time-sensitive and must be rechecked against the linked official sources when
-implementation or deployment begins.
+Last verified: 2026-08-23. Provider behavior, prices, SDKs, and dashboard
+screens are time-sensitive; recheck the linked primary sources when coding or
+deploying.
 
-## Recommendation
+## Final decision
 
-Use **Clerk as the only identity provider**, with **Google as the only v1
-sign-in method**. Use Clerk's prebuilt JavaScript `<SignIn />` view on the
-existing Jinja2/vanilla-JS frontend and Clerk's official Python backend SDK to
-verify every protected FastAPI request.
+Use **Supabase Auth** with **Google as the only v1 sign-in method**. Keep all
+application authorization in OryxenAI and PostgreSQL:
 
-Keep application authorization in OryxenAI's PostgreSQL database:
+- Supabase proves the caller's external identity and issues the session JWT.
+- `app_users` maps the immutable Supabase user UUID to an OryxenAI user.
+- PostgreSQL stores username, role, status, admission, ownership, and quota.
+- FastAPI verifies every protected request and applies owner-or-admin policy.
+- Durable work records owner and actor identity before enqueueing and rechecks
+  ownership before finalization.
 
-- Clerk proves who the caller is.
-- `app_users` stores the OryxenAI username, role, status, and Clerk subject.
-- `portfolio_sessions.owner_user_id` establishes ownership.
-- a quota record binds a normal user to one project and one design variant.
-- backend dependencies enforce owner-or-admin access on every session, run,
-  stage, and administrative route.
+Do not ask for, receive, or store a Google password. Do not store Google access
+or refresh tokens because OryxenAI does not call Google APIs on a user's behalf.
 
-Do not ask for, receive, or store a Google password. Google displays and
-processes its own credential screen. OryxenAI receives only Clerk's verified
-identity/session result and stores the minimum app data it needs.
+Clerk is not part of the selected stack. Do not combine Clerk and Supabase Auth
+or retain Clerk-specific keys, subjects, webhooks, SDKs, routes, or UI.
 
-### Important free-deployment qualification
+## Confirmed product policy
 
-Clerk's Hobby plan is large enough for this project, but a Clerk production
-instance requires a domain the owner controls and production Google OAuth
-credentials. Clerk includes custom-domain support on Hobby, but registering a
-domain can cost money. A Clerk development instance is not an acceptable
-production workaround.
+1. One **Continue with Google** action handles both first sign-in and return.
+2. Registration is application-allowlisted through
+   `ORYXENAI_ALLOWED_USER_EMAILS`.
+3. Two bootstrap administrator emails are supplied privately through
+   `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` and persist as database-authoritative
+   administrators after verified first login.
+4. At most 15 normal users may be admitted; administrators do not consume
+   those slots.
+5. A first-time approved user chooses one unique OryxenAI username.
+6. A normal user owns one portfolio session and one design variant.
+7. Failed attempts may retry the same variant. Explicit regeneration is denied
+   for normal users.
+8. Only a verified, hash-bound, promoted `active_preview` consumes the user's
+   one successful portfolio.
+9. After success, a normal user's project is readable but no longer mutable.
+   Deletion does not silently restore entitlement; only an audited admin reset
+   does.
+10. Administrators are quota-exempt and may manage all users and projects, but
+    cannot bypass model/provider safety gates or spending limits.
+11. Existing unowned sessions are quarantined as legacy/admin-only data.
+12. The last active administrator cannot delete or demote themselves.
 
-If the project must deploy without an owned domain and without any spend,
-choose **Supabase Auth instead of Clerk**, not in addition to Clerk. Supabase
-itself can host the Google OAuth callback on its free plan without a custom app
-domain, but the app must own more of the sign-in UI/session integration and a
-dormant free Supabase project can pause. Google still applies its own OAuth
-publishing, homepage, privacy, authorized-domain, and test-user rules, so this
-is a personal/test fallback rather than a way around Google's production
-requirements. It is detailed in
-[02-provider-evaluation.md](02-provider-evaluation.md).
+## Confirmed development provider
 
-## Exact product policy proposed for planning
+The non-secret development coordinates and dashboard decisions are recorded in
+[09-confirmed-setup.md](09-confirmed-setup.md). Real keys remain only in the
+git-ignored `.env` or provider dashboard.
 
-1. One top-level **Continue with Google** entry point handles both sign-up and
-   sign-in. There is no separate password flow.
-2. A first-time authenticated person chooses one unique OryxenAI username.
-   Their Google display name/avatar may be shown as a convenience, but email is
-   not their public username and ownership is never keyed by email.
-3. A normal user owns one portfolio session and one design variant. Failed
-   infrastructure/model attempts may retry the same variant. Explicit
-   regeneration to a new variant is denied.
-4. The quota is consumed only when Code Generator has a verified, hash-bound,
-   promoted `active_preview`. Earlier stages and failed builds do not count as
-   a successful portfolio.
-5. After that success, the normal user's project becomes read-only apart from
-   viewing it and signing out. Deleting it does not silently restore quota.
-6. An admin has no portfolio quota and may inspect any user/project, suspend or
-   restore users, delete any project, reset a normal user's quota, and delete a
-   user. Destructive operations are audited and target one resource at a time.
-7. Two initial admins are bootstrapped from two verified Google email addresses
-   supplied through deployment secrets. Their `admin` role is then persisted
-   server-side. No role comes from client-editable metadata.
+Redaction-safe verification confirmed:
 
-## Why this is the smallest complete design
+- all five expected local environment entries are declared;
+- the configured project URL matches the recorded project;
+- two distinct bootstrap administrator entries are present;
+- the normal-user allowlist is currently empty by design;
+- Supabase Auth settings are reachable;
+- the Google provider is enabled;
+- the project JWKS endpoint exposes a signing key; and
+- OAuth initiation redirects to Google.
 
-- It uses the current server-rendered frontend instead of introducing React or
-  Next.js solely for authentication.
-- Clerk owns OAuth, session issuance, account protection, and sign-in UI.
-- OryxenAI already owns PostgreSQL, durable jobs, sessions, and all business
-  state, so it also owns roles, object authorization, and quotas.
-- No Clerk Organizations, custom JWT role claims, application passwords,
-  password reset, invite system, Redis, or new auth microservice is needed.
-- Just-in-time user provisioning is synchronous and reliable; webhooks are
-  reconciliation aids, never a prerequisite for first-login routing.
+This does **not** yet prove a completed browser login, a token exchange, username
+onboarding, FastAPI authorization, or a normal-user flow. Those require the
+implementation. A separate normal Google test account must be added to both the
+Google test-user list and `ORYXENAI_ALLOWED_USER_EMAILS` before final acceptance.
 
-## Research set
+Run the safe setup checker from the repository root:
 
-- [01-current-system-auth-surface.md](01-current-system-auth-surface.md) — the
-  current unauthenticated routes and repository-specific integration risks.
-- [02-provider-evaluation.md](02-provider-evaluation.md) — Clerk, Supabase
-  Auth, Firebase Auth, Auth0, and self-built auth comparison.
-- [03-user-flow-and-route-contract.md](03-user-flow-and-route-contract.md) —
-  screens, redirects, APIs, status codes, and browser behavior.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+```
+
+The checker reports presence and booleans only. It never prints a key, token,
+password, administrator email, or allowlist entry.
+
+## Minimal user flow
+
+```text
+signed out -> /sign-in -> Google/Supabase redirect -> /auth/callback
+           -> GET /api/v1/me
+           -> unapproved: 403 access-not-approved
+           -> approved new user: /onboarding -> unique username -> /app
+           -> returning active user: /app
+           -> administrator: /admin available
+```
+
+Use a full-page redirect. Do not automate a real Google password in CI.
+
+## Security boundary
+
+- The browser may receive only the Supabase URL and publishable key.
+- The Supabase secret/service-role key is server-only.
+- Never authorize from `user_metadata`, browser storage, query parameters, or
+  caller-supplied email/role/owner fields.
+- On first login, resolve verified identity through Supabase Auth before
+  allowlist or admin bootstrap decisions.
+- Returning requests resolve the external `sub` to current local role/status.
+- Every object lookup includes owner-or-admin authorization.
+- Business tables remain backend-only; do not rely on the browser Data API.
+- Production starts fail closed if auth is required but provider coordinates,
+  keys, issuer/audience, or exact origins are invalid.
+
+## Deployment boundary
+
+Do not create AWS resources during auth implementation. Create the AWS Free
+account only when deployment is ready so its promotional clock is not wasted.
+Production will use separate Supabase/Google configuration and final HTTPS
+origins.
+
+Auth does not replace the existing runtime requirements: managed PostgreSQL,
+API, durable worker, private object storage, and one shared preview origin.
+
+## Document set
+
+- [01-current-system-auth-surface.md](01-current-system-auth-surface.md) -
+  current unprotected routes and integration risks.
+- [02-provider-evaluation.md](02-provider-evaluation.md) - selected Supabase
+  topology and rejected alternatives.
+- [03-user-flow-and-route-contract.md](03-user-flow-and-route-contract.md) -
+  screens, redirects, APIs, and status behavior.
 - [04-authorization-quota-and-data-model.md](04-authorization-quota-and-data-model.md)
-  — users, ownership, roles, the one-portfolio rule, workers, and deletion.
-- [05-security-and-edge-cases.md](05-security-and-edge-cases.md) — security
-  controls, threats, failures, and edge-case behavior.
-- [06-deployment-and-owner-checklist.md](06-deployment-and-owner-checklist.md)
-  — exactly what the project owner and coding agents must configure.
-- [07-implementation-handoff.md](07-implementation-handoff.md) — bounded work
-  packages and acceptance criteria for the future planning session.
-- [08-primary-sources.md](08-primary-sources.md) — dated primary-source index.
+  - roles, ownership, quotas, concurrency, and deletion.
+- [05-security-and-edge-cases.md](05-security-and-edge-cases.md) - token,
+  browser, provider, admin, and failure controls.
+- [06-deployment-and-owner-checklist.md](06-deployment-and-owner-checklist.md) -
+  owner setup and future deployment work.
+- [07-implementation-handoff.md](07-implementation-handoff.md) - bounded work
+  packages and definition of done.
+- [08-primary-sources.md](08-primary-sources.md) - dated primary-source index.
+- [09-confirmed-setup.md](09-confirmed-setup.md) - sanitized record of completed
+  external setup and verification evidence.
+- [10-implementation-plan.md](10-implementation-plan.md) - repository-grounded
+  implementation order, file map, tests, rollout, and gates.
 
-## Facts the next planning session must not lose
+## Primary sources
 
-- Adding a sign-in screen alone is not auth. Every existing route that accepts
-  a `session_id` can currently read or mutate that session without ownership
-  checks.
-- A normal user's same-variant retry and an explicit new-variant regeneration
-  are different operations and must remain different.
-- Workers cannot verify a browser token after the request is gone. The API must
-  authorize before enqueueing, bind the owner/actor to durable work, and the
-  worker must recheck that binding before finalization.
-- The current preview gateway intentionally receives no app cookies. Auth
-  protects who can discover/control a preview; the stable opaque preview URL is
-  an unlisted capability URL, not a private authenticated document.
-- Free hosting does not mean always-on. Render free web services sleep and have
-  no free background-worker instance; Supabase free projects can pause; Vercel
-  functions do not replace OryxenAI's durable worker.
-
-## Primary recommendation sources
-
-- [Clerk JavaScript quickstart](https://clerk.com/docs/js-frontend/getting-started/quickstart)
-- [Clerk Google social connection](https://clerk.com/docs/guides/configure/auth-strategies/social-connections/google)
-- [Clerk Python SDK repository](https://github.com/clerk/clerk-sdk-python)
-- [Clerk production deployment](https://clerk.com/docs/guides/development/deployment/production)
-- [Clerk pricing](https://clerk.com/pricing)
-- [Supabase Auth Google login](https://supabase.com/docs/guides/auth/social-login/auth-google)
+- [Supabase Google login](https://supabase.com/docs/guides/auth/social-login/auth-google)
+- [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Supabase JWT guidance](https://supabase.com/docs/guides/auth/jwts)
+- [Supabase signing keys](https://supabase.com/docs/guides/auth/signing-keys)
+- [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
+- [Google OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies)

@@ -1,222 +1,214 @@
 # User flow and route contract
 
-## Roles and state
+## Roles and application states
 
-There are only two product roles:
+There are two roles:
 
-- `user`: owns one portfolio workspace and one design variant.
-- `admin`: may operate on any user/project and is quota-exempt.
+- `user`: one admitted account, one portfolio, one variant, one verified
+  success.
+- `admin`: cross-user authority and quota exemption.
 
-An authenticated account has these effective access states:
+Effective local states:
 
-- `onboarding_required`: derived when identity exists but the unique username
-  has not been chosen.
-- `active`: normal access.
-- `suspended`: sign-in identity may exist, but OryxenAI denies product access.
+- `onboarding_required`: admitted identity without a username;
+- `active`: product access allowed;
+- `suspended`: identity may still exist, but all product access is denied; and
 - `deletion_pending`: deny access while idempotent cleanup completes.
 
-Role, persisted status, and the username used to derive onboarding state come
-from PostgreSQL on every protected request, not from query parameters, browser
-state, Google profile fields, or client-writable metadata.
+Role, status, username, admission, ownership, and quota come from PostgreSQL on
+every protected request. Supabase `user_metadata`, Google profile data, browser
+state, and query parameters are not authorization sources.
 
-## Minimal screen set
+## Minimal screens
 
-### 1. Sign in (`/sign-in`, with `/` as entry)
+### Sign in (`/sign-in`, with `/` as controller)
 
 Show:
 
 - OryxenAI name and one-sentence purpose;
-- one **Continue with Google** action using Clerk's prebuilt sign-in view;
-- loading, provider-unavailable, canceled, and blocked-account states;
-- a short privacy statement; the final external production homepage/sign-in
-  must link to the published privacy policy and terms required by the chosen
-  OAuth/provider configuration.
+- one **Continue with Google** button;
+- safe loading, canceled, provider-unavailable, rate-limited, and denied states;
+- a short privacy statement and production privacy/terms links.
 
-Do not show password fields, a separate sign-up decision, model choices,
-session UUIDs, or infrastructure diagnostics.
+The button starts a full-page Supabase Google OAuth redirect. Do not show
+passwords, a separate sign-up choice, model selectors, session IDs, or
+infrastructure diagnostics.
 
-If Clerk reports an active session, resolve `/api/v1/me` and redirect to
-`/onboarding` or `/app`. Never render the app and then discover the user is
-signed out.
+If a Supabase session already exists, call `/api/v1/me` before rendering private
+application data and route to onboarding, app, admin availability, or a denied
+state.
 
-### 2. Username onboarding (`/onboarding`)
+### Auth callback (`/auth/callback`)
 
-This is shown only for a newly provisioned user without a username. Display the
-verified Google display name/avatar as optional context and ask for one app
-username.
+Complete the Supabase client callback/session restoration, remove auth query or
+fragment artifacts from browser history, then call `/api/v1/me`. Refresh and
+duplicate callback tabs must be idempotent.
 
-Recommended username contract:
+### Username onboarding (`/onboarding`)
 
-- lowercase ASCII only;
+Show only to an approved local user without a username. The accepted contract:
+
+- lowercase ASCII;
 - 3-30 characters;
-- first/last character alphanumeric;
-- interior characters may be letters, numbers, `_`, or `-`;
-- stored in normalized lowercase form under a database unique constraint;
-- reserved: `admin`, `api`, `app`, `auth`, `health`, `preview`, `settings`,
-  `static`, `support`, `system`, and product/brand-confusing variants;
-- no email address used as a fallback username;
-- one choice during onboarding; later rename is admin-only in v1.
+- first and last character alphanumeric;
+- interior letters, numbers, `_`, or `-`;
+- globally unique normalized value;
+- no email address fallback;
+- reserved names including `admin`, `api`, `app`, `auth`, `health`, `preview`,
+  `settings`, `static`, `support`, and `system`;
+- normal users cannot rename in v1.
 
-The server is authoritative. Client availability checks improve UX but do not
-reserve a name. Submission handles a concurrent unique conflict with `409
-USERNAME_TAKEN` and suggests alternatives without revealing another user's
-email or identity.
+Client availability checks are advisory. The database unique constraint is
+authoritative. Concurrent conflict returns `409 USERNAME_TAKEN` without
+revealing another identity.
 
-### 3. Portfolio workspace (`/app`)
+### Portfolio workspace (`/app`)
 
-This becomes the existing Discovery homepage. On load:
+After onboarding:
 
-- resolve the authenticated application user;
-- fetch only the caller's portfolio session;
-- create/bind the one session lazily on the first meaningful Discovery send,
-  or explicitly through one idempotent **Start portfolio** action;
-- resume the exact session across refreshes;
-- show stage progress, failures, retry, and the final stable preview;
-- hide developer diagnostics from normal users.
+- fetch only the caller's portfolio;
+- claim one session through an idempotent **Start portfolio** action or first
+  meaningful Discovery send;
+- resume the same session across refreshes;
+- show durable stage progress, retryable failures, and the stable preview;
+- hide system/developer controls from normal users; and
+- after verified success, show a completed read-only state with no **New
+  portfolio** or **Regenerate** action.
 
-A successful normal-user portfolio shows a clear completed/read-only state. It
-does not show **New portfolio** or **Regenerate**. A retry action is shown only
-when the current same-variant run is retryable.
+### Admin console (`/admin`)
 
-### 4. Admin console (`/admin`)
-
-Keep it small:
+Keep it bounded:
 
 - counts and health summary;
-- users: username, masked email, role/status, created/last seen, quota state;
-- projects: owner, stage status, job status, preview state;
-- actions: suspend/restore, delete project, reset quota, delete user;
-- explicit confirmation for destructive actions;
-- audit list for admin mutations.
+- paginated users with username, masked email, role/status, admission, and
+  entitlement state;
+- projects with owner, stage/job/preview state;
+- suspend, restore, delete user, delete project, reset entitlement, retry, and
+  regenerate actions;
+- explicit destructive confirmations; and
+- recent safe audit events.
 
-Normal users get a 404 or safe redirect for the page and 403 for admin APIs. Do
-not ship a bulk **delete everything** control; an admin can delete any resource
-one target at a time, which preserves full authority without one-click
-catastrophe.
+There is no global bulk-wipe button. Full authority is preserved through
+targeted audited operations.
 
 ## End-to-end flows
 
-### New user
+### Approved new normal user
 
 ```text
 GET / or /sign-in
   -> Continue with Google
-  -> top-level Google/Clerk redirect
-  -> return to /auth/continue
-  -> Clerk session resolves
-  -> GET /api/v1/me (JIT provision by verified Clerk subject)
-  -> username missing
-  -> /onboarding
+  -> Supabase / Google full-page redirect
+  -> /auth/callback
+  -> Supabase session resolves
+  -> GET /api/v1/me
+  -> verify Supabase identity + verified email
+  -> email is in ORYXENAI_ALLOWED_USER_EMAILS
+  -> capacity transaction admits normal user (maximum 15)
+  -> username missing -> /onboarding
   -> PUT /api/v1/me/username
   -> /app
-  -> start/resume Discovery
 ```
 
-The bootstrap API fetches Clerk's backend user only when no local subject row
-exists, verifies the primary email, applies the two-email admin bootstrap if
-matched, creates the local user, and returns a safe application projection.
-Webhook timing is not on this critical path.
+### Authenticated but unapproved identity
+
+```text
+Google/Supabase authentication succeeds
+  -> GET /api/v1/me
+  -> email is neither bootstrap admin nor normal allowlist
+  -> 403 ACCESS_NOT_APPROVED
+  -> no app_users row, entitlement, session, run, or job is created
+```
 
 ### Returning user
 
 ```text
 GET /
-  -> Clerk session active
+  -> Supabase session active
   -> GET /api/v1/me
-  -> active + username present
+  -> local user active + username present
   -> /app
-  -> GET /api/v1/sessions (owner-scoped)
-  -> resume one session and its durable stage state
+  -> owner-scoped session read
+  -> resume durable state
 ```
 
-If the session expired, redirect to sign-in with a validated relative return
-path. If the account is suspended/deleting, show the corresponding safe
-account state and do not call project APIs.
+### Initial administrators
 
-### Admin
-
-The first two admin identities follow the new-user flow, but their verified
-emails match the server-side bootstrap allowlist and their persisted role is
-`admin`. `/app` offers normal portfolio work with no quota. `/admin` offers
-cross-user operations.
-
-Admin access is still identity-bound and audited. “Full authority” does not
-mean bypassing token verification, accepting role values from the browser, or
-letting generated preview code reach admin APIs.
+Each verified Google email in `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` follows the same
+flow. First approved login persists `role=admin`; administrators do not consume
+the 15 normal-user slots. Both identities require separate Google accounts.
 
 ### Sign out
 
-1. Stop all polling/timers.
-2. Clear rendered user/project data and the stored selected session UUID.
-3. Call Clerk sign-out.
-4. Navigate with replacement to `/sign-in`.
-5. Back navigation must not reveal cached sensitive page state; protected API
-   calls return 401 and the app clears again.
+1. Stop polling and pending UI timers.
+2. Clear rendered identity/project data and remembered session ID.
+3. Call `supabase.auth.signOut()` through the pinned client.
+4. Replace navigation with `/sign-in`.
+5. Protected APIs return 401 if stale page history is revisited.
 
-## Proposed web routes
+## Web routes
 
 | Route | Access | Behavior |
 | --- | --- | --- |
-| `/` | Public | Resolve Clerk state; signed out -> sign-in, onboarding -> `/onboarding`, active -> `/app`. |
-| `/sign-in` | Public | Mount the Clerk prebuilt sign-in view. Signed-in users leave this route. |
-| `/auth/continue` | Public shell | Complete Clerk redirect/session tasks, then resolve `/api/v1/me`. Never accept an arbitrary external next URL. |
-| `/onboarding` | Authenticated shell | Unique username form; no portfolio APIs until complete. |
-| `/app` | Authenticated + onboarded | Owner workspace. |
-| `/admin` | Admin | Minimal administrative console. |
-| `/signed-out` (optional) | Public | Short confirmation then link to sign in; `/sign-in` is sufficient if omitted. |
+| `/` | Public controller | Resolve Supabase session, then route to sign-in, onboarding, app, or denied state. |
+| `/sign-in` | Public | Google-only sign-in. Signed-in users leave this route after `/me`. |
+| `/auth/callback` | Public shell | Complete provider callback and resolve `/me`; never accept arbitrary external `next`. |
+| `/onboarding` | Authenticated + approved | Unique username form; no portfolio operations before completion. |
+| `/app` | Active + onboarded | Owner workspace. |
+| `/admin` | Admin | Administrative console. |
 
-The HTML shells contain no private state. APIs remain protected even if a user
-manually loads a shell route or disables JavaScript.
+HTML shells contain no private state. APIs remain protected if JavaScript is
+disabled or a shell is loaded directly.
 
-## Proposed API routes
+## API routes
 
 | Method/path | Access | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/me` | Authenticated | Verify token; JIT-provision if needed; return safe app user, onboarding, role, quota, and owned session summary. |
-| `PUT /api/v1/me/username` | Authenticated, onboarding | Atomically claim a normalized username. |
-| `POST /api/v1/auth/webhooks/clerk` | Verified webhook signature | Reconcile `user.updated`/`user.deleted`; never required for immediate login. |
-| existing `/api/v1/sessions*` | Authenticated | Owner-scoped create/list/get; admin scope explicitly selected server-side. |
-| existing stage/run APIs | Owner or admin | Preserve current state machines after authorization. |
-| `GET /api/v1/admin/users` | Admin | Bounded/paginated user list. |
-| `POST /api/v1/admin/users/{id}/suspend` | Admin | Mark suspended and ban/revoke in Clerk. |
-| `POST /api/v1/admin/users/{id}/restore` | Admin | Restore app and Clerk access. |
-| `DELETE /api/v1/admin/users/{id}` | Admin | Start idempotent identity/data cleanup. |
+| `GET /api/v1/me` | Valid Supabase session | Verify identity; approve/bootstrap if configured; return safe local projection. |
+| `PUT /api/v1/me/username` | Approved onboarding user | Atomically claim normalized username. |
+| `POST /api/v1/auth/sign-out` (optional) | Authenticated | Server-side revocation hook if required by selected Supabase session design. |
+| existing `/api/v1/sessions*` | Active + onboarded | Owner-scoped idempotent create/list/get; explicit admin scope only. |
+| existing stage/run/job/source/preview APIs | Owner or admin | Preserve state machines after authorization. |
+| `GET /api/v1/admin/users` | Admin | Bounded user list. |
+| `POST /api/v1/admin/users/{id}/suspend` | Admin | Deny locally and revoke/ban with the current Supabase Admin API. |
+| `POST /api/v1/admin/users/{id}/restore` | Admin | Restore local/provider access. |
+| `DELETE /api/v1/admin/users/{id}` | Admin | Start resumable identity/data cleanup. |
 | `GET /api/v1/admin/projects` | Admin | Bounded project list. |
-| `DELETE /api/v1/admin/projects/{id}` | Admin | Cancel work, revoke preview pointer, clean storage, delete aggregate. |
-| `POST /api/v1/admin/users/{id}/quota-reset` | Admin | Explicitly allow a new normal-user variant after cleanup/review. |
-| `GET /api/v1/admin/audit-events` | Admin | Recent admin mutations with safe metadata. |
+| `DELETE /api/v1/admin/projects/{id}` | Admin | Fence work, revoke preview, clean storage, delete aggregate. |
+| `POST /api/v1/admin/users/{id}/quota-reset` | Admin | Explicitly grant a new portfolio/variant after cleanup. |
+| `GET /api/v1/admin/audit-events` | Admin | Recent safe admin actions. |
 
-Exact route names may be refined in the implementation plan, but the access
-semantics must not change.
+Implementation may refine names but not access semantics.
 
 ## Redirect rules
 
-- Use relative application paths for `return_to`; allow only a small set of
-  routes or require a leading single `/` with no scheme/host/backslash.
-- Never reflect a full user-supplied URL into an auth redirect.
-- After sign-in, onboarding wins over the requested destination.
-- After onboarding, use the validated destination or `/app`.
-- A user visiting `/admin` without admin role goes to `/app` with a safe notice;
-  the API response remains 403.
-- A signed-in suspended user goes to an account-unavailable state, not an
-  infinite `/sign-in` loop.
+- The OAuth `redirectTo` must exactly match a Supabase allowed redirect.
+- Application return paths must be relative and allowlisted.
+- Never reflect a caller-supplied absolute URL, scheme, host, or backslash.
+- Onboarding overrides the requested destination.
+- A non-admin who requests `/admin` goes safely to `/app`; the API remains 403.
+- Suspended/deleting users reach an account-unavailable state, not a redirect
+  loop.
+- Development and production origins come from configuration, never scattered
+  localhost literals.
 
-## API error contract
+## Error contract
 
-Use the repository's existing safe error envelope and request ID. Recommended
-codes:
+Use the existing safe error envelope and request ID.
 
-| HTTP | Code | Meaning / UI response |
+| HTTP | Code | UI behavior |
 | --- | --- | --- |
-| 401 | `AUTH_REQUIRED` / `AUTH_INVALID` | Refresh Clerk token once; then clear and go to sign-in. |
-| 403 | `ACCOUNT_SUSPENDED`, `ONBOARDING_REQUIRED`, `ADMIN_REQUIRED` | Show the precise allowed recovery action. |
-| 404 | existing not-found code | Missing or foreign-owned resource; do not reveal which. |
-| 409 | `USERNAME_TAKEN` | Stay on onboarding and suggest another name. |
-| 409 | `PORTFOLIO_LIMIT_REACHED` | Resume/show the one project. |
-| 409 | `GENERATION_VARIANT_LOCKED` | Same-variant retry may be allowed; new regeneration is not. |
-| 409 | `PORTFOLIO_ALREADY_SUCCEEDED` | Show read-only final portfolio. |
-| 429 | `AUTH_RATE_LIMITED` | Back off and show retry guidance; no tight loop. |
-| 503 | `AUTH_PROVIDER_UNAVAILABLE`, existing readiness errors | Preserve local app state and offer bounded retry. |
+| 401 | `AUTH_REQUIRED`, `AUTH_INVALID` | Refresh once; then clear and sign in. |
+| 403 | `ACCESS_NOT_APPROVED` | Explain that the account is not approved; create no product state. |
+| 403 | `ACCOUNT_SUSPENDED`, `ACCOUNT_DELETED`, `ADMIN_REQUIRED`, `ONBOARDING_REQUIRED` | Show the only permitted recovery action. |
+| 404 | existing not-found | Same response for missing and foreign-owned objects. |
+| 409 | `USERNAME_TAKEN` | Stay on onboarding. |
+| 409 | `USER_CAPACITY_REACHED` | No normal-user admission beyond 15. |
+| 409 | `PORTFOLIO_LIMIT_REACHED` | Resume the one project. |
+| 409 | `GENERATION_VARIANT_LOCKED` | Retry same variant if eligible; no new variant. |
+| 409 | `PORTFOLIO_ALREADY_SUCCEEDED` | Show final read-only portfolio. |
+| 429 | `AUTH_RATE_LIMITED` | Back off; no tight retry loop. |
+| 503 | `AUTH_PROVIDER_UNAVAILABLE` | Preserve safe local state and offer bounded retry. |
 
-Never return a Clerk secret, raw token, authorization header, cookie, Google
-access token, or another user's email in an error.
+Never return provider secrets, raw tokens, authorization headers, cookies,
+Google tokens, allowlist contents, or another user's email.

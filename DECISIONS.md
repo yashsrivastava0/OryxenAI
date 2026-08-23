@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-043 - Supabase Google identity with database-authoritative authorization
+
+- **Date & Time:** 2026-08-23 20:48 +05:30 - Codex (model/provider omitted)
+- **Status:** decided-not-yet-implemented
+- **Context:** OryxenAI needs a minimal Google-only login for a small allowlisted deployment without owning passwords or adding a third identity service beside managed PostgreSQL and future AWS hosting. Login alone is insufficient because all current session/stage/run routes are globally ID-addressable, durable jobs outlive browser tokens, normal users get one successful portfolio, and two administrators require cross-project authority. The owner configured and redaction-safely verified one Supabase/Google development project and deliberately deferred production/AWS resources.
+- **Decision:** Use Supabase Auth as the only identity provider and Google as the only v1 sign-in method. FastAPI verifies exact Supabase JWT issuer/audience/signature/expiry/subject and resolves verified first-login identity before applying a server-side email allowlist. PostgreSQL stores immutable Supabase subject mapping, unique username, role/status, a config-driven maximum of 15 normal accounts, two bootstrap administrators outside that capacity, resource ownership, one-session/one-variant/one-promoted-success entitlement, durable owner/actor bindings, and admin audit. Existing unowned sessions are legacy/admin-only. Roles and authorization never come from `user_metadata`, browser state, query parameters, or email ownership. Normal retries reuse the bound variant; admins are entitlement-unlimited but remain subject to workflow safety and external provider spending limits. AWS and production Supabase/Google setup are separate later deployment work.
+- **Rejected alternatives:** Clerk plus Supabase, because it adds a second token/user lifecycle and another service; public first-come registration, because strangers could consume model credit and the 15 slots; application passwords/OTP/phone or self-built OAuth/session handling, because they add recovery and abuse/security ownership; client metadata roles or frontend-only quota; assigning legacy sessions to the first login; one deployment per generated portfolio; and creating AWS early enough to waste its promotional clock.
+- **Consequence:** Implementation must add config/secret validation, a pinned Supabase browser client, server JWT/JWKS verification, Alembic-owned user/capacity/entitlement/ownership/audit schema, full route/repository ownership retrofits, worker finalization fencing, Google/onboarding/admin UI, deterministic and live-browser tests, and a fail-closed production configuration. An authenticated but unapproved identity creates no application or generation state. A separate non-admin Google test identity is still required before claiming live normal-user completion; no AWS resource is authorized by this decision.
+
 ## D-042 - Stable retry and explicit new-variant semantics
 
 - **Date & Time:** 2026-08-23 00:00 +05:30 - Codex (model/provider omitted)
