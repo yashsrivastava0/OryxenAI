@@ -1,11 +1,12 @@
 # OryxenAI authentication handoff
 
-Status: Phase 1 authentication foundation is implemented and locally tested.
-Phase 2 ownership/authorization, Phase 3 portfolio entitlement and worker
-fencing, and Phase 4 administrator lifecycle/live deployment acceptance remain
-deferred. No production cloud resources were created by Phase 1.
+Status: Authentication Phases 1 and 2 are implemented and locally tested.
+Phase 2 adds session ownership, legacy quarantine, owner/admin API policy, and
+authenticated product/developer boot. Phase 3 portfolio entitlement/worker
+fencing and Phase 4 administrator lifecycle/live deployment acceptance remain
+deferred. No production cloud resources were created.
 
-Last verified: 2026-08-23. Provider behavior, prices, SDKs, and dashboard
+Last verified: 2026-08-24. Provider behavior, prices, SDKs, and dashboard
 screens are time-sensitive; recheck the linked primary sources when coding or
 deploying.
 
@@ -18,8 +19,8 @@ application authorization in OryxenAI and PostgreSQL:
 - `app_users` maps the immutable Supabase user UUID to an OryxenAI user.
 - PostgreSQL stores username, role, status, admission, ownership, and quota.
 - FastAPI verifies every protected request and applies owner-or-admin policy.
-- Durable work records owner and actor identity before enqueueing and rechecks
-  ownership before finalization.
+- Phase 3 will bind owner and actor identity to durable work before enqueueing
+  and recheck authorization before finalization.
 
 Do not ask for, receive, or store a Google password. Do not store Google access
 or refresh tokens because OryxenAI does not call Google APIs on a user's behalf.
@@ -38,18 +39,23 @@ or retain Clerk-specific keys, subjects, webhooks, SDKs, routes, or UI.
 4. At most 15 normal users may be admitted; administrators do not consume
    those slots.
 5. A first-time approved user chooses one unique OryxenAI username.
-6. A normal user owns one portfolio session and one design variant.
-7. Failed attempts may retry the same variant. Explicit regeneration is denied
-   for normal users.
-8. Only a verified, hash-bound, promoted `active_preview` consumes the user's
-   one successful portfolio.
-9. After success, a normal user's project is readable but no longer mutable.
-   Deletion does not silently restore entitlement; only an audited admin reset
-   does.
+6. Phase 2 temporarily permits a normal user to create multiple explicitly
+   owned sessions; Phase 3 will enforce one portfolio session and one design
+   variant.
+7. Phase 3 will make failed attempts retry the same variant and deny explicit
+   regeneration for normal users.
+8. Phase 3 will make only a verified, hash-bound, promoted `active_preview`
+   consume the user's one successful portfolio.
+9. Phase 3 will make a successful normal-user project readable but no longer
+   mutable; deletion and audited reset remain later lifecycle policy.
 10. Administrators are quota-exempt and may manage all users and projects, but
     cannot bypass model/provider safety gates or spending limits.
-11. Existing unowned sessions are quarantined as legacy/admin-only data.
-12. The last active administrator cannot delete or demote themselves.
+11. Existing unowned sessions are quarantined as legacy/admin-only data; new
+    product sessions are explicitly owned by the authenticated local user.
+12. Normal users receive owner-scoped session/stage/run access; active
+    onboarded admins may operate across owned and legacy sessions.
+13. The last active administrator cannot delete or demote themselves (the
+    lifecycle operation remains Phase 4).
 
 ## Confirmed development provider
 
@@ -72,7 +78,8 @@ Redaction-safe verification confirmed:
 
 The local implementation proves the deterministic controller, callback/session
 logic, server-side JWT/provider boundaries, safe `/me` projection, admission
-constraints, and temporary route shells through unit/API tests. A real Google
+constraints, ownership/legacy repository policy, route inventory, and
+temporary product/developer shells through unit/API tests. A real Google
 browser login and the production-origin flow remain later acceptance work; no
 additional account or secret is created by this phase.
 
@@ -117,8 +124,9 @@ Use a full-page redirect. Do not automate a real Google password in CI.
 - On first login, resolve verified identity through Supabase Auth before
   allowlist or admin bootstrap decisions.
 - Returning requests resolve the external `sub` to current local role/status.
-- Phase 1 protects the identity boundary and `/me`/username routes. Every
-  portfolio object lookup still requires the Phase 2 owner-or-admin retrofit.
+- Phase 1 protects the identity boundary and `/me`/username routes. Phase 2
+  protects every existing portfolio object lookup with active/onboarded
+  owner-or-admin policy and keeps legacy sessions admin-only.
 - Business tables remain backend-only; do not rely on the browser Data API.
 - Production starts fail closed if auth is required but provider coordinates,
   keys, issuer/audience, or exact origins are invalid.
@@ -136,7 +144,7 @@ API, durable worker, private object storage, and one shared preview origin.
 ## Document set
 
 - [01-current-system-auth-surface.md](01-current-system-auth-surface.md) -
-  current unprotected routes and integration risks.
+  current auth/ownership routes and integration risks.
 - [02-provider-evaluation.md](02-provider-evaluation.md) - selected Supabase
   topology and rejected alternatives.
 - [03-user-flow-and-route-contract.md](03-user-flow-and-route-contract.md) -

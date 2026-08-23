@@ -2,8 +2,16 @@
 {% block content %}
 <section id="chat-card" class="card">
   <div class="chat-header">
-    <h2>Build your portfolio</h2>
-    <p class="subtitle">Tell us about yourself, attach a document, and we will ask a few questions and prepare your portfolio brief.</p>
+    <div class="workspace-heading">
+      <div>
+        <h2>Build your portfolio</h2>
+        <p class="subtitle">Tell us about yourself, attach a document, and we will ask a few questions and prepare your portfolio brief.</p>
+      </div>
+      <div class="workspace-actions">
+        <a id="app-admin-link" class="workspace-launcher" href="{{ auth_config.adminPath }}" hidden>Admin</a>
+        <button id="app-logout" class="workspace-launcher" type="button">Sign out</button>
+      </div>
+    </div>
     <div class="model-select-row">
       <label for="provider-select">Model</label>
       <select id="provider-select">
@@ -190,4 +198,10 @@
     </div>
   </section>
 </details>
+{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/auth.css">
+{% endblock %}
+{% block scripts %}
+  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/app-auth-bootstrap.mjs?v={{ app_auth_bootstrap_version }}"></script>
 {% endblock %}

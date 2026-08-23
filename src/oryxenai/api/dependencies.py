@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from functools import lru_cache
+from uuid import UUID
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +17,9 @@ from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
 from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
-from oryxenai.auth.domain import AuthRole, CurrentUser
-from oryxenai.auth.errors import AdminRequiredError
+from oryxenai.auth.authorization import PortfolioAccess
+from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
+from oryxenai.auth.errors import AdminRequiredError, OnboardingRequiredError
 from oryxenai.auth.jwt import extract_bearer_token
 from oryxenai.auth.service import AuthService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
@@ -73,7 +75,26 @@ async def get_current_user(
     return await service.current_user(token)
 
 
-async def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+async def require_onboarded_user(
+    user: CurrentUser = Depends(get_current_user),
+) -> CurrentUser:
+    """Require a current, active local identity with a claimed username."""
+    if user.status is not AccountStatus.ACTIVE:
+        # AuthService normally maps this before returning.  Keep the
+        # dependency fail-closed for explicit test/dependency adapters too.
+        from oryxenai.auth.errors import AccountDeletedError, AccountSuspendedError
+
+        if user.status is AccountStatus.DELETED:
+            raise AccountDeletedError()
+        raise AccountSuspendedError()
+    if user.onboarding_required:
+        raise OnboardingRequiredError()
+    return user
+
+
+async def require_admin(
+    user: CurrentUser = Depends(require_onboarded_user),
+) -> CurrentUser:
     if user.role is not AuthRole.ADMIN:
         raise AdminRequiredError()
     return user
@@ -86,6 +107,32 @@ def get_agent_registry() -> AgentRegistry:
 
 def get_session_repo(db: AsyncSession = Depends(get_db_session)) -> PortfolioSessionRepository:
     return PortfolioSessionRepository(db)
+
+
+async def require_session_owner_or_admin(
+    session_id: str,
+    user: CurrentUser = Depends(require_onboarded_user),
+    repo: PortfolioSessionRepository = Depends(get_session_repo),
+) -> PortfolioAccess:
+    """Authorize one portfolio aggregate with a single scoped SQL lookup."""
+    try:
+        sid = UUID(session_id)
+    except ValueError as exc:
+        from oryxenai.api.errors import ValidationError
+
+        raise ValidationError("Invalid session ID format.") from exc
+
+    if user.role is AuthRole.ADMIN:
+        session = await repo.get_by_id_for_admin(sid)
+    else:
+        session = await repo.get_owned_by_id(sid, user.id)
+    if session is None:
+        # Missing, foreign, and quarantined legacy sessions are intentionally
+        # indistinguishable to normal users.
+        from oryxenai.api.errors import SessionNotFoundError
+
+        raise SessionNotFoundError(session_id)
+    return PortfolioAccess(actor=user, session=session)
 
 
 def get_run_repo(db: AsyncSession = Depends(get_db_session)) -> AgentRunRepository:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from typing import Any, NoReturn, cast
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import FileResponse
@@ -20,12 +19,21 @@ from oryxenai.agents.build_preparation.service import (
     BuildPreparationOperationError,
     BuildPreparationService,
 )
-from oryxenai.api.dependencies import get_build_preparation_service
-from oryxenai.api.errors import AppError, ValidationError
+from oryxenai.api.dependencies import (
+    get_build_preparation_service,
+    require_admin,
+    require_session_owner_or_admin,
+)
+from oryxenai.api.errors import AppError
+from oryxenai.auth.authorization import PortfolioAccess
 from oryxenai.core.logging import get_request_id
 
 router = APIRouter(prefix="/sessions/{session_id}/build-preparation", tags=["build-preparation"])
-fixture_router = APIRouter(prefix="/build-preparation/fixture", tags=["build-preparation-fixture"])
+fixture_router = APIRouter(
+    prefix="/build-preparation/fixture",
+    tags=["build-preparation-fixture"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 class StartRequest(BaseModel):
@@ -51,13 +59,6 @@ class FixtureRunRequest(BaseModel):
     live_model: bool = False
     live_providers: bool = False
     model_profile: str | None = None
-
-
-def _session_uuid(value: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID format: '{value}'") from exc
 
 
 def _translate(exc: BuildPreparationOperationError) -> NoReturn:
@@ -161,10 +162,11 @@ def _fixture_manager(request: Request) -> FixtureRunManager:
 @router.get("", response_model=BuildPreparationStateResponse)
 async def get_build_preparation_state(
     session_id: str,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
-        return BuildPreparationStateResponse(**await service.get_state(_session_uuid(session_id)))
+        return BuildPreparationStateResponse(**await service.get_state(access.session.id))
     except BuildPreparationOperationError as exc:
         _translate(exc)
 
@@ -177,12 +179,13 @@ async def get_build_preparation_state(
 async def start_build_preparation(
     session_id: str,
     body: StartRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
         return BuildPreparationStateResponse(
             **await service.start(
-                _session_uuid(session_id),
+                access.session.id,
                 model_profile=body.model_profile or "",
                 request_id=get_request_id() or "",
             )
@@ -199,12 +202,13 @@ async def start_build_preparation(
 async def regenerate_build_preparation(
     session_id: str,
     body: StartRequest | None = None,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
         return BuildPreparationStateResponse(
             **await service.regenerate(
-                _session_uuid(session_id),
+                access.session.id,
                 model_profile=(body.model_profile if body else None) or "",
                 request_id=get_request_id() or "",
             )

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.model_router import ModelRouter
+from oryxenai.api.dependencies import require_admin
 
-router = APIRouter(prefix="/model-profiles", tags=["model-profiles"])
+router = APIRouter(
+    prefix="/model-profiles",
+    tags=["model-profiles"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 class ModelProfileOptionResponse(BaseModel):

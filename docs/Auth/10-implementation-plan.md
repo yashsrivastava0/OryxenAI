@@ -1,19 +1,36 @@
 # Supabase authentication implementation plan
 
-Status: Phase 1 execution is implemented in the checkout. This document remains
-the repository-grounded plan for the full four-phase authorization project;
-Phases 2-4 are intentionally not implemented by the Phase 1 task. No
+Status: Phase 1 and Phase 2 execution are implemented in the checkout. This
+document remains the repository-grounded plan for the four-phase authorization
+project. Phase 3 entitlement/worker fencing and Phase 4 administrator
+lifecycle, full browser acceptance, and deployment handoff remain deferred. No
 production cloud resources were created.
+
+## Four-phase execution map
+
+- **Phase 1 (implemented):** Supabase Google-only identity, JWT/JWKS/provider
+  boundary, allowlisted admission, capacity, username onboarding, `/me`, and
+  the temporary auth shell.
+- **Phase 2 (implemented):** `portfolio_sessions` ownership and legacy
+  quarantine, centralized onboarded/owner/admin policy, all existing product
+  API route families, admin/development surface gating, and bearer-authenticated
+  product/developer browser boot.
+- **Phase 3 (deferred):** one-portfolio/variant/success entitlement,
+  generation admission, durable owner/actor bindings, and worker finalization
+  fencing.
+- **Phase 4 (deferred):** administrator lifecycle/audit, full multi-account
+  browser acceptance, and production deployment handoff.
 
 ## Current phase boundary
 
 - Preserve the completed Supabase/Google/private `.env` setup; do not recreate
   providers, clients, keys, or test identities.
-- Phase 1 now owns `src/oryxenai/auth/`, the auth foundation migration,
+- Phase 1 owns `src/oryxenai/auth/`, the auth foundation migration,
   configuration, safe `/me` routes, and the temporary browser controller.
-- Do not use this completion as authorization for ownership, entitlement,
-  worker-fencing, administrator-lifecycle, or deployment work; those remain
-  separate phases.
+- Phase 2 now owns session ownership, route authorization, development-surface
+  gating, and authenticated product/developer boot.
+- Do not use this completion as authorization for entitlement, worker-fencing,
+  administrator-lifecycle, or deployment work; those remain separate phases.
 - Reinspect the live repository and provider changelog before later phases;
   never assume a future checkout matches this audit.
 
@@ -54,16 +71,20 @@ These do not require another planning choice:
 
 ## Repository evidence inspected
 
-- `main.py` has middleware and routers but no auth boundary.
-- `api/dependencies.py` constructs services without `CurrentUser`/owner/admin.
-- session/stage/run routes accept session IDs without ownership.
-- `PortfolioSession` has no owner or legacy state.
-- `PortfolioSessionRepository` has global `get_by_id`/`list_recent` methods.
-- the durable job/agent/code-generator tables relate to sessions but do not
-  bind a current app owner/actor.
-- `web/routes.py` exposes the developer homepage at `/`.
-- `web/static/app.js` has a central `fetchJson()` but calls protected-looking
-  APIs immediately at boot and remembers only a session UUID.
+- `main.py` installs the Phase 1/2 auth, product, and conditional development
+  routers.
+- `api/dependencies.py` constructs active/onboarded/current-user,
+  owner/admin, and admin-only boundaries around existing services.
+- session/stage/run routes use the authorized `PortfolioAccess` session.
+- `PortfolioSession` and migration `0015` provide owner and legacy state.
+- `PortfolioSessionRepository` exposes explicit owned/admin methods; global
+  lookup remains documented for trusted internals until Phase 3 worker fencing.
+- durable job/agent/code-generator tables still do not bind a current app
+  owner/actor; that is intentionally Phase 3.
+- `web/routes.py` exposes product `/app` always and developer pages only under
+  configured development flags.
+- `web/static/app.js` receives the shared authorized request boundary only
+  after Supabase session plus `/api/v1/me` resolution.
 - development-only fixture and Code Generator surfaces are conditionally
   mounted and must stay absent/admin-only in production.
 - migrations are linear through the current checked-in head and are applied by
@@ -168,11 +189,13 @@ Phase gate:
 - production cannot start with local/test auth configuration; and
 - pinned browser/backend dependency checks pass.
 
-## Phase 2 - Alembic schema and repositories
+## Phase 2 - Ownership schema and repositories (implemented)
 
 Load the PostgreSQL best-practice guidance immediately before migration SQL.
 Use one new linear Alembic revision. Keep locks/transactions short and index
-every foreign key used for joins/cascades.
+every foreign key used for joins/cascades. The ownership portion is implemented
+by `0015_portfolio_ownership`; the entitlement, audit, and durable identity
+binding designs in this section remain future-phase material.
 
 ### `app_users`
 
@@ -280,7 +303,7 @@ Phase gate:
 - duplicate subject/username and capacity races are deterministic; and
 - Supabase advisors/security review finds no unresolved issue before production.
 
-## Phase 3 - Supabase identity and current-user boundary
+## Phase 1 - Supabase identity and current-user boundary (implemented)
 
 Create `src/oryxenai/auth/` with narrow modules:
 
@@ -332,7 +355,12 @@ untrusted presentation data and require output safety.
 Phase gate: deterministic token/admission test matrix passes, provider errors
 are bounded/redacted, and unapproved users create no rows.
 
-## Phase 4 - `/me`, username, and route protection
+## Phase 2 - `/me` continuity, route protection, and browser integration (implemented)
+
+Phase 1 already owns the `/me` and username implementation. The Phase 2 work
+in this section is the route/access inventory, owner/admin retrofit, conditional
+development surfaces, and authenticated browser integration that consumes that
+identity boundary.
 
 Add:
 
@@ -374,7 +402,7 @@ route cannot bypass policy by calling a generic ID lookup.
 Phase gate: A/B/admin matrix across every route and nested ID family passes;
 foreign and nonexistent return indistinguishable 404s.
 
-## Phase 5 - capacity, portfolio entitlement, and worker fencing
+## Phase 3 - capacity entitlement, generation policy, and worker fencing (deferred)
 
 ### Session claim
 
@@ -412,7 +440,7 @@ quota exemption never bypasses provider limits.
 Phase gate: concurrency and crash/reconciliation tests prove one session,
 variant, and success without duplicate paid work.
 
-## Phase 6 - browser experience
+## Phase 4 - browser acceptance, administrator lifecycle, and deployment handoff (deferred)
 
 Add templates/static modules for:
 

@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from typing import Any, NoReturn
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from oryxenai.agents.discovery.schemas import DiscoveryAnswer
 from oryxenai.agents.discovery.service import DiscoveryOperationError, DiscoveryService
-from oryxenai.api.dependencies import get_discovery_service
-from oryxenai.api.errors import AppError, ValidationError
+from oryxenai.api.dependencies import get_discovery_service, require_session_owner_or_admin
+from oryxenai.api.errors import AppError
+from oryxenai.auth.authorization import PortfolioAccess
 
 router = APIRouter(prefix="/sessions/{session_id}/discovery", tags=["discovery"])
 
@@ -55,13 +55,6 @@ class DiscoveryOperationResponse(BaseModel):
     jobs: list[dict[str, Any]] = Field(default_factory=list)
 
 
-def _session_uuid(value: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID format: '{value}'") from exc
-
-
 def _translate(exc: DiscoveryOperationError) -> NoReturn:
     raise AppError(
         exc.message,
@@ -74,12 +67,11 @@ def _translate(exc: DiscoveryOperationError) -> NoReturn:
 @router.get("", response_model=DiscoveryStateResponse)
 async def get_discovery_state(
     session_id: str,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
-        return DiscoveryStateResponse(
-            **await service.get_discovery_state(_session_uuid(session_id))
-        )
+        return DiscoveryStateResponse(**await service.get_discovery_state(access.session.id))
     except DiscoveryOperationError as exc:
         _translate(exc)
 
@@ -92,12 +84,13 @@ async def get_discovery_state(
 async def start_discovery(
     session_id: str,
     body: StartRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
         return DiscoveryStateResponse(
             **await service.start(
-                _session_uuid(session_id),
+                access.session.id,
                 body.message,
                 body.document_text,
                 body.goal,
@@ -112,12 +105,13 @@ async def start_discovery(
 async def save_discovery_answers(
     session_id: str,
     body: AnswersRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
         return DiscoveryStateResponse(
             **await service.save_answers(
-                _session_uuid(session_id),
+                access.session.id,
                 body.answers,
                 complete=body.complete,
             )
@@ -134,11 +128,12 @@ async def save_discovery_answers(
 async def revise_discovery_brief(
     session_id: str,
     body: ReviseRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
         return DiscoveryStateResponse(
-            **await service.revise_brief(_session_uuid(session_id), body.revision_request)
+            **await service.revise_brief(access.session.id, body.revision_request)
         )
     except DiscoveryOperationError as exc:
         _translate(exc)
@@ -147,9 +142,10 @@ async def revise_discovery_brief(
 @router.post("/approve", response_model=DiscoveryStateResponse)
 async def approve_discovery_brief(
     session_id: str,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
-        return DiscoveryStateResponse(**await service.approve_brief(_session_uuid(session_id)))
+        return DiscoveryStateResponse(**await service.approve_brief(access.session.id))
     except DiscoveryOperationError as exc:
         _translate(exc)

@@ -16,6 +16,73 @@ import pytest_asyncio
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+
+TEST_NORMAL_USER_ID = "00000000-0000-0000-0000-000000000101"
+TEST_ADMIN_USER_ID = "00000000-0000-0000-0000-000000000102"
+
+
+def override_test_identity(app: Any, *, role: str = "user") -> Any:
+    """Install one explicit local identity for API tests.
+
+    This is a dependency-injected test identity, not an application bypass:
+    production code still verifies Supabase JWTs and reloads the local row.
+    DB-backed callers should use ``install_test_identity`` below so the owner
+    foreign key is real as well.
+    """
+    from uuid import UUID
+
+    from oryxenai.api.dependencies import get_current_user, require_admin, require_onboarded_user
+    from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
+
+    is_admin = role == "admin"
+    user = CurrentUser(
+        id=UUID(TEST_ADMIN_USER_ID if is_admin else TEST_NORMAL_USER_ID),
+        supabase_user_id=UUID(
+            "00000000-0000-0000-0000-000000000202"
+            if is_admin
+            else "00000000-0000-0000-0000-000000000201"
+        ),
+        username="test-admin" if is_admin else "test-normal",
+        role=AuthRole.ADMIN if is_admin else AuthRole.USER,
+        status=AccountStatus.ACTIVE,
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[require_onboarded_user] = lambda: user
+    if is_admin:
+        app.dependency_overrides[require_admin] = lambda: user
+    else:
+        app.dependency_overrides.pop(require_admin, None)
+    return user
+
+
+async def install_test_identity(app: Any, engine: Any, *, role: str = "user") -> Any:
+    """Install an explicit identity and its matching app_users row."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from oryxenai.auth.models import AppUser
+
+    user = override_test_identity(app, role=role)
+    sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        session.add(
+            AppUser(
+                id=user.id,
+                supabase_user_id=user.supabase_user_id,
+                primary_email=(
+                    "test-admin@example.com" if role == "admin" else "test-normal@example.com"
+                ),
+                username=user.username,
+                role=user.role.value,
+                status=user.status.value,
+                onboarding_completed_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    return user
+
+
 # ── Test-only deterministic model client ────────────────────────────────────
 #
 # Not a demo feature: a plain test double (the equivalent of

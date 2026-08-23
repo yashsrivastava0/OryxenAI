@@ -9,6 +9,8 @@
   <meta name="oryxenai-callback-url" content="{{ auth_config.callbackUrl }}">
   <meta name="oryxenai-sign-in-path" content="{{ auth_config.signInPath }}">
   <meta name="oryxenai-callback-path" content="{{ auth_config.callbackPath }}">
+  <meta name="oryxenai-access-not-approved-path" content="{{ auth_config.accessNotApprovedPath }}">
+  <meta name="oryxenai-account-unavailable-path" content="{{ auth_config.accountUnavailablePath }}">
   <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
@@ -114,6 +116,6 @@
   </main>
 
   <script src="/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
-  <script type="module" src="/auth-static/auth-controller.mjs?v={{ auth_controller_version }}"></script>
+  <script type="module" src="/auth-static/auth-page.mjs?v={{ auth_page_version }}"></script>
 </body>
 </html>

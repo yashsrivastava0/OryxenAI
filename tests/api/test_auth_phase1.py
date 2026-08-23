@@ -118,3 +118,44 @@ async def test_unexpected_unsafe_origin_is_rejected_with_request_id() -> None:
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "ORIGIN_NOT_ALLOWED"
     assert response.json()["error"]["requestId"]
+
+
+@pytest.mark.asyncio
+async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_in_production() -> (
+    None
+):
+    settings = _settings()
+    settings.app.enable_dev_ui = False
+    settings.build_preparation.fixture_enabled = False
+    settings.code_generator_development.enabled = False
+    app = create_app(settings)
+    paths = (
+        "/",
+        "/sign-in",
+        "/auth/callback",
+        "/access-not-approved",
+        "/account-unavailable",
+        "/onboarding",
+        "/app",
+        "/admin",
+    )
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://localhost:8000"
+    ) as client:
+        responses = [await client.get(path) for path in paths]
+        dev_pages = [
+            await client.get("/dev"),
+            await client.get("/build-preparation-fixture"),
+            await client.get("/code-generator-development"),
+        ]
+
+    assert all(response.status_code == 200 for response in responses)
+    assert all(response.status_code == 404 for response in dev_pages)
+    product = responses[6]
+    assert "app-auth-bootstrap.mjs" in product.text
+    assert "admin1@example.com" not in product.text
+    assert "sb_secret_test" not in product.text
+    assert product.headers["cache-control"] == "no-store"
+    csp = product.headers["content-security-policy"]
+    assert "connect-src 'self' https://project.supabase.co wss://project.supabase.co" in csp
+    assert "*" not in csp

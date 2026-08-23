@@ -28,6 +28,6 @@
     if (rejected.length) document.getElementById("resources-empty").hidden = false;
     document.getElementById("copy-issue").onclick = async function () { await navigator.clipboard.writeText(JSON.stringify({run_id: record.run_id, issue: record.issue, local_result: record.local_result}, null, 2)); this.textContent = "Copied"; };
   }
-  async function load() { try { var response = await fetch("/api/v1/build-preparation/fixture/runs/" + encodeURIComponent(runId)); var data = await response.json(); if (!response.ok) throw new Error(); render(data); if (data.status === "running") window.setTimeout(load, 900); } catch (error) { empty.hidden = false; } }
+  async function load() { try { var response = await window.OryxenAIProtectedFetch("/api/v1/build-preparation/fixture/runs/" + encodeURIComponent(runId)); var data = await response.json(); if (!response.ok) throw new Error(); render(data); if (data.status === "running") window.setTimeout(load, 900); } catch (error) { empty.hidden = false; } }
   load();
 }());

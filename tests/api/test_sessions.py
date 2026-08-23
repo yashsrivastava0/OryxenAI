@@ -7,6 +7,7 @@ import pytest
 from httpx import ASGITransport
 
 from oryxenai.main import create_app
+from tests.conftest import install_test_identity
 
 pytestmark = pytest.mark.integration
 
@@ -23,6 +24,7 @@ async def client(test_engine):
     settings = app.state.settings
     app.state.engine = get_engine(settings)
     app.state.sessionmaker = async_sessionmaker(app.state.engine, expire_on_commit=False)
+    await install_test_identity(app, test_engine, role="user")
 
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c

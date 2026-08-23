@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import Any, NoReturn
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,8 +11,12 @@ from oryxenai.agents.visual_design_director.service import (
     VisualDesignDirectorOperationError,
     VisualDesignDirectorService,
 )
-from oryxenai.api.dependencies import get_visual_design_director_service
-from oryxenai.api.errors import AppError, ValidationError
+from oryxenai.api.dependencies import (
+    get_visual_design_director_service,
+    require_session_owner_or_admin,
+)
+from oryxenai.api.errors import AppError
+from oryxenai.auth.authorization import PortfolioAccess
 
 router = APIRouter(
     prefix="/sessions/{session_id}/visual-design-director", tags=["visual-design-director"]
@@ -40,13 +43,6 @@ class VisualDesignDirectorStateResponse(BaseModel):
     jobs: list[dict[str, Any]] = Field(default_factory=list)
 
 
-def _session_uuid(value: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID format: '{value}'") from exc
-
-
 def _translate(exc: VisualDesignDirectorOperationError) -> NoReturn:
     raise AppError(
         exc.message,
@@ -59,11 +55,12 @@ def _translate(exc: VisualDesignDirectorOperationError) -> NoReturn:
 @router.get("", response_model=VisualDesignDirectorStateResponse)
 async def get_visual_design_director_state(
     session_id: str,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
         return VisualDesignDirectorStateResponse(
-            **await service.get_visual_design_director_state(_session_uuid(session_id))
+            **await service.get_visual_design_director_state(access.session.id)
         )
     except VisualDesignDirectorOperationError as exc:
         _translate(exc)
@@ -77,12 +74,13 @@ async def get_visual_design_director_state(
 async def start_visual_design_director(
     session_id: str,
     body: StartRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
         return VisualDesignDirectorStateResponse(
             **await service.start(
-                _session_uuid(session_id),
+                access.session.id,
                 body.preferences,
                 model_profile=body.model_profile or "",
             )
@@ -99,11 +97,12 @@ async def start_visual_design_director(
 async def revise_visual_design_director(
     session_id: str,
     body: ReviseRequest,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
         return VisualDesignDirectorStateResponse(
-            **await service.revise(_session_uuid(session_id), body.revision_request)
+            **await service.revise(access.session.id, body.revision_request)
         )
     except VisualDesignDirectorOperationError as exc:
         _translate(exc)
@@ -112,9 +111,10 @@ async def revise_visual_design_director(
 @router.post("/approve", response_model=VisualDesignDirectorStateResponse)
 async def approve_visual_design_director(
     session_id: str,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
-        return VisualDesignDirectorStateResponse(**await service.approve(_session_uuid(session_id)))
+        return VisualDesignDirectorStateResponse(**await service.approve(access.session.id))
     except VisualDesignDirectorOperationError as exc:
         _translate(exc)

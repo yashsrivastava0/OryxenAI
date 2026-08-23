@@ -8,7 +8,9 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
+from oryxenai.core.settings import Settings
 from oryxenai.main import create_app
+from tests.conftest import override_test_identity
 
 
 def _fixture_input() -> dict[str, object]:
@@ -43,8 +45,10 @@ def _content_architect_input() -> dict[str, object]:
 
 
 def _fixture_app(tmp_path: Path):
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+    settings = Settings()
+    settings.build_preparation.fixture_enabled = True
+    app = create_app(settings)
+    override_test_identity(app, role="admin")
     app.state.settings.build_preparation.fixture_upload = False
     app.state.settings.build_preparation.fixture_output_dir = str(tmp_path)
     return app
@@ -63,8 +67,9 @@ async def _completed_run(client: httpx.AsyncClient, run_id: str) -> dict[str, ob
 
 @pytest.mark.asyncio
 async def test_build_preparation_routes_are_exposed() -> None:
-    app = create_app()
-    app.state.settings.build_preparation.fixture_enabled = True
+    settings = Settings()
+    settings.build_preparation.fixture_enabled = True
+    app = create_app(settings)
     assert "/api/v1/sessions/{session_id}/build-preparation" in app.openapi()["paths"]
     assert "/api/v1/sessions/{session_id}/build-preparation/start" in app.openapi()["paths"]
     assert "/api/v1/sessions/{session_id}/build-preparation/regenerate" in app.openapi()["paths"]

@@ -22,7 +22,7 @@ from oryxenai.jobs.handlers.discovery import (
     DiscoveryUnderstandAndQuestionHandler,
 )
 from oryxenai.main import create_app
-from tests.conftest import _ContentArchitectMockModelClient, _MockModelClient
+from tests.conftest import _ContentArchitectMockModelClient, _MockModelClient, install_test_identity
 
 pytestmark = pytest.mark.integration
 
@@ -37,6 +37,7 @@ async def client(test_engine, monkeypatch):
     settings = app.state.settings
     app.state.engine = get_engine(settings)
     app.state.sessionmaker = async_sessionmaker(app.state.engine, expire_on_commit=False)
+    await install_test_identity(app, test_engine, role="user")
 
     monkeypatch.setattr(
         "oryxenai.jobs.handlers.discovery._build_discovery_agent",

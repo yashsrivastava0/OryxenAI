@@ -10,6 +10,7 @@ from httpx import ASGITransport
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from oryxenai.jobs.heartbeat import HeartbeatRepository
+from tests.conftest import install_test_identity
 
 pytestmark = pytest.mark.integration
 
@@ -21,6 +22,7 @@ async def api_client(test_engine):
     app = create_app()
     app.state.engine = test_engine
     app.state.sessionmaker = async_sessionmaker(test_engine, expire_on_commit=False)
+    await install_test_identity(app, test_engine, role="admin")
 
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c

@@ -6,173 +6,28 @@
  * without a DOM, Supabase, Google, or network access.
  */
 
-export const REVIEWED_DESTINATIONS = Object.freeze(["/app", "/admin"]);
+import {
+  AuthRequestError,
+  clearPrivateState,
+  createAuthorizedFetch,
+  isReviewedDestination,
+  logoutCurrentBrowser,
+  responseError,
+  safeRelativePath,
+  safeSession,
+} from "./auth-runtime.mjs";
 
-export class AuthRequestError extends Error {
-  constructor(message, { status = 0, code = "AUTH_INVALID" } = {}) {
-    super(message);
-    this.name = "AuthRequestError";
-    this.status = status;
-    this.code = code;
-  }
-}
-
-const safeSession = (result) => result?.data?.session ?? result?.session ?? null;
-
-export function isReviewedDestination(value, origin = "http://localhost") {
-  if (typeof value !== "string" || !value || value.includes("\\") || value.includes("%")) {
-    return false;
-  }
-  try {
-    const safeOrigin = new URL(origin).origin;
-    const parsed = new URL(value, origin);
-    return (
-      parsed.origin === safeOrigin &&
-      !parsed.search &&
-      !parsed.hash &&
-      REVIEWED_DESTINATIONS.includes(parsed.pathname) &&
-      value === parsed.pathname
-    );
-  } catch {
-    return false;
-  }
-}
-
-function isSafeRelativePath(value, fallback) {
-  if (typeof value !== "string" || !value || value.includes("\\") || value.includes("%")) {
-    return fallback;
-  }
-  try {
-    const parsed = new URL(value, "http://localhost");
-    return parsed.origin === "http://localhost" &&
-      parsed.pathname === value &&
-      !parsed.search &&
-      !parsed.hash &&
-      value.startsWith("/") &&
-      !value.startsWith("//")
-      ? value
-      : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-export async function logoutCurrentBrowser({
-  auth,
-  storage,
-  ui = {},
-  location,
-  signInPath = "/sign-in",
-  stopActivity = () => {},
-}) {
-  stopActivity();
-  clearPrivateState(storage);
-  ui.clearPrivate?.();
-  try {
-    await auth.signOut();
-  } catch {
-    // The local browser state is already cleared; route away even if the
-    // provider cannot complete the best-effort remote sign-out.
-  } finally {
-    location?.replace?.(isSafeRelativePath(signInPath, "/sign-in"));
-  }
-}
+export {
+  AuthRequestError,
+  createAuthorizedFetch,
+  isReviewedDestination,
+  logoutCurrentBrowser,
+};
 
 export function stripOAuthArtifacts(history, location) {
   const path = location?.pathname || "/auth/callback";
   history?.replaceState?.({}, "", path);
   return path;
-}
-
-function clearPrivateState(storage) {
-  try {
-    storage?.removeItem?.("oryxenai.session_id");
-    storage?.removeItem?.("oryxenai.private");
-  } catch {
-    // Blocked storage is handled as an auth error by the session lookup.
-  }
-}
-
-function errorMessage(code) {
-  switch (code) {
-    case "ACCESS_NOT_APPROVED":
-      return "This Google account is not approved for OryxenAI access.";
-    case "ACCOUNT_SUSPENDED":
-    case "ACCOUNT_DELETED":
-      return "This OryxenAI account is currently unavailable.";
-    case "USER_CAPACITY_REACHED":
-      return "Normal-user access is currently at capacity.";
-    case "USERNAME_TAKEN":
-      return "That username is already taken.";
-    case "AUTH_PROVIDER_UNAVAILABLE":
-      return "Authentication is temporarily unavailable. Please try again shortly.";
-    default:
-      return "Your authentication session is no longer valid.";
-  }
-}
-
-async function responseError(response) {
-  let body = null;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
-  }
-  const code = body?.error?.code || (response.status === 401 ? "AUTH_INVALID" : "REQUEST_FAILED");
-  return new AuthRequestError(errorMessage(code), { status: response.status, code });
-}
-
-export function createAuthorizedFetch({ auth, fetchImpl = globalThis.fetch, onAuthFailure = () => {} }) {
-  if (typeof fetchImpl !== "function") {
-    throw new Error("A fetch implementation is required.");
-  }
-  const request = async (url, init = {}, session) => {
-    if (!session?.access_token) {
-      await onAuthFailure();
-      throw new AuthRequestError(errorMessage("AUTH_REQUIRED"), {
-        status: 401,
-        code: "AUTH_REQUIRED",
-      });
-    }
-    const headers = new Headers(init.headers || {});
-    headers.set("Authorization", `Bearer ${session.access_token}`);
-    headers.set("Accept", "application/json");
-    return fetchImpl(url, { ...init, headers });
-  };
-
-  return async (url, init = {}) => {
-    let sessionResult;
-    try {
-      sessionResult = await auth.getSession();
-    } catch {
-      await onAuthFailure();
-      throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
-    }
-    if (sessionResult?.error) {
-      await onAuthFailure();
-      throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
-    }
-    let session = safeSession(sessionResult);
-    let response = await request(url, init, session);
-    if (response.status === 401) {
-      let refreshed;
-      try {
-        refreshed = await auth.refreshSession();
-      } catch {
-        refreshed = null;
-      }
-      session = safeSession(refreshed);
-      if (refreshed?.error || !session?.access_token) {
-        await onAuthFailure();
-        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
-      }
-      response = await request(url, init, session);
-    }
-    if (!response.ok) {
-      throw await responseError(response);
-    }
-    return response;
-  };
 }
 
 export async function routeController({
@@ -187,14 +42,14 @@ export async function routeController({
   stopActivity = () => {},
 }) {
   const reviewed = {
-    signIn: isSafeRelativePath(paths.signIn || "/sign-in", "/sign-in"),
-    callback: isSafeRelativePath(paths.callback || "/auth/callback", "/auth/callback"),
-    access: isSafeRelativePath(paths.access || "/access-not-approved", "/access-not-approved"),
-    unavailable: isSafeRelativePath(
+    signIn: safeRelativePath(paths.signIn || "/sign-in", "/sign-in"),
+    callback: safeRelativePath(paths.callback || "/auth/callback", "/auth/callback"),
+    access: safeRelativePath(paths.access || "/access-not-approved", "/access-not-approved"),
+    unavailable: safeRelativePath(
       paths.unavailable || "/account-unavailable",
       "/account-unavailable",
     ),
-    onboarding: isSafeRelativePath(paths.onboarding || "/onboarding", "/onboarding"),
+    onboarding: safeRelativePath(paths.onboarding || "/onboarding", "/onboarding"),
     app: isReviewedDestination(paths.app || "/app") ? paths.app || "/app" : "/app",
     admin: isReviewedDestination(paths.admin || "/admin") ? paths.admin || "/admin" : "/admin",
   };
@@ -377,7 +232,7 @@ function makeDomUi() {
   };
 }
 
-async function bootstrap() {
+export async function bootstrapAuthPage() {
   const config = {
     supabaseUrl: readMeta("oryxenai-supabase-url"),
     publishableKey: readMeta("oryxenai-publishable-key"),
@@ -388,8 +243,8 @@ async function bootstrap() {
       app: readMeta("oryxenai-app-path") || "/app",
       admin: readMeta("oryxenai-admin-path") || "/admin",
       onboarding: readMeta("oryxenai-onboarding-path") || "/onboarding",
-      access: "/access-not-approved",
-      unavailable: "/account-unavailable",
+      access: readMeta("oryxenai-access-not-approved-path") || "/access-not-approved",
+      unavailable: readMeta("oryxenai-account-unavailable-path") || "/account-unavailable",
     },
   };
   const ui = makeDomUi();
@@ -479,13 +334,4 @@ async function bootstrap() {
     }
   });
   if (result?.kind === "onboarding") document.getElementById("username")?.focus();
-}
-
-if (typeof document !== "undefined") {
-  bootstrap().catch(() => {
-    document.getElementById("global-error")?.replaceChildren(document.createTextNode("Authentication could not be initialized."));
-    const panel = document.getElementById("sign-in-panel");
-    if (panel) panel.hidden = false;
-    document.getElementById("progress-panel")?.setAttribute("hidden", "");
-  });
 }

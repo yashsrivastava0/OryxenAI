@@ -68,6 +68,17 @@ Apply owner-or-admin checks to:
 Foreign and nonexistent identifiers return the same 404. Hiding a UI action is
 not authorization.
 
+Phase 2 implements this boundary for the existing session aggregate and all
+session-nested Discovery, Content Architect, Visual Design Director, Build
+Preparation, Code Generator, and run-history routes. Normal queries require
+`owner_user_id = current_user.id` and `legacy_quarantined = false`; active,
+onboarded admins may inspect owned and legacy sessions. System, model-profile,
+mock, fixture, and standalone development APIs are admin-only, and the
+development families are not mounted when their configured feature surface is
+disabled. Durable owner/actor snapshots, worker finalization fencing,
+entitlement enforcement, and administrator lifecycle mutations remain later
+phases.
+
 ## Origin, CORS, redirects, and CSRF
 
 Prefer one application origin. Bearer tokens reduce cookie-CSRF exposure, but
@@ -158,11 +169,11 @@ audit/deletion retention and publish privacy/terms pages before public launch.
 | User suspended with an open tab | Next API call is 403; polling/data clears; provider revocation retries. |
 | Admin deletes user with running jobs | Local marker blocks worker finalization; cleanup is resumable. |
 | Deleted email remains in the allowlist and signs in again | Retained local tombstone denies automatic re-admission; only an explicit audited admin readmission may clear/rebind it. |
-| Foreign session/run/job/source ID | Same 404 as nonexistent. |
+| Foreign session/run/job/source ID | Same 404 as nonexistent; Phase 2 routes authorize through the session aggregate. |
 | Browser session ID is edited | Backend owner guard rejects; client forgets it. |
-| Double create/start | Entitlement/idempotency returns one session/run. |
+| Double create/start | Existing idempotency behavior remains; one-session entitlement is Phase 3. |
 | Generation fails before promotion | Success remains unconsumed; retry keeps the variant. |
-| Normal user calls regenerate directly | 409 variant locked. |
+| Normal user calls regenerate directly | Phase 3 target: 409 variant locked. |
 | Promotion crashes mid-finalization | Existing reconciler completes exact receipt; success binding is idempotent. |
 | User clears browser data after success | Server entitlement still blocks another portfolio. |
 | User signs in with another Google account | Separate subject/account; never merge automatically. |

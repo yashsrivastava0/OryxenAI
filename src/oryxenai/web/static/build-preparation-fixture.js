@@ -139,7 +139,7 @@
   async function poll() {
     if (!current || !current.run_id) return;
     try {
-      var response = await fetch("/api/v1/build-preparation/fixture/runs/" + encodeURIComponent(current.run_id));
+      var response = await window.OryxenAIProtectedFetch("/api/v1/build-preparation/fixture/runs/" + encodeURIComponent(current.run_id));
       var data = await response.json();
       if (!response.ok) throw new Error(apiError(data));
       render(data);
@@ -151,7 +151,7 @@
   }
   async function preflight() {
     try {
-      var response = await fetch("/api/v1/build-preparation/fixture/preflight");
+      var response = await window.OryxenAIProtectedFetch("/api/v1/build-preparation/fixture/preflight");
       var data = await response.json();
       if (response.ok) renderPreflight(data);
     } catch (error) { /* The run itself will surface any configuration issue. */ }
@@ -172,7 +172,7 @@
     if (input.value.trim()) body.output_json = input.value.trim();
     if (contentInput.value.trim()) body.content_architect_json = contentInput.value.trim();
     try {
-      var response = await fetch("/api/v1/build-preparation/fixture/runs", { method: "POST", headers: {"Accept":"application/json", "Content-Type":"application/json"}, body: JSON.stringify(body) });
+      var response = await window.OryxenAIProtectedFetch("/api/v1/build-preparation/fixture/runs", { method: "POST", headers: {"Accept":"application/json", "Content-Type":"application/json"}, body: JSON.stringify(body) });
       var data = await response.json();
       if (!response.ok) throw new Error(apiError(data));
       render(data); poll();
