@@ -38,6 +38,11 @@
   var activityKeys = Object.create(null);
   var observedStageSignatures = Object.create(null);
   var observedJobSignatures = Object.create(null);
+  var authorizedRequest = null;
+  var appStorage = null;
+  var systemStatusTimer = null;
+  var probeTimer = null;
+  var booted = false;
   var stageJobs = {
     discovery: [],
     content_architect: [],
@@ -401,13 +406,16 @@
   }
 
   async function fetchJson(url, opts) {
+    if (typeof authorizedRequest !== "function") {
+      throw { status: 401, message: "Authentication is required.", body: null };
+    }
     var controller = new AbortController();
     var timer = window.setTimeout(function () { controller.abort(); }, 30000);
     var requestOpts = opts || {};
     requestOpts.signal = controller.signal;
     var resp = null;
     try {
-      resp = await fetch(url, requestOpts);
+      resp = await authorizedRequest(url, requestOpts);
     } catch (e) {
       window.clearTimeout(timer);
       throw { status: 0, message: "Network error — the server did not respond.", body: null };
@@ -425,6 +433,32 @@
       throw { status: resp.status, message: msg, body: body };
     }
     return body;
+  }
+
+  function rememberSession(sessionId) {
+    try {
+      appStorage && appStorage.setItem("oryxenai.session_id", sessionId);
+      appStorage && appStorage.removeItem("oryxenai.discovery.session");
+    } catch (e) {
+      // Navigation can continue; the auth runtime owns storage failure state.
+    }
+  }
+
+  function rememberedSession() {
+    try {
+      return appStorage && appStorage.getItem("oryxenai.session_id");
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function forgetSession() {
+    try {
+      appStorage && appStorage.removeItem("oryxenai.session_id");
+      appStorage && appStorage.removeItem("oryxenai.discovery.session");
+    } catch (e) {
+      // Best-effort cleanup; the auth runtime also clears private state.
+    }
   }
 
   // ── Chat rendering ──────────────────────────────────────────────────────
@@ -602,7 +636,7 @@
         return;
       }
       selectedSessionId = session.id;
-      sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
+      rememberSession(selectedSessionId);
       refreshSessionPanel(session);
     }
 
@@ -2090,7 +2124,7 @@
       });
       setResult("create-result", "Created session: " + session.id, "success");
       selectedSessionId = session.id;
-      sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
+      rememberSession(selectedSessionId);
       refreshSessionPanel(session);
       listRuns();
       await listSessions();
@@ -2127,7 +2161,7 @@
         li.textContent = s.name + " — " + s.id.substring(0, 8) + "… (rev " + s.revision + ")";
         li.addEventListener("click", function () {
           selectedSessionId = s.id;
-          sessionStorage.setItem("oryxenai.discovery.session", selectedSessionId);
+          rememberSession(selectedSessionId);
           refreshSessionPanel(s);
           listRuns();
           hydrateSessionState();
@@ -2263,7 +2297,7 @@
         setResult("probe-status", "Probe failed: " + ((job.error && job.error.message) || "unknown"), "error");
       } else {
         setResult("probe-status", "Probe " + job.status + " (attempt " + job.attempt + ")");
-        setTimeout(pollProbe, 1500);
+        probeTimer = window.setTimeout(pollProbe, 1500);
       }
     } catch (e) {
       setResult("probe-status", "Error polling: " + e.message, "error");
@@ -2272,19 +2306,35 @@
 
   // ── Boot ────────────────────────────────────────────────────────────────
 
-  document.addEventListener("DOMContentLoaded", function () {
+  function boot(options) {
+    if (booted) return;
+    options = options || {};
+    authorizedRequest = options.authorizedFetch;
+    appStorage = options.storage || null;
+    booted = true;
+
+    var advanced = document.getElementById("advanced");
+    if (advanced) advanced.hidden = !options.developer;
+    var modelRow = document.querySelector(".model-select-row");
+    if (modelRow) modelRow.hidden = !options.developer;
+    var adminLink = document.getElementById("app-admin-link");
+    if (adminLink) adminLink.hidden = options.role !== "admin";
+
     chatWelcome();
     renderSidebarOutputTabs();
     renderActivityLog();
     checkHealth();
     loadAgents();
     listSessions();
-    loadSystemStatus();
-    setInterval(loadSystemStatus, 15000);
+    if (options.developer) {
+      loadSystemStatus();
+      systemStatusTimer = setInterval(loadSystemStatus, 15000);
+    }
 
     document.getElementById("btn-send").addEventListener("click", sendMessage);
-    document.getElementById("provider-select").addEventListener("change", function () {
-      selectedModelProfile = this.value;
+    var providerSelect = document.getElementById("provider-select");
+    if (providerSelect) providerSelect.addEventListener("change", function () {
+      selectedModelProfile = options.developer ? this.value : "";
     });
     document.getElementById("composer").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.shiftKey) {
@@ -2324,15 +2374,48 @@
       if (event.key === "Escape") closeFullBriefSidebar();
     });
 
-    var rememberedSession = sessionStorage.getItem("oryxenai.discovery.session");
-    if (rememberedSession) {
-      fetchJson(API + "/sessions/" + rememberedSession).then(function (session) {
+    var remembered = rememberedSession();
+    if (remembered) {
+      fetchJson(API + "/sessions/" + remembered).then(function (session) {
         selectedSessionId = session.id;
         refreshSessionPanel(session);
         return listRuns();
       }).then(function () {
         return hydrateSessionState();
-      }).catch(function () { sessionStorage.removeItem("oryxenai.discovery.session"); });
+      }).catch(function () {
+        selectedSessionId = null;
+        forgetSession();
+      });
     }
-  });
+  }
+
+  function stop() {
+    if (pollTimer) window.clearTimeout(pollTimer);
+    if (caPollTimer) window.clearTimeout(caPollTimer);
+    if (vddPollTimer) window.clearTimeout(vddPollTimer);
+    if (buildPreparationPollTimer) window.clearTimeout(buildPreparationPollTimer);
+    if (probeTimer) window.clearTimeout(probeTimer);
+    if (elapsedTimer) window.clearInterval(elapsedTimer);
+    if (systemStatusTimer) window.clearInterval(systemStatusTimer);
+    pollTimer = null;
+    caPollTimer = null;
+    vddPollTimer = null;
+    buildPreparationPollTimer = null;
+    probeTimer = null;
+    elapsedTimer = null;
+    systemStatusTimer = null;
+    selectedSessionId = null;
+    chatState = null;
+    lastIntake = null;
+    forgetSession();
+    authorizedRequest = null;
+    appStorage = null;
+    booted = false;
+    var privateState = document.getElementById("current-session");
+    if (privateState) privateState.hidden = true;
+    var messages = document.getElementById("chat-messages");
+    if (messages) messages.replaceChildren();
+  }
+
+  window.OryxenAIApp = { boot: boot, stop: stop };
 })();

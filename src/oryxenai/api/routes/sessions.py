@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from oryxenai.api.dependencies import get_session_repo
-from oryxenai.api.errors import SessionNotFoundError, ValidationError
+from oryxenai.api.dependencies import (
+    get_session_repo,
+    require_onboarded_user,
+    require_session_owner_or_admin,
+)
+from oryxenai.api.errors import ValidationError
+from oryxenai.auth.authorization import PortfolioAccess
+from oryxenai.auth.domain import AuthRole, CurrentUser
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 
@@ -18,6 +22,8 @@ MAX_SESSION_NAME = 200
 
 
 class CreateSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = None
 
 
@@ -43,37 +49,42 @@ def _to_response(session: PortfolioSession) -> SessionResponse:
     )
 
 
+def _validate_limit(limit: int) -> int:
+    if not 1 <= limit <= 100:
+        raise ValidationError("Limit must be between 1 and 100.", details={"field": "limit"})
+    return limit
+
+
 @router.post("", response_model=SessionResponse, status_code=201)
 async def create_session(
     body: CreateSessionRequest,
+    _user: CurrentUser = Depends(require_onboarded_user),
     repo: PortfolioSessionRepository = Depends(get_session_repo),
 ) -> SessionResponse:
     name = body.name or "Untitled session"
     if len(name) > MAX_SESSION_NAME:
         raise ValidationError(f"Session name exceeds {MAX_SESSION_NAME} characters.")
-    session = await repo.create(name=name)
+    session = await repo.create_owned(_user.id, name=name)
     return _to_response(session)
 
 
 @router.get("", response_model=list[SessionResponse])
 async def list_sessions(
     limit: int = 20,
+    user: CurrentUser = Depends(require_onboarded_user),
     repo: PortfolioSessionRepository = Depends(get_session_repo),
 ) -> list[SessionResponse]:
-    sessions = await repo.list_recent(limit=limit)
+    limit = _validate_limit(limit)
+    if user.role is AuthRole.ADMIN:
+        sessions = await repo.list_recent_for_admin(limit=limit)
+    else:
+        sessions = await repo.list_owned_recent(user.id, limit=limit)
     return [_to_response(s) for s in sessions]
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
     session_id: str,
-    repo: PortfolioSessionRepository = Depends(get_session_repo),
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
 ) -> SessionResponse:
-    try:
-        sid = UUID(session_id)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID format: '{session_id}'") from exc
-    session = await repo.get_by_id(sid)
-    if session is None:
-        raise SessionNotFoundError(session_id)
-    return _to_response(session)
+    return _to_response(access.session)

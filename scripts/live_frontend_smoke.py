@@ -10,6 +10,11 @@ Run:
 Optional environment variables:
     ORA_API_URL                  API URL (default http://127.0.0.1:8000).
     ORA_FRONTEND_SMOKE_TIMEOUT   Overall timeout in seconds (360).
+    ORA_FRONTEND_SMOKE_ACCESS_TOKEN
+                                 Ephemeral Supabase access token for this run.
+
+The access token is read only from the process environment, attached as a
+Bearer header, and never printed or written to disk.
 """
 
 from __future__ import annotations
@@ -98,9 +103,19 @@ def _answer_value(question: dict[str, Any]) -> Any:
 
 async def main() -> None:
     base_url = os.environ.get("ORA_API_URL", "http://127.0.0.1:8000").rstrip("/")
+    access_token = os.environ.get("ORA_FRONTEND_SMOKE_ACCESS_TOKEN", "").strip()
+    if not access_token:
+        raise SmokeFailure(
+            "ORA_FRONTEND_SMOKE_ACCESS_TOKEN is required; provide an ephemeral "
+            "Supabase access token for this smoke run."
+        )
     sample = _sample()
     deadline = time.monotonic() + _timeout()
-    async with httpx.AsyncClient(base_url=base_url, timeout=10.0) as client:
+    async with httpx.AsyncClient(
+        base_url=base_url,
+        timeout=10.0,
+        headers={"Authorization": f"Bearer {access_token}"},
+    ) as client:
         health = await _request(client, "GET", "/health/ready")
         if health.get("status") != "ready":
             raise SmokeFailure(f"API is not ready: {health}")

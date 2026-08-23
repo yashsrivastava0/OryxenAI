@@ -179,11 +179,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(create_api_router(s))
     app.include_router(create_auth_web_router())
 
-    # Developer UI (conditional).
-    if s.is_dev_ui_enabled:
-        from oryxenai.web.routes import create_web_router
+    # The authenticated product shell is always directly reachable.  The
+    # explicit developer harness is conditionally registered inside this
+    # router and is absent when the dev feature is disabled.
+    from oryxenai.web.routes import create_web_router
 
-        app.include_router(create_web_router(s))
+    app.include_router(create_web_router(s))
 
     return app
 

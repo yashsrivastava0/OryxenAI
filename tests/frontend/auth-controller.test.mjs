@@ -234,9 +234,10 @@ test("logout stops activity, clears private UI, signs out, and replaces the page
   const ui = uiProbe();
   let stopped = 0;
   let signedOut = 0;
+  const storage = { removed: [], removeItem(key) { this.removed.push(key); } };
   await logoutCurrentBrowser({
     auth: { async signOut() { signedOut += 1; throw new Error("provider unavailable"); } },
-    storage: { removed: [], removeItem(key) { this.removed.push(key); } },
+    storage,
     ui,
     location,
     stopActivity: () => { stopped += 1; },
@@ -244,5 +245,10 @@ test("logout stops activity, clears private UI, signs out, and replaces the page
   assert.equal(stopped, 1);
   assert.equal(signedOut, 1);
   assert.equal(ui.cleared, true);
+  assert.deepEqual(storage.removed, [
+    "oryxenai.session_id",
+    "oryxenai.discovery.session",
+    "oryxenai.private",
+  ]);
   assert.deepEqual(location.replacements, ["/sign-in"]);
 });

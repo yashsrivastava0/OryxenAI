@@ -16,10 +16,14 @@ from oryxenai.agents.code_generator.core.development_service import (
     CodeGeneratorDevelopmentService,
     DevelopmentRunError,
 )
-from oryxenai.api.dependencies import get_code_generator_development_service
+from oryxenai.api.dependencies import get_code_generator_development_service, require_admin
 from oryxenai.api.errors import AppError
 
-router = APIRouter(prefix="/development/code-generator", tags=["code-generator-development"])
+router = APIRouter(
+    prefix="/development/code-generator",
+    tags=["code-generator-development"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 def _run_id(value: str) -> UUID:

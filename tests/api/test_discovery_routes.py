@@ -56,7 +56,7 @@ def test_frontend_uses_safe_dom_rendering_and_chat_endpoints() -> None:
     assert "/discovery/answers" in javascript
     assert "/discovery/revise" in javascript
     assert "/discovery/approve" in javascript
-    assert "sessionStorage" in javascript
+    assert "oryxenai.session_id" in javascript
     assert "textContent" in javascript
 
 

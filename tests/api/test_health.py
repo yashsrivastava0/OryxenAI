@@ -7,11 +7,13 @@ import pytest
 from httpx import ASGITransport
 
 from oryxenai.main import create_app
+from tests.conftest import override_test_identity
 
 
 @pytest.fixture
 async def client():
     app = create_app()
+    override_test_identity(app, role="user")
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 

@@ -1104,6 +1104,8 @@ class Settings(BaseSettings):
             "callbackUrl": self.auth.callback_url(),
             "signInPath": self.auth.sign_in_path,
             "callbackPath": self.auth.callback_path,
+            "accessNotApprovedPath": self.auth.access_not_approved_path,
+            "accountUnavailablePath": self.auth.account_unavailable_path,
             "appPath": self.auth.app_path,
             "adminPath": self.auth.admin_path,
             "onboardingPath": self.auth.onboarding_path,

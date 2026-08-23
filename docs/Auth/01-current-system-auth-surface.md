@@ -1,33 +1,38 @@
 # Current system authentication surface
 
-This began as a source-grounded audit before auth implementation. Phase 1 now
-implements the identity boundary and temporary route controller described
-below; the portfolio ownership and authorization gaps remain intentionally
-open for Phase 2.
+This began as a source-grounded audit before auth implementation. Authentication
+Phases 1 and 2 now implement the identity boundary, session ownership, legacy
+quarantine, route authorization, and temporary product/developer boot described
+below. Entitlement, worker finalization fencing, and administrator lifecycle
+remain later phases.
 
 ## Current trust model
 
-Phase 1 has a Supabase subject-to-`app_users` identity boundary for
-`GET /api/v1/me` and username onboarding. Existing portfolio/session/stage
-routes remain globally ID-addressable: a caller can create a portfolio session,
-list recent sessions, read a session by UUID, and call each stage by supplying
-that UUID. Repositories still load those resources by ID alone until Phase 2.
+Phase 2 has a Supabase subject-to-`app_users` identity boundary plus a
+database-owned `portfolio_sessions.owner_user_id` and explicit
+`legacy_quarantined` state. Normal product routes require an active,
+onboarded user and perform owner predicates in SQL; admins may access all
+sessions, including legacy rows. Child stage/run APIs authorize transitively
+through the protected session aggregate. Durable owner/actor snapshots and
+worker finalization checks remain deferred to Phase 3.
 
 Relevant source locations:
 
 - `src/oryxenai/main.py` installs the Phase 1 auth web/API boundary plus the
   optional developer web routes.
-- `src/oryxenai/api/dependencies.py` exposes the Phase 1 bearer/current-user
-  dependencies; owner/admin dependencies for portfolio resources remain later.
+- `src/oryxenai/api/dependencies.py` exposes bearer/current-user,
+  onboarded-user, admin, and session owner/admin dependencies.
 - `src/oryxenai/api/routes/sessions.py` creates, lists, and retrieves global
   sessions.
-- `src/oryxenai/db/models/portfolio_session.py` has no owner column.
-- `src/oryxenai/db/repositories/portfolio_sessions.py` selects by UUID and
-  lists globally.
-- `src/oryxenai/web/static/app.js` stores a selected session UUID in
-  `sessionStorage`; its central `fetchJson()` sends no auth token.
-- `src/oryxenai/web/static/app.js` calls health, agent, session, and system APIs
-  immediately on `DOMContentLoaded`, before identity is known.
+- `src/oryxenai/db/models/portfolio_session.py` contains owner and quarantine
+  fields from migration `0015_portfolio_ownership`.
+- `src/oryxenai/db/repositories/portfolio_sessions.py` exposes explicit owned
+  and admin methods; only trusted internal callers retain global lookup.
+- `src/oryxenai/web/static/app.js` receives a shared authorized request
+  function and remembers only an opaque `oryxenai.session_id` navigation hint.
+- `src/oryxenai/web/static/app-auth-bootstrap.mjs` resolves the Supabase
+  session and `/api/v1/me` before loading the workspace; `/dev` has a separate
+  admin-gated bootstrap.
 - `src/oryxenai/preview/gateway.py` intentionally serves an opaque preview host
   without app identity or cookies.
 
@@ -45,7 +50,7 @@ user who learns another UUID could read or mutate that portfolio.
 | Session API | `/api/v1/sessions*` | Authenticated; one owned project for normal users, bounded all-project view for admins. |
 | Agent stages | `/sessions/{id}/{stage}` | Authenticated owner-or-admin on every read and write. |
 | Run history | `/sessions/{id}/runs` | Owner-or-admin; mock execution absent in production. |
-| Registry/model metadata | `/agents`, `/model-profiles` | Only safe product options for normal users; detail is admin/dev-only. |
+| Registry/model metadata | `/agents`, `/model-profiles` | `/agents` is onboarded-user safe metadata; model/provider profiles are admin-only in Phase 2. |
 | System diagnostics | `/system/status`, `/system/worker-probes/*` | Admin-only except minimal health. |
 | Build fixture | fixture APIs and web pages | Development-only and admin-only when enabled. |
 | Code Generator development harness | `/development/code-generator/*`, `/code-generator-development` | Absent in production; admin/developer-only locally. |
@@ -62,8 +67,8 @@ The Phase 1 controller order is:
 5. If the verified identity is not approved, show access-not-approved and do
    not create local user/project/job state.
 6. Complete username onboarding when required.
-7. Only then show the temporary `/app` or `/admin` shell. The owner-scoped
-   portfolio workspace is a Phase 2 concern.
+7. Only then show the temporary `/app` or `/admin` shell. The Phase 2 product
+   workspace uses owner-scoped APIs; entitlement and worker fencing are later.
 8. A remembered session ID may improve navigation but never grants access.
 9. On sign-out, stop polling, clear rendered state and remembered session ID,
    call Supabase sign-out, and replace the page with `/sign-in`.

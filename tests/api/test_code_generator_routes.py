@@ -6,8 +6,11 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from oryxenai.api.dependencies import get_code_generator_service
+from oryxenai.api.dependencies import get_code_generator_service, require_session_owner_or_admin
+from oryxenai.auth.authorization import PortfolioAccess
+from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.main import create_app
+from tests.conftest import override_test_identity
 
 
 class _Service:
@@ -42,6 +45,15 @@ async def test_production_code_generator_routes_are_exposed_and_forward_idempote
     service = _Service()
     app.dependency_overrides[get_code_generator_service] = lambda: service
     session_id = uuid4()
+    user = override_test_identity(app, role="user")
+    app.dependency_overrides[require_session_owner_or_admin] = lambda: PortfolioAccess(
+        actor=user,
+        session=PortfolioSession(
+            id=session_id,
+            owner_user_id=user.id,
+            legacy_quarantined=False,
+        ),
+    )
     paths = app.openapi()["paths"]
 
     assert "/api/v1/sessions/{session_id}/code-generator" in paths

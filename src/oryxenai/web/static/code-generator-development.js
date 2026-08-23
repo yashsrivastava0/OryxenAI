@@ -1,8 +1,9 @@
 import { createCodeGeneratorDevelopmentController } from './code-generator-development-controller.mjs';
 
-const root = document.querySelector('[data-code-generator-development]');
-
-if (root) {
+export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}) {
+  if (typeof requestImpl !== 'function') throw new Error('An authorized request function is required.');
+  const root = document.querySelector('[data-code-generator-development]');
+  if (!root) return null;
   const apiRoot = '/api/v1/development/code-generator';
   const view = (name) => root.querySelector(`[data-${name}]`);
   const all = (name) => root.querySelectorAll(`[data-${name}]`);
@@ -29,7 +30,7 @@ if (root) {
     needs_attention: 'Needs attention',
   };
   const request = async (path, options = {}) => {
-    const response = await fetch(`${apiRoot}${path}`, options);
+    const response = await requestImpl(`${apiRoot}${path}`, options);
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = body.error || body;
@@ -457,4 +458,5 @@ if (root) {
     }
   });
   controller.loadRun().catch((error) => setError(error.message));
+  return controller;
 }

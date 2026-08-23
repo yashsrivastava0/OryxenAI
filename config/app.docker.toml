@@ -2,6 +2,11 @@
 # Overrides database host/port for the Compose service network.
 # Secrets come from .env (mounted via env_file in compose.yaml).
 
+[app]
+# The deployment overlay serves the product shell only; development harnesses
+# and fixture APIs are not registered in this environment.
+enable_dev_ui = false
+
 [database]
 host = "postgres"
 port = 5432
@@ -30,6 +35,7 @@ require_lifecycle = true
 # Render disks are ephemeral; the verified ZIP remains the only deployment
 # artifact in normal session/worker execution.
 debug_mirror_enabled = false
+fixture_enabled = false
 # The detached developer fixture writes timestamped local results into the
 # ignored host-mounted output/ directory.
 fixture_output_dir = "/app/output"

@@ -162,6 +162,13 @@ the 15 normal-user slots. Both identities require separate Google accounts.
 HTML shells contain no private state. APIs remain protected if JavaScript is
 disabled or a shell is loaded directly.
 
+Phase 2 owns `/app` from the product web router and keeps `/dev`, fixture
+pages, and the Code Generator development page conditional on development
+settings. The HTML remains public so direct refresh works, but product and
+development JavaScript must resolve the Supabase session and `/api/v1/me`
+before loading protected workspace code. A normal user opening `/dev` is
+replaced with `/app`; the underlying APIs independently require admin.
+
 ## One controller decision for every page load
 
 Keep route behavior deterministic and small. `/`, `/sign-in`,
@@ -221,6 +228,9 @@ origins.
 | `POST /api/v1/auth/sign-out` (optional) | Authenticated | Server-side revocation hook if required by selected Supabase session design. |
 | existing `/api/v1/sessions*` | Active + onboarded | Owner-scoped idempotent create/list/get; explicit admin scope only. |
 | existing stage/run/job/source/preview APIs | Owner or admin | Preserve state machines after authorization. |
+| `GET/POST /api/v1/sessions*` | Active onboarded user | Normal users see/create only owned non-legacy sessions; admins see bounded owned and legacy rows. |
+| `/api/v1/system/*`, `/api/v1/model-profiles` | Admin | Developer/provider metadata and system diagnostics are not normal-user surfaces. |
+| mock/fixture/development APIs | Development admin | Conditionally mounted only when their feature and dev UI are enabled; absent in production. |
 | `GET /api/v1/admin/users` | Admin | Bounded user list. |
 | `POST /api/v1/admin/users/{id}/suspend` | Admin | Deny locally and revoke/ban with the current Supabase Admin API. |
 | `POST /api/v1/admin/users/{id}/restore` | Admin | Restore local/provider access. |

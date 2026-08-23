@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -17,20 +16,19 @@ from oryxenai.api.dependencies import (
     get_db_session,
     get_executor,
     get_run_repo,
-    get_session_repo,
+    require_admin,
+    require_session_owner_or_admin,
 )
-from oryxenai.api.errors import (
-    PayloadTooLargeError,
-    SessionNotFoundError,
-    ValidationError,
-)
+from oryxenai.api.errors import PayloadTooLargeError, ValidationError
+from oryxenai.auth.authorization import PortfolioAccess
+from oryxenai.auth.domain import CurrentUser
 from oryxenai.core.logging import get_request_id
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
-from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 from oryxenai.runtime.mock_runner import MockRunner
 
 router = APIRouter(tags=["runs"])
+mock_router = APIRouter(tags=["runs"], dependencies=[Depends(require_admin)])
 
 MAX_INPUT_BYTES = 256_000  # 256 KB reasonable limit for the testing harness
 
@@ -57,6 +55,12 @@ class RunResponse(BaseModel):
     finished_at: str | None
 
 
+def _validate_limit(limit: int) -> int:
+    if not 1 <= limit <= 100:
+        raise ValidationError("Limit must be between 1 and 100.", details={"field": "limit"})
+    return limit
+
+
 def _to_run_response(run: AgentRun) -> RunResponse:
     finished: datetime | None = run.finished_at
     return RunResponse(
@@ -80,35 +84,25 @@ def _to_run_response(run: AgentRun) -> RunResponse:
 async def list_runs(
     session_id: str,
     limit: int = 20,
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     run_repo: AgentRunRepository = Depends(get_run_repo),
-    session_repo: PortfolioSessionRepository = Depends(get_session_repo),
 ) -> list[RunResponse]:
-    try:
-        sid = UUID(session_id)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID format: '{session_id}'") from exc
-    session = await session_repo.get_by_id(sid)
-    if session is None:
-        raise SessionNotFoundError(session_id)
-    runs = await run_repo.list_for_session(sid, limit=limit)
+    limit = _validate_limit(limit)
+    runs = await run_repo.list_for_session(access.session.id, limit=limit)
     return [_to_run_response(r) for r in runs]
 
 
-@router.post("/sessions/{session_id}/runs/mock", response_model=RunResponse)
+@mock_router.post("/sessions/{session_id}/runs/mock", response_model=RunResponse)
 async def create_mock_run(
     session_id: str,
     body: MockRunRequest,
+    _admin: CurrentUser = Depends(require_admin),
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
     db: AsyncSession = Depends(get_db_session),
-    session_repo: PortfolioSessionRepository = Depends(get_session_repo),
     run_repo: AgentRunRepository = Depends(get_run_repo),
     executor: AgentExecutor = Depends(get_executor),
     runner_registry: AgentRegistry = Depends(get_agent_registry),
 ) -> RunResponse:
-    try:
-        sid = UUID(session_id)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid session ID: '{session_id}'") from exc
-
     # Size guard.
     import json
 
@@ -116,15 +110,11 @@ async def create_mock_run(
     if len(raw) > MAX_INPUT_BYTES:
         raise PayloadTooLargeError(f"Input payload exceeds {MAX_INPUT_BYTES} bytes.")
 
-    session = await session_repo.get_by_id(sid)
-    if session is None:
-        raise SessionNotFoundError(session_id)
-
     runner = MockRunner(runner_registry, executor)
     request_id = get_request_id() or ""
     run = await runner.run_mock(
         db_session=db,
-        session_id=sid,
+        session_id=access.session.id,
         agent_key=body.agentKey,
         agent_input=body.input,
         idempotency_key=body.idempotencyKey,
