@@ -100,6 +100,9 @@ raw_download_max_bytes = 25165824
 optimized_max_bytes = 8388608
 minimum_width = 1200
 minimum_height = 700
+responsive_widths = [480, 768, 1280, 1920]
+responsive_formats = ["webp", "jpeg"]
+responsive_quality = 84
 timeout_seconds = 15.0
 retry_count = 2
 max_retry_wait_seconds = 8.0
@@ -174,8 +177,11 @@ max_events_page_size = 100
 # Local Build Preparation debug mirror consumed by the "from Build Preparation"
 # run source (newest eligible build-pack.zip wins).
 build_preparation_mirror_root = "output/live-build-preparation/build-preparation"
-pipeline_contract_version = "code-generator-v3"
-worker_release_id = "oryxenai-code-generator-v3"
+pipeline_contract_version = "code-generator-v4"
+worker_release_id = "oryxenai-code-generator-v4"
+quality_gate_version = "quality-gate-v2"
+design_similarity_threshold = 0.82
+design_similarity_history = 3
 
 [code_generator_acquisition]
 allowlist_image_providers = ["pexels", "pixabay"]
@@ -195,6 +201,7 @@ materials_root = ".workspace/code-generator-materials"
 # Model-assisted candidate selection through the code_generator_resource_scout
 # profile; falls back to the deterministic scorer when the profile is unusable.
 prefer_resource_scout_model = true
+resource_scout_profile = "code_generator_resource_scout"
 
 [code_generator_generation]
 scaffold_profile = "react-vite-v1"
@@ -216,13 +223,15 @@ max_route_batch_sections = 3
 max_concurrency = 1
 typecheck_timeout_seconds = 120.0
 typecheck_command = ["npm.cmd", "run", "typecheck"]
+source_audit_command = ["npm.cmd", "run", "source:audit"]
 format_command = []
 use_real_typecheck = true
 route_concurrency = 3
 artifact_store_provider = "local_fs"
 artifact_root = ".workspace/code-generator-artifacts"
 max_context_chars = 120000
-stable_prompt_prefix_version = "code-generator-prompts-v3"
+quality_review_max_context_chars = 600000
+stable_prompt_prefix_version = "code-generator-prompts-v4"
 
 [code_generator_dependencies]
 workspaces_root = ".workspace/code-generator-workspaces"
@@ -281,6 +290,9 @@ preview_parent_origin = "http://127.0.0.1:8000"
 preview_embed_origins = ["http://127.0.0.1:8000", "http://localhost:8000"]
 preview_retention_days = 3
 preview_route_prefix = "/preview"
+# Local runs may use the in-process/filesystem preview without a public
+# gateway. Hosted Docker profiles turn this on so promotion proves the URL.
+preview_public_readback_required = false
 preview_storage_provider = "local_fs"
 preview_storage_prefix = "preview"
 # Complete-portfolio export destination (source + built dist + metadata).

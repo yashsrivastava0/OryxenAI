@@ -16,7 +16,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from oryxenai.agents.code_generator.core.development_schemas import SitePlan, WorkUnit
+from oryxenai.agents.code_generator.core.content_compiler import content_ids_by_section
+from oryxenai.agents.code_generator.core.development_schemas import (
+    ExperienceBlueprintV4,
+    SitePlan,
+    WorkUnit,
+)
+from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 
 CONTRACT_VERSION = "code-generator-generation-contract-v1"
 
@@ -115,11 +121,18 @@ def build_generation_contract(
         for item in site.get("public_content", [])
         if isinstance(item, dict)
     }
+    v4 = isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+    content_keys = content_ids_by_section(
+        [item for item in site.get("public_content", []) if isinstance(item, dict)],
+        [item for item in site.get("facts", []) if isinstance(item, dict)],
+    )
 
     route_contracts: list[dict[str, Any]] = []
     for route_id in scope:
         route = routes_by_id.get(route_id, {})
         storage_key = _storage_key(route, route_id)
+        if v4:
+            storage_key = semantic_segment(storage_key or route_id)
         owned_tsx = [
             path
             for path in (unit.owns_paths if unit is not None else [])
@@ -136,6 +149,7 @@ def build_generation_contract(
             section_id = str(section.get("section_id", ""))
             if assigned_sections and section_id not in assigned_sections:
                 continue
+            approved_content_ids = content_keys.get((route_id, section_id), [])
             prose = [
                 text
                 for text in _normalized_strings(section.get("content", {}))
@@ -144,8 +158,14 @@ def build_generation_contract(
                 if " " in text and len(text) >= 6
             ]
             if section_id:
-                sections.append({"section_id": section_id, "verbatim_strings": prose})
-            if unit is None or unit.kind != "route_compose":
+                sections.append(
+                    {
+                        "section_id": section_id,
+                        "content_ids": list(approved_content_ids),
+                        "verbatim_strings": [] if v4 else prose,
+                    }
+                )
+            if not v4 and (unit is None or unit.kind != "route_compose"):
                 verbatim.extend(prose)
         route_contracts.append(
             {
@@ -154,9 +174,10 @@ def build_generation_contract(
                 "anchor_file": anchor_file,
                 "section_ids": [item["section_id"] for item in sections],
                 "sections": sections,
-                "verbatim_copy": sorted(set(verbatim))[:_MAX_VERBATIM_STRINGS],
+                "verbatim_copy": [] if v4 else sorted(set(verbatim))[:_MAX_VERBATIM_STRINGS],
                 "section_anchors_required": unit is None or unit.kind != "route_compose",
-                "verbatim_in_anchor": unit is None or unit.kind != "route_compose",
+                "content_keys_required": v4,
+                "verbatim_in_anchor": (unit is None or unit.kind != "route_compose") and not v4,
             }
         )
 
@@ -369,6 +390,17 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
                 lines.append(f"  [{section.get('section_id')}]")
                 for text in section.get("verbatim_strings", []):
                     lines.append(f"    - {text}")
+        elif route.get("content_keys_required"):
+            lines.append(
+                "- render every approved content key through the trusted typed content module; "
+                "do not retype approved prose in route source"
+            )
+            for section in route.get("sections", []):
+                lines.append(f"  [{section.get('section_id')}] content keys")
+                for content_id in section.get("content_ids", []):
+                    lines.append(
+                        f'    - {content_id} (literal key and executable contentValue("..."))'
+                    )
         elif section_ids:
             lines.append(
                 "- import and render the completed section batches in approved order; "
@@ -377,10 +409,16 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
 
     lines.append("")
     lines.append("COPY POLICY")
-    lines.append(
-        "- All visible copy comes verbatim from site_contract.public_content. Never "
-        "author new sentences of visible text."
-    )
+    if any(route.get("content_keys_required") for route in contract.get("routes", [])):
+        lines.append(
+            "- V4 visible copy comes only from the trusted generated-content module. "
+            "Use the literal approved content key with contentValue(...); never retype or paraphrase prose."
+        )
+    else:
+        lines.append(
+            "- All visible copy comes verbatim from site_contract.public_content. Never "
+            "author new sentences of visible text."
+        )
     lines.append(f"- {contract.get('text_policy', {}).get('ungrounded_copy_rule', '')}")
     placeholders = ", ".join(contract.get("text_policy", {}).get("placeholder_terms_forbidden", []))
     lines.append(f"- These substrings must not appear anywhere (case-insensitive): {placeholders}.")

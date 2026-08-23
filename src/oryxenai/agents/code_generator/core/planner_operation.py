@@ -2,10 +2,10 @@
 
 One implementation of the planner's structured model call, used by both the
 durable ``code_generator.plan`` job and the registry-compatible
-``CodeGeneratorAgent``: trusted prompt files (``prompts/system.md`` +
-``prompts/planner.md``), one canonical JSON untrusted context, strict
-structured output against ``SitePlan``, and (when upstream projections are
-supplied) full semantic plan validation.
+``CodeGeneratorAgent``: trusted prompt files, one canonical JSON untrusted
+context, strict V4 blueprint output for active V4 runs, and (when upstream
+projections are supplied) full host-side plan validation.  The legacy
+``SitePlan`` output remains an explicit compatibility mode for older runs.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from oryxenai.agents.code_generator.core.blueprint_compiler import compile_blueprint_site_plan
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
@@ -79,6 +80,7 @@ async def run_planner_operation(
     max_work_units: int = 64,
     max_sections_per_unit: int = 3,
     require_blueprint: bool = False,
+    pipeline_contract_version: str = "code-generator-v3",
 ) -> tuple[SitePlan, str, Any, Any]:
     """Run the structured planner call.
 
@@ -92,9 +94,12 @@ async def run_planner_operation(
     agent-run harness.
     """
 
+    uses_v4 = pipeline_contract_version == "code-generator-v4"
+    output_model = ExperienceBlueprintV4 if uses_v4 else SitePlan
+    prompt_operation = "planner_v4" if uses_v4 else "planner_legacy"
     try:
         system_prompt, instructions, receipt = build_instructions(
-            "planner", context, output_model=SitePlan
+            prompt_operation, context, output_model=output_model
         )
     except Exception as exc:  # missing/unreadable prompt or schema failure
         raise PlannerOperationError(
@@ -110,7 +115,10 @@ async def run_planner_operation(
         call_instructions = instructions
         if last_issue:
             call_instructions += (
-                "\n\nThe previous planner response did not satisfy the local SitePlan "
+                "\n\nThe previous planner response did not satisfy the local v4 blueprint "
+                if uses_v4
+                else "\n\nThe previous planner response did not satisfy the local SitePlan "
+            ) + (
                 "schema or semantic validator. Return a complete replacement object "
                 "and correct this safe validator summary: "
                 f"{last_issue}. Do not omit required fields, use null for required "
@@ -121,7 +129,7 @@ async def run_planner_operation(
                 operation=PLANNER_OPERATION,
                 instructions=call_instructions,
                 input_payload=context,
-                output_model=SitePlan,
+                output_model=output_model,
                 system_prompt=system_prompt,
                 model_profile=profile_name,
                 strict_schema=True,
@@ -134,9 +142,26 @@ async def run_planner_operation(
 
         parsed = getattr(result, "parsed_output", result)
         try:
-            plan = SitePlan.model_validate(parsed)
-        except ValidationError as exc:
-            last_issue = _safe_validation_summary(exc)
+            if uses_v4:
+                blueprint = ExperienceBlueprintV4.model_validate(parsed)
+                if projections is None:
+                    raise PlannerOperationError(
+                        "PLANNER_PROJECTIONS_REQUIRED",
+                        "V4 blueprint compilation requires admitted pack projections.",
+                    )
+                plan = compile_blueprint_site_plan(
+                    blueprint,
+                    projections,
+                    max_sections_per_unit=max_sections_per_unit,
+                )
+            else:
+                plan = SitePlan.model_validate(parsed)
+        except (ValidationError, ValueError) as exc:
+            last_issue = (
+                _safe_validation_summary(exc)
+                if isinstance(exc, ValidationError)
+                else str(exc)[:500]
+            )
             if attempt == 0:
                 continue
             raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
@@ -147,15 +172,17 @@ async def run_planner_operation(
             )
         if projections is not None:
             try:
-                plan = compile_site_plan(
-                    plan,
-                    projections,
-                    max_sections_per_unit=max_sections_per_unit,
-                    design_neutral=require_blueprint
-                    and isinstance(
-                        plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
-                    ),
-                )
+                if not uses_v4:
+                    plan = compile_site_plan(
+                        plan,
+                        projections,
+                        max_sections_per_unit=max_sections_per_unit,
+                        design_neutral=require_blueprint
+                        and isinstance(
+                            plan.experience_blueprint,
+                            (ExperienceBlueprintV3, ExperienceBlueprintV4),
+                        ),
+                    )
                 if require_blueprint and plan.experience_blueprint is not None:
                     direction = context.get("creative_direction", {})
                     concepts = direction.get("candidates", direction.get("concepts", []))

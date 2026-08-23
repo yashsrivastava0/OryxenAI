@@ -11,12 +11,36 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from oryxenai.agents.code_generator.core.development_schemas import (
+    CreativeDirectionSetV3,
+    ExperienceBlueprintV4,
+    IntegrationReviewV1,
+    QualityReviewDraftV1,
+    SourceGenerationEnvelopeV2,
+)
+from oryxenai.agents.code_generator.core.resource_scout import ScoutSelection
 from oryxenai.agents.code_generator.session_schemas import ProviderPreflightEnvelope
 from oryxenai.agents.shared.model_client import build_provider_client, resolve_api_key
+from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
 
 _PREFLIGHT_TTL_SECONDS = 300.0
 _PREFLIGHT_CACHE: dict[str, float] = {}
 _PREFLIGHT_PROTOCOL = "code-generator-preflight-v1"
+_WIRE_MODELS = (
+    CreativeDirectionSetV3,
+    ExperienceBlueprintV4,
+    ScoutSelection,
+    SourceGenerationEnvelopeV2,
+    QualityReviewDraftV1,
+    IntegrationReviewV1,
+    ProviderPreflightEnvelope,
+)
+
+
+def code_generator_wire_schema_issues() -> dict[str, list[str]]:
+    """Return compatibility diagnostics for every structured wire DTO."""
+
+    return {model.__name__: schema_compatibility_issues(model) for model in _WIRE_MODELS}
 
 
 class ProviderPreflightError(RuntimeError):
@@ -51,6 +75,19 @@ async def run_provider_preflight(
     provider_preflight: PreflightCallable | None = None,
 ) -> dict[str, Any]:
     """Check each distinct configured provider contract with no portfolio data."""
+
+    wire_schema_issues = code_generator_wire_schema_issues()
+    incompatible = {name: issues for name, issues in wire_schema_issues.items() if issues}
+    if incompatible:
+        raise ProviderPreflightError(
+            "CODE_GENERATOR_WIRE_SCHEMA_UNSUPPORTED",
+            "A Code Generator structured-output schema is not provider-compatible.",
+            details={
+                "schemas": "; ".join(
+                    f"{name}:{','.join(issues)}" for name, issues in incompatible.items()
+                )[:1000]
+            },
+        )
 
     identities: dict[str, str] = {}
     for profile_name in dict.fromkeys(profile_names):

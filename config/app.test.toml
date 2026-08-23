@@ -25,6 +25,9 @@ reasoning_enabled = false
 [code_generator_development]
 enabled = true
 input_root = ".workspace/code-generator-development-test"
+# Legacy fixtures keep exercising read compatibility. Focused v4 tests opt in
+# explicitly and assert that the committed live configuration is v4.
+pipeline_contract_version = "code-generator-v3"
 
 [code_generator_acquisition]
 materials_root = ".workspace/code-generator-materials-test"
@@ -53,6 +56,7 @@ preview_host = "127.0.0.1"
 preview_port = 4175
 preview_parent_origin = "http://test"
 preview_embed_origins = ["http://test"]
+preview_public_readback_required = false
 preview_storage_provider = "memory"
 preview_storage_prefix = "preview"
 export_timezone = "Asia/Kolkata"
