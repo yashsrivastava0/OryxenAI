@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 00:00 +05:30 - Codex (model/provider omitted) - [48e5f6c] - Supabase Auth Phase 1 foundation
+Implemented Google-only Supabase PKCE sessions, asymmetric JWT/JWKS verification, allowlisted just-in-time admission, two bootstrap admins outside the 15-user capacity, username onboarding, direct auth routes, a self-hosted browser controller, migration 0014, and focused coverage; Phases 2-4 and production cloud setup remain deferred.
+
 ### 2026-08-23 21:19 +05:30 - Codex (model/provider omitted) - [c9ad71d] - Auth prerequisite and minimum-route handoff
 Recorded the privately configured separate normal test identity, zero-warning
 strict prerequisite result, documentation-only phase boundary, and deterministic
