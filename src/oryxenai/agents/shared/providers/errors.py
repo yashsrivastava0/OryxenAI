@@ -34,6 +34,13 @@ class ProviderAuthError(ProviderError):
         super().__init__(message, code="PROVIDER_AUTH_ERROR", retryable=False)
 
 
+class ProviderCreditError(ProviderAuthError):
+    """The credential is recognized, but billable capacity is unavailable."""
+
+    def __init__(self, message: str = "Provider credit or quota is exhausted") -> None:
+        ProviderError.__init__(self, message, code="PROVIDER_CREDIT_EXHAUSTED", retryable=False)
+
+
 class ProviderRateLimitError(ProviderError):
     """Rate limited — caller should back off and retry."""
 
@@ -189,8 +196,8 @@ def map_http_error(status_code: int, body: dict[str, Any] | None = None) -> Prov
 
     if status_code == 401:
         return ProviderAuthError(message or "Invalid or missing API key")
-    if status_code == 402:
-        return ProviderAuthError(message or "Insufficient quota or payment required")
+    if _is_credit_exhausted(body) or status_code == 402:
+        return ProviderCreditError(message or "Provider credit or quota is exhausted")
     if status_code == 403:
         return ProviderAuthError(message or "Access denied")
     if status_code == 429:
@@ -268,3 +275,18 @@ def _is_content_filter(body: dict[str, Any] | None) -> bool:
         code = str(error.get("code", "") or error.get("type", ""))
         return "content_filter" in code or "safety" in code or "moderation" in code
     return False
+
+
+def _is_credit_exhausted(body: dict[str, Any] | None) -> bool:
+    if not body:
+        return False
+    error = body.get("error", {})
+    if not isinstance(error, dict):
+        return False
+    values = (
+        str(error.get("code", "")),
+        str(error.get("type", "")),
+        str(error.get("message", "")),
+    )
+    markers = ("insufficient_quota", "credit_balance_exhausted", "quota_exceeded")
+    return any(marker in value.casefold() for value in values for marker in markers)

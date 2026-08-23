@@ -98,6 +98,9 @@ class PlannerCallReceipt(BaseModel):
     finish_reason: str = ""
     attempt: int = 1
     retry_class: str = ""
+    duration_ms: float = Field(default=0.0, ge=0)
+    cached_tokens: int = Field(default=0, ge=0)
+    operation: str = "code_generator.plan"
     prompt_receipt: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -433,6 +436,7 @@ class RoutePlan(BaseModel):
 
     route_id: str
     path: str
+    storage_key: str = ""
     section_ids: list[str]
     responsive_outcome: str
     reduced_motion_outcome: str
@@ -879,14 +883,18 @@ class MotionTokenV4(BaseModel):
 class TypographyBindingV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    role: Literal["body", "display"] = "body"
     approved_font_slot: str
     family: str
     weights: list[int] = Field(min_length=1, max_length=8)
     style: Literal["normal", "italic", "oblique"] = "normal"
+    local_files: list[str] = Field(min_length=1, max_length=16)
     body_min_rem: float = Field(gt=0, le=4)
     body_max_rem: float = Field(gt=0, le=8)
     heading_ratio: float = Field(gt=1, le=3)
     body_line_height: float = Field(ge=1, le=2.4)
+    tracking_em: float = Field(default=0.0, ge=-0.2, le=0.5)
+    font_display: Literal["swap", "fallback", "optional"] = "swap"
 
     @field_validator("approved_font_slot", "family")
     @classmethod
@@ -907,7 +915,59 @@ class TypographyBindingV4(BaseModel):
     def _size_order(self) -> TypographyBindingV4:
         if self.body_min_rem > self.body_max_rem:
             raise ValueError("body_min_rem must not exceed body_max_rem")
+        normalized_files: list[str] = []
+        for value in self.local_files:
+            path = value.replace("\\", "/").lstrip("/")
+            if (
+                not path
+                or ".." in path.split("/")
+                or path.casefold().startswith(("http:", "https:", "data:"))
+                or not path.casefold().endswith((".woff", ".woff2"))
+            ):
+                raise ValueError("font roles may reference only safe local WOFF/WOFF2 files")
+            normalized_files.append(path)
+        self.local_files = list(dict.fromkeys(normalized_files))
         return self
+
+
+class FluidTypeStepV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    role: Literal["body", "display"]
+    minimum_rem: float = Field(gt=0, le=12)
+    maximum_rem: float = Field(gt=0, le=20)
+    line_height: float = Field(ge=0.8, le=2.4)
+    tracking_em: float = Field(ge=-0.2, le=0.5)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> FluidTypeStepV4:
+        if self.minimum_rem > self.maximum_rem:
+            raise ValueError("fluid type minimum must not exceed its maximum")
+        normalized = self.name.strip().replace("_", "-")
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
+            raise ValueError("fluid type steps require semantic identifiers")
+        self.name = normalized
+        return self
+
+
+class ShadowTokenV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    offset_x: LengthTokenV4
+    offset_y: LengthTokenV4
+    blur: LengthTokenV4
+    spread: LengthTokenV4
+    color_token: str
+
+
+class ContainerTokenV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    maximum: LengthTokenV4
+    inline_padding: LengthTokenV4
 
 
 class DesignTokenSystemV4(BaseModel):
@@ -918,8 +978,11 @@ class DesignTokenSystemV4(BaseModel):
     sizes: list[LengthTokenV4] = Field(default_factory=list, max_length=32)
     radii: list[LengthTokenV4] = Field(default_factory=list, max_length=16)
     borders: list[BorderTokenV4] = Field(default_factory=list, max_length=16)
+    shadows: list[ShadowTokenV4] = Field(default_factory=list, max_length=16)
     motion: list[MotionTokenV4] = Field(default_factory=list, max_length=16)
-    typography: TypographyBindingV4
+    typography_roles: list[TypographyBindingV4] = Field(min_length=1, max_length=2)
+    type_steps: list[FluidTypeStepV4] = Field(min_length=2, max_length=12)
+    containers: list[ContainerTokenV4] = Field(min_length=1, max_length=8)
     container_max_px: int = Field(ge=480, le=2400)
 
     @model_validator(mode="after")
@@ -930,15 +993,34 @@ class DesignTokenSystemV4(BaseModel):
             self.sizes,
             self.radii,
             self.borders,
+            self.shadows,
             self.motion,
+            self.containers,
         ):
             names = [item.name for item in values]
             if len(names) != len(set(names)):
                 raise ValueError("token names must be unique within each group")
         color_names = {item.name for item in self.colors}
-        if any(item.color_token not in color_names for item in self.borders):
-            raise ValueError("border tokens must reference an approved color token")
+        bound_color_names = {item.color_token for item in self.borders} | {
+            item.color_token for item in self.shadows
+        }
+        if not bound_color_names <= color_names:
+            raise ValueError("border and shadow tokens must reference an approved color token")
+        roles = [item.role for item in self.typography_roles]
+        if len(roles) != len(set(roles)) or "body" not in roles:
+            raise ValueError("v4 typography requires one body role and at most one display role")
+        if any(item.role not in roles for item in self.type_steps):
+            raise ValueError("fluid type steps must reference an approved typography role")
+        type_names = [item.name for item in self.type_steps]
+        if len(type_names) != len(set(type_names)):
+            raise ValueError("fluid type step names must be unique")
         return self
+
+    @property
+    def typography(self) -> TypographyBindingV4:
+        """Compatibility accessor for internal v3-era compiler code."""
+
+        return next(item for item in self.typography_roles if item.role == "body")
 
 
 class RouteShellV4(BaseModel):
@@ -952,6 +1034,16 @@ class RouteShellV4(BaseModel):
     h1_owner: str
     section_order: list[str] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _concrete(self) -> RouteShellV4:
+        if not all(value.strip() for value in (self.route_id, self.storage_key, self.h1_owner)):
+            raise ValueError("v4 route shells require route, storage, and h1 owner IDs")
+        if len(self.section_order) != len(set(self.section_order)) or any(
+            not value.strip() for value in self.section_order
+        ):
+            raise ValueError("v4 route shells require a unique non-empty section order")
+        return self
+
 
 class SectionRegionV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -959,6 +1051,11 @@ class SectionRegionV4(BaseModel):
     region_id: str
     route_id: str
     section_id: str
+    owner_id: str
+    section_selector: str
+    region_selector: str
+    content_ids: list[str] = Field(default_factory=list, max_length=256)
+    criterion_ids: list[str] = Field(default_factory=list, max_length=64)
     order_mobile: int = Field(ge=0, le=100)
     order_tablet: int = Field(ge=0, le=100)
     order_desktop: int = Field(ge=0, le=100)
@@ -968,6 +1065,22 @@ class SectionRegionV4(BaseModel):
     max_measure_ch: int = Field(ge=20, le=120)
     gap: LengthTokenV4
     allowable_overlap: bool = False
+    width_ratio_min: float = Field(default=0.2, gt=0, le=1)
+    width_ratio_max: float = Field(default=1.0, gt=0, le=1)
+    overlap_ratio_max: float = Field(default=0.0, ge=0, le=0.75)
+    sticky_allowed: bool = False
+
+    @model_validator(mode="after")
+    def _geometry_range(self) -> SectionRegionV4:
+        if self.width_ratio_min > self.width_ratio_max:
+            raise ValueError("region width ratio minimum must not exceed its maximum")
+        if not self.allowable_overlap and self.overlap_ratio_max:
+            raise ValueError("regions without overlap authority must use a zero overlap ratio")
+        if not all(
+            value.strip() for value in (self.owner_id, self.section_selector, self.region_selector)
+        ):
+            raise ValueError("section regions require exact owner and selector identities")
+        return self
 
 
 class DistinctiveMoveV4(BaseModel):
@@ -988,8 +1101,20 @@ class DistinctiveMoveV4(BaseModel):
     ]
     thesis: str
     runtime_marker: str
-    observable_relationship: str
-    css_evidence: str
+    source_selector: str
+    target_selector: str
+    relationship: Literal[
+        "width_ratio",
+        "horizontal_offset",
+        "vertical_overlap",
+        "shared_alignment_axis",
+        "sticky_within_section",
+        "isolated_spacing",
+    ]
+    minimum_ratio: float = Field(ge=-2, le=2)
+    maximum_ratio: float = Field(ge=-2, le=2)
+    viewports: list[Literal["mobile", "tablet", "desktop"]] = Field(min_length=1, max_length=3)
+    required_css_properties: list[str] = Field(min_length=1, max_length=8)
 
     @model_validator(mode="after")
     def _concrete(self) -> DistinctiveMoveV4:
@@ -1002,11 +1127,16 @@ class DistinctiveMoveV4(BaseModel):
                 self.region_id,
                 self.thesis,
                 self.runtime_marker,
-                self.observable_relationship,
-                self.css_evidence,
+                self.source_selector,
+                self.target_selector,
             )
         ):
             raise ValueError("distinctive moves require executable runtime evidence")
+        if any(not value.strip() for value in self.required_css_properties):
+            raise ValueError("distinctive moves require non-empty CSS property names")
+        if self.minimum_ratio > self.maximum_ratio:
+            raise ValueError("distinctive move ratio minimum must not exceed its maximum")
+        self.viewports = list(dict.fromkeys(self.viewports))
         return self
 
 
@@ -1017,11 +1147,38 @@ class InteractionAssignmentV4(BaseModel):
     route_id: str
     owner_work_unit_id: str
     literal_marker: str
+    target_selector: str
+    outcome_selector: str
     trigger: Literal["click", "activate", "disclosure", "navigation", "download"]
     keyboard_behavior: str
     state_transition: str
     focus_behavior: str
     expected_navigation: str = ""
+    expected_state_attribute: str = ""
+    expected_state_value: str = ""
+
+    @model_validator(mode="after")
+    def _concrete(self) -> InteractionAssignmentV4:
+        if not all(
+            value.strip()
+            for value in (
+                self.interaction_id,
+                self.route_id,
+                self.owner_work_unit_id,
+                self.literal_marker,
+                self.target_selector,
+                self.outcome_selector,
+                self.keyboard_behavior,
+                self.state_transition,
+                self.focus_behavior,
+            )
+        ):
+            raise ValueError(
+                "v4 interactions require exact route, owner, selector, and state fields"
+            )
+        if self.trigger == "navigation" and not self.expected_navigation.strip():
+            raise ValueError("navigation interactions require an expected route outcome")
+        return self
 
 
 class ResourcePlacementV4(BaseModel):
@@ -1031,11 +1188,50 @@ class ResourcePlacementV4(BaseModel):
     route_id: str
     section_id: str
     element_marker: str
+    element_selector: str
     alt_policy: Literal["decorative", "approved_text", "contextual_description"]
     fit: Literal["cover", "contain", "natural"]
     focal_position: str = "center"
     loading: Literal["eager", "lazy"] = "lazy"
     responsive_behavior: str
+    sizes: str
+    aspect_ratio_min: float = Field(gt=0, le=10)
+    aspect_ratio_max: float = Field(gt=0, le=10)
+    minimum_visible_ratio: float = Field(default=0.25, gt=0, le=1)
+
+    @model_validator(mode="after")
+    def _aspect_range(self) -> ResourcePlacementV4:
+        if not all(
+            value.strip()
+            for value in (
+                self.resource_slot_id,
+                self.route_id,
+                self.section_id,
+                self.element_marker,
+            )
+        ):
+            raise ValueError("resource placements require exact route, section, and marker IDs")
+        if self.aspect_ratio_min > self.aspect_ratio_max:
+            raise ValueError("resource aspect ratio minimum must not exceed its maximum")
+        if not self.element_selector.strip() or not self.sizes.strip():
+            raise ValueError("resource placements require exact selectors and sizes policy")
+        return self
+
+
+class MotionPropertyExpectationV4(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    property_name: str
+    before_value: str
+    after_value: str
+
+    @model_validator(mode="after")
+    def _concrete(self) -> MotionPropertyExpectationV4:
+        if not all(
+            value.strip() for value in (self.property_name, self.before_value, self.after_value)
+        ):
+            raise ValueError("motion property expectations require before and after values")
+        return self
 
 
 class MotionBeatV4(BaseModel):
@@ -1045,18 +1241,29 @@ class MotionBeatV4(BaseModel):
     route_id: str
     section_id: str
     target_marker: str
+    target_selector: str
+    trigger_selector: str
     trigger: Literal["load", "viewport", "hover", "focus", "activate"]
-    changed_properties: list[str] = Field(min_length=1, max_length=8)
+    changed_properties: list[MotionPropertyExpectationV4] = Field(min_length=1, max_length=8)
     duration_min_ms: int = Field(ge=0, le=5000)
     duration_max_ms: int = Field(ge=0, le=5000)
     easing: str
+    purposeful_outcome: str
+    performance_budget_ms: int = Field(ge=0, le=100)
     reduced_motion_replacement: str
 
     @model_validator(mode="after")
     def _range(self) -> MotionBeatV4:
         if (
             self.duration_min_ms > self.duration_max_ms
+            or not self.motion_id.strip()
+            or not self.route_id.strip()
+            or not self.section_id.strip()
+            or not self.target_marker.strip()
+            or not self.trigger_selector.strip()
             or not self.reduced_motion_replacement.strip()
+            or not self.purposeful_outcome.strip()
+            or not self.target_selector.strip()
         ):
             raise ValueError("motion beats require a valid duration range and reduced-motion rule")
         if not _EASING_RE.fullmatch(self.easing.strip()):
@@ -1077,6 +1284,24 @@ class CreativeConceptV3(BaseModel):
     resource_use: str
     distinguishing_moves: list[str] = Field(min_length=1, max_length=8)
     anti_patterns: list[str] = Field(default_factory=list, max_length=12)
+
+    @model_validator(mode="after")
+    def _content_specific(self) -> CreativeConceptV3:
+        if not all(
+            value.strip()
+            for value in (
+                self.concept_id,
+                self.thesis,
+                self.hierarchy,
+                self.composition,
+                self.typography,
+                self.color_logic,
+                self.motion_vocabulary,
+                self.resource_use,
+            )
+        ) or any(not value.strip() for value in self.distinguishing_moves):
+            raise ValueError("creative concepts require content-specific non-empty direction")
+        return self
 
 
 class CreativeDirectionSetV3(BaseModel):
@@ -1112,9 +1337,11 @@ class CreativeDirectionSetV3(BaseModel):
                 )
             )
 
-        if signature(self.concepts[0]) == signature(self.concepts[1]):
+        first, second = signature(self.concepts[0]), signature(self.concepts[1])
+        different_dimensions = sum(left != right for left, right in zip(first, second, strict=True))
+        if different_dimensions < 3:
             raise ValueError(
-                "creative concepts must differ in hierarchy, composition, typography, motion, or resource use"
+                "creative concepts must differ in at least three normalized design dimensions"
             )
         if not self.recommendation_basis.strip():
             raise ValueError("creative direction requires a recommendation basis")
@@ -1123,6 +1350,94 @@ class CreativeDirectionSetV3(BaseModel):
     @property
     def candidates(self) -> list[CreativeConceptV3]:
         return self.concepts
+
+
+class DesignVariantReceiptV1(BaseModel):
+    """Persistent design identity reused by retries and replaced by regeneration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["design-variant-receipt-v1"] = "design-variant-receipt-v1"
+    variant_id: str
+    ordinal: int = Field(ge=1)
+    input_hash: str
+    seed_hash: str
+    prior_design_fingerprints: list[str] = Field(default_factory=list, max_length=3)
+    creation_reason: Literal["initial", "regenerate", "retry"]
+    created_at: str
+    receipt_hash: str = ""
+
+    @model_validator(mode="after")
+    def _stamp(self) -> DesignVariantReceiptV1:
+        if not all(
+            value.strip()
+            for value in (
+                self.variant_id,
+                self.input_hash,
+                self.seed_hash,
+                self.created_at,
+            )
+        ):
+            raise ValueError("design variant receipts require immutable identity fields")
+        self.prior_design_fingerprints = list(dict.fromkeys(self.prior_design_fingerprints))[-3:]
+        payload = self.model_dump(mode="json", exclude={"receipt_hash"})
+        computed = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+        if self.receipt_hash and self.receipt_hash != computed:
+            raise ValueError("receipt_hash does not match the design variant receipt")
+        self.receipt_hash = computed
+        return self
+
+
+class DesignFingerprintV1(BaseModel):
+    """Content-free normalized design characteristics used only across regenerations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["design-fingerprint-v1"] = "design-fingerprint-v1"
+    layout_topology: list[str] = Field(min_length=1)
+    token_relationships: list[str] = Field(min_length=1)
+    typography_roles: list[str] = Field(min_length=1)
+    distinctive_moves: list[str] = Field(min_length=1)
+    motion_vocabulary: list[str] = Field(default_factory=list)
+    resource_placement_topology: list[str] = Field(default_factory=list)
+    fingerprint_hash: str = ""
+
+    @model_validator(mode="after")
+    def _normalize_and_stamp(self) -> DesignFingerprintV1:
+        for field_name in (
+            "layout_topology",
+            "token_relationships",
+            "typography_roles",
+            "distinctive_moves",
+            "motion_vocabulary",
+            "resource_placement_topology",
+        ):
+            values = getattr(self, field_name)
+            normalized = sorted(
+                {" ".join(str(item).casefold().split()) for item in values if str(item).strip()}
+            )
+            if (
+                field_name
+                in {
+                    "layout_topology",
+                    "token_relationships",
+                    "typography_roles",
+                    "distinctive_moves",
+                }
+                and not normalized
+            ):
+                raise ValueError("design fingerprints require all core normalized dimensions")
+            setattr(self, field_name, normalized)
+        payload = self.model_dump(mode="json", exclude={"fingerprint_hash"})
+        computed = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+        if self.fingerprint_hash and self.fingerprint_hash != computed:
+            raise ValueError("fingerprint_hash does not match the normalized design fingerprint")
+        self.fingerprint_hash = computed
+        return self
 
 
 class ExperienceBlueprintV4(BaseModel):
@@ -1154,6 +1469,8 @@ class ExperienceBlueprintV4(BaseModel):
 
     @model_validator(mode="after")
     def _scope(self) -> ExperienceBlueprintV4:
+        if not self.selected_concept_id.strip() or not self.narrative_arc.strip():
+            raise ValueError("experience blueprints require a selected concept and narrative arc")
         routes = {item.route_id for item in self.route_shells}
         if len(routes) != len(self.route_shells):
             raise ValueError("route shell IDs must be unique")
@@ -1163,10 +1480,25 @@ class ExperienceBlueprintV4(BaseModel):
         move_ids = {item.move_id for item in self.distinctive_moves}
         if len(move_ids) != len(self.distinctive_moves):
             raise ValueError("distinctive move IDs must be unique")
-        if any(
-            item.route_id not in routes for item in self.section_regions + self.distinctive_moves
+        interaction_ids = [item.interaction_id for item in self.interaction_assignments]
+        resource_ids = [item.resource_slot_id for item in self.resource_placements]
+        motion_ids = [item.motion_id for item in self.motion_beats]
+        if len(interaction_ids) != len(set(interaction_ids)):
+            raise ValueError("interaction assignment IDs must be unique")
+        if len(resource_ids) != len(set(resource_ids)):
+            raise ValueError("resource placement slot IDs must be unique")
+        if len(motion_ids) != len(set(motion_ids)):
+            raise ValueError("motion beat IDs must be unique")
+        if any(item.route_id not in routes for item in self.section_regions) or any(
+            item.route_id not in routes for item in self.distinctive_moves
         ):
             raise ValueError("blueprint item references an unknown route")
+        if (
+            any(item.route_id not in routes for item in self.interaction_assignments)
+            or any(item.route_id not in routes for item in self.resource_placements)
+            or any(item.route_id not in routes for item in self.motion_beats)
+        ):
+            raise ValueError("blueprint assignment references an unknown route")
         if any(item.region_id not in region_ids for item in self.distinctive_moves):
             raise ValueError("distinctive move references an unknown region")
         if any(not item.thesis.strip() for item in self.distinctive_moves):
@@ -1174,6 +1506,9 @@ class ExperienceBlueprintV4(BaseModel):
         for route in self.route_shells:
             if not any(item.route_id == route.route_id for item in self.distinctive_moves):
                 raise ValueError("every route needs at least one distinctive move")
+        owners = [item.owner_id for item in self.section_regions]
+        if len(owners) != len(set(owners)):
+            raise ValueError("section owner IDs must be unique")
         return self
 
     @property
@@ -1193,20 +1528,108 @@ class ExperienceBlueprintV4(BaseModel):
         return self.interaction_assignments
 
 
+class RegionRuntimeCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    region_id: str
+    section_id: str
+    section_selector: str
+    region_selector: str
+    order_mobile: int
+    order_tablet: int
+    order_desktop: int
+    columns_mobile: int
+    columns_tablet: int
+    columns_desktop: int
+    max_measure_ch: int
+    gap: LengthTokenV4 = Field(
+        default_factory=lambda: LengthTokenV4(name="gap", value=0, unit="px")
+    )
+    width_ratio_min: float
+    width_ratio_max: float
+    overlap_ratio_max: float
+    sticky_allowed: bool
+
+
+class DistinctiveMoveRuntimeCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    move_id: str
+    section_id: str
+    source_selector: str
+    target_selector: str
+    relationship: str
+    minimum_ratio: float
+    maximum_ratio: float
+    viewports: list[str]
+    required_css_properties: list[str]
+
+
+class ResourceRuntimeCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_slot_id: str
+    section_id: str
+    element_selector: str
+    loading: Literal["eager", "lazy"]
+    aspect_ratio_min: float
+    aspect_ratio_max: float
+    minimum_visible_ratio: float
+    require_srcset: bool = True
+    require_dimensions: bool = True
+
+
+class InteractionRuntimeCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: str
+    target_selector: str
+    outcome_selector: str
+    trigger: str
+    expected_navigation: str
+    expected_state_attribute: str
+    expected_state_value: str
+    focus_behavior: str
+
+
+class MotionRuntimeCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    motion_id: str
+    target_selector: str
+    trigger_selector: str
+    trigger: str
+    changed_properties: list[MotionPropertyExpectationV4]
+    duration_min_ms: int
+    duration_max_ms: int
+    performance_budget_ms: int
+    reduced_motion_replacement: str
+
+
+class FontRuntimeCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["body", "display"]
+    selector: str
+    family: str
+    weights: list[int]
+    local_files: list[str] = Field(min_length=1)
+
+
 class DesignRealizationContract(BaseModel):
-    """Deterministic runtime-observable realization compiled from v4 intent."""
+    """Executable, selector-bound runtime obligations compiled from v4 intent."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["design-realization-contract-v1"] = "design-realization-contract-v1"
+    schema_version: Literal["design-realization-contract-v2"] = "design-realization-contract-v2"
     route_id: str
     section_order: list[str] = Field(min_length=1)
-    signature_move_ids: list[str] = Field(min_length=1)
-    region_ids: list[str] = Field(min_length=1)
-    motion_ids: list[str] = Field(default_factory=list)
-    resource_slot_ids: list[str] = Field(default_factory=list)
-    interaction_ids: list[str] = Field(default_factory=list)
-    acceptance_markers: list[str] = Field(default_factory=list)
+    region_checks: list[RegionRuntimeCheckV1] = Field(min_length=1)
+    distinctive_move_checks: list[DistinctiveMoveRuntimeCheckV1] = Field(min_length=1)
+    resource_checks: list[ResourceRuntimeCheckV1] = Field(default_factory=list)
+    interaction_checks: list[InteractionRuntimeCheckV1] = Field(default_factory=list)
+    motion_checks: list[MotionRuntimeCheckV1] = Field(default_factory=list)
+    font_checks: list[FontRuntimeCheckV1] = Field(min_length=1, max_length=2)
     contract_hash: str = ""
 
     @model_validator(mode="after")
@@ -1219,6 +1642,26 @@ class DesignRealizationContract(BaseModel):
             raise ValueError("contract_hash does not match the design realization contract")
         self.contract_hash = computed
         return self
+
+    @property
+    def signature_move_ids(self) -> list[str]:
+        return [item.move_id for item in self.distinctive_move_checks]
+
+    @property
+    def region_ids(self) -> list[str]:
+        return [item.region_id for item in self.region_checks]
+
+    @property
+    def motion_ids(self) -> list[str]:
+        return [item.motion_id for item in self.motion_checks]
+
+    @property
+    def resource_slot_ids(self) -> list[str]:
+        return [item.resource_slot_id for item in self.resource_checks]
+
+    @property
+    def interaction_ids(self) -> list[str]:
+        return [item.interaction_id for item in self.interaction_checks]
 
 
 class ResourceSearchIntentV2(BaseModel):
@@ -1288,21 +1731,37 @@ class SourceGenerationEnvelopeV2(BaseModel):
         serialization_alias="result_tag",
     )
     files: list[SourceFileChange] = Field(min_length=0)
+    exported_signatures: list[ExportedSignature] = Field(min_length=0)
+    content_ids: list[str] = Field(min_length=0)
+    criterion_ids: list[str] = Field(min_length=0)
+    resource_slot_ids: list[str] = Field(min_length=0)
+    interaction_ids: list[str] = Field(min_length=0)
     resource_requests: list[ResourceRequest] = Field(min_length=0)
-    coverage: list[str] = Field(min_length=0)
+    dependency_requests: list[DependencyRequest] = Field(min_length=0)
     failure_details: list[FailureDetailV2] = Field(min_length=0)
 
     @model_validator(mode="after")
     def _matching_payload(self) -> SourceGenerationEnvelopeV2:
         if self.result == "changes" and not self.files:
             raise ValueError("changes result requires files")
-        if self.result == "requests" and not self.resource_requests:
-            raise ValueError("requests result requires resource requests")
+        if self.result == "requests" and not (self.resource_requests or self.dependency_requests):
+            raise ValueError("requests result requires resource or dependency requests")
         if self.result == "cannot_complete" and not self.failure_details:
             raise ValueError("cannot_complete result requires safe failure details")
         if self.result == "accepted" and self.files:
             raise ValueError("accepted result cannot include source files")
         return self
+
+    @property
+    def coverage(self) -> list[str]:
+        """Read-only aggregate for legacy diagnostics, never used as typed evidence."""
+
+        return [
+            *self.content_ids,
+            *self.criterion_ids,
+            *self.resource_slot_ids,
+            *self.interaction_ids,
+        ]
 
     @property
     def result_tag(self) -> str:
@@ -1409,6 +1868,179 @@ class QualityReviewReceiptV1(BaseModel):
     @property
     def motion(self) -> int:
         return self.motion_score
+
+
+class QualityFindingV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    severity: Literal["blocking", "advisory"]
+    owner_work_unit_id: str
+    code: str
+    file: str
+    line: int = Field(ge=1)
+    marker: str
+    evidence: str
+    requested_outcome: str
+
+    @model_validator(mode="after")
+    def _concrete_evidence(self) -> QualityFindingV2:
+        if not all(
+            value.strip()
+            for value in (
+                self.finding_id,
+                self.owner_work_unit_id,
+                self.code,
+                self.file,
+                self.marker,
+                self.evidence,
+                self.requested_outcome,
+            )
+        ):
+            raise ValueError("quality findings require concrete source and owner evidence")
+        return self
+
+
+class QualityScoreEvidenceV1(BaseModel):
+    """Concrete source evidence supporting one whole-site quality score."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dimension: Literal["hierarchy", "composition", "typography", "resource_fit", "motion"]
+    score: int = Field(ge=1, le=5)
+    owner_work_unit_id: str
+    file: str
+    line: int = Field(ge=1)
+    marker: str
+    evidence: str
+
+    @model_validator(mode="after")
+    def _concrete_evidence(self) -> QualityScoreEvidenceV1:
+        if not all(
+            value.strip()
+            for value in (
+                self.owner_work_unit_id,
+                self.file,
+                self.marker,
+                self.evidence,
+            )
+        ):
+            raise ValueError("every quality score requires concrete file and marker evidence")
+        return self
+
+
+class QualityReviewDraftV1(BaseModel):
+    """Provider wire result. The model scores and reports; it never accepts source."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["quality-review-draft-v1"] = "quality-review-draft-v1"
+    hierarchy_score: int = Field(ge=1, le=5)
+    composition_score: int = Field(ge=1, le=5)
+    typography_score: int = Field(ge=1, le=5)
+    resource_fit_score: int = Field(ge=1, le=5)
+    motion_score: int = Field(ge=1, le=5)
+    score_evidence: list[QualityScoreEvidenceV1] = Field(min_length=5, max_length=5)
+    findings: list[QualityFindingV2] = Field(default_factory=list, max_length=64)
+    advisory_observations: list[str] = Field(default_factory=list, max_length=16)
+    review_summary: str
+
+    @model_validator(mode="after")
+    def _score_evidence(self) -> QualityReviewDraftV1:
+        scores = (
+            self.hierarchy_score,
+            self.composition_score,
+            self.typography_score,
+            self.resource_fit_score,
+            self.motion_score,
+        )
+        expected_scores = {
+            "hierarchy": self.hierarchy_score,
+            "composition": self.composition_score,
+            "typography": self.typography_score,
+            "resource_fit": self.resource_fit_score,
+            "motion": self.motion_score,
+        }
+        evidence_by_dimension = {item.dimension: item for item in self.score_evidence}
+        if set(evidence_by_dimension) != set(expected_scores) or any(
+            item.score != expected_scores[item.dimension] for item in self.score_evidence
+        ):
+            raise ValueError(
+                "quality score evidence must cover each dimension with its exact score"
+            )
+        if min(scores) < 4 and not any(item.severity == "blocking" for item in self.findings):
+            raise ValueError("every quality score below four requires a blocking finding")
+        if not self.review_summary.strip():
+            raise ValueError("quality review drafts require a concise review summary")
+        return self
+
+
+class QualityReviewReceiptV2(BaseModel):
+    """Host-stamped final review identity bound to the complete accepted source."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["quality-review-receipt-v2"] = "quality-review-receipt-v2"
+    source_manifest_hash: str
+    plan_hash: str
+    realization_hash: str
+    review_context_hash: str
+    response_id: str
+    review_hash: str
+    quality_gate_version: str
+    hierarchy_score: int = Field(ge=1, le=5)
+    composition_score: int = Field(ge=1, le=5)
+    typography_score: int = Field(ge=1, le=5)
+    resource_fit_score: int = Field(ge=1, le=5)
+    motion_score: int = Field(ge=1, le=5)
+    score_evidence: list[QualityScoreEvidenceV1] = Field(min_length=5, max_length=5)
+    findings: list[QualityFindingV2] = Field(default_factory=list)
+    advisory_observations: list[str] = Field(default_factory=list)
+    accepted: bool
+    receipt_hash: str = ""
+
+    @model_validator(mode="after")
+    def _host_acceptance_and_hash(self) -> QualityReviewReceiptV2:
+        bound = (
+            self.source_manifest_hash,
+            self.plan_hash,
+            self.realization_hash,
+            self.review_context_hash,
+            self.response_id,
+            self.review_hash,
+            self.quality_gate_version,
+        )
+        if not all(value.strip() for value in bound):
+            raise ValueError("quality review receipts require every final hash binding")
+        computed_acceptance = min(
+            self.hierarchy_score,
+            self.composition_score,
+            self.typography_score,
+            self.resource_fit_score,
+            self.motion_score,
+        ) >= 4 and not any(item.severity == "blocking" for item in self.findings)
+        expected_scores = {
+            "hierarchy": self.hierarchy_score,
+            "composition": self.composition_score,
+            "typography": self.typography_score,
+            "resource_fit": self.resource_fit_score,
+            "motion": self.motion_score,
+        }
+        evidence_by_dimension = {item.dimension: item for item in self.score_evidence}
+        if set(evidence_by_dimension) != set(expected_scores) or any(
+            item.score != expected_scores[item.dimension] for item in self.score_evidence
+        ):
+            raise ValueError("quality receipts require exact evidence for every score dimension")
+        if self.accepted != computed_acceptance:
+            raise ValueError("quality acceptance must be computed from scores and findings")
+        payload = self.model_dump(mode="json", exclude={"receipt_hash"})
+        computed_hash = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+        if self.receipt_hash and self.receipt_hash != computed_hash:
+            raise ValueError("receipt_hash does not match the quality review receipt")
+        self.receipt_hash = computed_hash
+        return self
 
 
 class ExecutionBindingV2(BaseModel):
@@ -1752,6 +2384,8 @@ class GenerationCallReceipt(BaseModel):
     finish_reason: str = ""
     attempt: int = 1
     retry_class: str = ""
+    duration_ms: float = Field(default=0.0, ge=0)
+    cached_tokens: int = Field(default=0, ge=0)
 
 
 class SourceCheckpoint(BaseModel):
@@ -1839,7 +2473,7 @@ class GenerationProjection(BaseModel):
     source_file_count: int = 0
     source_total_bytes: int = 0
     issues: list[SafeIssue] = Field(default_factory=list)
-    quality_review: QualityReviewReceiptV1 | None = None
+    quality_review: QualityReviewReceiptV2 | QualityReviewReceiptV1 | None = None
 
 
 class CandidateIdentity(BaseModel):
@@ -1951,6 +2585,7 @@ class VerificationPlan(BaseModel):
     source_checks: list[str] = Field(default_factory=list)
     build_checks: list[str] = Field(default_factory=list)
     runtime_journeys: list[VerificationJourney] = Field(default_factory=list)
+    realization_contracts: list[DesignRealizationContract] = Field(default_factory=list)
     expected_route_paths: list[str] = Field(default_factory=list)
     expected_local_resources: list[str] = Field(default_factory=list)
     expected_check_ids: list[str] = Field(default_factory=list)
@@ -2074,6 +2709,7 @@ class RuntimeEvidence(BaseModel):
     focus_results: list[dict[str, str | bool]] = Field(default_factory=list)
     overflow_results: list[dict[str, str | int | bool]] = Field(default_factory=list)
     geometry_results: list[dict[str, Any]] = Field(default_factory=list)
+    realization_results: list[dict[str, Any]] = Field(default_factory=list)
     passed: bool
 
 
@@ -2117,6 +2753,7 @@ class CandidateArtifact(BaseModel):
     size_bytes: int
     content_type: str = "application/zip"
     route_ids: list[str] = Field(default_factory=list)
+    route_paths: list[str] = Field(default_factory=list)
     created_at: str
     expires_at: str
 
@@ -2159,7 +2796,45 @@ class PendingPromotion(BaseModel):
     verification_report_hash: str
     expected_revision: int
     previous_pointer_etag: str = ""
+    previous_pointer_sha256: str = ""
+    previous_pointer: dict[str, Any] = Field(default_factory=dict)
     created_at: str
+
+
+class PublicReadbackEntryV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str
+    kind: Literal["root", "route", "javascript", "stylesheet", "image", "font"]
+    status_code: int
+    sha256: str = ""
+    media_type: str = ""
+
+
+class PublicReadbackReceiptV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["public-preview-readback-v1"] = "public-preview-readback-v1"
+    promotion_id: str
+    candidate_id: str
+    build_hash: str
+    public_origin: str
+    entries: list[PublicReadbackEntryV1] = Field(min_length=1)
+    checked_at: str
+    receipt_hash: str = ""
+
+    @model_validator(mode="after")
+    def _stamp(self) -> PublicReadbackReceiptV1:
+        if any(item.status_code < 200 or item.status_code >= 300 for item in self.entries):
+            raise ValueError("public preview read-back requires successful responses")
+        payload = self.model_dump(mode="json", exclude={"receipt_hash"})
+        computed = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+        if self.receipt_hash and self.receipt_hash != computed:
+            raise ValueError("receipt_hash does not match public read-back evidence")
+        self.receipt_hash = computed
+        return self
 
 
 class ActivePreview(BaseModel):
@@ -2174,7 +2849,9 @@ class ActivePreview(BaseModel):
     receipt_hash: str
     pointer_etag: str
     route_ids: list[str] = Field(default_factory=list)
+    route_paths: list[str] = Field(default_factory=list)
     promoted_at: str
+    public_readback: PublicReadbackReceiptV1 | None = None
 
 
 class TerminalFailureReport(BaseModel):
@@ -2254,7 +2931,7 @@ class DevelopmentRunProjection(BaseModel):
     portfolio_session_id: str = ""
     auto_advance: bool = True
     coordinator_stage: str = "plan"
-    pipeline_contract_version: str = "code-generator-v3"
+    pipeline_contract_version: str = "code-generator-v4"
     trace_id: str = ""
     active_attempt_id: str = ""
     retry_status: str = ""
@@ -2267,8 +2944,11 @@ class DevelopmentRunProjection(BaseModel):
     artifact_receipt: dict[str, Any] | None = None
     preflight_receipt: dict[str, Any] | None = None
     creative_direction: dict[str, Any] | None = None
+    design_variant: DesignVariantReceiptV1 | None = None
+    design_fingerprint: DesignFingerprintV1 | None = None
+    realization_contracts: list[DesignRealizationContract] = Field(default_factory=list)
     integration_review: dict[str, Any] | None = None
-    quality_review: QualityReviewReceiptV1 | None = None
+    quality_review: QualityReviewReceiptV2 | QualityReviewReceiptV1 | None = None
     job_id: str = ""
     input: AdmittedInputReference
     input_receipt: InputReceipt | None = None
@@ -2306,3 +2986,9 @@ class BuildPreparationRunRequest(BaseModel):
 
     # Mirror pack directory name, or "best" for deterministic ranking.
     pack: str = "best"
+
+
+# The provider-safe source envelope intentionally appears before the legacy
+# internal source DTOs it adapts into. Resolve those annotations only after the
+# complete module namespace exists.
+SourceGenerationEnvelopeV2.model_rebuild()

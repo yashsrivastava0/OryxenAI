@@ -6,6 +6,21 @@ from oryxenai.agents.code_generator.core import provider_preflight
 from oryxenai.core.settings import Settings
 
 
+def test_provider_preflight_checks_every_v4_wire_schema_family() -> None:
+    issues = provider_preflight.code_generator_wire_schema_issues()
+
+    assert set(issues) == {
+        "CreativeDirectionSetV3",
+        "ExperienceBlueprintV4",
+        "ScoutSelection",
+        "SourceGenerationEnvelopeV2",
+        "QualityReviewDraftV1",
+        "IntegrationReviewV1",
+        "ProviderPreflightEnvelope",
+    }
+    assert all(not values for values in issues.values())
+
+
 @pytest.mark.asyncio
 async def test_provider_preflight_uses_fixed_input_and_closes_client(monkeypatch):
     settings = Settings()

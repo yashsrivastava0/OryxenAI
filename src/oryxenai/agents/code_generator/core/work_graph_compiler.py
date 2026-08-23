@@ -13,6 +13,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     WorkGraph,
     WorkUnit,
 )
+from oryxenai.agents.code_generator.core.path_policy import (
+    semantic_segment,
+    validate_generated_paths,
+)
 
 
 def compile_site_plan(
@@ -73,7 +77,11 @@ def compile_site_plan(
         ordered_sections = [str(item) for item in source.get("section_sequence", [])]
         if set(ordered_sections) != set(route.section_ids):
             ordered_sections = list(route.section_ids)
-        storage_key = _storage_key(source, route.route_id)
+        storage_key = _storage_key(
+            source,
+            route.route_id,
+            semantic=isinstance(plan.experience_blueprint, ExperienceBlueprintV4),
+        )
         batches = [
             ordered_sections[index : index + max(1, max_sections_per_unit)]
             for index in range(0, len(ordered_sections), max(1, max_sections_per_unit))
@@ -85,6 +93,11 @@ def compile_site_plan(
             for item in plan.acceptance_coverage
             if not item.route_id or item.route_id == route.route_id
         ]
+        route_slug = (
+            semantic_segment(route.route_id)
+            if isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+            else _slug(route.route_id)
+        )
         batch_ids: list[str] = []
         for index, sections in enumerate(batches, start=1):
             resource_ids = [
@@ -103,11 +116,7 @@ def compile_site_plan(
                 )
             ]
             split = design_neutral or len(batches) > 1
-            unit_id = (
-                f"route-{_slug(route.route_id)}-batch-{index}"
-                if split
-                else f"route-{_slug(route.route_id)}"
-            )
+            unit_id = f"route-{route_slug}-batch-{index}" if split else f"route-{route_slug}"
             if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) and split:
                 # V4 gives every approved section a semantic, stable host-owned
                 # path.  A model call may still batch several sections, but it
@@ -116,8 +125,8 @@ def compile_site_plan(
                     path
                     for section in sections
                     for path in (
-                        f"src/routes/{storage_key}/sections/{_slug(section)}.tsx",
-                        f"src/routes/{storage_key}/sections/{_slug(section)}.css",
+                        f"src/routes/{storage_key}/sections/{semantic_segment(section)}.tsx",
+                        f"src/routes/{storage_key}/sections/{semantic_segment(section)}.css",
                     )
                 ]
             else:
@@ -155,7 +164,7 @@ def compile_site_plan(
                         if not design_neutral
                         else []
                     ),
-                    isolated_workspace_key=f"{_slug(route.route_id)}-batch-{index}",
+                    isolated_workspace_key=f"{route_slug}-batch-{index}",
                     context_estimate=14000,
                     output_estimate=18000,
                 )
@@ -164,7 +173,7 @@ def compile_site_plan(
         if len(batch_ids) > 1 or design_neutral:
             units.append(
                 WorkUnit(
-                    unit_id=f"route-{_slug(route.route_id)}-compose",
+                    unit_id=f"route-{route_slug}-compose",
                     kind="route_compose",
                     route_id=route.route_id,
                     route_ids=[route.route_id],
@@ -181,7 +190,7 @@ def compile_site_plan(
                         if item.route_id in {"", route.route_id}
                     ],
                     owns_route_shell=True,
-                    isolated_workspace_key=f"{_slug(route.route_id)}-composer",
+                    isolated_workspace_key=f"{route_slug}-composer",
                     context_estimate=8000,
                     output_estimate=8000,
                 )
@@ -197,10 +206,51 @@ def compile_site_plan(
             output_estimate=6000,
         )
     )
+    validate_generated_paths(
+        [path for unit in units if not unit.terminal for path in unit.owns_paths]
+    )
+    experience_blueprint = plan.experience_blueprint
+    if isinstance(experience_blueprint, ExperienceBlueprintV4):
+        section_owners = {
+            (unit.route_id, section_id): unit.unit_id
+            for unit in units
+            if unit.kind == "route_batch"
+            for section_id in unit.section_ids
+        }
+        interaction_owners = {
+            interaction_id: unit.unit_id
+            for unit in units
+            for interaction_id in unit.interaction_ids
+        }
+        experience_blueprint = experience_blueprint.model_copy(
+            update={
+                "section_regions": [
+                    item.model_copy(
+                        update={
+                            "owner_id": section_owners.get(
+                                (item.route_id, item.section_id), item.owner_id
+                            )
+                        }
+                    )
+                    for item in experience_blueprint.section_regions
+                ],
+                "interaction_assignments": [
+                    item.model_copy(
+                        update={
+                            "owner_work_unit_id": interaction_owners.get(
+                                item.interaction_id, item.owner_work_unit_id
+                            )
+                        }
+                    )
+                    for item in experience_blueprint.interaction_assignments
+                ],
+            }
+        )
     return plan.model_copy(
         update={
             "work_graph": WorkGraph(units=units, terminal_integration_unit="integration-review"),
             "execution_bindings": bindings,
+            "experience_blueprint": experience_blueprint,
         }
     )
 
@@ -242,11 +292,12 @@ def compile_execution_bindings(
     return bindings
 
 
-def _storage_key(route: dict[str, Any], route_id: str) -> str:
+def _storage_key(route: dict[str, Any], route_id: str, *, semantic: bool = False) -> str:
     value = str(route.get("storage_key", "")).replace("\\", "/").strip("/")
     if value.startswith("routes/"):
         value = value.removeprefix("routes/")
-    return value or _slug(route_id)
+    value = value or _slug(route_id)
+    return semantic_segment(value or route_id) if semantic else value
 
 
 def _slug(value: str) -> str:
