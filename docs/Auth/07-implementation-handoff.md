@@ -1,7 +1,9 @@
 # Implementation handoff
 
-This is an accepted architecture handoff, not completed runtime auth. Follow
-[10-implementation-plan.md](10-implementation-plan.md) before coding.
+This is an accepted architecture handoff, not completed runtime auth. The
+current phase is documentation-only: do not add runtime auth, migrations,
+dependencies, or cloud resources yet. In the later implementation phase,
+follow [10-implementation-plan.md](10-implementation-plan.md) before coding.
 
 ## Scope statement
 
@@ -19,12 +21,15 @@ durable worker and separate generated-preview trust boundary.
 - Development Supabase project and Google provider configured.
 - Local provider URL and keys present in git-ignored `.env`.
 - Two distinct bootstrap administrator entries present.
+- One separate normal test identity is privately allowlisted and is a Google
+  OAuth test user.
 - Online Auth settings, Google provider, JWKS, and OAuth initiation verified.
+- Strict prerequisite result: `0 failures, 0 warnings`.
 - Existing sessions will be legacy-quarantined.
 - AWS and production projects are intentionally not created.
 
-Pending only for final live acceptance: one separate non-admin Google test
-account added to Google test users and `ORYXENAI_ALLOWED_USER_EMAILS`.
+Pending only for final live acceptance after implementation: complete the real
+Google callback, onboarding, normal-user, and administrator browser flows.
 
 ## Work packages
 
@@ -156,8 +161,8 @@ Do not migrate the frontend to React/Next.
   returning user, two-user isolation, completed read-only state, admin, and
   sign-out/back.
 - Run the redaction-safe live prerequisite checker.
-- Manually smoke both admins and the future separate normal account through
-  real Google in a top-level browser.
+- Manually smoke both admins and the already configured separate normal account
+  through real Google in a top-level browser.
 - Deployment smoke remains a later phase with production Supabase/Google/AWS.
 
 ## Required test matrix
