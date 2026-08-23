@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-23 19:37 +05:30 - Codex (model/provider omitted) - [5ca0b85] - Code Generator V4 realization, verification, and preview hardening
+Activated the V4 source-realization, quality, runtime, and preview contracts,
+added the scaffold source audit and integration-review regression coverage, and
+recorded stable retry versus explicit new-variant semantics (D-042). Refreshed
+the checked-in portfolio input examples and removed obsolete generated/session
+artifacts; repository and clean scaffold verification passed.
+
 ### 2026-08-23 14:03 +05:30 — Codex (model/provider omitted) — [a03ba6f] — Authentication research
 Added a source-grounded `docs/Auth/` research and handoff set covering provider
 selection, Google/username flow, ownership and one-success quota semantics,
