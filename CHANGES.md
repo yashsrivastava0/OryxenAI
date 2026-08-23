@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-23 21:19 +05:30 - Codex (model/provider omitted) - [c9ad71d] - Auth prerequisite and minimum-route handoff
+Recorded the privately configured separate normal test identity, zero-warning
+strict prerequisite result, documentation-only phase boundary, and deterministic
+first-visit/callback/refresh/deployment route controller. No auth runtime,
+migration, dependency, table, secret, or cloud resource was added.
+
 ### 2026-08-23 20:56 +05:30 - Codex (model/provider omitted) - [0f9bc0d] - Supabase Auth setup and implementation handoff
 Accepted Supabase Google-only identity with FastAPI/PostgreSQL authorization
 (D-043), replaced the Clerk-first research, recorded the sanitized development
