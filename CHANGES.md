@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 02:09 +05:30 - Codex (model/provider omitted) - [d288077] - Phase 2 portfolio ownership and API authorization
+Implemented migration 0015 with fail-closed legacy quarantine, owner-scoped session aggregates, centralized owner/admin route dependencies, protected development surfaces, bearer-authenticated product/developer boot, and regression coverage. Recorded D-045; entitlement, worker fencing, administrator lifecycle, and deployment remain Phases 3 and 4.
+
 ### 2026-08-24 00:00 +05:30 - Codex (model/provider omitted) - [48e5f6c] - Supabase Auth Phase 1 foundation
 Implemented Google-only Supabase PKCE sessions, asymmetric JWT/JWKS verification, allowlisted just-in-time admission, two bootstrap admins outside the 15-user capacity, username onboarding, direct auth routes, a self-hosted browser controller, migration 0014, and focused coverage; Phases 2-4 and production cloud setup remain deferred.
 
@@ -124,93 +127,28 @@ closed provider/candidate policy, strict v3/v4 reader compatibility, and
 deterministic delegated image/font/component requests using the existing local
 retrieval and provenance boundary.
 
-### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [86b3e8d] - Design-neutral Code Generator V3 generation
-Added typed ExperienceBlueprintV3 tokens, trusted behavioral SharedSystems,
-deterministic token/content compilation, route-batch ownership, isolated
-parallel scheduling, and prompt/source regressions that remove generic
-scaffold styling and duplicate shell ownership.
-
-### 2026-08-20 00:00 +05:30 - Codex (GPT-5) - [0c4901f] - Add fenced stage attempts and immutable workflow artifacts
-Added the Code Generator reliability spine: normalized stage-attempt rows and
-partial active-attempt fencing, trace/contract metadata on runs and events,
-safe retry/input/repair classification, worker release/readiness metadata,
-content-addressed local and R2-compatible workflow artifact repositories, and
-phase-level regression coverage. Existing v3 development/session behavior stays
-compatible while later stages adopt the normalized coordinator.
-
-### 2026-08-19 21:23 +05:30 - Codex (live provider run) - [8259231] - Grounded Build Preparation to Code Generator execution
-Hardened live Build Preparation context normalization, duplicate-resource fallback, and Code Generator repository-root path resolution so the exact eligible pack survives admission, acquisition, generation, and verification from any Windows launch directory. The live run promoted a verified single-route portfolio preview and persistent local export; focused tests passed.
-
-### 2026-08-19 17:42 +05:30 - Codex (live provider run) - [a01c030] - Harden Build Preparation live fixture execution
-Fixed the Docker provider-cache permission failure, mounted attached CA/VDD
-inputs read-only for the Compose frontend, reconciled malformed Stage 2 need
-IDs to the deterministic Stage 0 set, and retained packages when the advisory
-Stage 5 model review receives a provider rejection. Focused tests passed, and
-the final live frontend run reached packaging plus verified R2 read-back;
-handoff remained correctly blocked by four deterministic resource/VDD issues.
-
-### 2026-08-19 17:03 +05:30 - Codex (live provider run) - [33b7113] - Document Build Preparation execution
-Added the requested `docs/run/run.md` runbook with verified frontend links,
-config-driven secret names, production and detached live-run commands, the
-`handoff_eligible` gate, and the Docker/network/schema/resource issues found
-during the live Build Preparation run.
-
-### 2026-08-19 16:53 +05:30 - Codex (live provider run) - [237e0ed] - Align Build Preparation live response schemas
-Accepted responsive/reduced-motion query fields and the complete Stage 3/4
-context envelope emitted by the configured live model, then normalized the
-context metadata before downstream validation. Focused Build Preparation tests
-passed, and the approved production session completed live model/provider
-execution through packaging and verified R2 read-back; handoff remained blocked
-by an unresolved approved component role and duplicate decorative image bytes.
-
-### 2026-08-19 16:40 +05:30 - Codex (model/provider omitted) - [45eafdc] - doc/run/run.md
-Added the reusable Docker runbook for Discovery, Content Architect, and Visual
-Design Director, including the observed migration failures, non-destructive
-database repair, live-provider configuration check, startup commands, and
-verification steps.
-
-### 2026-08-19 15:47 +05:30 - Codex (live provider run) - [3c1ff43] - Harden live Code Generator generation and runtime repair
-Added a narrowly scoped JSON-object fallback for provider rejection of strict
-dictionary schemas, encoding-safe approved-copy validation, semantic exclusion
-of hidden/off-screen controls from geometry checks, and a bounded route CSS
-touch-target repair with prompt guidance for future generations. Updated
-AGENTS.md so explicit run/generation requests use configured live LLM/API calls
-by default. Verified against the selected Build Preparation pack through a live
-ready run, passed source/build/DOM/runtime gates, all route/viewports and
-reduced-motion/unknown-route journeys, and promoted an atomic preview/export.
-
-### 2026-08-19 13:49 +05:30 - Codex (model/provider omitted) - [8a85438] - Consume nested Build Preparation mirror output
-Pointed Code Generator's local mirror configuration at the actual `output/live-build-preparation/build-preparation` pack directory. The requested pack is now discovered and admitted through the normal workflow; a live planner retry remains provider-consent blocked.
-
-### 2026-08-19 13:26 +05:30 - Codex (model/provider omitted) - [6afd672] - Production Code Generator v2 and visual compiler
-Connected explicit portfolio-session starts to exact verified Build Preparation artifacts, added structured creative comparison and experience-blueprint calls, compiled deterministic resource bindings and non-overlapping work ownership, and hardened local assets, nested routes, whole-site review, responsive geometry, reduced motion, staleness, and atomic preview retention/promotion. Verified the complete Code Generator Python surface, the clean Vite build/browser promotion path, frontend tests, scoped lint/format/type checks, migration head, scaffold typecheck/build, and offline admission of the selected pack; the broader repository still has unrelated provider-dependent and pre-existing type-check failures.
-
-### 2026-08-18 23:55 +05:30 - Codex (GPT-5 / OpenAI) - [6bdcb13] - Selected verified Build Preparation output for Code Generator
-Recorded the live-accepted pack `64801150-cb6d-4052-ae1e-2a30ab55fb20` as the current Code Generator working input, including its ZIP identity, route scope, local image/component/font bindings, projection hashes, R2 handoff distinction, and the static experience-timeline fallback. Marked the older ineligible pack as unusable.
-
-### 2026-08-18 23:43 +05:30 - Codex (GPT-5 / OpenAI) - [da99302] - Build Preparation overview and Code Generator handoff context
-Made generated `overview.md` a detailed consumer briefing that documents the pack authority files, local resource flow, route inventory, and handoff review without imposing screen, route, component, card, or layout quotas. Updated the live context prompt and Build Preparation documentation to preserve exact upstream coverage while leaving composition and portfolio information architecture to Code Generator; added regression coverage.
-
-### 2026-08-18 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [273799b] - Reliable contextual visual enrichment and Code Generator handoff
-Removed role-count truncation and the static provider request quota while retaining per-role retries, rate-limit handling, source validation, image-size limits, and closed-set selection. Added contextual queries, alternate image recovery, complete local component/image provenance bindings, aggregate enrichment admission diagnostics, and Code Generator protection against reacquiring known Build Preparation roles. Focused Build Preparation, Code Generator, and API tests pass; live acceptance repeated the configured model connection failure before provider lookup, so no readiness claim is made.
-
-### 2026-08-13 12:35 +05:30 — Codex (model/provider omitted) — [4c4f51d] — docs/code-generator-architecture/
-Added the four-phase, approval-gated Code Generator execution guide: standalone admission/planning and developer UI, controlled acquisition, progressive generation, then verification/repair/preview.
-
-### 2026-08-13 12:09 +05:30 — Codex (GPT-5 / OpenAI) — [4c4f51d] — AGENTS.md, docs/code-generator-architecture/, DECISIONS.md, CHANGES.md
-Superseded the screenshot/vision-review Code Generator draft with D-015's progressive text-only generation pipeline. Added planning-time and emergent resource acquisition through trusted adapters, React/Vite workspace isolation, three lean gates, and compiler/runtime-guided finite repair.
-
-### 2026-08-13 10:36 +05:30 — Codex (GPT-5 / OpenAI) — [958b4d8] — docs/code-generator-architecture/, DECISIONS.md, CHANGES.md
-Replaced the exploratory Code Generator proposal with a decision-complete v1 handoff covering Build Preparation boundary repair, bounded generation, exact verification, and single-current-preview promotion.
-
-### 2026-08-13 09:48 +05:30 — Codex (GPT-5 / OpenAI) — [958b4d8] — docs/code-generator-architecture/
-Refined the Code Generator proposal around ordered product pillars, deterministic orchestration, adaptive model policy, worker topology, and isolated live preview promotion.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-20 - Codex (GPT-5 / OpenAI) - [86b3e8d] - Design-neutral Code Generator V3 generation, typed experience tokens, trusted shared systems, route-batch ownership, isolated scheduling, and source regressions.
+- 2026-08-20 - Codex (GPT-5) - [0c4901f] - Fenced stage attempts, immutable workflow artifacts, trace metadata, retry classification, worker readiness, and content-addressed artifact repositories.
+- 2026-08-19 - Codex (live provider run) - [8259231] - Grounded Build Preparation to Code Generator execution, exact-pack survival, verified preview promotion, and persistent local export.
+- 2026-08-19 - Codex (live provider run) - [a01c030] - Docker fixture execution repair, read-only CA/VDD inputs, deterministic need IDs, package retention, and verified R2 read-back.
+- 2026-08-19 - Codex (live provider run) - [33b7113] - Build Preparation execution runbook with verified links, secret names, detached/live commands, and handoff diagnostics.
+- 2026-08-19 - Codex (live provider run) - [237e0ed] - Build Preparation response-schema alignment, normalization, live packaging, and R2 read-back diagnostics.
+- 2026-08-19 - Codex (model/provider omitted) - [45eafdc] - Reusable Discovery/Content/Visual Docker runbook, migration repair, provider checks, startup, and verification steps.
+- 2026-08-19 - Codex (live provider run) - [3c1ff43] - Code Generator provider fallback, source validation, responsive repair, runtime gates, and atomic preview/export.
+- 2026-08-19 - Codex (model/provider omitted) - [8a85438] - Nested Build Preparation mirror discovery and exact-pack admission, with provider-consent retry remaining.
+- 2026-08-19 - Codex (model/provider omitted) - [6afd672] - Production Code Generator v2, visual compiler, deterministic resources, workflow verification, and preview retention/promotion.
+- 2026-08-18 - Codex (GPT-5 / OpenAI) - [6bdcb13] - Selected verified Build Preparation output and recorded pack identity, scope, bindings, hashes, and handoff distinction.
+- 2026-08-18 - Codex (GPT-5 / OpenAI) - [da99302] - Build Preparation overview, authority files, resource flow, route inventory, handoff review, and regression coverage.
+- 2026-08-18 - Codex (GPT-5 / OpenAI) - [273799b] - Contextual visual enrichment, alternate recovery, provenance bindings, aggregate diagnostics, and downstream reacquisition guards.
+- 2026-08-13 - Codex (model/provider omitted) - [4c4f51d] - Four-phase Code Generator execution guide covering admission, planning, acquisition, generation, verification, repair, and preview.
+- 2026-08-13 - Codex (GPT-5 / OpenAI) - [4c4f51d] - D-015 progressive text-only generation pipeline, trusted acquisition, workspace isolation, gates, and repair guidance.
+- 2026-08-13 - Codex (GPT-5 / OpenAI) - [958b4d8] - Code Generator v1 architecture handoff, Build Preparation boundary repair, bounded generation, exact verification, and preview promotion.
+- 2026-08-13 - Codex (GPT-5 / OpenAI) - [958b4d8] - Code Generator proposal refinement covering product pillars, deterministic orchestration, provider policy, workers, and preview promotion.
 - 2026-08-18 — Codex (GPT-5 / OpenAI) — [cde016e, 42e92ec, 8909c09, 0bd8bb5, 646a0bb, 3e2831c] — Build Preparation boundary/semantic enrichment, local image retrieval, deterministic component-priority selection, and cache-free multi-provider component retrieval.
 - 2026-08-17 — Codex / OpenCode — [e3d80c2, 3479c40, 2edc335, 7957f7e, 2903bd2] — Detached input pickup, provider diagnostics, real visual handoff, best-pack readiness, resource coordination, and preview-gateway hardening.
 - 2026-08-17 — Codex (GPT-5 / OpenAI) — [fffd253, 9ed8fe4, d23bc09, e35dd62, 91aa906] — Code Generator workspace UI, checkpoint recovery, cross-agent Git policy, canonical core ownership, source contracts, and DOM/runtime/export verification.
@@ -241,8 +179,8 @@ Refined the Code Generator proposal around ordered product pillars, deterministi
 
 ---
 
-## Summary (as of last compaction — 2026-08-21)
+## Summary (as of last compaction — 2026-08-24)
 
-- Recent detailed entries retained: 24
-- Compacted milestone bullets: 9
-- Last updated: 2026-08-21 — Codex (GPT-5 / OpenAI)
+- Recent detailed entries retained: 20
+- Compacted milestone bullets: 26
+- Last updated: 2026-08-24 — Codex (model/provider omitted)
