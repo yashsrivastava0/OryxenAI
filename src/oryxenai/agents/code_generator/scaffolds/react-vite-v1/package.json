@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "source:audit": "node scripts/audit-source.mjs",
     "typecheck": "tsc --noEmit",
     "build": "vite build --configLoader runner"
   },

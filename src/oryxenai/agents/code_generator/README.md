@@ -9,12 +9,12 @@ This package has three deliberately bounded surfaces over one implementation:
   bind one eligible Build Preparation artifact before durable work is queued.
 - core/ is the shared durable generation workflow and the feature-gated
   standalone development harness. It accepts only an admitted Build
-  Preparation v3 pack and owns planning, resource/dependency admission,
+  Preparation v3/v4 pack and owns planning, resource/dependency admission,
   progressive source generation, verification, and preview promotion.
 
 Code Generator never auto-chains from Build Preparation. A caller starts the
 session stage explicitly; the worker downloads the exact bound object, verifies
-its recorded identity, and admits it through the same pack-v3 boundary as the
+its recorded identity, and admits it through the same versioned pack boundary as the
 standalone harness. Workflow implementation belongs in `core/`, prompts belong
 in `prompts/`, and the checked-in React/Vite scaffold contains source and a real
 lockfile but never `node_modules`. Required visual slots are executable local
@@ -39,8 +39,10 @@ All routes are under `/api/v1/sessions/{session_id}/code-generator`:
 - `POST /start` requires an idempotency key and an empty JSON object, verifies
   the current Build Preparation package and object metadata, performs the fixed
   provider/toolchain preflight, then queues the first attempt;
-- `POST /regenerate` repeats the same gates for a new attempt while retaining
-  the previous promoted preview until replacement succeeds.
+- `POST /regenerate` repeats the same gates for a new design variant while
+  retaining the previous promoted preview until replacement succeeds;
+- `POST /retry` requeues the first incomplete stage on the existing run,
+  preserving its design variant, checkpoints, and previously promoted preview.
 
 Model/provider selection comes only from `config/models.toml`; request bodies
 cannot override it. The service reads only the approved Build Preparation
@@ -52,8 +54,10 @@ expiry, package report, and every ZIP member before extraction.
 
 The session and developer workflows record durable runs and event streams. The
 production input is the verified object-store artifact; the developer harness
-accepts build-preparation-pack-v3 fixtures, debug mirrors, or uploaded ZIPs.
-Both validate a typed SitePlan and host-compiled WorkGraph, reconcile resources
+accepts supported build-preparation-pack-v3/v4 fixtures, debug mirrors, or uploaded ZIPs.
+Active V4 runs validate a provider-safe ExperienceBlueprintV4, then host-compile
+the typed SitePlan and WorkGraph; legacy runs retain their typed SitePlan
+reader. Both paths reconcile resources
 and dependencies through trusted receipt-backed adapters, then generate a
 React/Vite/TypeScript workspace in foundation, route-batch, composition, and
 integration units.

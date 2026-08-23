@@ -10,6 +10,7 @@ It is supplemental to the build/typecheck gate, never a replacement for it.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -130,11 +131,15 @@ def _named_imports(bindings: str) -> tuple[set[str], bool]:
     return names, bool(match.group("namespace"))
 
 
-def _route_source_path(route: dict[str, Any]) -> str:
-    storage_key = str(route.get("storage_key", route.get("route_id", "")))
+def _route_source_path(route: dict[str, Any], *, semantic: bool = False) -> str:
+    storage_key = str(route.get("storage_key") or route.get("route_id", ""))
     storage_key = storage_key.replace("\\", "/").strip("/")
     if storage_key.startswith("routes/"):
         storage_key = storage_key.removeprefix("routes/")
+    if semantic:
+        from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+
+        storage_key = semantic_segment(storage_key or str(route.get("route_id", "")))
     return f"src/routes/{storage_key}/index.tsx"
 
 
@@ -176,7 +181,7 @@ def audit_typescript_source(
         # V4 route code must use the trusted shell, not merely coexist with an
         # unused SharedSystems module in the candidate tree.
         for route in plan.routes:
-            route_file = _route_source_path(route.model_dump(mode="json"))
+            route_file = _route_source_path(route.model_dump(mode="json"), semantic=blueprint_v4)
             route_source = clean_files.get(route_file, "")
             if not re.search(r"\bRouteShell\b", route_source) or not re.search(
                 r"import\s+\{[^}]*\bRouteShell\b[^}]*\}\s+from\s+[\"'](?:\.\.?/)+components/generated/SharedSystems",
@@ -224,7 +229,15 @@ def audit_typescript_source(
             )
         )
     else:
-        for export_name in ("RouteShell", "SectionAnchor", "useDisclosure", "Disclosure"):
+        required_exports: tuple[str, ...] = (
+            "RouteShell",
+            "SectionAnchor",
+            "useDisclosure",
+            "Disclosure",
+        )
+        if blueprint_v4:
+            required_exports += ("LocalImage",)
+        for export_name in required_exports:
             if export_name not in _exports(shared):
                 diagnostics.append(
                     _diagnostic(
@@ -294,12 +307,16 @@ def audit_typescript_source(
     for route in plan.routes:
         route_data = route.model_dump(mode="json")
         route_id = str(route_data.get("route_id", ""))
-        route_file = _route_source_path(route_data)
+        route_file = _route_source_path(route_data, semantic=blueprint_v4)
         route_storage_key = (
-            str(route_data.get("storage_key", route_id)).replace("\\", "/").strip("/")
+            str(route_data.get("storage_key") or route_id).replace("\\", "/").strip("/")
         )
         if route_storage_key.startswith("routes/"):
             route_storage_key = route_storage_key.removeprefix("routes/")
+        if blueprint_v4:
+            from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+
+            route_storage_key = semantic_segment(route_storage_key or route_id)
         route_prefix = f"src/routes/{route_storage_key}/"
         route_source = clean_files.get(route_file, "")
         if not route_source:
@@ -474,19 +491,30 @@ def audit_typescript_source(
                     )
                 )
             elif blueprint_v4:
-                evidence = "\n".join(route_css.values()) + "\n" + route_files_source
-                if not re.search(
-                    r"(?:grid|flex|width|margin|padding|position|sticky|transform|gap|align-items|justify-content)",
-                    evidence,
-                    re.IGNORECASE,
-                ):
+                v4_move = next(
+                    item for item in v4_blueprint.distinctive_moves if item.move_id == move.move_id
+                )
+                scoped_css = "\n".join(
+                    value for path, value in route_css.items() if path.startswith(route_prefix)
+                )
+                declarations = _selector_declarations(scoped_css, v4_move.source_selector)
+                missing_properties = [
+                    property_name
+                    for property_name in v4_move.required_css_properties
+                    if property_name.casefold() not in declarations
+                ]
+                if not declarations or missing_properties:
                     diagnostics.append(
                         _diagnostic(
                             "SOURCE_BLUEPRINT_MOVE_MARKER_ONLY",
-                            "A distinctive-move marker is present without executable layout or behavior evidence.",
+                            "A distinctive-move marker is present without selector-scoped CSS evidence.",
                             file=route_file,
                             route_id=route_id,
-                            symbol=move.move_id,
+                            symbol=(
+                                f"{move.move_id}:{','.join(missing_properties)}"
+                                if missing_properties
+                                else move.move_id
+                            ),
                         )
                     )
 
@@ -497,13 +525,25 @@ def audit_typescript_source(
                 route_files_source = "\n".join(
                     value for path, value in clean_files.items() if path.startswith(route_prefix)
                 )
-                marker_present = beat.target_marker in route_files_source
+                marker_present = (
+                    beat.target_marker in route_files_source
+                    and beat.target_selector in route_files_source
+                )
+                scoped_css = "\n".join(
+                    value for path, value in route_css.items() if path.startswith(route_prefix)
+                )
+                declarations = _selector_declarations(scoped_css, beat.target_selector)
+                expected_properties = {
+                    item.property_name.casefold() for item in beat.changed_properties
+                }
                 motion_present = bool(
-                    re.search(r"(?:transition|animation|transform)", route_files_source, re.I)
+                    expected_properties.intersection(declarations)
+                    and any(
+                        name == "animation" or name.startswith(("animation-", "transition"))
+                        for name in declarations
+                    )
                 )
-                reduced_present = bool(
-                    re.search(r"prefers-reduced-motion", "\n".join(route_css.values()), re.I)
-                )
+                reduced_present = _selector_has_reduced_motion(scoped_css, beat.target_selector)
                 if not marker_present or not motion_present:
                     diagnostics.append(
                         _diagnostic(
@@ -542,6 +582,15 @@ def audit_typescript_source(
                             symbol=assignment.interaction_id,
                         )
                     )
+            diagnostics.extend(
+                _audit_v4_anti_slop(
+                    route_id=route_id,
+                    route_file=route_file,
+                    route_prefix=route_prefix,
+                    files=files,
+                    visual_direction=(projections or {}).get("design/visual-direction.json", {}),
+                )
+            )
 
     return _dedupe(diagnostics)
 
@@ -554,3 +603,114 @@ def _dedupe(values: list[Diagnostic]) -> list[Diagnostic]:
             seen.add(value.fingerprint)
             result.append(value)
     return result
+
+
+def _selector_declarations(css: str, selector: str) -> set[str]:
+    """Return declarations from the exact selector block, never unrelated CSS."""
+
+    if not selector.strip():
+        return set()
+    blocks: list[str] = []
+    for match in re.finditer(r"(?P<selectors>[^{}]+)\{(?P<body>[^{}]*)\}", css, re.DOTALL):
+        selectors = [item.strip() for item in match.group("selectors").split(",")]
+        if selector.strip() in selectors:
+            blocks.append(match.group("body"))
+    return {
+        match.group(1).casefold()
+        for body in blocks
+        for match in re.finditer(r"(?:^|;)\s*([a-z-]+)\s*:", body, re.IGNORECASE)
+    }
+
+
+def _selector_has_reduced_motion(css: str, selector: str) -> bool:
+    """Require the reduced-motion rule to target the declared selector."""
+
+    for match in re.finditer(
+        r"@media[^{}]*prefers-reduced-motion[^{}]*\{(?P<body>[^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",
+        css,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        if _selector_declarations(match.group("body"), selector):
+            return True
+    return False
+
+
+def _audit_v4_anti_slop(
+    *,
+    route_id: str,
+    route_file: str,
+    route_prefix: str,
+    files: dict[str, str],
+    visual_direction: dict[str, Any],
+) -> list[Diagnostic]:
+    section_sources = [
+        text
+        for path, text in files.items()
+        if path.startswith(f"{route_prefix}sections/") and path.endswith(".tsx")
+    ]
+    if len(section_sources) < 3:
+        return []
+    diagnostics: list[Diagnostic] = []
+    signatures = [
+        tuple(
+            re.findall(
+                r"<(?:section|div|article|aside|header|footer)\b|className\s*=\s*[\"'][^\"']+[\"']",
+                _without_comments(value),
+                re.IGNORECASE,
+            )
+        )
+        for value in section_sources
+    ]
+    repeated = max((signatures.count(item) for item in signatures), default=0)
+    if repeated >= 3:
+        diagnostics.append(
+            _diagnostic(
+                "SOURCE_REPEATED_SECTION_SHELL",
+                "Three or more v4 sections use an identical structural shell.",
+                file=route_file,
+                route_id=route_id,
+            )
+        )
+    route_css = "\n".join(
+        text
+        for path, text in files.items()
+        if path.startswith(route_prefix) and path.endswith(".css")
+    ).casefold()
+    direction_text = json.dumps(visual_direction, ensure_ascii=False).casefold()
+    for token, pattern in (
+        ("gradient", r"(?:linear|radial|conic)-gradient\("),
+        ("glass", r"backdrop-filter\s*:|backdrop-blur"),
+        ("pill", r"border-radius\s*:\s*(?:999|100%|50rem)"),
+        ("blob", r"border-radius\s*:[^;]*(?:%[^;]*){2,}"),
+    ):
+        if len(re.findall(pattern, route_css, re.IGNORECASE)) >= 3 and token not in direction_text:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_UNAUTHORIZED_EFFECT_REPETITION",
+                    f"The route repeats an unauthorized {token} treatment across sections.",
+                    file=route_file,
+                    route_id=route_id,
+                    symbol=token,
+                )
+            )
+    centered = len(re.findall(r"text-align\s*:\s*center", route_css))
+    if centered >= max(3, len(section_sources) - 1):
+        diagnostics.append(
+            _diagnostic(
+                "SOURCE_UNIFORM_SECTION_CENTERING",
+                "Most v4 sections use the same centered composition.",
+                file=route_file,
+                route_id=route_id,
+            )
+        )
+    fade_count = len(re.findall(r"opacity\s*:\s*0|translate[xy]?\(", route_css))
+    if fade_count >= len(section_sources) and "blanket" not in direction_text:
+        diagnostics.append(
+            _diagnostic(
+                "SOURCE_BLANKET_REVEAL_MOTION",
+                "The route applies repeated fade or translate reveals across most sections.",
+                file=route_file,
+                route_id=route_id,
+            )
+        )
+    return diagnostics

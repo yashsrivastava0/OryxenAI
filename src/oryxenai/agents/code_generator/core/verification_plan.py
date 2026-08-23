@@ -6,8 +6,10 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
+    ExperienceBlueprintV4,
     SitePlan,
     VerificationJourney,
     VerificationPlan,
@@ -296,11 +298,24 @@ def derive_verification_plan(
         for path in [material.get("local_path", "")]
         if path
     ]
+    realization_contracts = (
+        [
+            compile_design_realization(
+                plan.experience_blueprint,
+                route_id=route.route_id,
+                section_order=list(route.section_order or route.section_ids),
+            )
+            for route in plan.routes
+        ]
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+        else []
+    )
     return VerificationPlan(
         based_on_candidate_identity=identity.identity_hash,
         source_checks=list(profile.source_check_ids),
         build_checks=list(profile.build_check_ids),
         runtime_journeys=journeys,
+        realization_contracts=realization_contracts,
         expected_route_paths=sorted(
             {str(route.get("path", "/")) for route in routes if str(route.get("path", ""))}
         ),

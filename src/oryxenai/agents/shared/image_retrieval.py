@@ -533,7 +533,8 @@ def _pixabay_params(intent: ImageSearchIntent, query: str, limit: int) -> dict[s
 
 
 def _pexels_candidate(photo: dict[str, Any], query: str, rank: int) -> ImageCandidate | None:
-    source = photo.get("src") if isinstance(photo.get("src"), dict) else {}
+    source_value = photo.get("src")
+    source = source_value if isinstance(source_value, dict) else {}
     # Prefer a provider-sized rendition. ``original`` can be needlessly huge
     # and defeat the raw/optimized artifact limits.
     image_url = str(source.get("large2x") or source.get("large") or source.get("original") or "")
@@ -732,9 +733,12 @@ async def _search_provider(
         ):
             if not isinstance(photo, dict):
                 continue
-            urls = photo.get("urls") if isinstance(photo.get("urls"), dict) else {}
-            user = photo.get("user") if isinstance(photo.get("user"), dict) else {}
-            links = photo.get("links") if isinstance(photo.get("links"), dict) else {}
+            urls_value = photo.get("urls")
+            urls = urls_value if isinstance(urls_value, dict) else {}
+            user_value = photo.get("user")
+            user = user_value if isinstance(user_value, dict) else {}
+            links_value = photo.get("links")
+            links = links_value if isinstance(links_value, dict) else {}
             image_url = str(urls.get("full") or urls.get("regular") or "")
             if not image_url.startswith("https://"):
                 continue
@@ -1102,3 +1106,69 @@ def prepare_image_bytes(
         "sha256": hashlib.sha256(optimized).hexdigest(),
         "output_mime_type": "image/jpeg" if optimized != data else "original",
     }
+
+
+def generate_responsive_renditions(
+    data: bytes,
+    *,
+    widths: list[int],
+    formats: list[str],
+    quality: int = 84,
+) -> list[tuple[bytes, dict[str, str | int | float | bool]]]:
+    """Create deterministic local responsive variants from validated raster bytes."""
+
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            image = ImageOps.exif_transpose(source).convert("RGB")
+    except Exception as exc:
+        raise ImageDownloadError(
+            "image bytes are corrupt or not a supported raster",
+            details={"rejection_reason": "decode_failed"},
+        ) from exc
+    allowed_formats = [
+        value.casefold() for value in formats if value.casefold() in {"webp", "jpeg", "jpg"}
+    ]
+    if not allowed_formats:
+        raise ValueError("responsive image formats must include WebP or JPEG")
+    requested_widths = sorted(
+        {min(image.width, int(value)) for value in widths if int(value) > 0} | {image.width}
+    )
+    results: list[tuple[bytes, dict[str, str | int | float | bool]]] = []
+    for width in requested_widths:
+        height = max(1, round(image.height * width / image.width))
+        rendition = (
+            image
+            if (width, height) == image.size
+            else image.resize((width, height), Image.Resampling.LANCZOS)
+        )
+        for requested_format in allowed_formats:
+            normalized_format = "jpeg" if requested_format in {"jpeg", "jpg"} else "webp"
+            output = io.BytesIO()
+            if normalized_format == "webp":
+                rendition.save(output, format="WEBP", quality=quality, method=6)
+                media_type = "image/webp"
+            else:
+                rendition.save(
+                    output,
+                    format="JPEG",
+                    quality=quality,
+                    optimize=True,
+                    progressive=True,
+                )
+                media_type = "image/jpeg"
+            payload = output.getvalue()
+            results.append(
+                (
+                    payload,
+                    {
+                        "media_type": media_type,
+                        "pixel_width": width,
+                        "pixel_height": height,
+                        "aspect_ratio": round(width / height, 6),
+                        "srcset_descriptor": f"{width}w",
+                        "rendition_format": normalized_format,
+                        "decode_verified": True,
+                    },
+                )
+            )
+    return results

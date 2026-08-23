@@ -1,206 +1,227 @@
 {
-  "status": "approved",
+  "status": "content_review",
   "model_profile": "",
   "source_ref": {
-    "discovery_brief_hash": "414d710fca5a9139b005a9aaa61a0dae3787fdea0aaac30103b91f0245c8ddab",
+    "discovery_brief_hash": "c0a32cbe9e6e7dc9f0864988a70602884fe390c24c0e604e599300b6aeb4a4ec",
     "discovery_session_revision": 6,
-    "snapshotted_at": "2026-08-13T15:20:43.036187+00:00"
+    "snapshotted_at": "2026-08-19T10:38:03.045078+00:00"
   },
   "intake": {
-    "approved_brief_title": "Arjun Sharma — Backend & Platform Engineering Portfolio Discovery Brief",
-    "user_summary": "This portfolio is designed to position Arjun Sharma primarily for backend and platform-oriented Software Engineer roles, while still showing credible full-stack capability. The strongest evidence comes from his current production work at TechNova Solutions, including API performance improvement, AWS and Docker usage, authentication, monitoring, and systems serving 100,000+ registered users. DevConnect is the selected lead project, supported by ShopSphere’s backend architecture and CodePulse’s analytics and API-integration work.\n\nThe brief recommends a clean, technical-editorial presentation with moderate content density, restrained motion, and strong emphasis on readable technical evidence. Email, LinkedIn, and GitHub are approved as public contact channels; the phone number should be omitted by default.\n\nThe main items still open are personal ownership details for the projects, verification of supplied links and metrics, confirmation that employer and project names may be published, and any preferred visual references or deadlines. These uncertainties are clearly recorded so later stages do not invent claims. The full detailed Portfolio Discovery Brief and structured profile have been prepared and are ready for approval and the next stage.",
+    "approved_brief_title": "Aarav Mehta — Design-Led Architecture Portfolio Discovery Brief",
+    "user_summary": "Your portfolio direction is now centered on a design-led architectural identity, supported by strong technical delivery. The brief positions you as an architect who connects concept design, spatial planning, climate-responsive thinking, visual communication, Revit/BIM coordination, documentation, consultant coordination, and site execution.\n\nThe strongest potential portfolio stories are The Courtyard Residences, Orbit Business Centre, and either Aranya Private Villas or Nexa Corporate Headquarters. Your current Senior Architect role, broad project exposure, multidisciplinary coordination, mentoring experience, and supplied project-scale evidence provide a substantial foundation.\n\nA few decisions remain open: which project images and drawings may be published, whether project or employer names are confidential, which contact links should be displayed, and which metrics or award claims can be confirmed. Your phone number is excluded by default for privacy. The full detailed Portfolio Discovery Brief has been prepared and is ready for your review and approval before the next stage.",
     "profile": {
-      "name": "Arjun Sharma",
+      "name": "Aarav Mehta",
       "links": [
         {
-          "url": "linkedin.com/in/arjunsharma-dev",
+          "url": "aaravmehta-architecture.com/portfolio",
+          "label": "Architecture Portfolio"
+        },
+        {
+          "url": "linkedin.com/in/aaravmehta-architect",
           "label": "LinkedIn"
         },
         {
-          "url": "github.com/arjunsharma-dev",
-          "label": "GitHub"
+          "url": "behance.net/aaravmehta-architecture",
+          "label": "Behance"
         },
         {
-          "url": "arjunsharma.dev",
-          "label": "Portfolio"
+          "url": "instagram.com/aarav.arch.designs",
+          "label": "Instagram"
         },
         {
-          "url": "leetcode.com/u/arjunsharma",
-          "label": "LeetCode"
-        },
-        {
-          "url": "geeksforgeeks.org/user/arjunsharma",
-          "label": "GeeksforGeeks"
-        },
-        {
-          "url": "dev.to/arjunsharma-dev",
-          "label": "Technical Blog"
+          "url": "issuu.com/aaravmehta-architecture",
+          "label": "Issuu Portfolio"
         }
       ],
       "skills": [
-        "Java",
-        "JavaScript",
-        "TypeScript",
-        "Python",
-        "SQL",
-        "C++",
-        "React.js",
-        "Next.js",
-        "HTML5",
-        "CSS3",
-        "Tailwind CSS",
-        "Redux Toolkit",
-        "Material UI",
-        "Spring Boot",
-        "Node.js",
-        "Express.js",
-        "REST APIs",
-        "Microservices",
-        "WebSockets",
-        "PostgreSQL",
-        "MySQL",
-        "MongoDB",
-        "Redis",
-        "AWS EC2",
-        "AWS S3",
-        "AWS RDS",
-        "AWS CloudWatch",
-        "Docker",
-        "GitHub Actions",
-        "Jenkins",
-        "Nginx",
-        "JUnit",
-        "Mockito",
-        "Jest",
-        "Postman",
-        "React Testing Library",
-        "Git",
-        "GitHub",
-        "Jira",
-        "IntelliJ IDEA",
-        "VS Code",
-        "Linux",
-        "Maven",
-        "npm",
-        "RabbitMQ",
-        "FastAPI",
-        "DSA",
-        "OOP",
-        "SOLID Principles",
-        "Design Patterns",
-        "System Design",
-        "DBMS",
-        "Operating Systems",
-        "Computer Networks",
-        "Authentication",
-        "Authorization",
-        "Caching",
-        "Message Queues",
-        "CI/CD",
-        "Agile/Scrum"
+        "Architectural design",
+        "Concept design",
+        "Schematic design",
+        "Design development",
+        "Space planning",
+        "Site planning",
+        "Façade design",
+        "Residential design",
+        "Commercial architecture",
+        "Hospitality design",
+        "Interior architecture",
+        "Master planning",
+        "Working drawings",
+        "GFC drawings",
+        "Construction documentation",
+        "Architectural detailing",
+        "BIM modelling",
+        "Revit Architecture",
+        "BIM coordination",
+        "Clash resolution",
+        "CAD-to-BIM",
+        "Revit families",
+        "Model quality control",
+        "Consultant management",
+        "Vendor coordination",
+        "Contractor coordination",
+        "Site supervision",
+        "RFIs",
+        "Shop drawing review",
+        "Material approval",
+        "Tender documentation",
+        "BOQ support",
+        "Snagging",
+        "Project handover",
+        "AutoCAD",
+        "Autodesk Revit",
+        "SketchUp",
+        "Lumion",
+        "Enscape",
+        "Adobe Photoshop",
+        "Adobe InDesign",
+        "V-Ray",
+        "Rhino 3D",
+        "Navisworks",
+        "Microsoft Excel",
+        "Microsoft PowerPoint",
+        "Microsoft Word",
+        "Autodesk Construction Cloud",
+        "BIM 360",
+        "NBC",
+        "FAR/FSI",
+        "Accessibility",
+        "Fire and life safety",
+        "Climate-responsive design"
       ],
       "location": "Bengaluru, Karnataka, India",
       "projects": [
         {
-          "link": "github.com/arjunsharma-dev/devconnect",
-          "name": "DevConnect",
+          "link": "",
+          "name": "The Courtyard Residences",
           "tech": [
-            "React.js",
-            "Node.js",
-            "Express.js",
-            "PostgreSQL",
-            "Redis",
-            "AWS",
-            "Docker"
+            "Autodesk Revit",
+            "BIM coordination"
           ],
-          "summary": "Developer networking platform with profiles, posts, follows, comments, authentication, caching, image uploads, and AWS deployment.",
-          "contribution": "Built full-stack functionality, REST APIs, authentication and authorization, caching, pagination, responsive interfaces, Docker setup, CI workflows, and deployment."
+          "summary": "Luxury residential development in Bengaluru; 4.8 lakh sq. ft.; approximately ₹95 crore as supplied.",
+          "contribution": "Senior Architect / Project Coordinator; design development, unit planning, consultant coordination, GFC packages, conflict resolution, material reviews, site inspections, and RFIs."
         },
         {
-          "link": "github.com/arjunsharma-dev/shopsphere",
-          "name": "ShopSphere",
+          "link": "",
+          "name": "Orbit Business Centre",
           "tech": [
-            "Java",
-            "Spring Boot",
-            "PostgreSQL",
-            "Redis",
-            "RabbitMQ",
-            "Docker"
+            "Autodesk Revit"
           ],
-          "summary": "E-commerce backend supporting products, carts, orders, inventory, payments, and notifications.",
-          "contribution": "Designed REST services, database schemas and indexes, Redis caching, RabbitMQ processing, idempotency handling, JWT/RBAC, validation, logging, tests, OpenAPI documentation, and Docker setup."
+          "summary": "Commercial office development in Bengaluru; 3.2 lakh sq. ft.",
+          "contribution": "Project Architect; space and core planning, life-safety and accessibility coordination, façade options, multidisciplinary coordination, Revit models, and construction drawings."
         },
         {
-          "link": "github.com/arjunsharma-dev/codepulse",
-          "name": "CodePulse",
+          "link": "",
+          "name": "Aranya Private Villas",
           "tech": [
-            "Next.js",
-            "TypeScript",
-            "Python",
-            "FastAPI",
-            "PostgreSQL",
-            "GitHub API"
+            "SketchUp",
+            "Lumion"
           ],
-          "summary": "GitHub engineering analytics dashboard displaying repository activity, contributors, issues, pull requests, and development trends.",
-          "contribution": "Integrated the GitHub API, implemented synchronization and background jobs, built analytics processing and dashboard pages, and added rate-limit handling, retries, logging, and caching."
+          "summary": "Residential development comprising 24 luxury villas in Jaipur.",
+          "contribution": "Architect; villa layouts, climate and privacy responses, working drawings, visualizations, interior coordination, detailing, and site visits."
+        },
+        {
+          "link": "",
+          "name": "Nexa Corporate Headquarters",
+          "tech": [],
+          "summary": "Corporate interior project in Noida; 72,000 sq. ft.",
+          "contribution": "Architect / Interior Coordination; workplace planning, detailed drawings, services coordination, vendor coordination, site inspections, and snagging."
+        },
+        {
+          "link": "",
+          "name": "The Grove Residences",
+          "tech": [],
+          "summary": "Residential development in Gurugram; 2.4 lakh sq. ft.",
+          "contribution": ""
+        },
+        {
+          "link": "",
+          "name": "Riverstone Café",
+          "tech": [],
+          "summary": "Hospitality interior and façade renovation in New Delhi.",
+          "contribution": ""
         }
       ],
       "education": [
         {
-          "dates": "2019 – 2023",
-          "credential": "Bachelor of Technology (B.Tech) in Computer Science & Engineering; CGPA: 8.4/10",
-          "institution": "Rajasthan Technical University, Kota"
+          "dates": "2016 – 2021",
+          "credential": "Bachelor of Architecture (B.Arch); CGPA: 8.3/10",
+          "institution": "School of Planning and Architecture, Bhopal"
+        },
+        {
+          "dates": "2023",
+          "credential": "Autodesk Certified Professional — Revit for Architectural Design",
+          "institution": "Autodesk"
+        },
+        {
+          "dates": "2022",
+          "credential": "BIM Fundamentals for Architects",
+          "institution": "Autodesk Learning / Professional Training"
+        },
+        {
+          "dates": "2023",
+          "credential": "Introduction to Green Buildings & Sustainable Design",
+          "institution": "GRIHA Council"
+        },
+        {
+          "dates": "2024",
+          "credential": "Construction Project Management Fundamentals",
+          "institution": ""
         }
       ],
       "experience": [
         {
-          "role": "Software Engineer",
-          "dates": "July 2024 – Present",
+          "role": "Senior Architect",
+          "dates": "April 2024 – Present",
           "highlights": [
-            "Developed customer-facing applications using Java, Spring Boot, React.js, PostgreSQL, Redis, and AWS.",
-            "Implemented 20+ REST API endpoints.",
-            "Reduced a high-traffic API from approximately 850 ms to 320 ms.",
-            "Implemented JWT authentication and role-based access control.",
-            "Used Docker, GitHub Actions, AWS EC2, RDS, S3, and CloudWatch.",
-            "Maintained approximately 80% test coverage for newly developed backend modules.",
-            "Mentored two new developers."
+            "Architectural design and coordination for residential, commercial, hospitality, and mixed-use developments.",
+            "Concept design, design development, GFC documentation, BIM coordination, consultant coordination, site inspections, RFIs, material review, and handover support.",
+            "Mentored 4 junior architects and architectural interns."
           ],
-          "organization": "TechNova Solutions Pvt. Ltd."
+          "organization": "Studio Axis Architects Pvt. Ltd."
         },
         {
-          "role": "Associate Software Engineer",
-          "dates": "August 2023 – June 2024",
+          "role": "Architect",
+          "dates": "July 2021 – March 2024",
           "highlights": [
-            "Developed backend modules using Java, Spring Boot, MySQL, and REST APIs.",
-            "Developed responsive frontend pages using React.js, JavaScript, HTML, CSS, and Material UI.",
-            "Reduced report generation time by approximately 35% through query and index optimization.",
-            "Fixed 40+ functional and production defects.",
-            "Supported deployment and troubleshooting on Linux servers."
+            "Worked on architectural and interior projects including group housing, villas, offices, retail, restaurants, and institutional buildings.",
+            "Prepared drawings, 3D models, visualizations, authority submissions, coordination mark-ups, detail packages, and site-progress reports."
           ],
-          "organization": "Infobyte Technologies Pvt. Ltd."
+          "organization": "UrbanFrame Design Studio"
+        },
+        {
+          "role": "Architectural Intern",
+          "dates": "January 2021 – June 2021",
+          "highlights": [
+            "Supported design development, drawings, models, visualizations, site surveys, material research, presentations, and tender documentation."
+          ],
+          "organization": "Form & Habitat Architects"
         }
       ],
-      "current_title": "Software Engineer",
+      "current_title": "Senior Architect",
       "private_omitted": [
         "Personal phone number",
-        "Email address unless explicitly published through the approved email CTA",
-        "Availability and 30-day notice period unless explicitly requested",
-        "Preferred work locations and remote-work preference unless explicitly requested"
+        "Home town: Ahmedabad, Gujarat",
+        "Nationality: Indian",
+        "Notice period: 30 days",
+        "COA registration number pending explicit public-display approval",
+        "Email and social links pending explicit public-display approval"
       ],
       "spoken_languages": [
-        "English — Professional Proficiency",
-        "Hindi — Native/Bilingual"
+        "English",
+        "Hindi",
+        "Gujarati"
       ]
     },
     "open_items": [
-      "Confirm personal ownership and collaboration context for DevConnect, ShopSphere, and CodePulse.",
-      "Verify the supplied project, profile, portfolio, and blog links before publication.",
-      "Confirm that TechNova, Infobyte, employer-related details, and project names may be published.",
-      "Confirm whether the supplied metrics and achievements can be used publicly as written.",
-      "Decide whether availability, notice period, preferred cities, and work preference belong in the portfolio.",
-      "No visual references, deadline, explicit light/dark preference, or custom CTA wording were supplied."
+      "Confirm which project images, drawings, renders, photographs, and diagrams may be published.",
+      "Confirm confidentiality status of employers, clients, project names, project metrics, and work samples.",
+      "Confirm which public contact links should appear; personal phone number is omitted by default.",
+      "Confirm attribution and personal contribution for each featured project.",
+      "Verify metrics, award wording, competition status, and project outcomes before prominent publication.",
+      "Choose final visual preferences such as light/dark mode, motion level, and content density if desired."
     ],
-    "discovery_brief_hash": "414d710fca5a9139b005a9aaa61a0dae3787fdea0aaac30103b91f0245c8ddab",
+    "discovery_brief_hash": "c0a32cbe9e6e7dc9f0864988a70602884fe390c24c0e604e599300b6aeb4a4ec",
     "discovery_session_revision": 6
   },
   "preferences": {
@@ -210,50 +231,49 @@
     "density": ""
   },
   "version": "content_architect.plan_content.v3",
-  "run_id": "e46984ad-0ed6-4a9d-8e47-08b6577cedd9",
-  "job_id": "738a4366-796b-4840-96ce-d3ce736abe53",
-  "user_summary": "The portfolio is planned as a focused single page for backend and platform engineering opportunities, with enough full-stack context to show range without diluting the main positioning. It leads with Arjun’s production-oriented engineering strengths, then supports them with three project stories covering developer networking, e-commerce services, and engineering analytics.\n\nThe strongest content is the positioning around APIs, distributed-system patterns, authentication, caching, cloud deployment, testing, and observability, followed by concise project summaries that explain what was built and which technologies were used. Unsupported or still-unconfirmed numbers, employer names, project names, and direct links have been left out of the publishable copy for now.\n\nThe structure is complete and ready for the next stage. Before publication, the supplied metrics, names, ownership details, and URLs should be verified.",
+  "run_id": "ff1c1ea5-6370-4a59-8cf7-3d6994355daf",
+  "job_id": "c9dcc4e5-6cec-49c4-aac0-18df381f8372",
+  "user_summary": "This plan recommends a focused single-page architecture portfolio that presents Aarav Mehta as a design-led Senior Architect who connects spatial thinking with technical delivery, BIM coordination, documentation, and site execution. The page leads with a clear professional introduction, then uses The Courtyard Residences and Orbit Business Centre as the strongest project stories, with Aranya Private Villas and Nexa Corporate Headquarters supporting the broader project range.\n\nThe content is written using neutral, publishable language and avoids unconfirmed outcomes, awards, private contact details, and unsupported ownership claims. Project areas and the Courtyard project value are retained in the review record but not used as prominent public claims until confirmed. Image permissions, confidentiality of project and employer names, final attribution, and approved contact links remain unresolved. The content plan is complete and ready for the Visual Design Director.",
   "site_story_strategy": {
-    "positioning": "Backend and platform-oriented Software Engineer who builds APIs, services, and full-stack systems with Java, Spring Boot, Node.js, databases, cloud infrastructure, and operational tooling.",
+    "positioning": "A design-led Senior Architect who carries architectural ideas through spatial planning, coordinated documentation, BIM workflows, and site delivery.",
     "content_risks": [
-      "Personal ownership and collaboration context for the projects is not fully confirmed.",
-      "Supplied metrics and achievement details require verification before publication.",
-      "Employer names, project names, and links require publication confirmation."
+      "Project names, employer names, images, drawings, and work samples may require confidentiality or attribution confirmation.",
+      "Exact project areas and financial figures should not be presented as prominent claims until verified.",
+      "No project outcome or award claim is supplied."
     ],
     "evidence_lead": [
-      "Backend and platform skill breadth",
-      "Production-oriented experience with APIs, authentication, cloud services, Docker, CI, monitoring, and testing",
-      "Selected project contributions involving service design, caching, queues, synchronization, and deployment"
+      "Current Senior Architect role and breadth of responsibilities",
+      "The Courtyard Residences as a coordination-intensive residential project",
+      "Orbit Business Centre as a commercial planning and life-safety coordination project"
     ],
     "evidence_omit": [
-      "Unverified performance and coverage metrics",
-      "Employer names pending publication confirmation",
-      "Project names and URLs pending confirmation",
-      "Private phone number, email address, availability, notice period, and work preferences"
+      "Unconfirmed project outcomes, awards, competition status, and exact financial claims",
+      "Private personal details and unapproved contact information",
+      "Projects without supplied contribution details as featured case studies"
     ],
     "evidence_shorten": [
-      "Long technology inventories",
-      "Secondary coding and developer-profile links",
-      "Detailed education and language information"
+      "Long software and skills inventory",
+      "Earlier employment history",
+      "The Grove Residences and Riverstone Café, where personal contribution is not supplied"
     ],
     "evidence_support": [
-      "Full-stack capability with React.js and Next.js",
-      "Education in Computer Science and Engineering",
-      "Testing, documentation, and development workflow tools"
+      "Aranya Private Villas for climate, privacy, visualization, and residential detailing",
+      "Nexa Corporate Headquarters for workplace planning, services coordination, vendors, and snagging",
+      "Education, Revit certification, selected capabilities, and mentoring experience"
     ],
-    "primary_audience": "Hiring managers and technical recruiters hiring backend, platform, or full-stack Software Engineers.",
+    "primary_audience": "Architecture and design practices seeking a Senior Architect or project-focused architectural collaborator.",
     "unresolved_facts": [
-      "Whether employer and project names may be published",
-      "Whether exact supplied metrics may be used publicly",
-      "Whether project links and profile URLs are correct",
-      "Preferred CTA wording and visual direction"
+      "Publication permission for project media and work samples",
+      "Confidentiality status of employers, clients, and project names",
+      "Final public contact channel",
+      "Project-level attribution confirmation"
     ],
     "presentation_mode": "single_page",
-    "value_proposition": "Arjun combines backend depth with practical product delivery: designing service APIs, applying authentication and authorization, improving data access, adding caching and asynchronous processing, and supporting deployment and reliability workflows.",
-    "secondary_audience": "Engineering leads and founders evaluating practical system-building capability.",
-    "main_visitor_action": "Review the selected technical work and connect through an approved professional profile.",
-    "presentation_rationale": "The profile has several strong experience and project themes, but the open publication and ownership questions make separate case-study routes premature. A single page can present the backend/platform thesis, production experience, and three concise project summaries without creating thin or overclaimed pages.",
-    "central_narrative_thesis": "From application features to platform foundations, Arjun builds dependable software across APIs, data, infrastructure, and user-facing product surfaces."
+    "value_proposition": "Aarav Mehta brings together architectural design, technical coordination, Revit/BIM delivery, consultant collaboration, and construction-stage support across residential, commercial, hospitality, and interior projects.",
+    "secondary_audience": "Developers, consultants, and clients evaluating architectural coordination and technical delivery capability.",
+    "main_visitor_action": "Review the selected project work and proceed to connect through an approved professional channel once one is confirmed.",
+    "presentation_rationale": "The profile has enough breadth for a persuasive single narrative, but only four projects include meaningful contribution details. A single page can give those projects context without creating thin case-study routes for projects whose ownership and process are not documented.",
+    "central_narrative_thesis": "Good architectural work depends on continuity between concept, coordination, documentation, and what is resolved on site."
   },
   "decision_basis": [
     {
@@ -261,253 +281,387 @@
       "value": "single_page",
       "basis": "source_derived",
       "confidence": "high",
-      "rationale": "The supplied profile supports one coherent narrative, while unresolved project ownership and publication details do not yet justify dedicated case-study routes."
+      "rationale": "Four projects support useful summaries, while the remaining project records are too thin for dedicated routes."
     },
     {
       "decision": "primary_audience",
-      "value": "Backend and platform engineering hiring teams",
+      "value": "architecture and design practices",
       "basis": "source_derived",
       "confidence": "high",
-      "rationale": "The brief explicitly prioritizes backend and platform-oriented Software Engineer roles."
+      "rationale": "The current Senior Architect role and the supplied design, coordination, documentation, and site responsibilities point to professional architectural hiring and collaboration."
     },
     {
       "decision": "primary visitor action/CTA",
-      "value": "Connect through LinkedIn",
-      "basis": "source_derived",
+      "value": "review selected work and connect through an approved professional channel",
+      "basis": "safe_default",
       "confidence": "medium",
-      "rationale": "LinkedIn is supplied as an approved professional contact channel, while email is not available for direct publication."
+      "rationale": "No preferred goal or approved public contact channel was supplied."
     },
     {
       "decision": "tone",
-      "value": "Clear, technical, grounded, and professional",
+      "value": "precise, composed, design-led, and practical",
       "basis": "source_derived",
-      "confidence": "medium",
-      "rationale": "The brief calls for a technical-editorial presentation with readable technical evidence."
+      "confidence": "high",
+      "rationale": "The profile combines architectural intent with technical delivery and coordination responsibilities."
     },
     {
       "decision": "content density",
-      "value": "Moderate",
-      "basis": "source_derived",
-      "confidence": "high",
-      "rationale": "The Discovery summary explicitly recommends moderate density and strong emphasis on readable evidence."
+      "value": "focused medium density",
+      "basis": "safe_default",
+      "confidence": "medium",
+      "rationale": "The page needs enough detail to establish senior capability without padding the sparse project records."
     }
   ],
   "route_plan": [
     {
-      "route_id": "route:home",
+      "route_id": "home",
       "path": "/",
-      "title": "Arjun Sharma — Backend & Platform Engineer",
-      "purpose": "Present the complete professional narrative and selected technical work on one focused page.",
-      "audience_takeaway": "Arjun can contribute across backend services, platform concerns, cloud delivery, and full-stack product development.",
+      "title": "Aarav Mehta — Architect",
+      "purpose": "Present the professional positioning, selected work, capabilities, experience, and education in one coherent portfolio page.",
+      "audience_takeaway": "Aarav is a design-led Senior Architect with practical strength across concept development, BIM coordination, documentation, and site-stage delivery.",
       "priority": "primary",
-      "content_density": "moderate",
+      "content_density": "focused medium",
       "section_sequence": [
-        "home:hero",
+        "home:introduction",
+        "home:featured-projects",
+        "home:project-courtyard",
+        "home:project-orbit",
+        "home:project-range",
         "home:capabilities",
         "home:experience",
-        "home:selected-work",
         "home:education",
         "home:connect"
       ],
-      "mobile_notes": "Keep the thesis and primary CTA immediately visible; collapse long skill lists and use concise project summaries with progressive detail.",
+      "mobile_notes": "Keep the positioning and two featured projects prominent; collapse long capability lists and secondary experience details into concise groups.",
       "source_refs": [
+        "profile.name",
         "profile.current_title",
-        "profile.skills",
+        "profile.location",
         "profile.experience",
         "profile.projects",
+        "profile.skills",
         "profile.education",
-        "profile.links"
+        "profile.spoken_languages"
       ],
       "publication_status": "approved"
     }
   ],
   "page_content_packs": [
     {
-      "route_id": "route:home",
+      "route_id": "home",
       "sections": [
         {
-          "section_id": "home:hero",
-          "purpose": "Establish the professional positioning and invite the visitor to explore the work.",
+          "section_id": "home:introduction",
+          "purpose": "Establish identity, positioning, location, and professional value.",
           "content": {
-            "body": "I’m Arjun Sharma, a Software Engineer working across backend services, platform foundations, and full-stack product development. I build practical systems with Java, Spring Boot, Node.js, databases, cloud infrastructure, and modern delivery workflows.",
-            "eyebrow": "Software Engineer · Backend & Platform",
-            "headline": "Building dependable systems from API to deployment.",
+            "body": "I work across architectural design, spatial planning, BIM coordination, documentation, and site-stage delivery. Based in Bengaluru, I contribute to residential, commercial, hospitality, and interior projects with a focus on clear decisions and coordinated execution.",
+            "eyebrow": "Aarav Mehta · Senior Architect",
+            "headline": "Design thinking, carried through to delivery.",
             "location": "Bengaluru, Karnataka, India",
-            "primary_cta": "Connect on LinkedIn"
+            "cta_label": "Explore selected work"
           },
           "claim_ids": [
-            "claim:role",
-            "claim:technologies"
+            "claim:senior-architect",
+            "claim:design-coordination"
           ],
           "priority": "primary",
           "optional": false,
-          "mobile_condensation": "Keep the headline, first sentence, location, and primary CTA; shorten the supporting technology list.",
+          "mobile_condensation": "Retain the headline, one-sentence positioning, and location; shorten the body to one sentence.",
           "link_targets": [
             {
-              "href": "https://linkedin.com/in/arjunsharma-dev",
-              "kind": "external",
-              "label": "Connect on LinkedIn"
+              "href": "home:featured-projects",
+              "kind": "internal",
+              "label": "Explore selected work"
             }
           ]
         },
         {
-          "section_id": "home:capabilities",
-          "purpose": "Translate the skills inventory into a concise capability narrative.",
+          "section_id": "home:featured-projects",
+          "purpose": "Introduce the selected project narrative before the detailed stories.",
           "content": {
-            "intro": "My work connects application development with the concerns that make systems useful in practice.",
-            "capabilities": [
+            "intro": "A selection of projects showing how design development, coordination, documentation, and site involvement connect across different scales and typologies.",
+            "heading": "Selected work",
+            "projects": [
               {
-                "title": "Backend services",
-                "description": "REST APIs, Spring Boot, Node.js, Express.js, FastAPI, authentication, authorization, and service-oriented design."
+                "name": "The Courtyard Residences",
+                "descriptor": "Residential design development and project coordination"
               },
               {
-                "title": "Data and system behavior",
-                "description": "PostgreSQL, MySQL, MongoDB, Redis, caching, query design, pagination, and message queues."
+                "name": "Orbit Business Centre",
+                "descriptor": "Commercial planning and multidisciplinary coordination"
               },
               {
-                "title": "Delivery and operations",
-                "description": "AWS, Docker, CI/CD, Linux, Nginx, logging, monitoring, testing, and deployment workflows."
+                "name": "Aranya Private Villas",
+                "descriptor": "Climate-responsive residential design and visualization"
               },
               {
-                "title": "Product surfaces",
-                "description": "React.js, Next.js, TypeScript, responsive interfaces, and the full-stack work needed to connect users to backend systems."
+                "name": "Nexa Corporate Headquarters",
+                "descriptor": "Workplace planning and interior coordination"
               }
             ]
           },
           "claim_ids": [
-            "claim:technologies"
+            "claim:courtyard-contribution",
+            "claim:orbit-contribution",
+            "claim:aranya-contribution",
+            "claim:nexa-contribution"
           ],
           "priority": "primary",
           "optional": false,
-          "mobile_condensation": "Show capability titles first and reduce each description to one line.",
+          "mobile_condensation": "Show the two lead projects first and condense the supporting projects into a short list.",
+          "link_targets": [
+            {
+              "href": "home:project-courtyard",
+              "kind": "internal",
+              "label": "The Courtyard Residences"
+            },
+            {
+              "href": "home:project-orbit",
+              "kind": "internal",
+              "label": "Orbit Business Centre"
+            }
+          ]
+        },
+        {
+          "section_id": "home:project-courtyard",
+          "purpose": "Provide the strongest residential project story through contribution and process.",
+          "content": {
+            "role": "Senior Architect / Project Coordinator",
+            "type": "Residential development · Bengaluru",
+            "tools": [
+              "Autodesk Revit",
+              "BIM coordination"
+            ],
+            "summary": "A residential project where my work connected design development and unit planning with the coordination needed to move documentation and site decisions forward.",
+            "contribution": [
+              "Design development and unit planning",
+              "Consultant coordination and conflict resolution",
+              "GFC package development",
+              "Material reviews, site inspections, and RFIs"
+            ],
+            "project_name": "The Courtyard Residences"
+          },
+          "claim_ids": [
+            "claim:courtyard-contribution"
+          ],
+          "priority": "primary",
+          "optional": false,
+          "mobile_condensation": "Keep the role, summary, and three contribution points; place tools in a compact line.",
+          "link_targets": []
+        },
+        {
+          "section_id": "home:project-orbit",
+          "purpose": "Show commercial planning, compliance coordination, and technical documentation capability.",
+          "content": {
+            "role": "Project Architect",
+            "type": "Commercial office development · Bengaluru",
+            "tools": [
+              "Autodesk Revit"
+            ],
+            "summary": "My role focused on shaping office planning and coordinating the architectural information required across design and construction documentation.",
+            "contribution": [
+              "Space and core planning",
+              "Life-safety and accessibility coordination",
+              "Façade options and multidisciplinary coordination",
+              "Revit models and construction drawings"
+            ],
+            "project_name": "Orbit Business Centre"
+          },
+          "claim_ids": [
+            "claim:orbit-contribution"
+          ],
+          "priority": "primary",
+          "optional": false,
+          "mobile_condensation": "Retain the project type, role, and the planning and coordination points; shorten the introduction.",
+          "link_targets": []
+        },
+        {
+          "section_id": "home:project-range",
+          "purpose": "Demonstrate breadth without creating unsupported case studies.",
+          "content": {
+            "heading": "Across scales and typologies",
+            "projects": [
+              {
+                "name": "Aranya Private Villas",
+                "role": "Architect",
+                "type": "Residential development · Jaipur",
+                "description": "Villa layouts, climate and privacy responses, working drawings, visualizations, interior coordination, detailing, and site visits."
+              },
+              {
+                "name": "Nexa Corporate Headquarters",
+                "role": "Architect / Interior Coordination",
+                "type": "Corporate interior · Noida",
+                "description": "Workplace planning, detailed drawings, services and vendor coordination, site inspections, and snagging."
+              }
+            ]
+          },
+          "claim_ids": [
+            "claim:aranya-contribution",
+            "claim:nexa-contribution"
+          ],
+          "priority": "supporting",
+          "optional": false,
+          "mobile_condensation": "Use one concise sentence per project and omit secondary descriptors if space is limited.",
+          "link_targets": []
+        },
+        {
+          "section_id": "home:capabilities",
+          "purpose": "Translate the skills inventory into useful capability groups.",
+          "content": {
+            "groups": [
+              {
+                "items": [
+                  "Concept and schematic design",
+                  "Design development",
+                  "Space and site planning",
+                  "Façade design",
+                  "Residential, commercial, hospitality, and interior architecture"
+                ],
+                "label": "Design"
+              },
+              {
+                "items": [
+                  "Working and GFC drawings",
+                  "Construction documentation",
+                  "Architectural detailing",
+                  "BIM modelling and coordination",
+                  "Clash resolution and model quality control"
+                ],
+                "label": "Technical delivery"
+              },
+              {
+                "items": [
+                  "Consultant, vendor, and contractor coordination",
+                  "RFIs and shop drawing review",
+                  "Material approval",
+                  "Site supervision, snagging, and handover support"
+                ],
+                "label": "Project coordination"
+              },
+              {
+                "items": [
+                  "Autodesk Revit, AutoCAD, Navisworks",
+                  "SketchUp, Lumion, Enscape, Rhino 3D",
+                  "Adobe Photoshop and InDesign",
+                  "NBC, FAR/FSI, accessibility, fire and life safety, climate-responsive design"
+                ],
+                "label": "Tools and standards"
+              }
+            ],
+            "heading": "Capabilities"
+          },
+          "claim_ids": [],
+          "priority": "supporting",
+          "optional": false,
+          "mobile_condensation": "Display capability group labels with a short subset first; allow the full lists to follow in a compact format.",
           "link_targets": []
         },
         {
           "section_id": "home:experience",
-          "purpose": "Show practical engineering experience without publishing unresolved employer names or metrics.",
+          "purpose": "Establish professional progression and collaboration experience.",
           "content": {
-            "entries": [
+            "roles": [
               {
-                "role": "Software Engineer",
-                "dates": "July 2024 – Present",
-                "description": "Develops customer-facing applications and backend services using Java, Spring Boot, React.js, PostgreSQL, Redis, and AWS. Work includes REST APIs, JWT authentication, role-based access control, Docker, CI workflows, cloud services, monitoring, testing, and mentoring new developers."
+                "role": "Senior Architect",
+                "dates": "April 2024 – Present",
+                "additional": "Mentored 4 junior architects and architectural interns.",
+                "description": "Architectural design and coordination across residential, commercial, hospitality, and mixed-use developments, including design development, GFC documentation, BIM and consultant coordination, site inspections, RFIs, material review, and handover support.",
+                "organization": "Studio Axis Architects Pvt. Ltd."
               },
               {
-                "role": "Associate Software Engineer",
-                "dates": "August 2023 – June 2024",
-                "description": "Developed backend modules and responsive frontend pages with Java, Spring Boot, MySQL, REST APIs, and React.js. Also supported query optimization, defect resolution, deployment, and troubleshooting on Linux servers."
+                "role": "Architect",
+                "dates": "July 2021 – March 2024",
+                "description": "Worked across architectural and interior projects, preparing drawings, 3D models, visualizations, authority submissions, coordination mark-ups, detail packages, and site-progress reports.",
+                "organization": "UrbanFrame Design Studio"
+              },
+              {
+                "role": "Architectural Intern",
+                "dates": "January 2021 – June 2021",
+                "description": "Supported design development, drawings, models, visualizations, site surveys, material research, presentations, and tender documentation.",
+                "organization": "Form & Habitat Architects"
               }
             ],
-            "heading": "Experience"
-          },
-          "claim_ids": [
-            "claim:production-systems"
-          ],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "Use a compact timeline with role, dates, and one short paragraph per entry.",
-          "link_targets": []
-        },
-        {
-          "section_id": "home:selected-work",
-          "purpose": "Provide concrete evidence through three project-level technical stories.",
-          "content": {
-            "intro": "A selection of systems spanning developer collaboration, commerce services, and engineering analytics.",
-            "heading": "Selected work",
-            "projects": [
-              {
-                "title": "Developer networking platform",
-                "summary": "A platform for developer profiles, posts, follows, comments, authentication, image uploads, and AWS deployment.",
-                "contribution": "The work covered full-stack functionality, REST APIs, authentication and authorization, caching, pagination, responsive interfaces, Docker setup, CI workflows, and deployment.",
-                "technologies": "React.js · Node.js · Express.js · PostgreSQL · Redis · AWS · Docker"
-              },
-              {
-                "title": "E-commerce backend",
-                "summary": "Backend services for products, carts, orders, inventory, payments, and notifications.",
-                "contribution": "The system incorporates REST services, database schemas and indexes, Redis caching, RabbitMQ processing, idempotency handling, JWT/RBAC, validation, logging, tests, API documentation, and Docker.",
-                "technologies": "Java · Spring Boot · PostgreSQL · Redis · RabbitMQ · Docker"
-              },
-              {
-                "title": "Engineering analytics dashboard",
-                "summary": "A dashboard for repository activity, contributors, issues, pull requests, and development trends using GitHub data.",
-                "contribution": "The work includes GitHub API integration, synchronization and background jobs, analytics processing, dashboard pages, rate-limit handling, retries, logging, and caching.",
-                "technologies": "Next.js · TypeScript · Python · FastAPI · PostgreSQL · GitHub API"
-              }
+            "heading": "Experience",
+            "languages": [
+              "English",
+              "Hindi",
+              "Gujarati"
             ]
           },
           "claim_ids": [
-            "claim:dev-networking",
-            "claim:ecommerce-services",
-            "claim:engineering-analytics"
+            "claim:senior-architect",
+            "claim:design-coordination",
+            "claim:mentoring"
           ],
-          "priority": "primary",
+          "priority": "supporting",
           "optional": false,
-          "mobile_condensation": "Stack projects vertically; show each summary before technical detail and keep technology labels on one compact line.",
+          "mobile_condensation": "Show the current role in full and compress earlier roles to role, organization, dates, and one-line descriptions.",
           "link_targets": []
         },
         {
           "section_id": "home:education",
-          "purpose": "Provide concise academic context.",
+          "purpose": "Provide formal education and selected professional credentials.",
           "content": {
-            "dates": "2019 – 2023",
-            "result": "CGPA: 8.4/10",
-            "heading": "Education",
-            "credential": "Bachelor of Technology in Computer Science & Engineering",
-            "institution": "Rajasthan Technical University, Kota"
+            "items": [
+              {
+                "dates": "2016 – 2021",
+                "credential": "Bachelor of Architecture (B.Arch)",
+                "institution": "School of Planning and Architecture, Bhopal"
+              },
+              {
+                "dates": "2023",
+                "credential": "Autodesk Certified Professional — Revit for Architectural Design",
+                "institution": "Autodesk"
+              },
+              {
+                "dates": "2022",
+                "credential": "BIM Fundamentals for Architects",
+                "institution": "Autodesk Learning / Professional Training"
+              },
+              {
+                "dates": "2023",
+                "credential": "Introduction to Green Buildings & Sustainable Design",
+                "institution": "GRIHA Council"
+              },
+              {
+                "dates": "2024",
+                "credential": "Construction Project Management Fundamentals",
+                "institution": ""
+              }
+            ],
+            "heading": "Education and credentials"
           },
           "claim_ids": [
-            "claim:education"
+            "claim:education",
+            "claim:revit-certification"
           ],
-          "priority": "secondary",
+          "priority": "supporting",
           "optional": true,
-          "mobile_condensation": "Reduce to credential, institution, and dates; retain the CGPA only if space permits.",
+          "mobile_condensation": "Lead with the degree and Revit certification; collapse other credentials into a compact list.",
           "link_targets": []
         },
         {
           "section_id": "home:connect",
-          "purpose": "End with a clear, approved professional connection path.",
+          "purpose": "Offer a safe, neutral closing action without exposing unapproved contact details.",
           "content": {
-            "body": "For backend, platform, or full-stack engineering conversations, connect with me on LinkedIn or explore my technical work on GitHub.",
-            "links": [
-              {
-                "href": "https://linkedin.com/in/arjunsharma-dev",
-                "kind": "external",
-                "label": "LinkedIn"
-              },
-              {
-                "href": "https://github.com/arjunsharma-dev",
-                "kind": "external",
-                "label": "GitHub"
-              }
-            ],
-            "heading": "Let’s connect"
+            "body": "For professional conversations about architectural design, coordination, and project delivery, connect through an approved professional channel.",
+            "heading": "Let’s connect",
+            "cta_label": "Contact details available on request"
           },
           "claim_ids": [],
-          "priority": "primary",
+          "priority": "supporting",
           "optional": false,
-          "mobile_condensation": "Keep the invitation and LinkedIn link prominent; place GitHub as a secondary action.",
-          "link_targets": [
-            {
-              "href": "https://linkedin.com/in/arjunsharma-dev",
-              "kind": "external",
-              "label": "LinkedIn"
-            },
-            {
-              "href": "https://github.com/arjunsharma-dev",
-              "kind": "external",
-              "label": "GitHub"
-            }
-          ]
+          "mobile_condensation": "Keep the heading and one short sentence.",
+          "link_targets": []
         }
       ],
       "internal_notes": {
-        "qa": [
-          "Verify LinkedIn and GitHub URLs.",
-          "Confirm whether employer and project names may be published.",
-          "Confirm exact metrics and ownership before adding them."
-        ],
-        "ownership_review": "Project descriptions intentionally use neutral project-level wording because individual ownership and collaboration context are unresolved.",
-        "publication_review": "Employer names, project names, URLs, and supplied metrics require confirmation before being restored to public copy."
+        "publication_review": [
+          "Confirm project and employer confidentiality before publishing names.",
+          "Confirm permission and attribution for all images, drawings, renders, photographs, and diagrams.",
+          "Do not add external links until a public channel is explicitly approved.",
+          "The Courtyard area and value are pending verification and intentionally omitted from visitor-facing copy."
+        ]
       }
     }
   ],
@@ -515,229 +669,245 @@
     "routes": [
       {
         "path": "/",
-        "title": "Arjun Sharma — Backend & Platform Engineer",
-        "status": "approved",
-        "route_id": "route:home",
-        "sections": [
-          "home:hero",
+        "title": "Aarav Mehta — Architect",
+        "route_id": "home",
+        "included_sections": [
+          "home:introduction",
+          "home:featured-projects",
+          "home:project-courtyard",
+          "home:project-orbit",
+          "home:project-range",
           "home:capabilities",
           "home:experience",
-          "home:selected-work",
           "home:education",
           "home:connect"
-        ]
+        ],
+        "publication_status": "approved"
       }
     ],
     "approved_claim_ids": [
-      "claim:role",
-      "claim:technologies",
-      "claim:production-systems",
-      "claim:dev-networking",
-      "claim:ecommerce-services",
-      "claim:engineering-analytics",
-      "claim:education"
+      "claim:senior-architect",
+      "claim:design-coordination",
+      "claim:mentoring",
+      "claim:courtyard-contribution",
+      "claim:orbit-contribution",
+      "claim:aranya-contribution",
+      "claim:nexa-contribution",
+      "claim:education",
+      "claim:revit-certification"
     ]
   },
   "claim_grounding": [
     {
-      "claim_id": "claim:role",
-      "statement": "Arjun Sharma is a Software Engineer focused on backend and platform-oriented development.",
-      "source_reference": "profile.current_title and approved_brief_title",
-      "source_entity_id": "profile:arjun_sharma",
+      "claim_id": "claim:senior-architect",
+      "statement": "Aarav Mehta is a Senior Architect.",
+      "source_reference": "profile.current_title; profile.experience[0]",
+      "source_entity_id": "experience:studio-axis",
       "evidence_status": "verified",
       "ownership": "individual",
       "publication_status": "approved",
-      "confidence_or_warning": "Current title is supplied; the backend/platform positioning is derived from the approved brief and skills."
+      "confidence_or_warning": "Current title and current role are supplied."
     },
     {
-      "claim_id": "claim:technologies",
-      "statement": "Arjun works with Java, Spring Boot, Node.js, React.js, PostgreSQL, Redis, AWS, Docker, and related engineering tools.",
-      "source_reference": "profile.skills and profile.projects",
-      "source_entity_id": "profile:arjun_sharma",
+      "claim_id": "claim:design-coordination",
+      "statement": "Aarav works across architectural design, technical coordination, documentation, and site support.",
+      "source_reference": "profile.experience[0].highlights; profile.skills",
+      "source_entity_id": "experience:studio-axis",
       "evidence_status": "verified",
       "ownership": "individual",
       "publication_status": "approved",
-      "confidence_or_warning": "Technology experience is supplied, but depth and duration for each technology are not specified."
+      "confidence_or_warning": "Describes supplied responsibilities without asserting project outcomes."
     },
     {
-      "claim_id": "claim:production-systems",
-      "statement": "Arjun has developed customer-facing applications and backend modules involving REST APIs, authentication, databases, cloud services, deployment, and monitoring.",
-      "source_reference": "profile.experience[0].highlights and profile.experience[1].highlights",
-      "source_entity_id": "experience:software_engineer",
+      "claim_id": "claim:mentoring",
+      "statement": "Aarav mentored four junior architects and architectural interns.",
+      "source_reference": "profile.experience[0].highlights[2]",
+      "source_entity_id": "experience:studio-axis",
       "evidence_status": "verified",
       "ownership": "individual",
       "publication_status": "approved",
-      "confidence_or_warning": "The supplied experience supports this neutral summary without publishing employer names or exact metrics."
+      "confidence_or_warning": "The count is supplied directly."
     },
     {
-      "claim_id": "claim:dev-networking",
-      "statement": "A developer networking platform was built with profiles, posts, follows, comments, authentication, caching, image uploads, and AWS deployment.",
-      "source_reference": "profile.projects[0].summary and contribution",
-      "source_entity_id": "project:developer_networking_platform",
-      "evidence_status": "verified",
-      "ownership": "unclear",
-      "publication_status": "approved",
-      "confidence_or_warning": "Project name and exact individual ownership remain unconfirmed; copy uses neutral project-level wording."
+      "claim_id": "claim:courtyard-scope",
+      "statement": "The Courtyard Residences is a luxury residential development in Bengaluru described as 4.8 lakh sq. ft. and approximately ₹95 crore.",
+      "source_reference": "profile.projects[0].summary",
+      "source_entity_id": "project:courtyard-residences",
+      "evidence_status": "unverified",
+      "ownership": "team",
+      "publication_status": "pending",
+      "confidence_or_warning": "Supplied project-scale information has not been independently verified and is omitted from approved public copy."
     },
     {
-      "claim_id": "claim:ecommerce-services",
-      "statement": "An e-commerce backend supports products, carts, orders, inventory, payments, and notifications, with caching and message-queue processing.",
-      "source_reference": "profile.projects[1].summary and contribution",
-      "source_entity_id": "project:ecommerce_backend",
+      "claim_id": "claim:courtyard-contribution",
+      "statement": "Aarav's supplied contribution to The Courtyard Residences included design development, unit planning, consultant coordination, GFC packages, conflict resolution, material reviews, site inspections, and RFIs.",
+      "source_reference": "profile.projects[0].contribution",
+      "source_entity_id": "project:courtyard-residences",
       "evidence_status": "verified",
-      "ownership": "unclear",
+      "ownership": "individual",
       "publication_status": "approved",
-      "confidence_or_warning": "The supplied material supports a project-level description, not a stronger solo ownership statement."
+      "confidence_or_warning": "Contribution is published as a responsibility description, not as a claimed project outcome."
     },
     {
-      "claim_id": "claim:engineering-analytics",
-      "statement": "An engineering analytics dashboard integrates GitHub data, synchronization jobs, analytics processing, and rate-limit handling.",
-      "source_reference": "profile.projects[2].summary and contribution",
-      "source_entity_id": "project:engineering_analytics_dashboard",
+      "claim_id": "claim:orbit-contribution",
+      "statement": "Aarav's supplied contribution to Orbit Business Centre included space and core planning, life-safety and accessibility coordination, façade options, multidisciplinary coordination, Revit models, and construction drawings.",
+      "source_reference": "profile.projects[1].contribution",
+      "source_entity_id": "project:orbit-business-centre",
       "evidence_status": "verified",
-      "ownership": "unclear",
+      "ownership": "individual",
       "publication_status": "approved",
-      "confidence_or_warning": "Project name and individual ownership remain unconfirmed; the public wording stays neutral."
+      "confidence_or_warning": "Contribution is stated without claiming sole ownership of the overall project."
+    },
+    {
+      "claim_id": "claim:aranya-contribution",
+      "statement": "Aarav's supplied contribution to Aranya Private Villas included villa layouts, climate and privacy responses, working drawings, visualizations, interior coordination, detailing, and site visits.",
+      "source_reference": "profile.projects[2].contribution",
+      "source_entity_id": "project:aranya-private-villas",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": "Contribution is supported by the project record."
+    },
+    {
+      "claim_id": "claim:nexa-contribution",
+      "statement": "Aarav's supplied contribution to Nexa Corporate Headquarters included workplace planning, detailed drawings, services coordination, vendor coordination, site inspections, and snagging.",
+      "source_reference": "profile.projects[3].contribution",
+      "source_entity_id": "project:nexa-corporate-headquarters",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": "Contribution is supported by the project record."
     },
     {
       "claim_id": "claim:education",
-      "statement": "Arjun holds a Bachelor of Technology in Computer Science and Engineering from Rajasthan Technical University, Kota.",
+      "statement": "Aarav holds a Bachelor of Architecture from the School of Planning and Architecture, Bhopal.",
       "source_reference": "profile.education[0]",
-      "source_entity_id": "education:btech_computer_science",
+      "source_entity_id": "education:spa-bhopal",
       "evidence_status": "verified",
       "ownership": "individual",
       "publication_status": "approved",
-      "confidence_or_warning": "Education details are supplied in the approved profile."
+      "confidence_or_warning": "Degree, institution, and dates are supplied."
     },
     {
-      "claim_id": "claim:performance-metric",
-      "statement": "A high-traffic API was reduced from approximately 850 ms to 320 ms.",
-      "source_reference": "profile.experience[0].highlights",
-      "source_entity_id": "experience:software_engineer",
-      "evidence_status": "unverified",
-      "ownership": "unclear",
-      "publication_status": "pending",
-      "confidence_or_warning": "The exact metric, measurement context, and individual ownership require confirmation."
-    },
-    {
-      "claim_id": "claim:test-coverage",
-      "statement": "Approximately 80% test coverage was maintained for newly developed backend modules.",
-      "source_reference": "profile.experience[0].highlights",
-      "source_entity_id": "experience:software_engineer",
-      "evidence_status": "unverified",
-      "ownership": "unclear",
-      "publication_status": "pending",
-      "confidence_or_warning": "The number and ownership context require confirmation."
-    },
-    {
-      "claim_id": "claim:report-performance",
-      "statement": "Report generation time was reduced by approximately 35% through query and index optimization.",
-      "source_reference": "profile.experience[1].highlights",
-      "source_entity_id": "experience:associate_software_engineer",
-      "evidence_status": "unverified",
-      "ownership": "unclear",
-      "publication_status": "pending",
-      "confidence_or_warning": "The metric and individual contribution require confirmation."
+      "claim_id": "claim:revit-certification",
+      "statement": "Aarav holds an Autodesk Certified Professional credential in Revit for Architectural Design.",
+      "source_reference": "profile.education[1]",
+      "source_entity_id": "education:autodesk-revit",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": "Credential is supplied in the profile."
     }
   ],
   "omissions": [
-    "Exact employer names omitted until publication permission is confirmed.",
-    "Exact project names and project links omitted until publication permission and URL accuracy are confirmed.",
-    "Performance, test-coverage, defect, and report-generation metrics omitted until verified.",
-    "Phone number, direct email address, availability, notice period, preferred locations, and remote-work preference omitted because they were marked private or not approved for inclusion.",
-    "Secondary profile links such as LeetCode, GeeksforGeeks, and the technical blog omitted to preserve focus."
+    "The Grove Residences and Riverstone Café are not featured because no personal contribution is supplied.",
+    "The Courtyard Residences area and approximate value are omitted from public copy pending verification.",
+    "No project outcomes, awards, competition status, or performance metrics are stated because none are confirmed.",
+    "Personal phone number, home town, nationality, notice period, and COA registration number are omitted under the supplied privacy settings.",
+    "External portfolio and social links are omitted until an approved public contact/link set is confirmed."
   ],
   "unresolved_issues": [
-    "Confirm publication permission for TechNova Solutions Pvt. Ltd., Infobyte Technologies Pvt. Ltd., and the named projects.",
-    "Verify supplied LinkedIn and GitHub URLs before publication.",
-    "Confirm the exact supplied metrics and the user's individual ownership of those outcomes.",
-    "Confirm project collaboration context and whether project-specific links should be restored.",
-    "No preferred CTA wording, visual references, deadline, or light/dark preference was supplied."
+    "Confirm publication permission for all project media and work samples.",
+    "Confirm confidentiality status of employers, clients, project names, and project metrics.",
+    "Confirm attribution and individual contribution for each featured project.",
+    "Verify the Courtyard Residences area and approximate value before publication.",
+    "Choose at least one approved public contact channel or replace the neutral closing CTA.",
+    "Confirm final preferences for visual mode, motion, and content density."
   ],
   "privacy_and_confidentiality": [
-    "Personal phone number is excluded.",
-    "Email address is excluded because the approved email CTA and address were not supplied for publication.",
-    "Availability, notice period, preferred work locations, and remote-work preference are excluded.",
-    "Employer and project names are generalized pending explicit publication confirmation."
+    "Personal phone number is not published.",
+    "Home town, nationality, notice period, and COA registration number are not published.",
+    "Email and social links are not published until explicit public-display approval.",
+    "Project and employer names remain subject to confidentiality confirmation before launch.",
+    "Project media and work samples require publication permission and attribution confirmation."
   ],
   "media_status": {
-    "profile_photo": "unknown",
-    "approved_media": [],
+    "note": "No media assets or publication permissions were supplied.",
+    "renders": "unknown",
+    "diagrams": "unknown",
+    "drawings": "unknown",
+    "photographs": "unknown",
     "project_images": "unknown",
-    "unavailable_media": [],
-    "project_demo_media": "unknown"
+    "approved_media_available": false
   },
   "visual_director_handoff": {
     "must_preserve": [
-      "Backend and platform-oriented positioning",
-      "Java and Spring Boot emphasis",
-      "APIs, authentication, databases, caching, cloud, Docker, CI, testing, and monitoring",
-      "Neutral project-level descriptions"
+      "Aarav Mehta",
+      "Senior Architect",
+      "Bengaluru, Karnataka, India",
+      "The distinction between individual responsibilities and overall team/project outcomes",
+      "The supplied project role descriptions"
     ],
-    "available_media": "No approved images, screenshots, diagrams, or project media were supplied.",
+    "available_media": [],
     "never_fabricate": [
-      "Metrics or outcomes",
-      "Employer or project publication permission",
-      "Individual ownership beyond the supplied facts",
-      "Screenshots, logos, testimonials, awards, certifications, or project demos"
+      "Project imagery or drawings",
+      "Project outcomes or awards",
+      "Metrics not verified from the source",
+      "Client or employer confidentiality clearance",
+      "Contact links or personal details",
+      "Exact visual, layout, color, typography, or motion decisions"
     ],
-    "density_guidance": "Moderate density with readable technical detail, short paragraphs, and compact technology groupings.",
-    "responsive_risks": [
-      "The skill inventory is extensive and should not become a dense wall of labels.",
-      "Project contribution text may need shortening on narrow screens.",
-      "Experience entries should remain scannable without exposing omitted employer names."
-    ],
+    "density_guidance": "Use focused medium density with clear opportunities to scan grouped skills and project responsibilities.",
     "content_hierarchy": [
-      "Lead with the backend/platform positioning and connection CTA.",
-      "Make capabilities and production experience the main proof.",
-      "Use selected work as concise technical evidence rather than full case studies.",
-      "Keep education and secondary links subordinate."
+      "Lead with the design-led positioning and the connection between design intent and delivery.",
+      "Give the most space to The Courtyard Residences and Orbit Business Centre.",
+      "Use Aranya Private Villas and Nexa Corporate Headquarters to establish breadth.",
+      "Keep capabilities, experience, and credentials supportive rather than dominant."
     ],
     "mobile_shortening": [
-      "Condense capability descriptions.",
-      "Stack project cards vertically.",
-      "Reduce education to one compact entry.",
-      "Prioritize LinkedIn over secondary links."
+      "Shorten the introduction body.",
+      "Prioritize the two lead projects.",
+      "Collapse capability groups and earlier experience.",
+      "Keep the closing CTA neutral until a channel is approved."
     ],
-    "unavailable_media": "Do not assume project screenshots, logos, demos, or performance charts exist.",
-    "diagram_opportunities": [
-      "A conceptual flow could explain the relationship between APIs, data stores, caching, asynchronous processing, and deployment, but it must be based only on the supplied technologies and project descriptions."
+    "unavailable_media": [
+      "No approved project imagery, drawings, renders, site photographs, or diagrams are currently available."
+    ],
+    "long_copy_responsive_risks": [
+      "Capability lists can become lengthy on narrow screens.",
+      "Experience descriptions should be condensed without losing the current-role emphasis.",
+      "Project contribution lists should remain readable as short, prioritized groups."
     ],
     "storytelling_opportunities": [
-      "Show the progression from backend implementation to broader platform concerns such as caching, queues, cloud deployment, testing, and monitoring.",
-      "Contrast the three project domains while preserving the common systems-engineering thread."
+      "Show the continuity from concept and planning through coordination, documentation, and site decisions.",
+      "Contrast residential, commercial, and workplace contexts while keeping the same delivery narrative.",
+      "Use the project roles to clarify Aarav's specific contribution without claiming sole project ownership."
     ],
     "confidentiality_restrictions": [
-      "Do not display private contact details.",
-      "Do not restore employer or project names until publication permission is confirmed.",
-      "Do not display unresolved metrics."
+      "Do not expose private contact details.",
+      "Do not assume project or employer names are cleared for publication.",
+      "Do not display project media without permission and attribution confirmation."
+    ],
+    "diagram_process_opportunities": [
+      "A words-only process narrative could show design development leading into coordinated documentation and site resolution.",
+      "A capability grouping could connect design, technical delivery, and project coordination."
     ]
   },
   "warnings": [
-    "The publishable copy is intentionally narrower than the Discovery snapshot until open items are resolved.",
-    "Do not treat team or unclear ownership as solo achievement."
+    "The page is content-complete but requires a final privacy, attribution, media, and contact review before publication.",
+    "Do not promote pending claims into public copy without verification."
   ],
   "stages_run": [
     "plan_content"
   ],
   "memory": {
-    "strategy": "Use a single-page, backend/platform-led portfolio for Arjun Sharma.",
+    "strategy": "Use a single-page, design-led architecture portfolio with two lead project stories and two supporting project summaries.",
     "pending_items": [
-      "Employer and project publication permission",
-      "URL verification",
-      "Metric verification",
-      "Project ownership context"
+      "Media permissions",
+      "Confidentiality confirmation",
+      "Project attribution",
+      "Verified metrics",
+      "Approved contact channel"
     ],
-    "safe_public_positioning": "Backend and platform-oriented Software Engineer with full-stack capability."
+    "approved_route_ids": [
+      "home"
+    ]
   },
   "revision_request": "",
-  "approved": {
-    "approved_at": "2026-08-13T15:21:39.070370+00:00",
-    "content_hash": "1af72347f4dadf75762b0707e70ea9d0de07fd6ef006bd6e1fe168e8da268477"
-  },
+  "approved": null,
   "latest_error": null,
   "attempt": 1,
   "max_attempts": 3,
-  "started_at": "2026-08-13T15:20:43.044911+00:00",
-  "elapsed_seconds": 56.042552
+  "started_at": "2026-08-19T10:38:03.053210+00:00",
+  "elapsed_seconds": 43.675247
 }

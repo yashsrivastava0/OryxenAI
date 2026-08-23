@@ -274,6 +274,24 @@ def test_provider_invalid_request_keeps_safe_provider_details() -> None:
     assert error.details["provider_request_id"] == "req_test"
 
 
+def test_provider_credit_exhaustion_is_not_a_retryable_rate_limit() -> None:
+    from oryxenai.agents.shared.providers.errors import ProviderAuthError, map_http_error
+
+    error = map_http_error(
+        429,
+        {
+            "error": {
+                "type": "insufficient_quota",
+                "message": "The account has no remaining credit.",
+            }
+        },
+    )
+
+    assert isinstance(error, ProviderAuthError)
+    assert error.code == "PROVIDER_CREDIT_EXHAUSTED"
+    assert error.retryable is False
+
+
 @pytest.mark.asyncio
 async def test_anthropic_adapter_requires_key(monkeypatch):
     monkeypatch.delenv("MISSING_ANTHROPIC_KEY", raising=False)

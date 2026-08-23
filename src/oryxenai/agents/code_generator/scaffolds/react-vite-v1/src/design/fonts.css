@@ -4,8 +4,3 @@
   --font-display: var(--font-body);
   --font-mono: ui-monospace, monospace;
 }
-:root {
-  --font-body: system-ui, sans-serif;
-  --font-display: var(--font-body);
-  --font-mono: ui-monospace, monospace;
-}

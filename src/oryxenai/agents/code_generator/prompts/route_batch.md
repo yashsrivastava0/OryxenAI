@@ -29,7 +29,7 @@ Ownership and shell boundary:
 
 Visual and implementation contract:
 
-- Use the exact token names and values emitted from the v3 blueprint. Do not
+- Use the exact token names and values emitted from the validated blueprint. Do not
   assume or recreate a default palette, `.card`, `.surface`, `.grid`,
   `.reveal`, `.stagger`, or other generic scaffold primitive. Do not add a
   second token system, arbitrary gradients, glass panels, floating blobs,

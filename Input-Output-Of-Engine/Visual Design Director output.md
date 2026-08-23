@@ -1,265 +1,399 @@
 {
-  "status": "approved",
+  "status": "design_review",
   "model_profile": "visual_design_director",
   "source_ref": {
-    "content_architect_content_hash": "1af72347f4dadf75762b0707e70ea9d0de07fd6ef006bd6e1fe168e8da268477",
-    "content_architect_visual_input_hash": "6d078eda35a1ee4fd125b3ba26b94e76ad25a2d1411b4e8ca63379ca83ea256e",
+    "content_architect_content_hash": "86ab4f0f02eaf340c5b29124a60edca4f9654cf42c12d60b7fa14196a8edc96e",
+    "content_architect_visual_input_hash": "4fb7446cc969a033d11cd1370499e311b671e86a4474e3a5cfe59b581edf5e8d",
     "content_architect_session_revision": 10,
-    "route_publication_hash": "a101396d4e6cb9c35347d1d5a2566473801f712038ee9c44f543cf1c6e00f3f8",
-    "snapshotted_at": "2026-08-13T15:21:40.439525+00:00"
+    "route_publication_hash": "c87e6f9b0ca28df5af3c122314a9ece5d4748d976e3eb6306666704070adbeca",
+    "snapshotted_at": "2026-08-19T10:39:52.343913+00:00"
   },
   "intake": {
-    "content_architect_content_hash": "1af72347f4dadf75762b0707e70ea9d0de07fd6ef006bd6e1fe168e8da268477",
+    "content_architect_content_hash": "86ab4f0f02eaf340c5b29124a60edca4f9654cf42c12d60b7fa14196a8edc96e",
     "content_architect_session_revision": 10,
     "presentation_mode": "single_page",
     "site_story_strategy": {
-      "positioning": "Backend and platform-oriented Software Engineer who builds APIs, services, and full-stack systems with Java, Spring Boot, Node.js, databases, cloud infrastructure, and operational tooling.",
+      "positioning": "A design-led Senior Architect who carries architectural ideas through spatial planning, coordinated documentation, BIM workflows, and site delivery.",
       "content_risks": [
-        "Personal ownership and collaboration context for the projects is not fully confirmed.",
-        "Supplied metrics and achievement details require verification before publication.",
-        "Employer names, project names, and links require publication confirmation."
+        "Project names, employer names, images, drawings, and work samples may require confidentiality or attribution confirmation.",
+        "Exact project areas and financial figures should not be presented as prominent claims until verified.",
+        "No project outcome or award claim is supplied."
       ],
       "evidence_lead": [
-        "Backend and platform skill breadth",
-        "Production-oriented experience with APIs, authentication, cloud services, Docker, CI, monitoring, and testing",
-        "Selected project contributions involving service design, caching, queues, synchronization, and deployment"
+        "Current Senior Architect role and breadth of responsibilities",
+        "The Courtyard Residences as a coordination-intensive residential project",
+        "Orbit Business Centre as a commercial planning and life-safety coordination project"
       ],
       "evidence_omit": [
-        "Unverified performance and coverage metrics",
-        "Employer names pending publication confirmation",
-        "Project names and URLs pending confirmation",
-        "Private phone number, email address, availability, notice period, and work preferences"
+        "Unconfirmed project outcomes, awards, competition status, and exact financial claims",
+        "Private personal details and unapproved contact information",
+        "Projects without supplied contribution details as featured case studies"
       ],
       "evidence_shorten": [
-        "Long technology inventories",
-        "Secondary coding and developer-profile links",
-        "Detailed education and language information"
+        "Long software and skills inventory",
+        "Earlier employment history",
+        "The Grove Residences and Riverstone Café, where personal contribution is not supplied"
       ],
       "evidence_support": [
-        "Full-stack capability with React.js and Next.js",
-        "Education in Computer Science and Engineering",
-        "Testing, documentation, and development workflow tools"
+        "Aranya Private Villas for climate, privacy, visualization, and residential detailing",
+        "Nexa Corporate Headquarters for workplace planning, services coordination, vendors, and snagging",
+        "Education, Revit certification, selected capabilities, and mentoring experience"
       ],
-      "primary_audience": "Hiring managers and technical recruiters hiring backend, platform, or full-stack Software Engineers.",
+      "primary_audience": "Architecture and design practices seeking a Senior Architect or project-focused architectural collaborator.",
       "unresolved_facts": [
-        "Whether employer and project names may be published",
-        "Whether exact supplied metrics may be used publicly",
-        "Whether project links and profile URLs are correct",
-        "Preferred CTA wording and visual direction"
+        "Publication permission for project media and work samples",
+        "Confidentiality status of employers, clients, and project names",
+        "Final public contact channel",
+        "Project-level attribution confirmation"
       ],
       "presentation_mode": "single_page",
-      "value_proposition": "Arjun combines backend depth with practical product delivery: designing service APIs, applying authentication and authorization, improving data access, adding caching and asynchronous processing, and supporting deployment and reliability workflows.",
-      "secondary_audience": "Engineering leads and founders evaluating practical system-building capability.",
-      "main_visitor_action": "Review the selected technical work and connect through an approved professional profile.",
-      "presentation_rationale": "The profile has several strong experience and project themes, but the open publication and ownership questions make separate case-study routes premature. A single page can present the backend/platform thesis, production experience, and three concise project summaries without creating thin or overclaimed pages.",
-      "central_narrative_thesis": "From application features to platform foundations, Arjun builds dependable software across APIs, data, infrastructure, and user-facing product surfaces."
+      "value_proposition": "Aarav Mehta brings together architectural design, technical coordination, Revit/BIM delivery, consultant collaboration, and construction-stage support across residential, commercial, hospitality, and interior projects.",
+      "secondary_audience": "Developers, consultants, and clients evaluating architectural coordination and technical delivery capability.",
+      "main_visitor_action": "Review the selected project work and proceed to connect through an approved professional channel once one is confirmed.",
+      "presentation_rationale": "The profile has enough breadth for a persuasive single narrative, but only four projects include meaningful contribution details. A single page can give those projects context without creating thin case-study routes for projects whose ownership and process are not documented.",
+      "central_narrative_thesis": "Good architectural work depends on continuity between concept, coordination, documentation, and what is resolved on site."
     },
     "route_plan": [
       {
         "path": "/",
-        "title": "Arjun Sharma — Backend & Platform Engineer",
-        "purpose": "Present the complete professional narrative and selected technical work on one focused page.",
+        "title": "Aarav Mehta — Architect",
+        "purpose": "Present the professional positioning, selected work, capabilities, experience, and education in one coherent portfolio page.",
         "priority": "primary",
-        "route_id": "route:home",
+        "route_id": "home",
         "source_refs": [
+          "profile.name",
           "profile.current_title",
-          "profile.skills",
+          "profile.location",
           "profile.experience",
           "profile.projects",
+          "profile.skills",
           "profile.education",
-          "profile.links"
+          "profile.spoken_languages"
         ],
-        "mobile_notes": "Keep the thesis and primary CTA immediately visible; collapse long skill lists and use concise project summaries with progressive detail.",
-        "content_density": "moderate",
+        "mobile_notes": "Keep the positioning and two featured projects prominent; collapse long capability lists and secondary experience details into concise groups.",
+        "content_density": "focused medium",
         "section_sequence": [
-          "home:hero",
+          "home:introduction",
+          "home:featured-projects",
+          "home:project-courtyard",
+          "home:project-orbit",
+          "home:project-range",
           "home:capabilities",
           "home:experience",
-          "home:selected-work",
           "home:education",
           "home:connect"
         ],
-        "audience_takeaway": "Arjun can contribute across backend services, platform concerns, cloud delivery, and full-stack product development.",
+        "audience_takeaway": "Aarav is a design-led Senior Architect with practical strength across concept development, BIM coordination, documentation, and site-stage delivery.",
         "publication_status": "approved"
       }
     ],
     "page_content_packs": [
       {
-        "route_id": "route:home",
+        "route_id": "home",
         "sections": [
           {
             "content": {
-              "body": "I’m Arjun Sharma, a Software Engineer working across backend services, platform foundations, and full-stack product development. I build practical systems with Java, Spring Boot, Node.js, databases, cloud infrastructure, and modern delivery workflows.",
-              "eyebrow": "Software Engineer · Backend & Platform",
-              "headline": "Building dependable systems from API to deployment.",
+              "body": "I work across architectural design, spatial planning, BIM coordination, documentation, and site-stage delivery. Based in Bengaluru, I contribute to residential, commercial, hospitality, and interior projects with a focus on clear decisions and coordinated execution.",
+              "eyebrow": "Aarav Mehta · Senior Architect",
+              "headline": "Design thinking, carried through to delivery.",
               "location": "Bengaluru, Karnataka, India",
-              "primary_cta": "Connect on LinkedIn"
+              "cta_label": "Explore selected work"
             },
-            "purpose": "Establish the professional positioning and invite the visitor to explore the work.",
+            "purpose": "Establish identity, positioning, location, and professional value.",
             "optional": false,
             "priority": "primary",
             "claim_ids": [
-              "claim:role",
-              "claim:technologies"
+              "claim:senior-architect",
+              "claim:design-coordination"
             ],
-            "section_id": "home:hero",
+            "section_id": "home:introduction",
             "link_targets": [
               {
-                "href": "https://linkedin.com/in/arjunsharma-dev",
-                "kind": "external",
-                "label": "Connect on LinkedIn"
+                "href": "home:featured-projects",
+                "kind": "internal",
+                "label": "Explore selected work"
               }
             ],
-            "mobile_condensation": "Keep the headline, first sentence, location, and primary CTA; shorten the supporting technology list."
+            "mobile_condensation": "Retain the headline, one-sentence positioning, and location; shorten the body to one sentence."
           },
           {
             "content": {
-              "intro": "My work connects application development with the concerns that make systems useful in practice.",
-              "capabilities": [
-                {
-                  "title": "Backend services",
-                  "description": "REST APIs, Spring Boot, Node.js, Express.js, FastAPI, authentication, authorization, and service-oriented design."
-                },
-                {
-                  "title": "Data and system behavior",
-                  "description": "PostgreSQL, MySQL, MongoDB, Redis, caching, query design, pagination, and message queues."
-                },
-                {
-                  "title": "Delivery and operations",
-                  "description": "AWS, Docker, CI/CD, Linux, Nginx, logging, monitoring, testing, and deployment workflows."
-                },
-                {
-                  "title": "Product surfaces",
-                  "description": "React.js, Next.js, TypeScript, responsive interfaces, and the full-stack work needed to connect users to backend systems."
-                }
-              ]
-            },
-            "purpose": "Translate the skills inventory into a concise capability narrative.",
-            "optional": false,
-            "priority": "primary",
-            "claim_ids": [
-              "claim:technologies"
-            ],
-            "section_id": "home:capabilities",
-            "link_targets": [],
-            "mobile_condensation": "Show capability titles first and reduce each description to one line."
-          },
-          {
-            "content": {
-              "entries": [
-                {
-                  "role": "Software Engineer",
-                  "dates": "July 2024 – Present",
-                  "description": "Develops customer-facing applications and backend services using Java, Spring Boot, React.js, PostgreSQL, Redis, and AWS. Work includes REST APIs, JWT authentication, role-based access control, Docker, CI workflows, cloud services, monitoring, testing, and mentoring new developers."
-                },
-                {
-                  "role": "Associate Software Engineer",
-                  "dates": "August 2023 – June 2024",
-                  "description": "Developed backend modules and responsive frontend pages with Java, Spring Boot, MySQL, REST APIs, and React.js. Also supported query optimization, defect resolution, deployment, and troubleshooting on Linux servers."
-                }
-              ],
-              "heading": "Experience"
-            },
-            "purpose": "Show practical engineering experience without publishing unresolved employer names or metrics.",
-            "optional": false,
-            "priority": "primary",
-            "claim_ids": [
-              "claim:production-systems"
-            ],
-            "section_id": "home:experience",
-            "link_targets": [],
-            "mobile_condensation": "Use a compact timeline with role, dates, and one short paragraph per entry."
-          },
-          {
-            "content": {
-              "intro": "A selection of systems spanning developer collaboration, commerce services, and engineering analytics.",
+              "intro": "A selection of projects showing how design development, coordination, documentation, and site involvement connect across different scales and typologies.",
               "heading": "Selected work",
               "projects": [
                 {
-                  "title": "Developer networking platform",
-                  "summary": "A platform for developer profiles, posts, follows, comments, authentication, image uploads, and AWS deployment.",
-                  "contribution": "The work covered full-stack functionality, REST APIs, authentication and authorization, caching, pagination, responsive interfaces, Docker setup, CI workflows, and deployment.",
-                  "technologies": "React.js · Node.js · Express.js · PostgreSQL · Redis · AWS · Docker"
+                  "name": "The Courtyard Residences",
+                  "descriptor": "Residential design development and project coordination"
                 },
                 {
-                  "title": "E-commerce backend",
-                  "summary": "Backend services for products, carts, orders, inventory, payments, and notifications.",
-                  "contribution": "The system incorporates REST services, database schemas and indexes, Redis caching, RabbitMQ processing, idempotency handling, JWT/RBAC, validation, logging, tests, API documentation, and Docker.",
-                  "technologies": "Java · Spring Boot · PostgreSQL · Redis · RabbitMQ · Docker"
+                  "name": "Orbit Business Centre",
+                  "descriptor": "Commercial planning and multidisciplinary coordination"
                 },
                 {
-                  "title": "Engineering analytics dashboard",
-                  "summary": "A dashboard for repository activity, contributors, issues, pull requests, and development trends using GitHub data.",
-                  "contribution": "The work includes GitHub API integration, synchronization and background jobs, analytics processing, dashboard pages, rate-limit handling, retries, logging, and caching.",
-                  "technologies": "Next.js · TypeScript · Python · FastAPI · PostgreSQL · GitHub API"
+                  "name": "Aranya Private Villas",
+                  "descriptor": "Climate-responsive residential design and visualization"
+                },
+                {
+                  "name": "Nexa Corporate Headquarters",
+                  "descriptor": "Workplace planning and interior coordination"
                 }
               ]
             },
-            "purpose": "Provide concrete evidence through three project-level technical stories.",
+            "purpose": "Introduce the selected project narrative before the detailed stories.",
             "optional": false,
             "priority": "primary",
             "claim_ids": [
-              "claim:dev-networking",
-              "claim:ecommerce-services",
-              "claim:engineering-analytics"
+              "claim:courtyard-contribution",
+              "claim:orbit-contribution",
+              "claim:aranya-contribution",
+              "claim:nexa-contribution"
             ],
-            "section_id": "home:selected-work",
-            "link_targets": [],
-            "mobile_condensation": "Stack projects vertically; show each summary before technical detail and keep technology labels on one compact line."
+            "section_id": "home:featured-projects",
+            "link_targets": [
+              {
+                "href": "home:project-courtyard",
+                "kind": "internal",
+                "label": "The Courtyard Residences"
+              },
+              {
+                "href": "home:project-orbit",
+                "kind": "internal",
+                "label": "Orbit Business Centre"
+              }
+            ],
+            "mobile_condensation": "Show the two lead projects first and condense the supporting projects into a short list."
           },
           {
             "content": {
-              "dates": "2019 – 2023",
-              "result": "CGPA: 8.4/10",
-              "heading": "Education",
-              "credential": "Bachelor of Technology in Computer Science & Engineering",
-              "institution": "Rajasthan Technical University, Kota"
+              "role": "Senior Architect / Project Coordinator",
+              "type": "Residential development · Bengaluru",
+              "tools": [
+                "Autodesk Revit",
+                "BIM coordination"
+              ],
+              "summary": "A residential project where my work connected design development and unit planning with the coordination needed to move documentation and site decisions forward.",
+              "contribution": [
+                "Design development and unit planning",
+                "Consultant coordination and conflict resolution",
+                "GFC package development",
+                "Material reviews, site inspections, and RFIs"
+              ],
+              "project_name": "The Courtyard Residences"
             },
-            "purpose": "Provide concise academic context.",
-            "optional": true,
-            "priority": "secondary",
+            "purpose": "Provide the strongest residential project story through contribution and process.",
+            "optional": false,
+            "priority": "primary",
             "claim_ids": [
-              "claim:education"
+              "claim:courtyard-contribution"
+            ],
+            "section_id": "home:project-courtyard",
+            "link_targets": [],
+            "mobile_condensation": "Keep the role, summary, and three contribution points; place tools in a compact line."
+          },
+          {
+            "content": {
+              "role": "Project Architect",
+              "type": "Commercial office development · Bengaluru",
+              "tools": [
+                "Autodesk Revit"
+              ],
+              "summary": "My role focused on shaping office planning and coordinating the architectural information required across design and construction documentation.",
+              "contribution": [
+                "Space and core planning",
+                "Life-safety and accessibility coordination",
+                "Façade options and multidisciplinary coordination",
+                "Revit models and construction drawings"
+              ],
+              "project_name": "Orbit Business Centre"
+            },
+            "purpose": "Show commercial planning, compliance coordination, and technical documentation capability.",
+            "optional": false,
+            "priority": "primary",
+            "claim_ids": [
+              "claim:orbit-contribution"
+            ],
+            "section_id": "home:project-orbit",
+            "link_targets": [],
+            "mobile_condensation": "Retain the project type, role, and the planning and coordination points; shorten the introduction."
+          },
+          {
+            "content": {
+              "heading": "Across scales and typologies",
+              "projects": [
+                {
+                  "name": "Aranya Private Villas",
+                  "role": "Architect",
+                  "type": "Residential development · Jaipur",
+                  "description": "Villa layouts, climate and privacy responses, working drawings, visualizations, interior coordination, detailing, and site visits."
+                },
+                {
+                  "name": "Nexa Corporate Headquarters",
+                  "role": "Architect / Interior Coordination",
+                  "type": "Corporate interior · Noida",
+                  "description": "Workplace planning, detailed drawings, services and vendor coordination, site inspections, and snagging."
+                }
+              ]
+            },
+            "purpose": "Demonstrate breadth without creating unsupported case studies.",
+            "optional": false,
+            "priority": "supporting",
+            "claim_ids": [
+              "claim:aranya-contribution",
+              "claim:nexa-contribution"
+            ],
+            "section_id": "home:project-range",
+            "link_targets": [],
+            "mobile_condensation": "Use one concise sentence per project and omit secondary descriptors if space is limited."
+          },
+          {
+            "content": {
+              "groups": [
+                {
+                  "items": [
+                    "Concept and schematic design",
+                    "Design development",
+                    "Space and site planning",
+                    "Façade design",
+                    "Residential, commercial, hospitality, and interior architecture"
+                  ],
+                  "label": "Design"
+                },
+                {
+                  "items": [
+                    "Working and GFC drawings",
+                    "Construction documentation",
+                    "Architectural detailing",
+                    "BIM modelling and coordination",
+                    "Clash resolution and model quality control"
+                  ],
+                  "label": "Technical delivery"
+                },
+                {
+                  "items": [
+                    "Consultant, vendor, and contractor coordination",
+                    "RFIs and shop drawing review",
+                    "Material approval",
+                    "Site supervision, snagging, and handover support"
+                  ],
+                  "label": "Project coordination"
+                },
+                {
+                  "items": [
+                    "Autodesk Revit, AutoCAD, Navisworks",
+                    "SketchUp, Lumion, Enscape, Rhino 3D",
+                    "Adobe Photoshop and InDesign",
+                    "NBC, FAR/FSI, accessibility, fire and life safety, climate-responsive design"
+                  ],
+                  "label": "Tools and standards"
+                }
+              ],
+              "heading": "Capabilities"
+            },
+            "purpose": "Translate the skills inventory into useful capability groups.",
+            "optional": false,
+            "priority": "supporting",
+            "claim_ids": [],
+            "section_id": "home:capabilities",
+            "link_targets": [],
+            "mobile_condensation": "Display capability group labels with a short subset first; allow the full lists to follow in a compact format."
+          },
+          {
+            "content": {
+              "roles": [
+                {
+                  "role": "Senior Architect",
+                  "dates": "April 2024 – Present",
+                  "additional": "Mentored 4 junior architects and architectural interns.",
+                  "description": "Architectural design and coordination across residential, commercial, hospitality, and mixed-use developments, including design development, GFC documentation, BIM and consultant coordination, site inspections, RFIs, material review, and handover support.",
+                  "organization": "Studio Axis Architects Pvt. Ltd."
+                },
+                {
+                  "role": "Architect",
+                  "dates": "July 2021 – March 2024",
+                  "description": "Worked across architectural and interior projects, preparing drawings, 3D models, visualizations, authority submissions, coordination mark-ups, detail packages, and site-progress reports.",
+                  "organization": "UrbanFrame Design Studio"
+                },
+                {
+                  "role": "Architectural Intern",
+                  "dates": "January 2021 – June 2021",
+                  "description": "Supported design development, drawings, models, visualizations, site surveys, material research, presentations, and tender documentation.",
+                  "organization": "Form & Habitat Architects"
+                }
+              ],
+              "heading": "Experience",
+              "languages": [
+                "English",
+                "Hindi",
+                "Gujarati"
+              ]
+            },
+            "purpose": "Establish professional progression and collaboration experience.",
+            "optional": false,
+            "priority": "supporting",
+            "claim_ids": [
+              "claim:senior-architect",
+              "claim:design-coordination",
+              "claim:mentoring"
+            ],
+            "section_id": "home:experience",
+            "link_targets": [],
+            "mobile_condensation": "Show the current role in full and compress earlier roles to role, organization, dates, and one-line descriptions."
+          },
+          {
+            "content": {
+              "items": [
+                {
+                  "dates": "2016 – 2021",
+                  "credential": "Bachelor of Architecture (B.Arch)",
+                  "institution": "School of Planning and Architecture, Bhopal"
+                },
+                {
+                  "dates": "2023",
+                  "credential": "Autodesk Certified Professional — Revit for Architectural Design",
+                  "institution": "Autodesk"
+                },
+                {
+                  "dates": "2022",
+                  "credential": "BIM Fundamentals for Architects",
+                  "institution": "Autodesk Learning / Professional Training"
+                },
+                {
+                  "dates": "2023",
+                  "credential": "Introduction to Green Buildings & Sustainable Design",
+                  "institution": "GRIHA Council"
+                },
+                {
+                  "dates": "2024",
+                  "credential": "Construction Project Management Fundamentals",
+                  "institution": ""
+                }
+              ],
+              "heading": "Education and credentials"
+            },
+            "purpose": "Provide formal education and selected professional credentials.",
+            "optional": true,
+            "priority": "supporting",
+            "claim_ids": [
+              "claim:education",
+              "claim:revit-certification"
             ],
             "section_id": "home:education",
             "link_targets": [],
-            "mobile_condensation": "Reduce to credential, institution, and dates; retain the CGPA only if space permits."
+            "mobile_condensation": "Lead with the degree and Revit certification; collapse other credentials into a compact list."
           },
           {
             "content": {
-              "body": "For backend, platform, or full-stack engineering conversations, connect with me on LinkedIn or explore my technical work on GitHub.",
-              "links": [
-                {
-                  "href": "https://linkedin.com/in/arjunsharma-dev",
-                  "kind": "external",
-                  "label": "LinkedIn"
-                },
-                {
-                  "href": "https://github.com/arjunsharma-dev",
-                  "kind": "external",
-                  "label": "GitHub"
-                }
-              ],
-              "heading": "Let’s connect"
+              "body": "For professional conversations about architectural design, coordination, and project delivery, connect through an approved professional channel.",
+              "heading": "Let’s connect",
+              "cta_label": "Contact details available on request"
             },
-            "purpose": "End with a clear, approved professional connection path.",
+            "purpose": "Offer a safe, neutral closing action without exposing unapproved contact details.",
             "optional": false,
-            "priority": "primary",
+            "priority": "supporting",
             "claim_ids": [],
             "section_id": "home:connect",
-            "link_targets": [
-              {
-                "href": "https://linkedin.com/in/arjunsharma-dev",
-                "kind": "external",
-                "label": "LinkedIn"
-              },
-              {
-                "href": "https://github.com/arjunsharma-dev",
-                "kind": "external",
-                "label": "GitHub"
-              }
-            ],
-            "mobile_condensation": "Keep the invitation and LinkedIn link prominent; place GitHub as a secondary action."
+            "link_targets": [],
+            "mobile_condensation": "Keep the heading and one short sentence."
           }
         ],
         "internal_notes": {}
@@ -269,87 +403,102 @@
       "routes": [
         {
           "path": "/",
-          "title": "Arjun Sharma — Backend & Platform Engineer",
-          "status": "approved",
-          "route_id": "route:home",
-          "sections": [
-            "home:hero",
+          "title": "Aarav Mehta — Architect",
+          "route_id": "home",
+          "included_sections": [
+            "home:introduction",
+            "home:featured-projects",
+            "home:project-courtyard",
+            "home:project-orbit",
+            "home:project-range",
             "home:capabilities",
             "home:experience",
-            "home:selected-work",
             "home:education",
             "home:connect"
-          ]
+          ],
+          "publication_status": "approved"
         }
       ],
       "approved_claim_ids": [
-        "claim:role",
-        "claim:technologies",
-        "claim:production-systems",
-        "claim:dev-networking",
-        "claim:ecommerce-services",
-        "claim:engineering-analytics",
-        "claim:education"
+        "claim:senior-architect",
+        "claim:design-coordination",
+        "claim:mentoring",
+        "claim:courtyard-contribution",
+        "claim:orbit-contribution",
+        "claim:aranya-contribution",
+        "claim:nexa-contribution",
+        "claim:education",
+        "claim:revit-certification"
       ]
     },
     "media_status": {
-      "profile_photo": "unknown",
-      "approved_media": [],
+      "note": "No media assets or publication permissions were supplied.",
+      "renders": "unknown",
+      "diagrams": "unknown",
+      "drawings": "unknown",
+      "photographs": "unknown",
       "project_images": "unknown",
-      "unavailable_media": [],
-      "project_demo_media": "unknown"
+      "approved_media_available": false
     },
     "visual_director_handoff": {
       "must_preserve": [
-        "Backend and platform-oriented positioning",
-        "Java and Spring Boot emphasis",
-        "APIs, authentication, databases, caching, cloud, Docker, CI, testing, and monitoring",
-        "Neutral project-level descriptions"
+        "Aarav Mehta",
+        "Senior Architect",
+        "Bengaluru, Karnataka, India",
+        "The distinction between individual responsibilities and overall team/project outcomes",
+        "The supplied project role descriptions"
       ],
-      "available_media": "No approved images, screenshots, diagrams, or project media were supplied.",
+      "available_media": [],
       "never_fabricate": [
-        "Metrics or outcomes",
-        "Employer or project publication permission",
-        "Individual ownership beyond the supplied facts",
-        "Screenshots, logos, testimonials, awards, certifications, or project demos"
+        "Project imagery or drawings",
+        "Project outcomes or awards",
+        "Metrics not verified from the source",
+        "Client or employer confidentiality clearance",
+        "Contact links or personal details",
+        "Exact visual, layout, color, typography, or motion decisions"
       ],
-      "density_guidance": "Moderate density with readable technical detail, short paragraphs, and compact technology groupings.",
-      "responsive_risks": [
-        "The skill inventory is extensive and should not become a dense wall of labels.",
-        "Project contribution text may need shortening on narrow screens.",
-        "Experience entries should remain scannable without exposing omitted employer names."
-      ],
+      "density_guidance": "Use focused medium density with clear opportunities to scan grouped skills and project responsibilities.",
       "content_hierarchy": [
-        "Lead with the backend/platform positioning and connection CTA.",
-        "Make capabilities and production experience the main proof.",
-        "Use selected work as concise technical evidence rather than full case studies.",
-        "Keep education and secondary links subordinate."
+        "Lead with the design-led positioning and the connection between design intent and delivery.",
+        "Give the most space to The Courtyard Residences and Orbit Business Centre.",
+        "Use Aranya Private Villas and Nexa Corporate Headquarters to establish breadth.",
+        "Keep capabilities, experience, and credentials supportive rather than dominant."
       ],
       "mobile_shortening": [
-        "Condense capability descriptions.",
-        "Stack project cards vertically.",
-        "Reduce education to one compact entry.",
-        "Prioritize LinkedIn over secondary links."
+        "Shorten the introduction body.",
+        "Prioritize the two lead projects.",
+        "Collapse capability groups and earlier experience.",
+        "Keep the closing CTA neutral until a channel is approved."
       ],
-      "unavailable_media": "Do not assume project screenshots, logos, demos, or performance charts exist.",
-      "diagram_opportunities": [
-        "A conceptual flow could explain the relationship between APIs, data stores, caching, asynchronous processing, and deployment, but it must be based only on the supplied technologies and project descriptions."
+      "unavailable_media": [
+        "No approved project imagery, drawings, renders, site photographs, or diagrams are currently available."
+      ],
+      "long_copy_responsive_risks": [
+        "Capability lists can become lengthy on narrow screens.",
+        "Experience descriptions should be condensed without losing the current-role emphasis.",
+        "Project contribution lists should remain readable as short, prioritized groups."
       ],
       "storytelling_opportunities": [
-        "Show the progression from backend implementation to broader platform concerns such as caching, queues, cloud deployment, testing, and monitoring.",
-        "Contrast the three project domains while preserving the common systems-engineering thread."
+        "Show the continuity from concept and planning through coordination, documentation, and site decisions.",
+        "Contrast residential, commercial, and workplace contexts while keeping the same delivery narrative.",
+        "Use the project roles to clarify Aarav's specific contribution without claiming sole project ownership."
       ],
       "confidentiality_restrictions": [
-        "Do not display private contact details.",
-        "Do not restore employer or project names until publication permission is confirmed.",
-        "Do not display unresolved metrics."
+        "Do not expose private contact details.",
+        "Do not assume project or employer names are cleared for publication.",
+        "Do not display project media without permission and attribution confirmation."
+      ],
+      "diagram_process_opportunities": [
+        "A words-only process narrative could show design development leading into coordinated documentation and site resolution.",
+        "A capability grouping could connect design, technical delivery, and project coordination."
       ]
     },
     "privacy_and_confidentiality": [
-      "Personal phone number is excluded.",
-      "Email address is excluded because the approved email CTA and address were not supplied for publication.",
-      "Availability, notice period, preferred work locations, and remote-work preference are excluded.",
-      "Employer and project names are generalized pending explicit publication confirmation."
+      "Personal phone number is not published.",
+      "Home town, nationality, notice period, and COA registration number are not published.",
+      "Email and social links are not published until explicit public-display approval.",
+      "Project and employer names remain subject to confidentiality confirmation before launch.",
+      "Project media and work samples require publication permission and attribution confirmation."
     ]
   },
   "preferences": {
@@ -359,15 +508,13 @@
     "accessibility_notes": ""
   },
   "version": "visual_design_director.establish_visual_language.v3",
-  "run_id": "c28526f8-0a67-4ab6-bb0c-ba8e72a71665",
-  "job_id": "24b94875-292d-425f-8f04-ee4e52c9f1ad",
-  "user_summary": "The page uses a calm, technical visual language built around dependable systems: strong typography, structured layers, restrained contrast, and one focused accent for actions and system relationships. The hero is text-led, supported by an abstract topology rather than a fabricated product image. Selected work becomes the main evidence through concise project panels and a simplified flow diagram. Motion remains subtle, with a staged systems-flow reveal that becomes fully static when reduced motion is requested. The visual direction is complete and ready for review.",
+  "run_id": "780167cd-d09d-401f-96e3-9ca6dffb24b9",
+  "job_id": "5f783ce8-cb8e-4035-b33c-cb7012a1f2aa",
+  "user_summary": "The page uses a calm, design-led portfolio language built around continuity: ideas become coordinated drawings, decisions, and site delivery. A warm light field, dark editorial typography, restrained architectural linework, and carefully framed project responsibilities keep the work credible without inventing imagery or outcomes. The signature interaction is a subtle process line that reveals the journey from design development to site resolution, with a fully readable static alternative. The visual direction is complete and ready for review.",
   "meta": {
+    "operation": "establish_visual_language",
     "stages_run": [
       "establish_visual_language"
-    ],
-    "route_scope": [
-      "route:home"
     ],
     "model_profile": "visual_design_director",
     "prompt_version": "visual_design_director.establish_visual_language.v3",
@@ -376,275 +523,261 @@
       "promoted_resource_ids": [],
       "top_level_registry_complete": true
     },
-    "visual_direction_status": "visual_language_and_single_route_pages_ready"
+    "visual_direction_status": "visual_language_and_page_direction_complete"
   },
   "source_refs": {
     "route_ids_covered": [
-      "route:home"
+      "home"
     ],
-    "content_architect_content_hash": "1af72347f4dadf75762b0707e70ea9d0de07fd6ef006bd6e1fe168e8da268477",
+    "content_architect_content_hash": "86ab4f0f02eaf340c5b29124a60edca4f9654cf42c12d60b7fa14196a8edc96e",
     "content_architect_session_revision": 10
   },
   "visual_language": {
     "anti_patterns": [
-      "Fabricated screenshots, logos, metrics, testimonials, awards, or production dashboards",
-      "Employer or project names presented as confirmed publication facts",
-      "Dense technology-tag walls",
-      "Glassmorphism, heavy gradients, neon cyberpunk styling, or glossy startup effects",
-      "Repeated identical cards for every section",
-      "Scroll-jacking, continuous ambient animation, or motion that implies system performance"
+      "No fabricated project imagery, drawings, dashboards, metrics, awards, or outcomes.",
+      "Avoid glossy architecture-studio clichés, dramatic black-and-gold branding, excessive gradients, glass surfaces, and oversized decorative renders.",
+      "Avoid a repeated identical card grid for every project.",
+      "Avoid presenting Aarav as sole owner of overall project outcomes.",
+      "Avoid exposing contact details or assuming project and employer publication clearance."
     ],
-    "color_behavior": "Use a restrained neutral foundation with strong readable contrast and a single accent reserved for primary actions, active states, and abstract system connections. Keep secondary information quieter through tonal difference rather than additional bright colors. Avoid color coding that could imply metrics, status, or production health.",
-    "spacing_rhythm": "Use generous separation between narrative chapters, moderate spacing within cards and capability groups, and tighter spacing for metadata and technology lines. Let the hero and closing action have the most surrounding air.",
-    "creative_thesis": "Treat the portfolio as a dependable systems map: the visitor moves from a clear engineering position through capability layers, production experience, and representative project flows toward a direct professional connection. The design should feel engineered rather than decorated, showing relationships between APIs, data, infrastructure, and product surfaces without pretending to reveal private production evidence.",
-    "grid_philosophy": "Use a disciplined editorial grid with a strong reading column and occasional asymmetric supporting structures. Align section headings, timelines, project summaries, and diagrams to recurring vertical anchors so the page feels like one coherent system.",
-    "visual_metaphor": "A quiet system topology: connected layers, pathways, boundaries, and handoffs represent the progression from application features to platform foundations.",
-    "motion_character": "Subtle, purposeful, and sequential: motion should clarify hierarchy or relationships, never simulate performance or create a dashboard-like atmosphere.",
-    "background_system": "Begin with a quiet base surface, then introduce restrained tonal shifts between major chapters. Use faint grid lines, node traces, or topology fragments as background texture only when they do not compete with text. Avoid gradients that suggest unsupported visual drama.",
-    "contrast_strategy": "Maintain clear separation between page background, raised surfaces, borders, primary text, supporting text, and accent actions. Never rely on color alone to distinguish project categories or interaction states.",
-    "container_behavior": "Keep content within a readable central field that gains breathing room on wide screens without allowing text lines to become excessively long. Abstract diagrams may extend toward the outer region while remaining subordinate to the text.",
-    "visual_personality": "Calm, precise, credible, technically literate, and approachable. Confidence comes from hierarchy and clarity rather than dramatic effects.",
-    "alignment_character": "Favor deliberate left alignment for reading and scanning, with asymmetry introduced through diagrams and secondary labels rather than arbitrary offsets. Centering is reserved for small transition moments or the final connection invitation.",
-    "interaction_character": "Interactions should feel like inspection and navigation: clear focus, restrained hover emphasis, expandable detail only where useful, and no hidden meaning behind animation.",
-    "responsive_philosophy": "Preserve the narrative order across mobile, tablet, laptop/desktop, and wide desktop while changing composition rather than merely shrinking it. Touch-only visitors receive the same information without hover. Dense structures become stacked reading sequences and diagrams simplify before they scale down.",
-    "text_density_behavior": "Moderate density with short paragraphs, generous line spacing, compact metadata, and progressive detail. Long technology inventories should be grouped and visually de-emphasized rather than displayed as an uninterrupted wall.",
-    "typographic_character": "Use a sturdy, contemporary display face or weight for concise headlines and a highly legible neutral body face for technical detail. Headlines should read as direct engineering statements, while body text remains compact but comfortable. Technology labels should be visually subordinate to project and capability meaning.",
-    "performance_philosophy": "Prefer CSS-defined surfaces, lightweight vector-like diagrams, and text over large raster media, video, or elaborate background effects. Keep decorative topology sparse and non-blocking.",
-    "accessibility_principles": "Keep reading order logical, preserve visible focus, provide descriptive labels for external links, maintain comfortable text contrast, and ensure diagrams have an adjacent textual explanation. Do not make motion, color, or hover the sole carrier of meaning.",
-    "shape_radius_border_shadow": "Use modest rounding, thin understated borders, and shallow surfaces. Panels should feel like organized workspaces, not glossy promotional cards. Shadows are soft and sparse, used only to separate layers where borders are insufficient.",
-    "iconography_illustration_diagram_image_treatment": "Prefer simple line icons and custom abstract diagrams based only on approved technologies and relationships. Any topology must be clearly representative, not a real internal architecture document. No portraits, logos, screenshots, charts, or project imagery are required."
+    "color_behavior": "Use a warm, low-chroma base with deep text for sustained reading and one muted architectural accent reserved for active navigation, process progression, key labels, and calls to action. Keep project distinctions tonal and structural rather than assigning each project a loud color.",
+    "spacing_rhythm": "Use a deliberate rhythm of compact metadata, readable content groups, and generous scene-level pauses. The largest gaps should separate narrative phases, not individual bullets.",
+    "creative_thesis": "Treat the portfolio as a continuous architectural working surface: a clear idea begins as a spatial proposition, gains precision through coordination and documentation, and earns credibility through what can be resolved on site. The page should feel like an annotated set of design decisions rather than a gallery of finished objects.",
+    "grid_philosophy": "Use a disciplined editorial grid with an asymmetric lead column and a narrower annotation or metadata column. Major project stories can alternate emphasis, but their internal alignment should remain consistent so the page feels authored rather than templated.",
+    "visual_metaphor": "A measured drawing set translated into an editorial reading experience, with alignment lines, numbered transitions, and restrained diagrammatic marks suggesting continuity without pretending to be project drawings.",
+    "motion_character": "Low-key and purposeful: opacity, short translation, and line-drawing progression may clarify sequence, but motion must never make the portfolio feel like a presentation deck or construction simulation.",
+    "background_system": "Move between a warm paper-like base, slightly differentiated reading bands, and occasional lightly tinted process surfaces. Background changes should mark narrative phases and never compete with the content.",
+    "contrast_strategy": "Maintain strong text-to-surface contrast, especially for project responsibilities and technical lists. Secondary metadata may be quieter but must remain comfortably readable; never use pale text as decoration on low-contrast surfaces.",
+    "container_behavior": "The reading measure stays narrow enough for architectural notes and contribution lists, while major scenes can widen to create breathing room. Content should align to a shared vertical spine and avoid full-bleed text blocks.",
+    "visual_personality": "Quietly assured, precise, warm, and observant. It should communicate seniority through judgment and clarity rather than scale, spectacle, or exaggerated personal branding.",
+    "alignment_character": "Prefer strong left alignment, baseline relationships, and occasional ruled offsets. Avoid centered stacking except for very short labels or the final neutral connection prompt.",
+    "interaction_character": "Interactions should feel like inspection: links gain an understated accent and rule response, project items reveal hierarchy, and focus states remain obvious. Touch interactions must expose the same information without hover dependence.",
+    "responsive_philosophy": "Preserve narrative order and hierarchy across touch-only, mobile, tablet, laptop, desktop, and wide desktop contexts. Desktop may use asymmetry and side annotations; tablet reduces offsets; mobile becomes a single-column reading sequence with concise lists and no loss of essential meaning.",
+    "text_density_behavior": "Focused medium density: generous space around primary positioning and lead projects, followed by increasingly compact but scannable supporting information. Long lists become grouped clusters or progressive disclosures rather than uninterrupted walls of text.",
+    "typographic_character": "Pair a confident editorial display face for short headlines with a highly legible neutral body face for responsibilities, credentials, and technical vocabulary. Headlines should be compact and declarative; body text should use short paragraphs, grouped lists, and visible labels.",
+    "performance_philosophy": "Favor text, CSS-like surfaces, and lightweight vector or line-based custom visuals. Avoid background video, heavy raster textures, unnecessary image acquisition, and elaborate scroll effects.",
+    "accessibility_principles": "Use semantic reading order, persistent labels, visible keyboard focus, adequate target sizes, clear link distinction, and no meaning conveyed only through color, position, or motion.",
+    "shape_radius_border_shadow": "Use mostly squared or gently softened surfaces with restrained rounding. Thin rules and inset borders should do most of the framing work; shadows, if present, remain soft and nearly imperceptible rather than card-like or glossy.",
+    "iconography_illustration_diagram_image_treatment": "Use simple line icons and custom abstract geometry derived from grids, axes, and connected nodes. Any process diagram must be explicitly representative and words-first. No project photographs, drawings, renders, screenshots, or evidence visuals are available or implied."
   },
   "shared_visual_systems": {
-    "card_hierarchy": "The selected-work area is the strongest repeated surface system. Capabilities can use lighter grouping, while education and closing links remain more open and less card-heavy.",
-    "panel_treatment": "Use panels selectively for capabilities, experience entries, and selected work. Each panel should have a clear title, concise body, and quiet metadata region; project panels may share a family resemblance without becoming identical templates.",
-    "evidence_framing": "Frame evidence as supplied contribution and technology context, not quantified outcomes. Use labels such as role, system area, or technical thread only when grounded in approved content.",
-    "diagram_convention": "Abstract nodes and connectors may express approved relationships among APIs, data, caching, asynchronous processing, deployment, testing, and monitoring. Label only supplied concepts and mark the visual as representative where needed.",
-    "section_divider_language": "Separate major chapters with whitespace, a fine rule, or a small topology marker. Dividers should signal progression without becoming decorative timelines.",
-    "recurring_background_layers": "Maintain a neutral base, add a low-contrast structural layer behind selected sections, and reserve the accent for active or connective elements. Structural layers must disappear cleanly when content is viewed without decoration."
+    "content_priority": "The introduction and the two lead projects receive the strongest scale and spacing. Aranya Private Villas and Nexa Corporate Headquarters establish range in a quieter register. Capabilities, experience, and credentials support the central story.",
+    "evidence_framing": "Frame only supplied responsibilities, tools, roles, education, and process descriptions as evidence. Abstract diagrams are explanatory devices, never proof of a real project document.",
+    "card_panel_treatment": "Use framed editorial panels for project responsibilities, with project name and role clearly separated from contribution details. Supporting projects can use compact paired entries rather than equal-weight cards.",
+    "section_divider_language": "Divide narrative phases with fine rules, short phase labels, and occasional numbered markers that echo a drawing sequence without imitating an actual document.",
+    "recurring_background_layers": "Keep the base calm and consistent; introduce lightly contrasting bands for selected work, capability groupings, and the closing section. Use sparse linework as a recurring texture with low visual priority."
   },
   "navigation_direction": {
-    "form": "A compact in-page navigation aligned with the single-page narrative, using only the approved section destinations and the approved external connection action.",
-    "density": "Short labels, moderate spacing, and a clear primary emphasis on LinkedIn as the approved connection path.",
-    "placement": "Keep navigation available near the top and optionally retain a restrained sticky presence after the hero on larger screens. It should not dominate the reading field.",
-    "cta_hierarchy": "LinkedIn is the primary action. GitHub is secondary and appears after the main invitation. Section navigation is informational rather than styled as competing CTAs.",
-    "mobile_strategy": "Use a compact touch-friendly disclosure or horizontal section index. Keep the thesis and primary CTA immediately visible, and avoid forcing visitors to manage a dense menu.",
-    "sticky_behavior": "If sticky navigation is used, it should remain visually quiet, avoid covering anchored headings, and collapse or simplify on narrow screens.",
-    "active_hover_focus": "Active section state uses the accent plus a non-color cue such as weight or indicator position. Hover slightly increases contrast; keyboard focus is prominent and never removed."
+    "form": "A compact anchor navigation for the single public page, using only the approved page sections and the primary selected-work action.",
+    "states": "Active sections use the restrained accent and a rule or marker; hover adds a modest weight or underline change; keyboard focus is visibly outlined and never removed.",
+    "density": "Low density, with the name or professional identity as the orienting element and one clear action toward selected work.",
+    "placement": "Quietly persistent on larger screens with a clear relationship to the page edge; on smaller screens, use a compact menu that preserves the same approved destinations and reading order.",
+    "cta_hierarchy": "Primary: Explore selected work. Closing action remains neutral: Contact details available on request.",
+    "mobile_strategy": "Collapse the navigation into a touch-friendly control and keep the selected-work action prominent without adding destinations.",
+    "sticky_behavior": "A subtle sticky treatment is acceptable if it does not cover content or create excessive movement; it should yield to the reading experience on narrow screens."
   },
   "motion_system": {
-    "global_character": "Low-amplitude entrance and emphasis transitions with no perpetual motion. Motion should reveal structure in reading order and settle quickly.",
+    "global_character": "Restrained, brief, and explanatory. Prefer entrance sequencing at scene boundaries and small state changes over continuous scroll choreography.",
     "signature_moments": [
       {
-        "name": "Topology reveal",
-        "constraint": "Keep the sequence brief, secondary to the headline, and never present it as a real architecture.",
-        "description": "In the hero or capabilities transition, a few abstract connections resolve from the positioning statement toward approved system concerns such as APIs, data, cloud, and delivery. The result is illustrative, not evidence."
-      },
-      {
-        "name": "Project thread emphasis",
-        "constraint": "No animated metrics, simulated requests, loading states, or performance claims.",
-        "description": "As selected work enters view, a restrained connector or border emphasis may guide attention from project domain to contribution and technology context."
+        "name": "Continuity line",
+        "purpose": "A thin representative line or sequence connects design development, coordinated documentation, and site resolution as the visitor enters the selected-work narrative.",
+        "constraint": "The labels remain visible before and after the transition; it must not resemble a real project drawing or imply measured project evidence."
       }
-    ]
+    ],
+    "reduced_motion_default": "Use the complete layout immediately, with no parallax, drawing progression, or delayed content required for comprehension."
   },
   "interaction_system": {
-    "project_panels": "Project summaries remain readable by default. Optional progressive detail may expand on activation, with explicit labels and no hover-only content.",
-    "touch_behavior": "All interactive targets are comfortably touchable, with pressed states that do not depend on hover. Diagrams are explanatory rather than requiring precise manipulation.",
-    "recurring_links": "External links use clear labels and a consistent directional cue. Hover changes contrast or underline treatment; focus uses a strong visible outline or equivalent non-color treatment.",
-    "keyboard_behavior": "Maintain logical tab order, visible focus, escape-friendly disclosures, and no keyboard traps.",
-    "section_navigation": "Selecting a section moves predictably to its heading without disorienting transitions. Active state remains understandable on touch devices."
+    "text_links": "Use clear underlines or accent rules, with stronger focus treatment and a non-hover equivalent for touch.",
+    "focus_and_touch": "All interactive elements receive a high-contrast visible focus state, generous touch area, and pressed state that does not depend on color alone.",
+    "lists_and_groups": "Capability and experience groups may condense on mobile, but essential content should remain available through plainly labeled expansion rather than hidden hover behavior.",
+    "project_navigation": "Approved project anchors may highlight the selected project context without opening invented routes. Keep the active state persistent enough to orient the visitor."
   },
   "pages": [
     {
-      "route_id": "route:home",
+      "route_id": "home",
       "publication_status": "approved",
       "compilable": true,
       "path": "/",
-      "purpose": "Present the complete professional narrative and selected technical work on one focused page.",
-      "visitor_takeaway": "Arjun can contribute across backend services, platform concerns, cloud delivery, and full-stack product development.",
-      "first_impression": "A text-dominant engineering statement paired with a restrained abstract systems motif and an immediately visible LinkedIn connection path.",
-      "storyboard": "The page moves from thesis to capability layers, then to practical experience, three concise technical work stories, academic context, and a focused connection close.",
-      "section_rhythm": "Open with generous space, move into structured capability and experience chapters, create the densest but most scannable section around selected work, then relax into education and the final CTA.",
-      "primary_emphasis": "Backend/platform positioning, production-oriented experience, and the shared systems thread across selected work.",
-      "secondary_emphasis": "Full-stack breadth, education, and GitHub as a supporting professional link.",
-      "background_evolution": "Start quiet and open; introduce faint structural traces around capabilities and selected work; return to a simpler surface for education and connection.",
-      "main_evidence_moment": "The selected-work sequence, where each project links domain, contribution, and approved technology context without implying unverified outcomes.",
-      "main_interaction_moment": "A lightweight section index and optional project-detail expansion that supports scanning without hiding essential content.",
-      "closing_action": "Invite visitors to connect on LinkedIn, with GitHub presented as a secondary route to technical work.",
-      "relationship_to_next_route": "There is no next route; the page should resolve the narrative in the connection section.",
-      "navigation_behavior": "Use in-page anchors for the approved sections only, with LinkedIn as the persistent primary external action and GitHub as secondary.",
-      "responsive_summary": "On mobile, preserve headline, location, primary CTA, capability titles, compact experience entries, stacked project summaries, and the final LinkedIn action. On tablet, use a two-part reading grid where space allows. On laptop and desktop, use asymmetric text-and-diagram compositions with a readable central column. On wide desktop, expand breathing room rather than line length. On touch-only devices, expose all detail through tap or default visibility, never hover.",
+      "purpose": "Present the professional positioning, selected work, capabilities, experience, and education in one coherent portfolio page.",
+      "visitor_takeaway": "Aarav is a design-led Senior Architect with practical strength across concept development, BIM coordination, documentation, and site-stage delivery.",
+      "first_impression": "A text-led architectural introduction with a strong short headline, location, and a restrained abstract continuity mark rather than a project image.",
+      "storyboard": "The page moves from positioning into selected work, gives The Courtyard Residences and Orbit Business Centre the fullest treatment, then broadens into supporting projects, capabilities, experience, credentials, and a neutral connection close.",
+      "section_rhythm": "Open spaciously, tighten into project responsibility panels, use a flowing process interlude, then compress supporting information into labeled groups before releasing into the final connection prompt.",
+      "primary_emphasis": "Design thinking carried through coordination, documentation, and site delivery.",
+      "secondary_emphasis": "Breadth across residential, commercial, workplace, hospitality, and interior contexts.",
+      "background_evolution": "Begin with the warm base, shift to a slightly stronger surface distinction for selected work, use a lightly tinted process band, then return to the base for capabilities and experience.",
+      "main_evidence_moment": "The paired project stories for The Courtyard Residences and Orbit Business Centre, where individual roles and contributions are explicitly distinguished from overall project outcomes.",
+      "main_interaction_moment": "The approved selected-work anchor and a representative continuity line that connects design development to coordinated documentation and site decisions.",
+      "closing_action": "Present Let’s connect as a quiet closing invitation with Contact details available on request, without exposing an unapproved channel.",
+      "relationship_to_next_route": "No next route exists; the page closes the approved public experience.",
+      "navigation_behavior": "Use section anchors for the approved single-page sequence, with selected work as the dominant navigation action.",
+      "responsive_summary": "On touch-only and mobile layouts, use one column, preserve the introduction and two lead projects, condense supporting project descriptions and capability lists, and keep the current role more detailed than earlier roles. Tablet reduces asymmetry while retaining paired metadata. Laptop, desktop, and wide desktop may use offset annotations and broader process spacing without changing reading order.",
       "scenes": [
         {
-          "scene_id": "home-scene-thesis",
-          "route_id": "route:home",
-          "narrative_goal": "Establish the backend and platform positioning and make the primary connection path immediately understandable.",
-          "viewport_role": "Opening viewport and orientation anchor.",
+          "scene_id": "home-introduction",
+          "route_id": "home",
+          "narrative_goal": "Establish Aarav Mehta as a Senior Architect whose design intent remains connected to delivery.",
+          "viewport_role": "Opening identity and orientation scene.",
           "content_refs": [
-            "home:hero"
+            "home:introduction"
           ],
-          "layout_intent": "Use a text-dominant asymmetric composition: the headline and supporting statement carry most of the visual weight while a smaller abstract topology balances the opposite side.",
-          "alignment_relationships": "Align eyebrow, headline, body, location, and CTA to one strong reading edge. Let the abstract visual align with the headline block rather than float independently.",
-          "relative_proportions": "Text occupies roughly two-thirds of the composition on larger screens; the abstract visual occupies the remaining third to half. On narrow screens, text comes first and the visual becomes a compact supporting band.",
-          "layer_stack": "Quiet base surface, faint structural marks, primary text block, then restrained connective lines or nodes behind and beside the copy.",
-          "background_intent": "A calm neutral field with a sparse representative system pattern; no real product interface or evidence is shown.",
+          "layout_intent": "Use a text-dominant asymmetric composition with the headline and positioning carrying most of the visual weight; balance it with a small abstract grid or continuity mark.",
+          "alignment_relationships": "Headline, eyebrow, location, and primary action share a strong reading edge; the abstract mark aligns to the opposing side without becoming a second focal point.",
+          "relative_proportions": "Text occupies roughly two-thirds of the large-screen composition and the abstract element roughly one-third; mobile becomes a single text-first stack.",
+          "layer_stack": "Warm base, subtle linework, identity text, then the primary anchor action.",
+          "background_intent": "Quiet paper-like surface with sparse architectural alignment marks.",
           "asset_requirements": [],
           "resource_candidates": [
             "hero_asymmetric_text_dominant"
           ],
           "motion_intent": {
-            "type": "brief_structural_reveal",
-            "description": "A few abstract connections appear in sequence after the main text settles, reinforcing the API-to-deployment thesis.",
-            "duration_character": "brief and low amplitude",
-            "reduced_motion_behavior": "Render the complete abstract topology immediately with no sequencing or movement."
+            "type": "subtle_entrance",
+            "behavior": "Reveal eyebrow, headline, positioning, and action in a short, near-simultaneous sequence; let the abstract mark settle gently.",
+            "intensity": "low"
           },
           "interaction_states": {
-            "topology": "Decorative and non-interactive unless an accessible adjacent description is provided.",
-            "primary_cta": "Clear resting state, modest accent emphasis on hover or press, strong keyboard focus."
+            "primary_action": "Underline or accent-rule response on hover, visible focus ring on keyboard, clear pressed state on touch."
           },
-          "transition_in": "Begin with the stable text and surface; any structural reveal follows rather than precedes the message.",
-          "transition_out": "Use a quiet shift in background tone toward the capability chapter.",
-          "responsive_behavior": "Desktop and wide desktop use the asymmetric relationship; tablet narrows the visual beside the text; mobile and touch-only layouts stack the visual after the CTA and keep it secondary.",
-          "accessibility_intent": "The complete positioning and CTA remain in the document flow. Decorative topology is hidden from assistive technology or given a concise non-evidentiary description.",
-          "reduced_motion_behavior": "No movement, reveal, or parallax; the static composition communicates the same hierarchy.",
-          "performance_risk": "Low if the topology remains lightweight and decorative; avoid large raster artwork or continuous effects.",
-          "failure_safe_static_state": "Headline, supporting statement, location, CTA, and a quiet static abstract pattern fully communicate the opening scene.",
+          "transition_in": "Immediate readable first frame with optional soft entrance.",
+          "transition_out": "A restrained rule or anchor movement leads toward selected work.",
+          "responsive_behavior": "Touch-only and mobile use a single column with shortened introduction copy. Tablet keeps a modest offset. Laptop, desktop, and wide desktop retain asymmetry but prevent the mark from competing with the headline.",
+          "accessibility_intent": "Headline and positioning are available in the initial DOM reading order; the abstract mark is decorative and does not carry meaning.",
+          "reduced_motion_behavior": "Show all text and the action immediately; keep the abstract mark static.",
+          "performance_risk": "Low; use text and lightweight line geometry only.",
+          "failure_safe_static_state": "A complete text-led introduction with identity, headline, location, and selected-work action remains persuasive without the abstract mark.",
           "acceptance_criteria": [
-            "The positioning and LinkedIn CTA are visible without interaction.",
-            "The visual cannot be mistaken for a real screenshot or architecture document.",
-            "The hero remains text-dominant at every viewport."
+            "The first viewport clearly identifies Aarav Mehta and Senior Architect.",
+            "The selected-work action is visible without relying on motion.",
+            "No unapproved contact details or project evidence are introduced."
           ]
         },
         {
-          "scene_id": "home-scene-capabilities",
-          "route_id": "route:home",
-          "narrative_goal": "Translate the broad skills inventory into four understandable capability layers.",
-          "viewport_role": "Early proof and orientation chapter.",
+          "scene_id": "home-lead-projects",
+          "route_id": "home",
+          "narrative_goal": "Show the strongest evidence of coordination and delivery through the two lead projects.",
+          "viewport_role": "Primary evidence scene.",
           "content_refs": [
+            "home:featured-projects",
+            "home:project-courtyard",
+            "home:project-orbit"
+          ],
+          "layout_intent": "Introduce selected work with a strong section heading, then alternate two substantial project panels. Each panel pairs role and project type with a concise summary and prioritized contribution list.",
+          "alignment_relationships": "Project names and roles align to a shared spine; contribution lists sit in a consistent secondary column or lower band, making comparison easy without flattening the stories.",
+          "relative_proportions": "The Courtyard Residences receives slightly more vertical space; Orbit Business Centre follows with comparable clarity but a tighter treatment.",
+          "layer_stack": "Selected-work band, section introduction, project identity, responsibility summary, contribution list, and compact tools metadata.",
+          "background_intent": "A gently differentiated surface marks this as the page's evidence center.",
+          "asset_requirements": [],
+          "resource_candidates": [],
+          "motion_intent": {
+            "type": "minimal_reveal",
+            "behavior": "Use a restrained sequential reveal as each project enters view, limited to opacity and a short positional shift.",
+            "intensity": "low"
+          },
+          "interaction_states": {
+            "project_anchors": "Approved project anchors gain an accent rule and clear focus state; touch exposes the same active treatment.",
+            "contribution_lists": "Remain static and readable; do not hide responsibilities behind hover."
+          },
+          "transition_in": "Selected-work heading arrives as a clear narrative threshold.",
+          "transition_out": "A line-based process cue moves the visitor from project stories toward broader range and capability.",
+          "responsive_behavior": "Touch-only and mobile stack the projects, keep the lead project first, and show three prioritized contribution points before any compact remainder. Tablet uses shallow offsets. Laptop through wide desktop may place metadata beside content while keeping summaries readable.",
+          "accessibility_intent": "Use explicit labels for role, type, tools, and contribution. Preserve individual responsibility language and do not imply sole ownership.",
+          "reduced_motion_behavior": "Render both project panels fully visible in document order with no staged reveal.",
+          "performance_risk": "Low; no media is required.",
+          "failure_safe_static_state": "The project names, roles, summaries, and contribution lists communicate the evidence without interaction or animation.",
+          "acceptance_criteria": [
+            "The Courtyard Residences and Orbit Business Centre receive the strongest visual emphasis.",
+            "Responsibilities are distinguishable from overall project outcomes.",
+            "All contribution lists remain readable on narrow screens."
+          ]
+        },
+        {
+          "scene_id": "home-process-and-range",
+          "route_id": "home",
+          "narrative_goal": "Connect the lead stories to broader typological range and clarify the continuity of Aarav's working process.",
+          "viewport_role": "Bridging narrative and breadth scene.",
+          "content_refs": [
+            "home:project-range",
             "home:capabilities"
           ],
-          "layout_intent": "Present four capability groups in a structured constellation or staggered grid, with the introductory sentence acting as the bridge from thesis to system concerns.",
-          "alignment_relationships": "Keep all capability titles aligned to a common baseline while allowing descriptions to vary in length. A subtle connective spine may unify the groups.",
-          "relative_proportions": "The introduction occupies a smaller lead area; capability groups receive balanced space without giving technology labels equal weight to their titles.",
-          "layer_stack": "Base surface, section marker, intro text, capability group surfaces, and optional low-contrast connectors.",
-          "background_intent": "A slightly more structured tonal field than the hero, suggesting system layers without implying health or performance.",
-          "asset_requirements": [],
-          "resource_candidates": [
-            "diagram_abstract_topology"
-          ],
-          "motion_intent": {
-            "type": "ordered_emphasis",
-            "description": "Capability groups may enter in reading order with a restrained connector emphasis.",
-            "reduced_motion_behavior": "Show all four groups in their final arrangement immediately and retain connector lines as static decoration."
-          },
-          "interaction_states": {
-            "touch": "Tap does not require expansion; all descriptions remain available.",
-            "capability_group": "Hover or focus may strengthen the border and title contrast; no content is available only on hover."
-          },
-          "transition_in": "A subtle structural continuation from the hero.",
-          "transition_out": "Reduce the decorative layer as the page moves into the experience timeline.",
-          "responsive_behavior": "Wide screens may use a constellation-like arrangement; laptop and tablet use a balanced grid; mobile stacks groups with titles first and shortened descriptions; touch behavior matches mobile without hover dependence.",
-          "accessibility_intent": "Use semantic headings and grouped descriptions. Technology names remain readable text, not icon-only labels.",
-          "reduced_motion_behavior": "Use a stable grid or stack with no staged entry.",
-          "performance_risk": "Low; keep connectors simple and avoid animated SVG complexity.",
-          "failure_safe_static_state": "Four titled capability groups and their concise descriptions remain fully understandable without decoration.",
-          "acceptance_criteria": [
-            "The extensive inventory reads as four capability themes rather than a tag wall.",
-            "Backend and platform concerns receive the strongest visual emphasis.",
-            "No visual suggests unapproved metrics or system status."
-          ]
-        },
-        {
-          "scene_id": "home-scene-proof",
-          "route_id": "route:home",
-          "narrative_goal": "Show practical experience and selected technical work as grounded, scannable proof.",
-          "viewport_role": "Primary evidence chapter.",
-          "content_refs": [
-            "home:experience",
-            "home:selected-work"
-          ],
-          "layout_intent": "Use a compact experience timeline or vertical progression followed by three varied project panels. Pair the project sequence with one simplified representative process flow, not a claimed production diagram.",
-          "alignment_relationships": "Share a vertical reading edge between role dates, project titles, contributions, and technology lines. The process flow should align to project content without interrupting its scan path.",
-          "relative_proportions": "Experience is compact and text-led; selected work receives the greatest vertical space. Project summaries appear before technical detail, with the diagram as a supporting layer.",
-          "layer_stack": "Neutral base, experience progression rule, project surfaces with distinct emphasis levels, then an abstract flow or topology accent.",
-          "background_intent": "The most structured section, using subtle surface contrast to distinguish evidence groups while avoiding dashboard styling.",
+          "layout_intent": "Use a short representative process flow as a visual bridge, followed by compact entries for Aranya Private Villas and Nexa Corporate Headquarters and then grouped capability columns.",
+          "alignment_relationships": "Process stages align horizontally on larger screens and vertically on mobile; project-range entries and capability labels share the same editorial rule system.",
+          "relative_proportions": "The process cue is brief and spacious; supporting projects occupy less space than the lead stories; capabilities are dense but visibly grouped.",
+          "layer_stack": "Light process surface, labeled sequence, supporting project entries, capability group labels, and expandable detail where needed.",
+          "background_intent": "A lightly tinted band distinguishes the transition without suggesting a real technical document.",
           "asset_requirements": [],
           "resource_candidates": [
             "diagram_process_flow"
           ],
           "motion_intent": {
-            "type": "subtle_progression",
-            "description": "The experience progression and project thread may reveal in reading order; the flow diagram may trace a short path once.",
-            "reduced_motion_behavior": "Display the timeline, project panels, and complete flow diagram in their final state with no tracing or sequential movement."
+            "type": "representational_sequence",
+            "behavior": "A simple line or stage emphasis may progress from design development to coordination, documentation, and site resolution when entering the scene.",
+            "intensity": "low"
           },
           "interaction_states": {
-            "diagram": "Non-interactive by default and accompanied by text explaining that it is conceptual.",
-            "project_panel": "Optional tap- or keyboard-activated detail reveals may expose contribution context, but summaries remain visible by default.",
-            "external_links": "No unapproved project links are introduced; focus and pressed states remain explicit."
+            "process_stages": "Active emphasis may change on focus or touch, but all labels remain visible.",
+            "capability_groups": "Optional expansion uses explicit labels and remains usable by keyboard and touch."
           },
-          "transition_in": "Move from capability layers into a denser but still breathable evidence field.",
-          "transition_out": "Soften borders and reduce structural decoration before education.",
-          "responsive_behavior": "Wide desktop may place the flow beside selected work; laptop uses a narrower supporting diagram; tablet alternates text and diagram vertically; mobile stacks experience and projects, simplifies the flow to a short readable sequence, and keeps project summaries before details. Touch-only users receive all essential content without hover.",
-          "accessibility_intent": "Dates and roles remain readable in source order. Project details are keyboard-accessible if collapsible, and the conceptual diagram has a textual equivalent.",
-          "reduced_motion_behavior": "Use static progression and static diagram connectors.",
-          "performance_risk": "Moderate if the diagram becomes too elaborate; limit node count, avoid continuous tracing, and simplify early for mobile.",
-          "failure_safe_static_state": "Experience entries, all three project summaries, contributions, and technology groupings remain complete and scannable.",
+          "transition_in": "The process cue follows the lead project evidence as a connective pause.",
+          "transition_out": "Capability rules soften into the experience section.",
+          "responsive_behavior": "Touch-only and mobile use a vertical process sequence and concise one-sentence project entries. Tablet uses a compact two-part arrangement. Laptop, desktop, and wide desktop can use a horizontal process line with capability groups arranged across the available reading width.",
+          "accessibility_intent": "The process is labeled as representative; sequence meaning is present in text and not dependent on line animation or color.",
+          "reduced_motion_behavior": "Display the complete labeled sequence and all supporting project and capability content immediately.",
+          "performance_risk": "Low if implemented as lightweight vector or CSS-like line geometry; avoid raster diagrams.",
+          "failure_safe_static_state": "A static four-stage text sequence plus grouped capabilities clearly communicates the continuity thesis.",
           "acceptance_criteria": [
-            "No employer names, metrics, screenshots, logos, or fabricated outcomes appear.",
-            "The three projects are distinguishable by domain while sharing a systems-engineering thread.",
-            "The conceptual flow is clearly representative rather than evidence of a real internal topology."
+            "Aranya Private Villas and Nexa Corporate Headquarters establish breadth without becoming unsupported case studies.",
+            "The process visual is abstract and never presented as a real project drawing.",
+            "Capability groups remain scannable and available on mobile."
           ]
         },
         {
-          "scene_id": "home-scene-close",
-          "route_id": "route:home",
-          "narrative_goal": "Provide concise academic context and resolve the page with a clear professional connection action.",
-          "viewport_role": "Closing confirmation and conversion moment.",
+          "scene_id": "home-professional-close",
+          "route_id": "home",
+          "narrative_goal": "Close with professional progression, credentials, and a safe invitation to connect.",
+          "viewport_role": "Trust-building and closing scene.",
           "content_refs": [
+            "home:experience",
             "home:education",
             "home:connect"
           ],
-          "layout_intent": "Give education a compact open treatment, then create a calmer closing field where the invitation and LinkedIn action are primary and GitHub is secondary.",
-          "alignment_relationships": "Keep education aligned with the page reading column. The closing invitation may use a more centered or spacious composition while preserving the same typographic system.",
-          "relative_proportions": "Education is a small supporting block; the connection invitation receives more surrounding space but remains concise.",
-          "layer_stack": "Simplified base surface, compact education text, then a clean closing action layer with restrained accent emphasis.",
-          "background_intent": "Return to the quietest background state to make the final action feel direct and human.",
+          "layout_intent": "Use a compact timeline-like experience treatment led by the current Senior Architect role, followed by a quieter credentials group and a simple centered or offset connection close.",
+          "alignment_relationships": "Dates and roles form a consistent vertical axis; credentials use a lighter supporting rhythm; the closing action is visually isolated and easy to identify.",
+          "relative_proportions": "Current experience receives the most detail, earlier roles are compressed, credentials remain secondary, and the closing prompt has generous breathing room.",
+          "layer_stack": "Experience rules, role descriptions, credentials, languages, then neutral connection prompt.",
+          "background_intent": "Return to the base surface to signal completion and credibility rather than spectacle.",
           "asset_requirements": [],
           "resource_candidates": [],
-          "motion_intent": {
-            "type": "gentle_emphasis",
-            "description": "The closing action may receive a single low-key entrance emphasis as it becomes visible.",
-            "reduced_motion_behavior": "Show the closing action immediately with no entrance movement."
-          },
+          "motion_intent": {},
           "interaction_states": {
-            "github": "Secondary treatment with equal accessibility and lower visual priority.",
-            "linkedin": "Primary accent treatment with clear hover, pressed, and keyboard-focus states."
+            "closing_action": "Use a clear focus state and restrained accent treatment while retaining its neutral wording.",
+            "optional_credentials": "May collapse on narrow screens with an explicit control."
           },
-          "transition_in": "Remove the heavier evidence structure and create additional breathing room.",
-          "transition_out": "End cleanly without an automatic route transition or forced animation.",
-          "responsive_behavior": "Desktop may place education and closing content in a balanced final composition; tablet keeps them adjacent only if readable; mobile stacks education before the invitation and gives LinkedIn the clearest touch target. Touch-only behavior is fully explicit.",
-          "accessibility_intent": "Preserve descriptive link labels, logical focus order, and sufficient contrast. Education remains optional context rather than a barrier to the CTA.",
-          "reduced_motion_behavior": "Use an immediately visible static closing composition.",
-          "performance_risk": "Very low; avoid decorative media in the final section.",
-          "failure_safe_static_state": "Education and both approved links are visible, with LinkedIn clearly established as the primary action.",
+          "transition_in": "Capability grouping resolves into the current-role emphasis.",
+          "transition_out": "End with a quiet fade of visual ornament, not a looping effect.",
+          "responsive_behavior": "Touch-only and mobile show the current role in full, compress earlier roles, lead with the degree and Revit certification, and keep the closing text short. Tablet preserves the timeline relationship. Laptop, desktop, and wide desktop may place credentials beside experience while maintaining a clear reading order.",
+          "accessibility_intent": "Dates, organizations, roles, credentials, and languages remain textually explicit; optional content is not the only source of professional context.",
+          "reduced_motion_behavior": "No special behavior required; keep the complete closing scene static.",
+          "performance_risk": "Very low; text and rules only.",
+          "failure_safe_static_state": "Experience, education, credentials, and the approved neutral contact wording remain complete without animation.",
           "acceptance_criteria": [
-            "The page ends with an actionable, approved professional connection path.",
-            "GitHub remains secondary without being hidden.",
-            "No private contact information is introduced."
+            "The current Senior Architect role is visually dominant over earlier experience.",
+            "No contact link or personal detail is invented.",
+            "The final CTA remains neutral until an approved channel exists."
           ]
         }
       ],
       "asset_briefs": [],
       "resource_candidates": [
         "hero_asymmetric_text_dominant",
-        "diagram_abstract_topology",
         "diagram_process_flow"
       ],
       "acceptance_criteria": [
-        "All six approved sections appear in the approved narrative order.",
-        "The page is moderate-density, readable, and text-led.",
-        "Visuals remain abstract and representative because no approved media exists.",
-        "The primary CTA is LinkedIn and the secondary link is GitHub.",
-        "The experience and selected-work areas are the strongest proof regions without fabricated evidence."
+        "The single route is echoed exactly as home at /.",
+        "The page communicates continuity from design intent through site delivery.",
+        "No unavailable media, outcomes, awards, metrics, or contact details are fabricated.",
+        "The two lead projects are more prominent than supporting projects, capabilities, experience, and credentials.",
+        "The experience works on touch-only, mobile, tablet, laptop, desktop, and wide desktop layouts."
       ]
     }
   ],
@@ -653,25 +786,12 @@
     {
       "resource_id": "hero_asymmetric_text_dominant",
       "category": "hero_pattern",
-      "why_it_matches": "The approved headline and positioning are strong enough to carry a text-dominant opening without a real hero image.",
-      "where_it_may_help": "route:home / home-scene-thesis",
-      "priority": "recommended",
-      "possible_use": "Adapt the asymmetric text-led hero with a small abstract systems motif.",
-      "adaptation_notes": "Keep the headline primary and ensure the visual cannot resemble a real screenshot or evidence artifact.",
-      "fallback": "Use a simpler text-led hero with a static custom topology accent.",
-      "confidence": "catalogue_verified",
-      "resource_library_version": "03ce83369dfc",
-      "lookup_status": "verified"
-    },
-    {
-      "resource_id": "diagram_abstract_topology",
-      "category": "diagram_primitive",
-      "why_it_matches": "The profile benefits from showing relationships among APIs, data, caching, cloud, and delivery without using unavailable real diagrams.",
-      "where_it_may_help": "route:home / home-scene-capabilities",
+      "why_it_matches": "The approved headline and positioning are strong, while no hero image is available.",
+      "where_it_may_help": "home / home-introduction",
       "priority": "optional",
-      "possible_use": "Create a generalized node-and-edge illustration of approved system concerns.",
-      "adaptation_notes": "Keep it abstract and label only supplied technologies or concepts; never imply an exact production topology.",
-      "fallback": "Use grouped capability panels without a diagram.",
+      "possible_use": "Adapt the text-led opening with a small abstract architectural balance mark.",
+      "adaptation_notes": "Keep the mark representative and decorative; preserve the headline's prominence and do not imply project evidence.",
+      "fallback": "Custom text-first composition with no abstract mark.",
       "confidence": "catalogue_verified",
       "resource_library_version": "03ce83369dfc",
       "lookup_status": "verified"
@@ -679,88 +799,70 @@
     {
       "resource_id": "diagram_process_flow",
       "category": "diagram_primitive",
-      "why_it_matches": "The selected work includes queues, synchronization, retries, caching, and deployment workflows that can be explained as short conceptual sequences.",
-      "where_it_may_help": "route:home / home-scene-proof",
+      "why_it_matches": "The approved narrative explicitly benefits from showing continuity between design development, coordination, documentation, and site resolution.",
+      "where_it_may_help": "home / home-process-and-range",
       "priority": "optional",
-      "possible_use": "Show one simplified representative flow connecting service logic, data behavior, asynchronous processing, and delivery.",
-      "adaptation_notes": "Use few steps, preserve mobile legibility, and avoid numbers, status indicators, or claims of actual system performance.",
-      "fallback": "Use prose-led project panels with no diagram.",
+      "possible_use": "Adapt a short words-first process sequence as a bridge between lead projects and capability groups.",
+      "adaptation_notes": "Keep the sequence abstract, concise, and legible on mobile; never present it as a real project drawing or measured workflow record.",
+      "fallback": "Static text sequence separated by rules.",
       "confidence": "catalogue_verified",
       "resource_library_version": "03ce83369dfc",
       "lookup_status": "verified"
     }
   ],
   "accessibility_and_performance": {
-    "color_contrast": "Use strong contrast for primary text and actions, with supporting text still comfortably readable. Never rely on accent color alone for active or categorical meaning.",
-    "keyboard_focus": "Provide persistent, high-visibility focus treatment for navigation, CTAs, and any expandable project details. Preserve a logical document order.",
-    "reduced_motion": "Disable staged reveals, tracing, parallax, and animated emphasis when reduced motion is requested; show every scene in its complete static state.",
-    "performance_choices": "Prefer text, lightweight CSS-defined surfaces, and simple vector-like diagrams. Avoid background video, large raster backgrounds, continuous animation, and unnecessarily complex diagram effects.",
-    "content_accessibility": "Keep all essential claims in text, provide textual equivalents for conceptual diagrams, preserve heading hierarchy, and ensure external link labels are descriptive.",
-    "responsive_accessibility": "Maintain readable line lengths and touch-friendly targets across mobile, tablet, laptop/desktop, wide desktop, and touch-only devices. Do not require hover."
+    "contrast": "Use strong contrast for all primary and project text, with secondary text tested for comfortable reading rather than treated as faint decoration.",
+    "keyboard": "Every anchor, expansion control, and CTA has a persistent, high-visibility focus treatment that is not replaced by hover styling.",
+    "responsive": "Use one-column reading on mobile and touch-only devices, moderate asymmetry on tablet, and wider editorial relationships on laptop, desktop, and wide desktop while preserving readable measures.",
+    "performance": "Use lightweight typography, rules, and vector-like geometry. Do not acquire or load project imagery without later permission and attribution confirmation; avoid video, large raster backgrounds, and continuous scroll effects.",
+    "content_access": "No essential meaning is placed only in an abstract mark, animation, hover state, or color distinction. Preserve semantic order and explicit labels.",
+    "reduced_motion": "Disable entrance sequencing, line progression, positional shifts, and any nonessential transition when reduced motion is requested; render all content in its final readable state."
   },
   "must_preserve": [
-    "Backend and platform-oriented positioning",
-    "Java and Spring Boot emphasis",
-    "APIs, authentication, databases, caching, cloud, Docker, CI, testing, and monitoring",
-    "Neutral project-level descriptions",
-    "No approved images, screenshots, diagrams, or project media were supplied.",
-    "Moderate density with readable technical detail, short paragraphs, and compact technology groupings.",
-    "Lead with the backend/platform positioning and connection CTA.",
-    "Make capabilities and production experience the main proof.",
-    "Use selected work as concise technical evidence rather than full case studies.",
-    "Keep education and secondary links subordinate.",
-    "Condense capability descriptions.",
-    "Stack project cards vertically.",
-    "Reduce education to one compact entry.",
-    "Prioritize LinkedIn over secondary links.",
-    "The skill inventory is extensive and should not become a dense wall of labels.",
-    "Project contribution text may need shortening on narrow screens.",
-    "Experience entries should remain scannable without exposing omitted employer names.",
-    "A conceptual flow could explain the relationship between APIs, data stores, caching, asynchronous processing, and deployment, but it must be based only on the supplied technologies and project descriptions.",
-    "Show the progression from backend implementation to broader platform concerns such as caching, queues, cloud deployment, testing, and monitoring.",
-    "Contrast the three project domains while preserving the common systems-engineering thread."
+    "Aarav Mehta",
+    "Senior Architect",
+    "Bengaluru, Karnataka, India",
+    "The distinction between individual responsibilities and overall team/project outcomes",
+    "The supplied project role descriptions"
   ],
   "must_not_fabricate": [
-    "Metrics or outcomes",
-    "Employer or project publication permission",
-    "Individual ownership beyond the supplied facts",
-    "Screenshots, logos, testimonials, awards, certifications, or project demos",
-    "Do not assume project screenshots, logos, demos, or performance charts exist.",
-    "Do not display private contact details.",
-    "Do not restore employer or project names until publication permission is confirmed.",
-    "Do not display unresolved metrics.",
-    "Do not present an abstract diagram as a real internal architecture document."
+    "Project imagery or drawings",
+    "Project outcomes or awards",
+    "Metrics not verified from the source",
+    "Client or employer confidentiality clearance",
+    "Contact links or personal details",
+    "Exact visual, layout, color, typography, or motion decisions",
+    "Project publication permission or attribution approval"
   ],
   "conflicts": [],
   "warnings": [
-    "The topology and process diagrams are optional custom visual opportunities; omit them if they reduce legibility or imply evidence.",
-    "The selected-work scene is the highest-density region and should be simplified before shrinking on narrow screens."
+    "Project and employer names remain subject to confidentiality confirmation before launch.",
+    "The process diagram must remain representative and words-first because no approved diagrams or drawings exist.",
+    "Capability and experience content may become dense on narrow screens; the specified condensation must be preserved.",
+    "Both selected resource candidates are optional and require a lightweight custom fallback if they add visual or implementation cost."
   ],
   "compiler_handoff": {
     "pages_compilable": {
-      "route:home": true
+      "home": true
     }
   },
+  "resource_policy": {},
   "stages_run": [
     "establish_visual_language"
   ],
   "memory": {
-    "primary_cta": "Connect on LinkedIn",
+    "media_status": "no_approved_media_available",
     "pages_included": true,
-    "primary_visual_thesis": "A calm, text-led systems map for dependable backend and platform engineering.",
-    "public_routes_directed": [
-      "route:home"
+    "route_ids_directed": [
+      "home"
     ],
-    "visual_direction_status": "visual_language_and_single_route_pages_ready"
+    "visual_direction_status": "visual_language_and_page_direction_complete"
   },
   "revision_request": "",
-  "approved": {
-    "approved_at": "2026-08-13T15:23:52.308079+00:00",
-    "visual_direction_hash": "aafb47f9426dc9c93d8f32e491c3efc670739a1e5596814071fd82a89c539fe2"
-  },
+  "approved": null,
   "latest_error": null,
-  "attempt": 2,
+  "attempt": 1,
   "max_attempts": 3,
-  "started_at": "2026-08-13T15:21:40.450816+00:00",
-  "elapsed_seconds": 131.878588
+  "started_at": "2026-08-19T10:39:52.359030+00:00",
+  "elapsed_seconds": 52.141939
 }

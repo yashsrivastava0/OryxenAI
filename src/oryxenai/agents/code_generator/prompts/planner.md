@@ -1,87 +1,42 @@
-# Operation: compile the executable experience blueprint
+# Operation: compile the executable V4 experience blueprint
 
-Produce one strict SitePlan for the admitted public portfolio. This operation
-turns the recommended creative concept into measurable implementation intent;
-it does not write source code.
+Return only `ExperienceBlueprintV4`. The host compiles routes, content
+bindings, criteria, execution bindings, paths, ownership, and the WorkGraph;
+you have no authority to return a SitePlan, file path, package, provider URL,
+or source code.
 
-Authority and grounding:
+Grounding and exact coverage:
 
-- Copy every admitted route id, path, section id, fact id, criterion id,
-  resource slot id, and approved interaction destination exactly. Never add a
-  route, section, claim, project, metric, testimonial, link, package, or asset.
-- Select the recommended creative concept supplied in `creative_direction`
-  unless an explicit executable-resource conflict makes the other supplied
-  candidate necessary. `experience_blueprint.selected_concept_id` must name one
-  of those two candidates.
-- Treat execution bindings as real, placement-scoped material. Required local
-  images/components and the approved font are design inputs, not optional
-  decoration. Keep representative imagery secondary to the approved evidence.
-- Use `local_recipe` entries only as implementation guidance; they do not
-  satisfy a concrete image, component, font, or package binding.
+- Select one of the two supplied concept IDs. Preserve every admitted route
+  and its upstream section sequence exactly at mobile, tablet, and desktop.
+- Echo the supplied stable route, section, content, criterion, resource,
+  interaction, region, and semantic owner IDs exactly. Never add a fact,
+  claim, project, metric, testimonial, link, section, route, or resource.
+- Use one or two approved local font roles. Echo their family, weights, style,
+  and WOFF/WOFF2 files exactly. Define fluid type steps, line height, tracking,
+  semantic colors, typed lengths, borders, shadows, spacing, radii,
+  containers, and motion tokens without fallback expressions.
+- Give every section exact selectors, viewport order, columns, measure, gap,
+  width range, overlap ceiling, and sticky authority. Responsive changes must
+  preserve approved copy and reading order.
+- Give every route at least one content-specific distinctive move. Bind it to
+  source and target selectors, a machine-readable geometric relationship,
+  ratio range, viewport set, and the CSS properties that establish it. A data
+  marker by itself is not implementation.
+- Place each required resource once in its approved section. State selector,
+  honest alt policy, fit, focal position, responsive `sizes`, loading policy,
+  visible-ratio floor, and aspect-ratio range. Representative media is never
+  personal evidence.
+- Assign every approved interaction exactly once with selector, literal
+  marker, keyboard behavior, focus result, state transition, state attribute,
+  and same-app navigation outcome when applicable.
+- Add motion only when it explains hierarchy, orientation, or interaction
+  state. Bind trigger and target selectors, before/after computed properties,
+  duration range, easing, main-thread budget, purpose, and a static
+  reduced-motion replacement that keeps all content visible.
 
-ExperienceBlueprintV2 requirements:
-
-- Create exactly one layout region for every approved section. Each region
-  names a specific composition intent, min-height strategy, readable measure,
-  and mobile/tablet/desktop states with concrete order, column count, gutter,
-  and gap values. Preserve the upstream narrative order.
-- Define a coherent token system: local font family and weights from the
-  execution contract, a readable fluid body range and line height, a deliberate
-  heading scale, restrained semantic colors, a non-uniform spacing rhythm,
-  radii, and a bounded content container.
-- Create a resource-usage entry for each required visual binding at its approved
-  route/section and region. State crop/loading/alt behavior honestly; decorative
-  or representative media must never be described as personal or project proof.
-- Define only purposeful motion beats tied to hierarchy, orientation, or
-  interaction state. Every beat names its region, bounded duration/easing, and
-  a concrete reduced-motion replacement that leaves all content visible.
-- Record portfolio-specific anti-patterns. Reject generic card repetition,
-  arbitrary gradients, glass panels, floating blobs, uniformly centered
-  sections, decorative pill overload, and blanket fade-on-scroll unless the
-  admitted direction explicitly requires one.
-
-ExperienceBlueprintV3 requirements for an executable generation session:
-
-- Return typed `color`, `typography`, `spacing`, `shape`, and `motion` token
-  groups with concrete values and no fallback expressions. The host compiles
-  these values deterministically into `generated-tokens.css`; never rely on a
-  scaffold palette or a model-authored token file.
-- Return exactly one trusted route-shell contract per approved route, with the
-  exact section order and shell ownership. Return typed distinctive moves,
-  interaction assignments, resource placements, and motion beats that are
-  scoped to approved ids. Every declared interaction has exactly one typed
-  assignment and source marker.
-- Use the approved font binding and local material or configured system
-  disposition exactly. Do not introduce a font, image, component, package, URL,
-  or resource request during planning.
-- Plan route batches as section fragments. The deterministic compiler assigns
-  the sole route shell to a route composer and assigns interactions only once;
-  batches never own a second `<main>`, navigation, footer, or shell.
-- Use the approved public content as the only visible-copy source. Do not
-  include model reasoning, placeholder copy, or prior unrelated source in the
-  blueprint.
-
-The rest of SitePlan remains enforceable:
-
-- Give every route a content-specific composition, responsive strategy, exact
-  section/content/fact/criterion bindings, and interaction outcomes with
-  keyboard and reduced-motion behavior.
-- Build a concrete creative thesis, typography/color/spacing/motion system,
-  accessible shell, reusable shared-component contracts, and resource
-  inventory. Distinctiveness must come from hierarchy and composition, not
-  ungrounded visible copy.
-- `acceptance_coverage` must cover every admitted criterion exactly once.
-  Each source marker is a short token shaped `marker:<criterion_id>`.
-- Interaction ids are stable `interaction:<route>:<name>` values. Targets are
-  empty or valid CSS selectors; expected URLs are only same-app paths beginning
-  with `/`. External approved links keep expected_url empty.
-- Reuse required execution slot ids verbatim in `resource_slots`. Do not request
-  resources during planning.
-
-File ownership and scheduling are compiler authority. Return `work_graph` with
-an empty `units` list and return `execution_bindings` as an empty list; the host
-will compile disjoint foundation, route-batch, route-compose, and terminal
-review units plus exact executable bindings from the admitted projections.
-
-Return only the strict SitePlan object. Do not emit source files, URLs beyond
-approved content, dependency/resource requests, commands, or raw reasoning.
+Reject interchangeable templates: repeated identical section shells,
+unauthorized card grids, uniform centering, arbitrary gradients, glass, pills,
+blobs, blanket scroll fades, universal staggering, inert pseudo-controls, and
+decorative effects that obscure evidence. Examples in trusted instructions are
+quality failures or contract demonstrations, never a style catalogue.

@@ -1,7 +1,7 @@
 # Operation: audit the shared visual foundation
 
 The host deterministically compiles the owned token and content modules from
-the validated ExperienceBlueprintV3 before this operation runs. Review the
+the validated experience blueprint before this operation runs. Review the
 result against the normative `<generation-contract>` block; do not invent a
 second token system and do not retype approved copy.
 
