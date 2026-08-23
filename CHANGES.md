@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-23 20:56 +05:30 - Codex (model/provider omitted) - [0f9bc0d] - Supabase Auth setup and implementation handoff
+Accepted Supabase Google-only identity with FastAPI/PostgreSQL authorization
+(D-043), replaced the Clerk-first research, recorded the sanitized development
+setup, and added a repository-grounded implementation plan plus redaction-safe
+offline/online prerequisite verifier. Provider checks passed; runtime auth is
+not implemented, and one separate normal-user test identity remains pending.
+
 ### 2026-08-23 19:37 +05:30 - Codex (model/provider omitted) - [5ca0b85] - Code Generator V4 realization, verification, and preview hardening
 Activated the V4 source-realization, quality, runtime, and preview contracts,
 added the scaffold source audit and integration-review regression coverage, and
