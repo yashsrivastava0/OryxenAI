@@ -2,8 +2,8 @@
 
 ## Identity is not authorization
 
-Clerk authentication answers: “Which Clerk subject made this request, and is
-the session valid?” OryxenAI authorization answers:
+Supabase authentication answers: “Which Supabase subject made this request, and
+is the session valid?” OryxenAI authorization answers:
 
 - Is that subject an active local user?
 - Is onboarding complete?
@@ -24,24 +24,43 @@ Names are recommendations for the implementation plan, not applied migrations.
 | Column | Purpose |
 | --- | --- |
 | `id UUID PK` | Stable internal identifier used by OryxenAI foreign keys. |
-| `clerk_user_id TEXT UNIQUE NOT NULL` | Verified Clerk `sub`; immutable external identity mapping. |
+| `supabase_user_id UUID UNIQUE NOT NULL` | Verified Supabase `sub`; immutable external identity mapping. |
 | `primary_email TEXT NOT NULL` | Normalized verified primary email for admin/support display and bootstrap, never resource ownership. |
 | `username TEXT UNIQUE NULL` | Normalized app username; null means onboarding required. |
-| `display_name TEXT NULL` | Convenience value from Google/Clerk, not unique or authoritative. |
+| `display_name TEXT NULL` | Convenience value from Google/Supabase, not unique or authoritative. |
 | `avatar_url TEXT NULL` | Optional display value; render with safe URL policy/referrer handling. |
 | `role TEXT NOT NULL` | Checked set: `user`, `admin`; default `user`. |
-| `status TEXT NOT NULL` | Checked set: `active`, `suspended`, `deletion_pending`. |
+| `status TEXT NOT NULL` | Checked set: `active`, `suspended`, `deletion_pending`, `deleted`. |
 | `onboarding_completed_at` | Null until username is claimed. |
+| `deleted_at TIMESTAMPTZ NULL` | Marks the retained authorization tombstone after deletion. |
 | `last_seen_at`, `created_at`, `updated_at` | Operations/support timestamps. |
 
-Do not store Google/Clerk access tokens. Do not store a password hash. Do not
-store role in a user-editable JSON blob.
+Do not store Google/Supabase access tokens. Do not store a password hash. Do
+not store role in `user_metadata` or another user-editable JSON blob.
+
+### `app_user_capacity`
+
+Use one singleton row as the transaction lock for normal-user admission:
+
+| Column | Purpose |
+| --- | --- |
+| `scope TEXT PK` | Stable value such as `normal-users`. |
+| `normal_user_limit INTEGER NOT NULL` | Config-consistent limit; 15 for the accepted policy. |
+| `revision INTEGER NOT NULL` | Concurrency and audited policy updates. |
+
+On approved first login, lock this row, count non-deleted normal users, and
+insert only when below 15. Administrators do not consume the limit. Suspended
+normal users retain a slot; a completed audited deletion releases it. The
+minimal deleted user tombstone remains excluded from capacity but blocks the
+same still-allowlisted email from silently registering again. Do not trust a
+frontend count or race two independent `COUNT`/`INSERT` transactions.
 
 ### `portfolio_sessions.owner_user_id`
 
-Add a foreign key to `app_users.id` plus an owner/created-time index. Every
-customer session must have an owner. Existing pre-auth rows are either assigned
-to an admin deliberately or quarantined as legacy/system data.
+Add a foreign key to `app_users.id` plus an owner/created-time index. Add an
+explicit legacy-quarantine flag/check so a row is either owned or quarantined.
+The accepted migration marks every existing unowned row legacy/admin-only; new
+product rows must be owned.
 
 Repository methods should make the policy visible in their names, for example:
 
@@ -81,7 +100,7 @@ Store:
 - outcome and small safe details;
 - creation timestamp.
 
-Do not store raw Clerk/Google objects, tokens, cookies, full intake documents,
+Do not store raw Supabase/Google objects, tokens, cookies, full intake documents,
 or destructive request payloads in the audit row.
 
 ## Role/permission matrix
@@ -122,8 +141,8 @@ quota reset does.
 On the first eligible Code Generator `/start`, atomically bind
 `generation_run_id` to the run/variant. Later `/retry` requests may resume that
 same run and its stable design variant. `/regenerate`, which deliberately
-creates a new variant in the current code, returns `409
-GENERATION_VARIANT_LOCKED` for a normal user.
+creates a new variant in the current code, returns
+`409 GENERATION_VARIANT_LOCKED` for a normal user.
 
 This distinction is important:
 
@@ -165,7 +184,7 @@ new decision because it can imply another generation.
 
 ## Transaction/concurrency rules
 
-Even with ten users, double-clicks, retries, and multiple tabs can race.
+Even with 15 users, double-clicks, retries, and multiple tabs can race.
 
 ### Session creation
 
@@ -236,18 +255,17 @@ At enqueue time record or bind:
 At execution/finalization, the worker loads current database ownership and
 checks it against the bound owner. If the session/user is suspended,
 deletion-pending, missing, or reassigned unexpectedly, fail closed and do not
-publish output. Workers never call Clerk to authorize a historic browser
+publish output. Workers never call Supabase to authorize a historic browser
 request.
 
 ## Admin deletion semantics
 
 ### Suspend user
 
-1. Set local status to suspended.
-2. Call Clerk ban; Clerk documents that banning revokes sessions and prevents
-   sign-in.
-3. Record outcome. If the Clerk call fails, keep/return a retryable safe state;
-   local authorization still denies immediately.
+1. Set local status to suspended so OryxenAI denies immediately.
+2. Use the current Supabase Admin API to ban/revoke provider access.
+3. Record outcome. If the provider call fails, keep a retryable safe state;
+   local authorization remains denied.
 
 ### Delete project
 
@@ -262,15 +280,21 @@ request.
 
 ### Delete user
 
-1. Deny locally and ban the Clerk user to revoke sessions.
-2. Mark deletion-pending.
+1. Deny locally and revoke/ban the Supabase identity using the current Admin API.
+2. Mark `deletion_pending`.
 3. Delete/clean owned projects as above.
-4. Delete the Clerk identity through the Backend API.
-5. Delete/anonymize the local user and finalize audit according to the chosen
-   retention policy.
+4. Delete the Supabase Auth identity with the server-only secret key.
+5. Convert the local row to a minimal `deleted` authorization tombstone. Retain
+   only the subject/email binding and audit-safe fields needed to prevent a new
+   Supabase UUID for the same still-allowlisted Google email from being admitted
+   automatically; remove presentation/profile data under the retention policy.
+6. Finalize the audit event.
 
 Make the workflow resumable. If storage cleanup fails, keep a banned,
 deletion-pending record instead of re-enabling a partially deleted user.
+Readmission of a deleted email requires a separate explicit, audited admin
+action that resolves the old tombstone before a new provider identity can be
+bound. Merely remaining in `ORYXENAI_ALLOWED_USER_EMAILS` is insufficient.
 
 Prevent accidental total lockout: deleting/demoting an admin should require a
 second active admin or a documented break-glass bootstrap path.

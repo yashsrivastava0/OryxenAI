@@ -1,241 +1,240 @@
-# Deployment and owner checklist
+# Owner and deployment checklist
 
-This separates tasks that require the project owner's accounts/consent from
-work coding agents can complete. Never paste secret values into chat, source,
-documentation, screenshots, logs, or commits.
+This separates owner-controlled accounts/secrets from coding-agent work. Never
+paste secret values, passwords, payment details, OTPs, or root credentials into
+chat, source, documentation, tests, screenshots, logs, or commits.
 
-## First owner decision
+## Final owner decision
 
-### If you own/can obtain an application domain
+- Identity provider: Supabase Auth.
+- Sign-in method: Google only.
+- Registration: application allowlist.
+- Capacity: 15 normal users plus two initial administrators.
+- Authorization: FastAPI and PostgreSQL.
+- Deployment: deliberately deferred; do not create AWS yet.
 
-Use Clerk as recommended. You need DNS access. Clerk's Hobby service is free at
-this project's size, but domain registration may not be.
+## Development setup already completed
 
-### If you will not own a domain and require absolute zero spend
+- Supabase Free development project created in Mumbai.
+- Google external testing app created.
+- Basic identity scopes only.
+- Google web client created.
+- Supabase callback configured in Google.
+- Google Client ID/Secret configured privately in Supabase.
+- Google provider enabled with nonce skipping off and email required.
+- Local site and callback URLs configured for localhost and `127.0.0.1` on
+  port 8000.
+- Two administrator identities added as Google test users and stored privately
+  in the bootstrap setting.
+- Required `.env` entries declared without committing values.
+- No application tables created manually; Alembic remains authoritative.
 
-Tell the implementation planner to switch the identity provider to Supabase
-Auth. Do not deploy Clerk development credentials. The authorization, username,
-ownership, quota, admin, worker, and test design in these documents still
-applies with the external subject changed to Supabase's user UUID. This can
-support a small named-user/personal deployment, but it does not waive Google's
-production publishing, homepage, privacy, or domain rules.
+See [09-confirmed-setup.md](09-confirmed-setup.md) for the sanitized values and
+verification evidence.
 
-## What you must do for Clerk development
+## Pending owner item
 
-1. Create/sign in to a Clerk account.
-2. Create one OryxenAI Clerk application.
-3. In the development instance, enable Google for all users and disable other
-   sign-in methods for v1.
-4. Keep public sign-up open unless you deliberately choose an invite/allowlist
-   plan; the product enforces its own portfolio quota.
-5. Copy only these values into local `.env`:
-   - development Clerk publishable key;
-   - development Clerk secret key;
-   - optional JWT public key if the chosen backend verification path uses it.
-6. Provide the two intended admin Google email addresses through the proposed
-   admin-bootstrap environment value. They should be distinct and verified.
-7. Each admin tests a real Google sign-in in the development instance.
+A separate non-admin Google test account does not yet exist. Before the final
+normal-user live acceptance test:
 
-You do not provide a Google password. You do not create an OryxenAI password.
+1. Choose/create one Google account that is not either administrator.
+2. Add it to the Google OAuth application's test users.
+3. Add its normalized email to `ORYXENAI_ALLOWED_USER_EMAILS` in `.env`.
+4. Restart the API/worker so cached settings reload.
+5. Do not add it to `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS`.
+6. Run new-user onboarding and one-project isolation tests with it.
 
-## What you must do for Clerk production
+This is not a blocker for planning or deterministic implementation tests. It is
+a blocker for claiming the normal-user Google flow is live-verified.
 
-1. Choose the final HTTPS app origin, for example
-   `https://app.your-domain.example`.
-2. Add the custom domain to the hosting provider and verify TLS.
-3. Create/activate Clerk's production instance for the owned root domain.
-4. Add every DNS record Clerk requests. If using Cloudflare DNS, follow Clerk's
-   guidance about DNS-only records during verification.
-5. Create/configure a Google Cloud project and OAuth consent screen.
-6. Create a **Web application** OAuth client.
-7. Add the exact app origin under Google Authorized JavaScript origins.
-8. Copy the exact Authorized Redirect URI displayed by Clerk into Google
-   Authorized Redirect URIs. Do not invent this URI from memory.
-9. Paste the Google Client ID and Client Secret into Clerk's production Google
-   connection, not into OryxenAI source.
-10. Publish a real homepage, privacy policy, and terms/support information on
-    the application domain; configure the matching OAuth consent-screen fields.
-11. Verify authorized domains/brand if Google requires it for the chosen
-    production presentation, and request only basic identity scopes.
-12. Put Google's external OAuth app into production for a reliable public
-    deployment.
-13. Add production Clerk keys and the exact allowed app origin to the hosting
-    provider's environment settings, then redeploy.
-14. Recreate any Clerk production settings that do not copy from development,
-    including Google connection, paths, DNS, and webhook.
-15. Test both admin accounts and a normal account on the final domain in an
-    ordinary top-level browser window and an incognito profile.
+## Local environment contract
 
-Google’s testing mode can restrict access to configured test users. That is
-useful for a closed demo, but Google documents a 100-test-user ceiling, warning
-behavior, and a seven-day authorization lifetime. It is not the polished,
-open production-ready state this project asks for.
-
-## Proposed OryxenAI configuration names
-
-The later implementation should keep non-secret policy in TOML and values in
-environment variables. Names may be finalized by the plan, but one consistent
-set is:
+Expected `.env` names:
 
 ```text
-CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-CLERK_JWT_KEY=
-CLERK_WEBHOOK_SIGNING_SECRET=
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 ORYXENAI_ADMIN_BOOTSTRAP_EMAILS=
+ORYXENAI_ALLOWED_USER_EMAILS=
 ```
 
-Committed `config/app.toml`/deployment overlays can hold:
+Rules:
+
+- The publishable key may be sent to the browser.
+- The secret/service-role key is server-only.
+- The Google Client Secret remains in Supabase, not OryxenAI.
+- Allowlist/bootstrap emails are deployment policy and must not appear in
+  client configuration or normal diagnostics.
+- The coding agent may inspect presence/shape through redaction-safe tooling,
+  never print values.
+
+Run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+```
+
+The online form checks provider settings, JWKS, and OAuth initiation. It does
+not perform an interactive Google login.
+
+## Non-secret application policy to add during implementation
+
+The implementation plan will add config-driven policy equivalent to:
 
 ```toml
 [auth]
-provider = "clerk"
+provider = "supabase"
 required = true
-allowed_origins = ["https://app.example.com"]
 sign_in_path = "/sign-in"
-after_sign_in_path = "/auth/continue"
+callback_path = "/auth/callback"
+after_sign_in_path = "/app"
+normal_user_limit = 15
 normal_user_portfolio_limit = 1
 normal_user_variant_limit = 1
 ```
 
-Do not commit a real domain as an immutable architecture fact if deployments
-will vary; use the production overlay/environment mechanism already established
-by the repository.
+Allowed origins, issuer, audience, and redirects must be environment/overlay
+specific. Do not scatter localhost or future production URLs through code.
 
-The application should fail readiness/production startup when auth is required
-but keys/origins are missing or development keys are used. Test configuration
-may override the auth dependency with deterministic signed claims. A generic
-“auth disabled” switch must be impossible in a production environment.
+Production startup must fail readiness when auth is required but project URL,
+keys, issuer/audience, or exact origins are missing/mismatched. Test auth
+overrides must be impossible in production.
 
-## What coding agents will implement later
+## Coding-agent responsibilities
 
-- pin Clerk's Python dependency in `pyproject.toml`/`uv.lock`;
-- use the official ClerkJS dashboard snippet/prebuilt UI with an explicitly
-  reviewed major/version policy;
-- add auth settings and redacted doctor output;
-- implement token verification/current-user dependencies;
-- add user, entitlement, owner, and audit migrations/models/repositories;
-- protect every current route and remove development surfaces from production;
-- add sign-in, continuation, onboarding, app, and admin shells;
-- inject short-lived bearer tokens through the central fetch helper;
-- implement JIT provisioning and verified webhook reconciliation;
-- enforce one session/variant/success and admin bypass;
-- make suspension/deletion/quota reset idempotent and auditable;
-- add unit/API/PostgreSQL/browser tests and production smoke runbook;
-- update `AGENTS.md`, README, architecture/decision/change records only when
-  implementation status and decisions actually change.
+- Pin backend JWT/crypto and browser Supabase dependencies with lockfiles.
+- Add auth settings and redacted doctor checks.
+- Implement JWT/current-user/admission dependencies.
+- Add user, capacity, entitlement, ownership, audit, and durable-actor database
+  migrations through Alembic.
+- Quarantine all current unowned sessions.
+- Protect every API/repository/service boundary.
+- Implement sign-in, callback, onboarding, app controller, and admin UI.
+- Enforce 15 normal users, one portfolio, one variant, one verified success.
+- Bind owner/actor to durable jobs and recheck before finalization.
+- Implement suspend/restore/delete/reset as resumable audited workflows.
+- Harden browser CSP, redirects, token injection, refresh, and sign-out.
+- Add deterministic unit/API/PostgreSQL/browser tests.
+- Perform manual Google smoke only when the owner supplies the test identity.
+- Keep Auth docs, `DECISIONS.md`, `CHANGES.md`, and `AGENTS.md` truthful.
 
-## Database/hosting setup you may need to provide
+## Future production setup - do not do now
 
-Auth does not replace the current runtime infrastructure:
+Create production infrastructure only when the auth implementation, migrations,
+tests, and local browser flow are ready.
 
-- managed PostgreSQL credentials;
-- a place to run the API;
-- a separate durable worker runtime;
-- private R2/S3-compatible object storage;
-- a preview gateway and its separate preview origin/domain when hosted;
-- model/resource-provider credentials for real generation.
+### Supabase and Google
 
-If Supabase hosts PostgreSQL, use the connection method appropriate to the
-runtime: direct IPv6 for a compatible persistent backend, shared pooler session
-mode for a persistent IPv4-only backend, and transaction mode for serverless
-clients. OryxenAI is a persistent API/worker, not a browser Data API client.
+1. Create a separate production Supabase project.
+2. Create a separate production Google OAuth client/application as required by
+   Google's environment guidance.
+3. Configure final HTTPS Site URL and exact callback/redirect paths.
+4. Configure only basic identity scopes.
+5. Add the production Google Client ID/Secret to Supabase.
+6. Add production Supabase URL/keys to the host secret store.
+7. Use the proper direct/session-pooler PostgreSQL connection for persistent
+   API and worker processes.
+8. Apply Alembic once through the migration service before API/worker start.
+9. Verify Data API exposure/RLS/grants for application tables.
 
-Run Alembic migrations as the existing one-shot deployment step before API and
-worker start. Never let both processes race migrations.
+### AWS timing and spending
 
-## Free-service reality
+Do **not** create the AWS account until the deployment is ready. The promotional
+clock starts at account creation.
 
-No set of free tiers can honestly promise an always-on production SLA:
+At deployment time:
 
-- Clerk Hobby has ample identity capacity for ten users, but production needs
-  an owned domain and has plan-specific session/log/security limits.
-- Supabase Free includes ample auth capacity and a small PostgreSQL database,
-  but low-activity projects can pause after a week and need manual restoration.
-- Render Free web services sleep after 15 minutes and can take about a minute to
-  wake. Their filesystem is ephemeral.
-- Render does not offer a free Background Worker instance, while OryxenAI's
-  checked-in architecture requires a durable worker process.
-- Render's free PostgreSQL expires after the documented limited period, so it
-  is not durable project storage.
-- Vercel's function duration model does not replace the long-running durable
-  worker and browser-verification pipeline.
+1. Create an AWS India account and select **Free account plan**, not Paid.
+2. Complete only the documented refundable verification charge.
+3. Enable root MFA; never give root credentials to an AI.
+4. Create a bounded IAM deployment identity or local CLI profile.
+5. Do not join AWS Organizations or enable Control Tower.
+6. Configure credit-balance, forecast, and expiration alerts.
+7. Require explicit owner approval before any paid-plan upgrade or paid-only
+   service.
+8. Use one measured EC2 host for app/worker/preview processes, private S3 for
+   artifacts, and CloudFront/shared preview routing.
+9. Avoid NAT Gateway, managed RDS, multiple always-on instances, OpenSearch,
+   unbounded logs, and per-portfolio deployments for the initial small app.
 
-Therefore “free” is suitable for a hobby/demo deployment with cold starts and
-manual care. Auth can be correct, but full-platform always-on readiness needs a
-worker-capable host and durable services. Do not report the deployed product as
-perfectly ready from an auth callback test alone.
+AWS credit does not pay external model-provider bills, a purchased domain, or
+other vendors.
+
+## Generation cost controls
+
+- Maximum 15 admitted normal users.
+- One successful portfolio per normal user.
+- One generation job executing at a time in the deployed policy.
+- Failed attempts retry the same variant.
+- Normal users cannot regenerate.
+- Stop safely when the configured model provider reports no usable credit.
+- Never auto-fallback to a more expensive model.
+- Admin entitlement is unlimited, but external provider spending gates remain
+  authoritative.
+- Use prepaid/provider limits until an explicit monthly budget is accepted.
+- Temporary packs/failed builds receive lifecycle cleanup; verified releases
+  remain durable.
 
 ## Production URL worksheet
 
-Fill this in during deployment; do not guess values:
+Fill only when production resources exist:
 
 ```text
-App origin:                     https://________________
-Sign-in URL:                    https://________________/sign-in
-Auth continuation URL:         https://________________/auth/continue
-Clerk Frontend API domain:      https://________________
-Clerk Authorized Redirect URI: https://________________  (copy from Clerk)
-Google JS origin:               https://________________
-Clerk webhook URL:              https://________________/api/v1/auth/webhooks/clerk
-API allowed origin/party:       https://________________
-Preview origin/domain:          https://________________  (separate trust boundary)
+App origin:                 https://________________
+Sign-in URL:                https://________________/sign-in
+Auth callback URL:          https://________________/auth/callback
+Supabase project URL:       https://________________.supabase.co
+Supabase callback in Google:https://________________.supabase.co/auth/v1/callback
+Google JavaScript origin:   https://________________
+API allowed origin:         https://________________
+Preview origin/domain:      https://________________
+Privacy policy URL:         https://________________
+Terms/support URL:          https://________________
 ```
 
-Do not add paths to Google's Authorized JavaScript origins; origins are
-scheme+host+optional port. Do not substitute the app callback for Clerk's
-provider callback URI.
+Use exact URLs. Do not use wildcard production redirects or invent the
+Supabase provider callback.
 
-## Deployment acceptance run
+## Deployment acceptance
 
 ### Identity and routing
 
-- fresh browser `/` shows only the sign-in entry;
-- Google cancel and provider error return safely;
-- new Google user returns, is provisioned once, must choose username, then
-  reaches `/app`;
-- returning user bypasses onboarding and resumes the same portfolio;
-- sign-out, back, refresh, and direct protected URLs do not reveal data;
-- two admin accounts reach `/admin`; normal user cannot.
+- signed-out `/` performs no protected fetch and shows Google sign-in;
+- cancel/provider errors return safely;
+- unapproved identity gets 403 and no product state;
+- approved new normal user completes username onboarding once;
+- returning normal user resumes one session;
+- both administrators reach `/admin` and own unlimited sessions;
+- sign-out, back, refresh, and direct URLs reveal no private data.
 
-### Authorization
+### Authorization and quota
 
-- user A cannot read/write user B session, run, job, source, or preview metadata
-  by changing IDs;
-- all existing agent routes have owner/admin dependencies;
-- system/development/fixture routes are absent or admin-only as specified;
-- suspended/deleted sessions stop working promptly.
-
-### Quota and generation
-
-- repeated session creation returns the same normal-user project;
-- double/multi-tab Code Generator start creates one variant;
-- failed run retries same variant without consuming success;
-- direct normal-user regenerate is denied;
-- verified promotion consumes exactly one success;
-- post-success create/start/regenerate are denied and final preview remains
-  readable;
-- admin generation is unlimited and admin quota reset is explicit/audited.
+- user A cannot read/write user B resources by changing any ID;
+- every stage/run/job/source/preview control proves owner/admin;
+- the sixteenth normal admission is rejected under a race test;
+- normal double-create returns one session;
+- retry keeps the variant and failed work does not consume success;
+- normal regenerate is denied;
+- verified promotion consumes success once and freezes normal writes;
+- admin reset/delete/regenerate is explicit and audited.
 
 ### Operations
 
-- migration, API, worker, database, Clerk, object storage, and preview gateway
-  each have current evidence;
-- production Google OAuth uses production status and final URLs;
-- no secrets/tokens/emails appear in logs or responses;
-- admin project deletion revokes preview and handles queued/running jobs;
-- backup/recovery and last-admin protections are exercised.
+- migration, API, worker, database, Auth, object storage, and preview each have
+  separate current evidence;
+- no secrets/tokens/allowlist/email lists appear in logs or responses;
+- suspension denies immediately even if provider cleanup is delayed;
+- deletion fences queued/running jobs and revokes preview first;
+- backup/restore and last-admin safeguards are exercised;
+- cloud/provider budget alerts and fail-closed credit behavior are proven.
 
-## Owner-facing primary sources
+## Owner-facing sources
 
-- [Set up a Clerk account/app](https://clerk.com/docs/getting-started/quickstart/setup-clerk)
-- [Configure Google in Clerk](https://clerk.com/docs/guides/configure/auth-strategies/social-connections/google)
-- [Deploy Clerk to production](https://clerk.com/docs/guides/development/deployment/production)
-- [Clerk environment differences](https://clerk.com/docs/guides/development/managing-environments)
-- [Render free limitations](https://render.com/docs/free)
-- [Render Blueprint service plans](https://render.com/docs/blueprint-spec)
-- [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
+- [Supabase Google login](https://supabase.com/docs/guides/auth/social-login/auth-google)
+- [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Supabase JWTs](https://supabase.com/docs/guides/auth/jwts)
 - [Supabase PostgreSQL connections](https://supabase.com/docs/guides/database/connecting-to-postgres)
-- [Vercel function limits](https://vercel.com/docs/functions/limitations)
+- [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
 - [Google OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies)
-- [Google app audience and publishing status](https://support.google.com/cloud/answer/15549945)

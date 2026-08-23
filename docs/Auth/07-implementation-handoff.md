@@ -1,226 +1,225 @@
-# Implementation handoff for the next planning session
+# Implementation handoff
 
-This is not an implementation plan approval and contains no completed code. It
-defines the bounded work packages and evidence a future plan must cover.
+This is an accepted architecture handoff, not completed runtime auth. Follow
+[10-implementation-plan.md](10-implementation-plan.md) before coding.
 
-## Recommended scope statement
+## Scope statement
 
-Implement Clerk Google-only authentication for OryxenAI's existing
-Jinja2/vanilla-JS frontend and FastAPI/PostgreSQL backend. Add unique username
-onboarding, database-authoritative `user`/`admin` roles, owner isolation for all
-session-derived resources, one-project/one-variant/one-success policy for normal
-users, unlimited audited admin operations, and deployment-safe configuration,
-tests, and runbooks. Preserve the separate durable worker and generated-preview
-trust boundaries.
+Implement Supabase Google-only authentication for OryxenAI's existing
+Jinja2/vanilla-JavaScript frontend and FastAPI/PostgreSQL backend. Add an
+application allowlist, maximum 15 normal users, two bootstrap administrators,
+unique username onboarding, database-authoritative roles/status, owner
+isolation, one-project/one-variant/one-promoted-success policy, audited admin
+operations, deployment-safe configuration, tests, and runbooks. Preserve the
+durable worker and separate generated-preview trust boundary.
 
-## Planning gate
+## Confirmed prerequisites
 
-Before coding, obtain one answer from the owner:
+- Supabase Auth selected; Clerk rejected.
+- Development Supabase project and Google provider configured.
+- Local provider URL and keys present in git-ignored `.env`.
+- Two distinct bootstrap administrator entries present.
+- Online Auth settings, Google provider, JWKS, and OAuth initiation verified.
+- Existing sessions will be legacy-quarantined.
+- AWS and production projects are intentionally not created.
 
-> Is there an owned domain available for the deployed application?
+Pending only for final live acceptance: one separate non-admin Google test
+account added to Google test users and `ORYXENAI_ALLOWED_USER_EMAILS`.
 
-- Yes -> implement Clerk.
-- No, and deployment must be zero-spend -> replace only the identity-provider
-  slice with Supabase Auth and retain the rest of this design.
-
-Also obtain the two admin Google email addresses through a secret/configuration
-channel at deployment time, not in a committed document.
-
-## Work packages the plan must include
+## Work packages
 
 ### 1. Configuration and dependencies
 
-- Clerk backend SDK pin/lock.
-- auth settings with exact allowed origins and fail-closed production
-  validation.
-- `.env.example` names only; doctor reports presence/shape, never values.
-- test dependency overrides/fixtures that cannot activate in production.
-- production CSP and reverse-proxy origin/proto behavior.
+- Add `AuthConfig` with provider, required mode, issuer/audience, exact origins,
+  paths, 15-user limit, and one-project/variant policy.
+- Add `SUPABASE_URL`, publishable key, secret key, bootstrap admins, and normal
+  allowlist to settings with redacted validation.
+- Fail production readiness on missing/mismatched auth settings or localhost.
+- Pin a high-quality JWT/crypto library and official Supabase browser client.
+- Commit lockfiles and serve the pinned browser bundle locally.
+- Add deterministic test auth configuration that cannot activate in production.
+- Update CSP and reverse-proxy scheme/origin handling.
 
-Likely source areas: `pyproject.toml`, `uv.lock`, `.env.example`,
-`config/app*.toml`, `src/oryxenai/core/settings.py`, doctor/health tests.
+Likely areas: `.env.example`, `pyproject.toml`, `uv.lock`, a small checked-in web
+package/lock/build script, `config/app*.toml`, `core/settings.py`, doctor/health,
+and settings tests.
 
 ### 2. Database migration and domain model
 
-- `app_users`, `portfolio_entitlements`, `admin_audit_events`.
-- `portfolio_sessions.owner_user_id` and indexes/constraints.
-- explicit legacy-session quarantine/assignment.
-- models/repositories with owner-scoped methods and concurrency tests.
+Before SQL authoring, load the Supabase/PostgreSQL best-practice skill.
+Continue using Alembic; do not introduce Supabase declarative migrations.
 
-Load the repository's PostgreSQL best-practice skill before authoring the
-migration. Continue using Alembic; do not introduce a second schema tool merely
-because Supabase may host PostgreSQL.
+Add:
+
+- `app_users` with immutable `supabase_user_id`, normalized verified email,
+  username, role, active/suspended/deletion-pending/deleted status, safe display
+  fields, timestamps, and a minimal deleted-identity tombstone;
+- `app_user_capacity` singleton to serialize the 15-normal-user admission gate;
+- `portfolio_entitlements` for one session, bound variant/run, and success;
+- `admin_audit_events`;
+- `portfolio_sessions.owner_user_id` plus explicit legacy quarantine;
+- owner/actor bindings on durable work needed for finalization fencing; and
+- indexes, checks, foreign keys, deletion behavior, and concurrency constraints.
+
+Migration marks all existing sessions legacy/admin-only and never assigns them
+to the first login. Review Supabase Data API exposure and revoke browser roles
+from business tables; add RLS only as defense in depth, not as a substitute for
+FastAPI ownership.
 
 ### 3. Authentication/current-user boundary
 
-- Clerk request verification with session-token restriction and exact
-  authorized parties.
-- `CurrentUser` projection and active/onboarding/admin dependencies.
-- synchronous JIT provisioning using verified Clerk backend user data.
-- safe 401/403/404/409/503 errors.
-- cache/reuse SDK configuration without caching stale role/quota decisions.
+- Add `src/oryxenai/auth/` for token verification, provider client, domain
+  projection, admission, and error types.
+- Verify exact Supabase issuer/audience/signature/algorithm/key/expiry/subject.
+- Bound JWKS caching and refresh once on unknown key ID.
+- Resolve verified Auth identity on first `/me` before email admission.
+- Bootstrap the two admins; admit only normal allowlist entries; enforce 15
+  normal accounts transactionally.
+- Store no Google/provider token and never authorize from `user_metadata`.
+- Add shared `CurrentUser`, approved/onboarded, owner, and admin dependencies.
+- Return safe 401/403/404/409/429/503 errors.
 
-Likely source areas: a new `src/oryxenai/auth/` package,
-`src/oryxenai/api/dependencies.py`, `src/oryxenai/api/errors.py`, app factory and
-tests.
+### 4. Username and `/me`
 
-### 4. Username onboarding and identity reconciliation
+- `GET /api/v1/me` performs synchronous JIT provisioning and returns a safe
+  user/role/onboarding/entitlement/session projection.
+- `PUT /api/v1/me/username` validates and atomically claims the accepted
+  lowercase 3-30 character username.
+- Normalize reserved names and concurrent conflict behavior.
+- Repeated identical claim is idempotent; rename is denied for normal v1 users.
+- Do not add a provider webhook unless a later proven requirement needs one.
 
-- `/api/v1/me` and atomic username claim.
-- reserved/normalized username validation.
-- `user.updated`/`user.deleted` webhook with raw-body signature verification
-  and event idempotency.
-- admin bootstrap from two normalized verified emails.
-- no role/quota/owner input fields in user-facing schemas.
+### 5. Ownership retrofit
 
-### 5. Ownership retrofit across the entire API
+Inventory routes again at implementation time. Protect:
 
-Inventory every route again at implementation time. Apply shared owner/admin
-guards to sessions, all five production stages, run history, Code Generator
-run/preview/source/quality data, and any job endpoint. Make diagnostics/admin or
-development-only as documented.
+- session create/list/get;
+- Discovery, Content Architect, Visual Design Director, Build Preparation, and
+  Code Generator routes;
+- run history, attempts, jobs, events, plan, acquisition, source, quality,
+  verification, and preview metadata;
+- model/agent metadata and system diagnostics;
+- fixture/development surfaces; and
+- all web shells and admin APIs.
 
-Do not stop after protecting `/sessions`; nested services/repositories and
-direct run IDs must also prove ownership.
+Use owner-scoped repository/service methods. Direct nested IDs must prove their
+session owner. Development APIs are absent in production, not merely hidden.
 
-### 6. Quota and design-variant enforcement
+### 6. Quota, capacity, and durable generation
 
-- one normal-user session slot with row locking/idempotency;
-- bind first Code Generator run/variant;
-- allow `/retry` only on that same run/variant;
-- deny `/regenerate` and second starts for normal users;
-- consume success only at verified active-preview finalization/reconciliation;
-- freeze normal mutations after success;
-- admin bypass and explicit quota reset.
+- One normal user admission slot among 15; admins excluded.
+- One idempotent portfolio session per normal user.
+- Bind first Code Generator run/design variant transactionally.
+- Retry only that run/variant; deny normal regenerate.
+- Consume success only during verified active-preview promotion/reconciliation.
+- Freeze normal mutations after success.
+- Bind owner and initiating actor to jobs/runs.
+- Worker rechecks current local owner/status/deletion before publishing.
+- Enforce one executing generation job in deployment policy.
+- Preserve external model-credit fail-closed behavior and no expensive fallback.
 
-This work must integrate with current Code Generator service and promotion
-reconciler rather than bolt a counter onto the frontend.
+### 7. Browser UI and controller
 
-### 7. Browser UI and route controller
+- Add public sign-in and callback shells, onboarding, protected app controller,
+  access-not-approved/account-unavailable states, and admin shell.
+- Integrate the pinned Supabase JS client and central bearer-token fetch helper.
+- Do not call protected APIs before Supabase session plus `/me` resolve.
+- Remove auth artifacts from callback history.
+- Restore only the owner-scoped session.
+- Clear timers/data/session pointer on sign-out.
+- Hide normal-user developer/new/regenerate controls.
+- Preserve accessibility, focus, responsive behavior, and safe errors.
 
-- public sign-in, auth continuation, username onboarding, protected app, and
-  admin shells;
-- official ClerkJS prebuilt sign-in view configured for Google only;
-- central fetch token injection/one-time refresh;
-- boot-order changes so APIs are not called before auth/onboarding;
-- resume only owner-scoped session;
-- explicit sign-out cleanup;
-- normal-user removal of developer/session-list/new/regenerate controls;
-- accessible loading/error/focus behavior.
+Do not migrate the frontend to React/Next.
 
-Keep Jinja2/vanilla JS. A React/Next migration is outside auth scope.
+### 8. Admin lifecycle
 
-### 8. Admin lifecycle operations
+- Bounded user/project/audit lists.
+- Local suspend first, then Supabase provider revoke/ban.
+- Restore through explicit provider plus local transition.
+- Delete project with job fencing, preview revocation, storage cleanup, and
+  database cascade.
+- Delete user as a resumable multi-step operation.
+- Retain a minimal deleted email/subject tombstone so an unchanged allowlist
+  cannot silently re-admit a newly recreated Supabase identity.
+- Quota reset with explicit current-project handling.
+- Prevent last-admin deletion/demotion and unsafe self-actions.
+- Audit every mutation without secrets or intake content.
 
-- bounded lists;
-- suspend/restore via local status plus Clerk ban/unban;
-- delete project with job fencing, preview-pointer revocation, storage cleanup,
-  and database cascade;
-- delete user as an idempotent multi-step operation;
-- quota reset;
-- last-admin and self-destructive safeguards;
-- audit events and confirmation UI.
+### 9. Verification and runbooks
 
-Do not expose secrets, raw intake, or bulk wipe in the admin view.
+- Deterministic unit/API tests use local signed JWT fixtures/dependency
+  injection and never call Google.
+- PostgreSQL tests cover migration, unique subject/username, capacity race,
+  entitlement race, success finalization, ownership, deletion, and audit.
+- Browser tests cover signed-out boot, callback controller, onboarding,
+  returning user, two-user isolation, completed read-only state, admin, and
+  sign-out/back.
+- Run the redaction-safe live prerequisite checker.
+- Manually smoke both admins and the future separate normal account through
+  real Google in a top-level browser.
+- Deployment smoke remains a later phase with production Supabase/Google/AWS.
 
-### 9. Verification and deployment runbook
+## Required test matrix
 
-- unit/API/integration/browser tests listed below;
-- local real Clerk development smoke (opt-in, no mocks silently substituted);
-- production-domain Google smoke;
-- exact route, refresh, logout, foreign-ID, quota, admin, cold-start, and delete
-  evidence;
-- deployment configuration for API/worker/database/object storage/preview;
-- rollback that can disable new sign-ins without exposing unprotected routes.
+### Token and admission
 
-## Test matrix
+- valid, missing, malformed, expired, future, wrong issuer, wrong audience,
+  wrong algorithm, unknown key, invalid signature, and missing subject;
+- JWKS cache/rotation and provider outage;
+- bootstrap admin, approved normal user, unapproved identity, duplicate login;
+- deleted-but-still-allowlisted identity remains denied until audited readmission;
+- normal-user capacity at 14/15/16 and concurrent admission;
+- no authorization from `user_metadata`.
 
-### Deterministic unit/API tests
+### Authorization
 
-- valid/invalid/missing/expired/wrong-origin/wrong-issuer token outcomes;
-- JIT provisioning race and safe Clerk failure;
-- username normalization/reserved/unique concurrency;
-- user/admin/suspended/onboarding dependencies;
-- owner A, owner B, admin across every route family;
-- all direct run/job/source/preview identifiers;
-- normal session/run/success quota state transitions;
+- normal A, normal B, admin across every route family;
+- foreign session/run/job/source/preview IDs return 404;
+- onboarding/suspended/deletion-pending policies;
+- system/dev/fixture production exclusion;
+- logs/errors redact tokens, keys, allowlists, cookies, and OAuth artifacts.
+
+### Portfolio policy
+
+- idempotent one-session creation;
+- first-run binding and double-start race;
 - same-variant retry versus new-variant regeneration;
-- admin bypass/reset/delete audit;
-- webhook signature, replay, ordering, and deletion;
-- logs/errors redact headers/cookies/tokens.
-
-Use dependency injection or locally signed test JWT fixtures. Normal test suites
-must not call Clerk or Google.
-
-### PostgreSQL integration tests
-
-- foreign keys/cascades and legacy migration behavior;
-- unique Clerk subject and username;
-- row-lock/double-create and double-start races;
-- exactly-once success binding during duplicate promotion reconciliation;
-- deletion while jobs are queued/running;
-- audit persistence without sensitive content.
-
-### Browser tests
-
-- signed-out landing and no protected fetch before auth;
-- automated Clerk development test user/session using Clerk-supported testing
-  tools or a deterministic test auth boundary;
-- new-user onboarding, conflict, return, refresh, sign-out/back;
-- two-user ID isolation;
-- normal completed read-only UI and admin console;
-- mobile and desktop route/interaction smoke.
-
-Do not automate a real Google password through Playwright. Run real Google OAuth
-as a manual development and production smoke; provider bot/security challenges
-make it the wrong deterministic CI mechanism.
+- failure does not consume success;
+- exactly-once success binding at promoted active preview;
+- post-success read-only behavior;
+- admin unlimited bypass, reset, deletion, and audit;
+- last-admin safety.
 
 ## Definition of done
 
-Auth is not done until all are true:
+Auth is complete only when:
 
 - production configuration fails closed and no secret is committed/logged;
-- the Google sign-in callback works at the final HTTPS domain;
-- first and returning routing works across refresh/direct URLs;
+- Google callback works at the configured HTTPS production origin;
+- unapproved identities create no product state;
+- two admins and one separate normal user pass live browser flows;
 - username onboarding is unique and race-safe;
-- every current resource API has owner/admin enforcement;
-- normal user gets one project, one variant, one verified success;
-- failures retry the same variant without consuming success;
-- admin has unlimited portfolio access and tested lifecycle operations;
-- durable workers cannot finalize work for deleted/reassigned ownership;
-- preview control is authorized and preview capability behavior is documented;
-- tests plus visible-browser local and deployed smoke pass;
-- migrations, API, worker, database, Clerk, storage, and preview evidence are
-  separately reported;
-- `CHANGES.md` and a real `DECISIONS.md` entry are updated at implementation
-  time, with no frozen provider pricing/test count/model names in status prose;
-- task-owned work is committed locally, not pushed unless requested.
+- no current resource is accessible by foreign IDs;
+- 15-normal-user capacity and two-admin exclusion are proven;
+- one project/variant/promoted success semantics are proven;
+- workers cannot finalize for deleted/suspended/reassigned ownership;
+- admin lifecycle and last-admin safeguards are proven;
+- source, tests, migration, browser, provider, database, worker, storage, and
+  preview evidence are reported separately;
+- docs and decision/change logs are truthful; and
+- task-owned work is committed locally and not pushed unless requested.
 
-## Explicit non-goals for v1
+## Non-goals
 
-- passwords/password reset;
-- phone/SMS auth;
-- passkeys or app-managed MFA;
-- Clerk Organizations/teams;
-- social account linking beyond Clerk defaults;
-- public profiles based on username;
-- normal-user self-delete/rename;
+- passwords, password reset, email OTP, phone/SMS, passkeys, or app-managed MFA;
+- teams/organizations or social account merging;
+- public registration;
+- normal self-delete or username rename;
 - billing/subscriptions;
-- global bulk-delete button;
-- private signed preview sessions;
+- bulk wipe;
+- private signed previews;
 - frontend framework migration;
-- making the durable worker serverless;
-- promising an always-on SLA from free tiers.
-
-## Decisions the plan should record when accepted
-
-The research itself should not change `DECISIONS.md`. When the owner accepts an
-implementation plan, record at least:
-
-- selected identity provider and owned-domain condition;
-- identity/authentication provider versus PostgreSQL authorization boundary;
-- Google-only v1 and no app passwords;
-- unique app username ownership;
-- one-project/one-variant/one-promoted-success semantics;
-- two-admin bootstrap and server-authoritative roles;
-- unlisted capability-preview boundary versus private preview exclusion.
+- serverless replacement of the durable worker;
+- cloud deployment during the auth implementation; or
+- an always-on SLA from free services.
