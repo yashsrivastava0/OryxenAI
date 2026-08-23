@@ -86,7 +86,7 @@
     if (!localFolder) { localResult.textContent = "Creating timestamped local result folder…"; localActions.hidden = true; return; }
     localResult.textContent = result.result_folder + (result.archive_available ? " · ZIP and extracted build-context ready." : " · Preparing files.");
     localActions.hidden = false;
-    var details = record.details_url || "/build-preparation-fixture/progress";
+    var details = record.details_url || "/dev/build-preparation-fixture/progress";
     document.getElementById("view-details").href = details;
     document.getElementById("download-zip").href = record.download_url || "#";
     document.getElementById("download-zip").hidden = !record.download_url;
@@ -124,7 +124,7 @@
     }
     body.appendChild(element("p", "Status: " + record.status + " · Routes: " + (value.route_count || 0) + " · Needs: " + (value.resource_need_count || 0)));
     body.appendChild(element("p", "ZIP: " + (value.archive_sha256 || "not available") + " · " + (value.archive_size_bytes || 0) + " bytes", "mono"));
-    document.getElementById("summary-details").href = record.details_url || "/build-preparation-fixture/progress";
+    document.getElementById("summary-details").href = record.details_url || "/dev/build-preparation-fixture/progress";
   }
   function render(record) {
     current = record;

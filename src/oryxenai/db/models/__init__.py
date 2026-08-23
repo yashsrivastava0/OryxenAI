@@ -1,5 +1,6 @@
 """ORM models."""
 
+from oryxenai.auth.models import AppUser, AppUserCapacity
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.code_generator_development import (
@@ -12,6 +13,8 @@ from oryxenai.db.models.service_heartbeat import ServiceHeartbeat
 
 __all__ = [
     "AgentRun",
+    "AppUser",
+    "AppUserCapacity",
     "BackgroundJob",
     "CodeGeneratorDevelopmentEvent",
     "CodeGeneratorDevelopmentRun",

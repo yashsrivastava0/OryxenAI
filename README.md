@@ -1,6 +1,7 @@
 # OryxenAI
 
-Production-oriented OryxenAI backend and developer testing harness.
+Production-oriented OryxenAI backend, Phase 1 authentication foundation, and
+developer testing harness.
 
 > **Discovery, Content Architect, Visual Design Director, and the hidden
 > Portfolio Build Preparation stage are implemented end to end.** Code
@@ -29,8 +30,9 @@ pack in temporary object storage
 - Portfolio generation, code-generation sandbox, and downstream agent chaining
 - Agent chaining, supervisor agent, LangChain/LangGraph, or any agent framework
 - Queue/worker (Redis, Celery, Temporal, Kafka)
-- Authentication, authorization, billing, Supabase, GitHub Actions generation,
-  or published-portfolio hosting
+- Phase 2-4 authorization: owner-scoping existing portfolio resources,
+  entitlements, worker fencing, and administrator lifecycle
+- Billing, published-portfolio hosting automation, and production cloud setup
 - React frontend, visual editor, SEO, analytics, and published-portfolio hosting
 - Vector database, embeddings, prompt-management platform, observability SaaS
 - Multiple microservices, Kubernetes, Terraform
@@ -111,7 +113,9 @@ PS > uv run alembic upgrade head
 PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000` for the developer testing harness.
+Open `http://127.0.0.1:8000` for the temporary authentication shell. After
+authentication, the explicit developer harness remains at
+`http://127.0.0.1:8000/dev`.
 
 ## Linux/macOS setup
 
@@ -180,7 +184,7 @@ PS > uv run python -m oryxenai.agents.build_preparation.cli --live-model --live-
 ```
 
 The two-page browser harness remains available from the main app at
-`/build-preparation-fixture` and `/build-preparation-fixture/progress`.
+`/dev/build-preparation-fixture` and `/dev/build-preparation-fixture/progress`.
 
 ## Migration commands
 
@@ -236,6 +240,8 @@ uv run mypy src                # type check
 |--------|------|-------------|
 | GET | `/health/live` | Process liveness (no DB dependency) |
 | GET | `/health/ready` | Dependency readiness (checks PostgreSQL) |
+| GET | `/api/v1/me` | Verify the Supabase session and resolve the safe local identity projection |
+| PUT | `/api/v1/me/username` | Claim the unique one-time onboarding username |
 | GET | `/api/v1/agents` | List registered mock agents |
 | POST | `/api/v1/sessions` | Create a portfolio test session |
 | GET | `/api/v1/sessions` | List recent sessions |
@@ -268,9 +274,11 @@ All errors return a structured envelope:
 }
 ```
 
-## Developer harness URL
+## Temporary authentication and developer harness URLs
 
-`http://127.0.0.1:8000` (or `http://localhost:8000` in Docker)
+Authentication starts at `http://127.0.0.1:8000/` (or
+`http://localhost:8000/` in Docker). The developer harness is explicitly
+development-only at `/dev`.
 
 The harness allows you to:
 1. Check liveness and DB readiness

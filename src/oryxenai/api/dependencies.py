@@ -16,6 +16,10 @@ from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
 from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
+from oryxenai.auth.domain import AuthRole, CurrentUser
+from oryxenai.auth.errors import AdminRequiredError
+from oryxenai.auth.jwt import extract_bearer_token
+from oryxenai.auth.service import AuthService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
@@ -39,6 +43,40 @@ async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
+
+
+async def get_bearer_token(request: Request) -> str:
+    """Read exactly one bounded Authorization header without logging it."""
+    values = request.headers.getlist("authorization")
+    return extract_bearer_token(values, max_bytes=request.app.state.settings.auth.max_token_bytes)
+
+
+def get_auth_service(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> AuthService:
+    settings = request.app.state.settings
+    return AuthService(
+        db=db,
+        config=settings.auth,
+        verifier=request.app.state.auth_verifier,
+        provider=request.app.state.auth_provider,
+        admin_emails=settings.normalized_admin_bootstrap_emails,
+        allowed_emails=settings.normalized_allowed_user_emails,
+    )
+
+
+async def get_current_user(
+    token: str = Depends(get_bearer_token),
+    service: AuthService = Depends(get_auth_service),
+) -> CurrentUser:
+    return await service.current_user(token)
+
+
+async def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    if user.role is not AuthRole.ADMIN:
+        raise AdminRequiredError()
+    return user
 
 
 @lru_cache(maxsize=1)

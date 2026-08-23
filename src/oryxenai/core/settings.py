@@ -23,11 +23,13 @@ import os
 import tomllib
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from oryxenai.agents.shared.providers.capabilities import ModelCapabilities
+from oryxenai.auth.domain import AuthInputError, normalize_email_list
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_CONFIG_DIR = _REPO_ROOT / "config"
@@ -171,6 +173,227 @@ class DiagnosticsConfig(BaseModel):
     """Diagnostics/heartbeat settings from [diagnostics]."""
 
     heartbeat_staleness: float = 60.0
+
+
+class AuthConfig(BaseModel):
+    """Committed, non-secret policy for the Phase 1 auth boundary."""
+
+    provider: str = "supabase"
+    enabled: bool = True
+    required: bool = False
+    primary_origin: str = "http://localhost:8000"
+    allowed_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:8000", "http://127.0.0.1:8000"]
+    )
+    audience: str = "authenticated"
+    issuer_path: str = "/auth/v1"
+    allowed_algorithms: list[str] = Field(default_factory=lambda: ["RS256", "ES256"])
+    sign_in_path: str = "/sign-in"
+    callback_path: str = "/auth/callback"
+    access_not_approved_path: str = "/access-not-approved"
+    account_unavailable_path: str = "/account-unavailable"
+    onboarding_path: str = "/onboarding"
+    app_path: str = "/app"
+    admin_path: str = "/admin"
+    normal_user_limit: int = 15
+    bootstrap_admin_count: int = 2
+    clock_skew_seconds: int = 30
+    jwks_cache_ttl_seconds: int = 300
+    http_timeout_seconds: float = 5.0
+    max_token_bytes: int = 8192
+
+    @field_validator("enabled", "required", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _coerce_origins(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
+
+    @field_validator("allowed_algorithms", mode="before")
+    @classmethod
+    def _coerce_algorithms(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return [part.strip().upper() for part in value.split(",") if part.strip()]
+        return [str(item).upper() for item in value]
+
+    @model_validator(mode="after")
+    def _validate_policy(self) -> AuthConfig:
+        if self.provider != "supabase":
+            raise ValueError("Only the configured Supabase auth provider is supported.")
+        if self.required and not self.enabled:
+            raise ValueError("Required authentication cannot be disabled.")
+        if self.audience != "authenticated":
+            raise ValueError("Supabase JWT audience must be authenticated.")
+        if self.issuer_path != "/auth/v1":
+            raise ValueError("Supabase JWT issuer path must be /auth/v1.")
+        if self.normal_user_limit != 15:
+            raise ValueError("Phase 1 normal-user capacity must be exactly 15.")
+        if self.bootstrap_admin_count != 2:
+            raise ValueError("Phase 1 requires exactly two bootstrap administrators.")
+        if not self.allowed_algorithms or any(
+            algorithm not in {"RS256", "ES256"} for algorithm in self.allowed_algorithms
+        ):
+            raise ValueError("Only explicitly allowed asymmetric JWT algorithms may be used.")
+        if len(set(self.allowed_algorithms)) != len(self.allowed_algorithms):
+            raise ValueError("JWT algorithms must not be duplicated.")
+        if not 0 <= self.clock_skew_seconds <= 300:
+            raise ValueError("JWT clock skew must be between 0 and 300 seconds.")
+        if not 1 <= self.jwks_cache_ttl_seconds <= 600:
+            raise ValueError("JWKS cache TTL must be between 1 and 600 seconds.")
+        if not 0.1 <= self.http_timeout_seconds <= 30:
+            raise ValueError("Auth HTTP timeout must be between 0.1 and 30 seconds.")
+        if not 1024 <= self.max_token_bytes <= 65536:
+            raise ValueError("Bearer token size limit is outside the safe range.")
+
+        normalized_origins: list[str] = []
+        for origin in [self.primary_origin, *self.allowed_origins]:
+            parsed = urlsplit(origin.strip())
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.path not in {"", "/"}
+                or parsed.query
+                or parsed.fragment
+                or "*" in origin
+            ):
+                raise ValueError("Auth origins must be exact HTTP(S) origins without wildcards.")
+            normalized = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+            normalized_origins.append(normalized)
+        if len(set(normalized_origins[1:])) != len(normalized_origins[1:]):
+            raise ValueError("Auth allowed origins must be unique.")
+        if normalized_origins[0] not in normalized_origins[1:]:
+            raise ValueError("The primary auth origin must be explicitly allowlisted.")
+        self.primary_origin = normalized_origins[0]
+        self.allowed_origins = normalized_origins[1:]
+
+        for path in (
+            self.issuer_path,
+            self.sign_in_path,
+            self.callback_path,
+            self.access_not_approved_path,
+            self.account_unavailable_path,
+            self.onboarding_path,
+            self.app_path,
+            self.admin_path,
+        ):
+            if (
+                not path.startswith("/")
+                or "\\" in path
+                or "//" in path
+                or "?" in path
+                or "#" in path
+                or "%" in path
+                or "*" in path
+            ):
+                raise ValueError("Auth page paths must be reviewed relative paths.")
+        return self
+
+    def issuer_for(self, supabase_url: str) -> str:
+        """Derive the issuer from the configured Supabase project URL."""
+        parsed = urlsplit(supabase_url.strip().rstrip("/"))
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("SUPABASE_URL must be a bare HTTP(S) project URL.")
+        try:
+            _port = parsed.port
+        except ValueError as exc:
+            raise ValueError("SUPABASE_URL contains an invalid port.") from exc
+        origin = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+        return f"{origin}{self.issuer_path}"
+
+    def callback_url(self) -> str:
+        return f"{self.primary_origin}{self.callback_path}"
+
+    def validate_environment(
+        self,
+        *,
+        app_env: str,
+        supabase_url: str,
+        publishable_key: str,
+        secret_key: str,
+        admin_emails: str,
+        allowed_emails: str,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Validate environment-bound auth coordinates without returning secrets."""
+        admins = _normalize_configured_emails(admin_emails)
+        allowed = _normalize_configured_emails(allowed_emails)
+        provider_coordinates_present = any(
+            value.strip() for value in (supabase_url, publishable_key, secret_key)
+        )
+        admission_configured = provider_coordinates_present or bool(admins or allowed)
+        environment = app_env.strip().lower()
+        if (self.required or environment == "production" or admission_configured) and len(
+            admins
+        ) != self.bootstrap_admin_count:
+            raise ValueError("The bootstrap administrator count is invalid.")
+        if len(allowed) > self.normal_user_limit:
+            raise ValueError("The normal-user allowlist exceeds the configured capacity.")
+        if set(admins) & set(allowed):
+            raise ValueError("Bootstrap administrators and normal users must not overlap.")
+
+        if supabase_url.strip():
+            issuer = self.issuer_for(supabase_url)
+            parsed_supabase = urlsplit(supabase_url.strip().rstrip("/"))
+            expected_issuer = (
+                f"{parsed_supabase.scheme.lower()}://{parsed_supabase.netloc.lower()}"
+                f"{self.issuer_path}"
+            )
+            if issuer != expected_issuer:
+                raise ValueError("Supabase issuer does not match SUPABASE_URL.")
+
+        strict_deployment = self.required or environment == "production"
+        if strict_deployment:
+            if not supabase_url.strip() or not publishable_key.strip() or not secret_key.strip():
+                raise ValueError("Required Supabase auth coordinates are missing.")
+            if not admins or len(allowed) == 0:
+                raise ValueError("Required auth admission lists must not be empty.")
+        elif admission_configured and (
+            not supabase_url.strip() or not publishable_key.strip() or not secret_key.strip()
+        ):
+            raise ValueError("Supabase auth coordinates are incomplete.")
+
+        parsed = urlsplit(supabase_url.strip())
+        if environment == "production":
+            if parsed.scheme != "https" or parsed.hostname in {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+            }:
+                raise ValueError(
+                    "Production Supabase configuration must use HTTPS and a remote host."
+                )
+            if len(self.allowed_origins) != 1 or not self.primary_origin.startswith("https://"):
+                raise ValueError("Production auth requires one exact HTTPS application origin.")
+            if any(
+                "localhost" in origin or "127.0.0.1" in origin for origin in self.allowed_origins
+            ):
+                raise ValueError("Production auth cannot allow localhost origins.")
+        return admins, allowed
+
+
+def _normalize_configured_emails(raw: str) -> tuple[str, ...]:
+    if not raw.strip():
+        return ()
+    try:
+        return normalize_email_list(raw)
+    except AuthInputError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 class DiscoveryConfig(BaseModel):
@@ -687,10 +910,27 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        populate_by_name=True,
     )
 
     # Secret from .env — optional in code so unit tests can run without it.
     postgres_password: SecretStr = SecretStr("")
+
+    # Supabase coordinates from .env. The publishable key may be rendered to
+    # the browser; the secret key and admission lists are server-only.
+    supabase_url: str = Field(default="", validation_alias="SUPABASE_URL", repr=False)
+    supabase_publishable_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="SUPABASE_PUBLISHABLE_KEY", repr=False
+    )
+    supabase_secret_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="SUPABASE_SECRET_KEY", repr=False
+    )
+    admin_bootstrap_emails: str = Field(
+        default="", validation_alias="ORYXENAI_ADMIN_BOOTSTRAP_EMAILS", repr=False
+    )
+    allowed_user_emails: str = Field(
+        default="", validation_alias="ORYXENAI_ALLOWED_USER_EMAILS", repr=False
+    )
 
     # Non-secret infrastructure overrides (env vars, not in .env):
     # Docker Compose sets these to redirect to the postgres service.
@@ -706,6 +946,7 @@ class Settings(BaseSettings):
     worker_retry: WorkerRetryConfig = Field(default_factory=WorkerRetryConfig)
     api: ApiConfig = Field(default_factory=ApiConfig)
     diagnostics: DiagnosticsConfig = Field(default_factory=DiagnosticsConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
     models: ModelConfig = Field(default_factory=ModelConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     content_architect: ContentArchitectConfig = Field(default_factory=ContentArchitectConfig)
@@ -764,6 +1005,8 @@ class Settings(BaseSettings):
             self.api = ApiConfig(**app_data["api"])
         if "diagnostics" in app_data:
             self.diagnostics = DiagnosticsConfig(**app_data["diagnostics"])
+        if "auth" in app_data:
+            self.auth = AuthConfig(**app_data["auth"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
         if "content_architect" in app_data:
@@ -833,6 +1076,39 @@ class Settings(BaseSettings):
     def is_dev_ui_enabled(self) -> bool:
         return self.app.enable_dev_ui
 
+    @property
+    def normalized_admin_bootstrap_emails(self) -> tuple[str, ...]:
+        return _normalize_configured_emails(self.admin_bootstrap_emails)
+
+    @property
+    def normalized_allowed_user_emails(self) -> tuple[str, ...]:
+        return _normalize_configured_emails(self.allowed_user_emails)
+
+    def validate_auth_configuration(self) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Validate auth startup policy and return normalized admission lists."""
+        return self.auth.validate_environment(
+            app_env=self.app.env,
+            supabase_url=self.supabase_url,
+            publishable_key=self.supabase_publishable_key.get_secret_value(),
+            secret_key=self.supabase_secret_key.get_secret_value(),
+            admin_emails=self.admin_bootstrap_emails,
+            allowed_emails=self.allowed_user_emails,
+        )
+
+    @property
+    def auth_public_config(self) -> dict[str, object]:
+        """Return only browser-safe, reviewed auth configuration."""
+        return {
+            "supabaseUrl": self.supabase_url.rstrip("/"),
+            "publishableKey": self.supabase_publishable_key.get_secret_value(),
+            "callbackUrl": self.auth.callback_url(),
+            "signInPath": self.auth.sign_in_path,
+            "callbackPath": self.auth.callback_path,
+            "appPath": self.auth.app_path,
+            "adminPath": self.auth.admin_path,
+            "onboardingPath": self.auth.onboarding_path,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Singleton access
@@ -854,6 +1130,7 @@ def _export_dotenv_secrets() -> None:
     if not env_path.is_file():
         return
     try:
+        values: dict[str, str] = {}
         for line in env_path.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             if not stripped or stripped.startswith("#") or "=" not in stripped:
@@ -861,7 +1138,13 @@ def _export_dotenv_secrets() -> None:
             key, _, value = stripped.partition("=")
             key = key.strip()
             value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
+            if key:
+                # Keep the last declaration, matching dotenv parsing when a
+                # local handoff leaves a sanitized placeholder before the
+                # actual private value.
+                values[key] = value
+        for key, value in values.items():
+            if key not in os.environ:
                 os.environ[key] = value
     except OSError:
         return

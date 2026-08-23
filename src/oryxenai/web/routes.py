@@ -1,4 +1,4 @@
-"""Web routes — serve the developer testing harness at /."""
+"""Web routes — serve the legacy developer testing harness at /dev."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
     """Return a router serving the developer testing harness and static assets."""
     router = APIRouter()
 
-    @router.get("/", response_class=HTMLResponse)
+    @router.get("/dev", response_class=HTMLResponse)
     async def index(request: Request) -> Any:
         settings = request.app.state.settings
         return templates.TemplateResponse(
@@ -47,6 +47,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
             },
         )
 
+    @router.get("/dev/build-preparation-fixture", response_class=HTMLResponse)
     @router.get("/build-preparation-fixture", response_class=HTMLResponse)
     async def build_preparation_fixture(request: Request) -> Any:
         settings = request.app.state.settings
@@ -59,6 +60,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
             },
         )
 
+    @router.get("/dev/build-preparation-fixture/progress", response_class=HTMLResponse)
     @router.get("/build-preparation-fixture/progress", response_class=HTMLResponse)
     async def build_preparation_fixture_progress(request: Request) -> Any:
         settings = request.app.state.settings
@@ -75,6 +77,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
         getattr(getattr(settings_override, "code_generator_development", None), "enabled", False)
     ):
 
+        @router.get("/dev/code-generator-development", response_class=HTMLResponse)
         @router.get("/code-generator-development", response_class=HTMLResponse)
         async def code_generator_development(request: Request) -> Any:
             settings = request.app.state.settings

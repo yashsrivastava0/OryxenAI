@@ -1,18 +1,21 @@
 # Supabase authentication implementation plan
 
-Status: owner-approved for a later implementation phase. The current phase is
-documentation-only. No runtime auth, migration, dependency, UI, or cloud
-deployment is implemented or authorized by this document update.
+Status: Phase 1 execution is implemented in the checkout. This document remains
+the repository-grounded plan for the full four-phase authorization project;
+Phases 2-4 are intentionally not implemented by the Phase 1 task. No
+production cloud resources were created.
 
 ## Current phase boundary
 
 - Preserve the completed Supabase/Google/private `.env` setup; do not recreate
   providers, clients, keys, or test identities.
-- Do not write auth runtime code, migrations, dependencies, or application
-  tables until the owner starts the implementation phase.
-- This file is the detailed input to that future coding plan and execution.
-- Reinspect the live repository and provider changelog before coding; never
-  assume the future checkout matches this audit.
+- Phase 1 now owns `src/oryxenai/auth/`, the auth foundation migration,
+  configuration, safe `/me` routes, and the temporary browser controller.
+- Do not use this completion as authorization for ownership, entitlement,
+  worker-fencing, administrator-lifecycle, or deployment work; those remain
+  separate phases.
+- Reinspect the live repository and provider changelog before later phases;
+  never assume a future checkout matches this audit.
 
 ## Objective
 
@@ -83,10 +86,9 @@ Ready:
 - no secrets committed; and
 - policy decisions accepted.
 
-Nothing else owner-controlled is required before implementation. A real Google
-callback/token exchange and the complete normal/admin browser flows remain
-unverified because no auth runtime exists yet; they are later acceptance work,
-not missing setup.
+Nothing else owner-controlled is required before local Phase 1 verification. A
+real Google callback/token exchange and the complete normal/admin browser flows
+remain later live-acceptance work, not permission to create new infrastructure.
 
 ## Phase 0 - freeze the handoff
 

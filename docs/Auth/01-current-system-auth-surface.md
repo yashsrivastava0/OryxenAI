@@ -1,20 +1,24 @@
 # Current system authentication surface
 
-This is a source-grounded audit of the checkout before auth implementation. It
-describes what must be protected; it is not a claim that protection exists.
+This began as a source-grounded audit before auth implementation. Phase 1 now
+implements the identity boundary and temporary route controller described
+below; the portfolio ownership and authorization gaps remain intentionally
+open for Phase 2.
 
 ## Current trust model
 
-OryxenAI currently has no user identity or authorization layer. A caller can
-create a portfolio session, list recent sessions, read a session by UUID, and
-call each stage by supplying that UUID. Repositories load by ID alone.
+Phase 1 has a Supabase subject-to-`app_users` identity boundary for
+`GET /api/v1/me` and username onboarding. Existing portfolio/session/stage
+routes remain globally ID-addressable: a caller can create a portfolio session,
+list recent sessions, read a session by UUID, and call each stage by supplying
+that UUID. Repositories still load those resources by ID alone until Phase 2.
 
 Relevant source locations:
 
-- `src/oryxenai/main.py` installs logging, security headers, health, APIs, and
-  optional developer web routes, but no auth boundary.
-- `src/oryxenai/api/dependencies.py` builds repositories/services but has no
-  `CurrentUser`, owner, onboarding, or admin dependency.
+- `src/oryxenai/main.py` installs the Phase 1 auth web/API boundary plus the
+  optional developer web routes.
+- `src/oryxenai/api/dependencies.py` exposes the Phase 1 bearer/current-user
+  dependencies; owner/admin dependencies for portfolio resources remain later.
 - `src/oryxenai/api/routes/sessions.py` creates, lists, and retrieves global
   sessions.
 - `src/oryxenai/db/models/portfolio_session.py` has no owner column.
@@ -37,7 +41,7 @@ user who learns another UUID could read or mutate that portfolio.
 | Health | `/health/live`, `/health/ready` | Public and minimal; no secrets or user state. |
 | Web entry | `/` | Public controller that resolves sign-in/onboarding/app state. |
 | Static files | `/static/*` | Public; CSP-constrained and cacheable as appropriate. |
-| Auth callback | proposed `/auth/callback` | Public HTML shell; completes Supabase session then calls protected `/me`. |
+| Auth callback | `/auth/callback` | Public HTML shell; completes Supabase session then calls protected `/me`. |
 | Session API | `/api/v1/sessions*` | Authenticated; one owned project for normal users, bounded all-project view for admins. |
 | Agent stages | `/sessions/{id}/{stage}` | Authenticated owner-or-admin on every read and write. |
 | Run history | `/sessions/{id}/runs` | Owner-or-admin; mock execution absent in production. |
@@ -49,7 +53,7 @@ user who learns another UUID could read or mutate that portfolio.
 
 ## Browser boot order that must change
 
-The future order is:
+The Phase 1 controller order is:
 
 1. Load the pinned Supabase browser client.
 2. Resolve the current Supabase session.
@@ -58,14 +62,16 @@ The future order is:
 5. If the verified identity is not approved, show access-not-approved and do
    not create local user/project/job state.
 6. Complete username onboarding when required.
-7. Only then load the owner-scoped portfolio workspace.
+7. Only then show the temporary `/app` or `/admin` shell. The owner-scoped
+   portfolio workspace is a Phase 2 concern.
 8. A remembered session ID may improve navigation but never grants access.
 9. On sign-out, stop polling, clear rendered state and remembered session ID,
    call Supabase sign-out, and replace the page with `/sign-in`.
 
-The existing `fetchJson()` helper is the central integration point. It should
-obtain the current Supabase access token, add `Authorization: Bearer`, refresh
-once after a 401, then fail closed. Do not manually copy tokens into custom
+The Phase 1 `auth-controller.mjs` helper obtains the current Supabase access
+token, adds `Authorization: Bearer`, refreshes once after a 401, then fails
+closed. The existing developer `fetchJson()` remains outside the authenticated
+portfolio integration until Phase 2. Do not manually copy tokens into custom
 storage or log them.
 
 ## Persistence implications
