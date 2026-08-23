@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-23 14:03 +05:30 — Codex (model/provider omitted) — [a03ba6f] — Authentication research
+Added a source-grounded `docs/Auth/` research and handoff set covering provider
+selection, Google/username flow, ownership and one-success quota semantics,
+admin authority, security, deployment responsibilities, and edge cases. This
+research adds no runtime auth or accepted architecture decision.
+
 ### 2026-08-21 22:20 +05:30 - Codex (GPT-5 / OpenAI) - [3437075] - V4 promotion quality/read-back gate
 Required an accepted v4 quality receipt before final verification can promote,
 verified the candidate index before changing the active pointer, and upgraded
