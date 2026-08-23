@@ -1,164 +1,158 @@
 # Authentication provider evaluation
 
+Status: decision accepted. Supabase Auth is the selected identity provider.
+
 ## Evaluation criteria
 
-The useful criteria for OryxenAI are not enterprise feature count. They are:
+OryxenAI needs:
 
 - one reliable Google sign-in/sign-up flow;
 - compatibility with Jinja2, vanilla JavaScript, FastAPI, and PostgreSQL;
-- server-side token verification and user administration;
-- a free allowance far above roughly ten users;
+- server-side JWT verification and user administration;
+- a free allowance far above 15 normal users and two administrators;
 - low setup and maintenance burden for AI coding agents;
-- safe production-domain and redirect behavior;
-- no application-owned passwords;
-- no need to redesign the durable worker or add a frontend framework.
+- environment-configurable development and production redirects;
+- no application-owned passwords; and
+- no redesign of the durable worker or generated-preview architecture.
 
-## Comparison
+## Final comparison
 
-| Option | Fit | Free allowance at research date | Main benefit | Main cost/risk | Result |
-| --- | --- | --- | --- | --- | --- |
-| Clerk | Excellent when an owned domain is available | Hobby: 50,000 monthly retained users per app; Google/social connections included | Prebuilt accessible sign-in UI, vanilla ClerkJS, official Python backend SDK, user ban/delete APIs | Production requires an owned domain, production keys, and custom Google OAuth credentials; Hobby has fixed seven-day sessions and short log retention | **Recommended** |
-| Supabase Auth | Good, especially for a personal/test deployment without an app domain | Free: 50,000 MAU and social OAuth | Can share the existing managed Postgres vendor; Supabase hosts its OAuth callback | More app-owned UI/session code; Google production-domain rules still apply; free projects can pause; authorization still belongs in FastAPI | **Fallback, not combined with Clerk** |
-| Firebase Auth | Technically good | Spark supports non-phone auth; published auth limits are far above ten users | Very mature Google sign-in and Python Admin token verification | Adds Firebase/service-account administration while OryxenAI data remains PostgreSQL; less benefit than Clerk/Supabase for this stack | Not selected |
-| Auth0 | Technically good | Free plan publishes up to 25,000 external active users | Mature FastAPI/API authorization tooling | Tenant, application, API audience, action/role configuration is more than this two-role personal app needs | Not selected |
-| Build OAuth/session auth ourselves | Poor | Hosting-only cost | No vendor UI | We would own OAuth state/PKCE, cookies, key rotation, account linking, abuse protection, recovery, deletion, and security maintenance | Rejected |
+| Option | Main benefit | Main cost/risk | Decision |
+| --- | --- | --- | --- |
+| Supabase Auth | Google OAuth, session issuance, hosted callback, and managed PostgreSQL can share one provider | The app owns its sign-in shell and authorization; Free projects can pause | **Selected** |
+| Clerk | Strong prebuilt UI and identity administration | Adds a third service beside Supabase PostgreSQL and AWS; production setup has additional domain/environment requirements | Rejected for this deployment |
+| Firebase Auth | Mature Google login | Adds Firebase while business state remains PostgreSQL | Rejected |
+| Auth0 | Mature general-purpose identity platform | More tenant/application/API configuration than this two-role personal app needs | Rejected |
+| Self-built auth | No identity-vendor UI dependency | OryxenAI would own OAuth state, PKCE, session rotation, account recovery, abuse controls, and security maintenance | Rejected |
 
-Pricing is not a permanence guarantee. Recheck the provider pages at planning
-and deployment time.
+Provider pricing and SDK behavior are not permanent facts. Recheck primary
+sources at implementation and deployment time.
 
-## Why Clerk is the primary recommendation
-
-ClerkJS is the foundational browser SDK and its prebuilt `mountSignIn()` view
-works with ordinary JavaScript. That matches the checked-in frontend without a
-React/Next migration. The official `clerk-backend-api` Python package supports
-request authentication and async Backend API operations.
-
-The division of responsibility is clean:
+## Selected topology
 
 ```text
-Google -> Clerk sign-in UI/session -> Clerk-signed session token
-                                      |
-browser fetch ------------------------+
-                                      v
-FastAPI verifies token -> app_users -> owner/admin policy -> PostgreSQL/jobs
+Google -> Supabase Auth -> Supabase access token
+                             |
+browser fetch ---------------+
+                             v
+FastAPI verifies JWT -> app_users -> owner/admin policy -> PostgreSQL/jobs
 ```
 
-Use the prebuilt view, not a custom OAuth state machine. The same Google button
-signs in an existing user or creates a new one. OryxenAI then performs its own
-synchronous first-request bootstrap and username onboarding.
+Supabase handles identity proof and session issuance. OryxenAI handles:
 
-Clerk should not own OryxenAI roles or portfolio quotas:
+- the application allowlist;
+- the 15-normal-user admission ceiling;
+- two initial administrators;
+- unique username onboarding;
+- local account status;
+- portfolio ownership;
+- one-project/one-variant/one-success entitlement;
+- admin audit and lifecycle operations; and
+- worker finalization safety.
 
-- Custom token claims can be stale for the token refresh interval.
-- Fetching Clerk metadata on every request adds latency and Backend API use.
-- `unsafeMetadata` is client-editable and cannot authorize anything.
-- Roles, ownership, quota, deletion state, and audit records belong next to the
-  resources they govern in PostgreSQL.
+The immutable external identity key is the Supabase JWT `sub`, stored as a UUID.
+Email is used only for verified first-login admission/bootstrap and support
+display. Ownership never depends on email, username, or client metadata.
 
-Clerk's subject (`user_...`) is the external identity key. The application may
-fetch the Clerk user once during just-in-time provisioning to obtain the
-verified primary email and display details. Returning requests resolve the
-subject locally.
+## Browser integration
 
-## Clerk production requirements
+Use the official Supabase JavaScript client and a full-page
+`signInWithOAuth({ provider: "google" })` flow. Pin the package and commit its
+lockfile. The deployed application must serve the pinned browser asset itself;
+do not depend on an unversioned third-party CDN at runtime.
 
-Development is intentionally easier: Clerk supplies shared Google credentials
-for a development instance. Production is different:
+The browser may receive:
 
-1. Own a domain and be able to change its DNS.
-2. Create/activate a Clerk production instance for that domain.
-3. Use production `pk_live_...` and `sk_live_...` values, never dev keys.
-4. Create a Google web OAuth client, configure the consent screen, add the app's
-   exact JavaScript origin, and paste Clerk's exact Authorized Redirect URI into
-   Google Cloud.
-5. Put the Google OAuth app into production for a real public deployment.
-6. Configure exact `authorizedParties`/allowed origins; no wildcard.
-7. Configure Clerk-required CSP sources for the app's Clerk Frontend API,
-   images, styles, workers, bot-protection frames, and connections.
+- the Supabase project URL; and
+- the publishable key.
 
-Clerk explicitly says development instances have a relaxed security posture,
-are capped, use different cross-site session mechanics, and are not suitable
-for production workloads. A host-provided `*.vercel.app` domain cannot be used
-for Clerk production because Clerk needs DNS control; the same ownership issue
-applies to relying solely on other host-controlled subdomains.
+It must never receive the secret/service-role key. Supabase's client may manage
+its session token, but OryxenAI must not copy the token into custom storage,
+logs, URLs, rendered HTML, or application records.
 
-## Supabase Auth fallback
+## Backend integration
 
-Use this path only when the owner confirms there will be no owned application
-domain. Supabase Auth can use Google OAuth with:
+FastAPI verifies Supabase access tokens using the project's exact issuer,
+audience, expiry, subject, signing algorithm, and JWKS. The implementation must
+support the project's current asymmetric signing key and fail closed on unknown
+algorithms or keys. JWKS caching must be bounded and refresh once on an unknown
+key ID.
 
-- a Google Cloud web OAuth client;
-- the Supabase project's callback URL as Google's authorized redirect URI;
-- the deployed host URL as the Supabase Site URL/allowed redirect; and
-- a browser `signInWithOAuth({ provider: "google" })` call.
+On first approved login, the backend resolves the authenticated Supabase user
+through the Auth server before using the verified email for bootstrap or
+allowlist admission. Returning requests resolve `sub` locally and read current
+role/status from PostgreSQL.
 
-This removes Clerk's production-domain requirement, not Google's rules. Google
-Testing status is limited to named test users and has testing-mode warnings and
-authorization lifetime restrictions. A public production OAuth app must follow
-Google's homepage, privacy/terms, secure-origin, publishing, and applicable
-domain/brand-verification rules. For this reason, the no-domain path is suitable
-for a small known-user demo, but an owned domain remains the recommendation for
-a polished public deployment.
+Never authorize from `user_metadata`. It is client-editable. Do not put role,
+quota, ownership, or allowed-email policy into browser-controllable metadata.
 
-The FastAPI backend must still verify the access token, map `sub` to an
-application user, and perform the same role/owner/quota checks documented here.
-Do not rely on `user_metadata` for authorization. If Supabase tables are exposed
-through the Data API, they also require RLS with ownership predicates; `TO
-authenticated` alone is not object authorization.
+## Database topology
 
-Using Clerk for identity does not prevent using Supabase as managed PostgreSQL.
-That is the preferred Clerk topology: Clerk Auth plus Supabase Postgres. Do not
-also enable Supabase Auth, because two identity systems create duplicate users,
-two token formats, ambiguous logout/deletion, and more routes to test.
+During local implementation, OryxenAI may continue using the checked-in local
+PostgreSQL workflow while Supabase supplies development identity.
 
-## Why the other options lose
+At production deployment, Supabase PostgreSQL may host the same Alembic-managed
+application schema. The persistent FastAPI API and worker should use the
+appropriate direct or session-pooler connection. They are not browser Data API
+clients.
 
-Firebase Auth has an excellent Google flow and its Python Admin SDK can verify
-ID tokens. It is not a bad product; it simply adds a Firebase project and
-service-account credential without replacing OryxenAI's PostgreSQL ownership
-and quota work or providing as direct a prebuilt UI fit as Clerk.
+Business tables must not become an accidental public API. At implementation
+time:
 
-Auth0 provides a FastAPI SDK and a generous free plan, but its normal setup
-introduces tenant/application/API-audience concepts and more authorization
-configuration. OryxenAI needs two local roles and one owner relation, not a
-general enterprise identity architecture.
+- review Supabase's current Data API exposure behavior;
+- keep browser access to application tables disabled/revoked;
+- use RLS as defense in depth for any exposed schema/table; and
+- never treat `TO authenticated` alone as object authorization.
 
-Self-built email/password auth is outside the acceptable risk/complexity
-budget. Even a correct password database would add verification email,
-reset/recovery, breach response, password hashing policy, credential stuffing
-protection, and session revocation. There is no product benefit here.
+## Google-only v1
 
-## Sign-in methods
+One **Continue with Google** action handles new and returning users. Google owns
+the credential screen. OryxenAI stores no password and no Google provider token.
 
-### V1: Google only
+Only the basic scopes are permitted:
 
-This is the recommendation. It is one button, one recovery story (the Google
-account), one end-to-end flow, and no OryxenAI password. Use a full-page redirect
-so mobile browsers work reliably; Google does not permit OAuth in embedded
-WebViews.
+- `openid`;
+- `userinfo.email`; and
+- `userinfo.profile`.
 
-### Optional later: email verification code
+Do not add an email OTP/password fallback in v1. If a non-Google audience later
+becomes a real requirement, evaluate it as a new decision with delivery,
+recovery, abuse, and testing costs.
 
-If users without Google accounts become a real requirement, enable Clerk email
-verification code/OTP through the prebuilt sign-in view. Do not add an
-application password. Email OTP adds delivery, spam, retry, lockout, and
-recovery tests, so it should not be part of the first minimum flow.
+## Allowlist and capacity
 
-Two separate Google admin accounts provide basic administrator recovery. Each
-admin should enable strong two-step verification on their Google account.
+An identity existing in Supabase does not automatically grant product access.
+FastAPI admits only:
+
+- a verified bootstrap administrator email; or
+- a verified email in `ORYXENAI_ALLOWED_USER_EMAILS`.
+
+Non-allowlisted identities receive a safe 403 before a portfolio or model job
+is created. At most 15 normal users may be admitted. Administrators do not
+consume those slots. Suspended users retain their slot; deleting a normal user
+through the audited admin workflow releases it.
+
+## Why not combine providers
+
+Do not enable Clerk beside Supabase Auth. Two identity systems create duplicate
+subjects, token formats, logout paths, deletion semantics, callback routes, and
+test matrices. One provider is sufficient.
+
+## Current development configuration
+
+The owner has configured a Supabase Free project in Mumbai and a Google external
+testing application with exact localhost origins, Supabase callback, basic
+scopes, and two administrator test users. See
+[09-confirmed-setup.md](09-confirmed-setup.md) for the sanitized record.
 
 ## Official sources
 
-- [Clerk pricing](https://clerk.com/pricing)
-- [Clerk JavaScript quickstart](https://clerk.com/docs/js-frontend/getting-started/quickstart)
-- [Clerk JavaScript SignIn view](https://clerk.com/docs/js-frontend/reference/components/authentication/sign-in)
-- [Clerk Python SDK](https://github.com/clerk/clerk-sdk-python)
-- [Clerk Google connection](https://clerk.com/docs/guides/configure/auth-strategies/social-connections/google)
-- [Clerk environments](https://clerk.com/docs/guides/development/managing-environments)
-- [Clerk production deployment](https://clerk.com/docs/guides/development/deployment/production)
-- [Supabase pricing](https://supabase.com/pricing)
 - [Supabase Google login](https://supabase.com/docs/guides/auth/social-login/auth-google)
-- [Firebase Google sign-in](https://firebase.google.com/docs/auth/web/google-signin)
-- [Firebase server token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)
-- [Auth0 pricing](https://auth0.com/pricing)
-- [Auth0 FastAPI API quickstart](https://auth0.com/docs/quickstart/backend/fastapi)
+- [Supabase social login](https://supabase.com/docs/guides/auth/social-login)
+- [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Supabase JWTs](https://supabase.com/docs/guides/auth/jwts)
+- [Supabase signing keys](https://supabase.com/docs/guides/auth/signing-keys)
+- [Supabase API security](https://supabase.com/docs/guides/api/securing-your-api)
+- [Supabase billing](https://supabase.com/docs/guides/platform/billing-on-supabase)
+- [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
+- [Google OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies)
