@@ -1,7 +1,8 @@
 # OryxenAI authentication handoff
 
-Status: provider and product policy are decided, the development provider is
-configured, and implementation has not started.
+Status: provider, product policy, private development setup, and the future
+implementation handoff are complete. Runtime authentication is deliberately
+deferred; this documentation phase adds no auth code, tables, or dependencies.
 
 Last verified: 2026-08-23. Provider behavior, prices, SDKs, and dashboard
 screens are time-sensitive; recheck the linked primary sources when coding or
@@ -60,21 +61,23 @@ Redaction-safe verification confirmed:
 - all five expected local environment entries are declared;
 - the configured project URL matches the recorded project;
 - two distinct bootstrap administrator entries are present;
-- the normal-user allowlist is currently empty by design;
+- one separate non-admin test identity is present in the private normal-user
+  allowlist and Google test-user list;
 - Supabase Auth settings are reachable;
 - the Google provider is enabled;
 - the project JWKS endpoint exposes a signing key; and
-- OAuth initiation redirects to Google.
+- OAuth initiation redirects to Google; and
+- the strict online prerequisite run completed with `0 failures, 0 warnings`.
 
-This does **not** yet prove a completed browser login, a token exchange, username
-onboarding, FastAPI authorization, or a normal-user flow. Those require the
-implementation. A separate normal Google test account must be added to both the
-Google test-user list and `ORYXENAI_ALLOWED_USER_EMAILS` before final acceptance.
+This does **not** yet prove a completed browser login, token exchange, username
+onboarding, FastAPI authorization, or normal-user flow. Those require the later
+implementation and visible browser acceptance. No additional account or secret
+is currently required before planning that implementation.
 
 Run the safe setup checker from the repository root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online -RequireNormalUser
 ```
 
 The checker reports presence and booleans only. It never prints a key, token,
@@ -85,10 +88,11 @@ password, administrator email, or allowlist entry.
 ```text
 signed out -> /sign-in -> Google/Supabase redirect -> /auth/callback
            -> GET /api/v1/me
-           -> unapproved: 403 access-not-approved
+           -> unapproved: /access-not-approved
+           -> suspended/deleting: /account-unavailable
            -> approved new user: /onboarding -> unique username -> /app
            -> returning active user: /app
-           -> administrator: /admin available
+           -> administrator: /app, with explicit /admin available
 ```
 
 Use a full-page redirect. Do not automate a real Google password in CI.
@@ -109,10 +113,10 @@ Use a full-page redirect. Do not automate a real Google password in CI.
 
 ## Deployment boundary
 
-Do not create AWS resources during auth implementation. Create the AWS Free
-account only when deployment is ready so its promotional clock is not wasted.
-Production will use separate Supabase/Google configuration and final HTTPS
-origins.
+Do not create AWS resources in this documentation phase or the later local auth
+implementation. Create the AWS Free account only when deployment is ready so
+its promotional clock is not wasted. Production will use separate
+Supabase/Google configuration and final HTTPS origins.
 
 Auth does not replace the existing runtime requirements: managed PostgreSQL,
 API, durable worker, private object storage, and one shared preview origin.

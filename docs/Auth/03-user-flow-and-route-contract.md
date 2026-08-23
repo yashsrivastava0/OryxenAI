@@ -153,12 +153,64 @@ the 15 normal-user slots. Both identities require separate Google accounts.
 | `/` | Public controller | Resolve Supabase session, then route to sign-in, onboarding, app, or denied state. |
 | `/sign-in` | Public | Google-only sign-in. Signed-in users leave this route after `/me`. |
 | `/auth/callback` | Public shell | Complete provider callback and resolve `/me`; never accept arbitrary external `next`. |
+| `/access-not-approved` | Public shell | Safe explanation for an authenticated Google identity that is not admitted; offer sign-out only. |
+| `/account-unavailable` | Public shell | Safe suspended/deletion-pending state; offer sign-out/support only. |
 | `/onboarding` | Authenticated + approved | Unique username form; no portfolio operations before completion. |
 | `/app` | Active + onboarded | Owner workspace. |
 | `/admin` | Admin | Administrative console. |
 
 HTML shells contain no private state. APIs remain protected if JavaScript is
 disabled or a shell is loaded directly.
+
+## One controller decision for every page load
+
+Keep route behavior deterministic and small. `/`, `/sign-in`,
+`/auth/callback`, and every direct protected-page load use the same controller
+after the callback (if any) has restored the Supabase session:
+
+1. No Supabase session: clear local project state and replace the current page
+   with `/sign-in`. Do not call a protected OryxenAI API.
+2. Session present: call `GET /api/v1/me` once with the bearer token.
+3. `ACCESS_NOT_APPROVED`: replace with `/access-not-approved`; never create
+   local product data.
+4. Suspended/deletion-pending/deleted: replace with `/account-unavailable`.
+5. Approved but no username: replace with `/onboarding`, regardless of the
+   originally requested local page.
+6. Active and onboarded: replace with `/app` unless the requested page is
+   `/admin` and the local role is admin.
+7. Admin: `/app` is still the ordinary landing page; `/admin` is an explicit
+   console destination, not a second automatic post-login branch.
+
+Use `location.replace` for auth-state canonicalization so back navigation does
+not replay a callback or reveal a previously rendered private page. Preserve at
+most one reviewed relative destination (`/app` or `/admin`); reject absolute
+URLs, protocol-relative URLs, encoded backslashes, unknown routes, and foreign
+origins.
+
+## Refresh, direct URL, and deployment behavior
+
+- FastAPI must serve the corresponding HTML shell for a direct browser request
+  to every listed page route; deployment must not depend on a development-only
+  SPA fallback.
+- Refreshing `/app`, `/onboarding`, or `/admin` reruns the controller before
+  private data is requested or rendered.
+- Refreshing `/auth/callback` after successful exchange is harmless: restore
+  the existing session, remove OAuth artifacts, and route through `/me`.
+- A signed-out direct request to `/admin`, `/app`, or `/onboarding` lands on
+  `/sign-in`; a non-admin direct request to `/admin` lands on `/app` while its
+  admin APIs independently return 403.
+- Unapproved or unavailable shells render no email, role, allowlist, project,
+  or provider diagnostics.
+- Static assets and minimal health endpoints stay public. All business APIs
+  under `/api/v1` require the documented identity/authorization dependency.
+- Local development permits only the two configured port-8000 origins.
+  Production uses one exact HTTPS application origin supplied by configuration
+  and allowlisted in Supabase; no localhost or wildcard production redirect is
+  accepted.
+- The simplest deployment is one application origin serving Jinja shells,
+  static assets, and FastAPI APIs. Do not split the frontend onto another host
+  merely for auth. Generated previews remain on their separate opaque preview
+  origin and do not become trusted application pages.
 
 ## API routes
 
