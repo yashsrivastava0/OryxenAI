@@ -1,7 +1,18 @@
 # Supabase authentication implementation plan
 
-Status: ready for owner review. No runtime auth, migration, dependency, UI, or
-cloud deployment is implemented by this document.
+Status: owner-approved for a later implementation phase. The current phase is
+documentation-only. No runtime auth, migration, dependency, UI, or cloud
+deployment is implemented or authorized by this document update.
+
+## Current phase boundary
+
+- Preserve the completed Supabase/Google/private `.env` setup; do not recreate
+  providers, clients, keys, or test identities.
+- Do not write auth runtime code, migrations, dependencies, or application
+  tables until the owner starts the implementation phase.
+- This file is the detailed input to that future coding plan and execution.
+- Reinspect the live repository and provider changelog before coding; never
+  assume the future checkout matches this audit.
 
 ## Objective
 
@@ -65,15 +76,17 @@ Ready:
 
 - Supabase development project and Google provider configured;
 - `.env` contains provider URL/keys and two bootstrap entries;
+- one separate normal identity is privately present in both the Google test-user
+  list and `ORYXENAI_ALLOWED_USER_EMAILS`;
 - Auth settings, Google enabled state, JWKS, and OAuth initiation verified;
+- strict online prerequisite verification passed with `0 failures, 0 warnings`;
 - no secrets committed; and
 - policy decisions accepted.
 
-Pending but not a coding blocker:
-
-- create one non-admin Google test account;
-- add it to Google test users and `ORYXENAI_ALLOWED_USER_EMAILS`; and
-- use it for final live normal-user acceptance.
+Nothing else owner-controlled is required before implementation. A real Google
+callback/token exchange and the complete normal/admin browser flows remain
+unverified because no auth runtime exists yet; they are later acceptance work,
+not missing setup.
 
 ## Phase 0 - freeze the handoff
 
@@ -114,8 +127,9 @@ Environment-bound values:
 
 Parse/deduplicate normalized emails. Reject overlap between bootstrap admins
 and normal allowlist. Require exactly two distinct bootstrap admins in required
-development/production auth mode. The normal allowlist may be empty during
-implementation but live acceptance reports it as pending.
+development/production auth mode. The development normal allowlist already has
+one private test entry. Production may use a separately reviewed allowlist, but
+required deployments must not start with an accidental empty admission policy.
 
 Production validation must reject localhost, HTTP, wildcard origins, missing
 keys, project/issuer mismatch, test override, and auth-disabled mode. Local/test
@@ -408,6 +422,13 @@ Add templates/static modules for:
 - suspended/deletion-pending state; and
 - admin console shell.
 
+Use the canonical route table and single controller algorithm in
+[03-user-flow-and-route-contract.md](03-user-flow-and-route-contract.md). The
+minimum page set is `/`, `/sign-in`, `/auth/callback`,
+`/access-not-approved`, `/account-unavailable`, `/onboarding`, `/app`, and
+`/admin`. Every direct or refreshed protected page resolves auth before private
+fetches; do not depend on a host-specific SPA fallback.
+
 Refactor current boot:
 
 1. initialize pinned Supabase client from rendered public configuration;
@@ -499,12 +520,13 @@ call Google/Supabase.
 1. Run the prerequisite verifier:
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online -RequireNormalUser
    ```
 
 2. Start existing API/worker/database stack.
 3. Manually sign in each real admin through Google.
-4. After the owner supplies a normal test account, run its complete live flow.
+4. Run the already configured separate normal test account through its complete
+   live flow without printing or automating its credentials.
 5. Never automate Google passwords in Playwright.
 
 ### Commands
@@ -545,12 +567,14 @@ Then stop. Production Supabase/Google/AWS setup is a separate explicit task.
 
 Before implementation starts:
 
-- owner approves this plan; and
+- owner explicitly starts the implementation phase (approval of this handoff
+  does not start coding); and
 - existing unrelated worktree files remain untouched.
 
 Before live normal-user completion claim:
 
-- owner supplies one separate normal Google test account privately.
+- the already configured separate normal Google test account completes the
+  visible browser flow.
 
 Before deployment:
 

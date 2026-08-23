@@ -26,26 +26,23 @@ chat, source, documentation, tests, screenshots, logs, or commits.
   port 8000.
 - Two administrator identities added as Google test users and stored privately
   in the bootstrap setting.
+- One separate non-admin identity added as a Google test user and stored
+  privately in the normal-user allowlist.
 - Required `.env` entries declared without committing values.
 - No application tables created manually; Alembic remains authoritative.
+- Strict online prerequisite verification passed with `0 failures, 0 warnings`.
 
 See [09-confirmed-setup.md](09-confirmed-setup.md) for the sanitized values and
 verification evidence.
 
-## Pending owner item
+## Current owner status
 
-A separate non-admin Google test account does not yet exist. Before the final
-normal-user live acceptance test:
-
-1. Choose/create one Google account that is not either administrator.
-2. Add it to the Google OAuth application's test users.
-3. Add its normalized email to `ORYXENAI_ALLOWED_USER_EMAILS` in `.env`.
-4. Restart the API/worker so cached settings reload.
-5. Do not add it to `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS`.
-6. Run new-user onboarding and one-project isolation tests with it.
-
-This is not a blocker for planning or deterministic implementation tests. It is
-a blocker for claiming the normal-user Google flow is live-verified.
+No owner-controlled prerequisite is blocking the later implementation. Keep
+the three private identities configured as they are and do not paste their
+addresses or credentials into committed artifacts. The separate normal account
+will be used only after runtime auth exists to perform new-user onboarding and
+one-project isolation acceptance. A successful provider-start check is not a
+completed browser token exchange.
 
 ## Local environment contract
 
@@ -73,7 +70,7 @@ Run:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online -RequireNormalUser
 ```
 
 The online form checks provider settings, JWKS, and OAuth initiation. It does

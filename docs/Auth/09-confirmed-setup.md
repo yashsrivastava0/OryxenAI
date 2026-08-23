@@ -59,9 +59,11 @@ Authorized provider redirect:
 https://diiestlnmpaarhhexwhi.supabase.co/auth/v1/callback
 ```
 
-Two distinct administrator Google accounts are configured privately and are
-present in Google's test-user list. Their exact addresses remain in the
-git-ignored environment/dashboard rather than committed documentation.
+Two distinct administrator Google accounts and one separate non-admin normal
+test account are configured privately and present in Google's test-user list.
+The normal identity is also present in the private application allowlist. All
+three exact addresses remain in the git-ignored environment/dashboard rather
+than committed documentation.
 
 ## Supabase development project
 
@@ -102,7 +104,7 @@ The git-ignored `.env` exists. Redaction-safe inspection confirmed:
 | `SUPABASE_PUBLISHABLE_KEY` | Yes | Yes | Value not printed |
 | `SUPABASE_SECRET_KEY` | Yes | Yes | Server-only value not printed |
 | `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` | Yes | Yes | Two distinct expected entries; values not printed |
-| `ORYXENAI_ALLOWED_USER_EMAILS` | Yes | No | Intentional until a normal test account exists |
+| `ORYXENAI_ALLOWED_USER_EMAILS` | Yes | Yes | One separate normal test entry; value not printed |
 
 The application does not read these auth settings yet. Presence proves owner
 setup only, not implemented auth.
@@ -118,6 +120,8 @@ jwks_reachable=True
 jwks_key_count=1
 oauth_start_status=302
 oauth_redirects_to_google=True
+verification_failures=0
+verification_warnings=0
 ```
 
 No key, token, OAuth location, client identifier, or account information was
@@ -132,22 +136,21 @@ printed. The checks prove:
 They do not prove the Google Client Secret completes token exchange. That
 requires a real browser login after the app callback exists.
 
-## Pending owner-side verification
+## Remaining verification after implementation
 
-One separate normal test identity is still required. Do not use either admin as
-the normal-user test.
+Owner-controlled prerequisites are complete. A separate normal test identity
+exists and must remain distinct from both administrators. No further account,
+key, table, cloud resource, or payment setup is required before the later auth
+implementation begins.
 
-When available:
+After the callback and protected application routes exist:
 
-1. add it to Google OAuth test users;
-2. add it privately to `ORYXENAI_ALLOWED_USER_EMAILS`;
-3. restart the app after implementation;
-4. test approved new user, username, one portfolio, foreign-ID isolation,
-   success freeze, and sign-out; and
-5. retain both admins for admin-only tests.
-
-Until then, deterministic tests use fake identities and the two real admin
-accounts may validate only the administrator Google flow.
+1. restart the API/worker so private settings load;
+2. sign in with the separate normal test identity through a visible browser;
+3. test approved onboarding, one portfolio, foreign-ID isolation, success
+   freeze, refresh/direct URLs, and sign-out;
+4. test both administrator identities separately; and
+5. never automate or reveal any Google password.
 
 ## Deliberately not created
 
@@ -163,7 +166,7 @@ accounts may validate only the administrator Google flow.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-auth-prerequisites.ps1 -Online -RequireNormalUser
 ```
 
 Dashboard-only origin/redirect entries and a completed Google token exchange
