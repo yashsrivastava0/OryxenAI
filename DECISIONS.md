@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-042 - Stable retry and explicit new-variant semantics
+
+- **Date & Time:** 2026-08-23 00:00 +05:30 - Codex (model/provider omitted)
+- **Status:** decided-implemented
+- **Context:** Durable jobs and publication failures can be delivered more than once, while an explicit regeneration must be able to produce a meaningfully different design. Treating both actions as a new creative run would waste calls and could replace a verified preview unnecessarily.
+- **Decision:** Automatic infrastructure/build/browser/publication retries and the session `retry` endpoint reuse the existing run's immutable design-variant receipt, fingerprint, accepted checkpoints, and active preview. Explicit `regenerate` creates a new run and variant receipt, compares its content-free fingerprint against recent accepted variants, and fails closed after its bounded redirected creative attempt remains too similar.
+- **Rejected alternatives:** Generating a new variant for every retry; relying only on an HTTP idempotency key without binding retry state to the run; mutating the accepted variant in place; or deleting the previous preview before the replacement is publicly verified.
+- **Consequence:** Retry is safe to repeat without creative drift or unnecessary model calls, regeneration is the only deliberate source of variant change, and the last verified preview remains available while a replacement is pending or fails.
+
 ## D-041 - Code Generator V4 provider-compatible contracts and preview truth
 
 - **Date & Time:** 2026-08-21 22:00 +05:30 - Codex (GPT-5 / OpenAI)
@@ -369,8 +378,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Summary (as of last update — 2026-08-19)
 
-- Total decisions logged: 32
-- Active decisions: 28 (D-001–D-005, D-007–D-009, D-011, D-013, D-015–D-032)
+- Total decisions logged: 38
+- Active decisions: 34 (all logged decisions except D-006, D-010, D-012, and D-014)
 - Superseded decisions: 4 (D-006, D-010, D-012, D-014)
-- By tool: Codex (22), Claude Code (4), OpenCode (1), Unspecified/Retroactive (5)
-- Last updated: 2026-08-19 — Codex (model/provider omitted)
+- Last updated: 2026-08-23 — Codex (model/provider omitted)

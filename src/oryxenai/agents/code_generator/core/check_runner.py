@@ -99,6 +99,36 @@ async def run_source_checks(
 async def _run_configured_typecheck(
     repo_dir: Path, *, work_unit_id: str, settings: Any
 ) -> list[SourceDiagnostic]:
+    audit_command = [
+        str(value)
+        for value in getattr(settings.code_generator_generation, "source_audit_command", [])
+    ]
+    if audit_command:
+        try:
+            audit_result = await run_command(
+                audit_command,
+                cwd=repo_dir,
+                timeout_seconds=float(settings.code_generator_generation.typecheck_timeout_seconds),
+            )
+        except ProcessRunnerError as exc:
+            return [
+                _command_diagnostic(
+                    "SOURCE_AST_AUDIT_START_FAILED",
+                    "The configured TypeScript AST source audit could not start.",
+                    work_unit_id,
+                    str(exc),
+                )
+            ]
+        if audit_result.timed_out or audit_result.returncode != 0:
+            return [
+                _command_diagnostic(
+                    "SOURCE_AST_AUDIT_FAILED",
+                    _normalize_output(audit_result.combined_output)
+                    or "The TypeScript AST source audit failed.",
+                    work_unit_id,
+                    "",
+                )
+            ]
     command = [str(value) for value in settings.code_generator_generation.typecheck_command]
     if not command:
         return _structural_typecheck(repo_dir, work_unit_id)

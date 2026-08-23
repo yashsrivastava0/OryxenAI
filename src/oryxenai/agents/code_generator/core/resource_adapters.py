@@ -36,6 +36,7 @@ from oryxenai.agents.shared.component_retrieval import (
 )
 from oryxenai.agents.shared.image_retrieval import (
     download_image_bytes,
+    generate_responsive_renditions,
     intent_from_request,
     prepare_image_bytes,
     search_images,
@@ -276,6 +277,14 @@ class _BaseAdapter:
                 raise ResourceProviderError(
                     str(exc), provider=candidate.provider_key, retryable=False
                 ) from exc
+            return _materialize_image_renditions(
+                data,
+                candidate=candidate,
+                request=request,
+                category=self.category,
+                storage_root=storage_root,
+                settings=settings,
+            )
         max_bytes = request.technical_constraints.max_bytes or _category_limit(
             self.category, settings
         )
@@ -322,6 +331,89 @@ class _BaseAdapter:
             sha256=digest,
             inspection=inspection,
         )
+
+
+def _materialize_image_renditions(
+    data: bytes,
+    *,
+    candidate: ResourceCandidate,
+    request: ResourceRequest,
+    category: str,
+    storage_root: Path,
+    settings: Any,
+) -> list[LocalMaterialFile]:
+    root = Path(storage_root).resolve()
+    category_root = (root / category).resolve()
+    if not category_root.is_relative_to(root):
+        raise AcquisitionValidationError(
+            "MATERIAL_ROOT_UNSAFE", "The image materialization root is unsafe."
+        )
+    category_root.mkdir(parents=True, exist_ok=True)
+    max_bytes = request.technical_constraints.max_bytes or _category_limit(category, settings)
+    primary = inspect_bytes(data, category=category, max_bytes=max_bytes or None)
+    if request.technical_constraints.minimum_dimensions:
+        _validate_dimensions(primary, request.technical_constraints.minimum_dimensions)
+    image_config = getattr(settings, "image_retrieval", None)
+    renditions = generate_responsive_renditions(
+        data,
+        widths=list(getattr(image_config, "responsive_widths", [480, 768, 1280, 1920])),
+        formats=list(getattr(image_config, "responsive_formats", ["webp", "jpeg"])),
+        quality=int(getattr(image_config, "responsive_quality", 84)),
+    )
+    source_hash = str(primary["sha256"])
+    results: list[LocalMaterialFile] = []
+    licence_dir = root / "licences"
+    licence_dir.mkdir(parents=True, exist_ok=True)
+    for rendition, rendition_metadata in renditions:
+        inspection = inspect_bytes(
+            rendition,
+            category=category,
+            max_bytes=max_bytes or None,
+        )
+        digest_value = str(inspection["sha256"])
+        width = int(rendition_metadata["pixel_width"])
+        image_format = str(rendition_metadata["rendition_format"])
+        suffix = "jpg" if image_format == "jpeg" else image_format
+        target = category_root / f"{digest_value}-{width}w.{suffix}"
+        target.write_bytes(rendition)
+        licence_path = licence_dir / f"{digest_value}.json"
+        licence_path.write_text(
+            json.dumps(
+                {
+                    "provider": candidate.provider_key,
+                    "provider_resource_id": candidate.provider_resource_id,
+                    "canonical_source": candidate.canonical_source,
+                    "source_url": candidate.technical_metadata.get("source_url", ""),
+                    "preview_url": candidate.technical_metadata.get("preview_url", ""),
+                    "sent_query": candidate.technical_metadata.get("sent_query", ""),
+                    "licence": candidate.licence,
+                    "attribution": candidate.attribution,
+                    "source_sha256": source_hash,
+                    "sha256": digest_value,
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        full_inspection = {
+            **inspection,
+            **rendition_metadata,
+            "source_sha256": source_hash,
+            "licence_path": licence_path.relative_to(root).as_posix(),
+            "loading_policy": "eager"
+            if request.placement.section_id.casefold() in {"hero", "intro", "masthead"}
+            else "lazy",
+        }
+        results.append(
+            LocalMaterialFile(
+                local_path=target.relative_to(root).as_posix(),
+                media_type=str(rendition_metadata["media_type"]),
+                size=len(rendition),
+                sha256=digest_value,
+                inspection=full_inspection,
+            )
+        )
+    return results
 
 
 class ImageAdapter(_BaseAdapter):

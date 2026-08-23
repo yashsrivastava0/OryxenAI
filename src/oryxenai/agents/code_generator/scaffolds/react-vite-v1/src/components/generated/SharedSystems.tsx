@@ -1,5 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { publicSectionUrl } from "../../app/ResourceUrl";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { publicResourceUrl, publicSectionUrl } from "../../app/ResourceUrl";
 
 export type RouteShellProps = {
   routeId: string;
@@ -40,6 +47,80 @@ export function SectionAnchor({
   children: ReactNode;
 }) {
   return <a href={publicSectionUrl(routePath, sectionId)}>{children}</a>;
+}
+
+export type LocalImageSource = {
+  path: string;
+  width: number;
+  height: number;
+  format?: string;
+};
+
+export function LocalImage({
+  resourceId,
+  sources,
+  alt,
+  sizes = "100vw",
+  loading = "lazy",
+  fit = "cover",
+  focalPosition = "center",
+}: {
+  resourceId: string;
+  sources: readonly LocalImageSource[];
+  alt: string;
+  sizes?: string;
+  loading?: "lazy" | "eager";
+  fit?: CSSProperties["objectFit"];
+  focalPosition?: string;
+}) {
+  const ordered = [...sources]
+    .filter((source) => source.path && source.width > 0 && source.height > 0)
+    .sort((left, right) => left.width - right.width);
+  const largest = ordered.at(-1);
+  if (!largest) return null;
+  const grouped = new Map<string, LocalImageSource[]>();
+  for (const source of ordered) {
+    const format = (source.format || "").toLowerCase();
+    const entries = grouped.get(format) || [];
+    entries.push(source);
+    grouped.set(format, entries);
+  }
+  const fallbackFormat = grouped.has("jpeg")
+    ? "jpeg"
+    : grouped.has("jpg")
+      ? "jpg"
+      : grouped.keys().next().value || "";
+  const fallbackSources = grouped.get(fallbackFormat) || [largest];
+  const srcSet = (items: readonly LocalImageSource[]) =>
+    items
+      .map((source) => `${publicResourceUrl(source.path)} ${source.width}w`)
+      .join(", ");
+  return (
+    <picture>
+      {[...grouped.entries()]
+        .filter(([format]) => format && format !== fallbackFormat)
+        .map(([format, items]) => (
+          <source
+            key={format}
+            type={`image/${format === "jpg" ? "jpeg" : format}`}
+            srcSet={srcSet(items)}
+            sizes={sizes}
+          />
+        ))}
+      <img
+        data-resource-id={resourceId}
+        src={publicResourceUrl((fallbackSources.at(-1) || largest).path)}
+        srcSet={srcSet(fallbackSources)}
+        sizes={sizes}
+        width={largest.width}
+        height={largest.height}
+        loading={loading}
+        decoding="async"
+        alt={alt}
+        style={{ objectFit: fit, objectPosition: focalPosition }}
+      />
+    </picture>
+  );
 }
 
 export function useDisclosure(initialOpen = false) {

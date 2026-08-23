@@ -10,11 +10,10 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from pydantic import ValidationError
-
 from oryxenai.agents.code_generator.core.build_runner import run_clean_build
 from oryxenai.agents.code_generator.core.candidate_identity import build_candidate_identity
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
+from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
@@ -23,8 +22,9 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
     GateResult,
+    GenerationProjection,
     PendingPromotion,
-    QualityReviewReceiptV1,
+    QualityReviewReceiptV2,
     SafeIssue,
     SitePlan,
     TerminalFailureReport,
@@ -33,14 +33,17 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 from oryxenai.agents.code_generator.core.final_repair import FinalRepairer, repair_allowed_paths
 from oryxenai.agents.code_generator.core.final_source_validation import validate_final_source
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    CodeGeneratorGenerationOrchestrator,
     _allowed_packages,
     _public_text,
 )
+from oryxenai.agents.code_generator.core.quality_review import (
+    QualityReviewError,
+    validate_quality_review_receipt,
+)
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 from oryxenai.agents.code_generator.core.runtime_verifier import RuntimeVerifier
-from oryxenai.agents.code_generator.core.source_validation import (
-    normalize_generated_route_contract,
-)
+from oryxenai.agents.code_generator.core.source_manifest import digest
 from oryxenai.agents.code_generator.core.token_compiler import (
     compile_generated_tokens,
     write_generated_tokens,
@@ -117,44 +120,6 @@ async def _execute(
                     "retryable": False,
                 },
             }
-        try:
-            admitted_plan = SitePlan.model_validate(run.plan)
-        except Exception:
-            admitted_plan = None
-        if admitted_plan is not None and isinstance(
-            admitted_plan.experience_blueprint, ExperienceBlueprintV4
-        ):
-            quality_payload = (
-                run.generation_projection.get("quality_review")
-                if isinstance(run.generation_projection, dict)
-                else None
-            )
-            quality_ok = False
-            if isinstance(quality_payload, dict):
-                try:
-                    quality_ok = QualityReviewReceiptV1.model_validate(quality_payload).accepted
-                except ValidationError:
-                    quality_ok = False
-            if not quality_ok:
-                issue = SafeIssue(
-                    code="QUALITY_REVIEW_MISSING_OR_STALE",
-                    message="The v4 source has no accepted hash-bound whole-site quality review.",
-                    next_action="Run the bounded quality review before requesting preview promotion.",
-                )
-                await _cas(
-                    repo,
-                    run,
-                    DevelopmentRunStatus.NEEDS_ATTENTION.value,
-                    {"issues": [issue.model_dump(mode="json")]},
-                )
-                await repo.append_event(
-                    run_id,
-                    event_type="quality_review_required",
-                    level="error",
-                    message=issue.message,
-                )
-                await db.commit()
-                return {"status": "needs_attention", "run_id": str(run_id)}
         if run.status not in {
             DevelopmentRunStatus.QUEUED.value,
             DevelopmentRunStatus.SOURCE_READY.value,
@@ -213,6 +178,13 @@ async def _execute(
                     pending=pending,
                     manifest=pending_projection.build_manifest,
                     preview_base_url=str(settings.code_generator_verification.preview_base_url),
+                    require_readback=bool(
+                        getattr(
+                            settings.code_generator_verification,
+                            "preview_public_readback_required",
+                            True,
+                        )
+                    ),
                 )
                 pending_projection.status = "ready"
                 pending_projection.phase = "ready"
@@ -292,7 +264,6 @@ async def _execute(
             run_id=run_id,
             run=run,
             plan=plan,
-            projections=projections,
             workspace=workspace,
             checkpoint_store=checkpoint_store,
             checkpoint=checkpoint,
@@ -305,6 +276,69 @@ async def _execute(
             source_manifest_hash=source_manifest,
             profile=profile,
         )
+        realization_contracts = []
+        quality_payload: dict[str, Any] | None = None
+        generation_projection_payload = (
+            run.generation_projection if isinstance(run.generation_projection, dict) else {}
+        )
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+            realization_contracts = [
+                compile_design_realization(
+                    plan.experience_blueprint,
+                    route_id=route.route_id,
+                    section_order=list(route.section_order or route.section_ids),
+                )
+                for route in plan.routes
+            ]
+            candidate_quality = generation_projection_payload.get("quality_review")
+            quality_payload = (
+                dict(candidate_quality) if isinstance(candidate_quality, dict) else None
+            )
+            if not isinstance(quality_payload, dict):
+                raise VerificationFailure(
+                    "QUALITY_REVIEW_MISSING",
+                    "The final v4 source has no host-stamped whole-site quality receipt.",
+                    owner="generator",
+                )
+            try:
+                quality_receipt = QualityReviewReceiptV2.model_validate(quality_payload)
+                context_receipts_value = generation_projection_payload.get("context_receipts", [])
+                context_receipts = (
+                    context_receipts_value if isinstance(context_receipts_value, list) else []
+                )
+                known_context_hashes = {
+                    str(item.get("context_hash", ""))
+                    for item in context_receipts
+                    if isinstance(item, dict)
+                }
+                if quality_receipt.review_context_hash not in known_context_hashes:
+                    raise QualityReviewError(
+                        "QUALITY_CONTEXT_STALE",
+                        "The quality review context receipt is not part of this generation run.",
+                    )
+                validate_quality_review_receipt(
+                    quality_receipt,
+                    source_manifest_hash=source_manifest,
+                    plan_hash=digest(plan.model_dump(mode="json")),
+                    realization_hash=digest(
+                        [item.model_dump(mode="json") for item in realization_contracts]
+                    ),
+                    quality_gate_version=str(
+                        settings.code_generator_development.quality_gate_version
+                    ),
+                )
+            except (ValueError, QualityReviewError) as exc:
+                raise VerificationFailure(
+                    str(getattr(exc, "code", "QUALITY_REVIEW_MISSING_OR_STALE")),
+                    str(
+                        getattr(
+                            exc,
+                            "message",
+                            "The whole-site quality review does not match the final source.",
+                        )
+                    ),
+                    owner="generator",
+                ) from exc
         verification_plan = derive_verification_plan(
             identity=identity,
             plan=plan,
@@ -625,7 +659,13 @@ async def _execute(
         promoter = PreviewPromoter(
             storage,
             preview_base_url=str(settings.code_generator_verification.preview_base_url),
-            require_readback=True,
+            require_readback=bool(
+                getattr(
+                    settings.code_generator_verification,
+                    "preview_public_readback_required",
+                    True,
+                )
+            ),
         )
         host = str(run.preview_host or _preview_host(str(run_id)))
         candidate_id = f"candidate-{identity.identity_hash[:24]}"
@@ -638,7 +678,10 @@ async def _execute(
             verification_report={**report, "verification_report_hash": report_hash},
         )
         artifact = artifact.model_copy(
-            update={"route_ids": [route.route_id for route in plan.routes]}
+            update={
+                "route_ids": [route.route_id for route in plan.routes],
+                "route_paths": [route.path for route in plan.routes],
+            }
         )
         pending = await promoter.create_pending(
             run_id=str(run_id),
@@ -718,6 +761,8 @@ async def _execute(
             },
             event=("promoted", "Verified portfolio preview promoted atomically."),
         )
+        input_receipt_payload = run.input_receipt if isinstance(run.input_receipt, dict) else {}
+        projection_hashes = input_receipt_payload.get("projection_hashes", {})
         await _export_portfolio(
             sessionmaker,
             run_id,
@@ -729,6 +774,49 @@ async def _execute(
             candidate_id=candidate_id,
             identity=identity,
             pack_reference=str((run.input_reference or {}).get("source_id", "")),
+            generation_projection=dict(generation_projection_payload),
+            quality_review=quality_payload,
+            realization_contracts=[item.model_dump(mode="json") for item in realization_contracts],
+            provenance={
+                "admitted_identity": str(input_receipt_payload.get("admitted_identity", "")),
+                "input_receipt_hash": identity.input_receipt_hash,
+                "source_checkpoint_hash": identity.source_checkpoint_hash,
+                "source_manifest_hash": identity.source_manifest_hash,
+                "resource_ledger_hash": identity.resource_ledger_hash,
+                "dependency_ledger_hash": identity.dependency_ledger_hash,
+                "projection_hashes": dict(projection_hashes)
+                if isinstance(projection_hashes, dict)
+                else {},
+            },
+            verification={
+                "verification_report_hash": stored_report_hash,
+                "verification_projection_hash": report_hash,
+                "build_hash": manifest.build_hash,
+                "candidate_identity_hash": identity.identity_hash,
+                "verification_profile_hash": projection.verification_profile.profile_hash,
+                "verification_plan_hash": (
+                    projection.verification_plan.plan_hash
+                    if projection.verification_plan is not None
+                    else ""
+                ),
+                "gate_results": [
+                    {
+                        "gate_id": gate.gate_id,
+                        "status": gate.status,
+                        "evidence_hash": gate.evidence_hash,
+                    }
+                    for gate in projection.gate_results
+                ],
+                "runtime_journey_count": len(projection.runtime_evidence),
+                "repair_receipt_hashes": [
+                    receipt.receipt_hash for receipt in projection.repair_receipts
+                ],
+            },
+            public_readback=(
+                active.public_readback.model_dump(mode="json")
+                if active.public_readback is not None
+                else None
+            ),
         )
         return {"status": "succeeded", "run_id": str(run_id), "preview_url": active.url}
     except VerificationFailure as exc:
@@ -950,7 +1038,6 @@ async def _normalize_host_generated_tokens(
     run_id: UUID,
     run: Any,
     plan: SitePlan,
-    projections: dict[str, dict[str, Any]],
     workspace: GenerationWorkspace,
     checkpoint_store: CheckpointStore,
     checkpoint: Any,
@@ -965,11 +1052,7 @@ async def _normalize_host_generated_tokens(
     the same deterministic source.
     """
 
-    changed = normalize_generated_route_contract(
-        workspace.repo_dir,
-        plan=plan,
-        site_contract=projections.get("site/contract.json", {}),
-    )
+    changed = False
     blueprint = plan.experience_blueprint
     if (
         isinstance(blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4))
@@ -1176,6 +1259,47 @@ async def _attempt_repair(
     projection.repair_receipts.append(receipt)
     projection.diagnostics = []
     projection.gate_results = []
+    generation_projection_payload: dict[str, Any] | None = None
+    integration_review_payload: dict[str, Any] | None = None
+    if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+        async with sessionmaker() as db:
+            current = await CodeGeneratorDevelopmentRepository(db).get(run_id)
+            if current is None or not current.generation_projection:
+                raise VerificationFailure(
+                    "QUALITY_REVIEW_STATE_MISSING",
+                    "The repaired v4 source has no generation quality state.",
+                    owner="generator",
+                )
+            generation_projection = GenerationProjection.model_validate(
+                current.generation_projection
+            )
+            generation_projection.accepted_checkpoint = corrected
+            generation_projection.source_file_count = corrected.file_count
+            generation_projection.source_total_bytes = corrected.total_bytes
+            generation_projection.quality_review = None
+            review = await CodeGeneratorGenerationOrchestrator(
+                model_factory=model_factory
+            )._integration_review(
+                sessionmaker=sessionmaker,
+                run_id=run_id,
+                settings=settings,
+                run=current,
+                plan=plan,
+                workspace=workspace,
+                projection=generation_projection,
+                round_number=2,
+                persist=False,
+            )
+            if generation_projection.quality_review is None or not bool(
+                generation_projection.quality_review.accepted
+            ):
+                raise VerificationFailure(
+                    "QUALITY_REVIEW_REJECTED_AFTER_REPAIR",
+                    "The final repaired source did not pass bounded whole-site re-review.",
+                    owner="generator",
+                )
+            generation_projection_payload = generation_projection.model_dump(mode="json")
+            integration_review_payload = review.model_dump(mode="json")
     await _persist_projection(
         sessionmaker,
         run_id,
@@ -1188,6 +1312,16 @@ async def _attempt_repair(
                 "source_ready": True,
                 "repair_round": budget.total_used,
             },
+            **(
+                {"generation_projection": generation_projection_payload}
+                if generation_projection_payload is not None
+                else {}
+            ),
+            **(
+                {"integration_review": integration_review_payload}
+                if integration_review_payload is not None
+                else {}
+            ),
         },
         event=(
             "repair_accepted",
@@ -1209,6 +1343,12 @@ async def _export_portfolio(
     candidate_id: str,
     identity: Any,
     pack_reference: str,
+    generation_projection: dict[str, Any],
+    quality_review: dict[str, Any] | None,
+    realization_contracts: list[dict[str, Any]],
+    provenance: dict[str, Any],
+    verification: dict[str, Any],
+    public_readback: dict[str, Any] | None,
 ) -> None:
     """Copy the complete portfolio (source + dist + metadata) to the export
     root. Advisory only: failures are recorded as events, never raised."""
@@ -1227,6 +1367,12 @@ async def _export_portfolio(
                 "candidate_identity_hash": identity.identity_hash,
                 "checkpoint_hash": identity.source_checkpoint_hash,
                 "pack_reference": pack_reference,
+                "quality_review": quality_review,
+                "realization_contracts": realization_contracts,
+                "provenance": provenance,
+                "call_ledger": _export_call_ledger(generation_projection),
+                "verification": verification,
+                "public_readback": public_readback,
                 "routes": [
                     {"route_id": route.route_id, "path": route.path} for route in plan.routes
                 ],
@@ -1244,6 +1390,24 @@ async def _export_portfolio(
         repo = CodeGeneratorDevelopmentRepository(db)
         await repo.append_event(run_id, event_type=event[0], level=level, message=event[1])
         await db.commit()
+
+
+def _export_call_ledger(generation_projection: dict[str, Any]) -> dict[str, Any]:
+    """Export metadata-only call references, never provider prompts or source."""
+
+    calls = generation_projection.get("call_receipts", [])
+    contexts = generation_projection.get("context_receipts", [])
+    call_items = [item for item in calls if isinstance(item, dict)]
+    context_items = [item for item in contexts if isinstance(item, dict)]
+    return {
+        "generation_id": str(generation_projection.get("generation_id", "")),
+        "call_count": len(call_items),
+        "call_receipt_ids": [str(item.get("receipt_id", "")) for item in call_items],
+        "call_result_hashes": [str(item.get("result_hash", "")) for item in call_items],
+        "context_receipt_hashes": [str(item.get("context_hash", "")) for item in context_items],
+        "repair_rounds": int(generation_projection.get("repair_rounds", 0) or 0),
+        "request_rounds": int(generation_projection.get("request_rounds", 0) or 0),
+    }
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:

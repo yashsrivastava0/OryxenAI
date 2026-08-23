@@ -49,6 +49,14 @@ if (root) {
   let currentPreview = null;
   let providerPreflightReady = false;
   let activeRunId = '';
+  let previewLoadSequence = 0;
+  let previewLoadTimer = 0;
+  let previewBridgeReady = false;
+
+  const clearPreviewLoadTimer = () => {
+    if (previewLoadTimer) window.clearTimeout(previewLoadTimer);
+    previewLoadTimer = 0;
+  };
 
   const setError = (message = '') => {
     const error = view('start-error');
@@ -70,6 +78,8 @@ if (root) {
     if (!readiness.package_manager_ready) fallbackBlockers.push('npm');
     if (!readiness.browser_ready) fallbackBlockers.push('verification browser');
     if (readiness.preview_storage_ready === false) fallbackBlockers.push('preview storage');
+    if (readiness.provider_wire_ready === false) fallbackBlockers.push('provider wire schemas');
+    if (readiness.preview_gateway_ready === false) fallbackBlockers.push('preview gateway');
     if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('eligible Build Preparation pack');
     const staticReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
     const preflightRequired = readiness.provider_preflight?.status === 'required';
@@ -216,25 +226,48 @@ if (root) {
     const routeSelect = view('preview-route');
     const empty = view('preview-empty');
     const refresh = view('preview-refresh');
+    const emptyMessage = view('preview-empty-message');
+    const embedStatus = view('preview-embed-status');
     if (!currentPreview?.url) {
+      previewLoadSequence += 1;
+      clearPreviewLoadTimer();
+      previewBridgeReady = false;
       frame.removeAttribute('src');
       frame.hidden = true;
       empty.hidden = false;
+      emptyMessage.textContent = 'The verified portfolio will appear here.';
+      embedStatus.textContent = '';
       refresh.disabled = true;
       view('preview-open').hidden = true;
       routeSelect.disabled = true;
       return;
     }
     const routePath = selectedRoutePath.replace(/^\/+/, '');
-    frame.src = routePath ? new URL(routePath, currentPreview.url).toString() : currentPreview.url;
+    const nextSrc = routePath ? new URL(routePath, currentPreview.url).toString() : currentPreview.url;
+    const sourceChanged = frame.src !== nextSrc;
+    if (sourceChanged) {
+      previewLoadSequence += 1;
+      clearPreviewLoadTimer();
+      previewBridgeReady = false;
+      frame.src = nextSrc;
+    }
+    const loadSequence = previewLoadSequence;
     frame.hidden = false;
     empty.hidden = true;
+    emptyMessage.textContent = '';
+    if (sourceChanged) embedStatus.textContent = 'Loading the embedded verified preview...';
     refresh.disabled = false;
     frame.style.width = viewportSizes[selectedViewport].width;
     frame.style.height = viewportSizes[selectedViewport].height;
     view('preview-open').href = frame.src;
     view('preview-open').hidden = false;
     routeSelect.disabled = false;
+    if (sourceChanged || (!previewBridgeReady && !previewLoadTimer)) {
+      previewLoadTimer = window.setTimeout(() => {
+        if (loadSequence !== previewLoadSequence || previewBridgeReady) return;
+        embedStatus.textContent = 'PREVIEW_EMBED_BLOCKED: the embedded preview did not respond. Use Open in new tab to inspect the verified output.';
+      }, 5000);
+    }
   };
 
   const render = ({ run, events, plan, acquisition, dependencies, generation, verification, preview }) => {
@@ -303,7 +336,24 @@ if (root) {
     if (routes.length && !routes.some((route) => route.path === selectedRoutePath)) selectedRoutePath = routes[0].path;
     if (!routes.length) selectedRoutePath = '';
     routeSelect.value = selectedRoutePath;
-    view('preview-status').textContent = currentPreview?.url ? 'Verified preview promoted' : run.status === 'needs_attention' ? 'Preview unavailable for this run' : 'No preview yet';
+    const latestIssue = issues[0];
+    if (currentPreview?.url && run.status === 'preview_pending') {
+      view('preview-status').textContent = 'Previous preview retained; new publication pending';
+    } else if (currentPreview?.url) {
+      view('preview-status').textContent = 'Verified preview promoted';
+    } else if (run.status === 'preview_pending') {
+      view('preview-status').textContent = 'Verified candidate retained; public read-back pending';
+    } else if (run.status === 'needs_attention') {
+      view('preview-status').textContent = `Preview unavailable${latestIssue?.code ? ` (${latestIssue.code})` : ''}`;
+    } else {
+      view('preview-status').textContent = 'No preview yet';
+    }
+    const emptyMessage = view('preview-empty-message');
+    if (!currentPreview?.url && run.status === 'preview_pending') {
+      emptyMessage.textContent = 'The build passed local verification, but public preview publication is pending. Retry after the preview gateway recovers.';
+    } else if (!currentPreview?.url && run.status === 'needs_attention') {
+      emptyMessage.textContent = latestIssue?.message || 'The verified preview is unavailable for this run.';
+    }
     viewportButtons().forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.previewViewport === selectedViewport)));
     updatePreviewFrame();
   };
@@ -388,12 +438,23 @@ if (root) {
     const origin = new URL(previewFrame.src, location.href).origin;
     previewFrame.contentWindow.postMessage({ type: 'preview:init', version: previewBridgeVersion }, origin);
   };
-  previewFrame.addEventListener('load', sendPreviewInit);
+  previewFrame.addEventListener('load', () => {
+    previewBridgeReady = false;
+    sendPreviewInit();
+  });
+  previewFrame.addEventListener('error', () => {
+    view('preview-embed-status').textContent = 'PREVIEW_EMBED_BLOCKED: the preview frame could not load. Use Open in new tab to inspect the verified output.';
+  });
   window.addEventListener('message', (event) => {
     if (event.source !== previewFrame.contentWindow || previewFrame.hidden || !previewFrame.src) return;
     const origin = new URL(previewFrame.src, location.href).origin;
     if (event.origin !== origin) return;
-    if (event.data?.type === 'preview:ready' && event.data?.version === previewBridgeVersion) sendPreviewInit();
+    if (event.data?.type === 'preview:ready' && event.data?.version === previewBridgeVersion) {
+      previewBridgeReady = true;
+      clearPreviewLoadTimer();
+      view('preview-embed-status').textContent = 'Embedded preview connected.';
+      sendPreviewInit();
+    }
   });
   controller.loadRun().catch((error) => setError(error.message));
 }

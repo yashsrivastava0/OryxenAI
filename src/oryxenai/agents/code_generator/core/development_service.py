@@ -8,22 +8,20 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
+from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
 from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
-    CreativeDirectionSetV3,
     DevelopmentEvent,
     DevelopmentRunProjection,
     DevelopmentRunStatus,
-    ExperienceBlueprintV4,
-    SourceGenerationEnvelopeV2,
 )
 from oryxenai.agents.code_generator.core.provider_preflight import (
     ProviderPreflightError,
+    code_generator_wire_schema_issues,
     run_provider_preflight,
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
-from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.service import JobService
@@ -144,10 +142,7 @@ class CodeGeneratorDevelopmentService:
             )
             if not ready
         ]
-        wire_schema_issues = {
-            model.__name__: schema_compatibility_issues(model)
-            for model in (CreativeDirectionSetV3, ExperienceBlueprintV4, SourceGenerationEnvelopeV2)
-        }
+        wire_schema_issues = code_generator_wire_schema_issues()
         provider_wire_ready = all(not issues for issues in wire_schema_issues.values())
         if not provider_wire_ready:
             readiness_blockers.append("provider_wire_schema")
@@ -158,6 +153,11 @@ class CodeGeneratorDevelopmentService:
         )
         if not preview_gateway_ready:
             readiness_blockers.append("preview_gateway")
+        # A configured key, model name, or wire schema is not proof that the
+        # provider can complete a billable structured request.  The explicit
+        # no-context preflight endpoint must pass before the UI may describe
+        # this surface as start-ready.
+        readiness_blockers.append("provider_preflight_required")
         return {
             "planning_ready": profiles["director"] and profiles["planner"],
             "generation_ready": generation_ready,
@@ -245,10 +245,28 @@ class CodeGeneratorDevelopmentService:
                     status_code=409,
                 )
             return _projection(existing)
+        pipeline_contract_version = str(
+            self._settings.code_generator_development.pipeline_contract_version
+        )
+        variant = (
+            create_design_variant_receipt(
+                input_hash=reference.source_sha256,
+                ordinal=1,
+                idempotency_key=idempotency_key,
+                creation_reason="initial",
+                prior_fingerprint_hashes=[],
+            )
+            if pipeline_contract_version == "code-generator-v4"
+            else None
+        )
         run = await self._repo.create(
             input_reference=reference.model_dump(mode="json"),
             idempotency_key=idempotency_key,
             auto_advance=True,
+            pipeline_contract_version=pipeline_contract_version,
+            creative_direction=(
+                {"variant_receipt": variant.model_dump(mode="json")} if variant else None
+            ),
         )
         selected_pack_receipt = None
         if reference.mode == "build_preparation_mirror":

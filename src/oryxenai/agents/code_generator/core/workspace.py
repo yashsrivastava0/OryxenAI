@@ -222,10 +222,15 @@ class GenerationWorkspace:
 
     def materialize_acquisition_resources(
         self, ledger: dict[str, Any] | None, materials_root: Path
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Copy receipt-bound Phase 2 materials into this generation workspace."""
 
-        copied: list[dict[str, str]] = []
+        copied: list[dict[str, Any]] = []
+        requests_by_hash = {
+            str(item.get("request_hash", "")): item
+            for item in (ledger or {}).get("requests", [])
+            if isinstance(item, dict)
+        }
         for receipt in (ledger or {}).get("receipts", []):
             if not isinstance(receipt, dict) or receipt.get("disposition") != "admitted":
                 continue
@@ -253,9 +258,18 @@ class GenerationWorkspace:
                 copied.append(
                     {
                         "request_hash": request_hash,
+                        "request_id": str(
+                            requests_by_hash.get(request_hash, {}).get("request_id", "")
+                        ),
+                        "category": str(requests_by_hash.get(request_hash, {}).get("category", "")),
+                        "placement": dict(
+                            requests_by_hash.get(request_hash, {}).get("placement", {})
+                        ),
                         "source_path": local_path,
                         "local_path": destination.relative_to(self.repo_dir).as_posix(),
                         "sha256": digest,
+                        "media_type": str(material.get("media_type", "")),
+                        "inspection": dict(material.get("inspection", {})),
                     }
                 )
         return copied
@@ -304,12 +318,8 @@ class GenerationWorkspace:
             ".js",
             ".jsx",
             ".mjs",
-            ".otf",
             ".ts",
             ".tsx",
-            ".ttf",
-            ".woff",
-            ".woff2",
         }
         root = (
             self.repo_dir / "src" / "generated" / "resources" / "acquired"
