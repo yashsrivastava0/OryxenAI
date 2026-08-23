@@ -11,7 +11,7 @@ env = "local"          # local | staging | production
 host = "127.0.0.1"     # bind host for direct uv run
 port = 8000
 log_level = "INFO"     # DEBUG | INFO | WARNING | ERROR
-enable_dev_ui = true   # serve the developer testing harness at /
+enable_dev_ui = true   # serve the developer testing harness at /dev
 
 [database]
 # Non-secret connection parameters. The PASSWORD is read from .env
@@ -67,6 +67,31 @@ max_input_bytes = 262144       # 256 KB payload limit for request bodies
 [diagnostics]
 # Heartbeat monitoring.
 heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is stale
+
+[auth]
+# Phase 1 Supabase/Google policy. Provider coordinates and admission lists
+# remain in .env; no secret is stored in committed configuration.
+provider = "supabase"
+enabled = true
+required = false                # production and the Docker overlay require it
+primary_origin = "http://localhost:8000"
+allowed_origins = ["http://localhost:8000", "http://127.0.0.1:8000"]
+audience = "authenticated"
+issuer_path = "/auth/v1"
+allowed_algorithms = ["RS256", "ES256"]
+sign_in_path = "/sign-in"
+callback_path = "/auth/callback"
+access_not_approved_path = "/access-not-approved"
+account_unavailable_path = "/account-unavailable"
+onboarding_path = "/onboarding"
+app_path = "/app"
+admin_path = "/admin"
+normal_user_limit = 15
+bootstrap_admin_count = 2
+clock_skew_seconds = 30
+jwks_cache_ttl_seconds = 300
+http_timeout_seconds = 5.0
+max_token_bytes = 8192
 
 [discovery]
 # Discovery agent output limits. Input is never validated.

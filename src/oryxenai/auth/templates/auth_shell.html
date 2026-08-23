@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f5ef">
+  <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
+  <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
+  <meta name="oryxenai-callback-url" content="{{ auth_config.callbackUrl }}">
+  <meta name="oryxenai-sign-in-path" content="{{ auth_config.signInPath }}">
+  <meta name="oryxenai-callback-path" content="{{ auth_config.callbackPath }}">
+  <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
+  <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
+  <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
+  <title>{{ app_name }} · Access</title>
+  <link rel="stylesheet" href="/auth-static/auth.css?v={{ auth_css_version }}">
+</head>
+<body data-page="{{ page }}">
+  <main id="auth-root" class="auth-shell" tabindex="-1">
+    <header class="brand-block">
+      <p class="eyebrow">{{ app_name }}</p>
+      <h1>Make your work easy to remember.</h1>
+      <p class="lede">A focused workspace for turning your real experience into a portfolio.</p>
+    </header>
+
+    <section id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
+      <p class="eyebrow">Secure access</p>
+      <h2 id="progress-title">Restoring your session.</h2>
+      <p id="progress-detail" class="muted" aria-live="polite">Checking this browser safely.</p>
+      <ol class="progress-steps" aria-label="Authentication progress">
+        <li data-progress-step="restore">Restoring your session</li>
+        <li data-progress-step="google">Completing Google sign-in</li>
+        <li data-progress-step="verify">Verifying OryxenAI access</li>
+        <li data-progress-step="workspace">Preparing your workspace</li>
+      </ol>
+    </section>
+
+    <section id="sign-in-panel" class="panel" hidden aria-labelledby="sign-in-title">
+      <p class="eyebrow">Google-only access</p>
+      <h2 id="sign-in-title">Continue with Google</h2>
+      <p class="muted">Use an approved Google identity. No password is stored by OryxenAI.</p>
+      <button id="google-sign-in" class="primary-button" type="button">Continue with Google</button>
+      <p id="sign-in-error" class="error-text" role="alert" hidden></p>
+      <p class="fine-print">Your session is managed by Supabase and refreshed by its browser client.</p>
+    </section>
+
+    <section id="access-panel" class="panel" hidden aria-labelledby="access-title">
+      <p class="eyebrow">Access review</p>
+      <h2 id="access-title">This account is not approved yet.</h2>
+      <p class="muted">OryxenAI could not match this verified Google identity to its current access list.</p>
+      <button class="secondary-button" data-action="logout" type="button">Sign out</button>
+    </section>
+
+    <section id="unavailable-panel" class="panel" hidden aria-labelledby="unavailable-title">
+      <p class="eyebrow">Account unavailable</p>
+      <h2 id="unavailable-title">Your workspace is temporarily unavailable.</h2>
+      <p class="muted">Access has been disabled locally. Sign out and contact the workspace administrator if this is unexpected.</p>
+      <button class="secondary-button" data-action="logout" type="button">Sign out</button>
+    </section>
+
+    <section id="onboarding-panel" class="panel" hidden aria-labelledby="onboarding-title">
+      <p class="eyebrow">One-time setup</p>
+      <h2 id="onboarding-title">Choose your username.</h2>
+      <p class="muted">Use 3–30 lowercase letters, numbers, underscores, or hyphens. It starts and ends with a letter or number.</p>
+      <form id="username-form" novalidate>
+        <label for="username">Username</label>
+        <div class="input-row">
+          <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" required>
+          <button class="primary-button" type="submit">Claim username</button>
+        </div>
+        <p id="username-error" class="error-text" role="alert" hidden></p>
+      </form>
+      <button class="text-button" data-action="logout" type="button">Sign out</button>
+    </section>
+
+    <section id="app-panel" class="panel" hidden aria-labelledby="app-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Workspace ready</p>
+          <h2 id="app-title">Welcome, <span data-user="username">there</span>.</h2>
+        </div>
+        <span class="status-pill" data-user="status">active</span>
+      </div>
+      <dl class="safe-details">
+        <div><dt>Username</dt><dd data-user="username">—</dd></div>
+        <div><dt>Role</dt><dd data-user="role">—</dd></div>
+        <div><dt>Status</dt><dd data-user="status">—</dd></div>
+      </dl>
+      <p class="muted">The portfolio workspace will be connected here after authorization phases are complete.</p>
+      <div class="button-row">
+        <a id="admin-link" class="secondary-button" href="/admin" hidden>Open admin shell</a>
+        <button class="text-button" data-action="logout" type="button">Sign out</button>
+      </div>
+    </section>
+
+    <section id="admin-panel" class="panel" hidden aria-labelledby="admin-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Administrator</p>
+          <h2 id="admin-title">Temporary admin shell</h2>
+        </div>
+        <span class="status-pill">admin</span>
+      </div>
+      <p class="muted">Authentication is established. Administrator lifecycle operations arrive in a later phase.</p>
+      <dl class="safe-details">
+        <div><dt>Username</dt><dd data-user="username">—</dd></div>
+        <div><dt>Role</dt><dd data-user="role">—</dd></div>
+        <div><dt>Status</dt><dd data-user="status">—</dd></div>
+      </dl>
+      <button class="text-button" data-action="logout" type="button">Sign out</button>
+    </section>
+
+    <p id="global-error" class="error-text" role="alert" hidden></p>
+  </main>
+
+  <script src="/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
+  <script type="module" src="/auth-static/auth-controller.mjs?v={{ auth_controller_version }}"></script>
+</body>
+</html>

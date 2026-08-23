@@ -1,9 +1,12 @@
 # Implementation handoff
 
-This is an accepted architecture handoff, not completed runtime auth. The
-current phase is documentation-only: do not add runtime auth, migrations,
-dependencies, or cloud resources yet. In the later implementation phase,
-follow [10-implementation-plan.md](10-implementation-plan.md) before coding.
+This is the accepted architecture handoff and remains the boundary for the
+full authorization project. Phase 1 of the execution plan is now implemented:
+the auth boundary, local identity/capacity foundation, `/me` API, username
+onboarding, and temporary browser route shell are in the repository. Do not
+interpret this handoff as permission to implement Phases 2-4 in the same task;
+follow [10-implementation-plan.md](10-implementation-plan.md) for the later
+ownership, entitlement, administrator, and deployment work.
 
 ## Scope statement
 
@@ -28,8 +31,9 @@ durable worker and separate generated-preview trust boundary.
 - Existing sessions will be legacy-quarantined.
 - AWS and production projects are intentionally not created.
 
-Pending only for final live acceptance after implementation: complete the real
-Google callback, onboarding, normal-user, and administrator browser flows.
+Pending after the local Phase 1 implementation: complete the real Google
+callback, onboarding, normal-user, and administrator browser flows in a later
+acceptance phase. Production resources remain intentionally uncreated.
 
 ## Work packages
 

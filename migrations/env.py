@@ -20,6 +20,8 @@ from oryxenai.db.base import Base
 # Import all models so Base.metadata is fully populated.
 from oryxenai.db.models import (  # noqa: F401
     AgentRun,
+    AppUser,
+    AppUserCapacity,
     BackgroundJob,
     PortfolioSession,
     ServiceHeartbeat,

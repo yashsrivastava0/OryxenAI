@@ -69,6 +69,15 @@ build_timeout_seconds = 60.0
 [resource_providers]
 registries_enabled = false
 
+[auth]
+# Unit/API tests use injected JWT/provider doubles and never call Supabase.
+# This is not an authorization bypass: live auth remains enabled and no fake
+# identity is accepted by the application.
+enabled = true
+required = false
+primary_origin = "http://test"
+allowed_origins = ["http://test"]
+
 [worker]
 polling_interval = 0.25    # faster polling for test speed
 heartbeat_interval = 5.0
