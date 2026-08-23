@@ -209,6 +209,9 @@ class ImageRetrievalConfig(BaseModel):
     optimized_max_bytes: int = 8 * 1024 * 1024
     minimum_width: int = 1200
     minimum_height: int = 700
+    responsive_widths: list[int] = Field(default_factory=lambda: [480, 768, 1280, 1920])
+    responsive_formats: list[str] = Field(default_factory=lambda: ["webp", "jpeg"])
+    responsive_quality: int = Field(default=84, ge=40, le=95)
     timeout_seconds: float = 15.0
     retry_count: int = 2
     max_retry_wait_seconds: float = 8.0
@@ -326,9 +329,11 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     # Local Build Preparation debug-mirror root: directories produced by the
     # Build Preparation stage, each holding build-context/ + build-pack.zip.
     build_preparation_mirror_root: str = "output/build-preparation"
-    pipeline_contract_version: str = "code-generator-v3"
-    worker_release_id: str = "oryxenai-code-generator-v3"
-    quality_gate_version: str = "quality-gate-v1"
+    pipeline_contract_version: str = "code-generator-v4"
+    worker_release_id: str = "oryxenai-code-generator-v4"
+    quality_gate_version: str = "quality-gate-v2"
+    design_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
+    design_similarity_history: int = Field(default=3, ge=1, le=10)
 
     @field_validator("enabled", mode="before")
     @classmethod
@@ -360,13 +365,15 @@ class CodeGeneratorGenerationConfig(BaseModel):
     max_concurrency: int = 1
     typecheck_timeout_seconds: float = 120.0
     typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
+    source_audit_command: list[str] = Field(default_factory=lambda: ["npm", "run", "source:audit"])
     format_command: list[str] = Field(default_factory=list)
     use_real_typecheck: bool = True
     route_concurrency: int = 3
     artifact_store_provider: str = "local_fs"
     artifact_root: str = ".workspace/code-generator-artifacts"
     max_context_chars: int = 120000
-    stable_prompt_prefix_version: str = "code-generator-prompts-v3"
+    quality_review_max_context_chars: int = 600000
+    stable_prompt_prefix_version: str = "code-generator-prompts-v4"
 
     @field_validator("use_real_typecheck", mode="before")
     @classmethod
@@ -399,6 +406,7 @@ class CodeGeneratorAcquisitionConfig(BaseModel):
     materials_root: str = ".workspace/code-generator-materials"
     offline_resource_root: str = ""
     prefer_resource_scout_model: bool = False
+    resource_scout_profile: str = "code_generator_resource_scout"
     supported_packages: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     @field_validator(
@@ -506,6 +514,10 @@ class CodeGeneratorVerificationConfig(BaseModel):
     )
     preview_retention_days: int = 3
     preview_route_prefix: str = "/preview"
+    # Production promotion must prove the public gateway URL. Offline tests
+    # can disable only that external hop while retaining immutable storage
+    # read-back and all source/build/runtime gates.
+    preview_public_readback_required: bool = True
     # Local development uses the filesystem. Hosted API/worker/gateway
     # deployments switch this to ``artifact_storage`` so previews survive
     # container restarts without creating a container per portfolio.

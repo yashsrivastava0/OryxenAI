@@ -9,7 +9,8 @@ import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 from uuid import UUID
 
 from oryxenai.agents.code_generator.core.acquisition_validators import (
@@ -28,6 +29,10 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyPolicyError,
     build_dependency_ledger,
 )
+from oryxenai.agents.code_generator.core.design_fingerprint import (
+    compile_design_fingerprint,
+    most_similar_fingerprint,
+)
 from oryxenai.agents.code_generator.core.development_input import (
     DevelopmentInputAdapter,
     DevelopmentInputError,
@@ -43,11 +48,16 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     AcquisitionSummary,
     AdmittedInputReference,
     ContextReceipt,
+    CreativeDirectionSetV2,
+    CreativeDirectionSetV3,
     DependencyLedger,
     DependencyReceipt,
     DependencyReceiptBasis,
     DependencyRequest,
+    DesignFingerprintV1,
     DevelopmentRunStatus,
+    ExperienceBlueprintV4,
+    GenerationContextReceipt,
     PlanDelta,
     PlannerCallReceipt,
     RequestBasis,
@@ -72,6 +82,7 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
 )
 from oryxenai.agents.code_generator.core.resource_scout import select_candidate_with_scout
 from oryxenai.agents.code_generator.core.workspace import repository_root
+from oryxenai.agents.shared.contracts import ModelClient
 from oryxenai.agents.shared.model_client import build_provider_client
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -172,7 +183,11 @@ async def _execute(
             return {"status": "discarded", "run_id": str(run_id)}
         if run.status == DevelopmentRunStatus.PLANNED.value and run.planner_receipt and run.plan:
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
-        if run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value:
+        if (
+            run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value
+            and run.planner_receipt
+            and run.plan
+        ):
             return {"status": "needs_attention", "run_id": str(run_id), "reused": True}
         run = await _cas_status(
             repo,
@@ -184,7 +199,7 @@ async def _execute(
             run_id,
             event_type="admitting",
             level="info",
-            message="Verifying immutable pack input and v3 projections.",
+            message="Verifying immutable pack input and configured pipeline projections.",
         )
         await db.commit()
         reference = AdmittedInputReference.model_validate(run.input_reference)
@@ -345,12 +360,14 @@ async def _execute(
             ),
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
-    # V4 development runs use the same creative/planning contract as
-    # production sessions.  Legacy v3 fixtures remain readable without being
-    # forced through the new provider schema.
-    require_blueprint = str(getattr(run, "run_mode", "development")) == "session" or str(
-        receipt.pack_version
-    ).endswith("-v4")
+    pipeline_contract_version = str(
+        getattr(run, "pipeline_contract_version", "code-generator-v3") or "code-generator-v3"
+    )
+    uses_v4 = pipeline_contract_version == "code-generator-v4"
+    # Pipeline version selects generation contracts. Pack version controls
+    # only upstream resource authority/delegation; it must never select a
+    # planner contract or silently upgrade a legacy compatibility run.
+    require_blueprint = uses_v4 or str(getattr(run, "run_mode", "development")) == "session"
     if require_blueprint:
         director_profile = settings.code_generator_development.director_profile
         director_capabilities = settings.models.get_profile(director_profile)
@@ -390,13 +407,36 @@ async def _execute(
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         try:
-            direction_context = {**context, "role_profile": director_profile}
-            direction, direction_receipt, direction_result = await run_creative_direction_operation(
-                director,
-                context=direction_context,
-                profile_name=director_profile,
-                output_version="v3" if str(receipt.pack_version).endswith("-v4") else "v2",
-            )
+            direction: CreativeDirectionSetV2 | CreativeDirectionSetV3
+            creative_state = dict(getattr(run, "creative_direction", None) or {})
+            direction_context = {
+                **context,
+                "role_profile": director_profile,
+                "design_variant": creative_state.get("variant_receipt", {}),
+                "prior_design_fingerprints": creative_state.get("prior_fingerprints", []),
+            }
+            stored_direction = creative_state.get("direction")
+            stored_receipt = creative_state.get("context_receipt")
+            if uses_v4 and isinstance(stored_direction, dict) and isinstance(stored_receipt, dict):
+                # A same-variant retry reuses the accepted creative response;
+                # only an explicit regeneration is allowed to ask for a new
+                # direction.
+                direction = CreativeDirectionSetV3.model_validate(stored_direction)
+                direction_receipt = GenerationContextReceipt.model_validate(stored_receipt)
+                direction_result = SimpleNamespace(
+                    response_id=str(creative_state.get("response_id", ""))
+                )
+            else:
+                (
+                    direction,
+                    direction_receipt,
+                    direction_result,
+                ) = await run_creative_direction_operation(
+                    cast(ModelClient, director),
+                    context=direction_context,
+                    profile_name=director_profile,
+                    output_version="v3" if uses_v4 else "v2",
+                )
         except Exception as exc:
             await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
             return {"status": "needs_attention", "run_id": str(run_id)}
@@ -430,6 +470,7 @@ async def _execute(
                 expected_revision=current.revision,
                 values={
                     "creative_direction": {
+                        **creative_state,
                         "direction": direction.model_dump(mode="json"),
                         "context_receipt": direction_receipt.model_dump(mode="json"),
                         "response_id": str(getattr(direction_result, "response_id", "") or ""),
@@ -457,10 +498,125 @@ async def _execute(
             max_work_units=int(settings.code_generator_development.max_work_units),
             max_sections_per_unit=int(settings.code_generator_generation.max_route_batch_sections),
             require_blueprint=require_blueprint,
+            pipeline_contract_version=pipeline_contract_version,
         )
     except Exception as exc:
         await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
         return {"status": "needs_attention", "run_id": str(run_id)}
+
+    planner_attempt = 1
+    design_fingerprint: DesignFingerprintV1 | None = None
+    creative_payload = dict(getattr(run, "creative_direction", None) or {})
+    if uses_v4:
+        if not isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+            await _needs_attention(
+                sessionmaker,
+                run_id,
+                SafeIssue(
+                    code="V4_BLUEPRINT_REQUIRED",
+                    message="The active V4 pipeline did not produce an ExperienceBlueprintV4.",
+                    next_action="Retry planning after restoring the V4 planner contract.",
+                ),
+            )
+            return {"status": "needs_attention", "run_id": str(run_id)}
+        prior_fingerprints: list[DesignFingerprintV1] = []
+        for payload_item in creative_payload.get("prior_fingerprints", []):
+            if not isinstance(payload_item, dict):
+                continue
+            try:
+                prior_fingerprints.append(DesignFingerprintV1.model_validate(payload_item))
+            except ValueError:
+                continue
+        design_fingerprint = compile_design_fingerprint(plan.experience_blueprint)
+        similarity, closest = most_similar_fingerprint(design_fingerprint, prior_fingerprints)
+        threshold = float(settings.code_generator_development.design_similarity_threshold)
+        if closest is not None and similarity >= threshold:
+            redirect_context = {
+                **context,
+                "role_profile": director_profile,
+                "design_variant": creative_payload.get("variant_receipt", {}),
+                "prior_design_fingerprints": creative_payload.get("prior_fingerprints", []),
+                "similarity_redirect": {
+                    "similarity": similarity,
+                    "threshold": threshold,
+                    "closest_fingerprint_hash": closest.fingerprint_hash,
+                    "required_change": "Change at least three normalized design dimensions.",
+                },
+            }
+            try:
+                (
+                    redirected,
+                    redirected_receipt,
+                    redirected_result,
+                ) = await run_creative_direction_operation(
+                    cast(ModelClient, director),
+                    context=redirect_context,
+                    profile_name=director_profile,
+                    output_version="v3",
+                )
+                context = {
+                    **context,
+                    "creative_direction": redirected.model_dump(mode="json"),
+                    "similarity_redirect": redirect_context["similarity_redirect"],
+                }
+                context_digest = context_hash(context)
+                context_path = _write_context(
+                    settings, receipt.admitted_identity, context_digest, context
+                )
+                context_receipt = ContextReceipt(
+                    receipt_id=f"context-{context_digest[:20]}",
+                    context_hash=context_digest,
+                    stored_relative_path=context_path,
+                    route_ids=receipt.route_ids,
+                    section_count=context_receipt.section_count,
+                    resource_slot_count=context_receipt.resource_slot_count,
+                )
+                plan, _prompt_version, prompt_receipt, result = await run_planner_operation(
+                    planner,
+                    context=context,
+                    profile_name=settings.code_generator_development.planner_profile,
+                    projections=projections,
+                    max_work_units=int(settings.code_generator_development.max_work_units),
+                    max_sections_per_unit=int(
+                        settings.code_generator_generation.max_route_batch_sections
+                    ),
+                    require_blueprint=True,
+                    pipeline_contract_version=pipeline_contract_version,
+                )
+                planner_attempt = 2
+                if not isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+                    raise ValueError("redirected planner did not return a v4 blueprint")
+                design_fingerprint = compile_design_fingerprint(plan.experience_blueprint)
+                redirected_similarity, redirected_closest = most_similar_fingerprint(
+                    design_fingerprint, prior_fingerprints
+                )
+                if redirected_closest is not None and redirected_similarity >= threshold:
+                    await _needs_attention(
+                        sessionmaker,
+                        run_id,
+                        SafeIssue(
+                            code="DESIGN_VARIANT_TOO_SIMILAR",
+                            message=(
+                                "The redirected design variant remained too similar to a recent "
+                                "accepted variant."
+                            ),
+                            next_action="Explicitly regenerate again to create a new variant seed.",
+                            details={"similarity": redirected_similarity, "threshold": threshold},
+                        ),
+                    )
+                    return {"status": "needs_attention", "run_id": str(run_id)}
+                creative_payload.update(
+                    {
+                        "direction": redirected.model_dump(mode="json"),
+                        "context_receipt": redirected_receipt.model_dump(mode="json"),
+                        "response_id": str(getattr(redirected_result, "response_id", "") or ""),
+                        "similarity_redirected": True,
+                    }
+                )
+            except Exception as exc:
+                await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
+                return {"status": "needs_attention", "run_id": str(run_id)}
+        creative_payload["design_fingerprint"] = design_fingerprint.model_dump(mode="json")
 
     plan_digest = hashlib.sha256(canonical_json(plan.model_dump(mode="json"))).hexdigest()
     usage = {
@@ -477,6 +633,12 @@ async def _execute(
         model=str(getattr(result, "model", "") or ""),
         usage=usage,
         finish_reason=str(getattr(result, "finish_reason", "") or ""),
+        attempt=planner_attempt,
+        duration_ms=float(getattr(result, "latency_ms", 0.0) or 0.0),
+        cached_tokens=sum(
+            usage.get(key, 0)
+            for key in ("cached_tokens", "cache_read_input_tokens", "prompt_cache_hit_tokens")
+        ),
         prompt_receipt=prompt_receipt.model_dump(mode="json"),
     )
     async with sessionmaker() as db:
@@ -494,6 +656,8 @@ async def _execute(
                 "planner_receipt": planner_receipt.model_dump(mode="json"),
                 "plan": plan.model_dump(mode="json"),
                 "plan_summary": plan_summary(plan),
+                "context_receipt": context_receipt.model_dump(mode="json"),
+                "creative_direction": creative_payload,
                 "issues": [],
             },
         )
@@ -657,7 +821,10 @@ async def _execute_acquisition(
         selector = selector_factory() if selector_factory is not None else None
         scout: Any = None
         if selector is None and settings.code_generator_acquisition.prefer_resource_scout_model:
-            scout = build_provider_client("code_generator_resource_scout", settings.models)
+            scout = build_provider_client(
+                str(settings.code_generator_acquisition.resource_scout_profile),
+                settings.models,
+            )
         for request in requests:
             existing = next(
                 (
@@ -722,7 +889,14 @@ async def _execute_acquisition(
                         model_callable=selector,
                     )
                 elif scout is not None:
-                    selected_id, _ = await select_candidate_with_scout(scout, request, filtered)
+                    selected_id, _ = await select_candidate_with_scout(
+                        scout,
+                        request,
+                        filtered,
+                        profile_name=str(
+                            settings.code_generator_acquisition.resource_scout_profile
+                        ),
+                    )
                 else:
                     selected_id, _ = select_candidate(request, filtered)
                 candidate = next(item for item in filtered if item.candidate_id == selected_id)
@@ -732,7 +906,16 @@ async def _execute_acquisition(
                     storage_root=run_material_root,
                     settings=settings,
                 )
-                materialized = _prefix_materialized_file(materialized, str(run_id))
+                materialized_files = (
+                    list(materialized) if isinstance(materialized, list) else [materialized]
+                )
+                materialized_files = [
+                    _prefix_materialized_file(item, str(run_id)) for item in materialized_files
+                ]
+                original_hash = str(
+                    materialized_files[0].inspection.get("source_sha256", "")
+                    or materialized_files[0].sha256
+                )
                 receipt = ResourceReceipt(
                     request_hash=request.request_hash,
                     disposition="admitted",
@@ -741,8 +924,8 @@ async def _execute_acquisition(
                     canonical_source=candidate.canonical_source,
                     licence=candidate.licence,
                     attribution=candidate.attribution,
-                    original_hash=materialized.sha256,
-                    materialized_files=[materialized],
+                    original_hash=original_hash,
+                    materialized_files=materialized_files,
                     dependencies=sorted(candidate.dependency_metadata),
                     satisfied_placements=[request.placement.purpose],
                     acquired_at=datetime.now(UTC).isoformat(),
@@ -898,7 +1081,7 @@ async def _execute_acquisition(
             receipt_id=f"acquire-{attempt_hash[:20]}",
             attempt_hash=attempt_hash,
             profile=(
-                "code_generator_resource_scout"
+                str(settings.code_generator_acquisition.resource_scout_profile)
                 if (selector is not None or scout is not None)
                 else ""
             ),

@@ -15,16 +15,21 @@ from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
 from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     Diagnostic,
+    ExperienceBlueprintV4,
     GenerationChanges,
     GenerationResult,
     RepairReceipt,
     SitePlan,
     SourceCheckpoint,
     SourceFileChange,
+    SourceGenerationEnvelopeV2,
 )
 from oryxenai.agents.code_generator.core.diagnostics import build_bundle
 from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.source_generation_adapter import (
+    adapt_v4_generation_result,
+)
 from oryxenai.agents.code_generator.core.source_validation import validate_generation_changes
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 
@@ -92,25 +97,28 @@ class FinalRepairer:
             "input_hashes": [identity.identity_hash, checkpoint.checkpoint_hash],
             "output_ceiling": int(settings.code_generator_generation.max_response_bytes),
         }
-        system, instructions, context_receipt = build_instructions("repair", context)
+        is_v4 = isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+        output_model = SourceGenerationEnvelopeV2 if is_v4 else GenerationResult
+        system, instructions, context_receipt = build_instructions(
+            "repair", context, output_model=output_model
+        )
         key = hashlib.sha256(
             f"{identity.identity_hash}:{checkpoint.checkpoint_hash}:{round_number}:{context_receipt.context_hash}".encode()
         ).hexdigest()
         result_path = workspace.ledger_dir / "repairs" / f"{key}.json"
-        # These are host-owned mechanical repairs. Apply them before consulting
-        # a model or reusing a cached model response so a stale response cannot
-        # mask a deterministic verifier defect.
-        deterministic_changes = _deterministic_marker_repair(
-            diagnostics=diagnostics,
-            plan=plan,
-            projections=projections,
-            repo_dir=workspace.repo_dir,
-        )
-        if deterministic_changes is None:
-            deterministic_changes = _deterministic_touch_target_repair(
+        # V3 retained two narrow compatibility fallbacks. V4 source is model
+        # owned: the host may validate and bound a repair, but must not invent
+        # headings, markers, handlers, or CSS in its place.
+        deterministic_changes = (
+            _legacy_deterministic_repair(
                 diagnostics=diagnostics,
+                plan=plan,
+                projections=projections,
                 repo_dir=workspace.repo_dir,
             )
+            if not is_v4
+            else None
+        )
         if deterministic_changes is not None:
             result = GenerationResult(
                 operation_id="code-generator.repair.deterministic-host-fallback",
@@ -132,41 +140,47 @@ class FinalRepairer:
                 operation="code_generator.repair",
                 instructions=instructions,
                 input_payload={**context, "context_receipt_hash": context_receipt.context_hash},
-                output_model=GenerationResult,
+                output_model=output_model,
                 system_prompt=system,
                 model_profile=str(settings.code_generator_generation.repair_profile),
                 strict_schema=True,
             )
             parsed = getattr(raw, "parsed_output", raw)
-            result = GenerationResult.model_validate(parsed)
-            if result.based_on_context_receipt not in {
-                context_receipt.context_hash,
-                context_receipt.receipt_id,
-            }:
-                raise FinalRepairError(
-                    "REPAIR_CONTEXT_MISMATCH",
-                    "The repair result is not bound to the current diagnostic context.",
+            if is_v4:
+                result = adapt_v4_generation_result(
+                    SourceGenerationEnvelopeV2.model_validate(parsed),
+                    operation_id="code-generator.repair",
+                    context_receipt=context_receipt,
                 )
+            else:
+                result = GenerationResult.model_validate(parsed)
             workspace.write_json(result_path, result.model_dump(mode="json"))
-        if result.mode != "changes" or result.changes is None:
-            deterministic_changes = _deterministic_marker_repair(
-                diagnostics=diagnostics,
-                plan=plan,
-                projections=projections,
-                repo_dir=workspace.repo_dir,
+        if result.based_on_context_receipt not in {
+            context_receipt.context_hash,
+            context_receipt.receipt_id,
+        }:
+            raise FinalRepairError(
+                "REPAIR_CONTEXT_MISMATCH",
+                "The repair result is not bound to the current diagnostic context.",
             )
-            if deterministic_changes is None:
-                deterministic_changes = _deterministic_touch_target_repair(
+        if result.mode != "changes" or result.changes is None:
+            deterministic_changes = (
+                _legacy_deterministic_repair(
                     diagnostics=diagnostics,
+                    plan=plan,
+                    projections=projections,
                     repo_dir=workspace.repo_dir,
                 )
+                if not is_v4
+                else None
+            )
             if deterministic_changes is None:
                 raise FinalRepairError(
                     "REPAIR_NO_SOURCE_CHANGE",
                     "The repair operation did not return a bounded source correction.",
                 )
             result = GenerationResult(
-                operation_id="code-generator.repair.deterministic-marker-fallback",
+                operation_id="code-generator.repair.deterministic-legacy-fallback",
                 based_on_context_receipt=context_receipt.context_hash,
                 mode="changes",
                 changes=deterministic_changes,
@@ -257,6 +271,27 @@ class FinalRepairer:
         from oryxenai.agents.shared.model_client import build_provider_client
 
         return build_provider_client(profile, settings.models)
+
+
+def _legacy_deterministic_repair(
+    *,
+    diagnostics: list[Diagnostic],
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    repo_dir: Any,
+) -> GenerationChanges | None:
+    """Keep the pre-v4 fallbacks isolated from model-owned V4 source."""
+
+    changes = _deterministic_marker_repair(
+        diagnostics=diagnostics,
+        plan=plan,
+        projections=projections,
+        repo_dir=repo_dir,
+    )
+    return changes or _deterministic_touch_target_repair(
+        diagnostics=diagnostics,
+        repo_dir=repo_dir,
+    )
 
 
 def repair_allowed_paths(

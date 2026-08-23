@@ -20,7 +20,8 @@ from oryxenai.agents.code_generator.core.generation_contract import (
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
     "director": "code_generator.director.v2",
-    "planner": "code_generator.planner.v7",
+    "planner_v4": "code_generator.planner.v8",
+    "planner_legacy": "code_generator.planner.v7",
     "foundation": "code_generator.foundation.v6",
     "route_batch": "code_generator.route_batch.v7",
     "route_compose": "code_generator.route_compose.v6",
@@ -30,7 +31,8 @@ _VERSIONS = {
 }
 _FILES = {
     "director": "director.md",
-    "planner": "planner.md",
+    "planner_v4": "planner.md",
+    "planner_legacy": "planner_legacy.md",
     "foundation": "foundation.md",
     "route_batch": "route_batch.md",
     "route_compose": "route_compose.md",
@@ -72,7 +74,9 @@ def build_instructions(
     elif output_model.__name__ == "SourceGenerationEnvelopeV2":
         task += (
             "\nSet result_tag to exactly one of changes/requests/accepted/cannot_complete. "
-            "Always include files, resource_requests, coverage, and failure_details as arrays; "
+            "Always include files, exported_signatures, content_ids, criterion_ids, "
+            "resource_slot_ids, interaction_ids, resource_requests, dependency_requests, "
+            "and failure_details as separate arrays; "
             "use empty arrays when a result kind does not need that payload."
         )
     context_hash = _hash(context)

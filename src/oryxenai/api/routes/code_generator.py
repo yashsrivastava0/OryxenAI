@@ -96,3 +96,25 @@ async def regenerate_code_generator(
         )
     except CodeGeneratorOperationError as exc:
         _translate(exc)
+
+
+@router.post(
+    "/retry",
+    response_model=CodeGeneratorStateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retry_code_generator(
+    session_id: str,
+    request: Request,
+    _body: StartRequest | None = None,
+    service: CodeGeneratorService = Depends(get_code_generator_service),
+) -> CodeGeneratorStateResponse:
+    try:
+        return CodeGeneratorStateResponse(
+            **await service.retry(
+                _session_uuid(session_id),
+                idempotency_key=request.headers.get("Idempotency-Key", ""),
+            )
+        )
+    except CodeGeneratorOperationError as exc:
+        _translate(exc)

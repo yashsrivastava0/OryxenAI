@@ -26,12 +26,16 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
 )
 from oryxenai.agents.code_generator.core.check_runner import prepare_toolchain, run_source_checks
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointError, CheckpointStore
-from oryxenai.agents.code_generator.core.content_compiler import write_content_module
+from oryxenai.agents.code_generator.core.content_compiler import (
+    content_ids_by_section,
+    write_content_module,
+)
 from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
 )
+from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_input import (
     DevelopmentInputAdapter,
     DevelopmentInputError,
@@ -50,8 +54,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationWorkUnitProjection,
     IntegrationReviewV1,
     PlanDelta,
-    QualityFindingV1,
-    QualityReviewReceiptV1,
+    QualityReviewDraftV1,
     ResourceBinding,
     ResourceLedger,
     ResourceReceipt,
@@ -71,12 +74,18 @@ from oryxenai.agents.code_generator.core.parallel_scheduler import (
     execute_waves,
     isolated_workspace_path,
 )
+from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+from oryxenai.agents.code_generator.core.quality_review import stamp_quality_review_receipt
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     ResourceProviderError,
     default_adapters,
 )
+from oryxenai.agents.code_generator.core.source_generation_adapter import (
+    adapt_v4_generation_result,
+)
 from oryxenai.agents.code_generator.core.source_manifest import (
+    build_source_manifest,
     digest,
     materialize_trusted_manifests,
 )
@@ -267,6 +276,7 @@ class CodeGeneratorGenerationOrchestrator:
                 acquisition_materials_root=_resolve_config_path(
                     settings.code_generator_acquisition.materials_root
                 ),
+                settings=settings,
             )
             configured_workspace_root = Path(settings.code_generator_dependencies.workspaces_root)
             dependency_repo = (
@@ -636,6 +646,10 @@ class CodeGeneratorGenerationOrchestrator:
                     shutil.copyfile(context, target_contexts / context.name)
             local_unit = _unit_projection(local_projection, unit)
             main_unit = _unit_projection(merged_projection, unit)
+            merged_unit_ids = {item.unit_id for item in merged_projection.work_units}
+            merged_projection.work_units.extend(
+                item for item in local_projection.work_units if item.unit_id not in merged_unit_ids
+            )
             main_unit.status = local_unit.status
             main_unit.request_round = local_unit.request_round
             main_unit.repair_round = local_unit.repair_round
@@ -728,7 +742,15 @@ class CodeGeneratorGenerationOrchestrator:
                 raise GenerationError(
                     "PUBLIC_CONTENT_MISSING", "The admitted public content projection is invalid."
                 )
-            write_content_module(workspace.repo_dir, public_content)
+            write_content_module(
+                workspace.repo_dir,
+                public_content,
+                [
+                    item
+                    for item in projections["site/contract.json"].get("facts", [])
+                    if isinstance(item, dict)
+                ],
+            )
             diagnostics = await run_source_checks(
                 workspace.repo_dir,
                 allowed_packages=allowed_packages,
@@ -831,19 +853,42 @@ class CodeGeneratorGenerationOrchestrator:
             unit_projection.request_round = request_round
             if persist_projection:
                 await self._persist(sessionmaker, run_id, projection, status=projection.phase)
-            result, call_receipt = await self._model_result(
-                settings=settings,
-                operation=operation,
-                role_profile=role_profile,
-                context=context,
-                system=system,
-                instructions=instructions,
-                context_receipt=context_receipt,
-                workspace=workspace,
-                generation_id=projection.generation_id,
-                unit_id=unit.unit_id,
-                request_round=request_round,
-            )
+            try:
+                result, call_receipt = await self._model_result(
+                    settings=settings,
+                    operation=operation,
+                    role_profile=role_profile,
+                    context=context,
+                    system=system,
+                    instructions=instructions,
+                    context_receipt=context_receipt,
+                    workspace=workspace,
+                    generation_id=projection.generation_id,
+                    unit_id=unit.unit_id,
+                    request_round=request_round,
+                )
+            except ModelOutputTruncatedError:
+                if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+                    split_units = _bisect_v4_work_unit(unit, blueprint=plan.experience_blueprint)
+                    if split_units:
+                        return await self._run_truncated_v4_unit(
+                            sessionmaker=sessionmaker,
+                            run_id=run_id,
+                            settings=settings,
+                            run=run,
+                            plan=plan,
+                            projections=projections,
+                            workspace=workspace,
+                            checkpoint_store=checkpoint_store,
+                            projection=projection,
+                            unit=unit,
+                            split_units=split_units,
+                            checkpoint=checkpoint,
+                            allowed_packages=allowed_packages,
+                            public_text=public_text,
+                            persist_projection=persist_projection,
+                        )
+                raise
             projection.call_receipts.append(call_receipt)
             unit_projection.call_receipt_id = call_receipt.receipt_id
             if result.mode == "cannot_complete":
@@ -937,6 +982,73 @@ class CodeGeneratorGenerationOrchestrator:
                 parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
             )
 
+    async def _run_truncated_v4_unit(
+        self,
+        *,
+        sessionmaker: Any,
+        run_id: UUID,
+        settings: Any,
+        run: Any,
+        plan: SitePlan,
+        projections: dict[str, dict[str, Any]],
+        workspace: GenerationWorkspace,
+        checkpoint_store: CheckpointStore,
+        projection: GenerationProjection,
+        unit: WorkUnit,
+        split_units: list[WorkUnit],
+        checkpoint: SourceCheckpoint | None,
+        allowed_packages: set[str],
+        public_text: set[str],
+        persist_projection: bool,
+    ) -> SourceCheckpoint:
+        """Resume a truncated V4 section unit as bounded child units.
+
+        The parent unit has already been prepared against ``checkpoint``. Each
+        child receives the latest accepted checkpoint, so a later child never
+        sees a partially accepted response from an earlier attempt. The parent
+        projection remains the durable aggregate while child projections and
+        call receipts make the bisection observable.
+        """
+
+        parent_projection = _unit_projection(projection, unit)
+        parent_projection.status = "split_for_truncation"
+        child_checkpoint = checkpoint
+        for child in split_units:
+            child_projection = _unit_projection(projection, child)
+            child_projection.status = "context_ready"
+            child_projection.checkpoint_before = (
+                child_checkpoint.checkpoint_hash if child_checkpoint else ""
+            )
+            child_checkpoint = await self._run_unit(
+                sessionmaker=sessionmaker,
+                run_id=run_id,
+                settings=settings,
+                run=run,
+                plan=plan,
+                projections=projections,
+                workspace=workspace,
+                checkpoint_store=checkpoint_store,
+                projection=projection,
+                unit=child,
+                checkpoint=child_checkpoint,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                persist_projection=persist_projection,
+            )
+            child_projection.status = "checkpointed"
+            child_projection.checkpoint_after = child_checkpoint.checkpoint_hash
+            projection.accepted_checkpoint = child_checkpoint
+
+        if child_checkpoint is None:
+            raise GenerationError(
+                "SOURCE_CHECKPOINT_MISSING",
+                "Truncated V4 sections did not produce an accepted checkpoint.",
+            )
+        parent_projection.status = "checkpointed"
+        parent_projection.checkpoint_before = checkpoint.checkpoint_hash if checkpoint else ""
+        parent_projection.checkpoint_after = child_checkpoint.checkpoint_hash
+        return child_checkpoint
+
     async def _review_and_polish(
         self,
         *,
@@ -962,7 +1074,7 @@ class CodeGeneratorGenerationOrchestrator:
             projection=projection,
             round_number=0,
         )
-        if review.status == "accepted":
+        if _review_accepted(review):
             return
         blocking_findings = [
             finding for finding in review.findings if finding.severity == "blocking"
@@ -989,8 +1101,9 @@ class CodeGeneratorGenerationOrchestrator:
                     phase="integration_review",
                     normalized_message=finding.requested_outcome,
                     work_unit_id=owner.unit_id,
-                    route_id=finding.route_id,
-                    file=finding.section_id,
+                    route_id=str(getattr(finding, "route_id", "")),
+                    file=str(getattr(finding, "file", "") or getattr(finding, "section_id", "")),
+                    line=int(getattr(finding, "line", 0) or 0),
                     observed=finding.evidence,
                     expected=finding.requested_outcome,
                     fingerprint=digest(
@@ -1022,7 +1135,14 @@ class CodeGeneratorGenerationOrchestrator:
                 context,
                 int(settings.code_generator_generation.max_context_chars),
             )
-            system, instructions, context_receipt = build_instructions("repair", context)
+            repair_output_model = (
+                SourceGenerationEnvelopeV2
+                if _context_uses_v4_contract(context)
+                else GenerationResult
+            )
+            system, instructions, context_receipt = build_instructions(
+                "repair", context, output_model=repair_output_model
+            )
             context_path = (
                 workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
             )
@@ -1085,7 +1205,7 @@ class CodeGeneratorGenerationOrchestrator:
             projection=projection,
             round_number=1,
         )
-        if final_review.status != "accepted":
+        if not _review_accepted(final_review):
             raise GenerationError(
                 "INTEGRATION_REVIEW_UNRESOLVED",
                 "The completed source tree did not pass the bounded whole-site quality review.",
@@ -1102,7 +1222,8 @@ class CodeGeneratorGenerationOrchestrator:
         workspace: GenerationWorkspace,
         projection: GenerationProjection,
         round_number: int,
-    ) -> IntegrationReviewV1:
+        persist: bool = True,
+    ) -> IntegrationReviewV1 | QualityReviewDraftV1:
         profile = str(settings.code_generator_generation.integration_profile)
         client = self._client(settings, profile)
         if client is None:
@@ -1121,14 +1242,22 @@ class CodeGeneratorGenerationOrchestrator:
                 continue
             relative = path.relative_to(workspace.repo_dir).as_posix()
             try:
-                value = path.read_text(encoding="utf-8")[:30_000]
+                value = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
             encoded_size = len(value.encode("utf-8"))
-            if source and source_bytes + encoded_size > 500_000:
-                break
             source[relative] = value
             source_bytes += encoded_size
+        realization_contracts = []
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+            realization_contracts = [
+                compile_design_realization(
+                    plan.experience_blueprint,
+                    route_id=route.route_id,
+                    section_order=list(route.section_order or route.section_ids),
+                )
+                for route in plan.routes
+            ]
         context = {
             "role_profile": profile,
             "round": round_number,
@@ -1142,10 +1271,25 @@ class CodeGeneratorGenerationOrchestrator:
             "execution_bindings": [
                 item.model_dump(mode="json") for item in plan.execution_bindings
             ],
+            "design_realization_contracts": [
+                item.model_dump(mode="json") for item in realization_contracts
+            ],
+            "source_manifest": build_source_manifest(workspace.repo_dir),
             "assembled_source": source,
         }
+        context_size = len(json.dumps(context, ensure_ascii=False, separators=(",", ":")))
+        if context_size > int(settings.code_generator_generation.quality_review_max_context_chars):
+            raise GenerationError(
+                "QUALITY_REVIEW_CONTEXT_TOO_LARGE",
+                "The complete source review exceeds the configured provider context ceiling.",
+            )
         review, context_receipt, raw = await run_integration_review_operation(
-            client, context=context, profile_name=profile
+            client,
+            context=context,
+            profile_name=profile,
+            output_version=(
+                "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
+            ),
         )
         context_path = workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
         workspace.write_json(context_path, context)
@@ -1169,49 +1313,31 @@ class CodeGeneratorGenerationOrchestrator:
                     if isinstance(value, int)
                 },
                 finish_reason=str(getattr(raw, "finish_reason", "") or ""),
+                duration_ms=float(getattr(raw, "latency_ms", 0.0) or 0.0),
             )
         )
         review_payload = review.model_dump(mode="json")
         if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
-            quality = QualityReviewReceiptV1(
-                source_hash=digest(source),
+            if not isinstance(review, QualityReviewDraftV1):
+                raise GenerationError(
+                    "QUALITY_REVIEW_SCHEMA_INVALID",
+                    "The v4 reviewer returned a legacy acceptance envelope.",
+                )
+            quality = stamp_quality_review_receipt(
+                review,
+                source_manifest_hash=digest(build_source_manifest(workspace.repo_dir)),
                 plan_hash=digest(plan.model_dump(mode="json")),
-                context_hash=context_receipt.context_hash,
-                hierarchy_score=review.distinctiveness_score,
-                composition_score=review.composition_score,
-                typography_score=review.typography_score,
-                resource_fit_score=review.resource_fit_score,
-                motion_score=review.motion_score,
-                findings=[
-                    QualityFindingV1(
-                        finding_id=item.finding_id,
-                        severity=item.severity,
-                        owner_work_unit_id=item.owner_work_unit_id,
-                        code=item.code,
-                        evidence=item.evidence,
-                        requested_outcome=item.requested_outcome,
-                    )
-                    for item in review.findings
-                ],
-                reviewer_receipt=digest(review.model_dump(mode="json")),
-                accepted=(
-                    review.status == "accepted"
-                    or (
-                        min(
-                            review.distinctiveness_score,
-                            review.composition_score,
-                            review.typography_score,
-                            review.resource_fit_score,
-                            review.motion_score,
-                        )
-                        >= 4
-                        and not any(item.severity == "blocking" for item in review.findings)
-                    )
+                realization_hash=digest(
+                    [item.model_dump(mode="json") for item in realization_contracts]
                 ),
+                review_context_hash=context_receipt.context_hash,
+                response_id=str(getattr(raw, "response_id", "") or "local-response-unavailable"),
+                quality_gate_version=str(settings.code_generator_development.quality_gate_version),
             )
             projection.quality_review = quality
             review_payload["quality_receipt"] = quality.model_dump(mode="json")
-        await self._persist_integration_review(sessionmaker, run_id, projection, review_payload)
+        if persist:
+            await self._persist_integration_review(sessionmaker, run_id, projection, review_payload)
         return review
 
     async def _persist_integration_review(
@@ -1254,6 +1380,8 @@ class CodeGeneratorGenerationOrchestrator:
             raise GenerationError(
                 "GENERATION_CHANGES_MISSING", "The generation result did not include changes."
             )
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+            _validate_v4_generation_coverage(changes, unit, plan, projections)
         owners = _owned_paths(unit, plan, projections)
         original = workspace.repo_dir
         unit_slug = _unit_dir_slug(unit.unit_id)
@@ -1376,7 +1504,7 @@ class CodeGeneratorGenerationOrchestrator:
                     # source-bearing fields remain strictly model-validated.
                     parsed = {**parsed, "operation_id": f"{operation}:{unit_id}"}
                 if output_model is SourceGenerationEnvelopeV2:
-                    result = _adapt_v4_generation_result(
+                    result = adapt_v4_generation_result(
                         SourceGenerationEnvelopeV2.model_validate(parsed),
                         operation_id=f"{operation}:{unit_id}",
                         context_receipt=context_receipt,
@@ -1402,6 +1530,11 @@ class CodeGeneratorGenerationOrchestrator:
                 "The generation result was not based on the current context receipt.",
             )
         workspace.write_json(result_path, result.model_dump(mode="json"))
+        raw_usage = {
+            str(k): int(v)
+            for k, v in dict(getattr(raw, "usage", {}) or {}).items()
+            if isinstance(v, int)
+        }
         return result, GenerationCallReceipt(
             receipt_id=f"call-{key[:20]}",
             operation_id=operation,
@@ -1411,14 +1544,19 @@ class CodeGeneratorGenerationOrchestrator:
             profile=role_profile,
             response_id=str(getattr(raw, "response_id", "") or ""),
             model=str(getattr(raw, "model", "") or ""),
-            usage={
-                str(k): int(v)
-                for k, v in dict(getattr(raw, "usage", {}) or {}).items()
-                if isinstance(v, int)
-            },
+            usage=raw_usage,
             finish_reason=str(getattr(raw, "finish_reason", "") or ""),
             attempt=attempt + 1,
             retry_class="schema_correction" if attempt else "",
+            duration_ms=float(getattr(raw, "latency_ms", 0.0) or 0.0),
+            cached_tokens=sum(
+                raw_usage.get(key, 0)
+                for key in (
+                    "cached_tokens",
+                    "cache_read_input_tokens",
+                    "prompt_cache_hit_tokens",
+                )
+            ),
         )
 
     async def _resolve_requests(
@@ -1937,6 +2075,8 @@ def _owned_paths(
                 storage_key = storage_key.replace("\\", "/").strip("/")
                 if storage_key.startswith("routes/"):
                     storage_key = storage_key.removeprefix("routes/")
+                if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+                    storage_key = semantic_segment(storage_key or route_id)
                 break
         return [f"src/routes/{storage_key}/**"]
     if unit.owns_paths:
@@ -2011,6 +2151,97 @@ def _unit_projection_dict(unit: WorkUnit) -> dict[str, Any]:
         depends_on=list(unit.depends_on),
         owned_paths=list(unit.owns_paths),
     ).model_dump(mode="json")
+
+
+def _bisect_v4_work_unit(
+    unit: WorkUnit,
+    *,
+    blueprint: ExperienceBlueprintV4 | None = None,
+) -> list[WorkUnit]:
+    """Split a multi-section V4 route unit into semantic child units.
+
+    V4 route-batch paths are generated deterministically from section IDs, so
+    splitting never invents a path or widens ownership. Resource, interaction,
+    and criterion coverage is partitioned conservatively; any item without an
+    executable section association stays on the first child instead of being
+    silently dropped.
+    """
+
+    if unit.kind not in {"route_batch", "route"} or len(unit.section_ids) < 2:
+        return []
+    midpoint = max(1, len(unit.section_ids) // 2)
+    section_groups = [unit.section_ids[:midpoint], unit.section_ids[midpoint:]]
+    path_groups: list[list[str]] = [[] for _ in section_groups]
+    unmatched_paths: list[str] = []
+    for path in unit.owns_paths:
+        normalized = path.replace("\\", "/")
+        matching_group: int | None = None
+        for index, sections in enumerate(section_groups):
+            if any(f"/{semantic_segment(section)}." in normalized for section in sections):
+                matching_group = index
+                break
+        if matching_group is None:
+            unmatched_paths.append(path)
+        else:
+            path_groups[matching_group].append(path)
+    path_groups[0].extend(unmatched_paths)
+
+    def partition_ids(
+        values: list[str],
+        section_for_id: Callable[[str], str | None],
+    ) -> list[list[str]]:
+        groups: list[list[str]] = [[] for _ in section_groups]
+        for value in values:
+            section = section_for_id(value)
+            target = next(
+                (
+                    index
+                    for index, sections in enumerate(section_groups)
+                    if section is not None and section in sections
+                ),
+                0,
+            )
+            groups[target].append(value)
+        return groups
+
+    def resource_section(resource_id: str) -> str | None:
+        if blueprint is None:
+            return None
+        route_ids = set(unit.route_ids or ([unit.route_id] if unit.route_id else []))
+        matches = [
+            item.section_id
+            for item in blueprint.resource_placements
+            if item.resource_slot_id == resource_id and item.route_id in route_ids
+        ]
+        return matches[0] if len(set(matches)) == 1 else None
+
+    # Work units produced by the V4 compiler have section-scoped paths. Their
+    # resource IDs can be mapped from the blueprint; unclassified IDs remain
+    # on the first child instead of being silently dropped.
+    resource_groups = partition_ids(unit.resource_slot_ids, resource_section)
+    interaction_groups = partition_ids(unit.interaction_ids, lambda _value: None)
+    criterion_groups = partition_ids(unit.criterion_ids, lambda _value: None)
+
+    children: list[WorkUnit] = []
+    for index, sections in enumerate(section_groups, start=1):
+        children.append(
+            unit.model_copy(
+                update={
+                    "unit_id": f"{unit.unit_id}-split-{index}",
+                    "section_ids": list(sections),
+                    "owns_paths": path_groups[index - 1],
+                    "resource_slot_ids": resource_groups[index - 1],
+                    "interaction_ids": interaction_groups[index - 1],
+                    "criterion_ids": criterion_groups[index - 1],
+                    "isolated_workspace_key": (
+                        f"{unit.isolated_workspace_key or unit.unit_id}-split-{index}"
+                    ),
+                    "context_estimate": max(1, unit.context_estimate // 2),
+                    "output_estimate": max(1, unit.output_estimate // 2),
+                }
+            )
+        )
+    return children
 
 
 def _unit_projection(
@@ -2116,6 +2347,61 @@ def _safe_generation_validation_summary(exc: ValidationError) -> str:
     return _safe_generation_model_issue(exc)
 
 
+def _validate_v4_generation_coverage(
+    changes: GenerationChanges,
+    unit: WorkUnit,
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+) -> None:
+    site = projections["site/contract.json"]
+    grouped_content = content_ids_by_section(
+        [item for item in site.get("public_content", []) if isinstance(item, dict)],
+        [item for item in site.get("facts", []) if isinstance(item, dict)],
+    )
+    expected_content = [
+        content_id
+        for section_id in unit.section_ids
+        for route_id in unit.route_ids or ([unit.route_id] if unit.route_id else [])
+        for content_id in grouped_content.get((route_id, section_id), [])
+    ]
+    expected = {
+        "content": expected_content,
+        "criterion": list(unit.criterion_ids),
+        "resource": list(unit.resource_slot_ids),
+        "interaction": list(unit.interaction_ids),
+    }
+    observed = {
+        "content": list(changes.content_coverage),
+        "criterion": list(changes.criterion_coverage),
+        "resource": list(changes.resource_usage),
+        "interaction": list(changes.interaction_coverage),
+    }
+    for category, expected_ids in expected.items():
+        if observed[category] != expected_ids:
+            raise SourceValidationError(
+                "SOURCE_COVERAGE_MISMATCH",
+                f"The v4 {category} coverage array does not exactly match its work unit.",
+            )
+    changed_paths = [item.path.replace("\\", "/") for item in changes.files]
+    if len(changed_paths) != len(set(changed_paths)):
+        raise SourceValidationError(
+            "SOURCE_DUPLICATE_PATH", "The v4 source envelope contains duplicate file paths."
+        )
+    signatures = {
+        (item.path.replace("\\", "/"), item.export_name) for item in changes.exported_signatures
+    }
+    if any(path not in changed_paths for path, _export in signatures):
+        raise SourceValidationError(
+            "SOURCE_EXPORT_SIGNATURE_PATH",
+            "An exported signature references a file outside the v4 source envelope.",
+        )
+    if unit.kind in {"route_batch", "route_compose", "route"} and not signatures:
+        raise SourceValidationError(
+            "SOURCE_EXPORT_SIGNATURE_MISSING",
+            "V4 route work must declare its concrete exported signatures.",
+        )
+
+
 def _context_uses_v4_contract(context: dict[str, Any]) -> bool:
     plan = context.get("plan")
     if not isinstance(plan, dict):
@@ -2124,60 +2410,16 @@ def _context_uses_v4_contract(context: dict[str, Any]) -> bool:
     return isinstance(blueprint, dict) and str(blueprint.get("schema_version", "")).endswith("-v4")
 
 
-def _adapt_v4_generation_result(
-    envelope: SourceGenerationEnvelopeV2,
-    *,
-    operation_id: str,
-    context_receipt: GenerationContextReceipt,
-) -> GenerationResult:
-    """Adapt the mapping-free v4 envelope into the legacy internal domain DTO."""
-
-    if envelope.result == "changes":
-        return GenerationResult(
-            operation_id=operation_id,
-            based_on_context_receipt=context_receipt.context_hash,
-            mode="changes",
-            changes=GenerationChanges(
-                files=list(envelope.files),
-                content_coverage=list(envelope.coverage),
-                criterion_coverage=list(envelope.coverage),
-                resource_usage=list(envelope.coverage),
-            ),
-        )
-    if envelope.result == "requests":
-        from oryxenai.agents.code_generator.core.development_schemas import GenerationRequests
-
-        return GenerationResult(
-            operation_id=operation_id,
-            based_on_context_receipt=context_receipt.context_hash,
-            mode="requests",
-            requests=GenerationRequests(resource_requests=list(envelope.resource_requests)),
-        )
-    if envelope.result == "accepted":
-        from oryxenai.agents.code_generator.core.development_schemas import GenerationAccepted
-
-        return GenerationResult(
-            operation_id=operation_id,
-            based_on_context_receipt=context_receipt.context_hash,
-            mode="accepted",
-            accepted=GenerationAccepted(
-                summary="The v4 source work unit was accepted.",
-                verified_contracts=list(envelope.coverage),
-            ),
-        )
-    from oryxenai.agents.code_generator.core.development_schemas import GenerationCannotComplete
-
-    detail = envelope.failure_details[0]
-    return GenerationResult(
-        operation_id=operation_id,
-        based_on_context_receipt=context_receipt.context_hash,
-        mode="cannot_complete",
-        cannot_complete=GenerationCannotComplete(
-            code=detail.code,
-            safe_reason=detail.message,
-            missing_authority_or_capability=detail.next_action,
-        ),
-    )
+def _review_accepted(review: IntegrationReviewV1 | QualityReviewDraftV1) -> bool:
+    if isinstance(review, IntegrationReviewV1):
+        return review.status == "accepted"
+    return min(
+        review.hierarchy_score,
+        review.composition_score,
+        review.typography_score,
+        review.resource_fit_score,
+        review.motion_score,
+    ) >= 4 and not any(item.severity == "blocking" for item in review.findings)
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:

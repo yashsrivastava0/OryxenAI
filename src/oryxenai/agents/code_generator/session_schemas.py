@@ -46,7 +46,7 @@ class CodeGeneratorSessionState(BaseModel):
     stale_reasons: list[str] = Field(default_factory=list)
     started_at: str | None = None
     completed_at: str | None = None
-    pipeline_contract_version: str = "code-generator-v3"
+    pipeline_contract_version: str = "code-generator-v4"
     trace_id: str = ""
     current_stage_attempt: dict[str, Any] | None = None
     retry_status: str = ""

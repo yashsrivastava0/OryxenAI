@@ -1,4 +1,4 @@
-"""Deterministic compilation of portfolio-authored v3 visual tokens."""
+"""Deterministic compilation of portfolio-authored visual tokens."""
 
 from __future__ import annotations
 
@@ -142,56 +142,84 @@ def _compile_v4_tokens(
                 f"{length_token.value:g}{length_token.unit}",
             )
     for border_token in sorted(blueprint.tokens.borders, key=lambda item: item.name):
+        lines.append(
+            f"  --border-{border_token.name}: "
+            f"{border_token.width.value:g}{border_token.width.unit} "
+            f"{border_token.style} var(--color-{border_token.color_token});"
+        )
+    for shadow in sorted(blueprint.tokens.shadows, key=lambda item: item.name):
+        lines.append(
+            f"  --shadow-{shadow.name}: "
+            f"{shadow.offset_x.value:g}{shadow.offset_x.unit} "
+            f"{shadow.offset_y.value:g}{shadow.offset_y.unit} "
+            f"{shadow.blur.value:g}{shadow.blur.unit} "
+            f"{shadow.spread.value:g}{shadow.spread.unit} "
+            f"var(--color-{shadow.color_token});"
+        )
+    for container in sorted(blueprint.tokens.containers, key=lambda item: item.name):
         emit(
-            f"border-{border_token.name}",
-            f"{border_token.width.value:g}{border_token.width.unit} {border_token.style} var(--color-{border_token.color_token})",
+            f"container-{container.name}-max",
+            f"{container.maximum.value:g}{container.maximum.unit}",
+        )
+        emit(
+            f"container-{container.name}-padding",
+            f"{container.inline_padding.value:g}{container.inline_padding.unit}",
         )
     for motion_token in sorted(blueprint.tokens.motion, key=lambda item: item.name):
         emit(f"motion-{motion_token.name}-duration", f"{motion_token.duration_ms}ms")
         emit(f"motion-{motion_token.name}-easing", motion_token.easing)
-    typography = blueprint.tokens.typography
-    emit("font-body", f'"{typography.family}"')
-    emit("font-display", f'"{typography.family}"')
-    emit("type-body-min", f"{typography.body_min_rem:g}rem")
-    emit("type-body-max", f"{typography.body_max_rem:g}rem")
-    emit("type-heading-ratio", f"{typography.heading_ratio:g}")
-    emit("type-body-line-height", f"{typography.body_line_height:g}")
+    roles = {item.role: item for item in blueprint.tokens.typography_roles}
+    body = roles["body"]
+    display = roles.get("display", body)
+    emit("font-body", f'"{body.family}"')
+    emit("font-display", f'"{display.family}"')
+    for role in (body, display):
+        emit(f"type-{role.role}-min", f"{role.body_min_rem:g}rem")
+        emit(f"type-{role.role}-max", f"{role.body_max_rem:g}rem")
+        emit(f"type-{role.role}-line-height", f"{role.body_line_height:g}")
+        emit(f"type-{role.role}-tracking", f"{role.tracking_em:g}em")
+    for step in sorted(blueprint.tokens.type_steps, key=lambda item: item.name):
+        emit(f"type-{step.name}-min", f"{step.minimum_rem:g}rem")
+        emit(f"type-{step.name}-max", f"{step.maximum_rem:g}rem")
+        emit(f"type-{step.name}-line-height", f"{step.line_height:g}")
+        emit(f"type-{step.name}-tracking", f"{step.tracking_em:g}em")
     lines.extend(["}", ""])
 
-    matching = [
-        item
-        for item in bindings
-        if item.resource_slot_id == typography.approved_font_slot and item.local_paths
-    ]
-    for binding in sorted(matching, key=lambda item: item.resource_slot_id):
-        family = binding.font_family or typography.family
-        for path in sorted(binding.local_paths):
-            normalized_path = path.replace("\\", "/").lstrip("/")
-            suffix = Path(normalized_path).suffix.casefold().lstrip(".")
-            if suffix not in {"woff2", "woff", "ttf", "otf"}:
-                continue
-            if ".." in Path(normalized_path).parts or normalized_path.startswith(
-                ("http:", "https:")
-            ):
-                raise TokenCompilationError("font binding must point to local material")
-            public_path = (
-                f"resources/pack/{normalized_path.removeprefix('resources/')}"
-                if normalized_path.startswith("resources/")
-                else normalized_path
-            )
-            weight = _font_weight_for_path(normalized_path, binding, typography.weights)
-            lines.extend(
-                [
-                    "@font-face {",
-                    f'  font-family: "{family}";',
-                    f"  font-style: {typography.style};",
-                    f"  font-weight: {weight};",
-                    f'  src: url("/{public_path}") format("{suffix}");',
-                    "  font-display: swap;",
-                    "}",
-                    "",
-                ]
-            )
+    for typography in blueprint.tokens.typography_roles:
+        matching = [
+            item
+            for item in bindings
+            if item.resource_slot_id == typography.approved_font_slot and item.local_paths
+        ]
+        for binding in sorted(matching, key=lambda item: item.resource_slot_id):
+            family = binding.font_family or typography.family
+            for path in sorted(binding.local_paths):
+                normalized_path = path.replace("\\", "/").lstrip("/")
+                suffix = Path(normalized_path).suffix.casefold().lstrip(".")
+                if suffix not in {"woff2", "woff"}:
+                    continue
+                if ".." in Path(normalized_path).parts or normalized_path.startswith(
+                    ("http:", "https:")
+                ):
+                    raise TokenCompilationError("font binding must point to local material")
+                public_path = (
+                    f"resources/pack/{normalized_path.removeprefix('resources/')}"
+                    if normalized_path.startswith("resources/")
+                    else normalized_path.removeprefix("public/")
+                )
+                weight = _font_weight_for_path(normalized_path, binding, typography.weights)
+                lines.extend(
+                    [
+                        "@font-face {",
+                        f'  font-family: "{family}";',
+                        f"  font-style: {typography.style};",
+                        f"  font-weight: {weight};",
+                        f'  src: url("/{public_path}") format("{suffix}");',
+                        f"  font-display: {typography.font_display};",
+                        "}",
+                        "",
+                    ]
+                )
     return "\n".join(lines)
 
 

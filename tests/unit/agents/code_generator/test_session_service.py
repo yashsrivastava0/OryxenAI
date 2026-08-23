@@ -51,6 +51,19 @@ class _Runs:
     async def get(self, run_id: UUID):
         return self.items.get(run_id)
 
+    async def accepted_variants_for_session(self, session_id: UUID, *, limit: int = 3):
+        return [
+            run
+            for run in sorted(
+                self.items.values(),
+                key=lambda item: str(item.id),
+                reverse=True,
+            )
+            if getattr(run, "portfolio_session_id", None) == session_id
+            and run.status == "ready"
+            and getattr(run, "creative_direction", None)
+        ][:limit]
+
     async def create(self, **values):
         run = SimpleNamespace(
             id=uuid4(),
@@ -202,6 +215,112 @@ async def test_session_start_binds_exact_artifact_and_queues_production_payload(
     assert repository.state.source_ref is not None
     assert repository.state.source_ref.archive_sha256 == reference.sha256
     assert checked_profiles
+    assert repository.state.current_run_id == str(repository.runs.created.id)
+    assert repository.runs.created.creative_direction["variant_receipt"]["ordinal"] == 1
+
+
+@pytest.mark.asyncio
+async def test_regenerate_allocates_a_distinct_v4_variant_after_an_accepted_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = ArtifactReference(
+        provider="memory",
+        key="temporary/variant-pack.zip",
+        sha256="d" * 64,
+        size_bytes=96,
+        expires_at=(datetime.now(UTC) + timedelta(days=2)).isoformat(),
+    )
+    session_id = uuid4()
+    repository = _Repository(session_id, _preparation(reference))
+    settings = Settings()
+    monkeypatch.setattr(service_module, "resolve_api_key", lambda profile: "configured")
+    monkeypatch.setattr(service_module.shutil, "which", lambda executable: executable)
+    monkeypatch.setattr(service_module, "browser_ready", lambda config: True)
+    service = CodeGeneratorService(
+        repository,  # type: ignore[arg-type]
+        _Jobs(),  # type: ignore[arg-type]
+        settings,
+        artifact_store=_ArtifactStore(reference),  # type: ignore[arg-type]
+        provider_preflight=lambda profile: _preflight_ok(profile),  # type: ignore[arg-type]
+    )
+
+    await service.start(session_id, idempotency_key="initial-variant")
+    first = repository.runs.created
+    first.status = "ready"
+    await service.regenerate(session_id, idempotency_key="new-variant")
+    second = repository.runs.created
+
+    first_receipt = first.creative_direction["variant_receipt"]
+    second_receipt = second.creative_direction["variant_receipt"]
+    assert second.id != first.id
+    assert second_receipt["variant_id"] != first_receipt["variant_id"]
+    assert second_receipt["ordinal"] == 2
+    assert second_receipt["creation_reason"] == "regenerate"
+    assert repository.state.current_run_id == str(second.id)
+
+
+async def _preflight_ok(profile: str) -> dict[str, object]:
+    return {"ok": True, "profile": profile}
+
+
+@pytest.mark.asyncio
+async def test_retry_requeues_the_existing_run_and_preserves_its_variant() -> None:
+    reference = ArtifactReference(
+        provider="memory",
+        key="temporary/retry-pack.zip",
+        sha256="e" * 64,
+        size_bytes=96,
+        expires_at=(datetime.now(UTC) + timedelta(days=2)).isoformat(),
+    )
+    session_id = uuid4()
+    repository = _Repository(session_id, _preparation(reference))
+    run = SimpleNamespace(
+        id=uuid4(),
+        revision=4,
+        status="needs_attention",
+        issues=[{"code": "PROVIDER_TIMEOUT_ERROR"}],
+        terminal_failure={"code": "PROVIDER_TIMEOUT_ERROR"},
+        active_preview={"preview_url": "http://preview/old"},
+        coordinator_stage="plan",
+        current_attempt=1,
+        plan_summary={},
+        source_summary={},
+        plan=None,
+        planner_receipt=None,
+        acquire_receipt=None,
+        resource_ledger=None,
+        dependency_ledger=None,
+        source_checkpoint=None,
+        generation_projection=None,
+        pending_promotion=None,
+        creative_direction={"variant_receipt": {"variant_id": "variant-stable"}},
+        pipeline_contract_version="code-generator-v4",
+        trace_id="trace-stable",
+        background_job_id=None,
+        acquire_job_id=None,
+        generation_job_id=None,
+        verification_job_id=None,
+    )
+    repository.runs.items[run.id] = run
+    repository.state = CodeGeneratorSessionState(
+        status="needs_attention",
+        current_run_id=str(run.id),
+        active_preview=run.active_preview,
+    )
+    jobs = _Jobs()
+    service = CodeGeneratorService(
+        repository,  # type: ignore[arg-type]
+        jobs,  # type: ignore[arg-type]
+        Settings(),
+    )
+
+    result = await service.retry(session_id, idempotency_key="same-variant-retry")
+
+    assert run.status == "queued"
+    assert repository.state.current_run_id == str(run.id)
+    assert result["code_generator"]["design_variant"]["variant_id"] == "variant-stable"
+    assert result["code_generator"]["active_preview"] == run.active_preview
+    assert jobs.payload == {"code_generator_run_id": str(run.id)}
 
 
 @pytest.mark.asyncio

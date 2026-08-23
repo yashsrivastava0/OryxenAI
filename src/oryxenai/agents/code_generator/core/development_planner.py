@@ -7,6 +7,7 @@ import json
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
+from oryxenai.agents.code_generator.core.content_compiler import content_ids_by_section
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
@@ -39,6 +40,10 @@ def build_planner_context(
     execution = projections["execution/contract.json"]
     ledger = projections["resources/ledger.json"]
     targets = projections["provenance/targets.json"]
+    content_ids = content_ids_by_section(
+        [item for item in site.get("public_content", []) if isinstance(item, dict)],
+        [item for item in site.get("facts", []) if isinstance(item, dict)],
+    )
     return {
         "site_contract": site,
         "visual_direction": visual,
@@ -48,6 +53,14 @@ def build_planner_context(
             "materialized_resources": resources.get("resources", []),
         },
         "target_contract": targets.get("target", {}),
+        "content_key_manifest": [
+            {
+                "route_id": route_id,
+                "section_id": section_id,
+                "content_ids": values,
+            }
+            for (route_id, section_id), values in sorted(content_ids.items())
+        ],
         "receipt": {
             "admitted_identity": input_receipt["admitted_identity"],
             "projection_hashes": input_receipt["projection_hashes"],
@@ -79,6 +92,15 @@ def validate_site_plan(
             for section in pack.get("sections", [])
             if isinstance(section, dict)
         }
+        for pack in content
+        if isinstance(pack, dict)
+    }
+    expected_section_order = {
+        str(pack.get("route_id", "")): [
+            str(section.get("section_id", ""))
+            for section in pack.get("sections", [])
+            if isinstance(section, dict)
+        ]
         for pack in content
         if isinstance(pack, dict)
     }
@@ -124,7 +146,13 @@ def validate_site_plan(
         )
     _validate_design_contract(value, expected_paths, site_routes, projections["site/contract.json"])
     if require_blueprint:
-        _validate_experience_blueprint(value, expected_paths, expected_sections)
+        _validate_experience_blueprint(
+            value,
+            expected_paths,
+            expected_sections,
+            expected_section_order,
+            projections["site/contract.json"],
+        )
     _validate_work_graph(value, set(expected_paths), expected_sections)
     if require_blueprint and isinstance(
         value.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
@@ -140,6 +168,8 @@ def _validate_experience_blueprint(
     plan: SitePlan,
     expected_paths: dict[str, str],
     expected_sections: dict[str, set[str]],
+    expected_section_order: dict[str, list[str]],
+    site_contract: dict[str, Any],
 ) -> None:
     blueprint = plan.experience_blueprint
     if blueprint is None:
@@ -148,7 +178,14 @@ def _validate_experience_blueprint(
             "Session generation requires a measurable ExperienceBlueprintV3 or compatible V2 blueprint.",
         )
     if isinstance(blueprint, ExperienceBlueprintV4):
-        _validate_v4_experience_blueprint(blueprint, expected_paths, expected_sections)
+        _validate_v4_experience_blueprint(
+            plan,
+            blueprint,
+            expected_paths,
+            expected_sections,
+            expected_section_order,
+            site_contract,
+        )
         return
     region_ids = [item.region_id for item in blueprint.layout_regions]
     if len(region_ids) != len(set(region_ids)):
@@ -386,9 +423,12 @@ def _validate_design_contract(
 
 
 def _validate_v4_experience_blueprint(
+    plan: SitePlan,
     blueprint: ExperienceBlueprintV4,
     expected_paths: dict[str, str],
     expected_sections: dict[str, set[str]],
+    expected_section_order: dict[str, list[str]],
+    site_contract: dict[str, Any],
 ) -> None:
     """Validate the closed, measurable v4 blueprint against admitted scope."""
 
@@ -400,11 +440,11 @@ def _validate_v4_experience_blueprint(
             "A v4 blueprint must assign exactly one trusted route shell to every route.",
         )
     for shell in blueprint.route_shells:
-        expected = expected_sections.get(shell.route_id, set())
-        if set(shell.section_order) != expected or len(shell.section_order) != len(expected):
+        expected = expected_section_order.get(shell.route_id, [])
+        if shell.section_order != expected:
             raise SitePlanValidationError(
                 "PLAN_ROUTE_SHELL_SECTION_ORDER",
-                "A v4 route shell must cover each approved section exactly once.",
+                "A v4 route shell must preserve the exact approved section sequence.",
             )
     regions = {item.region_id: item for item in blueprint.regions}
     covered = {
@@ -421,6 +461,50 @@ def _validate_v4_experience_blueprint(
             "PLAN_LAYOUT_REGION_DUPLICATE",
             "A v4 blueprint cannot duplicate a section region.",
         )
+    content_keys = content_ids_by_section(
+        [item for item in site_contract.get("public_content", []) if isinstance(item, dict)],
+        [item for item in site_contract.get("facts", []) if isinstance(item, dict)],
+    )
+    criteria_by_section: dict[tuple[str, str], set[str]] = {}
+    for criterion in site_contract.get("criteria", []):
+        if not isinstance(criterion, dict):
+            continue
+        route_id = str(criterion.get("route_id", ""))
+        section_id = str(criterion.get("section_id", ""))
+        criterion_id = str(criterion.get("criterion_id", ""))
+        if route_id and criterion_id:
+            if section_id:
+                criteria_by_section.setdefault((route_id, section_id), set()).add(criterion_id)
+            else:
+                for candidate in expected_section_order.get(route_id, []):
+                    criteria_by_section.setdefault((route_id, candidate), set()).add(criterion_id)
+    for route_id, expected_order in expected_section_order.items():
+        route_regions = [item for item in blueprint.regions if item.route_id == route_id]
+        for viewport in ("mobile", "tablet", "desktop"):
+            observed = [
+                item.section_id
+                for item in sorted(
+                    route_regions, key=lambda item: getattr(item, f"order_{viewport}")
+                )
+            ]
+            if observed != expected_order:
+                raise SitePlanValidationError(
+                    "PLAN_REGION_ORDER",
+                    "Every v4 viewport must preserve the approved section sequence.",
+                )
+        for region in route_regions:
+            expected_content = content_keys.get((route_id, region.section_id), [])
+            if region.content_ids != expected_content:
+                raise SitePlanValidationError(
+                    "PLAN_CONTENT_KEY_COVERAGE",
+                    "A v4 region must bind the exact approved content keys in order.",
+                )
+            expected_criteria = criteria_by_section.get((route_id, region.section_id), set())
+            if set(region.criterion_ids) != expected_criteria:
+                raise SitePlanValidationError(
+                    "PLAN_REGION_CRITERION_COVERAGE",
+                    "A v4 region must bind its exact admitted acceptance criteria.",
+                )
     move_routes = {item.route_id for item in blueprint.distinctive_moves}
     if move_routes != route_ids:
         raise SitePlanValidationError(
@@ -428,11 +512,11 @@ def _validate_v4_experience_blueprint(
             "Every route needs at least one content-specific distinctive move.",
         )
     for move in blueprint.distinctive_moves:
-        region = regions.get(move.region_id)
+        move_region = regions.get(move.region_id)
         if (
-            region is None
-            or region.route_id != move.route_id
-            or region.section_id != move.section_id
+            move_region is None
+            or move_region.route_id != move.route_id
+            or move_region.section_id != move.section_id
             or move.section_id not in expected_sections.get(move.route_id, set())
         ):
             raise SitePlanValidationError(
@@ -440,7 +524,7 @@ def _validate_v4_experience_blueprint(
                 "A v4 distinctive move must target its approved route section region.",
             )
     for placement in blueprint.resource_placements:
-        region = next(
+        placement_region = next(
             (
                 item
                 for item in blueprint.regions
@@ -448,7 +532,7 @@ def _validate_v4_experience_blueprint(
             ),
             None,
         )
-        if region is None:
+        if placement_region is None:
             raise SitePlanValidationError(
                 "PLAN_RESOURCE_USAGE_SCOPE",
                 "A v4 resource placement must target an approved route section.",
@@ -462,6 +546,52 @@ def _validate_v4_experience_blueprint(
                 "PLAN_MOTION_SCOPE",
                 "A v4 motion beat must target an approved route section.",
             )
+    expected_interactions = {item.interaction_id for item in plan.interactions}
+    assigned_interactions = {item.interaction_id for item in blueprint.interaction_assignments}
+    if assigned_interactions != expected_interactions:
+        raise SitePlanValidationError(
+            "PLAN_INTERACTION_ASSIGNMENTS",
+            "Every approved interaction must have exactly one v4 assignment.",
+        )
+    bindings = {item.resource_slot_id: item for item in plan.execution_bindings}
+    for role in blueprint.tokens.typography_roles:
+        binding = bindings.get(role.approved_font_slot)
+        if binding is None or not (
+            "font" in binding.category.casefold()
+            or "typograph" in binding.category.casefold()
+            or binding.font_family.strip()
+        ):
+            raise SitePlanValidationError(
+                "PLAN_TYPOGRAPHY_BINDING",
+                "Every v4 font role must reference an admitted font binding.",
+            )
+        bound_paths = {
+            path.replace("\\", "/").lstrip("/")
+            for path in binding.local_paths
+            if path.casefold().endswith((".woff", ".woff2"))
+        }
+        if not role.local_files or not bound_paths or set(role.local_files) != bound_paths:
+            raise SitePlanValidationError(
+                "PLAN_TYPOGRAPHY_FILES",
+                "V4 font roles must echo the exact admitted local font files.",
+            )
+    required_slots = {
+        item.resource_slot_id
+        for item in plan.execution_bindings
+        if item.required
+        and any(
+            token in item.category.casefold()
+            for token in ("image", "photo", "media", "illustration", "texture", "visual")
+        )
+    }
+    placed_slots = {item.resource_slot_id for item in blueprint.resource_placements}
+    if not required_slots.issubset(placed_slots) or any(
+        slot_id not in bindings for slot_id in placed_slots
+    ):
+        raise SitePlanValidationError(
+            "PLAN_REQUIRED_VISUAL_USAGE",
+            "Every required visual binding must have exactly one v4 placement.",
+        )
 
 
 def _validate_work_graph(

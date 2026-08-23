@@ -31,6 +31,7 @@ class CodeGeneratorDevelopmentRepository:
         build_preparation_source_ref: dict[str, object] | None = None,
         artifact_reference: dict[str, object] | None = None,
         preflight_receipt: dict[str, object] | None = None,
+        creative_direction: dict[str, object] | None = None,
         preview_host: str | None = None,
         pipeline_contract_version: str = "code-generator-v3",
         trace_id: str | None = None,
@@ -44,6 +45,7 @@ class CodeGeneratorDevelopmentRepository:
             build_preparation_source_ref=build_preparation_source_ref,
             artifact_reference=artifact_reference,
             preflight_receipt=preflight_receipt,
+            creative_direction=creative_direction,
             preview_host=preview_host,
             # Direct repository callers are diagnostic/manual by default. The
             # HTTP service opts into the durable coordinator explicitly.
@@ -87,6 +89,21 @@ class CodeGeneratorDevelopmentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def accepted_variants_for_session(
+        self, session_id: UUID, *, limit: int = 3
+    ) -> list[CodeGeneratorDevelopmentRun]:
+        result = await self._session.execute(
+            select(CodeGeneratorDevelopmentRun)
+            .where(
+                CodeGeneratorDevelopmentRun.portfolio_session_id == session_id,
+                CodeGeneratorDevelopmentRun.status == "ready",
+                CodeGeneratorDevelopmentRun.creative_direction.is_not(None),
+            )
+            .order_by(CodeGeneratorDevelopmentRun.created_at.desc())
+            .limit(max(1, limit))
+        )
+        return list(result.scalars().all())
+
     async def get(self, run_id: UUID) -> CodeGeneratorDevelopmentRun | None:
         result = await self._session.execute(
             select(CodeGeneratorDevelopmentRun).where(CodeGeneratorDevelopmentRun.id == run_id)
@@ -124,7 +141,7 @@ class CodeGeneratorDevelopmentRepository:
         message: str,
         details: dict[str, object] | None = None,
         attempt_id: UUID | None = None,
-        pipeline_contract_version: str = "code-generator-v3",
+        pipeline_contract_version: str = "",
         trace_id: str | None = None,
     ) -> CodeGeneratorDevelopmentEvent:
         sequence_result = await self._session.execute(
@@ -132,10 +149,23 @@ class CodeGeneratorDevelopmentRepository:
                 CodeGeneratorDevelopmentEvent.run_id == run_id
             )
         )
+        if not pipeline_contract_version or trace_id is None:
+            run_result = await self._session.execute(
+                select(
+                    CodeGeneratorDevelopmentRun.pipeline_contract_version,
+                    CodeGeneratorDevelopmentRun.trace_id,
+                ).where(CodeGeneratorDevelopmentRun.id == run_id)
+            )
+            run_metadata = run_result.one_or_none()
+            if run_metadata is not None:
+                pipeline_contract_version = pipeline_contract_version or str(
+                    run_metadata.pipeline_contract_version or ""
+                )
+                trace_id = trace_id if trace_id is not None else run_metadata.trace_id
         event = CodeGeneratorDevelopmentEvent(
             run_id=run_id,
             attempt_id=attempt_id,
-            pipeline_contract_version=pipeline_contract_version,
+            pipeline_contract_version=pipeline_contract_version or "code-generator-v3",
             trace_id=trace_id,
             sequence=int(sequence_result.scalar_one()) + 1,
             event_type=event_type,
