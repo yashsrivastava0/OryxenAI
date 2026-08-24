@@ -319,7 +319,13 @@ export async function bootstrapAuthPage() {
     try {
       const response = await auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: config.callbackUrl },
+        options: {
+          redirectTo: config.callbackUrl,
+          // Always let the user choose which Google identity to use. Without
+          // this, Google may silently reuse the account from the previous
+          // OryxenAI session after local sign-out.
+          queryParams: { prompt: "select_account" },
+        },
       });
       if (response?.error) throw response.error;
     } catch {
