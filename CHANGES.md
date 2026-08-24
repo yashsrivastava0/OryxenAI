@@ -11,6 +11,11 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 21:30 +05:30 - Codex (Claude Sonnet 5 / Anthropic) - [456db9c] - Route the first three agents through Anthropic Sonnet 5
+Switched Discovery, Content Architect, and Visual Design Director to the
+configured Anthropic `claude-sonnet-5` profiles using `ANTHROPIC_API_KEY`,
+rebuilt the Docker API/worker images, and verified a live Discovery response.
+
 ### 2026-08-24 21:16 +05:30 - Codex (GPT-5.6 Luna / OpenAI) - [9b95baf] - Route Build Preparation through direct OpenAI Luna
 Added a dedicated `gpt-5.6-luna` profile using `OPENAI_API_KEY` and the
 official OpenAI endpoint, routed Build Preparation to it, rebuilt the app and
