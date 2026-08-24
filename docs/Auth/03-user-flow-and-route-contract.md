@@ -19,6 +19,12 @@ Role, status, username, admission, ownership, and quota come from PostgreSQL on
 every protected request. Supabase `user_metadata`, Google profile data, browser
 state, and query parameters are not authorization sources.
 
+Phase 3 adds a database-authoritative entitlement projection to `/me`. Normal
+users receive one canonical portfolio session, one bound Code Generator run /
+variant, and at most one verified promoted success. The projection is a safe
+capability summary only; every mutation reloads the entitlement and current
+owner/actor state on the server.
+
 ## Minimal screens
 
 ### Sign in (`/sign-in`, with `/` as controller)
@@ -68,16 +74,20 @@ After onboarding:
 
 - fetch only the caller's portfolio;
 - claim one session through an idempotent **Start portfolio** action or first
-  meaningful Discovery send;
+  meaningful Discovery send; the server returns the same bound session on every
+  repeat or concurrent request;
 - resume the same session across refreshes;
 - show durable stage progress, retryable failures, and the stable preview;
 - hide system/developer controls from normal users; and
 - after verified success, show a completed read-only state with no **New
-  portfolio** or **Regenerate** action.
+  portfolio** or **Regenerate** action. A queued global generation lane,
+  same-variant retry, preview-pending state, and safe provider-credit failure
+  remain truthful and refresh-safe.
 
 ### Admin console (`/admin`)
 
-Keep it bounded:
+Phase 3 serves a temporary read-only admin shell. The following lifecycle
+surface is a Phase 4 contract, not an implemented Phase 3 API:
 
 - counts and health summary;
 - paginated users with username, masked email, role/status, admission, and
@@ -226,19 +236,19 @@ origins.
 | `GET /api/v1/me` | Valid Supabase session | Verify identity; approve/bootstrap if configured; return safe local projection. |
 | `PUT /api/v1/me/username` | Approved onboarding user | Atomically claim normalized username. |
 | `POST /api/v1/auth/sign-out` (optional) | Authenticated | Server-side revocation hook if required by selected Supabase session design. |
-| existing `/api/v1/sessions*` | Active + onboarded | Owner-scoped idempotent create/list/get; explicit admin scope only. |
+| existing `/api/v1/sessions*` | Active + onboarded | One-session normal-user create/list/get; explicit admin scope only. |
 | existing stage/run/job/source/preview APIs | Owner or admin | Preserve state machines after authorization. |
 | `GET/POST /api/v1/sessions*` | Active onboarded user | Normal users see/create only owned non-legacy sessions; admins see bounded owned and legacy rows. |
 | `/api/v1/system/*`, `/api/v1/model-profiles` | Admin | Developer/provider metadata and system diagnostics are not normal-user surfaces. |
 | mock/fixture/development APIs | Development admin | Conditionally mounted only when their feature and dev UI are enabled; absent in production. |
-| `GET /api/v1/admin/users` | Admin | Bounded user list. |
-| `POST /api/v1/admin/users/{id}/suspend` | Admin | Deny locally and revoke/ban with the current Supabase Admin API. |
-| `POST /api/v1/admin/users/{id}/restore` | Admin | Restore local/provider access. |
-| `DELETE /api/v1/admin/users/{id}` | Admin | Start resumable identity/data cleanup. |
-| `GET /api/v1/admin/projects` | Admin | Bounded project list. |
-| `DELETE /api/v1/admin/projects/{id}` | Admin | Fence work, revoke preview, clean storage, delete aggregate. |
-| `POST /api/v1/admin/users/{id}/quota-reset` | Admin | Explicitly grant a new portfolio/variant after cleanup. |
-| `GET /api/v1/admin/audit-events` | Admin | Recent safe admin actions. |
+| `GET /api/v1/admin/users` | Phase 4 admin | Bounded user list. |
+| `POST /api/v1/admin/users/{id}/suspend` | Phase 4 admin | Deny locally and revoke/ban with the current Supabase Admin API. |
+| `POST /api/v1/admin/users/{id}/restore` | Phase 4 admin | Restore local/provider access. |
+| `DELETE /api/v1/admin/users/{id}` | Phase 4 admin | Start resumable identity/data cleanup. |
+| `GET /api/v1/admin/projects` | Phase 4 admin | Bounded project list. |
+| `DELETE /api/v1/admin/projects/{id}` | Phase 4 admin | Fence work, revoke preview, clean storage, delete aggregate. |
+| `POST /api/v1/admin/users/{id}/quota-reset` | Phase 4 admin | Explicitly grant a new portfolio/variant after cleanup. |
+| `GET /api/v1/admin/audit-events` | Phase 4 admin | Recent safe admin actions. |
 
 Implementation may refine names but not access semantics.
 
@@ -268,7 +278,10 @@ Use the existing safe error envelope and request ID.
 | 409 | `USER_CAPACITY_REACHED` | No normal-user admission beyond 15. |
 | 409 | `PORTFOLIO_LIMIT_REACHED` | Resume the one project. |
 | 409 | `GENERATION_VARIANT_LOCKED` | Retry same variant if eligible; no new variant. |
-| 409 | `PORTFOLIO_ALREADY_SUCCEEDED` | Show final read-only portfolio. |
+| 409 | `PORTFOLIO_READ_ONLY` | Show the final read-only portfolio; GET remains available. |
+| 409 | `ENTITLEMENT_BINDING_CONFLICT` | Fail closed without signing out or exposing foreign state. |
+| 409 | `AUTHORIZATION_FENCE_REJECTED` | Record a safe permanent worker denial; do not enqueue successor work. |
+| 503 | `MODEL_PROVIDER_CREDIT_EXHAUSTED` | Keep the same run/variant and permit explicit later retry after credit is restored. |
 | 429 | `AUTH_RATE_LIMITED` | Back off; no tight retry loop. |
 | 503 | `AUTH_PROVIDER_UNAVAILABLE` | Preserve safe local state and offer bounded retry. |
 

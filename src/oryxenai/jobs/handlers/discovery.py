@@ -33,7 +33,8 @@ from oryxenai.agents.discovery.state import (
 )
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
-from oryxenai.agents.shared.providers.errors import ProviderError
+from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
+from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.db.session import get_sessionmaker
@@ -129,6 +130,7 @@ async def _execute_persisted(
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
 
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = DiscoveryRepository(db)
         run = await repo.get_run(run_id)
         session = await repo.get_session(session_id)
@@ -179,7 +181,11 @@ async def _execute_persisted(
         # is almost always a one-off generation-quality issue on the same
         # input, not a permanent condition — retry it like any other
         # transient provider error, bounded by the same max_attempts budget.
-        logger.warning("discovery operation=%s produced invalid output: %s", operation, exc)
+        logger.warning(
+            "discovery operation=%s produced invalid output type=%s",
+            operation,
+            type(exc).__name__,
+        )
         await _persist_failure(
             sessionmaker,
             session_id,
@@ -249,6 +255,7 @@ async def _apply_result(
     attempt: int,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = DiscoveryRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
@@ -323,13 +330,15 @@ async def _persist_failure(
     only becomes user-visible once no further automatic retry will happen.
     """
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = DiscoveryRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
             return
+        code, message = stable_provider_failure(error)
         safe_error = {
-            "code": getattr(error, "code", "MODEL_OPERATION_FAILED"),
-            "message": getattr(error, "message", "Discovery model operation failed."),
+            "code": code,
+            "message": message,
             "retryable": bool(getattr(error, "retryable", False)),
         }
         state = await repo.get_discovery_state(session_id)

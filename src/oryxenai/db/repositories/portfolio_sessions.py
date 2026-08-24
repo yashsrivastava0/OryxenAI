@@ -60,6 +60,13 @@ class PortfolioSessionRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_update(self, session_id: UUID) -> PortfolioSession | None:
+        """Reload one aggregate while holding its short mutation lock."""
+
+        stmt = select(PortfolioSession).where(PortfolioSession.id == session_id).with_for_update()
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list_recent(self, limit: int = 20) -> list[PortfolioSession]:
         """Legacy internal list retained for non-product callers."""
         return await self.list_recent_for_admin(limit=limit)

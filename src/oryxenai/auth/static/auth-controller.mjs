@@ -152,6 +152,12 @@ export async function routeController({
         replace(reviewed.signIn);
         return { kind: "provider_unavailable" };
       }
+      if (error.code === "MODEL_PROVIDER_CREDIT_EXHAUSTED") {
+        ui.panel?.("app");
+        failure(error.message);
+        replace(reviewed.app);
+        return { kind: "provider_credit_exhausted" };
+      }
     }
     await onAuthFailure();
     return { kind: "auth_failure" };
@@ -163,6 +169,11 @@ export async function routeController({
     ui.panel?.("onboarding");
     replace(reviewed.onboarding);
     return { kind: "onboarding", me };
+  }
+  if (path === reviewed.onboarding) {
+    ui.panel?.("app");
+    replace(reviewed.app);
+    return { kind: "app", me };
   }
   if (path === reviewed.admin && me.role === "admin" && me.admin_available) {
     ui.panel?.("admin");

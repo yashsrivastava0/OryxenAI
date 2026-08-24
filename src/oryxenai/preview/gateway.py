@@ -153,6 +153,10 @@ class PreviewGateway:
             ):
                 raise ValueError("active receipt mismatch")
             receipt = json.loads(receipt_object[1].decode("utf-8"))
+            if pointer.get("run_id") is not None and str(receipt.get("run_id", "")) != str(
+                pointer.get("run_id", "")
+            ):
+                raise ValueError("active run mismatch")
             if (
                 str(receipt.get("build_hash", "")) != str(pointer.get("build_hash", ""))
                 or str(receipt.get("candidate_id", "")) != str(pointer.get("candidate_id", ""))

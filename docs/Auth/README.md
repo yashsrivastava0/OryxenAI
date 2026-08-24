@@ -1,10 +1,12 @@
 # OryxenAI authentication handoff
 
-Status: Authentication Phases 1 and 2 are implemented and locally tested.
-Phase 2 adds session ownership, legacy quarantine, owner/admin API policy, and
-authenticated product/developer boot. Phase 3 portfolio entitlement/worker
-fencing and Phase 4 administrator lifecycle/live deployment acceptance remain
-deferred. No production cloud resources were created.
+Status: Authentication Phases 1, 2, and 3 are implemented and locally tested
+where the configured database is available. Phase 3 adds one normal-user
+portfolio/generation/success entitlement, durable owner/actor worker fencing,
+global model-generation admission, verified success finalization, and
+post-success read-only enforcement. Phase 4 administrator lifecycle, full
+multi-account browser acceptance, and production deployment remain deferred.
+No production cloud resources were created.
 
 Last verified: 2026-08-24. Provider behavior, prices, SDKs, and dashboard
 screens are time-sensitive; recheck the linked primary sources when coding or
@@ -19,8 +21,9 @@ application authorization in OryxenAI and PostgreSQL:
 - `app_users` maps the immutable Supabase user UUID to an OryxenAI user.
 - PostgreSQL stores username, role, status, admission, ownership, and quota.
 - FastAPI verifies every protected request and applies owner-or-admin policy.
-- Phase 3 will bind owner and actor identity to durable work before enqueueing
-  and recheck authorization before finalization.
+- Phase 3 binds owner and actor identity to durable work before enqueueing and
+  rechecks authorization before external work, successor enqueue, and
+  finalization.
 
 Do not ask for, receive, or store a Google password. Do not store Google access
 or refresh tokens because OryxenAI does not call Google APIs on a user's behalf.
@@ -39,15 +42,14 @@ or retain Clerk-specific keys, subjects, webhooks, SDKs, routes, or UI.
 4. At most 15 normal users may be admitted; administrators do not consume
    those slots.
 5. A first-time approved user chooses one unique OryxenAI username.
-6. Phase 2 temporarily permits a normal user to create multiple explicitly
-   owned sessions; Phase 3 will enforce one portfolio session and one design
-   variant.
-7. Phase 3 will make failed attempts retry the same variant and deny explicit
-   regeneration for normal users.
-8. Phase 3 will make only a verified, hash-bound, promoted `active_preview`
-   consume the user's one successful portfolio.
-9. Phase 3 will make a successful normal-user project readable but no longer
-   mutable; deletion and audited reset remain later lifecycle policy.
+6. Phase 3 enforces one server-bound portfolio session and one Code Generator
+   design variant for a normal user.
+7. Failed attempts retry the same durable run and variant; explicit normal-user
+   regeneration is denied.
+8. Only a verified, hash-bound, promoted `active_preview` consumes the user's
+   one successful portfolio, through the central finalizer/reconciler path.
+9. A successful normal-user project remains readable but is server-enforced
+   read-only; deletion and audited reset remain Phase 4 lifecycle policy.
 10. Administrators are quota-exempt and may manage all users and projects, but
     cannot bypass model/provider safety gates or spending limits.
 11. Existing unowned sessions are quarantined as legacy/admin-only data; new
@@ -77,11 +79,12 @@ Redaction-safe verification confirmed:
 - the strict online prerequisite run completed with `0 failures, 0 warnings`.
 
 The local implementation proves the deterministic controller, callback/session
-logic, server-side JWT/provider boundaries, safe `/me` projection, admission
-constraints, ownership/legacy repository policy, route inventory, and
-temporary product/developer shells through unit/API tests. A real Google
-browser login and the production-origin flow remain later acceptance work; no
-additional account or secret is created by this phase.
+logic, server-side JWT/provider boundaries, safe `/me` and entitlement
+projection, admission constraints, ownership/legacy repository policy,
+one-session/variant/success server rules, durable worker fencing, route
+inventory, and the integrated product/developer shells through unit/API tests.
+A real Google browser login and the production-origin flow remain Phase 4
+acceptance work; no additional account or secret is created by this phase.
 
 Run the safe setup checker from the repository root:
 

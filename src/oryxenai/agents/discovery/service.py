@@ -25,6 +25,7 @@ from oryxenai.agents.discovery.state import (
     apply_start,
 )
 from oryxenai.agents.shared.model_router import ModelRouter
+from oryxenai.auth.authorization import durable_snapshot
 from oryxenai.core.logging import get_logger
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.discovery import DiscoveryRepository
@@ -125,6 +126,7 @@ class DiscoveryService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
+            **durable_snapshot(self._job_service.authorization_context),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -209,6 +211,7 @@ class DiscoveryService:
                 },
                 state_before=dict(session.current_state),
                 idempotency_key=key,
+                **durable_snapshot(self._job_service.authorization_context),
             )
             await self._repository.create_run(run)
             job = await self._job_service.enqueue(
@@ -282,6 +285,7 @@ class DiscoveryService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
+            **durable_snapshot(self._job_service.authorization_context),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -338,6 +342,7 @@ class DiscoveryService:
                             "id": str(job.id),
                             "kind": job.job_kind,
                             "status": job.status,
+                            "execution_lane": getattr(job, "execution_lane", None),
                             "attempt": job.attempt,
                             "error": job.error_payload,
                         }

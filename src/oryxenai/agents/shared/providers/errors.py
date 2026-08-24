@@ -8,6 +8,36 @@ from __future__ import annotations
 
 from typing import Any
 
+MODEL_PROVIDER_CREDIT_EXHAUSTED = "MODEL_PROVIDER_CREDIT_EXHAUSTED"
+MODEL_PROVIDER_CREDIT_MESSAGE = (
+    "The configured model provider has no available credit. Retry this same run later."
+)
+_CREDIT_MARKERS = (
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "quota_exceeded",
+    "insufficient_credit",
+    "insufficient_credits",
+    "billing_hard_limit",
+    "billing_not_active",
+    "payment_required",
+)
+_SAFE_FAILURE_MESSAGES = {
+    "PROVIDER_AUTH_ERROR": "The configured model provider rejected its credentials.",
+    "PROVIDER_CONNECTION_ERROR": "The configured model provider could not be reached.",
+    "PROVIDER_TIMEOUT_ERROR": "The configured model provider timed out.",
+    "PROVIDER_RATE_LIMIT_ERROR": "The configured model provider rate-limited the request.",
+    "PROVIDER_SERVER_ERROR": "The configured model provider returned a temporary server error.",
+    "PROVIDER_INVALID_REQUEST_ERROR": "The configured model provider rejected the request.",
+    "PROVIDER_BAD_RESPONSE_ERROR": "The configured model provider returned an invalid response.",
+    "PROVIDER_CONFIG_ERROR": "The configured model provider is unavailable.",
+    "PROVIDER_CONTENT_FILTER_ERROR": "The model provider refused the request safely.",
+    "PROVIDER_HTTP_ERROR": "The configured model provider returned an unexpected response.",
+    "NETWORK_RETRY_EXHAUSTED": "The model provider network retry budget was exhausted.",
+    "CODE_GENERATOR_PROVIDER_CREDENTIAL_MISSING": "The configured model provider credentials are missing.",
+    "CODE_GENERATOR_PROVIDER_UNAVAILABLE": "The configured model provider is unavailable.",
+}
+
 
 class ProviderError(Exception):
     """Base error for all provider-level failures."""
@@ -288,5 +318,42 @@ def _is_credit_exhausted(body: dict[str, Any] | None) -> bool:
         str(error.get("type", "")),
         str(error.get("message", "")),
     )
-    markers = ("insufficient_quota", "credit_balance_exhausted", "quota_exceeded")
-    return any(marker in value.casefold() for value in values for marker in markers)
+    return any(marker in value.casefold() for value in values for marker in _CREDIT_MARKERS)
+
+
+def is_provider_credit_error(error: Any) -> bool:
+    """Recognize exhausted provider credit without exposing provider details."""
+
+    if isinstance(error, dict):
+        code_value = error.get("code", "")
+        message_value = error.get("message", "")
+        details = error.get("details")
+    else:
+        code_value = getattr(error, "code", "")
+        message_value = getattr(error, "message", "")
+        details = getattr(error, "details", None)
+    code = str(code_value or "").casefold()
+    if code in {"provider_credit_exhausted", MODEL_PROVIDER_CREDIT_EXHAUSTED.casefold()}:
+        return True
+    values = [code, str(message_value or "").casefold()]
+    if isinstance(details, dict):
+        values.extend(str(value).casefold() for value in details.values())
+    return any(marker in value for value in values for marker in _CREDIT_MARKERS)
+
+
+def stable_provider_failure(error: Any) -> tuple[str, str]:
+    """Return a redacted public failure code/message for provider failures."""
+
+    if is_provider_credit_error(error):
+        return MODEL_PROVIDER_CREDIT_EXHAUSTED, MODEL_PROVIDER_CREDIT_MESSAGE
+    if isinstance(error, dict):
+        code = error.get("code", "MODEL_OPERATION_FAILED")
+    else:
+        code = getattr(error, "code", "MODEL_OPERATION_FAILED")
+    safe_code = str(code or "MODEL_OPERATION_FAILED")
+    if safe_code in _SAFE_FAILURE_MESSAGES:
+        return safe_code, _SAFE_FAILURE_MESSAGES[safe_code]
+    # This function is used at provider boundaries. Unknown provider codes and
+    # messages are never safe to echo because they may contain response bodies,
+    # request metadata, or billing details.
+    return safe_code, "The model operation failed safely."

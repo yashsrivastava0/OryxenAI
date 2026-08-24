@@ -1,4 +1,4 @@
-"""Durable Phase 4 build, DOM verification, and preview promotion job."""
+"""Durable Phase 3 build, DOM verification, and preview promotion job."""
 
 from __future__ import annotations
 
@@ -53,6 +53,8 @@ from oryxenai.agents.code_generator.core.verification_plan import (
     derive_verification_plan,
 )
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace, repository_root
+from oryxenai.auth.finalization import finalize_promoted_success
+from oryxenai.auth.worker_fence import AuthorizationFenceError, WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -103,11 +105,13 @@ async def _execute(
     run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
+    await _validate_worker_payload(sessionmaker, payload)
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
         run = await repo.get(run_id)
         if run is None:
             return {"status": "discarded", "run_id": str(run_id)}
+        await WorkerAuthorizationFence(db).validate_run(run_id)
         if run.status == DevelopmentRunStatus.READY.value and run.active_preview:
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
         if run.source_checkpoint is None or run.generation_projection is None or run.plan is None:
@@ -171,6 +175,8 @@ async def _execute(
                     else create_preview_storage(settings)
                 )
                 host = str(run.preview_host or _preview_host(str(run_id)))
+                await _validate_worker_payload(sessionmaker, payload)
+                await _validate_run_fence(sessionmaker, run_id)
                 active = await reconcile_pending_promotion(
                     storage=storage,
                     run_id=str(run_id),
@@ -188,16 +194,23 @@ async def _execute(
                 )
                 pending_projection.status = "ready"
                 pending_projection.phase = "ready"
-                await _persist_projection(
+                await finalize_promoted_success(
                     sessionmaker,
-                    run_id,
-                    pending_projection,
-                    DevelopmentRunStatus.READY.value,
+                    run_id=run_id,
+                    active_preview=active,
+                    projection=pending_projection,
                     values={
-                        "pending_promotion": None,
-                        "active_preview": active.model_dump(mode="json"),
+                        "candidate_artifact": pending.candidate.model_dump(mode="json"),
+                        "preview_host": host,
+                        "source_summary": {
+                            "preview_url": active.url,
+                            "build_hash": pending.candidate.build_hash,
+                        },
                     },
                     event=("reconciled", "A pending preview promotion was reconciled safely."),
+                    job_id=_payload_uuid(payload, "job_id"),
+                    attempt=_payload_int(payload, "attempt"),
+                    lease_token=str(payload.get("lease_token", "") or "") or None,
                 )
                 return {
                     "status": "succeeded",
@@ -205,6 +218,8 @@ async def _execute(
                     "preview_url": active.url,
                     "reconciled": True,
                 }
+            except AuthorizationFenceError:
+                raise
             except Exception as exc:
                 logger.debug("pending preview reconciliation deferred error=%s", type(exc).__name__)
         await _cas(
@@ -221,6 +236,7 @@ async def _execute(
         )
         await db.commit()
 
+    await _validate_worker_payload(sessionmaker, payload)
     profile = build_verification_profile(settings)
     server: EphemeralServer | None = None
     projection: VerificationProjection | None = None
@@ -442,6 +458,8 @@ async def _execute(
         if reused_manifest is not None:
             manifest, build_diagnostics = reused_manifest, []
         else:
+            await _validate_worker_payload(sessionmaker, payload)
+            await _validate_run_fence(sessionmaker, run_id)
             manifest, build_diagnostics = await run_clean_build(
                 workspace.repo_dir,
                 settings=settings,
@@ -509,6 +527,7 @@ async def _execute(
         host = str(run.preview_host or _preview_host(str(run_id)))
         token = secrets.token_urlsafe(32)
         try:
+            await _validate_run_fence(sessionmaker, run_id)
             candidate_app = create_candidate_app(
                 workspace.repo_dir / "dist",
                 token=token,
@@ -535,6 +554,7 @@ async def _execute(
             if runtime_verifier_factory is not None
             else RuntimeVerifier()
         )
+        await _validate_run_fence(sessionmaker, run_id)
         evidence, runtime_diagnostics = await verifier.verify(
             (
                 f"{server.url}"
@@ -669,6 +689,7 @@ async def _execute(
         )
         host = str(run.preview_host or _preview_host(str(run_id)))
         candidate_id = f"candidate-{identity.identity_hash[:24]}"
+        await _validate_run_fence(sessionmaker, run_id)
         artifact, stored_report_hash, candidate_pointer = await promoter.store_candidate(
             candidate_id=candidate_id,
             host=host,
@@ -704,6 +725,8 @@ async def _execute(
             },
         )
         try:
+            await _validate_worker_payload(sessionmaker, payload)
+            await _validate_run_fence(sessionmaker, run_id)
             active = await promoter.promote(
                 run_id=str(run_id),
                 host=host,
@@ -711,6 +734,8 @@ async def _execute(
                 candidate_pointer=candidate_pointer,
                 verification_report_hash=stored_report_hash,
             )
+        except AuthorizationFenceError:
+            raise
         except Exception as exc:
             code = str(getattr(exc, "code", "PREVIEW_PUBLICATION_UNAVAILABLE"))
             message = str(
@@ -746,20 +771,20 @@ async def _execute(
         projection.phase = "ready"
         projection.active_gate = ""
         projection.candidate_artifact = artifact
-        await _persist_projection(
+        await finalize_promoted_success(
             sessionmaker,
-            run_id,
-            projection,
-            DevelopmentRunStatus.READY.value,
+            run_id=run_id,
+            active_preview=active,
+            projection=projection,
             values={
                 "candidate_artifact": artifact.model_dump(mode="json"),
-                "pending_promotion": None,
-                "active_preview": active.model_dump(mode="json"),
-                "terminal_failure": None,
                 "preview_host": host,
                 "source_summary": {"preview_url": active.url, "build_hash": manifest.build_hash},
             },
             event=("promoted", "Verified portfolio preview promoted atomically."),
+            job_id=_payload_uuid(payload, "job_id"),
+            attempt=_payload_int(payload, "attempt"),
+            lease_token=str(payload.get("lease_token", "") or "") or None,
         )
         input_receipt_payload = run.input_receipt if isinstance(run.input_receipt, dict) else {}
         projection_hashes = input_receipt_payload.get("projection_hashes", {})
@@ -1014,6 +1039,7 @@ async def _persist_projection(
 ) -> None:
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
+        await WorkerAuthorizationFence(db).validate_run(run_id)
         run = await repo.get(run_id)
         if run is None:
             raise VerificationFailure("RUN_NOT_FOUND", "The verification run was not found.")
@@ -1030,6 +1056,38 @@ async def _persist_projection(
         if event:
             await repo.append_event(run_id, event_type=event[0], level="info", message=event[1])
         await db.commit()
+
+
+async def _validate_run_fence(sessionmaker: Any, run_id: UUID) -> None:
+    """Recheck local owner/actor/entitlement state before costly/publishing work."""
+
+    async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_run(run_id)
+
+
+async def _validate_worker_payload(sessionmaker: Any, payload: dict[str, Any]) -> None:
+    async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
+
+
+def _payload_uuid(payload: dict[str, Any], key: str) -> UUID | None:
+    value = payload.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _payload_int(payload: dict[str, Any], key: str) -> int | None:
+    value = payload.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 async def _normalize_host_generated_tokens(
@@ -1172,6 +1230,7 @@ async def _terminal(
 async def _safe_issue(sessionmaker: Any, run_id: UUID, issue: SafeIssue) -> None:
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
+        await WorkerAuthorizationFence(db).validate_run(run_id)
         run = await repo.get(run_id)
         if run is None:
             return
@@ -1208,6 +1267,7 @@ async def _attempt_repair(
     allowed_packages: set[str],
     model_factory: Any | None,
 ) -> bool:
+    await _validate_run_fence(sessionmaker, run_id)
     budget = RepairBudget(
         max_total=int(settings.code_generator_generation.max_repair_rounds_total),
         max_per_unit=int(settings.code_generator_generation.max_repair_rounds_per_unit),
@@ -1233,6 +1293,7 @@ async def _attempt_repair(
         event=("repairing", "A bounded generator-owned verification repair is running."),
     )
     try:
+        await _validate_run_fence(sessionmaker, run_id)
         corrected, receipt = await FinalRepairer(model_factory=model_factory).repair(
             settings=settings,
             workspace=workspace,
@@ -1277,6 +1338,7 @@ async def _attempt_repair(
             generation_projection.source_file_count = corrected.file_count
             generation_projection.source_total_bytes = corrected.total_bytes
             generation_projection.quality_review = None
+            await _validate_run_fence(sessionmaker, run_id)
             review = await CodeGeneratorGenerationOrchestrator(
                 model_factory=model_factory
             )._integration_review(
@@ -1380,7 +1442,7 @@ async def _export_portfolio(
         )
     except Exception as exc:
         logger.warning("portfolio export failed run_id=%s error=%s", run_id, exc)
-        event = ("export_failed", f"The portfolio export could not be written: {exc}")
+        event = ("export_failed", "The portfolio export could not be written safely.")
         level = "warning"
     else:
         logger.info("portfolio exported run_id=%s path=%s", run_id, exported)
@@ -1411,6 +1473,7 @@ def _export_call_ledger(generation_projection: dict[str, Any]) -> dict[str, Any]
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:
+    await WorkerAuthorizationFence(repo._session).validate_run(run.id)
     updated = await repo.compare_and_swap(
         run.id, expected_revision=run.revision, values={"status": status, **values}
     )

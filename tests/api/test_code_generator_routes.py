@@ -6,7 +6,11 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from oryxenai.api.dependencies import get_code_generator_service, require_session_owner_or_admin
+from oryxenai.api.dependencies import (
+    get_code_generator_service,
+    require_mutable_portfolio,
+    require_session_owner_or_admin,
+)
 from oryxenai.auth.authorization import PortfolioAccess
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.main import create_app
@@ -54,6 +58,10 @@ async def test_production_code_generator_routes_are_exposed_and_forward_idempote
             legacy_quarantined=False,
         ),
     )
+    # This route-contract test uses a fake access object and intentionally has
+    # no database. Phase 3's production guard remains fail-closed; this
+    # override keeps the test focused on route wiring and idempotency.
+    app.dependency_overrides[require_mutable_portfolio] = lambda: None
     paths = app.openapi()["paths"]
 
     assert "/api/v1/sessions/{session_id}/code-generator" in paths

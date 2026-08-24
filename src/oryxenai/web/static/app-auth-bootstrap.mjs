@@ -24,6 +24,38 @@ function showBootstrapError(documentRef, message) {
   if (node) node.textContent = message;
 }
 
+function renderTemporaryDashboard(documentRef, me) {
+  documentRef?.querySelectorAll?.('[data-user="username"]').forEach((element) => {
+    element.textContent = me?.username || "there";
+  });
+  documentRef?.querySelectorAll?.('[data-user="role"]').forEach((element) => {
+    element.textContent = me?.role || "—";
+  });
+  documentRef?.querySelectorAll?.('[data-user="status"]').forEach((element) => {
+    element.textContent = me?.status || "—";
+  });
+  const capabilities = documentRef?.getElementById?.("portfolio-capabilities");
+  const state = documentRef?.getElementById?.("workspace-state");
+  const policy = me?.policy;
+  if (capabilities && policy) {
+    capabilities.hidden = false;
+    const set = (name, value) => {
+      const element = capabilities.querySelector(`[data-entitlement="${name}"]`);
+      if (element) element.textContent = value;
+    };
+    set("policy", policy === "unlimited_admin" ? "unlimited admin" : "single portfolio");
+    set("generation", me.read_only ? "promoted success" : me.generation_run_id ? "one variant bound" : "available");
+    set("mode", me.read_only ? "read-only" : "mutable");
+  }
+  if (state) {
+    state.textContent = me?.read_only
+      ? "A verified success is complete. This portfolio is now read-only."
+      : me?.can_start_generation === false && me?.generation_run_id
+        ? "Your one generation variant is in progress. Retry is controlled by the server."
+        : "No protected product data was loaded before authentication and /me verification.";
+  }
+}
+
 export async function bootProductShell({
   auth,
   fetchImpl = globalThis.fetch,
@@ -46,6 +78,7 @@ export async function bootProductShell({
   const onboarding = safeRelativePath(paths.onboarding || "/onboarding", "/onboarding");
   const appPath = safeRelativePath(paths.app || "/app", "/app");
   const isDeveloperPage = location?.pathname === "/dev";
+  const isWorkspacePage = isDeveloperPage || location?.pathname === appPath;
   let appController = null;
   const onAuthFailure = async () => {
     appController?.stop?.();
@@ -100,18 +133,22 @@ export async function bootProductShell({
     return { ...context, kind: "not_admin" };
   }
 
-  appController = await loadWorkspace();
-  if (!appController?.boot) {
-    await onAuthFailure();
-    return { kind: "workspace_error" };
+  if (isWorkspacePage) {
+    appController = await loadWorkspace();
+    if (!appController?.boot) {
+      await onAuthFailure();
+      return { kind: "workspace_error" };
+    }
+    appController.boot({
+      authorizedFetch: context.authorizedFetch,
+      storage,
+      me: context.me,
+      role: context.me.role,
+      developer: isDeveloperPage,
+      serverSessionId: context.me.portfolio_session_id || null,
+      readOnly: Boolean(context.me.read_only),
+    });
   }
-  appController.boot({
-    authorizedFetch: context.authorizedFetch,
-    storage,
-    me: context.me,
-    role: context.me.role,
-    developer: isDeveloperPage,
-  });
 
   const logout = globalRef.document?.getElementById?.("app-logout");
   logout?.addEventListener("click", async () => {

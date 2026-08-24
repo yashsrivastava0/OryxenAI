@@ -36,7 +36,12 @@ from oryxenai.agents.build_preparation.validators import BuildPreparationValidat
 from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import Agent, AgentKey
-from oryxenai.agents.shared.providers.errors import ProviderConfigError, ProviderError
+from oryxenai.agents.shared.providers.errors import (
+    ProviderConfigError,
+    ProviderError,
+    stable_provider_failure,
+)
+from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
 from oryxenai.db.session import get_sessionmaker
@@ -107,6 +112,7 @@ async def _execute_persisted(
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
 
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = BuildPreparationRepository(db)
         run = await repo.get_run(run_id)
         session = await repo.get_session(session_id)
@@ -144,6 +150,8 @@ async def _execute_persisted(
         input_payload = dict(run.input_payload)
 
     try:
+        async with sessionmaker() as db:
+            await WorkerAuthorizationFence(db).validate_payload(payload)
         agent = (
             agent_factory()
             if agent_factory is not None
@@ -161,23 +169,30 @@ async def _execute_persisted(
         result = await agent.run(context)
     except BuildPreparationValidationError as exc:
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
-        await _persist_failure(sessionmaker, session_id, run_id, error, attempt, max_attempts)
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+        )
         raise BuildPreparationJobError(exc.code, exc.message, exc.details) from exc
     except ProviderError as exc:
-        error = {"code": exc.code, "message": exc.message, "details": exc.details}
-        await _persist_failure(sessionmaker, session_id, run_id, error, attempt, max_attempts)
-        raise BuildPreparationJobError(
-            exc.code, exc.message, exc.details, retryable=exc.retryable
-        ) from exc
+        code, message = stable_provider_failure(exc)
+        error = {"code": code, "message": message, "details": {}}
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+        )
+        raise BuildPreparationJobError(code, message, {}, retryable=exc.retryable) from exc
     except ArtifactStorageError as exc:
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
-        await _persist_failure(sessionmaker, session_id, run_id, error, attempt, max_attempts)
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+        )
         raise BuildPreparationJobError(
             exc.code, exc.message, exc.details, retryable=exc.retryable
         ) from exc
     except PackageError as exc:
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
-        await _persist_failure(sessionmaker, session_id, run_id, error, attempt, max_attempts)
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+        )
         raise BuildPreparationJobError(exc.code, exc.message, exc.details) from exc
     except Exception as exc:
         logger.warning("build_preparation phase 3 failed with %s", type(exc).__name__)
@@ -186,12 +201,14 @@ async def _execute_persisted(
             "message": "Build Preparation could not complete.",
             "details": {},
         }
-        await _persist_failure(sessionmaker, session_id, run_id, stage_error, attempt, max_attempts)
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, stage_error, attempt, max_attempts
+        )
         raise BuildPreparationJobError(
             stage_error["code"], stage_error["message"], stage_error["details"], retryable=True
         ) from exc
 
-    return await _apply_result(sessionmaker, session_id, run_id, result, attempt)
+    return await _apply_result(sessionmaker, session_id, run_id, payload, result, attempt)
 
 
 def _approved_source_ref(content_architect: Any, visual_design_director: Any, settings: Any) -> Any:
@@ -240,10 +257,12 @@ async def _apply_result(
     sessionmaker: Any,
     session_id: UUID,
     run_id: UUID,
+    payload: dict[str, Any],
     result: Any,
     attempt: int,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = BuildPreparationRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
@@ -363,11 +382,13 @@ async def _persist_failure(
     sessionmaker: Any,
     session_id: UUID,
     run_id: UUID,
+    payload: dict[str, Any],
     error: dict[str, Any],
     attempt: int,
     max_attempts: int,
 ) -> None:
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = BuildPreparationRepository(db)
         session = await repo.get_session(session_id)
         if session is None:

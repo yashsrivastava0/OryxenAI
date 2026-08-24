@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.api.dependencies import (
+    get_db_session,
     get_session_repo,
     require_onboarded_user,
     require_session_owner_or_admin,
@@ -13,6 +15,7 @@ from oryxenai.api.dependencies import (
 from oryxenai.api.errors import ValidationError
 from oryxenai.auth.authorization import PortfolioAccess
 from oryxenai.auth.domain import AuthRole, CurrentUser
+from oryxenai.auth.entitlements import PortfolioEntitlementRepository
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 
@@ -60,11 +63,17 @@ async def create_session(
     body: CreateSessionRequest,
     _user: CurrentUser = Depends(require_onboarded_user),
     repo: PortfolioSessionRepository = Depends(get_session_repo),
+    db: AsyncSession = Depends(get_db_session),
 ) -> SessionResponse:
     name = body.name or "Untitled session"
     if len(name) > MAX_SESSION_NAME:
         raise ValidationError(f"Session name exceeds {MAX_SESSION_NAME} characters.")
-    session = await repo.create_owned(_user.id, name=name)
+    if _user.role is AuthRole.ADMIN:
+        session = await repo.create_owned(_user.id, name=name)
+    else:
+        session = await PortfolioEntitlementRepository(db).get_or_create_session(
+            user_id=_user.id, name=name
+        )
     return _to_response(session)
 
 

@@ -106,7 +106,9 @@ from oryxenai.agents.shared.providers.errors import (
     ModelJsonInvalidError,
     ModelOutputTruncatedError,
     ProviderError,
+    stable_provider_failure,
 )
+from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
@@ -192,6 +194,7 @@ class CodeGeneratorGenerationOrchestrator:
         run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
         settings = get_settings()
         sessionmaker = get_sessionmaker(settings)
+        await _validate_worker_payload(sessionmaker, payload)
         async with sessionmaker() as db:
             repo = CodeGeneratorDevelopmentRepository(db)
             run = await repo.get(run_id)
@@ -243,6 +246,7 @@ class CodeGeneratorGenerationOrchestrator:
             await db.commit()
 
         try:
+            await _validate_worker_payload(sessionmaker, payload)
             reference = self._reference(run)
             input_adapter = DevelopmentInputAdapter(settings)
             input_receipt, projections = input_adapter.admit(reference)
@@ -355,7 +359,7 @@ class CodeGeneratorGenerationOrchestrator:
                     next_action="Review the generation issue and start a corrected run.",
                 ),
             )
-            return {"status": "needs_attention", "run_id": str(run_id)}
+            return {"status": "needs_attention", "run_id": str(run_id), "code": exc.code}
         except (
             WorkspaceError,
             SourceValidationError,
@@ -417,19 +421,19 @@ class CodeGeneratorGenerationOrchestrator:
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         except ProviderError as exc:
-            details = dict(exc.details)
-            details["exception_type"] = type(exc).__name__
+            code, message = stable_provider_failure(exc)
+            details: dict[str, str | int | float | bool] = {"exception_type": type(exc).__name__}
             await self._fail(
                 sessionmaker,
                 run_id,
                 SafeIssue(
-                    code=exc.code,
-                    message=exc.message,
+                    code=code,
+                    message=message,
                     next_action="Review the provider contract and start a corrected run.",
                     details=details,
                 ),
             )
-            return {"status": "needs_attention", "run_id": str(run_id)}
+            return {"status": "needs_attention", "run_id": str(run_id), "code": code}
         except Exception as exc:
             logger.error(
                 "code generator generation failed run_id=%s error=%s",
@@ -854,6 +858,7 @@ class CodeGeneratorGenerationOrchestrator:
             if persist_projection:
                 await self._persist(sessionmaker, run_id, projection, status=projection.phase)
             try:
+                await self._validate_run(sessionmaker, run_id)
                 result, call_receipt = await self._model_result(
                     settings=settings,
                     operation=operation,
@@ -1151,6 +1156,7 @@ class CodeGeneratorGenerationOrchestrator:
                 update={"stored_relative_path": context_path.relative_to(workspace.root).as_posix()}
             )
             projection.context_receipts.append(context_receipt)
+            await self._validate_run(sessionmaker, run_id)
             result, call_receipt = await self._model_result(
                 settings=settings,
                 operation="repair",
@@ -1283,6 +1289,7 @@ class CodeGeneratorGenerationOrchestrator:
                 "QUALITY_REVIEW_CONTEXT_TOO_LARGE",
                 "The complete source review exceeds the configured provider context ceiling.",
             )
+        await self._validate_run(sessionmaker, run_id)
         review, context_receipt, raw = await run_integration_review_operation(
             client,
             context=context,
@@ -1362,6 +1369,10 @@ class CodeGeneratorGenerationOrchestrator:
                 },
             )
             await db.commit()
+
+    async def _validate_run(self, sessionmaker: Any, run_id: UUID) -> None:
+        async with sessionmaker() as db:
+            await WorkerAuthorizationFence(db).validate_run(run_id)
 
     def _apply_changes(
         self,
@@ -2423,12 +2434,18 @@ def _review_accepted(review: IntegrationReviewV1 | QualityReviewDraftV1) -> bool
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:
+    await WorkerAuthorizationFence(repo._session).validate_run(run.id)
     updated = await repo.compare_and_swap(
         run.id, expected_revision=run.revision, values={"status": status, **values}
     )
     if updated is None:
         raise GenerationError("RUN_REVISION_CONFLICT", "The generation run changed concurrently.")
     return updated
+
+
+async def _validate_worker_payload(sessionmaker: Any, payload: dict[str, Any]) -> None:
+    async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
 
 
 __all__ = ["CodeGeneratorGenerationOrchestrator", "GenerationError"]

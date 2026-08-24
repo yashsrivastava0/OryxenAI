@@ -89,7 +89,7 @@ promotion. It never auto-chains from Build Preparation. See
 `src/oryxenai/agents/code_generator/` and
 `docs/code-generator-architecture/v2-production-architecture.md`.
 
-**Authentication Phases 1 and 2 are implemented as bounded foundations.**
+**Authentication Phases 1 through 3 are implemented as bounded foundations.**
 Phase 1 provides Supabase Google-only session restoration through a self-hosted
 pinned browser client, asymmetric JWT/JWKS verification, verified-provider
 just-in-time admission, two bootstrap administrators, a 15-normal-user
@@ -97,9 +97,12 @@ capacity gate, one-time username onboarding, `GET /api/v1/me`, and the
 temporary auth page controller/shell. Phase 2 adds `portfolio_sessions`
 ownership, explicit legacy quarantine, active/onboarded/owner/admin FastAPI
 dependencies, owner-scoped product APIs, admin cross-session access, and the
-authenticated product/developer browser boot boundary. Entitlements, durable
-worker fencing, administrator lifecycle, and production deployment remain
-Phases 3 and 4; this is not a complete authorization or production claim.
+authenticated product/developer browser boot boundary. Phase 3 adds the
+single normal-user portfolio/generation/success entitlement, trusted durable
+owner/actor snapshots, worker reauthorization, global model-generation lane,
+verified preview finalization, and server-enforced post-success read-only
+behavior. Administrator lifecycle, full multi-account browser acceptance, and
+production deployment remain Phase 4; this is not a complete deployment claim.
 
 To verify current status rather than trusting this document: run
 `uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
@@ -126,11 +129,11 @@ deterministic mock, not a live implementation.
   endpoint.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
-- Phase 3-4 authorization work remains excluded: one-portfolio/variant/success
-  entitlements, durable worker fencing, administrator lifecycle, and production
-  deployment are not implemented. Billing and published-portfolio deployment
-  automation remain excluded. Cloudflare R2 is used only for temporary Build
-  Preparation packs.
+- Phase 4 authorization/deployment work remains excluded: administrator
+  lifecycle, audit operations, destructive cleanup/reset, full multi-account
+  browser acceptance, and production deployment are not implemented. Billing
+  and published-portfolio deployment automation remain excluded. Cloudflare
+  R2 is used only for temporary Build Preparation packs.
 - No Redis, Celery, Kafka, or external queue.
 
 ## Config-driven policy — never hardcode
@@ -165,7 +168,7 @@ src/oryxenai/
   db/                        async engine, session, models, repositories
   jobs/                      durable PostgreSQL job queue, worker, heartbeat
   agents/shared/             contracts, registry, executor, model_client
-  auth/                      Phase 1 identity plus Phase 2 browser/runtime auth
+  auth/                      Phase 1 identity, Phase 2 ownership, Phase 3 entitlements/fencing
   agents/{discovery, content_architect, visual_design_director, code_generator}/
   runtime/                   state_service, mock_runner
   api/routes/                stage/session APIs including build-preparation and code-generator
@@ -232,8 +235,10 @@ Browser → Supabase session restore/PKCE callback
   → bearer-authenticated product/development requests
 ```
 
-The existing portfolio routes now use the Phase 2 owner/admin authorization
-boundary; durable worker owner/actor fencing remains deferred to Phase 3.
+The existing portfolio routes use the Phase 2 owner/admin authorization
+boundary plus Phase 3 server-side entitlement mutation guards. Durable work
+stores trusted owner/actor snapshots, and workers reauthorize those snapshots
+before portfolio work, successor enqueue, and preview finalization.
 
 All agent input, output, state snapshots, and errors are stored as JSONB.
 Agent code never receives database sessions or HTTP requests.
@@ -369,10 +374,8 @@ Content Architect's architecture one stage down the pipeline:
 
 ## What to implement next
 
-- **Phase 3:** add one-portfolio/variant/success entitlement semantics, durable
-  owner/actor bindings, and worker finalization fencing.
-- **Phase 4:** add administrator lifecycle/audit operations, full browser
-  acceptance, and deployment handoff.
+- **Phase 4:** add administrator lifecycle/audit operations, destructive
+  cleanup/reset, full multi-account browser acceptance, and deployment handoff.
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
 - **Evaluate Code Generator production generations** with privacy-safe packs;

@@ -35,6 +35,10 @@ class CodeGeneratorDevelopmentRepository:
         preview_host: str | None = None,
         pipeline_contract_version: str = "code-generator-v3",
         trace_id: str | None = None,
+        owner_user_id: UUID | None = None,
+        actor_user_id: UUID | None = None,
+        authorization_context_version: int = 0,
+        entitlement_revision: int | None = None,
     ) -> CodeGeneratorDevelopmentRun:
         run = CodeGeneratorDevelopmentRun(
             input_reference=input_reference,
@@ -52,6 +56,10 @@ class CodeGeneratorDevelopmentRepository:
             auto_advance=auto_advance,
             pipeline_contract_version=pipeline_contract_version,
             trace_id=trace_id,
+            owner_user_id=owner_user_id,
+            actor_user_id=actor_user_id,
+            authorization_context_version=authorization_context_version,
+            entitlement_revision=entitlement_revision,
         )
         self._session.add(run)
         await self._session.flush()
@@ -104,10 +112,11 @@ class CodeGeneratorDevelopmentRepository:
         )
         return list(result.scalars().all())
 
-    async def get(self, run_id: UUID) -> CodeGeneratorDevelopmentRun | None:
-        result = await self._session.execute(
-            select(CodeGeneratorDevelopmentRun).where(CodeGeneratorDevelopmentRun.id == run_id)
-        )
+    async def get(self, run_id: UUID, *, lock: bool = False) -> CodeGeneratorDevelopmentRun | None:
+        stmt = select(CodeGeneratorDevelopmentRun).where(CodeGeneratorDevelopmentRun.id == run_id)
+        if lock:
+            stmt = stmt.with_for_update()
+        result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def compare_and_swap(

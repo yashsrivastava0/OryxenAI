@@ -22,6 +22,7 @@ from oryxenai.agents.build_preparation.service import (
 from oryxenai.api.dependencies import (
     get_build_preparation_service,
     require_admin,
+    require_mutable_portfolio,
     require_session_owner_or_admin,
 )
 from oryxenai.api.errors import AppError
@@ -180,6 +181,7 @@ async def start_build_preparation(
     session_id: str,
     body: StartRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
@@ -203,6 +205,7 @@ async def regenerate_build_preparation(
     session_id: str,
     body: StartRequest | None = None,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
