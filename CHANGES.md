@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 18:30 +05:30 - Codex (model/provider omitted) - [dddc1ba] - Open Google registration and browser auth hardening
+Added explicit `open`/`allowlist` admission modes, with the product and Docker
+deployment admitting verified Google users until the server-side 15-user cap.
+Updated the auth UI copy and route metadata, added no-token HTML assertions and
+security headers, and documented the remaining Google OAuth Testing/publishing
+owner gate (D-048). Supabase PKCE browser sessions remain managed by the pinned
+client; tokens are not rendered in HTML, URLs, logs, or API responses.
+
 ### 2026-08-24 17:44 +05:30 - Codex (model/provider omitted) - [449b379] - Authentication redirect flicker fix
 Loaded the pinned Supabase browser client before every product/development auth
 bootstrap, removed auth-only CSS from the product workspace, preserved valid
