@@ -64,71 +64,86 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.discovery]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 150
 max_retries = 1
 max_output_tokens = 32000
-reasoning_effort = "low"
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.discovery.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.content_architect]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 150
 max_retries = 1
 max_output_tokens = 32000
-reasoning_effort = "low"
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.content_architect.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.visual_design_director]
-provider = "openai"
-model = "gpt-5.6-luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-5"
+display_name = "Anthropic — Claude Sonnet 5"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 150
 max_retries = 1
 max_output_tokens = 32000
-reasoning_effort = "low"
+reasoning_effort = "medium"
+prompt_cache_ttl = "5m"
 store = false
 
 [profiles.visual_design_director.capabilities]
 json_object_mode = true
-json_schema_mode = false
+json_schema_mode = true
 thinking_mode = true
+structured_output_mode = "native_json_schema"
+thinking_strategy = "adaptive"
+effort_parameter = "output_config_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
 response_id = true
-context_cache_metadata = false
+context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
 
