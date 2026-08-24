@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 - Codex (model/provider omitted) - [pending] - Make GitHub CI database and Docker smoke setup self-contained
+Configured the CI PostgreSQL port override to match the GitHub service
+container, upgraded the workflow actions to Node 24-compatible releases,
+disabled the failing optional uv cache, and added disposable, post-secret-scan
+environment placeholders for the Docker smoke test. Production credentials and
+local `.env` files remain outside version control.
+
 ### 2026-08-24 18:36 +05:30 - Codex (model/provider omitted) - [e70b6ab] - Align auth handoff documentation with public admission
 Updated the Auth README, owner deployment checklist, and implementation handoff
 so future agents use the new open/allowlist admission mode rather than the

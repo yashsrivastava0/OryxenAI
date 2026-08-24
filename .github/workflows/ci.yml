@@ -28,19 +28,23 @@ jobs:
 
     env:
       POSTGRES_PASSWORD: oryxen_test
+      # The GitHub service container is published on 5432. Local Compose
+      # deliberately uses 5544, so CI must override the host-side port.
+      DB_PORT_OVERRIDE: 5432
       OryxenAI_CONFIG_OVERLAY: config/app.test.toml
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          enable-cache: false
+        # The hosted cache service returned HTTP 400 in this repository. CI
+        # remains deterministic without the optional uv package cache.
 
       - name: Set up Python
         run: uv python install 3.13
@@ -79,6 +83,22 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         with:
           args: detect --source . --no-git --verbose --redact
+
+      - name: Create CI Docker environment
+        run: |
+          # Docker Compose loads .env for its env_file entries. These values
+          # are disposable CI placeholders, never production credentials.
+          # Keep this step after the secret scan so the placeholders are not
+          # mistaken for repository secrets.
+          cat > .env <<'EOF'
+          POSTGRES_PASSWORD=oryxen_test
+          SUPABASE_URL=https://ci-auth.invalid
+          SUPABASE_PUBLISHABLE_KEY=ci_publishable_key
+          SUPABASE_SECRET_KEY=ci_secret_key
+          ORYXENAI_ADMIN_BOOTSTRAP_EMAILS=ci-admin-one@example.com,ci-admin-two@example.com
+          R2_ACCESS_KEY_ID=ci_r2_access_key
+          R2_SECRET_ACCESS_KEY=ci_r2_secret_key
+          EOF
 
       - name: Docker build
         run: docker compose build
