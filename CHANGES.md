@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 - Codex (model/provider omitted) - [b17227c] - Phase 4 administrator lifecycle and acceptance
+Implemented the linear Phase 4 migration, safe admin operations/audit ledger,
+Supabase Admin API adapter, resumable user/project cleanup, identity/project
+tombstones, entitlement reset, promotion/demotion safety, deletion worker
+fences, Code Generator admin commands, functional masked admin console, and
+deterministic verification/reporting. Local authentication and authorization
+are complete through Phase 4; owner browser acceptance and production
+deployment remain separate gates.
+
 ### 2026-08-24 13:07 +05:30 - Codex (model/provider omitted) - [90d5dfe] - Phase 3 portfolio entitlements and worker fencing
 Implemented migration 0016 with one normal-user portfolio, generation-variant, and verified-success entitlement; trusted durable owner/actor snapshots; global model-generation admission; redacted provider-credit failures; worker reauthorization; verified preview finalization; and server-enforced post-success read-only behavior. Updated the authenticated product shell and Phase 3 documentation/tests. Administrator lifecycle, destructive reset/delete, live multi-account acceptance, and deployment remain Phase 4.
 
