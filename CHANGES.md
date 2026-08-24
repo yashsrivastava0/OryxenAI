@@ -18,6 +18,12 @@ worker, and verified the local stack plus focused agent tests. The first live
 run reached OpenAI successfully but stopped at the account's exhausted credit
 balance before any pack could be materialized.
 
+### 2026-08-24 21:18 +05:30 - Codex (GPT-5.6 Luna / OpenAI) - [bf8f63d] - Route the first three agents through OpenAI Luna
+Switched Discovery, Content Architect, and Visual Design Director to the
+OpenAI-compatible `gpt-5.6-luna` profiles using `OPENAI_API_KEY`, updated the
+runbook and settings coverage, and verified the Docker stack. A bounded live
+Discovery call reached OpenAI but still returned `credit_balance_exhausted`.
+
 ### 2026-08-24 18:36 +05:30 - Codex (model/provider omitted) - [e70b6ab] - Align auth handoff documentation with public admission
 Updated the Auth README, owner deployment checklist, and implementation handoff
 so future agents use the new open/allowlist admission mode rather than the
