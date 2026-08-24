@@ -37,7 +37,9 @@ or retain Clerk-specific keys, subjects, webhooks, SDKs, routes, or UI.
 ## Confirmed product policy
 
 1. One **Continue with Google** action handles both first sign-in and return.
-2. Registration is application-allowlisted through
+2. Registration uses `auth.admission_mode = "open"` by default: any verified
+   Google identity may join until the 15-user normal capacity is full. A
+   restricted deployment can set `"allowlist"` and use
    `ORYXENAI_ALLOWED_USER_EMAILS`.
 3. Two bootstrap administrator emails are supplied privately through
    `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` and persist as database-authoritative
@@ -74,8 +76,8 @@ Redaction-safe verification confirmed:
 - all five expected local environment entries are declared;
 - the configured project URL matches the recorded project;
 - two distinct bootstrap administrator entries are present;
-- one separate non-admin test identity is present in the private normal-user
-  allowlist and Google test-user list;
+- one separate non-admin test identity is present in the private application
+  configuration and Google test-user list;
 - Supabase Auth settings are reachable;
 - the Google provider is enabled;
 - the project JWKS endpoint exposes a signing key; and
@@ -116,7 +118,7 @@ signed out -> /sign-in -> Google/Supabase redirect -> /auth/callback
            -> GET /api/v1/me
            -> unapproved: /access-not-approved
            -> suspended/deleting: /account-unavailable
-           -> approved new user: /onboarding -> unique username -> /app
+           -> admitted new user: /onboarding -> unique username -> /app
            -> returning active user: /app
            -> administrator: /app, with explicit /admin available
 ```
@@ -130,14 +132,16 @@ Use a full-page redirect. Do not automate a real Google password in CI.
 - Never authorize from `user_metadata`, browser storage, query parameters, or
   caller-supplied email/role/owner fields.
 - On first login, resolve verified identity through Supabase Auth before
-  allowlist or admin bootstrap decisions.
+  admission-mode or admin bootstrap decisions.
 - Returning requests resolve the external `sub` to current local role/status.
 - Phase 1 protects the identity boundary and `/me`/username routes. Phase 2
   protects every existing portfolio object lookup with active/onboarded
   owner-or-admin policy and keeps legacy sessions admin-only.
 - Business tables remain backend-only; do not rely on the browser Data API.
 - Production starts fail closed if auth is required but provider coordinates,
-  keys, issuer/audience, or exact origins are invalid.
+  keys, issuer/audience, or exact origins are invalid. In open mode the
+  database capacity gate remains the normal-user admission limit; in allowlist
+  mode a non-empty email list is also required.
 
 ## Deployment boundary
 
