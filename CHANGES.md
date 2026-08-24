@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 - Codex (GPT-5 / OpenAI) - [563b2a6] - Force Google account selection after sign-out
+Updated the Supabase Google OAuth request to include `prompt=select_account`,
+so signing out and signing back in can reliably switch identities instead of
+silently reusing the previous Google account. Rebuilt and restarted the Docker
+app/worker stack and verified the frontend auth regression suite.
+
 ### 2026-08-24 21:55 +05:30 - Codex (Claude Sonnet 5 / Anthropic) - [3b3ed9f] - Route Build Preparation through Anthropic Sonnet 5
 Routed the live Build Preparation engine through the configured Anthropic
 `claude-sonnet-5` profile using `ANTHROPIC_API_KEY`, rebuilt and verified the
@@ -134,18 +140,6 @@ native-schema capability configuration, prompt caching, safe selectable-profile 
 fail-closed behavior, and regression coverage; Batch API submission remains
 deferred for a future asynchronous workload.
 
-### 2026-08-21 - Codex (GPT-5 / OpenAI) - [0240f57] - Lightweight LLM observability research
-Recorded a research-only recommendation for simple cost and tracing visibility:
-Langfuse first, Phoenix as a local alternative, and one metadata-only
-integration point at the shared `ModelClient` boundary. No runtime code,
-dependency, dashboard, or architecture decision was added.
-
-### 2026-08-21 - Codex (GPT-5 / OpenAI) - [b6a2be5] - First-three-agent startup recovery runbook
-Updated `docs/run/run.md` with the current migration head, Docker engine and
-stale-worker recovery, the guarded empty-database migration replay, and the
-verified API/worker/frontend startup state. The instructions preserve the
-PostgreSQL volume and unrelated dirty worktree changes.
-
 ### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [1b37748] — docs/run/run.md, standalone Code Generator Docker runbook
 Documented the isolated Code Generator development workflow: local Docker
 overlay and database setup, API/worker/preview-gateway startup, shared
@@ -158,48 +152,19 @@ Implemented D-039: generated portfolios remain portable Vite/React source plus v
 ### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [7eac824] — Code Generator generation, source/runtime verification, build isolation, preview promotion
 Hardened the provider-to-preview path with config-compatible structured output, bounded semantic/schema retries, source-only route workspaces, serialized package installs, deterministic route/content/interaction normalization, pack-resource materialization, writable browser/runtime environments, stale-artifact rejection, and diagnostic candidate-gateway failures (D-038). Verified two live generations from pack `20-35-19-08-6d3c4909` reached `ready` with all source/build/DOM gates passing and stable previews returning HTTP 200.
 
-### 2026-08-21 - Codex (live provider run) - [0e965fd] - Code Generator provider contract, planner admission, Docker workspace portability
-Added config-driven Anthropic wire capabilities, no-context provider preflight, safe provider diagnostics, typed-mapping schema fallback, bounded planner validation retry, exact pack selection receipts, frontend preflight/error states, and Docker runtime repository-root fallback. The live exact-pack run now passes provider preflight, planning, and acquisition; the remaining route-builder attempt is still provider-backed and bounded by the existing durable job policy.
-
-### 2026-08-20 - Codex - [f726d03] - Add Claude Sonnet 5 Code Generator provider
-Added an optional native Anthropic Messages API adapter with schema-guided
-structured output, extended-thinking budgets, usage normalization, provider
-retry/error handling, and lazy `ANTHROPIC_API_KEY` resolution. Only the Code
-Generator profiles now target `claude-sonnet-5`; all upstream agents retain
-their existing providers.
-
-### 2026-08-20 - Codex (live Docker run) - [3ced105] - Restore standalone Code Generator Docker runtime
-Accepted the configured system Chromium executable in standalone readiness,
-finalized completed durable stage attempts before advancing, and added focused
-coverage. The existing standalone stack reached live route generation from an
-eligible Build Preparation pack; the provider then failed closed with
-`insufficient_quota`.
-
-### 2026-08-20 - Codex (live Docker run) - [8cdbfb8] - Complete Docker route generation
-Fixed the Docker generation path so npm's disposable `node_modules/.bin`
-symlinks do not fail workspace safety checks, route-batch waves retain their
-already-satisfied foundation dependency, and isolated route workspaces retain
-the receipt-bound toolchain for real typechecks. Focused Code Generator tests
-and Ruff passed; the live run remains provider-backed and fail-closed.
-
-### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [6e2c072] - TypeScript source audit and exact runtime verification
-Added the V3 source-contract audit for local imports/exports, route landmarks,
-section and interaction ownership, trusted SharedSystems, forbidden network
-code, and executable resource usage. Strengthened browser verification with
-exact route/section/interaction outcomes, mounted-route handling, accessibility
-state, local-resource, and non-empty evidence checks.
-
-### 2026-08-20 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [e8d6ec1] - Build Preparation pack-v4 delegated acquisition
-Added explicit opt-in pack-v4 delegation after upstream resource attempts,
-closed provider/candidate policy, strict v3/v4 reader compatibility, and
-deterministic delegated image/font/component requests using the existing local
-retrieval and provenance boundary.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-21 - Codex (GPT-5 / OpenAI) - [0240f57] - Lightweight LLM observability research and metadata-only tracing recommendation.
+- 2026-08-21 - Codex (GPT-5 / OpenAI) - [b6a2be5] - First-three-agent Docker startup recovery runbook and verified frontend/API/worker state.
+- 2026-08-21 - Codex (live provider run) - [0e965fd] - Code Generator provider contract, planner admission, and Docker workspace portability.
+- 2026-08-20 - Codex - [f726d03] - Native Claude Sonnet 5 Code Generator provider adapter and structured-output handling.
+- 2026-08-20 - Codex (live Docker run) - [3ced105] - Standalone Code Generator Docker runtime recovery and live provider attempt.
+- 2026-08-20 - Codex (live Docker run) - [8cdbfb8] - Docker route-generation workspace, dependency, and typecheck reliability fixes.
+- 2026-08-20 - Codex (GPT-5 / OpenAI) - [6e2c072] - TypeScript source-contract audit and exact browser/runtime verification.
+- 2026-08-20 - Codex (GPT-5 / OpenAI) - [e8d6ec1] - Build Preparation pack-v4 delegated acquisition and deterministic resource handling.
 - 2026-08-20 - Codex (GPT-5 / OpenAI) - [86b3e8d] - Design-neutral Code Generator V3 generation, typed experience tokens, trusted shared systems, route-batch ownership, isolated scheduling, and source regressions.
 - 2026-08-20 - Codex (GPT-5) - [0c4901f] - Fenced stage attempts, immutable workflow artifacts, trace metadata, retry classification, worker readiness, and content-addressed artifact repositories.
 - 2026-08-19 - Codex (live provider run) - [8259231] - Grounded Build Preparation to Code Generator execution, exact-pack survival, verified preview promotion, and persistent local export.
@@ -249,6 +214,6 @@ retrieval and provenance boundary.
 
 ## Summary (as of last compaction — 2026-08-24)
 
-- Recent detailed entries retained: 20
-- Compacted milestone bullets: 26
+- Recent detailed entries retained: 23
+- Compacted milestone bullets: 34
 - Last updated: 2026-08-24 — Codex (model/provider omitted)
