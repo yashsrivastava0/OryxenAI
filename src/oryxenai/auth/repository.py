@@ -17,7 +17,7 @@ from oryxenai.auth.errors import (
     UsernameLockedError,
     UsernameTakenError,
 )
-from oryxenai.auth.models import AppUser, AppUserCapacity
+from oryxenai.auth.models import AppUser, AppUserCapacity, DeletedIdentityTombstone
 
 CAPACITY_SCOPE = "normal-users"
 
@@ -41,6 +41,20 @@ class AuthRepository:
             stmt = stmt.with_for_update()
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def has_active_identity_tombstone(
+        self, *, subject: UUID, email: str, lock: bool = False
+    ) -> bool:
+        """Return whether either immutable provider identity is tombstoned."""
+        stmt = select(DeletedIdentityTombstone.id).where(
+            DeletedIdentityTombstone.readmission_approved_at.is_(None),
+            (DeletedIdentityTombstone.supabase_user_id == subject)
+            | (DeletedIdentityTombstone.primary_email == email),
+        )
+        if lock:
+            stmt = stmt.with_for_update()
+        result = await self._session.execute(stmt.limit(1))
+        return result.scalar_one_or_none() is not None
 
     async def touch(self, user: AppUser) -> AppUser:
         now = datetime.now(UTC)
@@ -95,6 +109,8 @@ class AuthRepository:
         # not consume it, but sharing the lock makes same-subject provisioning
         # deterministic across callback tabs without holding an HTTP call.
         await self._lock_capacity(normal_user_limit)
+        if await self.has_active_identity_tombstone(subject=subject, email=email):
+            raise AccountDeletedError()
         existing = await self.get_by_subject(subject, lock=True)
         if existing is not None:
             return existing, False

@@ -1,6 +1,6 @@
 """Add Phase 3 entitlement bindings and durable worker authorization fencing.
 
-Revision ID: 0016_auth_entitlements_worker_fencing
+Revision ID: 0016_auth_entitlements
 Revises: 0015_portfolio_ownership
 """
 
@@ -16,7 +16,7 @@ from sqlalchemy.dialects import postgresql
 # passed through PostgreSQL format(%I) inside the block.
 # ruff: noqa: S608
 
-revision: str = "0016_auth_entitlements_worker_fencing"
+revision: str = "0016_auth_entitlements"
 down_revision: str | None = "0015_portfolio_ownership"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -84,6 +84,7 @@ def upgrade() -> None:
             "authorization_context_version", sa.Integer(), nullable=False, server_default="0"
         ),
     )
+    op.add_column("agent_runs", sa.Column("entitlement_revision", sa.Integer(), nullable=True))
 
     for name, column in (
         ("owner_user_id", postgresql.UUID(as_uuid=True)),
@@ -221,7 +222,7 @@ def upgrade() -> None:
             table,
             ["portfolio_session_id", "owner_user_id", "actor_user_id"],
         )
-    for table in ("code_generator_runs", "background_jobs"):
+    for table in ("agent_runs", "code_generator_runs", "background_jobs"):
         op.create_check_constraint(
             f"ck_{table}_entitlement_revision",
             table,
@@ -448,7 +449,7 @@ def downgrade() -> None:
         op.drop_index(f"ix_{table}_authorization", table_name=table)
         op.drop_constraint(f"ck_{table}_current_context_bindings", table, type_="check")
         op.drop_constraint(f"ck_{table}_authorization_context_version", table, type_="check")
-    for table in ("code_generator_runs", "background_jobs"):
+    for table in ("agent_runs", "code_generator_runs", "background_jobs"):
         op.drop_constraint(f"ck_{table}_entitlement_revision", table, type_="check")
     for name, table in (
         ("fk_background_jobs_actor_user", "background_jobs"),
@@ -474,6 +475,7 @@ def downgrade() -> None:
         ("actor_user_id", "code_generator_runs"),
         ("owner_user_id", "code_generator_runs"),
         ("authorization_context_version", "agent_runs"),
+        ("entitlement_revision", "agent_runs"),
         ("actor_user_id", "agent_runs"),
         ("owner_user_id", "agent_runs"),
     ):

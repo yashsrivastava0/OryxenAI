@@ -30,7 +30,7 @@ from oryxenai.agents.visual_design_director.state import (
     apply_revision_requested,
     apply_start,
 )
-from oryxenai.auth.authorization import durable_snapshot
+from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.visual_design_director import VisualDesignDirectorRepository
 from oryxenai.jobs.service import JobService
@@ -245,7 +245,6 @@ class VisualDesignDirectorService:
 
         run = AgentRun(
             id=uuid4(),
-            portfolio_session_id=session_id,
             agent_key="visual_design_director",
             status="pending",
             input_payload={
@@ -258,7 +257,7 @@ class VisualDesignDirectorService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
-            **durable_snapshot(self._job_service.authorization_context),
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -321,7 +320,6 @@ class VisualDesignDirectorService:
         )
         run = AgentRun(
             id=uuid4(),
-            portfolio_session_id=session_id,
             agent_key="visual_design_director",
             status="pending",
             input_payload={
@@ -334,7 +332,7 @@ class VisualDesignDirectorService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
-            **durable_snapshot(self._job_service.authorization_context),
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(

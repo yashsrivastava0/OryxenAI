@@ -63,6 +63,7 @@ class WorkerAuthorizationFence:
             session is None
             or session.legacy_quarantined
             or session.owner_user_id != job.owner_user_id
+            or session.status in {"deletion_pending", "deleted"}
         ):
             raise AuthorizationFenceError()
         owner = await self._one(AppUser, job.owner_user_id)
@@ -257,7 +258,12 @@ class WorkerAuthorizationFence:
                     return
             raise AuthorizationFenceError()
         session = await self._one(PortfolioSession, session_id)
-        if session is None or not session.legacy_quarantined or session.owner_user_id is not None:
+        if (
+            session is None
+            or session.status in {"deletion_pending", "deleted"}
+            or not session.legacy_quarantined
+            or session.owner_user_id is not None
+        ):
             raise AuthorizationFenceError()
 
     async def _one(self, model: Any, identifier: UUID) -> Any | None:

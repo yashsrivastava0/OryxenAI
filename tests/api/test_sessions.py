@@ -54,13 +54,14 @@ async def test_create_session_default_name(client):
 
 
 async def test_list_sessions(client):
-    """GET /sessions returns recent sessions."""
-    await client.post("/api/v1/sessions", json={"name": "A"})
-    await client.post("/api/v1/sessions", json={"name": "B"})
+    """GET /sessions returns the normal user's single entitlement session."""
+    first = await client.post("/api/v1/sessions", json={"name": "A"})
+    second = await client.post("/api/v1/sessions", json={"name": "B"})
     resp = await client.get("/api/v1/sessions")
     assert resp.status_code == 200
     sessions = resp.json()
-    assert len(sessions) >= 2
+    assert len(sessions) == 1
+    assert second.json()["id"] == first.json()["id"] == sessions[0]["id"]
 
 
 async def test_get_session_by_id(client):

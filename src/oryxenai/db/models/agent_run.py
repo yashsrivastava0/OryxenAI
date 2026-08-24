@@ -29,18 +29,27 @@ class AgentRun(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     portfolio_session_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("portfolio_sessions.id", ondelete="RESTRICT"),
+        ForeignKey(
+            "portfolio_sessions.id",
+            name="fk_agent_runs_portfolio_session",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
     )
     owner_user_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), nullable=True
+        PGUUID(as_uuid=True),
+        ForeignKey("app_users.id", name="fk_agent_runs_owner_user", ondelete="RESTRICT"),
+        nullable=True,
     )
     actor_user_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), nullable=True
+        PGUUID(as_uuid=True),
+        ForeignKey("app_users.id", name="fk_agent_runs_actor_user", ondelete="RESTRICT"),
+        nullable=True,
     )
     authorization_context_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    entitlement_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
     agent_key: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
     input_payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
@@ -87,6 +96,10 @@ class AgentRun(Base):
             "authorization_context_version = 0 OR "
             "(owner_user_id IS NOT NULL AND actor_user_id IS NOT NULL)",
             name="ck_agent_runs_current_context_bindings",
+        ),
+        CheckConstraint(
+            "entitlement_revision IS NULL OR entitlement_revision >= 0",
+            name="ck_agent_runs_entitlement_revision",
         ),
         Index(
             "ix_agent_runs_authorization", "portfolio_session_id", "owner_user_id", "actor_user_id"

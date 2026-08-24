@@ -48,9 +48,19 @@ class MeResponse(BaseModel):
                     if projection.successful_run_id is not None
                     else None
                 ),
+                deleted_portfolio_session_id=(
+                    str(projection.deleted_portfolio_session_id)
+                    if projection.deleted_portfolio_session_id is not None
+                    else None
+                ),
                 consumed_at=(
                     projection.consumed_at.isoformat()
                     if projection.consumed_at is not None
+                    else None
+                ),
+                project_deleted_at=(
+                    projection.project_deleted_at.isoformat()
+                    if projection.project_deleted_at is not None
                     else None
                 ),
                 can_create_portfolio=projection.can_create_portfolio,

@@ -70,6 +70,10 @@ class PreviewStorage(Protocol):
 
     async def delete(self, key: str) -> None: ...
 
+    async def list_prefix(
+        self, prefix: str, *, limit: int = 100, continuation: str | None = None
+    ) -> tuple[list[str], str | None]: ...
+
 
 class MemoryPreviewStorage:
     def __init__(self) -> None:
@@ -126,6 +130,20 @@ class MemoryPreviewStorage:
 
     async def delete(self, key: str) -> None:
         self._objects.pop(_safe_key(key), None)
+
+    async def list_prefix(
+        self, prefix: str, *, limit: int = 100, continuation: str | None = None
+    ) -> tuple[list[str], str | None]:
+        prefix = _safe_key(prefix).rstrip("/") + "/"
+        keys = sorted(key for key in self._objects if key.startswith(prefix))
+        start = 0
+        if continuation:
+            start = next(
+                (index + 1 for index, key in enumerate(keys) if key == continuation), len(keys)
+            )
+        selected = keys[start : start + max(1, min(limit, 100))]
+        next_key = selected[-1] if start + len(selected) < len(keys) else None
+        return selected, next_key
 
 
 class LocalPreviewStorage:
@@ -241,6 +259,27 @@ class LocalPreviewStorage:
             path.unlink()
         if metadata.exists():
             metadata.unlink()
+
+    async def list_prefix(
+        self, prefix: str, *, limit: int = 100, continuation: str | None = None
+    ) -> tuple[list[str], str | None]:
+        prefix = _safe_key(prefix).rstrip("/") + "/"
+        root = (self.root / prefix).resolve()
+        if not root.is_relative_to(self.root) or not root.is_dir():
+            return [], None
+        keys = sorted(
+            path.relative_to(self.root).as_posix()
+            for path in root.rglob("*")
+            if path.is_file() and not path.is_relative_to(self.metadata_root)
+        )
+        start = 0
+        if continuation:
+            start = next(
+                (index + 1 for index, key in enumerate(keys) if key == continuation), len(keys)
+            )
+        selected = keys[start : start + max(1, min(limit, 100))]
+        next_key = selected[-1] if start + len(selected) < len(keys) else None
+        return selected, next_key
 
 
 class S3PreviewStorage:
@@ -499,6 +538,41 @@ class S3PreviewStorage:
             raise PreviewStorageError(
                 "PREVIEW_DELETE_FAILED", "The preview object could not be deleted."
             ) from exc
+
+    async def list_prefix(
+        self, prefix: str, *, limit: int = 100, continuation: str | None = None
+    ) -> tuple[list[str], str | None]:
+        prefix = _safe_key(prefix).rstrip("/") + "/"
+        kwargs: dict[str, Any] = {
+            "Bucket": self._bucket,
+            "Prefix": self._physical_key(prefix),
+            "MaxKeys": max(1, min(limit, 100)),
+        }
+        if continuation:
+            # S3 continuation tokens are opaque provider values, not object
+            # keys.  Bound and reject control characters without applying the
+            # path validator used for user-controlled object keys.
+            if len(continuation) > 2048 or any(
+                ord(char) < 32 or ord(char) == 127 for char in continuation
+            ):
+                raise PreviewStorageError(
+                    "PREVIEW_CONTINUATION_UNSAFE",
+                    "The preview pagination token is unsafe.",
+                )
+            kwargs["ContinuationToken"] = continuation
+        try:
+            response = await asyncio.to_thread(lambda: self._client.list_objects_v2(**kwargs))
+        except Exception as exc:
+            raise PreviewStorageError(
+                "PREVIEW_LIST_FAILED", "Preview storage could not list the requested objects."
+            ) from exc
+        keys = [
+            str(item["Key"])[len(self._prefix) + 1 :]
+            for item in response.get("Contents", [])
+            if isinstance(item, Mapping) and "Key" in item
+        ]
+        token = response.get("NextContinuationToken") if response.get("IsTruncated") else None
+        return keys, str(token) if token else None
 
 
 def _atomic_write_bytes(path: Path, data: bytes) -> None:

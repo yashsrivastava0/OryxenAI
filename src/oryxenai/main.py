@@ -20,6 +20,7 @@ from oryxenai.api.errors import (
     unhandled_error_handler,
 )
 from oryxenai.api.routes import create_api_router, create_health_router
+from oryxenai.auth.admin.provider import SupabaseAdminProvider
 from oryxenai.auth.jwt import SupabaseJwtVerifier
 from oryxenai.auth.provider import SupabaseAuthProvider
 from oryxenai.auth.web import create_auth_web_router
@@ -27,6 +28,7 @@ from oryxenai.core.lifecycle import dispose_engine
 from oryxenai.core.logging import configure_logging, get_logger, new_request_id
 from oryxenai.core.settings import Settings, get_settings
 from oryxenai.db.session import get_engine, get_sessionmaker
+from oryxenai.storage.preview import create_preview_storage
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -127,6 +129,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("shutting down %s", settings.app.name)
         await app.state.auth_verifier.aclose()
         await app.state.auth_provider.aclose()
+        await app.state.auth_admin_provider.aclose()
         await app.state.fixture_run_manager.close()
         await dispose_engine(app.state.engine)
         logger.info("shutdown complete")
@@ -159,6 +162,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         publishable_key=s.supabase_publishable_key.get_secret_value(),
         timeout_seconds=s.auth.http_timeout_seconds,
     )
+    app.state.auth_admin_provider = SupabaseAdminProvider(
+        supabase_url=s.supabase_url,
+        secret_key=s.supabase_secret_key.get_secret_value(),
+        timeout_seconds=s.auth.http_timeout_seconds,
+    )
+    # The admin cleanup service uses the same reviewed preview-store boundary
+    # as the production verifier.  Artifact storage remains lazily owned by
+    # the Code Generator service because cloud credentials must not be needed
+    # to boot a local auth console.
+    app.state.preview_storage = create_preview_storage(s)
 
     # Middleware (order: outer to inner; last added runs first).
     app.add_middleware(SecurityHeadersMiddleware)

@@ -69,6 +69,12 @@ class JobService:
             snapshot = durable_snapshot(context)
         else:
             snapshot = durable_snapshot(None)
+            session_value = payload.get("portfolio_session_id") or payload.get("session_id")
+            if session_value:
+                try:
+                    snapshot["portfolio_session_id"] = UUID(str(session_value))
+                except (TypeError, ValueError) as exc:
+                    raise EntitlementBindingConflictError() from exc
         return await self._repo.enqueue(
             job_kind=job_kind,
             payload=payload,
