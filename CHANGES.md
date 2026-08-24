@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 21:55 +05:30 - Codex (Claude Sonnet 5 / Anthropic) - [3b3ed9f] - Route Build Preparation through Anthropic Sonnet 5
+Routed the live Build Preparation engine through the configured Anthropic
+`claude-sonnet-5` profile using `ANTHROPIC_API_KEY`, rebuilt and verified the
+Docker app/worker, and completed a live pack run. The pack was materialized,
+ZIP-verified, uploaded to the temporary artifact store, and mirrored locally;
+deterministic admission correctly retained it as `needs_attention` because
+two upstream VDD execution gaps remained.
+
 ### 2026-08-24 21:30 +05:30 - Codex (Claude Sonnet 5 / Anthropic) - [456db9c] - Route the first three agents through Anthropic Sonnet 5
 Switched Discovery, Content Architect, and Visual Design Director to the
 configured Anthropic `claude-sonnet-5` profiles using `ANTHROPIC_API_KEY`,
