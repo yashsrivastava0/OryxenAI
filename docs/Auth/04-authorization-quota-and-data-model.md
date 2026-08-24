@@ -5,8 +5,8 @@ Implementation status: Phase 2 ownership is implemented in
 implemented in `0016_auth_entitlements_worker_fencing`. Existing rows are
 legacy/admin-only; new API-created rows are explicitly owned. Normal users now
 have one entitlement row that binds one session, one production generation
-run/variant, and one verified success. Administrator audit/lifecycle remains
-Phase 4 and is intentionally not present.
+run/variant, and one verified success. Phase 4 adds administrator
+audit/lifecycle state and deleted-project reset state.
 
 ## Identity is not authorization
 
@@ -27,8 +27,8 @@ browser.
 
 The Phase 1 identity tables are applied by `0014_auth_foundation`; the Phase 2
 session ownership fields are applied by `0015_portfolio_ownership`. The Phase 3
-entitlement table is applied by `0016_auth_entitlements_worker_fencing`; the
-audit table remains future Phase 4 design.
+entitlement table is applied by `0016_auth_entitlements_worker_fencing`; Phase
+4 audit and lifecycle tables are applied by `0017_auth_admin_lifecycle`.
 
 ### `app_users`
 
@@ -143,7 +143,8 @@ worker and by preview finalization.
 “Admin can do anything” means admin authorization can operate on every business
 resource. It does not mean bypassing model/state safety gates, forging provider
 results, reading secrets, or turning on disabled development routes in
-production. Administrator lifecycle/audit authority is explicitly Phase 4.
+production. Administrator lifecycle/audit authority is implemented in Phase 4
+through `AdminService`; production deployment remains separately gated.
 Entitlement and worker-fencing authority are Phase 3 server/database behavior.
 
 ## Exact one-portfolio semantics

@@ -86,8 +86,8 @@ After onboarding:
 
 ### Admin console (`/admin`)
 
-Phase 3 serves a temporary read-only admin shell. The following lifecycle
-surface is a Phase 4 contract, not an implemented Phase 3 API:
+Phase 4 serves the bounded administrator console. The following lifecycle
+surface is implemented behind the administrator dependency:
 
 - counts and health summary;
 - paginated users with username, masked email, role/status, admission, and
@@ -241,14 +241,14 @@ origins.
 | `GET/POST /api/v1/sessions*` | Active onboarded user | Normal users see/create only owned non-legacy sessions; admins see bounded owned and legacy rows. |
 | `/api/v1/system/*`, `/api/v1/model-profiles` | Admin | Developer/provider metadata and system diagnostics are not normal-user surfaces. |
 | mock/fixture/development APIs | Development admin | Conditionally mounted only when their feature and dev UI are enabled; absent in production. |
-| `GET /api/v1/admin/users` | Phase 4 admin | Bounded user list. |
-| `POST /api/v1/admin/users/{id}/suspend` | Phase 4 admin | Deny locally and revoke/ban with the current Supabase Admin API. |
-| `POST /api/v1/admin/users/{id}/restore` | Phase 4 admin | Restore local/provider access. |
-| `DELETE /api/v1/admin/users/{id}` | Phase 4 admin | Start resumable identity/data cleanup. |
-| `GET /api/v1/admin/projects` | Phase 4 admin | Bounded project list. |
-| `DELETE /api/v1/admin/projects/{id}` | Phase 4 admin | Fence work, revoke preview, clean storage, delete aggregate. |
-| `POST /api/v1/admin/users/{id}/quota-reset` | Phase 4 admin | Explicitly grant a new portfolio/variant after cleanup. |
-| `GET /api/v1/admin/audit-events` | Phase 4 admin | Recent safe admin actions. |
+| `GET /api/v1/admin/users` | Active onboarded admin | Bounded user list. |
+| `POST /api/v1/admin/users/{id}/suspend` | Active onboarded admin | Deny locally and revoke/ban with the current Supabase Admin API. |
+| `POST /api/v1/admin/users/{id}/restore` | Active onboarded admin | Restore local/provider access. |
+| `POST /api/v1/admin/users/{id}/delete` | Active onboarded admin | Start resumable identity/data cleanup. |
+| `GET /api/v1/admin/projects` | Active onboarded admin | Bounded project list. |
+| `POST /api/v1/admin/projects/{id}/delete` | Active onboarded admin | Fence work, revoke preview, clean storage, delete aggregate. |
+| `POST /api/v1/admin/users/{id}/entitlement/reset` | Active onboarded admin | Explicitly grant a new portfolio/variant after cleanup. |
+| `GET /api/v1/admin/audit-events` | Active onboarded admin | Recent safe admin actions. |
 
 Implementation may refine names but not access semantics.
 

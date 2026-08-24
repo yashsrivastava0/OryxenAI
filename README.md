@@ -113,16 +113,19 @@ PS > uv run alembic upgrade head
 PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000` for the temporary Google-only authentication
-shell. After authentication and username onboarding, `/app` boots the
-owner-scoped temporary workspace with a Supabase bearer token; `/dev` remains
-an explicit admin-only developer harness when enabled. Existing sessions are
-legacy-quarantined for normal users, while admins may inspect them.
+Open `http://127.0.0.1:8000` for the Google-only authentication shell. After
+authentication and username onboarding, `/app` boots the owner-scoped
+workspace; `/admin` provides the bounded, audited administrator console, and
+`/dev` remains an explicit admin-only developer harness when enabled. Existing
+sessions are legacy-quarantined for normal users, while administrators may
+inspect them.
 
-Phase 2 deliberately does not add the one-portfolio entitlement, durable worker
-fencing, administrator lifecycle, or production deployment. Run
+Local authentication and authorization now include the one-portfolio
+entitlement, durable worker fencing, resumable administrator lifecycle, safe
+project/user cleanup, entitlement reset, and bounded role transitions. Run
 `uv run alembic upgrade head` before using a database with pre-existing
-`portfolio_sessions` rows.
+`portfolio_sessions` rows. Production cloud deployment and owner-completed
+multi-account Google browser acceptance remain separate gates.
 
 ## Linux/macOS setup
 

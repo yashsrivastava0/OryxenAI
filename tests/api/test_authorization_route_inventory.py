@@ -102,6 +102,9 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
     assert routes
 
     for method, path, route in routes:
+        if path.startswith("/api/v1/admin/"):
+            _require(route, require_admin)
+            continue
         if method != "GET":
             assert (method, path) in _MUTATION_CLASSES, f"Unclassified mutation: {method} {path}"
         if path == "/api/v1/me":

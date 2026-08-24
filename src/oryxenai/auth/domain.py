@@ -115,6 +115,8 @@ class EntitlementProjection:
     can_regenerate: bool
     read_only: bool
     revision: int
+    deleted_portfolio_session_id: UUID | None = None
+    project_deleted_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

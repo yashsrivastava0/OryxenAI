@@ -97,6 +97,27 @@ function errorMessage(code) {
       return "Complete username onboarding before using this page.";
     case "AUTH_PROVIDER_UNAVAILABLE":
       return "Authentication is temporarily unavailable. Please try again shortly.";
+    case "ADMIN_CONFIRMATION_MISMATCH":
+      return "The administrator confirmation did not match the target.";
+    case "ADMIN_OPERATION_CONFLICT":
+      return "That administrator request key was already used with different input.";
+    case "ADMIN_OPERATION_RETRYABLE":
+    case "STORAGE_CLEANUP_FAILED":
+      return "The administrator operation needs a safe retry.";
+    case "AUTH_ADMIN_PROVIDER_UNAVAILABLE":
+      return "The identity provider administrator operation is temporarily unavailable.";
+    case "AUTH_ADMIN_PROVIDER_RATE_LIMITED":
+      return "The identity provider administrator operation is rate limited.";
+    case "LAST_ACTIVE_ADMIN_REQUIRED":
+      return "At least one active administrator must remain.";
+    case "ADMIN_SELF_ACTION_FORBIDDEN":
+      return "Administrators cannot perform this action on their own identity.";
+    case "PROJECT_RUNNING_WORK_PENDING":
+      return "Running portfolio work must finish before cleanup can continue.";
+    case "PROJECT_DELETION_PENDING":
+      return "This portfolio is being deleted and cannot accept new work.";
+    case "ENTITLEMENT_RESET_NOT_APPLICABLE":
+      return "This account has no deleted portfolio entitlement to reset.";
     default:
       return "Your authentication session is no longer valid.";
   }

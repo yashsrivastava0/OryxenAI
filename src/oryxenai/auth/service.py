@@ -104,6 +104,8 @@ class AuthService:
             raise AccountDeletedError()
         if status in {AccountStatus.SUSPENDED, AccountStatus.DELETION_PENDING}:
             raise AccountSuspendedError()
+        if user.supabase_user_id is None:
+            raise AccountDeletedError()
         return CurrentUser(
             id=user.id,
             supabase_user_id=user.supabase_user_id,

@@ -46,14 +46,22 @@ class CodeGeneratorRun(Base):
     )
     portfolio_session_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("portfolio_sessions.id", ondelete="RESTRICT"),
+        ForeignKey(
+            "portfolio_sessions.id",
+            name="fk_codegen_runs_portfolio_session",
+            ondelete="RESTRICT",
+        ),
         nullable=True,
     )
     owner_user_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), nullable=True
+        PGUUID(as_uuid=True),
+        ForeignKey("app_users.id", name="fk_codegen_runs_owner_user", ondelete="RESTRICT"),
+        nullable=True,
     )
     actor_user_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), nullable=True
+        PGUUID(as_uuid=True),
+        ForeignKey("app_users.id", name="fk_codegen_runs_actor_user", ondelete="RESTRICT"),
+        nullable=True,
     )
     authorization_context_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"

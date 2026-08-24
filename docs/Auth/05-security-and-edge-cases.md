@@ -78,7 +78,8 @@ current_user.id` and `legacy_quarantined = false`; active, onboarded admins may
 inspect owned and legacy sessions. System, model-profile, mock, fixture, and
 standalone development APIs are admin-only, and development families are not
 mounted when their configured feature surface is disabled. Administrator
-lifecycle mutations remain Phase 4.
+lifecycle mutations are implemented through the audited, resumable Phase 4
+service and remain database-authoritative.
 
 ## Origin, CORS, redirects, and CSRF
 

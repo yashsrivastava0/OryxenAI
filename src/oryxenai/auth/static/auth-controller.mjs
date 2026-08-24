@@ -288,6 +288,10 @@ export async function bootstrapAuthPage() {
     ui,
     paths: config.paths,
   });
+  if (result?.kind === "admin") {
+    const { bootstrapAdminConsole } = await import("./auth-admin.mjs");
+    await bootstrapAdminConsole({ auth });
+  }
   const signIn = document.getElementById("google-sign-in");
   signIn?.addEventListener("click", async () => {
     signIn.disabled = true;

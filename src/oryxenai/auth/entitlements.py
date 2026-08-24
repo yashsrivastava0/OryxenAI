@@ -27,7 +27,9 @@ def admin_entitlement_projection() -> EntitlementProjection:
         portfolio_session_id=None,
         generation_run_id=None,
         successful_run_id=None,
+        deleted_portfolio_session_id=None,
         consumed_at=None,
+        project_deleted_at=None,
         can_create_portfolio=True,
         can_start_generation=True,
         can_retry_generation=True,
@@ -230,6 +232,24 @@ class PortfolioEntitlementRepository:
 
     async def project_for_user(self, user_id: UUID) -> EntitlementProjection:
         entitlement = await self.ensure_for_normal_user(user_id)
+        if entitlement.deleted_portfolio_session_id is not None:
+            if entitlement.project_deleted_at is None:
+                raise EntitlementBindingConflictError()
+            return EntitlementProjection(
+                policy="single_portfolio",
+                portfolio_session_id=None,
+                generation_run_id=None,
+                successful_run_id=None,
+                deleted_portfolio_session_id=entitlement.deleted_portfolio_session_id,
+                consumed_at=entitlement.consumed_at,
+                project_deleted_at=entitlement.project_deleted_at,
+                can_create_portfolio=False,
+                can_start_generation=False,
+                can_retry_generation=False,
+                can_regenerate=False,
+                read_only=False,
+                revision=entitlement.revision,
+            )
         if (entitlement.successful_run_id is None) != (entitlement.consumed_at is None):
             raise EntitlementBindingConflictError()
         if (
@@ -278,7 +298,9 @@ class PortfolioEntitlementRepository:
             portfolio_session_id=entitlement.portfolio_session_id,
             generation_run_id=entitlement.generation_run_id,
             successful_run_id=entitlement.successful_run_id,
+            deleted_portfolio_session_id=entitlement.deleted_portfolio_session_id,
             consumed_at=entitlement.consumed_at,
+            project_deleted_at=entitlement.project_deleted_at,
             can_create_portfolio=entitlement.portfolio_session_id is None and not read_only,
             can_start_generation=entitlement.generation_run_id is None and not read_only,
             can_retry_generation=(
