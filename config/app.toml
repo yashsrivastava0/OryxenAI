@@ -157,7 +157,7 @@ fixture_upload = true
 fixture_reasoning_enabled = false
 fixture_debug_mirror_enabled = true
 debug_mirror_enabled = true
-model_profile = "build_preparation"
+model_profile = "openai_luna"
 reasoning_enabled = true
 integration_route_threshold = 2
 # Defaults for image-rich approved directions.  VDD may explicitly authorize
