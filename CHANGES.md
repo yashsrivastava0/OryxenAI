@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-24 - Codex (model/provider omitted) - [pending] - Make GitHub CI database and Docker smoke setup self-contained
+### 2026-08-24 - Codex (model/provider omitted) - [16e3e94] - Make GitHub CI database and Docker smoke setup self-contained
 Configured the CI PostgreSQL port override to match the GitHub service
 container, upgraded the workflow actions to Node 24-compatible releases,
 disabled the failing optional uv cache, and added disposable, post-secret-scan
