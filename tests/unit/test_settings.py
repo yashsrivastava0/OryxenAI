@@ -57,18 +57,23 @@ def test_model_profiles_loaded():
     assert profile.prompt_cache_ttl == "5m"
     assert s.models.routing.fallback_profile == "default"
     assert s.models.routing.engine_profiles["discovery"] == "discovery"
-    for engine in (
-        "discovery",
-        "content_architect",
-        "visual_design_director",
-        "build_preparation",
-        "code_generator_director",
-        "code_generator_planner",
-    ):
+    discovery_profile = s.models.get_profile("discovery")
+    assert discovery_profile is not None
+    for engine in ("discovery", "content_architect", "visual_design_director"):
         routed = s.models.get_profile(s.models.routing.engine_profiles[engine])
         assert routed is not None
-        assert routed.provider == "anthropic"
-        assert routed.api_key_env == "ANTHROPIC_API_KEY"
+        assert routed.provider == discovery_profile.provider
+        assert routed.model == discovery_profile.model
+        assert routed.api_key_env == discovery_profile.api_key_env
+
+    code_generator_profile = s.models.get_profile("code_generator_director")
+    assert code_generator_profile is not None
+    for engine in ("code_generator_director", "code_generator_planner"):
+        routed = s.models.get_profile(s.models.routing.engine_profiles[engine])
+        assert routed is not None
+        assert routed.provider == code_generator_profile.provider
+        assert routed.model == code_generator_profile.model
+        assert routed.api_key_env == code_generator_profile.api_key_env
 
 
 def test_secrets_not_in_repr():

@@ -234,7 +234,7 @@ notepad .env
 Build Preparation's configured secret names are:
 
 - `POSTGRES_PASSWORD` for PostgreSQL.
-- `ANTHROPIC_API_KEY` for the currently committed default live model profile.
+- The API-key environment variable required by the active live model profiles.
   The active model, provider, endpoint, key name, and limits remain
   config-driven in `config/models.toml`; do not hardcode them in this runbook.
 - `PEXELS_API_KEY` and `PIXABAY_API_KEY` for live image retrieval. The
