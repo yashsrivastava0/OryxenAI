@@ -80,9 +80,12 @@ OryxenAI/
 
 - **Python 3.13** (pinned via `requires-python = ">=3.13,<3.14"`)
 - **uv** — [install](https://docs.astral.sh/uv/getting-started/installation/)
-- **Docker Desktop** (for Docker Compose startup; requires WSL2 on Windows)
-- **PostgreSQL** (provided via Docker Compose, or a local instance on the port
-  configured in `config/app.toml` `[database] port`, default `5544`)
+- **Docker Desktop** (optional; required only for the Docker Compose mode)
+- **PostgreSQL** (local native mode uses port `5432`; Docker mode publishes
+  PostgreSQL on host port `5544`)
+
+For complete startup, service, agent, credential, and troubleshooting
+instructions, use the canonical [development runbook](docs/run/run.md).
 
 ## Environment setup
 
@@ -101,39 +104,31 @@ committed files under `config/`:
 
 - `config/app.toml` — `[app]` and `[database]` settings
 - `config/models.toml` — provider-neutral model profiles and logical engine
-  routing; active engines currently use the configured Anthropic profile
-  (see `[routing.engine_profiles]` and `[profiles.*]`)
+  routing (see `[routing.engine_profiles]` and `[profiles.*]`)
 
 ## Windows PowerShell setup
 
 ```powershell
-PS > uv sync
-PS > docker compose up postgres -d
-PS > uv run alembic upgrade head
-PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
+uv python install 3.13
+uv sync --frozen
+.\scripts\run-native.ps1 migrate
+.\scripts\run-native.ps1 api
+.\scripts\run-native.ps1 worker
 ```
 
-Open `http://127.0.0.1:8000` for the Google-only authentication shell. After
-authentication and username onboarding, `/app` boots the owner-scoped
-workspace; `/admin` provides the bounded, audited administrator console, and
-`/dev` remains an explicit admin-only developer harness when enabled. Existing
-sessions are legacy-quarantined for normal users, while administrators may
-inspect them.
+The native commands require a local PostgreSQL role/database. Docker users
+should follow the Docker Compose section in `docs/run/run.md` instead.
 
-Local authentication and authorization now include the one-portfolio
-entitlement, durable worker fencing, resumable administrator lifecycle, safe
-project/user cleanup, entitlement reset, and bounded role transitions. Run
-`uv run alembic upgrade head` before using a database with pre-existing
-`portfolio_sessions` rows. Production cloud deployment and owner-completed
-multi-account Google browser acceptance remain separate gates.
+Open `http://127.0.0.1:8000` for the authentication shell.
 
 ## Linux/macOS setup
 
 ```bash
-uv sync
-docker compose up postgres -d
-uv run alembic upgrade head
-uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000
+uv python install 3.13
+uv sync --frozen
+./scripts/run-native.sh migrate
+./scripts/run-native.sh api
+./scripts/run-native.sh worker
 ```
 
 ## uv commands
@@ -149,26 +144,24 @@ uv lock --check             # verify lockfile is up to date
 
 ## Direct local startup
 
-```powershell
-PS > uv sync
-PS > docker compose up postgres -d
-PS > uv run alembic upgrade head
-PS > uv run uvicorn oryxenai.main:app --host 127.0.0.1 --port 8000 --reload
-```
+Use `scripts/run-native.ps1` or `scripts/run-native.sh` so migrations, API,
+worker, and optional preview gateway all load the same native configuration
+overlay. The full sequence and local PostgreSQL setup are in the
+[development runbook](docs/run/run.md).
 
 ## Docker Compose startup
 
 ```powershell
 # Main workflow: PostgreSQL, migrations, FastAPI/UI, and durable worker.
-PS > docker compose up --build
+docker compose up --build -d
 # App at http://localhost:8000, PostgreSQL on localhost:5544
-PS > docker compose down
+docker compose ps
 ```
 
 The Docker Compose stack:
 - Builds the app image from `Dockerfile` (multi-stage, non-root, no dev deps)
 - Starts PostgreSQL 16.4 (Alpine) with a persistent named volume
-- App waits for DB health, runs `alembic upgrade head`, then starts Uvicorn (no reload)
+- A one-shot migration service runs `alembic upgrade head` before the app and worker
 - Worker runs as a separate durable PostgreSQL-backed process
 - Exposes app on port 8000 and PostgreSQL on port 5544 (host) → 5432 (container)
 
