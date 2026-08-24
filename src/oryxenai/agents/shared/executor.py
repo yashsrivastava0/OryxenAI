@@ -24,7 +24,10 @@ from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentError, AgentResult, AgentRunStatus
 from oryxenai.agents.shared.registry import AgentNotFoundError, AgentRegistry
 from oryxenai.api.errors import AppError, ConflictError, NotFoundError
-from oryxenai.auth.authorization import DurableAuthorizationContext, durable_snapshot
+from oryxenai.auth.authorization import (
+    DurableAuthorizationContext,
+    durable_snapshot_for_session,
+)
 from oryxenai.auth.entitlements import PortfolioEntitlementRepository
 from oryxenai.auth.errors import EntitlementBindingConflictError, PortfolioReadOnlyError
 from oryxenai.core.logging import get_logger, set_agent_run_id
@@ -142,14 +145,13 @@ class AgentExecutor:
         state_before = dict(portfolio_session.current_state)
         run = AgentRun(
             id=run_id,
-            portfolio_session_id=session_id,
             agent_key=key_enum.value,
             status=AgentRunStatus.PENDING.value,
             input_payload=agent_input,
             state_before=state_before,
             model_metadata={"provider": "mock", "model": "deterministic-mock"},
             attempt=1,
-            **durable_snapshot(self._authorization_context),
+            **durable_snapshot_for_session(self._authorization_context, session_id),
         )
         run = await self._run_repo.create(run)
 
@@ -228,6 +230,8 @@ class AgentExecutor:
     ) -> None:
         context = self._authorization_context
         if context is None or context.authorization_context_version != 1:
+            return
+        if context.actor_is_admin:
             return
         if context.owner_user_id != context.actor_user_id or context.owner_user_id is None:
             return

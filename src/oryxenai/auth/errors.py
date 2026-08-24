@@ -108,6 +108,129 @@ class UserCapacityReachedError(AuthError):
         super().__init__("Normal-user access is currently at capacity.")
 
 
+class AdminSelfActionForbiddenError(AuthError):
+    code = "ADMIN_SELF_ACTION_FORBIDDEN"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("Administrators cannot perform this action on their own identity.")
+
+
+class LastActiveAdminRequiredError(AuthError):
+    code = "LAST_ACTIVE_ADMIN_REQUIRED"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("At least one active administrator must remain.")
+
+
+class AdminConfirmationMismatchError(AuthError):
+    code = "ADMIN_CONFIRMATION_MISMATCH"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("The destructive-action confirmation does not match the target.")
+
+
+class AdminIdempotencyRequiredError(AuthError):
+    code = "ADMIN_IDEMPOTENCY_REQUIRED"
+    status_code = 400
+
+    def __init__(self) -> None:
+        super().__init__("A bounded Idempotency-Key is required for administrator mutations.")
+
+
+class AdminOperationConflictError(AuthError):
+    code = "ADMIN_OPERATION_CONFLICT"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("That administrator operation key was used with different input.")
+
+
+class AdminOperationRetryableError(AuthError):
+    code = "ADMIN_OPERATION_RETRYABLE"
+    status_code = 503
+
+    def __init__(self) -> None:
+        super().__init__("The administrator operation needs a safe retry.", retryable=True)
+
+
+class AdminProviderUnavailableError(AuthError):
+    code = "AUTH_ADMIN_PROVIDER_UNAVAILABLE"
+    status_code = 503
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The identity provider administrator operation is temporarily unavailable.",
+            retryable=True,
+        )
+
+
+class AdminProviderRateLimitedError(AuthError):
+    code = "AUTH_ADMIN_PROVIDER_RATE_LIMITED"
+    status_code = 429
+
+    def __init__(self) -> None:
+        super().__init__("The identity provider administrator operation is rate limited.")
+
+
+class ProjectDeletionPendingError(AuthError):
+    code = "PROJECT_DELETION_PENDING"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("This portfolio is being deleted and cannot accept new work.")
+
+
+class ProjectRunningWorkPendingError(AuthError):
+    code = "PROJECT_RUNNING_WORK_PENDING"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("Running portfolio work must finish before cleanup can continue.")
+
+
+class ProjectMustBeDeletedBeforeEntitlementResetError(AuthError):
+    code = "PROJECT_MUST_BE_DELETED_BEFORE_ENTITLEMENT_RESET"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("Delete the current portfolio before resetting its entitlement.")
+
+
+class EntitlementResetNotApplicableError(AuthError):
+    code = "ENTITLEMENT_RESET_NOT_APPLICABLE"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("This entitlement has no deleted portfolio to reset.")
+
+
+class AdminDemotionRequiresProjectCleanupError(AuthError):
+    code = "ADMIN_DEMOTION_REQUIRES_PROJECT_CLEANUP"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("An administrator must have no live portfolio before demotion.")
+
+
+class DeletedIdentityNotReadmittableError(AuthError):
+    code = "DELETED_IDENTITY_NOT_READMITTABLE"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("This identity tombstone is not ready for readmission.")
+
+
+class StorageCleanupFailedError(AuthError):
+    code = "STORAGE_CLEANUP_FAILED"
+    status_code = 503
+
+    def __init__(self) -> None:
+        super().__init__("The portfolio storage cleanup needs a safe retry.", retryable=True)
+
+
 class GenerationVariantLockedError(AuthError):
     code = "GENERATION_VARIANT_LOCKED"
     status_code = 409

@@ -37,6 +37,7 @@ class DurableAuthorizationContext:
     actor_user_id: UUID | None
     authorization_context_version: int = 1
     entitlement_revision: int | None = None
+    actor_is_admin: bool = False
 
     def validate(self) -> None:
         if self.authorization_context_version not in {0, 1}:
@@ -76,6 +77,7 @@ class DurableAuthorizationContext:
             actor_user_id=access.actor.id,
             authorization_context_version=1,
             entitlement_revision=entitlement_revision,
+            actor_is_admin=access.actor.role is AuthRole.ADMIN,
         )
         context.validate()
         return context
@@ -110,3 +112,24 @@ def durable_snapshot(
         "authorization_context_version": context.authorization_context_version,
         "entitlement_revision": context.entitlement_revision,
     }
+
+
+def durable_snapshot_for_session(
+    context: DurableAuthorizationContext | None,
+    session_id: UUID,
+) -> DurableSnapshot:
+    """Return a durable snapshot carrying the row's session binding.
+
+    The pre-authenticated development and legacy service paths do not have a
+    request authorization context, but their run rows still retain the
+    portfolio-session foreign key.  Current authenticated contexts must
+    already identify that same session; silently rebinding them would weaken
+    the worker fence.
+    """
+
+    snapshot = durable_snapshot(context)
+    bound_session_id = snapshot["portfolio_session_id"]
+    if bound_session_id is not None and bound_session_id != session_id:
+        raise ValueError("authorization context does not match portfolio session")
+    snapshot["portfolio_session_id"] = session_id
+    return snapshot

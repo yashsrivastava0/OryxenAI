@@ -17,6 +17,7 @@ from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
 from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
+from oryxenai.auth.admin.service import AdminService
 from oryxenai.auth.authorization import DurableAuthorizationContext, PortfolioAccess
 from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
 from oryxenai.auth.entitlements import PortfolioEntitlementRepository
@@ -66,6 +67,19 @@ def get_auth_service(
         provider=request.app.state.auth_provider,
         admin_emails=settings.normalized_admin_bootstrap_emails,
         allowed_emails=settings.normalized_allowed_user_emails,
+    )
+
+
+def get_admin_service(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> AdminService:
+    return AdminService(
+        db=db,
+        provider=request.app.state.auth_admin_provider,
+        preview_storage=getattr(request.app.state, "preview_storage", None),
+        artifact_store=getattr(request.app.state, "artifact_store", None),
+        settings=request.app.state.settings,
     )
 
 

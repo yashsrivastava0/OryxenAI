@@ -1,12 +1,15 @@
 # OryxenAI authentication handoff
 
-Status: Authentication Phases 1, 2, and 3 are implemented and locally tested
-where the configured database is available. Phase 3 adds one normal-user
-portfolio/generation/success entitlement, durable owner/actor worker fencing,
-global model-generation admission, verified success finalization, and
-post-success read-only enforcement. Phase 4 administrator lifecycle, full
-multi-account browser acceptance, and production deployment remain deferred.
+Status: Authentication Phases 1, 2, 3, and 4 are implemented and locally
+tested where the configured database is available. Phase 4 adds the audited
+administrator lifecycle, resumable deletion, entitlement reset, role
+transitions, safe bounded admin inventory, Code Generator admin commands, and
+functional local admin UI. Production cloud deployment and a real owner-
+completed Google browser ceremony remain separate acceptance/deployment gates.
 No production cloud resources were created.
+
+The Phase 4 implementation and verification boundary is recorded in
+[11-phase4-implementation-report.md](11-phase4-implementation-report.md).
 
 Last verified: 2026-08-24. Provider behavior, prices, SDKs, and dashboard
 screens are time-sensitive; recheck the linked primary sources when coding or
@@ -49,15 +52,16 @@ or retain Clerk-specific keys, subjects, webhooks, SDKs, routes, or UI.
 8. Only a verified, hash-bound, promoted `active_preview` consumes the user's
    one successful portfolio, through the central finalizer/reconciler path.
 9. A successful normal-user project remains readable but is server-enforced
-   read-only; deletion and audited reset remain Phase 4 lifecycle policy.
+   read-only; administrator deletion and audited entitlement reset are separate
+   explicit lifecycle operations.
 10. Administrators are quota-exempt and may manage all users and projects, but
     cannot bypass model/provider safety gates or spending limits.
 11. Existing unowned sessions are quarantined as legacy/admin-only data; new
     product sessions are explicitly owned by the authenticated local user.
 12. Normal users receive owner-scoped session/stage/run access; active
     onboarded admins may operate across owned and legacy sessions.
-13. The last active administrator cannot delete or demote themselves (the
-    lifecycle operation remains Phase 4).
+13. The last active administrator cannot delete or demote themselves, and
+    administrator lifecycle operations are local, audited, and resumable.
 
 ## Confirmed development provider
 
@@ -83,8 +87,9 @@ logic, server-side JWT/provider boundaries, safe `/me` and entitlement
 projection, admission constraints, ownership/legacy repository policy,
 one-session/variant/success server rules, durable worker fencing, route
 inventory, and the integrated product/developer shells through unit/API tests.
-A real Google browser login and the production-origin flow remain Phase 4
-acceptance work; no additional account or secret is created by this phase.
+A real Google browser login and the production-origin flow remain owner-run
+acceptance gates; no additional account, secret, or cloud resource is created
+by the local implementation.
 
 Run the safe setup checker from the repository root:
 

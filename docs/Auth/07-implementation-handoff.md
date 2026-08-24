@@ -1,15 +1,15 @@
 # Implementation handoff
 
 This is the accepted architecture handoff and remains the boundary for the
-full authorization project. Phases 1, 2, and 3 of the execution plan are now
+full authorization project. Phases 1, 2, 3, and 4 of the execution plan are now
 implemented: the auth boundary, local identity/capacity foundation, `/me` API,
 username onboarding, session ownership/legacy quarantine, route policy,
 authenticated browser boot, one-session/variant/success entitlement, durable
 owner/actor worker fencing, global generation admission, and verified preview
-finalization are in the repository. Administrator lifecycle, full
-multi-account browser acceptance, and production deployment remain Phase 4;
-follow [10-implementation-plan.md](10-implementation-plan.md) for the
-remaining deferred work.
+finalization, audited administrator lifecycle, and resumable cleanup are in
+the repository. Owner-completed multi-account browser acceptance and
+production deployment remain separate gates; see
+[11-phase4-implementation-report.md](11-phase4-implementation-report.md).
 
 ## Scope statement
 
@@ -34,10 +34,10 @@ durable worker and separate generated-preview trust boundary.
 - Existing sessions will be legacy-quarantined.
 - AWS and production projects are intentionally not created.
 
-Pending after the local Phase 3 implementation: complete the real Google
-callback, onboarding, normal-user, and administrator multi-account browser
-flows in the Phase 4 acceptance gate. Administrator lifecycle APIs, production
-resources, and deployment remain intentionally uncreated.
+Pending after the local Phase 4 implementation: the owner must complete the
+real Google callback, onboarding, normal-user, and administrator multi-account
+browser flows in the acceptance gate. Production resources and deployment
+remain intentionally uncreated.
 
 ## Work packages
 
@@ -148,7 +148,8 @@ Phase 1-3 browser boot is integrated with the existing first-three-agent
 workspace: `/api/v1/me` resolves the server-selected session and safe
 entitlement projection before `app.js` loads; normal users receive read-only
 controls after success and no developer/regenerate controls. The temporary
-`/admin` shell is read-only until Phase 4.
+`/admin` shell is a safe, bounded Phase 4 admin console; it does not expose
+provider secrets or unbounded destructive controls.
 
 - Add public sign-in and callback shells, onboarding, protected app controller,
   access-not-approved/account-unavailable states, and admin shell.

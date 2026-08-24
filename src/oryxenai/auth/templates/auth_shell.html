@@ -88,7 +88,7 @@
         <div><dt>Role</dt><dd data-user="role">—</dd></div>
         <div><dt>Status</dt><dd data-user="status">—</dd></div>
       </dl>
-      <p class="muted">The portfolio workspace will be connected here after authorization phases are complete.</p>
+      <p class="muted">The authenticated workspace shell is ready. Portfolio actions remain subject to the server's current authorization state.</p>
       <div class="button-row">
         <a id="admin-link" class="secondary-button" href="/admin" hidden>Open admin shell</a>
         <button class="text-button" data-action="logout" type="button">Sign out</button>
@@ -99,17 +99,47 @@
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Administrator</p>
-          <h2 id="admin-title">Temporary admin shell</h2>
+      <h2 id="admin-title">Workspace administration</h2>
         </div>
         <span class="status-pill">admin</span>
       </div>
-      <p class="muted">Authentication is established. Administrator lifecycle operations arrive in a later phase.</p>
+      <p class="muted" id="admin-live" aria-live="polite">Loading the safe administrator view.</p>
       <dl class="safe-details">
         <div><dt>Username</dt><dd data-user="username">—</dd></div>
         <div><dt>Role</dt><dd data-user="role">—</dd></div>
         <div><dt>Status</dt><dd data-user="status">—</dd></div>
       </dl>
-      <button class="text-button" data-action="logout" type="button">Sign out</button>
+      <div class="admin-toolbar button-row">
+        <a class="secondary-button" href="/app">Workspace</a>
+        <button class="secondary-button" id="admin-refresh" type="button">Refresh</button>
+        <button class="text-button" data-action="logout" type="button">Sign out</button>
+      </div>
+      <div class="admin-tabs" role="tablist" aria-label="Administrator data">
+        <button class="secondary-button" type="button" role="tab" aria-selected="true" data-admin-tab="users">Users</button>
+        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="projects">Projects</button>
+        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="legacy">Legacy</button>
+        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="deleted">Deleted identities</button>
+        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="audit">Audit</button>
+      </div>
+      <div id="admin-summary" class="admin-summary" aria-label="Summary"></div>
+      <div id="admin-content" class="admin-content" aria-live="polite"></div>
+      <div class="button-row">
+        <button class="secondary-button" id="admin-load-more" type="button" hidden>Load more</button>
+      </div>
+      <dialog id="admin-confirm-dialog" aria-labelledby="admin-confirm-title">
+        <form method="dialog" id="admin-confirm-form">
+          <h3 id="admin-confirm-title">Confirm administrator action</h3>
+          <p id="admin-confirm-copy" class="muted"></p>
+          <label for="admin-confirm-input">Type the displayed target exactly</label>
+          <input id="admin-confirm-input" autocomplete="off" required>
+          <label for="admin-reason">Reason (optional)</label>
+          <input id="admin-reason" maxlength="500" autocomplete="off">
+          <div class="button-row">
+            <button class="secondary-button" value="cancel" type="submit">Cancel</button>
+            <button class="primary-button" id="admin-confirm-submit" value="confirm" type="submit">Confirm</button>
+          </div>
+        </form>
+      </dialog>
     </section>
 
     <p id="global-error" class="error-text" role="alert" hidden></p>
@@ -117,5 +147,6 @@
 
   <script src="/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   <script type="module" src="/auth-static/auth-page.mjs?v={{ auth_page_version }}"></script>
+  <script type="module" src="/auth-static/auth-admin.mjs?v={{ auth_admin_version }}"></script>
 </body>
 </html>

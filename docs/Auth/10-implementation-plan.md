@@ -1,9 +1,9 @@
 # Supabase authentication implementation plan
 
-Status: Phase 1, Phase 2, and Phase 3 execution are implemented in the
-checkout. This document remains the repository-grounded plan for the
-four-phase authorization project. Phase 4 administrator lifecycle, full
-multi-account browser acceptance, and deployment handoff remain deferred. No
+Status: Phase 1, Phase 2, Phase 3, and Phase 4 local execution are implemented
+in the checkout. This document remains the repository-grounded plan for the
+four-phase authorization project. Owner-completed multi-account browser
+acceptance and production deployment handoff remain separate gates. No
 production cloud resources were created.
 
 ## Four-phase execution map
@@ -18,8 +18,10 @@ production cloud resources were created.
 - **Phase 3 (implemented):** one-portfolio/variant/success entitlement,
   generation admission, durable owner/actor bindings, global model-generation
   lane, provider-credit fencing, and verified preview finalization.
-- **Phase 4 (deferred):** administrator lifecycle/audit, full multi-account
-  browser acceptance, and production deployment handoff.
+- **Phase 4 (implemented locally):** administrator lifecycle/audit,
+  resumable cleanup/reset, safe admin UI, and Code Generator admin commands.
+  Owner-completed browser acceptance and production deployment handoff remain
+  separate gates.
 
 ## Current phase boundary
 
@@ -29,8 +31,8 @@ production cloud resources were created.
   configuration, safe `/me` routes, and the temporary browser controller.
 - Phase 2 now owns session ownership, route authorization, development-surface
   gating, and authenticated product/developer boot.
-- Do not use this completion as authorization for administrator-lifecycle or
-  deployment work; those remain Phase 4.
+- Do not use this local completion as authorization for production deployment;
+  deployment remains a separate owner-authorized gate.
 - Reinspect the live repository and provider changelog before later phases;
   never assume a future checkout matches this audit.
 
@@ -80,7 +82,8 @@ These do not require another planning choice:
 - `PortfolioSessionRepository` exposes explicit owned/admin methods; trusted
   internal lookups are now supplemented by Phase 3 worker fencing.
 - durable agent/code-generator/job rows bind local owner/actor/context snapshots
-  for new portfolio work; Phase 4 admin lifecycle is still deferred.
+  for new portfolio work; Phase 4 admin lifecycle is implemented in
+  `src/oryxenai/auth/admin/`.
 - `web/routes.py` exposes product `/app` always and developer pages only under
   configured development flags.
 - `web/static/app.js` receives the shared authorized request boundary only
@@ -447,7 +450,11 @@ quota exemption never bypasses provider limits.
 Phase gate: concurrency and crash/reconciliation tests prove one session,
 variant, and success without duplicate paid work.
 
-## Phase 4 - browser acceptance, administrator lifecycle, and deployment handoff (deferred)
+## Phase 4 - browser acceptance, administrator lifecycle, and deployment handoff
+
+The administrator lifecycle and local admin console are implemented. The
+owner-completed browser acceptance and production deployment portions remain
+explicit gates; see [11-phase4-implementation-report.md](11-phase4-implementation-report.md).
 
 Add templates/static modules for:
 

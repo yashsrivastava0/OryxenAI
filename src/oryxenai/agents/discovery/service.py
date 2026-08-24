@@ -25,7 +25,7 @@ from oryxenai.agents.discovery.state import (
     apply_start,
 )
 from oryxenai.agents.shared.model_router import ModelRouter
-from oryxenai.auth.authorization import durable_snapshot
+from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.core.logging import get_logger
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.discovery import DiscoveryRepository
@@ -115,7 +115,6 @@ class DiscoveryService:
 
         run = AgentRun(
             id=uuid4(),
-            portfolio_session_id=session_id,
             agent_key="discovery",
             status="pending",
             input_payload={
@@ -126,7 +125,7 @@ class DiscoveryService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
-            **durable_snapshot(self._job_service.authorization_context),
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -195,7 +194,6 @@ class DiscoveryService:
             )
             run = AgentRun(
                 id=uuid4(),
-                portfolio_session_id=session_id,
                 agent_key="discovery",
                 status="pending",
                 input_payload={
@@ -211,7 +209,7 @@ class DiscoveryService:
                 },
                 state_before=dict(session.current_state),
                 idempotency_key=key,
-                **durable_snapshot(self._job_service.authorization_context),
+                **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
             )
             await self._repository.create_run(run)
             job = await self._job_service.enqueue(
@@ -268,7 +266,6 @@ class DiscoveryService:
         )
         run = AgentRun(
             id=uuid4(),
-            portfolio_session_id=session_id,
             agent_key="discovery",
             status="pending",
             input_payload={
@@ -285,7 +282,7 @@ class DiscoveryService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
-            **durable_snapshot(self._job_service.authorization_context),
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(

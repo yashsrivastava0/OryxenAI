@@ -13,6 +13,7 @@ import hashlib
 import os
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 from typing import Any, Protocol, cast
 
 import boto3  # type: ignore[import-untyped]
@@ -69,6 +70,23 @@ class ArtifactStore(Protocol):
     async def get_verified(self, reference: ArtifactReference) -> bytes: ...
 
     async def head(self, reference: ArtifactReference) -> ArtifactReference | None: ...
+
+    async def delete(self, reference: ArtifactReference) -> None: ...
+
+
+def _safe_artifact_key(key: str) -> str:
+    normalized = key.replace("\\", "/").strip("/")
+    path = PurePosixPath(normalized)
+    if (
+        not normalized
+        or path.is_absolute()
+        or ".." in path.parts
+        or any(part.startswith(".") for part in path.parts)
+    ):
+        raise ArtifactStorageError(
+            "ARTIFACT_KEY_UNSAFE", "The artifact key is unsafe.", retryable=False
+        )
+    return path.as_posix()
 
 
 def _validate_payload(data: bytes, sha256: str) -> None:
@@ -164,6 +182,9 @@ class MemoryArtifactStore:
     async def head(self, reference: ArtifactReference) -> ArtifactReference | None:
         stored = self._objects.get(reference.key)
         return stored[0] if stored is not None else None
+
+    async def delete(self, reference: ArtifactReference) -> None:
+        self._objects.pop(_safe_artifact_key(reference.key), None)
 
 
 class S3ArtifactStore:
@@ -320,6 +341,17 @@ class S3ArtifactStore:
             expires_at=stored_expiry,
             etag=str(response.get("ETag", "")).strip('"'),
         )
+
+    async def delete(self, reference: ArtifactReference) -> None:
+        key = _safe_artifact_key(reference.key)
+        try:
+            await asyncio.to_thread(
+                lambda: self._client.delete_object(Bucket=self._bucket, Key=key)
+            )
+        except Exception as exc:
+            raise ArtifactStorageError(
+                "ARTIFACT_DELETE_FAILED", "The build pack could not be deleted."
+            ) from exc
 
 
 def create_artifact_store(settings: Any) -> ArtifactStore:

@@ -89,7 +89,8 @@ promotion. It never auto-chains from Build Preparation. See
 `src/oryxenai/agents/code_generator/` and
 `docs/code-generator-architecture/v2-production-architecture.md`.
 
-**Authentication Phases 1 through 3 are implemented as bounded foundations.**
+**Authentication Phases 1 through 4 are implemented as bounded local
+foundations.**
 Phase 1 provides Supabase Google-only session restoration through a self-hosted
 pinned browser client, asymmetric JWT/JWKS verification, verified-provider
 just-in-time admission, two bootstrap administrators, a 15-normal-user
@@ -101,8 +102,10 @@ authenticated product/developer browser boot boundary. Phase 3 adds the
 single normal-user portfolio/generation/success entitlement, trusted durable
 owner/actor snapshots, worker reauthorization, global model-generation lane,
 verified preview finalization, and server-enforced post-success read-only
-behavior. Administrator lifecycle, full multi-account browser acceptance, and
-production deployment remain Phase 4; this is not a complete deployment claim.
+behavior. Phase 4 adds audited administrator lifecycle, resumable deletion and
+cleanup, entitlement reset, bounded role transitions, and the local admin
+console. Owner-completed multi-account browser acceptance and production
+deployment remain separate gates; this is not a complete deployment claim.
 
 To verify current status rather than trusting this document: run
 `uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
@@ -129,11 +132,12 @@ deterministic mock, not a live implementation.
   endpoint.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
-- Phase 4 authorization/deployment work remains excluded: administrator
-  lifecycle, audit operations, destructive cleanup/reset, full multi-account
-  browser acceptance, and production deployment are not implemented. Billing
-  and published-portfolio deployment automation remain excluded. Cloudflare
-  R2 is used only for temporary Build Preparation packs.
+- Production deployment, billing, and published-portfolio deployment
+  automation remain excluded. Phase 4 administrator lifecycle, audit,
+  destructive cleanup/reset, local admin UI, and worker fencing are implemented
+  locally; owner-completed multi-account browser acceptance is still an
+  acceptance gate. Cloudflare R2 is used only for temporary Build Preparation
+  packs.
 - No Redis, Celery, Kafka, or external queue.
 
 ## Config-driven policy — never hardcode
@@ -374,8 +378,9 @@ Content Architect's architecture one stage down the pipeline:
 
 ## What to implement next
 
-- **Phase 4:** add administrator lifecycle/audit operations, destructive
-  cleanup/reset, full multi-account browser acceptance, and deployment handoff.
+- **Phase 4:** administrator lifecycle/audit operations, destructive
+  cleanup/reset, and local admin UI are implemented. Remaining work is the
+  owner-completed browser acceptance gate and deployment handoff.
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
 - **Evaluate Code Generator production generations** with privacy-safe packs;

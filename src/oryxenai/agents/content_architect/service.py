@@ -30,7 +30,7 @@ from oryxenai.agents.content_architect.state import (
     apply_start,
 )
 from oryxenai.agents.discovery.schemas import DiscoveryState, DiscoveryStatus
-from oryxenai.auth.authorization import durable_snapshot
+from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.jobs.service import JobService
@@ -136,7 +136,6 @@ class ContentArchitectService:
 
         run = AgentRun(
             id=uuid4(),
-            portfolio_session_id=session_id,
             agent_key="content_architect",
             status="pending",
             input_payload={
@@ -149,7 +148,7 @@ class ContentArchitectService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
-            **durable_snapshot(self._job_service.authorization_context),
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -212,7 +211,6 @@ class ContentArchitectService:
         )
         run = AgentRun(
             id=uuid4(),
-            portfolio_session_id=session_id,
             agent_key="content_architect",
             status="pending",
             input_payload={
@@ -225,7 +223,7 @@ class ContentArchitectService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
-            **durable_snapshot(self._job_service.authorization_context),
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(

@@ -17,6 +17,7 @@ from oryxenai.api.routes import (
     visual_design_director,
 )
 from oryxenai.auth import api as auth_api
+from oryxenai.auth.admin import api as admin_api
 
 
 def create_api_router(settings: object | None = None) -> APIRouter:
@@ -31,6 +32,7 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     )
 
     router.include_router(auth_api.router)
+    router.include_router(admin_api.router)
     router.include_router(agents.router)
     router.include_router(sessions.router)
     router.include_router(runs.router)
