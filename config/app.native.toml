@@ -1,0 +1,27 @@
+# Native development overlay.
+#
+# Use this overlay with scripts/run-native.ps1 or scripts/run-native.sh. It
+# keeps the application and durable worker outside Docker while PostgreSQL is
+# provided by a local installation. Secrets remain in the root .env file.
+
+[app]
+host = "127.0.0.1"
+port = 8000
+enable_dev_ui = true
+
+[database]
+host = "127.0.0.1"
+port = 5432
+
+# npm is resolved through PATH on both Windows (npm.cmd) and Unix-like hosts.
+[code_generator_dependencies]
+npm_executable = "npm"
+
+[code_generator_generation]
+typecheck_command = ["npm", "run", "typecheck"]
+source_audit_command = ["npm", "run", "source:audit"]
+
+[code_generator_verification]
+install_command = ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
+typecheck_command = ["npm", "run", "typecheck"]
+build_command = ["npm", "run", "build"]

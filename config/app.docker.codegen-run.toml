@@ -1,0 +1,58 @@
+# Isolated Docker Code Generator development overlay.
+#
+# This overlay is used with a separate Compose project. The project supplies
+# DB_HOST_OVERRIDE=postgres and DB_PORT_OVERRIDE=5432; the database name below
+# keeps development runs separate from the normal application database.
+# Secrets remain in .env and are never stored here.
+
+[app]
+host = "0.0.0.0"
+port = 8000
+enable_dev_ui = true
+
+[database]
+host = "postgres"
+port = 5432
+database = "oryxenai_codegen_run"
+
+[auth]
+primary_origin = "http://127.0.0.1:8001"
+allowed_origins = ["http://127.0.0.1:8001", "http://localhost:8001"]
+
+[artifact_storage]
+provider = "memory"
+require_lifecycle = false
+
+[code_generator_development]
+enabled = true
+input_root = "/app/.workspace/code-generator-development"
+build_preparation_mirror_root = "/app/output/live-build-preparation/build-preparation"
+
+[code_generator_acquisition]
+materials_root = "/app/.workspace/code-generator-materials"
+
+[code_generator_generation]
+workspace_root = "/app/.workspace/code-generator-generation"
+checkpoint_root = "/app/.workspace/code-generator-checkpoints"
+typecheck_command = ["npm", "run", "typecheck"]
+source_audit_command = ["npm", "run", "source:audit"]
+
+[code_generator_dependencies]
+workspaces_root = "/app/.workspace/code-generator-workspaces"
+npm_executable = "npm"
+npm_cache_root = "/app/.workspace/npm-cache"
+
+[code_generator_verification]
+enabled = true
+browser_executable = "/usr/bin/chromium"
+install_command = ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
+typecheck_command = ["npm", "run", "typecheck"]
+build_command = ["npm", "run", "build"]
+preview_root = "/app/.workspace/code-generator-preview"
+preview_base_url = "http://127.0.0.1:4174/preview"
+preview_host = "0.0.0.0"
+preview_port = 4174
+preview_parent_origin = "http://127.0.0.1:8001"
+preview_embed_origins = ["http://127.0.0.1:8001", "http://localhost:8001"]
+preview_storage_provider = "local_fs"
+preview_storage_prefix = "preview"
