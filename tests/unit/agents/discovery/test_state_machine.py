@@ -171,7 +171,7 @@ class TestFlowTransitions:
     def test_brief_review_stores_markdown(self):
         state = apply_brief_review(
             DiscoveryState(status=DiscoveryStatus.BRIEF_RUNNING),
-            version="discovery.build_or_revise_brief.v4",
+            version="discovery.build_or_revise_brief.v5",
             run_id="run-2",
             title="Portfolio Discovery Brief — Test",
             markdown="# Portfolio Discovery Brief\n\nContent.",
@@ -184,7 +184,7 @@ class TestFlowTransitions:
         assert state.brief.title == "Portfolio Discovery Brief — Test"
         assert state.brief.markdown.startswith("# Portfolio Discovery Brief")
         assert state.brief.open_items == ["no metrics"]
-        assert state.brief.version == "discovery.build_or_revise_brief.v4"
+        assert state.brief.version == "discovery.build_or_revise_brief.v5"
         assert state.brief.run_id == "run-2"
         assert state.brief.user_summary == "A short friendly summary."
         assert state.brief.profile.name == "Test User"
