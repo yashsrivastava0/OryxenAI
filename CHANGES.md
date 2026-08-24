@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 18:36 +05:30 - Codex (model/provider omitted) - [e70b6ab] - Align auth handoff documentation with public admission
+Updated the Auth README, owner deployment checklist, and implementation handoff
+so future agents use the new open/allowlist admission mode rather than the
+obsolete allowlist-only policy. Google OAuth Testing/publishing remains a
+separate provider-side deployment gate.
+
 ### 2026-08-24 18:30 +05:30 - Codex (model/provider omitted) - [dddc1ba] - Open Google registration and browser auth hardening
 Added explicit `open`/`allowlist` admission modes, with the product and Docker
 deployment admitting verified Google users until the server-side 15-user cap.
