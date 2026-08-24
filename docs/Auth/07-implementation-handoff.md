@@ -154,6 +154,8 @@ provider secrets or unbounded destructive controls.
 - Add public sign-in and callback shells, onboarding, protected app controller,
   access-not-approved/account-unavailable states, and admin shell.
 - Integrate the pinned Supabase JS client and central bearer-token fetch helper.
+- Load the pinned browser client before every auth bootstrap module; keep the
+  auth-only stylesheet off product and development shells.
 - Do not call protected APIs before Supabase session plus `/me` resolve.
 - Remove auth artifacts from callback history.
 - Restore only the owner-scoped session.

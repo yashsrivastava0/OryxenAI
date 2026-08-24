@@ -96,6 +96,32 @@ test("persistent session resolves /me once before loading the product workspace"
   assert.equal(workspaceLoads, 1);
 });
 
+test("workspace bootstrap failure preserves a valid auth session and avoids a redirect loop", async () => {
+  const page = location("/app");
+  const auth = sessionAuth();
+  let signOutCalls = 0;
+  auth.signOut = async () => { signOutCalls += 1; };
+  const result = await bootProductShell({
+    auth,
+    config,
+    location: page,
+    storage: { removeItem() {} },
+    fetchImpl: async () => response(200, {
+      id: "app-user",
+      username: "chosen-name",
+      role: "user",
+      status: "active",
+      onboarding_required: false,
+      admin_available: false,
+    }),
+    loadWorkspace: async () => ({}),
+  });
+
+  assert.equal(result.kind, "workspace_error");
+  assert.equal(signOutCalls, 0);
+  assert.deepEqual(page.replacements, []);
+});
+
 test("normal users cannot initialize a developer shell", async () => {
   const page = location("/dev");
   const auth = sessionAuth();

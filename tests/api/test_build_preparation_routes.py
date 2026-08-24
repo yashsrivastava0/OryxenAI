@@ -184,8 +184,12 @@ async def test_two_harness_pages_are_available(tmp_path: Path) -> None:
     assert "Run Phase 3" in input_page.text
     assert "Content Architect JSON" in input_page.text
     assert "content-architect-input" in input_page.text
+    assert input_page.text.index("auth-client.js") < input_page.text.index("dev-auth-bootstrap.mjs")
     assert progress_page.status_code == 200
     assert "Diagnostics" in progress_page.text
+    assert progress_page.text.index("auth-client.js") < progress_page.text.index(
+        "dev-auth-bootstrap.mjs"
+    )
 
 
 @pytest.mark.asyncio
