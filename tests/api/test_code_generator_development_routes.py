@@ -55,3 +55,4 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     assert "Live preview" in response.text
     assert "Advanced / debug controls" in response.text
     assert "Auto-advance stages" in response.text
+    assert response.text.index("auth-client.js") < response.text.index("dev-auth-bootstrap.mjs")

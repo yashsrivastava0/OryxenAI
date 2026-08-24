@@ -35,6 +35,7 @@
       <section class="panel"><div class="panel-heading"><h2>Diagnostics</h2><button id="copy" class="button secondary" type="button">Copy JSON</button></div><pre id="raw" class="raw"></pre></section>
     </section>
   </main>
+  <script src="{{ request.scope.get('root_path', '') }}/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   <script type="module" src="{{ request.scope.get('root_path', '') }}/static/dev-auth-bootstrap.mjs?v={{ dev_auth_bootstrap_version }}"></script>
 </body>
 </html>

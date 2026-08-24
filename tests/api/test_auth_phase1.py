@@ -143,6 +143,7 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
         transport=ASGITransport(app=app), base_url="http://localhost:8000"
     ) as client:
         responses = [await client.get(path) for path in paths]
+        auth_client = await client.get("/auth-static/auth-client.js")
         dev_pages = [
             await client.get("/dev"),
             await client.get("/build-preparation-fixture"),
@@ -150,9 +151,16 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
         ]
 
     assert all(response.status_code == 200 for response in responses)
+    assert auth_client.status_code == 200
+    assert "OryxenAISupabaseClient" in auth_client.text
     assert all(response.status_code == 404 for response in dev_pages)
+    sign_in = responses[1]
+    assert sign_in.text.index("auth-client.js") < sign_in.text.index("auth-page.mjs")
     product = responses[6]
+    assert "auth-client.js" in product.text
     assert "app-auth-bootstrap.mjs" in product.text
+    assert product.text.index("auth-client.js") < product.text.index("app-auth-bootstrap.mjs")
+    assert "/static/auth.css" not in product.text
     assert "admin1@example.com" not in product.text
     assert "sb_secret_test" not in product.text
     assert product.headers["cache-control"] == "no-store"
