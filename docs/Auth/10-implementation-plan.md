@@ -9,7 +9,7 @@ production cloud resources were created.
 ## Four-phase execution map
 
 - **Phase 1 (implemented):** Supabase Google-only identity, JWT/JWKS/provider
-  boundary, allowlisted admission, capacity, username onboarding, `/me`, and
+  boundary, configurable admission, capacity, username onboarding, `/me`, and
   the temporary auth shell.
 - **Phase 2 (implemented):** `portfolio_sessions` ownership and legacy
   quarantine, centralized onboarded/owner/admin policy, all existing product
