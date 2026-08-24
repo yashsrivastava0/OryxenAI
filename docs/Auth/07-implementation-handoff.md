@@ -15,7 +15,8 @@ production deployment remain separate gates; see
 
 Implement Supabase Google-only authentication for OryxenAI's existing
 Jinja2/vanilla-JavaScript frontend and FastAPI/PostgreSQL backend. Add an
-application allowlist, maximum 15 normal users, two bootstrap administrators,
+configurable open Google admission (with an optional restricted allowlist),
+maximum 15 normal users, two bootstrap administrators,
 unique username onboarding, database-authoritative roles/status, owner
 isolation, one-project/one-variant/one-promoted-success policy, audited admin
 operations, deployment-safe configuration, tests, and runbooks. Preserve the
@@ -27,7 +28,7 @@ durable worker and separate generated-preview trust boundary.
 - Development Supabase project and Google provider configured.
 - Local provider URL and keys present in git-ignored `.env`.
 - Two distinct bootstrap administrator entries present.
-- One separate normal test identity is privately allowlisted and is a Google
+- One separate normal test identity is privately configured and is a Google
   OAuth test user.
 - Online Auth settings, Google provider, JWKS, and OAuth initiation verified.
 - Strict prerequisite result: `0 failures, 0 warnings`.
@@ -45,8 +46,9 @@ remain intentionally uncreated.
 
 - Add `AuthConfig` with provider, required mode, issuer/audience, exact origins,
   paths, 15-user limit, and one-project/variant policy.
-- Add `SUPABASE_URL`, publishable key, secret key, bootstrap admins, and normal
-  allowlist to settings with redacted validation.
+- Add `SUPABASE_URL`, publishable key, secret key, bootstrap admins, optional
+  normal allowlist, and the admission mode to settings with redacted
+  validation.
 - Fail production readiness on missing/mismatched auth settings or localhost.
 - Pin a high-quality JWT/crypto library and official Supabase browser client.
 - Commit lockfiles and serve the pinned browser bundle locally.
@@ -85,8 +87,8 @@ FastAPI ownership.
   projection, admission, and error types.
 - Verify exact Supabase issuer/audience/signature/algorithm/key/expiry/subject.
 - Bound JWKS caching and refresh once on unknown key ID.
-- Resolve verified Auth identity on first `/me` before email admission.
-- Bootstrap the two admins; admit only normal allowlist entries; enforce 15
+- Resolve verified Auth identity on first `/me` before admission-mode checks.
+- Bootstrap the two admins; apply open or allowlist admission; enforce 15
   normal accounts transactionally.
 - Store no Google/provider token and never authorize from `user_metadata`.
 - Add shared `CurrentUser`, approved/onboarded, owner, and admin dependencies.

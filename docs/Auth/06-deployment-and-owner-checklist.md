@@ -8,7 +8,8 @@ chat, source, documentation, tests, screenshots, logs, or commits.
 
 - Identity provider: Supabase Auth.
 - Sign-in method: Google only.
-- Registration: application allowlist.
+- Registration: open verified-Google admission by default, or an explicit
+  restricted allowlist.
 - Capacity: 15 normal users plus two initial administrators.
 - Authorization: FastAPI and PostgreSQL.
 - Deployment: deliberately deferred; do not create AWS yet.
@@ -27,7 +28,7 @@ chat, source, documentation, tests, screenshots, logs, or commits.
 - Two administrator identities added as Google test users and stored privately
   in the bootstrap setting.
 - One separate non-admin identity added as a Google test user and stored
-  privately in the normal-user allowlist.
+  privately in the application configuration.
 - Required `.env` entries declared without committing values.
 - No application tables created manually; Alembic remains authoritative.
 - Strict online prerequisite verification passed with `0 failures, 0 warnings`.
@@ -61,8 +62,10 @@ Rules:
 - The publishable key may be sent to the browser.
 - The secret/service-role key is server-only.
 - The Google Client Secret remains in Supabase, not OryxenAI.
-- Allowlist/bootstrap emails are deployment policy and must not appear in
-  client configuration or normal diagnostics.
+- Bootstrap emails are deployment policy and must not appear in client
+  configuration or normal diagnostics. The normal-user allowlist is required
+  only when `[auth].admission_mode = "allowlist"`; open mode uses the database
+  capacity gate.
 - The coding agent may inspect presence/shape through redaction-safe tooling,
   never print values.
 
