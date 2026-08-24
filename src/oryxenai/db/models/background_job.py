@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Index, Integer, Text, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -29,6 +29,22 @@ class BackgroundJob(Base):
     job_kind: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="queued")
     payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    portfolio_session_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("portfolio_sessions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    owner_user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), nullable=True
+    )
+    actor_user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("app_users.id", ondelete="RESTRICT"), nullable=True
+    )
+    authorization_context_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    entitlement_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    execution_lane: Mapped[str | None] = mapped_column(Text, nullable=True)
     result: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     error_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -78,5 +94,29 @@ class BackgroundJob(Base):
             "idempotency_key",
             unique=True,
             postgresql_where=text("idempotency_scope IS NOT NULL AND idempotency_key IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "authorization_context_version IN (0, 1)",
+            name="ck_background_jobs_authorization_context_version",
+        ),
+        CheckConstraint(
+            "authorization_context_version = 0 OR "
+            "(portfolio_session_id IS NOT NULL AND owner_user_id IS NOT NULL AND actor_user_id IS NOT NULL)",
+            name="ck_background_jobs_current_context_bindings",
+        ),
+        CheckConstraint(
+            "entitlement_revision IS NULL OR entitlement_revision >= 0",
+            name="ck_background_jobs_entitlement_revision",
+        ),
+        CheckConstraint(
+            "execution_lane IS NULL OR execution_lane IN ('model-generation')",
+            name="ck_background_jobs_execution_lane",
+        ),
+        Index("ix_bgjobs_authorization", "portfolio_session_id", "owner_user_id", "actor_user_id"),
+        Index(
+            "ux_bgjobs_running_execution_lane",
+            "execution_lane",
+            unique=True,
+            postgresql_where=text("status = 'running' AND execution_lane IS NOT NULL"),
         ),
     )

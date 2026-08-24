@@ -106,3 +106,50 @@ class UserCapacityReachedError(AuthError):
 
     def __init__(self) -> None:
         super().__init__("Normal-user access is currently at capacity.")
+
+
+class GenerationVariantLockedError(AuthError):
+    code = "GENERATION_VARIANT_LOCKED"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__(
+            "This account already has its one Code Generator variant. Retry the existing run."
+        )
+
+
+class PortfolioReadOnlyError(AuthError):
+    code = "PORTFOLIO_READ_ONLY"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("This portfolio has a promoted success and is now read-only.")
+
+
+class EntitlementBindingConflictError(AuthError):
+    code = "ENTITLEMENT_BINDING_CONFLICT"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The portfolio authorization binding is inconsistent and cannot be changed safely."
+        )
+
+
+class AuthorizationFenceRejectedError(AuthError):
+    code = "AUTHORIZATION_FENCE_REJECTED"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("This background operation is no longer authorized to continue.")
+
+
+class ModelProviderCreditExhaustedError(AuthError):
+    code = "MODEL_PROVIDER_CREDIT_EXHAUSTED"
+    status_code = 503
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The configured model provider has no available credit. Retry this same run later.",
+            retryable=False,
+        )

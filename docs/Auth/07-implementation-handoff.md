@@ -1,13 +1,15 @@
 # Implementation handoff
 
 This is the accepted architecture handoff and remains the boundary for the
-full authorization project. Phases 1 and 2 of the execution plan are now
+full authorization project. Phases 1, 2, and 3 of the execution plan are now
 implemented: the auth boundary, local identity/capacity foundation, `/me` API,
-username onboarding, session ownership/legacy quarantine, route policy, and
-authenticated browser boot are in the repository. Entitlement, worker
-fencing, administrator lifecycle, and deployment remain Phases 3 and 4; follow
-[10-implementation-plan.md](10-implementation-plan.md) for those deferred
-work packages.
+username onboarding, session ownership/legacy quarantine, route policy,
+authenticated browser boot, one-session/variant/success entitlement, durable
+owner/actor worker fencing, global generation admission, and verified preview
+finalization are in the repository. Administrator lifecycle, full
+multi-account browser acceptance, and production deployment remain Phase 4;
+follow [10-implementation-plan.md](10-implementation-plan.md) for the
+remaining deferred work.
 
 ## Scope statement
 
@@ -32,9 +34,10 @@ durable worker and separate generated-preview trust boundary.
 - Existing sessions will be legacy-quarantined.
 - AWS and production projects are intentionally not created.
 
-Pending after the local Phase 2 implementation: complete the real Google
-callback, onboarding, normal-user, and administrator browser flows in the
-Phase 4 acceptance gate. Production resources remain intentionally uncreated.
+Pending after the local Phase 3 implementation: complete the real Google
+callback, onboarding, normal-user, and administrator multi-account browser
+flows in the Phase 4 acceptance gate. Administrator lifecycle APIs, production
+resources, and deployment remain intentionally uncreated.
 
 ## Work packages
 
@@ -121,6 +124,13 @@ session owner. Development APIs are absent in production, not merely hidden.
 
 ### 6. Quota, capacity, and durable generation
 
+Implemented in Phase 3 with migration `0016_auth_entitlements_worker_fencing`,
+the `PortfolioEntitlementRepository`, durable authorization snapshots,
+`WorkerAuthorizationFence`, global execution-lane claim policy, and central
+preview finalization. The normal-user retry/regenerate/success/read-only rules
+are server-enforced; provider credit exhaustion is redacted and non-retryable
+for the current attempt.
+
 - One normal user admission slot among 15; admins excluded.
 - One idempotent portfolio session per normal user.
 - Bind first Code Generator run/design variant transactionally.
@@ -133,6 +143,12 @@ session owner. Development APIs are absent in production, not merely hidden.
 - Preserve external model-credit fail-closed behavior and no expensive fallback.
 
 ### 7. Browser UI and controller
+
+Phase 1-3 browser boot is integrated with the existing first-three-agent
+workspace: `/api/v1/me` resolves the server-selected session and safe
+entitlement projection before `app.js` loads; normal users receive read-only
+controls after success and no developer/regenerate controls. The temporary
+`/admin` shell is read-only until Phase 4.
 
 - Add public sign-in and callback shells, onboarding, protected app controller,
   access-not-approved/account-unavailable states, and admin shell.

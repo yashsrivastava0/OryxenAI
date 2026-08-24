@@ -20,6 +20,14 @@
         {% endfor %}
       </select>
     </div>
+    <div class="portfolio-identity" aria-label="Authenticated account">
+      <span>Signed in as <strong data-user="username">there</strong></span>
+      <span>Role: <strong data-user="role">user</strong></span>
+      <span>Status: <strong data-user="status">active</strong></span>
+    </div>
+    <p id="portfolio-read-only" class="result" role="status" hidden>
+      This portfolio has a verified success and is now read-only.
+    </p>
     <button id="open-agent-workspace" class="workspace-launcher" type="button">Open outputs &amp; live activity</button>
   </div>
 

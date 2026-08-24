@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -93,4 +93,63 @@ class AppUserCapacity(Base):
             "normal_user_limit > 0 AND normal_user_limit <= 15", name="ck_capacity_limit"
         ),
         CheckConstraint("revision >= 0", name="ck_capacity_revision"),
+    )
+
+
+class PortfolioEntitlement(Base):
+    """The single normal-user portfolio/generation/success binding."""
+
+    __tablename__ = "portfolio_entitlements"
+
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    portfolio_session_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("portfolio_sessions.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
+    generation_run_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("code_generator_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
+    successful_run_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("code_generator_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (
+        CheckConstraint("revision >= 0", name="ck_portfolio_entitlements_revision"),
+        CheckConstraint(
+            "generation_run_id IS NULL OR portfolio_session_id IS NOT NULL",
+            name="ck_portfolio_entitlements_generation_requires_session",
+        ),
+        CheckConstraint(
+            "successful_run_id IS NULL OR generation_run_id IS NOT NULL",
+            name="ck_portfolio_entitlements_success_requires_generation",
+        ),
+        CheckConstraint(
+            "successful_run_id IS NULL OR successful_run_id = generation_run_id",
+            name="ck_portfolio_entitlements_success_matches_generation",
+        ),
+        CheckConstraint(
+            "(consumed_at IS NULL AND successful_run_id IS NULL) OR "
+            "(consumed_at IS NOT NULL AND successful_run_id IS NOT NULL)",
+            name="ck_portfolio_entitlements_consumed_consistency",
+        ),
     )

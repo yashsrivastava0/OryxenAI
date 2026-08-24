@@ -84,6 +84,8 @@ from oryxenai.agents.code_generator.core.resource_scout import select_candidate_
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.agents.shared.contracts import ModelClient
 from oryxenai.agents.shared.model_client import build_provider_client
+from oryxenai.agents.shared.providers.errors import stable_provider_failure
+from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
@@ -99,8 +101,14 @@ logger = get_logger("oryxenai.jobs.handlers.code_generator")
 
 def _planner_failure_issue(exc: Exception) -> SafeIssue:
     """Turn planner/provider failures into safe, actionable UI diagnostics."""
-    code = str(getattr(exc, "code", "PLANNER_OUTPUT_INVALID") or "PLANNER_OUTPUT_INVALID")
+    raw_code = str(getattr(exc, "code", "") or "")
+    code, provider_message = stable_provider_failure(exc)
+    if not raw_code:
+        code = "PLANNER_OUTPUT_INVALID"
     actions = {
+        "MODEL_PROVIDER_CREDIT_EXHAUSTED": (
+            "Retry this same run after the configured model provider has available credit."
+        ),
         "PROVIDER_CONNECTION_ERROR": (
             "Check worker DNS, proxy/firewall access, and the configured planner endpoint, then retry."
         ),
@@ -123,6 +131,9 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
         ),
     }
     messages = {
+        "MODEL_PROVIDER_CREDIT_EXHAUSTED": (
+            "The configured model provider has no available credit for the planner."
+        ),
         "PROVIDER_CONNECTION_ERROR": "The configured planner provider could not be reached before it produced a SitePlan.",
         "PROVIDER_TIMEOUT_ERROR": "The configured planner provider timed out before it produced a SitePlan.",
         "PROVIDER_AUTH_ERROR": "The configured planner provider rejected its API key before it produced a SitePlan.",
@@ -143,12 +154,14 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
         else {}
     )
     message = messages.get(code)
-    if code in {"PROVIDER_INVALID_REQUEST_ERROR", "PLANNER_OUTPUT_INVALID"} and str(exc):
-        message = f"{message} Detail: {str(exc)[:400]}"
     return SafeIssue(
         code=code,
         message=message
-        or (str(exc)[:300] if str(exc) else "The planner could not produce a valid SitePlan."),
+        or (
+            provider_message[:300]
+            if provider_message
+            else "The planner could not produce a valid SitePlan."
+        ),
         next_action=actions.get(
             code,
             "Review the planner diagnostics and admitted pack projections, then retry after correcting the failure.",
@@ -176,6 +189,7 @@ async def _execute(
     run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
+    await _validate_worker_payload(sessionmaker, payload)
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
         run = await repo.get(run_id)
@@ -207,6 +221,7 @@ async def _execute(
     adapter = DevelopmentInputAdapter(settings)
     if reference.mode == "build_preparation_artifact":
         try:
+            await _validate_worker_payload(sessionmaker, payload)
             artifact = ArtifactReference.model_validate(run.artifact_reference)
             data = await create_artifact_store(settings).get_verified(artifact)
             reference = adapter.from_build_preparation_artifact(
@@ -216,6 +231,7 @@ async def _execute(
             )
             async with sessionmaker() as db:
                 repo = CodeGeneratorDevelopmentRepository(db)
+                await WorkerAuthorizationFence(db).validate_run(run_id)
                 current = await repo.get(run_id)
                 if current is None:
                     return {"status": "discarded", "run_id": str(run_id)}
@@ -407,6 +423,7 @@ async def _execute(
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         try:
+            await _validate_worker_payload(sessionmaker, payload)
             direction: CreativeDirectionSetV2 | CreativeDirectionSetV3
             creative_state = dict(getattr(run, "creative_direction", None) or {})
             direction_context = {
@@ -438,8 +455,9 @@ async def _execute(
                     output_version="v3" if uses_v4 else "v2",
                 )
         except Exception as exc:
-            await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
-            return {"status": "needs_attention", "run_id": str(run_id)}
+            issue = _planner_failure_issue(exc)
+            await _needs_attention(sessionmaker, run_id, issue)
+            return {"status": "needs_attention", "run_id": str(run_id), "code": issue.code}
         direction_path = _write_context(
             settings,
             receipt.admitted_identity,
@@ -462,6 +480,7 @@ async def _execute(
         )
         async with sessionmaker() as db:
             repo = CodeGeneratorDevelopmentRepository(db)
+            await WorkerAuthorizationFence(db).validate_run(run_id)
             current = await repo.get(run_id)
             if current is None:
                 return {"status": "discarded", "run_id": str(run_id)}
@@ -490,6 +509,7 @@ async def _execute(
             await db.commit()
             run = updated
     try:
+        await _validate_worker_payload(sessionmaker, payload)
         plan, _prompt_version, prompt_receipt, result = await run_planner_operation(
             planner,
             context=context,
@@ -501,8 +521,9 @@ async def _execute(
             pipeline_contract_version=pipeline_contract_version,
         )
     except Exception as exc:
-        await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
-        return {"status": "needs_attention", "run_id": str(run_id)}
+        issue = _planner_failure_issue(exc)
+        await _needs_attention(sessionmaker, run_id, issue)
+        return {"status": "needs_attention", "run_id": str(run_id), "code": issue.code}
 
     planner_attempt = 1
     design_fingerprint: DesignFingerprintV1 | None = None
@@ -544,6 +565,7 @@ async def _execute(
                 },
             }
             try:
+                await _validate_worker_payload(sessionmaker, payload)
                 (
                     redirected,
                     redirected_receipt,
@@ -554,6 +576,7 @@ async def _execute(
                     profile_name=director_profile,
                     output_version="v3",
                 )
+                await _validate_worker_payload(sessionmaker, payload)
                 context = {
                     **context,
                     "creative_direction": redirected.model_dump(mode="json"),
@@ -614,8 +637,9 @@ async def _execute(
                     }
                 )
             except Exception as exc:
-                await _needs_attention(sessionmaker, run_id, _planner_failure_issue(exc))
-                return {"status": "needs_attention", "run_id": str(run_id)}
+                issue = _planner_failure_issue(exc)
+                await _needs_attention(sessionmaker, run_id, issue)
+                return {"status": "needs_attention", "run_id": str(run_id), "code": issue.code}
         creative_payload["design_fingerprint"] = design_fingerprint.model_dump(mode="json")
 
     plan_digest = hashlib.sha256(canonical_json(plan.model_dump(mode="json"))).hexdigest()
@@ -714,6 +738,7 @@ async def _execute_acquisition(
     run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
+    await _validate_worker_payload(sessionmaker, payload)
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
         run = await repo.get(run_id)
@@ -856,6 +881,7 @@ async def _execute_acquisition(
                     "CATEGORY_UNSUPPORTED", f"No trusted adapter exists for {request.category}."
                 )
             try:
+                await _validate_worker_payload(sessionmaker, payload)
                 candidates = await adapter.search(request, settings=settings)
                 filtered = filter_candidates_by_policy(candidates, request)
                 if not filtered:
@@ -900,6 +926,7 @@ async def _execute_acquisition(
                 else:
                     selected_id, _ = select_candidate(request, filtered)
                 candidate = next(item for item in filtered if item.candidate_id == selected_id)
+                await _validate_worker_payload(sessionmaker, payload)
                 materialized = await adapter.materialize(
                     candidate,
                     request,
@@ -1648,6 +1675,7 @@ async def _cas_status(
     *,
     values: dict[str, object] | None = None,
 ) -> Any:
+    await WorkerAuthorizationFence(repo._session).validate_run(run.id)
     updated = await repo.compare_and_swap(
         run.id,
         expected_revision=run.revision,
@@ -1685,3 +1713,10 @@ async def _needs_attention(
             details={"code": issue.code},
         )
         await db.commit()
+
+
+async def _validate_worker_payload(sessionmaker: Any, payload: dict[str, Any]) -> None:
+    """Recheck the claimed worker lease and local authorization before work."""
+
+    async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)

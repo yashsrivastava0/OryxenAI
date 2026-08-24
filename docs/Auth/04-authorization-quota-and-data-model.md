@@ -1,12 +1,12 @@
 # Authorization, quota, and data model
 
-Implementation status: the Phase 2 ownership slice is implemented in
-`0015_portfolio_ownership`. `portfolio_sessions` now has an internal
-`owner_user_id` foreign key, fail-closed `legacy_quarantined` state, owner-time
-index, and database consistency check. Existing rows are legacy/admin-only;
-new API-created rows are explicitly owned. Entitlement, one-variant/
-one-success, worker-fencing, audit, and administrator-lifecycle tables remain
-Phase 3 or 4 work and are intentionally not present.
+Implementation status: Phase 2 ownership is implemented in
+`0015_portfolio_ownership`, and Phase 3 entitlement/worker fencing is
+implemented in `0016_auth_entitlements_worker_fencing`. Existing rows are
+legacy/admin-only; new API-created rows are explicitly owned. Normal users now
+have one entitlement row that binds one session, one production generation
+run/variant, and one verified success. Administrator audit/lifecycle remains
+Phase 4 and is intentionally not present.
 
 ## Identity is not authorization
 
@@ -26,8 +26,9 @@ browser.
 ## Proposed tables/columns
 
 The Phase 1 identity tables are applied by `0014_auth_foundation`; the Phase 2
-session ownership fields are applied by `0015_portfolio_ownership`. The
-entitlement and audit tables below remain future-phase design.
+session ownership fields are applied by `0015_portfolio_ownership`. The Phase 3
+entitlement table is applied by `0016_auth_entitlements_worker_fencing`; the
+audit table remains future Phase 4 design.
 
 ### `app_users`
 
@@ -78,10 +79,11 @@ Repository methods should make the policy visible in their names, for example:
 - `list_owned_recent(owner_user_id, limit)`;
 - explicitly admin-only `get_by_id_for_admin` / `list_recent_for_admin`.
 
-A generic internal lookup remains for trusted service/worker callers while
-worker fencing is deferred. Product routes use the explicit owned/admin
-repository methods through centralized `PortfolioAccess`; they never filter a
-global query in Python.
+A generic internal lookup remains for trusted service callers; Phase 3 worker
+fencing now rechecks the durable owner/actor/session graph before work and
+finalization. Product routes use the explicit owned/admin repository methods
+through centralized `PortfolioAccess`; they never filter a global query in
+Python.
 
 ### `portfolio_entitlements`
 
@@ -115,12 +117,19 @@ Store:
 Do not store raw Supabase/Google objects, tokens, cookies, full intake documents,
 or destructive request payloads in the audit row.
 
-## Role/permission matrix (Phase 2 current slice)
+Phase 3 also stores local owner/actor/context snapshots on `agent_runs`,
+`code_generator_runs`, and `background_jobs`. Portfolio jobs receive the
+trusted `model-generation` execution lane; a PostgreSQL partial unique index
+permits at most one running credit-consuming job across workers. The
+`portfolio_entitlements` row and these snapshots are checked again by the
+worker and by preview finalization.
+
+## Role/permission matrix (Phase 2 and Phase 3 current slice)
 
 | Capability | Normal user | Admin |
 | --- | --- | --- |
 | View/update own app profile | Yes, username only during onboarding | Any user through explicit admin action |
-| Create portfolio session | Owned sessions; multiple creation remains allowed until Phase 3 entitlement | Owned sessions; all bounded |
+| Create portfolio session | One owned session; repeated/concurrent create returns the same binding | Owned sessions; all bounded |
 | List/read sessions | Own non-legacy sessions only | All, bounded, including legacy |
 | Run/revise/approve stages | Own non-legacy session, within existing state rules | Any session, including legacy, within existing state rules |
 | Retry a failed Code Generator stage | Same run/variant only | Any retry allowed by workflow |
@@ -134,8 +143,8 @@ or destructive request payloads in the audit row.
 “Admin can do anything” means admin authorization can operate on every business
 resource. It does not mean bypassing model/state safety gates, forging provider
 results, reading secrets, or turning on disabled development routes in
-production. Entitlement, worker fencing, and lifecycle authority are explicitly
-later phases.
+production. Administrator lifecycle/audit authority is explicitly Phase 4.
+Entitlement and worker-fencing authority are Phase 3 server/database behavior.
 
 ## Exact one-portfolio semantics
 

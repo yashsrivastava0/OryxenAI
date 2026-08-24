@@ -83,6 +83,16 @@ function errorMessage(code) {
       return "Normal-user access is currently at capacity.";
     case "USERNAME_TAKEN":
       return "That username is already taken.";
+    case "GENERATION_VARIANT_LOCKED":
+      return "Your one Code Generator variant is already bound. Retry that run if the server allows it.";
+    case "PORTFOLIO_READ_ONLY":
+      return "This portfolio has a verified success and is now read-only.";
+    case "MODEL_PROVIDER_CREDIT_EXHAUSTED":
+      return "The model provider has no available credit. Retry this same run later.";
+    case "AUTHORIZATION_FENCE_REJECTED":
+      return "This operation is no longer authorized. Refresh the workspace before trying again.";
+    case "ENTITLEMENT_BINDING_CONFLICT":
+      return "The portfolio authorization binding could not be changed safely.";
     case "ONBOARDING_REQUIRED":
       return "Complete username onboarding before using this page.";
     case "AUTH_PROVIDER_UNAVAILABLE":

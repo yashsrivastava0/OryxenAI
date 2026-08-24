@@ -9,7 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from oryxenai.agents.discovery.schemas import DiscoveryAnswer
 from oryxenai.agents.discovery.service import DiscoveryOperationError, DiscoveryService
-from oryxenai.api.dependencies import get_discovery_service, require_session_owner_or_admin
+from oryxenai.api.dependencies import (
+    get_discovery_service,
+    require_mutable_portfolio,
+    require_session_owner_or_admin,
+)
 from oryxenai.api.errors import AppError
 from oryxenai.auth.authorization import PortfolioAccess
 
@@ -85,6 +89,7 @@ async def start_discovery(
     session_id: str,
     body: StartRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -106,6 +111,7 @@ async def save_discovery_answers(
     session_id: str,
     body: AnswersRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -129,6 +135,7 @@ async def revise_discovery_brief(
     session_id: str,
     body: ReviseRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -143,6 +150,7 @@ async def revise_discovery_brief(
 async def approve_discovery_brief(
     session_id: str,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:

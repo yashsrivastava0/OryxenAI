@@ -297,6 +297,7 @@ class PreviewPromoter:
             manifest = BuildManifest.model_validate(candidate_pointer["manifest"])
             pointer = {
                 "schema_version": "code-generator-active-preview-v1",
+                "run_id": run_id,
                 "host": host,
                 "candidate_prefix": candidate_prefix,
                 "manifest": candidate_pointer["manifest"],
@@ -359,6 +360,7 @@ class PreviewPromoter:
                         "The promoted preview did not pass public URL read-back verification.",
                     ) from exc
             return ActivePreview(
+                run_id=run_id,
                 host=host,
                 url=f"{self.preview_base_url}/{host}/",
                 candidate_id=pending.candidate.candidate_id,

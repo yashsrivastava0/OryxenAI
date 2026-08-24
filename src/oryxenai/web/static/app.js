@@ -42,6 +42,9 @@
   var appStorage = null;
   var systemStatusTimer = null;
   var probeTimer = null;
+  var portfolioReadOnly = false;
+  var serverSessionId = null;
+  var sessionCreatePromise = null;
   var booted = false;
   var stageJobs = {
     discovery: [],
@@ -193,6 +196,9 @@
       observedJobSignatures[jobKey] = jobSignature;
       var kind = jobStatus === "succeeded" ? "success" : jobStatus === "failed" ? "error" : "info";
       var label = job.kind || "durable job";
+      if (jobStatus === "queued" && job.execution_lane === "model-generation") {
+        label = "Waiting for global generation capacity";
+      }
       recordActivity(agent, label + " is " + jobStatus.replace(/_/g, " ") + ".", kind, jobKey + "|" + jobSignature);
     });
   }
@@ -409,15 +415,32 @@
     if (typeof authorizedRequest !== "function") {
       throw { status: 401, message: "Authentication is required.", body: null };
     }
+    var requestOpts = opts || {};
+    var method = String(requestOpts.method || "GET").toUpperCase();
+    if (portfolioReadOnly && ["POST", "PUT", "PATCH", "DELETE"].indexOf(method) >= 0) {
+      throw {
+        status: 409,
+        code: "PORTFOLIO_READ_ONLY",
+        message: "This portfolio is read-only after verified success.",
+        body: null,
+      };
+    }
     var controller = new AbortController();
     var timer = window.setTimeout(function () { controller.abort(); }, 30000);
-    var requestOpts = opts || {};
     requestOpts.signal = controller.signal;
     var resp = null;
     try {
       resp = await authorizedRequest(url, requestOpts);
     } catch (e) {
       window.clearTimeout(timer);
+      if (e && (e.code || e.status)) {
+        throw {
+          status: e.status || 0,
+          code: e.code || "",
+          message: e.message || "The request could not be completed.",
+          body: null,
+        };
+      }
       throw { status: 0, message: "Network error — the server did not respond.", body: null };
     }
     window.clearTimeout(timer);
@@ -430,7 +453,8 @@
     }
     if (!resp.ok) {
       var msg = (body && body.error && body.error.message) || resp.statusText;
-      throw { status: resp.status, message: msg, body: body };
+      var code = body && body.error && body.error.code;
+      throw { status: resp.status, code: code || "", message: msg, body: body };
     }
     return body;
   }
@@ -539,7 +563,7 @@
   function chatError(text, retryLabel, retryFn) {
     var content = textEl(text);
     content.className = "bubble-text bubble-error";
-    if (retryLabel && retryFn) {
+    if (!portfolioReadOnly && retryLabel && retryFn) {
       var button = document.createElement("button");
       button.type = "button";
       button.className = "primary-action";
@@ -600,6 +624,10 @@
   }
 
   async function sendMessage() {
+    if (portfolioReadOnly) {
+      chatError("This portfolio is read-only after verified success.");
+      return;
+    }
     var text = composerText();
     if (!text) return;
     if (answeringQuestionId) {
@@ -653,16 +681,22 @@
   }
 
   async function createSessionQuiet(name) {
-    try {
-      var body = name ? { name: name } : {};
-      return await fetchJson(API + "/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch (e) {
-      return null;
-    }
+    if (sessionCreatePromise) return sessionCreatePromise;
+    sessionCreatePromise = (async function () {
+      try {
+        var body = name ? { name: name } : {};
+        return await fetchJson(API + "/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        return null;
+      } finally {
+        sessionCreatePromise = null;
+      }
+    })();
+    return sessionCreatePromise;
   }
 
   async function startDiscovery(message, documentText) {
@@ -782,7 +816,7 @@
       stopPolling();
       stopElapsedTicker();
       clearAnalyzingBubble();
-      disableComposer(false);
+      disableComposer(portfolioReadOnly);
       renderBrief();
     } else if (status === "approved") {
       stopPolling();
@@ -829,6 +863,10 @@
   }
 
   function renderNeedsDetails(assistantMessage) {
+    if (portfolioReadOnly) {
+      addBubble("assistant", textEl(assistantMessage || "This portfolio is read-only after verified success."));
+      return;
+    }
     var content = textEl(assistantMessage || "Tell me anything you have about the person or work — you can paste it here or attach a readable document.");
     var actions = document.createElement("div");
     actions.className = "needs-details-actions";
@@ -844,6 +882,10 @@
   }
 
   function renderReadyForBrief(assistantMessage) {
+    if (portfolioReadOnly) {
+      addBubble("assistant", textEl(assistantMessage || "This portfolio is read-only after verified success."));
+      return;
+    }
     var content = textEl(assistantMessage || "I have enough information to prepare the portfolio brief.");
     var actions = document.createElement("div");
     actions.className = "needs-details-actions";
@@ -896,6 +938,10 @@
   // ── Questions ───────────────────────────────────────────────────────────
 
   function renderQuestions(questions) {
+    if (portfolioReadOnly) {
+      addBubble("assistant", textEl("This portfolio is read-only after verified success."));
+      return;
+    }
     if (chatQIndex >= questions.length) return;
     var question = questions[chatQIndex];
     var answered = chatAnswers[question.id];
@@ -1131,6 +1177,10 @@
     var brief = chatState.brief || null;
     if (!brief) return;
     if (chatState.status === "approved") {
+      if (portfolioReadOnly) {
+        chatDone("Discovery was approved. This portfolio remains readable, but verified success has made further changes read-only.");
+        return;
+      }
       promptNextAgentPrompt("Discovery approved — the portfolio brief is ready for the next stage.", "Start Content Architect", startContentArchitect);
       return;
     }
@@ -1169,26 +1219,33 @@
 
     var actions = document.createElement("div");
     actions.className = "brief-actions";
-    var editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "primary-action";
-    editBtn.textContent = "Edit summary";
-    actions.appendChild(editBtn);
+    var editBtn = null;
+    var reviseBtn = null;
+    var approveBtn = null;
+    if (!portfolioReadOnly) {
+      editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "primary-action";
+      editBtn.textContent = "Edit summary";
+      actions.appendChild(editBtn);
+    }
     var viewFullBtn = document.createElement("button");
     viewFullBtn.type = "button";
     viewFullBtn.className = "choice-btn";
     viewFullBtn.textContent = "View full output";
     actions.appendChild(viewFullBtn);
-    var reviseBtn = document.createElement("button");
-    reviseBtn.type = "button";
-    reviseBtn.className = "choice-btn";
-    reviseBtn.textContent = "Ask for a revision";
-    actions.appendChild(reviseBtn);
-    var approveBtn = document.createElement("button");
-    approveBtn.type = "button";
-    approveBtn.className = "primary-action";
-    approveBtn.textContent = "NEXT: Approve";
-    actions.appendChild(approveBtn);
+    if (!portfolioReadOnly) {
+      reviseBtn = document.createElement("button");
+      reviseBtn.type = "button";
+      reviseBtn.className = "choice-btn";
+      reviseBtn.textContent = "Ask for a revision";
+      actions.appendChild(reviseBtn);
+      approveBtn = document.createElement("button");
+      approveBtn.type = "button";
+      approveBtn.className = "primary-action";
+      approveBtn.textContent = "NEXT: Approve";
+      actions.appendChild(approveBtn);
+    }
     content.appendChild(actions);
 
     var raw = document.createElement("details");
@@ -1205,10 +1262,10 @@
     bubble.id = "brief-bubble";
 
     renderBriefMarkdown(markdownBox);
-    editBtn.addEventListener("click", function () { toggleBriefEdit(markdownBox, editBtn); });
+    editBtn && editBtn.addEventListener("click", function () { toggleBriefEdit(markdownBox, editBtn); });
     viewFullBtn.addEventListener("click", openFullBriefSidebar);
-    reviseBtn.addEventListener("click", function () { openRevisionForm(content); });
-    approveBtn.addEventListener("click", approveDiscovery);
+    reviseBtn && reviseBtn.addEventListener("click", function () { openRevisionForm(content); });
+    approveBtn && approveBtn.addEventListener("click", approveDiscovery);
   }
 
   // ── Full-brief sidebar (complete brief_markdown + profile, as saved) ────
@@ -1410,6 +1467,10 @@
   // click on its button or a clear natural-language "yes" (handled in
   // sendMessage via awaitingNextAgentConfirmation) actually starts startFn.
   function promptNextAgentPrompt(message, buttonLabel, startFn) {
+    if (portfolioReadOnly) {
+      chatDone(message + " This portfolio is read-only after its verified success.");
+      return;
+    }
     awaitingNextAgentConfirmation = { startFn: startFn, label: buttonLabel };
     var content = textEl(message + " Would you like to move to the next agent?");
     var actions = document.createElement("div");
@@ -1544,7 +1605,7 @@
     viewFullBtn.textContent = "View full output";
     viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("content_architect"); });
     actions.appendChild(viewFullBtn);
-    if (caState.status === "content_review") {
+    if (!portfolioReadOnly && caState.status === "content_review") {
       var reviseBtn = document.createElement("button");
       reviseBtn.type = "button";
       reviseBtn.className = "choice-btn";
@@ -1779,7 +1840,7 @@
     viewFullBtn.textContent = "View full output";
     viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("visual_design_director"); });
     actions.appendChild(viewFullBtn);
-    if (vddState.status === "design_review") {
+    if (!portfolioReadOnly && vddState.status === "design_review") {
       var approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "primary-action";
@@ -2311,6 +2372,8 @@
     options = options || {};
     authorizedRequest = options.authorizedFetch;
     appStorage = options.storage || null;
+    portfolioReadOnly = Boolean(options.readOnly || (options.me && options.me.read_only));
+    serverSessionId = options.serverSessionId ? String(options.serverSessionId) : null;
     booted = true;
 
     var advanced = document.getElementById("advanced");
@@ -2319,6 +2382,21 @@
     if (modelRow) modelRow.hidden = !options.developer;
     var adminLink = document.getElementById("app-admin-link");
     if (adminLink) adminLink.hidden = options.role !== "admin";
+    document.querySelectorAll('[data-user="username"]').forEach(function (element) {
+      element.textContent = (options.me && options.me.username) || "there";
+    });
+    document.querySelectorAll('[data-user="role"]').forEach(function (element) {
+      element.textContent = (options.me && options.me.role) || "user";
+    });
+    document.querySelectorAll('[data-user="status"]').forEach(function (element) {
+      element.textContent = (options.me && options.me.status) || "active";
+    });
+    var readOnlyBanner = document.getElementById("portfolio-read-only");
+    if (readOnlyBanner) readOnlyBanner.hidden = !portfolioReadOnly;
+    if (portfolioReadOnly) {
+      disableComposer(true);
+      document.getElementById("btn-attach").disabled = true;
+    }
 
     chatWelcome();
     renderSidebarOutputTabs();
@@ -2374,7 +2452,8 @@
       if (event.key === "Escape") closeFullBriefSidebar();
     });
 
-    var remembered = rememberedSession();
+    var remembered = serverSessionId || rememberedSession();
+    if (serverSessionId) rememberSession(serverSessionId);
     if (remembered) {
       fetchJson(API + "/sessions/" + remembered).then(function (session) {
         selectedSessionId = session.id;
@@ -2405,6 +2484,9 @@
     elapsedTimer = null;
     systemStatusTimer = null;
     selectedSessionId = null;
+    serverSessionId = null;
+    sessionCreatePromise = null;
+    portfolioReadOnly = false;
     chatState = null;
     lastIntake = null;
     forgetSession();

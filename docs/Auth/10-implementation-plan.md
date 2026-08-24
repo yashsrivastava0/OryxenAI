@@ -1,9 +1,9 @@
 # Supabase authentication implementation plan
 
-Status: Phase 1 and Phase 2 execution are implemented in the checkout. This
-document remains the repository-grounded plan for the four-phase authorization
-project. Phase 3 entitlement/worker fencing and Phase 4 administrator
-lifecycle, full browser acceptance, and deployment handoff remain deferred. No
+Status: Phase 1, Phase 2, and Phase 3 execution are implemented in the
+checkout. This document remains the repository-grounded plan for the
+four-phase authorization project. Phase 4 administrator lifecycle, full
+multi-account browser acceptance, and deployment handoff remain deferred. No
 production cloud resources were created.
 
 ## Four-phase execution map
@@ -15,9 +15,9 @@ production cloud resources were created.
   quarantine, centralized onboarded/owner/admin policy, all existing product
   API route families, admin/development surface gating, and bearer-authenticated
   product/developer browser boot.
-- **Phase 3 (deferred):** one-portfolio/variant/success entitlement,
-  generation admission, durable owner/actor bindings, and worker finalization
-  fencing.
+- **Phase 3 (implemented):** one-portfolio/variant/success entitlement,
+  generation admission, durable owner/actor bindings, global model-generation
+  lane, provider-credit fencing, and verified preview finalization.
 - **Phase 4 (deferred):** administrator lifecycle/audit, full multi-account
   browser acceptance, and production deployment handoff.
 
@@ -29,8 +29,8 @@ production cloud resources were created.
   configuration, safe `/me` routes, and the temporary browser controller.
 - Phase 2 now owns session ownership, route authorization, development-surface
   gating, and authenticated product/developer boot.
-- Do not use this completion as authorization for entitlement, worker-fencing,
-  administrator-lifecycle, or deployment work; those remain separate phases.
+- Do not use this completion as authorization for administrator-lifecycle or
+  deployment work; those remain Phase 4.
 - Reinspect the live repository and provider changelog before later phases;
   never assume a future checkout matches this audit.
 
@@ -77,10 +77,10 @@ These do not require another planning choice:
   owner/admin, and admin-only boundaries around existing services.
 - session/stage/run routes use the authorized `PortfolioAccess` session.
 - `PortfolioSession` and migration `0015` provide owner and legacy state.
-- `PortfolioSessionRepository` exposes explicit owned/admin methods; global
-  lookup remains documented for trusted internals until Phase 3 worker fencing.
-- durable job/agent/code-generator tables still do not bind a current app
-  owner/actor; that is intentionally Phase 3.
+- `PortfolioSessionRepository` exposes explicit owned/admin methods; trusted
+  internal lookups are now supplemented by Phase 3 worker fencing.
+- durable agent/code-generator/job rows bind local owner/actor/context snapshots
+  for new portfolio work; Phase 4 admin lifecycle is still deferred.
 - `web/routes.py` exposes product `/app` always and developer pages only under
   configured development flags.
 - `web/static/app.js` receives the shared authorized request boundary only
@@ -194,8 +194,9 @@ Phase gate:
 Load the PostgreSQL best-practice guidance immediately before migration SQL.
 Use one new linear Alembic revision. Keep locks/transactions short and index
 every foreign key used for joins/cascades. The ownership portion is implemented
-by `0015_portfolio_ownership`; the entitlement, audit, and durable identity
-binding designs in this section remain future-phase material.
+by `0015_portfolio_ownership`; the Phase 3 entitlement and durable identity
+binding designs are implemented by `0016_auth_entitlements_worker_fencing`.
+The audit design remains Phase 4 material.
 
 ### `app_users`
 
@@ -402,7 +403,13 @@ route cannot bypass policy by calling a generic ID lookup.
 Phase gate: A/B/admin matrix across every route and nested ID family passes;
 foreign and nonexistent return indistinguishable 404s.
 
-## Phase 3 - capacity entitlement, generation policy, and worker fencing (deferred)
+## Phase 3 - capacity entitlement, generation policy, and worker fencing (implemented)
+
+Implemented by migration `0016_auth_entitlements_worker_fencing`,
+`src/oryxenai/auth/entitlements.py`, `worker_fence.py`, `finalization.py`, the
+central job policy/repository changes, and the existing production workspace
+boot integration. The following contract is the source-of-truth summary of
+the completed phase; Phase 4 owns administrator lifecycle and deployment.
 
 ### Session claim
 

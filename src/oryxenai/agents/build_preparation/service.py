@@ -17,6 +17,7 @@ from oryxenai.agents.build_preparation.state import apply_start, reset_for_regen
 from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorStatus
+from oryxenai.auth.authorization import durable_snapshot
 from oryxenai.core.settings import get_settings
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
@@ -125,6 +126,7 @@ class BuildPreparationService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
+            **durable_snapshot(self._job_service.authorization_context),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -259,6 +261,7 @@ class BuildPreparationService:
                         "id": str(job.id),
                         "kind": job.job_kind,
                         "status": job.status,
+                        "execution_lane": getattr(job, "execution_lane", None),
                         "attempt": job.attempt,
                         "error": job.error_payload,
                     }

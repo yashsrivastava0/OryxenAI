@@ -9,9 +9,12 @@ import shutil
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
+
+from sqlalchemy import select
 
 from oryxenai.agents.build_preparation.schemas import BuildPreparationStatus
 from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
@@ -38,6 +41,15 @@ from oryxenai.agents.code_generator.session_schemas import (
     ProviderPreflightEnvelope,
 )
 from oryxenai.agents.shared.model_client import build_provider_client, resolve_api_key
+from oryxenai.agents.shared.providers.errors import stable_provider_failure
+from oryxenai.auth.authorization import durable_snapshot
+from oryxenai.auth.domain import AuthRole
+from oryxenai.auth.errors import (
+    EntitlementBindingConflictError,
+    GenerationVariantLockedError,
+    PortfolioReadOnlyError,
+)
+from oryxenai.auth.models import AppUser
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.jobs.service import JobService
 from oryxenai.storage.artifacts import (
@@ -106,6 +118,15 @@ class CodeGeneratorService:
         current = (
             await self._repo.runs.get(UUID(state.current_run_id)) if state.current_run_id else None
         )
+        normal_entitlement = await self._normal_owner_entitlement(session_id)
+        if normal_entitlement is not None:
+            if normal_entitlement.successful_run_id is not None:
+                raise PortfolioReadOnlyError()
+            # A normal account has one immutable generation variant.  A
+            # changed idempotency key must not trigger external preflight or a
+            # second variant; the canonical server binding wins.
+            if normal_entitlement.generation_run_id is not None:
+                return await self.get_state(session_id)
         if current is not None and current.status not in {
             DevelopmentRunStatus.READY.value,
             DevelopmentRunStatus.NEEDS_ATTENTION.value,
@@ -232,13 +253,56 @@ class CodeGeneratorService:
                     item.fingerprint_hash for item in prior_fingerprints[-history_limit:]
                 ],
             )
+        entitlement_revision: int | None = None
+        if normal_entitlement is not None:
+            # This is the short binding transaction boundary.  No provider,
+            # artifact, or browser work occurs while the row is locked.
+            normal_entitlement = await self._repo.entitlements.get_for_user(
+                self._normal_owner_id(), lock=True
+            )
+            if normal_entitlement is None or normal_entitlement.portfolio_session_id != session_id:
+                raise EntitlementBindingConflictError()
+            if normal_entitlement.successful_run_id is not None:
+                raise PortfolioReadOnlyError()
+            if normal_entitlement.generation_run_id is not None:
+                return await self.get_state(session_id)
+            entitlement_revision = normal_entitlement.revision + 1
+            context = getattr(self._jobs, "authorization_context", None)
+            if context is None:
+                raise EntitlementBindingConflictError()
+            self._jobs.authorization_context = replace(
+                context, entitlement_revision=entitlement_revision
+            )
+        context = getattr(self._jobs, "authorization_context", None)
+        if context is not None and context.authorization_context_version != 1:
+            raise EntitlementBindingConflictError()
+        lock_session = getattr(self._repo, "get_session_for_update", None)
+        bound_session = await lock_session(session_id) if lock_session is not None else session
+        if bound_session is None:
+            raise CodeGeneratorOperationError(
+                "SESSION_NOT_FOUND", "Portfolio session was not found.", status_code=404
+            )
+        if bound_session.revision != session.revision:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_SESSION_REVISION_CONFLICT",
+                "The portfolio changed while Code Generator was preparing. Reload and try again.",
+            )
+        if context is not None and (
+            bound_session.legacy_quarantined
+            or bound_session.owner_user_id != context.owner_user_id
+            or context.portfolio_session_id != session_id
+        ):
+            raise EntitlementBindingConflictError()
+        session = bound_session
+        run_snapshot = durable_snapshot(getattr(self._jobs, "authorization_context", None))
+        if run_snapshot["portfolio_session_id"] is None:
+            run_snapshot["portfolio_session_id"] = session_id
         run = await self._repo.runs.create(
             input_reference=input_reference.model_dump(mode="json"),
             idempotency_key=idempotency_key,
             idempotency_scope=scope,
             auto_advance=True,
             run_mode="session",
-            portfolio_session_id=session_id,
             build_preparation_source_ref=source_ref.model_dump(mode="json"),
             artifact_reference=artifact.model_dump(mode="json"),
             preflight_receipt={**preflight, "artifact_head": stored.model_dump(mode="json")},
@@ -255,7 +319,16 @@ class CodeGeneratorService:
                 if variant_receipt is not None
                 else None
             ),
+            **run_snapshot,
         )
+        if normal_entitlement is not None:
+            await self._repo.entitlements.bind_generation_run(
+                user_id=self._normal_owner_id(),
+                session_id=session_id,
+                run_id=run.id,
+                revision=normal_entitlement.revision,
+                actor_user_id=getattr(self._jobs.authorization_context, "actor_user_id", None),
+            )
         stage_attempt = None
         create_stage_attempt = getattr(self._repo.runs, "create_stage_attempt", None)
         if create_stage_attempt is not None:
@@ -356,6 +429,8 @@ class CodeGeneratorService:
         idempotency_key: str,
         model_profile: str = "",
     ) -> dict[str, Any]:
+        if await self._normal_owner_entitlement(session_id) is not None:
+            raise GenerationVariantLockedError()
         return await self.start(
             session_id,
             idempotency_key=idempotency_key,
@@ -398,6 +473,22 @@ class CodeGeneratorService:
                 "The current Code Generator run no longer exists.",
                 status_code=409,
             )
+        normal_entitlement = await self._normal_owner_entitlement(session_id)
+        if normal_entitlement is not None:
+            if normal_entitlement.successful_run_id is not None:
+                raise PortfolioReadOnlyError()
+            await self._repo.entitlements.assert_bound_retry(
+                user_id=self._normal_owner_id(),
+                session_id=session_id,
+                run_id=run.id,
+                revision=normal_entitlement.revision,
+            )
+            context = getattr(self._jobs, "authorization_context", None)
+            if context is None:
+                raise EntitlementBindingConflictError()
+            self._jobs.authorization_context = replace(
+                context, entitlement_revision=normal_entitlement.revision
+            )
         if run.status == DevelopmentRunStatus.READY.value:
             raise CodeGeneratorOperationError(
                 "CODE_GENERATOR_RETRY_NOT_ALLOWED",
@@ -420,6 +511,57 @@ class CodeGeneratorService:
                 "The approved Build Preparation source changed; start a new run from the latest artifact.",
                 status_code=409,
                 details={"stale_reasons": stale_reasons},
+            )
+
+        # Retry is the other short durable mutation transaction.  A normal
+        # entitlement is already locked by assert_bound_retry; acquire the
+        # session and exact run next, then create only the next stage attempt
+        # and job while those identity bindings remain stable.
+        lock_session = getattr(self._repo, "get_session_for_update", None)
+        bound_session = await lock_session(session_id) if lock_session is not None else session
+        if bound_session is None or bound_session.revision != session.revision:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_SESSION_REVISION_CONFLICT",
+                "The portfolio changed while retry was being prepared. Reload and try again.",
+            )
+        session = bound_session
+        get_run = self._repo.runs.get
+        try:
+            locked_run = await get_run(run.id, lock=True)
+        except TypeError:
+            # Small in-memory service fixtures predate the optional lock
+            # argument; production repositories always take the row lock.
+            locked_run = await get_run(run.id)
+        if locked_run is None:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_RUN_NOT_FOUND",
+                "The current Code Generator run no longer exists.",
+                status_code=409,
+            )
+        context = getattr(self._jobs, "authorization_context", None)
+        if context is not None and (
+            context.authorization_context_version != 1
+            or context.portfolio_session_id != session_id
+            or locked_run.portfolio_session_id != session_id
+            or locked_run.owner_user_id != context.owner_user_id
+            or locked_run.actor_user_id != context.actor_user_id
+        ):
+            raise EntitlementBindingConflictError()
+        run = locked_run
+        if run.status == DevelopmentRunStatus.READY.value:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_RETRY_NOT_ALLOWED",
+                "This run is already ready; the existing variant cannot be retried.",
+                status_code=409,
+            )
+        if run.status not in {
+            DevelopmentRunStatus.NEEDS_ATTENTION.value,
+            DevelopmentRunStatus.PREVIEW_PENDING.value,
+        }:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_RUN_IN_PROGRESS",
+                "The current Code Generator stage is still running.",
+                status_code=409,
             )
 
         stage = _retry_stage(run)
@@ -544,6 +686,53 @@ class CodeGeneratorService:
         run = (
             await self._repo.runs.get(UUID(state.current_run_id)) if state.current_run_id else None
         )
+        admin_override = await self._is_admin_run_override(session_id, run)
+        normal_entitlement = await self._normal_owner_entitlement(session_id)
+        if normal_entitlement is not None:
+            if (
+                normal_entitlement.generation_run_id is None
+                and state.current_run_id is not None
+                and not admin_override
+            ):
+                # A normal user's entitlement, not a mutable JSON projection,
+                # decides which production run exists. Do not expose a legacy
+                # or manually inserted run as a new entitlement.
+                raise EntitlementBindingConflictError()
+            if (
+                normal_entitlement.generation_run_id is not None
+                and state.current_run_id != str(normal_entitlement.generation_run_id)
+                and not admin_override
+            ):
+                # The entitlement is the authoritative run binding. A stale
+                # or manually altered session projection must fail closed.
+                raise EntitlementBindingConflictError()
+        if (
+            normal_entitlement is not None
+            and normal_entitlement.generation_run_id is not None
+            and not admin_override
+        ):
+            context = getattr(self._jobs, "authorization_context", None)
+            successful_replay = (
+                normal_entitlement.successful_run_id == normal_entitlement.generation_run_id
+            )
+            if (
+                run is None
+                or str(getattr(run, "run_mode", "")) != "session"
+                or run.portfolio_session_id != session_id
+                or context is None
+                or run.owner_user_id != context.owner_user_id
+                or run.actor_user_id != context.actor_user_id
+                or run.authorization_context_version != 1
+                or run.entitlement_revision is None
+                or (
+                    run.entitlement_revision != normal_entitlement.revision
+                    and not (
+                        successful_replay
+                        and run.entitlement_revision + 1 == normal_entitlement.revision
+                    )
+                )
+            ):
+                raise EntitlementBindingConflictError()
         payload = state.model_dump(mode="json")
         jobs: list[dict[str, Any]] = []
         if run is not None:
@@ -603,6 +792,7 @@ class CodeGeneratorService:
                             "id": str(job.id),
                             "kind": job.job_kind,
                             "status": job.status,
+                            "execution_lane": getattr(job, "execution_lane", None),
                             "attempt": job.attempt,
                             "error": job.error_payload,
                         }
@@ -616,6 +806,35 @@ class CodeGeneratorService:
             "code_generator": payload,
             "jobs": jobs,
         }
+
+    async def _is_admin_run_override(self, session_id: UUID, run: Any | None) -> bool:
+        """Allow a durable admin-on-owner run without weakening normal entitlement state."""
+
+        context = getattr(self._jobs, "authorization_context", None)
+        if (
+            run is None
+            or context is None
+            or context.authorization_context_version != 1
+            or context.owner_user_id is None
+            or context.owner_user_id != context.actor_user_id
+            or getattr(run, "run_mode", "") != "session"
+            or getattr(run, "portfolio_session_id", None) != session_id
+            or getattr(run, "owner_user_id", None) != context.owner_user_id
+            or getattr(run, "actor_user_id", None) in {None, context.owner_user_id}
+            or getattr(run, "authorization_context_version", 0) != 1
+        ):
+            return False
+        actor_id = getattr(run, "actor_user_id", None)
+        if actor_id is None:
+            return False
+        db = getattr(self._repo, "_session", None)
+        if db is None:
+            return False
+        result = await db.execute(
+            select(AppUser.role, AppUser.status).where(AppUser.id == actor_id)
+        )
+        actor = result.one_or_none()
+        return actor is not None and actor[0] == AuthRole.ADMIN.value and actor[1] == "active"
 
     async def _verify_artifact_head(self, reference: ArtifactReference) -> ArtifactReference:
         try:
@@ -761,23 +980,12 @@ class CodeGeneratorService:
                     if not envelope.ok or envelope.protocol != "code-generator-preflight-v1":
                         raise RuntimeError("provider preflight returned an invalid envelope")
             except Exception as exc:
-                code = str(getattr(exc, "code", "PROVIDER_PREFLIGHT_FAILED"))
-                raw_details = getattr(exc, "details", {})
-                details: dict[str, Any] = {"profile": profile_name}
-                if isinstance(raw_details, dict):
-                    details.update(
-                        {
-                            str(key): value
-                            for key, value in raw_details.items()
-                            if isinstance(key, str) and isinstance(value, (str, int, float, bool))
-                        }
-                    )
+                code, message = stable_provider_failure(exc)
                 raise CodeGeneratorOperationError(
                     code,
-                    str(exc)[:500]
-                    or "The configured Code Generator provider did not pass its no-context preflight.",
+                    message,
                     status_code=503,
-                    details=details,
+                    details={},
                 ) from exc
             _PREFLIGHT_CACHE[identity] = time.monotonic()
             checked.append(profile_name)
@@ -817,6 +1025,33 @@ class CodeGeneratorService:
                 "SESSION_NOT_FOUND", "Portfolio session was not found.", status_code=404
             )
         return session
+
+    def _normal_owner_id(self) -> UUID:
+        context = getattr(self._jobs, "authorization_context", None)
+        if context is None or context.authorization_context_version != 1:
+            raise EntitlementBindingConflictError()
+        if context.owner_user_id != context.actor_user_id or context.owner_user_id is None:
+            raise EntitlementBindingConflictError()
+        return UUID(str(context.owner_user_id))
+
+    async def _normal_owner_entitlement(self, session_id: UUID) -> Any | None:
+        context = getattr(self._jobs, "authorization_context", None)
+        if context is None or context.authorization_context_version != 1:
+            return None
+        if context.portfolio_session_id != session_id:
+            raise EntitlementBindingConflictError()
+        if context.owner_user_id != context.actor_user_id or context.owner_user_id is None:
+            return None
+        result = await self._repo._session.execute(
+            select(AppUser.role).where(AppUser.id == context.actor_user_id)
+        )
+        role = result.scalar_one_or_none()
+        if role != AuthRole.USER.value:
+            return None
+        entitlement = await self._repo.entitlements.get_for_user(context.owner_user_id)
+        if entitlement is None:
+            raise EntitlementBindingConflictError()
+        return entitlement
 
     @staticmethod
     def _not_ready(message: str) -> NoReturn:

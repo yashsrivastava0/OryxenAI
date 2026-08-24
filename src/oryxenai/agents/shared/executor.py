@@ -24,6 +24,9 @@ from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentError, AgentResult, AgentRunStatus
 from oryxenai.agents.shared.registry import AgentNotFoundError, AgentRegistry
 from oryxenai.api.errors import AppError, ConflictError, NotFoundError
+from oryxenai.auth.authorization import DurableAuthorizationContext, durable_snapshot
+from oryxenai.auth.entitlements import PortfolioEntitlementRepository
+from oryxenai.auth.errors import EntitlementBindingConflictError, PortfolioReadOnlyError
 from oryxenai.core.logging import get_logger, set_agent_run_id
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
@@ -78,10 +81,12 @@ class AgentExecutor:
         registry: AgentRegistry,
         session_repo: PortfolioSessionRepository,
         run_repo: AgentRunRepository,
+        authorization_context: DurableAuthorizationContext | None = None,
     ) -> None:
         self._registry = registry
         self._session_repo = session_repo
         self._run_repo = run_repo
+        self._authorization_context = authorization_context
 
     @property
     def registry(self) -> AgentRegistry:
@@ -144,6 +149,7 @@ class AgentExecutor:
             state_before=state_before,
             model_metadata={"provider": "mock", "model": "deterministic-mock"},
             attempt=1,
+            **durable_snapshot(self._authorization_context),
         )
         run = await self._run_repo.create(run)
 
@@ -169,6 +175,13 @@ class AgentExecutor:
             # 8 — Merge state.
             state_after = _merge_state(state_before, key_enum.value, str(run_id), result.output)
 
+            # A request may have started before another transaction finalized
+            # the normal user's portfolio. Recheck only at the final durable
+            # mutation boundary; never hold this entitlement lock over agent
+            # work. A rejection rolls back the pending AgentRun with the
+            # surrounding request transaction.
+            await self._assert_normal_entitlement_mutable(db_session, session_id)
+
             # 9 — Optimistic state update.
             updated = await self._session_repo.update_state(
                 session_id, state_after, portfolio_session.revision
@@ -186,6 +199,8 @@ class AgentExecutor:
             )
             return await self._run_repo.get_by_id(run_id)  # type: ignore[return-value]
 
+        except (EntitlementBindingConflictError, PortfolioReadOnlyError):
+            raise
         except Exception as exc:
             # Persist a safe structured error on failure inside the same tx.
             if isinstance(exc, _RevisionConflict):
@@ -207,6 +222,22 @@ class AgentExecutor:
                 error.code,
             )
             return await self._run_repo.get_by_id(run_id)  # type: ignore[return-value]
+
+    async def _assert_normal_entitlement_mutable(
+        self, db_session: AsyncSession, session_id: UUID
+    ) -> None:
+        context = self._authorization_context
+        if context is None or context.authorization_context_version != 1:
+            return
+        if context.owner_user_id != context.actor_user_id or context.owner_user_id is None:
+            return
+        entitlement = await PortfolioEntitlementRepository(db_session).lock_for_normal_user(
+            context.owner_user_id
+        )
+        if entitlement.portfolio_session_id != session_id:
+            raise EntitlementBindingConflictError()
+        if entitlement.successful_run_id is not None:
+            raise PortfolioReadOnlyError()
 
     async def find_idempotent(
         self,

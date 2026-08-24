@@ -2840,6 +2840,7 @@ class PublicReadbackReceiptV1(BaseModel):
 class ActivePreview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    run_id: str = ""
     host: str
     url: str
     candidate_id: str
