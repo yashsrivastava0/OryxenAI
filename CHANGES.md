@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 - Codex (GPT-5 / OpenAI) - [15cf585] - Temporarily detach the main pipeline and add hard restart
+Added config-driven detached development mode for the Discovery through Build
+Preparation workflow while preserving authentication on admin, product,
+fixture, run, and Code Generator surfaces. Added explicit detached session
+classification, migration, durable refresh rehydration, no-store browser/API
+behavior, stale-response fencing, and a visible Restart Pipeline action that
+fences jobs, removes exact database/external/local artifacts, and recreates an
+empty revision-zero session. Added focused API, settings, and frontend
+regression coverage; Docker/test overlays remain attached.
+
 ### 2026-08-25 - Codex - [540d33a] - Add native and Docker development run modes
 Added the canonical dual-mode development runbook, native local-PostgreSQL
 configuration and PowerShell/Bash helpers, and the missing isolated Docker Code
