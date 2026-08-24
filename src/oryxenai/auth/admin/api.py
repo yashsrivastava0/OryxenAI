@@ -115,6 +115,15 @@ async def audit_events(
     return AdminPage(**await service.audit_events(limit=limit, cursor=cursor))
 
 
+@router.get("/operations", response_model=AdminPage)
+async def operations(
+    limit: int = 25,
+    cursor: str | None = None,
+    service: AdminService = Depends(get_admin_service),
+) -> AdminPage:
+    return AdminPage(**await service.operations(limit=limit, cursor=cursor))
+
+
 @router.get("/operations/{operation_id}", response_model=AdminOperationResponse)
 async def operation(
     operation_id: UUID, service: AdminService = Depends(get_admin_service)

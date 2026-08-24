@@ -197,6 +197,20 @@ dd { margin: 0 0 0.25rem; font-family: monospace; font-size: 0.85rem; }
   padding: 0.2rem 0.4rem;
 }
 
+body.auth-pending > :not(#auth-bootstrap-progress) { visibility: hidden; }
+
+.auth-bootstrap-progress {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 0.4rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.auth-bootstrap-progress span { color: var(--muted); }
+body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
+
 .portfolio-identity {
   display: flex;
   flex-wrap: wrap;

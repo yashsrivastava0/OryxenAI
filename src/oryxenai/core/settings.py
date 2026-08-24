@@ -1101,6 +1101,7 @@ class Settings(BaseSettings):
         return {
             "supabaseUrl": self.supabase_url.rstrip("/"),
             "publishableKey": self.supabase_publishable_key.get_secret_value(),
+            "primaryOrigin": self.auth.primary_origin,
             "callbackUrl": self.auth.callback_url(),
             "signInPath": self.auth.sign_in_path,
             "callbackPath": self.auth.callback_path,

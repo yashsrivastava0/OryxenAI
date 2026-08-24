@@ -165,7 +165,8 @@ Do not migrate the frontend to React/Next.
 
 ### 8. Admin lifecycle
 
-- Bounded user/project/audit lists.
+- Bounded user/project/operation/audit lists, including a safe resume control
+  for supported retryable cleanup operations.
 - Local suspend first, then Supabase provider revoke/ban.
 - Restore through explicit provider plus local transition.
 - Delete project with job fencing, preview revocation, storage cleanup, and
@@ -176,6 +177,7 @@ Do not migrate the frontend to React/Next.
 - Quota reset with explicit current-project handling.
 - Prevent last-admin deletion/demotion and unsafe self-actions.
 - Audit every mutation without secrets or intake content.
+- Never hold PostgreSQL row locks across Supabase or object-storage calls.
 
 ### 9. Verification and runbooks
 

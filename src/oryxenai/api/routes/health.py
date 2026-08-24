@@ -1,7 +1,7 @@
 """Health endpoints.
 
 /health/live  — process liveness; never depends on PostgreSQL.
-/health/ready — dependency readiness; includes a lightweight DB query.
+/health/ready — dependency readiness; verifies connectivity and core schema.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ async def liveness() -> dict[str, str]:
 
 @router.get("/ready")
 async def readiness(request: Request) -> JSONResponse:
-    """Dependency readiness — includes a lightweight PostgreSQL query."""
+    """Dependency readiness — verifies PostgreSQL and its core schema."""
     engine = request.app.state.engine
     ready = True
     if engine is not None:
