@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 17:11 +05:30 - Codex (model/provider omitted) - [c5b5821] - Final authentication readiness hardening
+Corrected modern Supabase secret-key Admin API headers, browser token refresh,
+canonical PKCE routing, terminal local sign-out, retryable administrator
+operation UX, external-call transaction boundaries, schema-aware readiness,
+and cross-platform Docker startup. Safely migrated the verified-empty local
+application schema to Alembic head and left the API, worker, and PostgreSQL
+stack healthy for owner Google-browser acceptance.
+
 ### 2026-08-24 - Codex (model/provider omitted) - [b17227c] - Phase 4 administrator lifecycle and acceptance
 Implemented the linear Phase 4 migration, safe admin operations/audit ledger,
 Supabase Admin API adapter, resumable user/project cleanup, identity/project
