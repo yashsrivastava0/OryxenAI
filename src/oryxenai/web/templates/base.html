@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="oryxenai-pipeline-mode" content="{{ pipeline_mode }}">
+  {% if pipeline_mode != "detached" %}
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -15,15 +17,18 @@
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
   <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
+  {% endif %}
   <title>{% block title %}{{ app_name }} - Portfolio Discovery{% endblock %}</title>
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/app.css?v={{ app_css_version }}">
   {% block head %}{% endblock %}
 </head>
-<body class="auth-pending">
+<body class="{% if pipeline_mode != "detached" %}auth-pending{% endif %}">
+  {% if pipeline_mode != "detached" %}
   <div id="auth-bootstrap-progress" class="auth-bootstrap-progress" role="status" aria-live="polite">
     <strong>Restoring your workspace.</strong>
     <span>Verifying this browser session before loading portfolio data.</span>
   </div>
+  {% endif %}
   <header>
     <h1>{{ app_name }}</h1>
     <p class="subtitle">Tell us about yourself and we'll put together a portfolio brief with you.</p>
@@ -37,7 +42,9 @@
     <p>{{ app_name }} - Discovery, Content Architect &amp; Visual Design Director. Further generation is controlled by the authenticated server workflow.</p>
   </footer>
 
+  {% if pipeline_mode != "detached" %}
   <script src="{{ request.scope.get('root_path', '') }}/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
+  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

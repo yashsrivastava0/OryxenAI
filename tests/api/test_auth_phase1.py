@@ -13,7 +13,7 @@ from oryxenai.main import create_app
 
 
 def _settings() -> Settings:
-    return Settings(
+    settings = Settings(
         _env_file=None,
         supabase_url="https://project.supabase.co",
         supabase_publishable_key="sb_publishable_test",
@@ -21,6 +21,8 @@ def _settings() -> Settings:
         admin_bootstrap_emails="admin1@example.com admin2@example.com",
         allowed_user_emails="user@example.com",
     )
+    settings.auth.pipeline_mode = "attached"
+    return settings
 
 
 @pytest.mark.asyncio

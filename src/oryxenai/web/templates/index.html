@@ -9,7 +9,8 @@
       </div>
       <div class="workspace-actions">
         <a id="app-admin-link" class="workspace-launcher" href="{{ auth_config.adminPath }}" hidden>Admin</a>
-        <button id="app-logout" class="workspace-launcher" type="button">Sign out</button>
+        {% if pipeline_mode != "detached" %}<button id="app-logout" class="workspace-launcher" type="button">Sign out</button>{% endif %}
+        <button id="restart-pipeline" class="workspace-launcher danger-action" type="button">Restart Pipeline</button>
       </div>
     </div>
     <div class="model-select-row">
@@ -20,7 +21,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="portfolio-identity" aria-label="Authenticated account">
+    <div class="portfolio-identity" aria-label="Authenticated account"{% if pipeline_mode == "detached" %} hidden{% endif %}>
       <span>Signed in as <strong data-user="username">there</strong></span>
       <span>Role: <strong data-user="role">user</strong></span>
       <span>Status: <strong data-user="status">active</strong></span>
@@ -208,5 +209,9 @@
 </details>
 {% endblock %}
 {% block scripts %}
+{% if pipeline_mode == "detached" %}
+  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/pipeline-bootstrap.mjs?v={{ pipeline_bootstrap_version }}"></script>
+{% else %}
   <script type="module" src="{{ request.scope.get('root_path', '') }}/static/app-auth-bootstrap.mjs?v={{ app_auth_bootstrap_version }}"></script>
+{% endif %}
 {% endblock %}

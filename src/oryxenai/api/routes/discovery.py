@@ -11,8 +11,8 @@ from oryxenai.agents.discovery.schemas import DiscoveryAnswer
 from oryxenai.agents.discovery.service import DiscoveryOperationError, DiscoveryService
 from oryxenai.api.dependencies import (
     get_discovery_service,
-    require_mutable_portfolio,
-    require_session_owner_or_admin,
+    require_pipeline_mutable,
+    require_pipeline_session,
 )
 from oryxenai.api.errors import AppError
 from oryxenai.auth.authorization import PortfolioAccess
@@ -71,7 +71,7 @@ def _translate(exc: DiscoveryOperationError) -> NoReturn:
 @router.get("", response_model=DiscoveryStateResponse)
 async def get_discovery_state(
     session_id: str,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    access: PortfolioAccess = Depends(require_pipeline_session),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -88,8 +88,8 @@ async def get_discovery_state(
 async def start_discovery(
     session_id: str,
     body: StartRequest,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -110,8 +110,8 @@ async def start_discovery(
 async def save_discovery_answers(
     session_id: str,
     body: AnswersRequest,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -134,8 +134,8 @@ async def save_discovery_answers(
 async def revise_discovery_brief(
     session_id: str,
     body: ReviseRequest,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:
@@ -149,8 +149,8 @@ async def revise_discovery_brief(
 @router.post("/approve", response_model=DiscoveryStateResponse)
 async def approve_discovery_brief(
     session_id: str,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
     try:

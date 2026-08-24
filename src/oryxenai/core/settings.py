@@ -181,6 +181,10 @@ class AuthConfig(BaseModel):
     provider: str = "supabase"
     enabled: bool = True
     required: bool = False
+    # The main pipeline may be run anonymously only in local/test development.
+    # This is deliberately separate from ``enabled`` because the auth/admin
+    # boundary remains available while the product pipeline is detached.
+    pipeline_mode: str = "attached"
     # ``allowlist`` keeps local/restricted environments closed.  ``open``
     # admits any verified Google identity until the database-owned normal-user
     # capacity is full.  The provider still remains Google-only; this setting
@@ -219,6 +223,11 @@ class AuthConfig(BaseModel):
     def _coerce_admission_mode(cls, value: Any) -> Any:
         return str(value).strip().lower() if value is not None else value
 
+    @field_validator("pipeline_mode", mode="before")
+    @classmethod
+    def _coerce_pipeline_mode(cls, value: Any) -> Any:
+        return str(value).strip().lower() if value is not None else value
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def _coerce_origins(cls, value: Any) -> Any:
@@ -241,6 +250,8 @@ class AuthConfig(BaseModel):
             raise ValueError("Required authentication cannot be disabled.")
         if self.admission_mode not in {"allowlist", "open"}:
             raise ValueError("Auth admission mode must be 'allowlist' or 'open'.")
+        if self.pipeline_mode not in {"attached", "detached"}:
+            raise ValueError("Auth pipeline mode must be 'attached' or 'detached'.")
         if self.audience != "authenticated":
             raise ValueError("Supabase JWT audience must be authenticated.")
         if self.issuer_path != "/auth/v1":
@@ -350,6 +361,8 @@ class AuthConfig(BaseModel):
         )
         admission_configured = provider_coordinates_present or bool(admins or allowed)
         environment = app_env.strip().lower()
+        if self.pipeline_mode == "detached" and (self.required or environment == "production"):
+            raise ValueError("Detached pipeline mode is allowed only in non-production development.")
         if (self.required or environment == "production" or admission_configured) and len(
             admins
         ) != self.bootstrap_admin_count:
@@ -1125,6 +1138,7 @@ class Settings(BaseSettings):
             "appPath": self.auth.app_path,
             "adminPath": self.auth.admin_path,
             "onboardingPath": self.auth.onboarding_path,
+            "pipelineMode": self.auth.pipeline_mode,
         }
 
 

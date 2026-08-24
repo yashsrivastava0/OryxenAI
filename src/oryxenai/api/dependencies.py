@@ -21,7 +21,12 @@ from oryxenai.auth.admin.service import AdminService
 from oryxenai.auth.authorization import DurableAuthorizationContext, PortfolioAccess
 from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
 from oryxenai.auth.entitlements import PortfolioEntitlementRepository
-from oryxenai.auth.errors import AdminRequiredError, OnboardingRequiredError, PortfolioReadOnlyError
+from oryxenai.auth.errors import (
+    AdminRequiredError,
+    AuthRequiredError,
+    OnboardingRequiredError,
+    PortfolioReadOnlyError,
+)
 from oryxenai.auth.jwt import extract_bearer_token
 from oryxenai.auth.service import AuthService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
@@ -83,6 +88,10 @@ def get_admin_service(
     )
 
 
+def get_session_repo(db: AsyncSession = Depends(get_db_session)) -> PortfolioSessionRepository:
+    return PortfolioSessionRepository(db)
+
+
 async def get_current_user(
     token: str = Depends(get_bearer_token),
     service: AuthService = Depends(get_auth_service),
@@ -94,6 +103,10 @@ async def require_onboarded_user(
     user: CurrentUser = Depends(get_current_user),
 ) -> CurrentUser:
     """Require a current, active local identity with a claimed username."""
+    return _assert_onboarded(user)
+
+
+def _assert_onboarded(user: CurrentUser) -> CurrentUser:
     if user.status is not AccountStatus.ACTIVE:
         # AuthService normally maps this before returning.  Keep the
         # dependency fail-closed for explicit test/dependency adapters too.
@@ -107,6 +120,82 @@ async def require_onboarded_user(
     return user
 
 
+def is_detached_pipeline(request: Request) -> bool:
+    """Return the server-selected temporary pipeline mode."""
+    return bool(request.app.state.settings.auth.pipeline_mode == "detached")
+
+
+async def get_pipeline_user(
+    request: Request,
+    service: AuthService = Depends(get_auth_service),
+) -> CurrentUser | None:
+    """Resolve auth only for the attached pipeline mode."""
+    if is_detached_pipeline(request):
+        return None
+    token = await get_bearer_token(request)
+    return _assert_onboarded(await service.current_user(token))
+
+
+async def require_pipeline_session(
+    request: Request,
+    session_id: str,
+    user: CurrentUser | None = Depends(get_pipeline_user),
+    repo: PortfolioSessionRepository = Depends(get_session_repo),
+) -> PortfolioAccess:
+    """Authorize a main-pipeline session in attached or detached mode."""
+    try:
+        sid = UUID(session_id)
+    except ValueError as exc:
+        from oryxenai.api.errors import ValidationError
+
+        raise ValidationError("Invalid session ID format.") from exc
+
+    if is_detached_pipeline(request):
+        session = await repo.get_detached_by_id(sid)
+        if session is None:
+            from oryxenai.api.errors import SessionNotFoundError
+
+            raise SessionNotFoundError(session_id)
+        return PortfolioAccess(actor=None, session=session)
+
+    if user is None:
+        raise AuthRequiredError()
+    if user.role is AuthRole.ADMIN:
+        session = await repo.get_by_id_for_admin(sid)
+    else:
+        session = await repo.get_owned_by_id(sid, user.id)
+    if session is None:
+        from oryxenai.api.errors import SessionNotFoundError
+
+        raise SessionNotFoundError(session_id)
+    return PortfolioAccess(actor=user, session=session)
+
+
+async def require_detached_pipeline_mode(request: Request) -> None:
+    """Keep restart available for idempotent retries after old-row deletion."""
+    if not is_detached_pipeline(request):
+        from oryxenai.api.errors import SessionNotFoundError
+
+        raise SessionNotFoundError("detached-pipeline")
+
+
+async def require_pipeline_mutable(
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    db: AsyncSession = Depends(get_db_session),
+) -> PortfolioAccess:
+    """Guard main-pipeline mutations without weakening other API routes."""
+    if access.actor is None:
+        return access
+    if access.actor.role is AuthRole.ADMIN:
+        return access
+    if access.actor.entitlement is not None and access.actor.entitlement.read_only:
+        raise PortfolioReadOnlyError()
+    row = await PortfolioEntitlementRepository(db).get_for_user(access.actor.id)
+    if row is not None and row.successful_run_id is not None:
+        raise PortfolioReadOnlyError()
+    return access
+
+
 async def require_admin(
     user: CurrentUser = Depends(require_onboarded_user),
 ) -> CurrentUser:
@@ -118,10 +207,6 @@ async def require_admin(
 @lru_cache(maxsize=1)
 def get_agent_registry() -> AgentRegistry:
     return default_registry()
-
-
-def get_session_repo(db: AsyncSession = Depends(get_db_session)) -> PortfolioSessionRepository:
-    return PortfolioSessionRepository(db)
 
 
 async def require_session_owner_or_admin(
@@ -156,16 +241,36 @@ async def get_durable_context(
 ) -> DurableAuthorizationContext:
     """Bind a request-scoped portfolio access decision to local durable IDs."""
 
+    actor = access.actor
+    if actor is None:
+        return DurableAuthorizationContext.from_access(access)
     if (
         access.session.owner_user_id is not None
-        and access.session.owner_user_id == access.actor.id
-        and access.actor.role is AuthRole.USER
+        and access.session.owner_user_id == actor.id
+        and actor.role is AuthRole.USER
     ):
         # /me is the approved JIT repair boundary. Do not take an
         # entitlement row lock here: the request may continue into provider
         # or model work. The short binding transaction acquires it immediately
         # before durable portfolio mutation.
-        row = await PortfolioEntitlementRepository(db).get_for_user(access.actor.id)
+        row = await PortfolioEntitlementRepository(db).get_for_user(actor.id)
+        if row is None or row.portfolio_session_id != access.session.id:
+            from oryxenai.auth.errors import EntitlementBindingConflictError
+
+            raise EntitlementBindingConflictError()
+    return DurableAuthorizationContext.from_access(access)
+
+
+async def get_pipeline_durable_context(
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    db: AsyncSession = Depends(get_db_session),
+) -> DurableAuthorizationContext | None:
+    """Return owner bindings when attached, or explicit v0 detached context."""
+    actor = access.actor
+    if actor is None:
+        return None
+    if actor.role is AuthRole.USER:
+        row = await PortfolioEntitlementRepository(db).get_for_user(actor.id)
         if row is None or row.portfolio_session_id != access.session.id:
             from oryxenai.auth.errors import EntitlementBindingConflictError
 
@@ -179,11 +284,14 @@ async def require_mutable_portfolio(
 ) -> PortfolioAccess:
     """Guard every product mutation after aggregate ownership is established."""
 
-    if access.actor.role is AuthRole.ADMIN:
+    actor = access.actor
+    if actor is None:
         return access
-    if access.actor.entitlement is not None and access.actor.entitlement.read_only:
+    if actor.role is AuthRole.ADMIN:
+        return access
+    if actor.entitlement is not None and actor.entitlement.read_only:
         raise PortfolioReadOnlyError()
-    row = await PortfolioEntitlementRepository(db).get_for_user(access.actor.id)
+    row = await PortfolioEntitlementRepository(db).get_for_user(actor.id)
     if row is not None and row.successful_run_id is not None:
         raise PortfolioReadOnlyError()
     return access
@@ -213,7 +321,7 @@ def get_mock_runner(
 def get_discovery_service(
     db: AsyncSession = Depends(get_db_session),
     registry: AgentRegistry = Depends(get_agent_registry),
-    context: DurableAuthorizationContext = Depends(get_durable_context),
+    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
 ) -> DiscoveryService:
     """Build a Discovery service bound to the request transaction."""
     return DiscoveryService(DiscoveryRepository(db), JobService(db, context), registry)
@@ -222,7 +330,7 @@ def get_discovery_service(
 def get_content_architect_service(
     db: AsyncSession = Depends(get_db_session),
     registry: AgentRegistry = Depends(get_agent_registry),
-    context: DurableAuthorizationContext = Depends(get_durable_context),
+    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
 ) -> ContentArchitectService:
     """Build a Content Architect service bound to the request transaction."""
     return ContentArchitectService(
@@ -233,7 +341,7 @@ def get_content_architect_service(
 def get_visual_design_director_service(
     db: AsyncSession = Depends(get_db_session),
     registry: AgentRegistry = Depends(get_agent_registry),
-    context: DurableAuthorizationContext = Depends(get_durable_context),
+    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
 ) -> VisualDesignDirectorService:
     """Build a Visual Design Director service bound to the request transaction."""
     return VisualDesignDirectorService(
@@ -243,7 +351,7 @@ def get_visual_design_director_service(
 
 def get_build_preparation_service(
     db: AsyncSession = Depends(get_db_session),
-    context: DurableAuthorizationContext = Depends(get_durable_context),
+    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
 ) -> BuildPreparationService:
     return BuildPreparationService(BuildPreparationRepository(db), JobService(db, context))
 

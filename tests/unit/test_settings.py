@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from oryxenai.core.settings import Settings
+import pytest
+
+from oryxenai.core.settings import AuthConfig, Settings
 
 
 def test_settings_load_toml_defaults():
@@ -81,3 +83,24 @@ def test_secrets_not_in_repr():
     s = Settings()
     repr_str = repr(s)
     assert "SecretStr" in repr_str
+
+
+def test_detached_pipeline_is_rejected_for_production():
+    config = AuthConfig(pipeline_mode="detached")
+    config.validate_environment(
+        app_env="local",
+        supabase_url="",
+        publishable_key="",
+        secret_key="",
+        admin_emails="",
+        allowed_emails="",
+    )
+    with pytest.raises(ValueError, match="Detached pipeline mode"):
+        config.validate_environment(
+            app_env="production",
+            supabase_url="",
+            publishable_key="",
+            secret_key="",
+            admin_emails="",
+            allowed_emails="",
+        )

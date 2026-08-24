@@ -46,6 +46,13 @@
   var serverSessionId = null;
   var sessionCreatePromise = null;
   var booted = false;
+  var pipelineMode = "attached";
+  var pipelineEpoch = 0;
+  var requestControllers = new Set();
+  var restartInFlight = false;
+  var PIPELINE_SESSION_KEY = "oryxenai.pipeline.session_id";
+  var PENDING_RESTART_KEY = "oryxenai.pipeline.pending_restart_session_id";
+  var PENDING_RESTART_OLD_KEY = "oryxenai.pipeline.pending_restart_old_session_id";
   var stageJobs = {
     discovery: [],
     content_architect: [],
@@ -415,8 +422,13 @@
     if (typeof authorizedRequest !== "function") {
       throw { status: 401, message: "Authentication is required.", body: null };
     }
-    var requestOpts = opts || {};
+    var requestOpts = Object.assign({}, opts || {});
+    requestOpts.headers = Object.assign({}, requestOpts.headers || {});
+    requestOpts.headers["Cache-Control"] = "no-store";
+    requestOpts.cache = "no-store";
     var method = String(requestOpts.method || "GET").toUpperCase();
+    var requestEpoch = pipelineEpoch;
+    var requestSessionId = selectedSessionId;
     if (portfolioReadOnly && ["POST", "PUT", "PATCH", "DELETE"].indexOf(method) >= 0) {
       throw {
         status: 409,
@@ -426,6 +438,7 @@
       };
     }
     var controller = new AbortController();
+    requestControllers.add(controller);
     var timer = window.setTimeout(function () { controller.abort(); }, 30000);
     requestOpts.signal = controller.signal;
     var resp = null;
@@ -433,6 +446,10 @@
       resp = await authorizedRequest(url, requestOpts);
     } catch (e) {
       window.clearTimeout(timer);
+      requestControllers.delete(controller);
+      if (requestEpoch !== pipelineEpoch || (requestSessionId && requestSessionId !== selectedSessionId)) {
+        throw { status: 0, code: "STALE_PIPELINE_RESPONSE", message: "The request belonged to an older pipeline session.", body: null };
+      }
       if (e && (e.code || e.status)) {
         throw {
           status: e.status || 0,
@@ -444,6 +461,10 @@
       throw { status: 0, message: "Network error — the server did not respond.", body: null };
     }
     window.clearTimeout(timer);
+    requestControllers.delete(controller);
+    if (requestEpoch !== pipelineEpoch || (requestSessionId && requestSessionId !== selectedSessionId)) {
+      throw { status: 0, code: "STALE_PIPELINE_RESPONSE", message: "The response belonged to an older pipeline session.", body: null };
+    }
     var body = null;
     var ct = resp.headers.get("content-type") || "";
     if (ct.indexOf("application/json") >= 0) {
@@ -461,8 +482,12 @@
 
   function rememberSession(sessionId) {
     try {
-      appStorage && appStorage.setItem("oryxenai.session_id", sessionId);
+      var key = pipelineMode === "detached" ? PIPELINE_SESSION_KEY : "oryxenai.session_id";
+      appStorage && appStorage.setItem(key, sessionId);
       appStorage && appStorage.removeItem("oryxenai.discovery.session");
+      if (pipelineMode === "detached") {
+        appStorage && appStorage.removeItem("oryxenai.session_id");
+      }
     } catch (e) {
       // Navigation can continue; the auth runtime owns storage failure state.
     }
@@ -470,7 +495,8 @@
 
   function rememberedSession() {
     try {
-      return appStorage && appStorage.getItem("oryxenai.session_id");
+      var key = pipelineMode === "detached" ? PIPELINE_SESSION_KEY : "oryxenai.session_id";
+      return appStorage && appStorage.getItem(key);
     } catch (e) {
       return null;
     }
@@ -479,10 +505,43 @@
   function forgetSession() {
     try {
       appStorage && appStorage.removeItem("oryxenai.session_id");
+      appStorage && appStorage.removeItem(PIPELINE_SESSION_KEY);
       appStorage && appStorage.removeItem("oryxenai.discovery.session");
+      appStorage && appStorage.removeItem(PENDING_RESTART_KEY);
+      appStorage && appStorage.removeItem(PENDING_RESTART_OLD_KEY);
     } catch (e) {
       // Best-effort cleanup; the auth runtime also clears private state.
     }
+  }
+
+  function pendingRestartSession() {
+    try {
+      return appStorage && appStorage.getItem(PENDING_RESTART_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function pendingRestartOldSession() {
+    try {
+      return appStorage && appStorage.getItem(PENDING_RESTART_OLD_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function rememberPendingRestart(sessionId, oldSessionId) {
+    try {
+      appStorage && appStorage.setItem(PENDING_RESTART_KEY, sessionId);
+      appStorage && appStorage.setItem(PENDING_RESTART_OLD_KEY, oldSessionId);
+    } catch (e) { /* opaque recovery state is best effort */ }
+  }
+
+  function clearPendingRestart() {
+    try {
+      appStorage && appStorage.removeItem(PENDING_RESTART_KEY);
+      appStorage && appStorage.removeItem(PENDING_RESTART_OLD_KEY);
+    } catch (e) { /* best effort */ }
   }
 
   // ── Chat rendering ──────────────────────────────────────────────────────
@@ -561,6 +620,7 @@
   }
 
   function chatError(text, retryLabel, retryFn) {
+    if (restartInFlight || String(text || "").indexOf("older pipeline") >= 0) return;
     var content = textEl(text);
     content.className = "bubble-text bubble-error";
     if (!portfolioReadOnly && retryLabel && retryFn) {
@@ -624,6 +684,7 @@
   }
 
   async function sendMessage() {
+    if (restartInFlight) return;
     if (portfolioReadOnly) {
       chatError("This portfolio is read-only after verified success.");
       return;
@@ -797,6 +858,9 @@
 
   function stopPolling() {
     if (pollTimer) { window.clearTimeout(pollTimer); pollTimer = null; }
+    if (caPollTimer) { window.clearTimeout(caPollTimer); caPollTimer = null; }
+    if (vddPollTimer) { window.clearTimeout(vddPollTimer); vddPollTimer = null; }
+    if (buildPreparationPollTimer) { window.clearTimeout(buildPreparationPollTimer); buildPreparationPollTimer = null; }
     stopElapsedTicker();
   }
 
@@ -2365,6 +2429,122 @@
     }
   }
 
+  function abortRequests() {
+    requestControllers.forEach(function (controller) {
+      try { controller.abort(); } catch (e) { /* already settled */ }
+    });
+    requestControllers.clear();
+  }
+
+  function clearClientPipelineState() {
+    stopPolling();
+    chatState = null;
+    caState = null;
+    vddState = null;
+    buildPreparationState = null;
+    lastIntake = null;
+    chatQIndex = 0;
+    chatAnswers = {};
+    answeringQuestionId = null;
+    awaitingNextAgentConfirmation = null;
+    analyzingBubbleId = null;
+    chatStartedAt = null;
+    localBriefMarkdown = null;
+    lastRenderedOperationRunId = null;
+    window._attachedDocument = null;
+    Object.keys(agentStates).forEach(function (agent) { agentStates[agent] = null; });
+    Object.keys(stageJobs).forEach(function (agent) { stageJobs[agent] = []; });
+    activeSidebarOutput = "discovery";
+    sidebarView = "output";
+    activityEvents = [];
+    activityKeys = Object.create(null);
+    observedStageSignatures = Object.create(null);
+    observedJobSignatures = Object.create(null);
+    var messages = document.getElementById("chat-messages");
+    if (messages) messages.replaceChildren();
+    var current = document.getElementById("current-session");
+    if (current) current.hidden = true;
+    setResult("chat-status", "");
+    setResult("create-result", "");
+    setResult("run-result", "");
+    setResult("probe-status", "");
+    var runDetail = document.getElementById("run-detail");
+    if (runDetail) runDetail.hidden = true;
+    var probeDetail = document.getElementById("probe-detail");
+    if (probeDetail) probeDetail.hidden = true;
+    var composer = document.getElementById("composer");
+    if (composer) composer.value = "";
+    var fileInput = document.getElementById("file-input");
+    if (fileInput) fileInput.value = "";
+    var providerSelect = document.getElementById("provider-select");
+    if (providerSelect) providerSelect.disabled = false;
+    closeFullBriefSidebar();
+    renderSidebarOutputTabs();
+    renderActivityLog();
+    disableComposer(portfolioReadOnly || restartInFlight);
+  }
+
+  function freshSessionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      var v = c === "x" ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  async function restartPipeline() {
+    if (restartInFlight) return;
+    if (!window.confirm("Restart the pipeline from zero? This permanently removes all answers, agent output, jobs, errors, and temporary build artifacts.")) return;
+    restartInFlight = true;
+    var button = document.getElementById("restart-pipeline");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Clearing pipelineâ€¦";
+    }
+    pipelineEpoch += 1;
+    abortRequests();
+    var oldSessionId = selectedSessionId;
+    var replacementId = freshSessionId();
+    clearClientPipelineState();
+    if (!oldSessionId) {
+      forgetSession();
+      chatWelcome();
+      restartInFlight = false;
+      if (button) { button.disabled = false; button.textContent = "Restart Pipeline"; }
+      return;
+    }
+    rememberPendingRestart(replacementId, oldSessionId);
+    try {
+      var response = await fetchJson(API + "/sessions/" + oldSessionId + "/restart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replacement_session_id: replacementId }),
+      });
+      selectedSessionId = response.id;
+      rememberSession(selectedSessionId);
+      clearPendingRestart();
+      refreshSessionPanel(response);
+      chatWelcome();
+      setResult("chat-status", "Pipeline restarted. Discovery is ready for a new intake.", "success");
+    } catch (e) {
+      if (e.status === 404) {
+        selectedSessionId = null;
+        forgetSession();
+        chatWelcome();
+        setResult("chat-status", "The previous pipeline was already removed. Discovery is ready for a new intake.", "success");
+      } else {
+        disableComposer(true);
+        setResult("chat-status", "Pipeline reset could not finish: " + e.message + " Retry Restart Pipeline.", "error");
+      }
+    } finally {
+      restartInFlight = false;
+      if (button) { button.disabled = false; button.textContent = "Restart Pipeline"; }
+    }
+  }
+
   // ── Boot ────────────────────────────────────────────────────────────────
 
   function boot(options) {
@@ -2372,16 +2552,24 @@
     options = options || {};
     authorizedRequest = options.authorizedFetch;
     appStorage = options.storage || null;
+    pipelineMode = options.pipelineMode === "detached" ? "detached" : "attached";
+    if (pipelineMode === "detached") {
+      try {
+        appStorage && appStorage.removeItem("oryxenai.session_id");
+        appStorage && appStorage.removeItem("oryxenai.discovery.session");
+        appStorage && appStorage.removeItem("oryxenai.private");
+      } catch (e) { /* best effort */ }
+    }
     portfolioReadOnly = Boolean(options.readOnly || (options.me && options.me.read_only));
     serverSessionId = options.serverSessionId ? String(options.serverSessionId) : null;
     booted = true;
 
     var advanced = document.getElementById("advanced");
-    if (advanced) advanced.hidden = !options.developer;
+    if (advanced) advanced.hidden = pipelineMode === "detached" || !options.developer;
     var modelRow = document.querySelector(".model-select-row");
     if (modelRow) modelRow.hidden = !options.developer;
     var adminLink = document.getElementById("app-admin-link");
-    if (adminLink) adminLink.hidden = options.role !== "admin";
+    if (adminLink) adminLink.hidden = pipelineMode === "detached" || options.role !== "admin";
     document.querySelectorAll('[data-user="username"]').forEach(function (element) {
       element.textContent = (options.me && options.me.username) || "there";
     });
@@ -2402,8 +2590,10 @@
     renderSidebarOutputTabs();
     renderActivityLog();
     checkHealth();
-    loadAgents();
-    listSessions();
+    if (pipelineMode !== "detached") {
+      loadAgents();
+      listSessions();
+    }
     if (options.developer) {
       loadSystemStatus();
       systemStatusTimer = setInterval(loadSystemStatus, 15000);
@@ -2429,6 +2619,11 @@
     document.getElementById("btn-run-mock").addEventListener("click", runMock);
     document.getElementById("btn-list-runs").addEventListener("click", listRuns);
     document.getElementById("btn-probe").addEventListener("click", enqueueProbe);
+    var restartButton = document.getElementById("restart-pipeline");
+    if (restartButton) {
+      restartButton.hidden = pipelineMode !== "detached";
+      restartButton.addEventListener("click", restartPipeline);
+    }
     document.getElementById("open-agent-workspace").addEventListener("click", function () {
       openAgentOutputSidebar(activeSidebarOutput);
     });
@@ -2452,23 +2647,43 @@
       if (event.key === "Escape") closeFullBriefSidebar();
     });
 
-    var remembered = serverSessionId || rememberedSession();
+    var pending = pipelineMode === "detached" ? pendingRestartSession() : null;
+    var pendingOld = pipelineMode === "detached" ? pendingRestartOldSession() : null;
+    var remembered = serverSessionId || pending || rememberedSession();
     if (serverSessionId) rememberSession(serverSessionId);
     if (remembered) {
       fetchJson(API + "/sessions/" + remembered).then(function (session) {
+        clearClientPipelineState();
+        chatWelcome();
         selectedSessionId = session.id;
+        clearPendingRestart();
         refreshSessionPanel(session);
-        return listRuns();
+        return pipelineMode === "detached" ? null : listRuns();
       }).then(function () {
         return hydrateSessionState();
       }).catch(function () {
+        if (pending && pendingOld) {
+          selectedSessionId = pendingOld;
+          disableComposer(true);
+          setResult(
+            "chat-status",
+            "Pipeline reset is still pending. Retry Restart Pipeline to finish clearing it.",
+            "error",
+          );
+          chatWelcome();
+          return;
+        }
         selectedSessionId = null;
         forgetSession();
+        clearClientPipelineState();
+        chatWelcome();
       });
     }
   }
 
   function stop() {
+    pipelineEpoch += 1;
+    abortRequests();
     if (pollTimer) window.clearTimeout(pollTimer);
     if (caPollTimer) window.clearTimeout(caPollTimer);
     if (vddPollTimer) window.clearTimeout(vddPollTimer);
@@ -2487,17 +2702,15 @@
     serverSessionId = null;
     sessionCreatePromise = null;
     portfolioReadOnly = false;
-    chatState = null;
-    lastIntake = null;
+    pipelineMode = "attached";
+    clearClientPipelineState();
     forgetSession();
     authorizedRequest = null;
     appStorage = null;
     booted = false;
     var privateState = document.getElementById("current-session");
     if (privateState) privateState.hidden = true;
-    var messages = document.getElementById("chat-messages");
-    if (messages) messages.replaceChildren();
   }
 
-  window.OryxenAIApp = { boot: boot, stop: stop };
+  window.OryxenAIApp = { boot: boot, stop: stop, restart: restartPipeline };
 })();

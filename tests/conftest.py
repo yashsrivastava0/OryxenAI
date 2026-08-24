@@ -31,7 +31,12 @@ def override_test_identity(app: Any, *, role: str = "user") -> Any:
     """
     from uuid import UUID
 
-    from oryxenai.api.dependencies import get_current_user, require_admin, require_onboarded_user
+    from oryxenai.api.dependencies import (
+        get_current_user,
+        get_pipeline_user,
+        require_admin,
+        require_onboarded_user,
+    )
     from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
 
     is_admin = role == "admin"
@@ -47,6 +52,7 @@ def override_test_identity(app: Any, *, role: str = "user") -> Any:
         status=AccountStatus.ACTIVE,
     )
     app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_pipeline_user] = lambda: user
     app.dependency_overrides[require_onboarded_user] = lambda: user
     if is_admin:
         app.dependency_overrides[require_admin] = lambda: user
