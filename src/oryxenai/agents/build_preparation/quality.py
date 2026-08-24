@@ -55,6 +55,15 @@ _PROHIBITED_IMAGE_TERMS = frozenset(
 )
 
 
+def _safe_int(value: Any, fallback: Any) -> int:
+    """Coerce dynamic provider/configuration values without leaking bad input."""
+    candidate = value if value not in (None, "") else fallback
+    try:
+        return int(candidate)
+    except (TypeError, ValueError):
+        return int(fallback) if fallback not in (None, "") else 0
+
+
 _CONTEXT_VALUE_KEYS = frozenset(
     {
         "title",
@@ -128,10 +137,10 @@ def _context_terms(value: Any, *, key: str = "") -> list[str]:
                 terms.extend(_context_terms(child_value, key=normalized_key))
         return terms
     if isinstance(value, (list, tuple, set)):
-        terms: list[str] = []
+        sequence_terms: list[str] = []
         for item in value:
-            terms.extend(_context_terms(item, key=key))
-        return terms
+            sequence_terms.extend(_context_terms(item, key=key))
+        return sequence_terms
     if not isinstance(value, (str, int, float)):
         return []
     text = str(value).strip()
@@ -436,21 +445,15 @@ def normalize_query_plan(
             update["kind"] = "photo"
             update["orientation"] = str(need.details.get("orientation", "landscape") or "landscape")
             update["allowed_providers"] = image_providers
-            update["minimum_width"] = int(
-                details.get("minimum_width")
-                or (
-                    getattr(image_config, "minimum_width", 1200)
-                    if image_config is not None
-                    else 1200
-                )
+            configured_width = (
+                getattr(image_config, "minimum_width", 1200) if image_config is not None else 1200
             )
-            update["minimum_height"] = int(
-                details.get("minimum_height")
-                or (
-                    getattr(image_config, "minimum_height", 700)
-                    if image_config is not None
-                    else 700
-                )
+            configured_height = (
+                getattr(image_config, "minimum_height", 700) if image_config is not None else 700
+            )
+            update["minimum_width"] = _safe_int(details.get("minimum_width"), configured_width)
+            update["minimum_height"] = _safe_int(
+                details.get("minimum_height"), configured_height
             )
         elif need.category in _CUSTOM_CATEGORIES:
             update["kind"] = "custom"

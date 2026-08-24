@@ -523,12 +523,14 @@ def normalize_visual_input(
     content = _as_dict(content_architect)
     original = _as_dict(visual_design_director)
     if original.get("_build_preparation_normalized") is True:
-        assumptions = tuple(str(item) for item in _as_list(original.get("assumptions")))
+        normalized_assumptions = tuple(
+            str(item) for item in _as_list(original.get("assumptions"))
+        )
         return NormalizedVisualInput(
             visual=original,
             mode=str(original.get("visual_input_mode", "approved_vdd") or "approved_vdd"),
             assumption_hash=str(original.get("assumption_hash", "") or ""),
-            assumptions=assumptions,
+            assumptions=normalized_assumptions,
         )
 
     visual = json.loads(json.dumps(original, ensure_ascii=False, default=str))
@@ -602,7 +604,7 @@ def normalize_visual_input(
         }
     explicit_prohibition = _explicit_prohibits_visual_acquisition(content, visual)
     explicit_component_prohibition = _explicitly_prohibits_components(visual)
-    assumptions = list(_DEFAULT_ASSUMPTIONS)
+    assumptions: list[str] = list(_DEFAULT_ASSUMPTIONS)
     if explicit_prohibition or explicit_component_prohibition:
         assumptions.append("Explicit upstream visual acquisition prohibitions were preserved.")
 
