@@ -13,7 +13,7 @@ from oryxenai.auth.admin.repository import validate_safe_details
 
 
 @pytest.mark.asyncio
-async def test_supabase_admin_provider_uses_server_headers_and_safe_payloads() -> None:
+async def test_supabase_admin_provider_uses_modern_secret_header_and_safe_payloads() -> None:
     subject = uuid4()
     calls: list[httpx.Request] = []
 
@@ -24,7 +24,7 @@ async def test_supabase_admin_provider_uses_server_headers_and_safe_payloads() -
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     provider = SupabaseAdminProvider(
         supabase_url="https://project.supabase.co",
-        secret_key="server-secret",  # noqa: S106 - deterministic unit-test credential.
+        secret_key="sb_secret_test",  # noqa: S106 - deterministic unit-test credential.
         client=client,
     )
     await provider.suspend_user(subject)
@@ -33,11 +33,34 @@ async def test_supabase_admin_provider_uses_server_headers_and_safe_payloads() -
     await client.aclose()
 
     assert calls[0].url.path == f"/auth/v1/admin/users/{subject}"
-    assert calls[0].headers["apikey"] == "server-secret"
-    assert calls[0].headers["authorization"] == "Bearer server-secret"
+    assert calls[0].headers["apikey"] == "sb_secret_test"
+    assert "authorization" not in calls[0].headers
     assert json.loads(calls[0].content) == {"ban_duration": "876000h"}
     assert json.loads(calls[1].content) == {"ban_duration": "none"}
     assert calls[2].method == "DELETE"
+
+
+@pytest.mark.asyncio
+async def test_supabase_admin_provider_keeps_legacy_service_role_jwt_compatibility() -> None:
+    subject = uuid4()
+    calls: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(204, request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    legacy_key = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
+    provider = SupabaseAdminProvider(
+        supabase_url="https://project.supabase.co",
+        secret_key=legacy_key,
+        client=client,
+    )
+    await provider.delete_user(subject)
+    await client.aclose()
+
+    assert calls[0].headers["apikey"] == legacy_key
+    assert calls[0].headers["authorization"] == f"Bearer {legacy_key}"
 
 
 @pytest.mark.asyncio

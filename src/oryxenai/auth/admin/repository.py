@@ -205,6 +205,11 @@ class AdminRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_operation(
+        self, operation_id: UUID, *, lock: bool = False
+    ) -> AdminOperation | None:
+        return await self.session.get(AdminOperation, operation_id, with_for_update=lock)
+
     async def create_operation(
         self,
         *,
@@ -401,6 +406,23 @@ class AdminRepository:
             stmt = stmt.where(
                 (AdminAuditEvent.created_at < created_at)
                 | ((AdminAuditEvent.created_at == created_at) & (AdminAuditEvent.id < identifier))
+            )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def list_operations(
+        self, *, limit: int, cursor: tuple[datetime, UUID] | None
+    ) -> list[AdminOperation]:
+        stmt = (
+            select(AdminOperation)
+            .where(AdminOperation.status.in_(("pending", "running", "retryable_failure")))
+            .order_by(AdminOperation.updated_at.desc(), AdminOperation.id.desc())
+            .limit(limit)
+        )
+        if cursor is not None:
+            updated_at, identifier = cursor
+            stmt = stmt.where(
+                (AdminOperation.updated_at < updated_at)
+                | ((AdminOperation.updated_at == updated_at) & (AdminOperation.id < identifier))
             )
         return list((await self.session.execute(stmt)).scalars().all())
 

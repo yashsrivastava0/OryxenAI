@@ -1,7 +1,8 @@
 import {
-  clearPrivateState,
+  canonicalDestination,
   createBrowserAuth,
   getBrowserStorage,
+  invalidateBrowserSession,
   readAuthConfig,
   resolveAuthenticatedContext,
   safeRelativePath,
@@ -51,10 +52,16 @@ export async function bootDevelopmentShell({
   const onboarding = safeRelativePath(paths.onboarding || "/onboarding", "/onboarding");
   const target = targetForPath(location?.pathname || "");
   const onAuthFailure = async () => {
-    clearPrivateState(storage);
+    await invalidateBrowserSession({ auth, storage });
     replace(location, signIn);
   };
   if (!target) return { kind: "unknown_development_page" };
+
+  const canonical = canonicalDestination(config, location);
+  if (canonical) {
+    location?.replace?.(canonical);
+    return { kind: "canonical_redirect" };
+  }
 
   try {
     auth ||= createBrowserAuth(config, globalRef).auth;

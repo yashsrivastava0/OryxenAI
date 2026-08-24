@@ -14,7 +14,7 @@ logger = get_logger("oryxenai.lifecycle")
 
 
 async def check_database_ready(engine: AsyncEngine) -> bool:
-    """Run a lightweight SELECT 1 against PostgreSQL.
+    """Verify PostgreSQL connectivity and the minimum application schema.
 
     Returns True when the database is reachable, False otherwise.
     Never raises — callers decide how to react.
@@ -23,8 +23,16 @@ async def check_database_ready(engine: AsyncEngine) -> bool:
 
     try:
         async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        return True
+            result = await conn.execute(
+                text(
+                    "SELECT "
+                    "to_regclass('public.alembic_version') IS NOT NULL "
+                    "AND to_regclass('public.portfolio_sessions') IS NOT NULL "
+                    "AND to_regclass('public.background_jobs') IS NOT NULL "
+                    "AND to_regclass('public.app_users') IS NOT NULL"
+                )
+            )
+        return bool(result.scalar_one())
     except Exception as exc:
         logger.warning("database readiness check failed: %s", type(exc).__name__)
         return False

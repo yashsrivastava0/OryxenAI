@@ -1,6 +1,10 @@
 /** Functional, deliberately bounded administrator console. */
 
-import { createAuthorizedFetch } from "./auth-runtime.mjs";
+import {
+  clearPrivateState,
+  createAuthorizedFetch,
+  invalidateBrowserSession,
+} from "./auth-runtime.mjs";
 
 const state = { tab: "users", cursors: {}, pendingKeys: new Map() };
 
@@ -26,6 +30,7 @@ function operationKey(action, id) {
 }
 
 export function adminEndpoint(action, tab, id) {
+  if (action === "resume") return "/api/v1/admin/operations/" + id + "/resume";
   if (action === "readmit") return "/api/v1/admin/deleted-identities/" + id + "/readmit";
   if (action === "reset_entitlement") return "/api/v1/admin/users/" + id + "/entitlement/reset";
   if (["promote", "demote", "suspend", "restore"].includes(action)) {
@@ -34,7 +39,15 @@ export function adminEndpoint(action, tab, id) {
   if (action === "delete" && tab === "users") return "/api/v1/admin/users/" + id + "/delete";
   if (action === "code-generator-retry") return "/api/v1/admin/projects/" + id + "/code-generator/retry";
   if (action === "code-generator-regenerate") return "/api/v1/admin/projects/" + id + "/code-generator/regenerate";
-  return "/api/v1/admin/" + (tab === "legacy" ? "legacy-projects" : "projects") + "/" + id + "/delete";
+  if (action === "delete" && ["projects", "legacy"].includes(tab)) {
+    return "/api/v1/admin/" + (tab === "legacy" ? "legacy-projects" : "projects") + "/" + id + "/delete";
+  }
+  throw new Error("Unsupported administrator action.");
+}
+
+export function adminSubmissionState(submitterValue, inputValue, target) {
+  if (submitterValue !== "confirm") return "cancel";
+  return inputValue === target ? "confirmed" : "mismatch";
 }
 
 function renderSummary(documentRef, summary) {
@@ -54,10 +67,10 @@ function renderSummary(documentRef, summary) {
   });
 }
 
-function renderRows(documentRef, target, items, tab, onAction) {
-  target.replaceChildren();
+function renderRows(documentRef, target, items, tab, onAction, { append = false, me = null } = {}) {
+  if (!append) target.replaceChildren();
   if (!items.length) {
-    target.append(node(documentRef, "p", "Nothing is visible in this view."));
+    if (!append) target.append(node(documentRef, "p", "Nothing is visible in this view."));
     return;
   }
   items.forEach((item) => {
@@ -73,10 +86,15 @@ function renderRows(documentRef, target, items, tab, onAction) {
         : tab === "deleted"
           ? [item.former_role, item.masked_email, item.readmission_approved ? "approved" : "awaiting approval"].join(" · ")
           : [item.status, item.owner_username || "legacy project"].join(" · ");
+    if (tab === "operations") {
+      detail.textContent = [item.action, item.status, item.step, item.last_error_code]
+        .filter(Boolean).join(" | ");
+    }
     article.append(detail);
     const actions = node(documentRef, "div");
     actions.className = "button-row admin-row-actions";
-    if (tab === "users" && item.status !== "deleted") {
+    const isSelf = tab === "users" && me?.id && String(me.id) === String(item.id);
+    if (tab === "users" && item.status !== "deleted" && !isSelf) {
       const names = item.status === "suspended" ? ["restore"] : ["suspend"];
       if (item.role === "user") names.push("reset_entitlement", "promote");
       if (item.role === "admin") names.push("demote");
@@ -95,13 +113,22 @@ function renderRows(documentRef, target, items, tab, onAction) {
       button.addEventListener("click", () => onAction("readmit", item));
       actions.append(button);
     } else if ((tab === "projects" || tab === "legacy") && item.status === "active") {
-      ["delete", "code-generator-retry", "code-generator-regenerate"].forEach((action) => {
+      const projectActions = tab === "legacy"
+        ? ["delete"]
+        : ["delete", "code-generator-retry", "code-generator-regenerate"];
+      projectActions.forEach((action) => {
         const button = node(documentRef, "button", action.replaceAll("-", " "));
         button.className = "secondary-button";
         button.type = "button";
         button.addEventListener("click", () => onAction(action, item));
         actions.append(button);
       });
+    } else if (tab === "operations" && item.resumable) {
+      const button = node(documentRef, "button", "resume safely");
+      button.className = "secondary-button";
+      button.type = "button";
+      button.addEventListener("click", () => onAction("resume", item));
+      actions.append(button);
     }
     article.append(actions);
     target.append(article);
@@ -113,6 +140,7 @@ export async function bootstrapAdminConsole({
   fetchImpl = globalThis.fetch,
   documentRef = globalThis.document,
   location = globalThis.location,
+  me = null,
 }) {
   if (!documentRef?.getElementById("admin-panel")) return;
   const content = documentRef.getElementById("admin-content");
@@ -120,7 +148,14 @@ export async function bootstrapAdminConsole({
   const authorizedFetch = createAuthorizedFetch({
     auth,
     fetchImpl,
-    onAuthFailure: async () => location?.replace?.("/sign-in"),
+    onAuthFailure: async () => {
+      content?.replaceChildren?.();
+      documentRef.getElementById("admin-summary")?.replaceChildren?.();
+      if (live) live.textContent = "Your administrator session ended.";
+      try { clearPrivateState(globalThis.sessionStorage); } catch { /* unavailable storage */ }
+      await invalidateBrowserSession({ auth });
+      location?.replace?.("/sign-in");
+    },
   });
   const request = async (path, init = {}) => {
     const response = await authorizedFetch(path, init);
@@ -128,6 +163,8 @@ export async function bootstrapAdminConsole({
   };
   const load = async (reset) => {
     if (reset) state.cursors = {};
+    const loadMore = documentRef.getElementById("admin-load-more");
+    if (loadMore) loadMore.disabled = true;
     live.textContent = "Loading safe administrator data.";
     try {
       renderSummary(documentRef, await request("/api/v1/admin/summary"));
@@ -140,13 +177,18 @@ export async function bootstrapAdminConsole({
       const query = new URLSearchParams({ limit: "25" });
       if (cursor) query.set("cursor", cursor);
       const page = await request(endpoint + "?" + query.toString());
-      renderRows(documentRef, content, page.items || [], state.tab, openAction);
+      renderRows(documentRef, content, page.items || [], state.tab, openAction, {
+        append: !reset,
+        me,
+      });
       state.cursors[state.tab] = page.next_cursor || null;
-      documentRef.getElementById("admin-load-more").hidden = !page.next_cursor;
+      if (loadMore) loadMore.hidden = !page.next_cursor;
       live.textContent = "Administrator data refreshed.";
     } catch (error) {
       content.replaceChildren(node(documentRef, "p", error?.message || "Administrator data is unavailable."));
       live.textContent = "Administrator data is unavailable.";
+    } finally {
+      if (loadMore) loadMore.disabled = false;
     }
   };
   const openAction = (action, item) => {
@@ -165,10 +207,17 @@ export async function bootstrapAdminConsole({
     input.focus();
     form.onsubmit = async (event) => {
       event.preventDefault();
-      if (input.value !== target) {
+      const submission = adminSubmissionState(event.submitter?.value, input.value, target);
+      if (submission === "cancel") {
         dialog.close();
         return;
       }
+      if (submission === "mismatch") {
+        input.setCustomValidity("Type the displayed target exactly.");
+        input.reportValidity?.();
+        return;
+      }
+      input.setCustomValidity("");
       const endpoint = adminEndpoint(action, state.tab, item.id);
       const button = documentRef.getElementById("admin-confirm-submit");
       button.disabled = true;
@@ -176,7 +225,7 @@ export async function bootstrapAdminConsole({
         await request(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": operationKey(action, item.id) },
-          body: JSON.stringify({
+          body: action === "resume" ? undefined : JSON.stringify({
             confirmation: item.id,
             username: item.username || undefined,
             reason: reason.value || undefined,
@@ -191,6 +240,7 @@ export async function bootstrapAdminConsole({
         button.disabled = false;
       }
     };
+    input.oninput = () => input.setCustomValidity("");
   };
   documentRef.querySelectorAll("[data-admin-tab]").forEach((button) => {
     button.addEventListener("click", async () => {

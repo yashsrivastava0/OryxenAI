@@ -32,6 +32,35 @@ export function clearPrivateState(storage) {
   }
 }
 
+export async function invalidateBrowserSession({
+  auth,
+  storage,
+  ui = {},
+  stopActivity = () => {},
+}) {
+  stopActivity();
+  clearPrivateState(storage);
+  ui.clearPrivate?.();
+  try {
+    await auth?.signOut?.({ scope: "local" });
+  } catch {
+    // Local application state is already cleared. Navigation remains safe.
+  }
+}
+
+export function canonicalDestination(config, location) {
+  if (!config?.primaryOrigin || !location?.href) return null;
+  try {
+    const primaryOrigin = new URL(config.primaryOrigin).origin;
+    const current = new URL(location.href);
+    if (current.origin === primaryOrigin) return null;
+    const path = safeRelativePath(current.pathname, "/");
+    return `${primaryOrigin}${path}`;
+  } catch {
+    return null;
+  }
+}
+
 export function isReviewedDestination(value, origin = "http://localhost") {
   if (typeof value !== "string" || !value || value.includes("\\") || value.includes("%")) {
     return false;
@@ -143,6 +172,53 @@ export function createAuthorizedFetch({
   if (typeof fetchImpl !== "function") {
     throw new Error("A fetch implementation is required.");
   }
+  let bootstrapSession = initialSession;
+  let refreshInFlight = null;
+  let lastRefresh = null;
+
+  const requireReviewedApiPath = (url) => {
+    const rawPath = typeof url === "string" ? url.split("?", 1)[0] : "";
+    if (
+      typeof url !== "string" ||
+      !url.startsWith("/api/v1/") ||
+      url.startsWith("//") ||
+      url.includes("\\") ||
+      rawPath.includes("%") ||
+      url.includes("#")
+    ) {
+      throw new AuthRequestError("Protected requests must use a reviewed local API path.", {
+        code: "AUTH_REQUEST_DESTINATION_INVALID",
+      });
+    }
+    const parsed = new URL(url, "http://localhost");
+    if (parsed.origin !== "http://localhost") {
+      throw new AuthRequestError("Protected requests must use a reviewed local API path.", {
+        code: "AUTH_REQUEST_DESTINATION_INVALID",
+      });
+    }
+  };
+  const sessionForRequest = async () => {
+    if (bootstrapSession !== undefined) {
+      const session = bootstrapSession;
+      bootstrapSession = undefined;
+      return session;
+    }
+    const result = await auth.getSession();
+    if (result?.error) throw result.error;
+    return safeSession(result);
+  };
+  const refreshFor = async (rejectedToken) => {
+    if (lastRefresh?.rejectedToken === rejectedToken) return lastRefresh.session;
+    if (!refreshInFlight) {
+      refreshInFlight = (async () => {
+        const result = await auth.refreshSession();
+        const session = result?.error ? null : safeSession(result);
+        lastRefresh = { rejectedToken, session };
+        return session;
+      })().finally(() => { refreshInFlight = null; });
+    }
+    return refreshInFlight;
+  };
   const request = async (url, init = {}, session) => {
     if (!session?.access_token) {
       await onAuthFailure();
@@ -158,36 +234,32 @@ export function createAuthorizedFetch({
   };
 
   return async (url, init = {}) => {
-    let session = initialSession;
-    if (session === undefined) {
-      let sessionResult;
-      try {
-        sessionResult = await auth.getSession();
-      } catch {
-        await onAuthFailure();
-        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
-      }
-      if (sessionResult?.error) {
-        await onAuthFailure();
-        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
-      }
-      session = safeSession(sessionResult);
+    requireReviewedApiPath(url);
+    let session;
+    try {
+      session = await sessionForRequest();
+    } catch {
+      await onAuthFailure();
+      throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
     }
 
     let response = await request(url, init, session);
     if (response.status === 401) {
-      let refreshed;
+      const rejectedToken = session?.access_token;
       try {
-        refreshed = await auth.refreshSession();
+        session = await refreshFor(rejectedToken);
       } catch {
-        refreshed = null;
+        session = null;
       }
-      session = safeSession(refreshed);
-      if (refreshed?.error || !session?.access_token) {
+      if (!session?.access_token) {
         await onAuthFailure();
         throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
       }
       response = await request(url, init, session);
+      if (response.status === 401) {
+        await onAuthFailure();
+        throw new AuthRequestError(errorMessage("AUTH_INVALID"), { status: 401 });
+      }
     }
     if (!response.ok) throw await responseError(response);
     return response;
@@ -199,6 +271,7 @@ export function readAuthConfig(documentRef = globalThis.document) {
   return {
     supabaseUrl: read("oryxenai-supabase-url"),
     publishableKey: read("oryxenai-publishable-key"),
+    primaryOrigin: read("oryxenai-primary-origin"),
     callbackUrl: read("oryxenai-callback-url"),
     paths: {
       signIn: read("oryxenai-sign-in-path") || "/sign-in",
@@ -238,7 +311,7 @@ export function createBrowserAuth(config, globalRef = globalThis) {
       getSession: () => client.auth.getSession(),
       refreshSession: () => client.auth.refreshSession(),
       exchangeCodeForSession: (code, options) => client.auth.exchangeCodeForSession(code, options),
-      signOut: () => client.auth.signOut(),
+      signOut: (options) => client.auth.signOut(options),
       signInWithOAuth: (options) => client.auth.signInWithOAuth(options),
     },
   };
@@ -305,14 +378,6 @@ export async function logoutCurrentBrowser({
   signInPath = "/sign-in",
   stopActivity = () => {},
 }) {
-  stopActivity();
-  clearPrivateState(storage);
-  ui.clearPrivate?.();
-  try {
-    await auth.signOut();
-  } catch {
-    // Local state is already gone; route away even if remote sign-out fails.
-  } finally {
-    location?.replace?.(safeRelativePath(signInPath, "/sign-in"));
-  }
+  await invalidateBrowserSession({ auth, storage, ui, stopActivity });
+  location?.replace?.(safeRelativePath(signInPath, "/sign-in"));
 }

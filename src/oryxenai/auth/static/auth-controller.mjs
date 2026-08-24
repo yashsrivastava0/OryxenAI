@@ -8,8 +8,10 @@
 
 import {
   AuthRequestError,
+  canonicalDestination,
   clearPrivateState,
   createAuthorizedFetch,
+  invalidateBrowserSession,
   isReviewedDestination,
   logoutCurrentBrowser,
   responseError,
@@ -19,6 +21,7 @@ import {
 
 export {
   AuthRequestError,
+  canonicalDestination,
   createAuthorizedFetch,
   isReviewedDestination,
   logoutCurrentBrowser,
@@ -59,9 +62,7 @@ export async function routeController({
   const progress = (step, detail) => ui.progress?.(step, detail);
   const failure = (message) => ui.error?.(message);
   const onAuthFailure = async () => {
-    stopActivity();
-    clearPrivateState(storage);
-    ui.clearPrivate?.();
+    await invalidateBrowserSession({ auth, storage, ui, stopActivity });
     replace(reviewed.signIn);
   };
 
@@ -247,6 +248,7 @@ export async function bootstrapAuthPage() {
   const config = {
     supabaseUrl: readMeta("oryxenai-supabase-url"),
     publishableKey: readMeta("oryxenai-publishable-key"),
+    primaryOrigin: readMeta("oryxenai-primary-origin"),
     callbackUrl: readMeta("oryxenai-callback-url"),
     paths: {
       signIn: readMeta("oryxenai-sign-in-path") || "/sign-in",
@@ -259,6 +261,11 @@ export async function bootstrapAuthPage() {
     },
   };
   const ui = makeDomUi();
+  const canonical = canonicalDestination(config, window.location);
+  if (canonical) {
+    window.location.replace(canonical);
+    return;
+  }
   if (!config.supabaseUrl || !config.publishableKey || !window.OryxenAISupabaseClient) {
     ui.panel("sign-in");
     ui.error("Authentication is not configured for this application.");
@@ -276,7 +283,7 @@ export async function bootstrapAuthPage() {
     getSession: () => client.auth.getSession(),
     refreshSession: () => client.auth.refreshSession(),
     exchangeCodeForSession: (code, options) => client.auth.exchangeCodeForSession(code, options),
-    signOut: () => client.auth.signOut(),
+    signOut: (options) => client.auth.signOut(options),
     signInWithOAuth: (options) => client.auth.signInWithOAuth(options),
   };
   const storage = (() => { try { return window.sessionStorage; } catch { return null; } })();
@@ -290,7 +297,7 @@ export async function bootstrapAuthPage() {
   });
   if (result?.kind === "admin") {
     const { bootstrapAdminConsole } = await import("./auth-admin.mjs");
-    await bootstrapAdminConsole({ auth });
+    await bootstrapAdminConsole({ auth, me: result.me });
   }
   const signIn = document.getElementById("google-sign-in");
   signIn?.addEventListener("click", async () => {
@@ -331,7 +338,10 @@ export async function bootstrapAuthPage() {
     try {
       const authorizedFetch = createAuthorizedFetch({
         auth,
-        onAuthFailure: async () => { clearPrivateState(storage); ui.clearPrivate(); },
+        onAuthFailure: async () => {
+          await invalidateBrowserSession({ auth, storage, ui });
+          window.location.replace(config.paths.signIn);
+        },
       });
       const response = await authorizedFetch("/api/v1/me/username", {
         method: "PUT",
