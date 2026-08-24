@@ -1494,17 +1494,17 @@ def _normalize_selection_ids(
         )
     selections: list[ResourceSelection] = []
     for need in needs:
-        selection = selections_by_need.get(need.need_id)
-        if selection is None:
+        resolved_selection = selections_by_need.get(need.need_id)
+        if resolved_selection is None:
             warnings.append(
                 f"Model did not produce a valid selection for need '{need.need_id}'; an explicit fallback was recorded."
             )
-            selection = ResourceSelection(
+            resolved_selection = ResourceSelection(
                 need_id=need.need_id,
                 fallback=need.fallback
                 or "Implement the approved intent using the typed local fallback.",
             )
-        selections.append(selection)
+        selections.append(resolved_selection)
     return plan.model_copy(update={"selections": selections}), warnings
 
 

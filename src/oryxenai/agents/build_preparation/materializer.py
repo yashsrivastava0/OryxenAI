@@ -1383,21 +1383,23 @@ async def materialize_build_context(
             base_entry.update({"disposition": "custom_implementation_required"})
         elif candidate.kind == "font" and candidate.provider == "fontsource":
             try:
-                downloader = download_font_files or (lambda item: download_font(item, settings))
-                font_files = await downloader(candidate)
+                font_downloader: DownloadFont = download_font_files or (
+                    lambda item: download_font(item, settings)
+                )
+                font_files = await font_downloader(candidate)
                 font_root = f"resources/fonts/{resource_id}"
-                source_entries: list[dict[str, Any]] = []
+                font_source_entries: list[dict[str, Any]] = []
                 for variant, font_bytes in sorted(font_files.items()):
                     extension = str(
                         getattr(settings.resource_providers, "fontsource_format", "woff2")
                     )
                     font_path = f"{font_root}/{_safe_name(variant)}.{extension}"
                     item = _write(root, font_path, font_bytes, "font")
-                    source_entries.append(
+                    font_source_entries.append(
                         {"variant": variant, "local_path": font_path, "sha256": item.sha256}
                     )
                     files.append(item)
-                if not source_entries:
+                if not font_source_entries:
                     raise ValueError("Fontsource returned no font files")
                 files.append(
                     _write(
@@ -1410,7 +1412,7 @@ async def materialize_build_context(
                                 "weights": candidate.font_weights,
                                 "license": candidate.license,
                                 "license_reference": candidate.license_reference,
-                                "files": source_entries,
+                                "files": font_source_entries,
                             }
                         ),
                         "metadata",
@@ -1421,7 +1423,7 @@ async def materialize_build_context(
                         "font_family": candidate.font_family,
                         "font_weights": candidate.font_weights,
                         "local_directory": font_root,
-                        "source_files": source_entries,
+                        "source_files": font_source_entries,
                         "disposition": "local_file",
                     }
                 )

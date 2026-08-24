@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -82,8 +82,8 @@ def build_resource_context_packet(
         if str(item.get("category", "") or "").casefold()
         in {"component", "visual_component", "registry_component"}
     ]
-    component_intents = [
-        item.get("component_intent")
+    component_intents: list[dict[str, Any]] = [
+        cast(dict[str, Any], item.get("component_intent"))
         for item in component_roles
         if isinstance(item.get("component_intent"), dict)
     ]

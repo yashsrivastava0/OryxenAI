@@ -13,7 +13,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode, urlparse
 
 import httpx
@@ -781,7 +781,11 @@ async def download_font(
     try:
         result: dict[str, bytes] = {}
         limit = int(
-            max_bytes or getattr(settings.resource_providers, "font_max_bytes", 2 * 1024 * 1024)
+            cast(
+                Any,
+                max_bytes
+                or getattr(settings.resource_providers, "font_max_bytes", 2 * 1024 * 1024),
+            )
         )
         for key, url in sorted(candidate.font_urls.items()):
             parsed = urlparse(url)
@@ -859,11 +863,14 @@ async def download_image(
 
     try:
         raw_limit = int(
-            max_bytes
-            or getattr(
-                getattr(settings, "image_retrieval", None),
-                "raw_download_max_bytes",
-                24 * 1024 * 1024,
+            cast(
+                Any,
+                max_bytes
+                or getattr(
+                    getattr(settings, "image_retrieval", None),
+                    "raw_download_max_bytes",
+                    24 * 1024 * 1024,
+                ),
             )
         )
         return await download_image_bytes(candidate, settings, client=client, max_bytes=raw_limit)
