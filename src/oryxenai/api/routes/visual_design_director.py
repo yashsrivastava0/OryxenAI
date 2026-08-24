@@ -13,6 +13,7 @@ from oryxenai.agents.visual_design_director.service import (
 )
 from oryxenai.api.dependencies import (
     get_visual_design_director_service,
+    require_mutable_portfolio,
     require_session_owner_or_admin,
 )
 from oryxenai.api.errors import AppError
@@ -75,6 +76,7 @@ async def start_visual_design_director(
     session_id: str,
     body: StartRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
@@ -98,6 +100,7 @@ async def revise_visual_design_director(
     session_id: str,
     body: ReviseRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
@@ -112,6 +115,7 @@ async def revise_visual_design_director(
 async def approve_visual_design_director(
     session_id: str,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:

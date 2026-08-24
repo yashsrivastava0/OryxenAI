@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
@@ -96,6 +97,27 @@ class ProviderIdentity:
 
 
 @dataclass(frozen=True, slots=True)
+class EntitlementProjection:
+    """Safe, additive portfolio-capability projection for ``/me``.
+
+    These are capabilities, not authority.  The server recomputes and
+    enforces them from the entitlement row for every mutating request.
+    """
+
+    policy: str
+    portfolio_session_id: UUID | None
+    generation_run_id: UUID | None
+    successful_run_id: UUID | None
+    consumed_at: datetime | None
+    can_create_portfolio: bool
+    can_start_generation: bool
+    can_retry_generation: bool
+    can_regenerate: bool
+    read_only: bool
+    revision: int
+
+
+@dataclass(frozen=True, slots=True)
 class CurrentUser:
     """The minimum local identity projection needed by Phase 1 routes."""
 
@@ -104,6 +126,7 @@ class CurrentUser:
     username: str | None
     role: AuthRole
     status: AccountStatus
+    entitlement: EntitlementProjection | None = None
 
     @property
     def onboarding_required(self) -> bool:

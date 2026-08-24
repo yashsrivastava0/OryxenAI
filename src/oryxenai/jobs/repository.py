@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import bindparam, select, update
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.db.models.background_job import BackgroundJob
@@ -23,6 +24,12 @@ def _bg_from_row(row: Any) -> BackgroundJob:
         job_kind=row.job_kind,
         status=row.status,
         payload=row.payload or {},
+        portfolio_session_id=row.portfolio_session_id,
+        owner_user_id=row.owner_user_id,
+        actor_user_id=row.actor_user_id,
+        authorization_context_version=row.authorization_context_version,
+        entitlement_revision=row.entitlement_revision,
+        execution_lane=row.execution_lane,
         result=row.result,
         error_payload=row.error_payload,
         priority=row.priority,
@@ -57,11 +64,23 @@ class JobRepository:
         max_attempts: int = 3,
         idempotency_scope: str | None = None,
         idempotency_key: str | None = None,
+        portfolio_session_id: UUID | None = None,
+        owner_user_id: UUID | None = None,
+        actor_user_id: UUID | None = None,
+        authorization_context_version: int = 0,
+        entitlement_revision: int | None = None,
+        execution_lane: str | None = None,
     ) -> BackgroundJob:
         job = BackgroundJob(
             job_kind=job_kind,
             status=JobStatus.QUEUED.value,
             payload=payload,
+            portfolio_session_id=portfolio_session_id,
+            owner_user_id=owner_user_id,
+            actor_user_id=actor_user_id,
+            authorization_context_version=authorization_context_version,
+            entitlement_revision=entitlement_revision,
+            execution_lane=execution_lane,
             priority=priority,
             attempt=0,
             max_attempts=max_attempts,
@@ -101,9 +120,34 @@ class JobRepository:
         raw = sa_text(
             """
             WITH due AS (
-                SELECT id FROM background_jobs
-                WHERE status = :status AND available_at <= :now
-                ORDER BY priority DESC, created_at ASC
+                SELECT job.id FROM background_jobs AS job
+                WHERE job.status = :status AND job.available_at <= :now
+                  AND (
+                    job.execution_lane IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM background_jobs AS running
+                        WHERE running.status = 'running'
+                          AND running.execution_lane = job.execution_lane
+                    )
+                  )
+                  AND (
+                    job.execution_lane IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM background_jobs AS earlier
+                        WHERE earlier.status = 'queued'
+                          AND earlier.execution_lane = job.execution_lane
+                          AND earlier.available_at <= :now
+                          AND (
+                              earlier.priority > job.priority
+                              OR (
+                                  earlier.priority = job.priority
+                                  AND (earlier.created_at, earlier.id)
+                                      < (job.created_at, job.id)
+                              )
+                          )
+                    )
+                  )
+                ORDER BY job.priority DESC, job.created_at ASC
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )
@@ -115,17 +159,24 @@ class JobRepository:
             RETURNING *
             """
         )
-        result = await self._session.execute(
-            raw,
-            {
-                "status": JobStatus.QUEUED.value,
-                "newst": JobStatus.RUNNING.value,
-                "now": now,
-                "limit": batch_size,
-                "w": worker_instance,
-            },
-        )
-        return [_bg_from_row(r) for r in result.fetchall()]
+        for attempt in range(3):
+            try:
+                result = await self._session.execute(
+                    raw,
+                    {
+                        "status": JobStatus.QUEUED.value,
+                        "newst": JobStatus.RUNNING.value,
+                        "now": now,
+                        "limit": batch_size,
+                        "w": worker_instance,
+                    },
+                )
+                return [_bg_from_row(r) for r in result.fetchall()]
+            except IntegrityError:
+                await self._session.rollback()
+                if attempt == 2:
+                    raise
+        return []
 
     async def recover_stale(
         self,
@@ -150,6 +201,27 @@ class JobRepository:
                 SELECT id FROM background_jobs
                 WHERE status = :status AND heartbeat_at <= :cutoff
                   AND id NOT IN :exclude_job_ids
+                  AND (
+                    execution_lane IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM background_jobs AS running
+                        WHERE running.status = 'running'
+                          AND running.execution_lane = background_jobs.execution_lane
+                          AND running.id <> background_jobs.id
+                    )
+                  )
+                  AND (
+                    execution_lane IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM background_jobs AS earlier_stale
+                        WHERE earlier_stale.status = 'running'
+                          AND earlier_stale.heartbeat_at <= :cutoff
+                          AND earlier_stale.execution_lane = background_jobs.execution_lane
+                          AND earlier_stale.id <> background_jobs.id
+                          AND (earlier_stale.created_at, earlier_stale.id)
+                              < (background_jobs.created_at, background_jobs.id)
+                    )
+                  )
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )

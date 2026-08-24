@@ -11,7 +11,11 @@ from oryxenai.agents.code_generator.service import (
     CodeGeneratorOperationError,
     CodeGeneratorService,
 )
-from oryxenai.api.dependencies import get_code_generator_service, require_session_owner_or_admin
+from oryxenai.api.dependencies import (
+    get_code_generator_service,
+    require_mutable_portfolio,
+    require_session_owner_or_admin,
+)
 from oryxenai.api.errors import AppError
 from oryxenai.auth.authorization import PortfolioAccess
 
@@ -58,6 +62,7 @@ async def start_code_generator(
     request: Request,
     _body: StartRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:
@@ -81,6 +86,7 @@ async def regenerate_code_generator(
     request: Request,
     _body: StartRequest | None = None,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:
@@ -104,6 +110,7 @@ async def retry_code_generator(
     request: Request,
     _body: StartRequest | None = None,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: CodeGeneratorService = Depends(get_code_generator_service),
 ) -> CodeGeneratorStateResponse:
     try:

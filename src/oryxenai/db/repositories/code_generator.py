@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.agents.build_preparation.schemas import BuildPreparationState
 from oryxenai.agents.code_generator.session_schemas import CodeGeneratorSessionState
+from oryxenai.auth.entitlements import PortfolioEntitlementRepository
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.repositories.code_generator_development import (
     CodeGeneratorDevelopmentRepository,
@@ -18,11 +19,16 @@ from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionReposito
 
 class CodeGeneratorRepository:
     def __init__(self, session: AsyncSession) -> None:
+        self._session = session
         self.runs = CodeGeneratorDevelopmentRepository(session)
+        self.entitlements = PortfolioEntitlementRepository(session)
         self._sessions = PortfolioSessionRepository(session)
 
     async def get_session(self, session_id: UUID) -> PortfolioSession | None:
         return await self._sessions.get_by_id(session_id)
+
+    async def get_session_for_update(self, session_id: UUID) -> PortfolioSession | None:
+        return await self._sessions.get_by_id_for_update(session_id)
 
     async def get_build_preparation_state(self, session_id: UUID) -> BuildPreparationState:
         session = await self._sessions.get_by_id(session_id)

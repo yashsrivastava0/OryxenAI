@@ -17,9 +17,10 @@ from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
 from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
-from oryxenai.auth.authorization import PortfolioAccess
+from oryxenai.auth.authorization import DurableAuthorizationContext, PortfolioAccess
 from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
-from oryxenai.auth.errors import AdminRequiredError, OnboardingRequiredError
+from oryxenai.auth.entitlements import PortfolioEntitlementRepository
+from oryxenai.auth.errors import AdminRequiredError, OnboardingRequiredError, PortfolioReadOnlyError
 from oryxenai.auth.jwt import extract_bearer_token
 from oryxenai.auth.service import AuthService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
@@ -135,6 +136,45 @@ async def require_session_owner_or_admin(
     return PortfolioAccess(actor=user, session=session)
 
 
+async def get_durable_context(
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> DurableAuthorizationContext:
+    """Bind a request-scoped portfolio access decision to local durable IDs."""
+
+    if (
+        access.session.owner_user_id is not None
+        and access.session.owner_user_id == access.actor.id
+        and access.actor.role is AuthRole.USER
+    ):
+        # /me is the approved JIT repair boundary. Do not take an
+        # entitlement row lock here: the request may continue into provider
+        # or model work. The short binding transaction acquires it immediately
+        # before durable portfolio mutation.
+        row = await PortfolioEntitlementRepository(db).get_for_user(access.actor.id)
+        if row is None or row.portfolio_session_id != access.session.id:
+            from oryxenai.auth.errors import EntitlementBindingConflictError
+
+            raise EntitlementBindingConflictError()
+    return DurableAuthorizationContext.from_access(access)
+
+
+async def require_mutable_portfolio(
+    access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> PortfolioAccess:
+    """Guard every product mutation after aggregate ownership is established."""
+
+    if access.actor.role is AuthRole.ADMIN:
+        return access
+    if access.actor.entitlement is not None and access.actor.entitlement.read_only:
+        raise PortfolioReadOnlyError()
+    row = await PortfolioEntitlementRepository(db).get_for_user(access.actor.id)
+    if row is not None and row.successful_run_id is not None:
+        raise PortfolioReadOnlyError()
+    return access
+
+
 def get_run_repo(db: AsyncSession = Depends(get_db_session)) -> AgentRunRepository:
     return AgentRunRepository(db)
 
@@ -143,9 +183,10 @@ def get_executor(
     registry: AgentRegistry = Depends(get_agent_registry),
     session_repo: PortfolioSessionRepository = Depends(get_session_repo),
     run_repo: AgentRunRepository = Depends(get_run_repo),
+    context: DurableAuthorizationContext = Depends(get_durable_context),
 ) -> AgentExecutor:
     """Build an executor bound to the per-request session and repositories."""
-    return AgentExecutor(registry, session_repo, run_repo)
+    return AgentExecutor(registry, session_repo, run_repo, context)
 
 
 def get_mock_runner(
@@ -158,31 +199,39 @@ def get_mock_runner(
 def get_discovery_service(
     db: AsyncSession = Depends(get_db_session),
     registry: AgentRegistry = Depends(get_agent_registry),
+    context: DurableAuthorizationContext = Depends(get_durable_context),
 ) -> DiscoveryService:
     """Build a Discovery service bound to the request transaction."""
-    return DiscoveryService(DiscoveryRepository(db), JobService(db), registry)
+    return DiscoveryService(DiscoveryRepository(db), JobService(db, context), registry)
 
 
 def get_content_architect_service(
     db: AsyncSession = Depends(get_db_session),
     registry: AgentRegistry = Depends(get_agent_registry),
+    context: DurableAuthorizationContext = Depends(get_durable_context),
 ) -> ContentArchitectService:
     """Build a Content Architect service bound to the request transaction."""
-    return ContentArchitectService(ContentArchitectRepository(db), JobService(db), registry)
+    return ContentArchitectService(
+        ContentArchitectRepository(db), JobService(db, context), registry
+    )
 
 
 def get_visual_design_director_service(
     db: AsyncSession = Depends(get_db_session),
     registry: AgentRegistry = Depends(get_agent_registry),
+    context: DurableAuthorizationContext = Depends(get_durable_context),
 ) -> VisualDesignDirectorService:
     """Build a Visual Design Director service bound to the request transaction."""
-    return VisualDesignDirectorService(VisualDesignDirectorRepository(db), JobService(db), registry)
+    return VisualDesignDirectorService(
+        VisualDesignDirectorRepository(db), JobService(db, context), registry
+    )
 
 
 def get_build_preparation_service(
     db: AsyncSession = Depends(get_db_session),
+    context: DurableAuthorizationContext = Depends(get_durable_context),
 ) -> BuildPreparationService:
-    return BuildPreparationService(BuildPreparationRepository(db), JobService(db))
+    return BuildPreparationService(BuildPreparationRepository(db), JobService(db, context))
 
 
 def get_code_generator_development_service(
@@ -197,7 +246,8 @@ def get_code_generator_development_service(
 def get_code_generator_service(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
+    context: DurableAuthorizationContext = Depends(get_durable_context),
 ) -> CodeGeneratorService:
     return CodeGeneratorService(
-        CodeGeneratorRepository(db), JobService(db), request.app.state.settings
+        CodeGeneratorRepository(db), JobService(db, context), request.app.state.settings
     )

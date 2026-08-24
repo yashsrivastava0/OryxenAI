@@ -11,6 +11,8 @@ from oryxenai.agents.code_generator.core.stage_attempt import (
     fingerprint_input,
     stage_idempotency_key,
 )
+from oryxenai.auth.authorization import DurableAuthorizationContext
+from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.jobs.service import JobService
 
@@ -45,6 +47,7 @@ async def advance_after(
         run = await repo.get(run_id)
         if run is None or not bool(getattr(run, "auto_advance", True)):
             return False
+        await WorkerAuthorizationFence(db).validate_run(run.id)
         if run.status == "needs_attention" or run.active_preview:
             return False
         if str(getattr(run, "coordinator_stage", "plan")) == stage:
@@ -101,7 +104,17 @@ async def advance_after(
             input_fingerprint=input_fingerprint,
             trace_id=str(getattr(run, "trace_id", "") or ""),
         )
-        job = await JobService(db).enqueue(
+        context = DurableAuthorizationContext(
+            portfolio_session_id=getattr(run, "portfolio_session_id", None),
+            owner_user_id=getattr(run, "owner_user_id", None),
+            actor_user_id=getattr(run, "actor_user_id", None),
+            authorization_context_version=int(
+                getattr(run, "authorization_context_version", 0) or 0
+            ),
+            entitlement_revision=getattr(run, "entitlement_revision", None),
+        )
+        await WorkerAuthorizationFence(db).validate_run(run.id)
+        job = await JobService(db, context).enqueue(
             kind,
             StageCoordinator.payload_for_attempt(
                 token, {payload_key: str(run.id), "coordinator_stage": stage}

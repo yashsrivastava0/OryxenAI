@@ -28,7 +28,8 @@ from oryxenai.agents.content_architect.state import (
 )
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
-from oryxenai.agents.shared.providers.errors import ProviderError
+from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
+from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.session import get_sessionmaker
@@ -89,6 +90,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
 
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = ContentArchitectRepository(db)
         run = await repo.get_run(run_id)
         session = await repo.get_session(session_id)
@@ -105,6 +107,8 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)
 
+    async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
     agent = _build_content_architect_agent(str(input_payload.get("model_profile", "") or ""))
     agent_input: dict[str, Any] = {
         "operation": "build",
@@ -126,17 +130,22 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     try:
         result = await agent.run(context)
     except ProviderError as exc:
-        await _persist_failure(sessionmaker, session_id, run_id, exc, attempt, max_attempts)
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, exc, attempt, max_attempts
+        )
         raise
     except ContentArchitectModelOutputError as exc:
         # A one-off generation-quality issue on the same input, not a permanent
         # condition — retry it like any other transient provider error, bounded
         # by the same max_attempts budget.
-        logger.warning("content_architect build produced invalid output: %s", exc)
+        logger.warning(
+            "content_architect build produced invalid output type=%s", type(exc).__name__
+        )
         await _persist_failure(
             sessionmaker,
             session_id,
             run_id,
+            payload,
             ProviderError(code="MODEL_OUTPUT_INVALID", message=str(exc), retryable=True),
             attempt,
             max_attempts,
@@ -148,6 +157,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
             sessionmaker,
             session_id,
             run_id,
+            payload,
             ProviderError(
                 code="MODEL_OPERATION_FAILED",
                 message="Content Architect build failed.",
@@ -158,17 +168,19 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         )
         raise
 
-    return await _apply_result(sessionmaker, session_id, run_id, result, attempt)
+    return await _apply_result(sessionmaker, session_id, run_id, payload, result, attempt)
 
 
 async def _apply_result(
     sessionmaker: Any,
     session_id: UUID,
     run_id: UUID,
+    payload: dict[str, Any],
     result: Any,
     attempt: int,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = ContentArchitectRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
@@ -245,6 +257,7 @@ async def _persist_failure(
     sessionmaker: Any,
     session_id: UUID,
     run_id: UUID,
+    payload: dict[str, Any],
     error: Any,
     attempt: int,
     max_attempts: int,
@@ -257,13 +270,15 @@ async def _persist_failure(
     automatic retry. Only surface once no further retry will happen.
     """
     async with sessionmaker() as db:
+        await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = ContentArchitectRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
             return
+        code, message = stable_provider_failure(error)
         safe_error = {
-            "code": getattr(error, "code", "MODEL_OPERATION_FAILED"),
-            "message": getattr(error, "message", "Content Architect model operation failed."),
+            "code": code,
+            "message": message,
             "retryable": bool(getattr(error, "retryable", False)),
         }
         state = await repo.get_content_architect_state(session_id)

@@ -27,6 +27,12 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from oryxenai.agents.shared.providers.errors import (
+    ProviderError,
+    is_provider_credit_error,
+    stable_provider_failure,
+)
+from oryxenai.auth.worker_fence import AuthorizationFenceError, WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 from oryxenai.db.session import get_engine, reset_engine_cache
@@ -40,6 +46,42 @@ if TYPE_CHECKING:
 
 _log_prefix = "[oryxenai.worker]"
 logger = get_logger("oryxenai.jobs.worker")
+
+
+def _safe_handler_error(error: Any) -> Any:
+    """Convert provider credit exhaustion to the stable public job contract."""
+
+    if isinstance(error, ProviderError) or is_provider_credit_error(error):
+        code, message = stable_provider_failure(error)
+        return (
+            retryable(code, message)
+            if bool(getattr(error, "retryable", False))
+            else permanent(code, message)
+        )
+    if hasattr(error, "retryable") and hasattr(error, "code") and hasattr(error, "message"):
+        return error
+    return retryable("HANDLER_ERROR", "The background job handler failed.")
+
+
+def _safe_result_error(raw_error: dict[str, Any]) -> Any:
+    if is_provider_credit_error(raw_error):
+        code, message = stable_provider_failure(raw_error)
+        return permanent(code, message)
+    code = str(raw_error.get("code", "JOB_HANDLER_FAILED"))
+    message = str(raw_error.get("message", "The background job handler failed."))
+    if code.startswith(("PROVIDER_", "NETWORK_", "MODEL_")):
+        code, message = stable_provider_failure(raw_error)
+        return (
+            retryable(code, message)
+            if bool(raw_error.get("retryable", False))
+            else permanent(code, message)
+        )
+    details = raw_error.get("details") if isinstance(raw_error.get("details"), dict) else None
+    return (
+        retryable(code, message, details)
+        if bool(raw_error.get("retryable", False))
+        else permanent(code, message, details)
+    )
 
 
 class Worker:
@@ -195,6 +237,27 @@ class Worker:
             )
             return
 
+        try:
+            async with self._sessionmaker() as session:
+                await WorkerAuthorizationFence(session).validate_job(job)
+        except AuthorizationFenceError as exc:
+            await self._fail_job(job, permanent(exc.code, exc.message))
+            return
+        except Exception as exc:
+            logger.warning(
+                "worker authorization fence unavailable kind=%s error=%s",
+                kind,
+                type(exc).__name__,
+            )
+            await self._fail_job(
+                job,
+                retryable(
+                    "AUTHORIZATION_FENCE_UNAVAILABLE",
+                    "Authorization could not be rechecked safely.",
+                ),
+            )
+            return
+
         heartbeat_task = asyncio.create_task(self._renew_lease_loop(job))
         try:
             payload = dict(job.payload or {})
@@ -219,12 +282,9 @@ class Worker:
             )
             return
         except Exception as exc:
-            error: Any
-            if hasattr(exc, "code") and hasattr(exc, "message") and hasattr(exc, "retryable"):
-                error = exc
-            else:
+            if not (hasattr(exc, "code") and hasattr(exc, "message") and hasattr(exc, "retryable")):
                 logger.warning("job handler failed kind=%s error=%s", kind, type(exc).__name__)
-                error = retryable("HANDLER_ERROR", "The background job handler failed.")
+            error = _safe_handler_error(exc)
             await self._fail_job(
                 job,
                 error,
@@ -238,23 +298,7 @@ class Worker:
         if result.get("status") == "failed":
             raw_error = result.get("error")
             if isinstance(raw_error, dict):
-                error = (
-                    retryable(
-                        str(raw_error.get("code", "JOB_HANDLER_FAILED")),
-                        str(raw_error.get("message", "The background job handler failed.")),
-                        raw_error.get("details")
-                        if isinstance(raw_error.get("details"), dict)
-                        else None,
-                    )
-                    if bool(raw_error.get("retryable", False))
-                    else permanent(
-                        str(raw_error.get("code", "JOB_HANDLER_FAILED")),
-                        str(raw_error.get("message", "The background job handler failed.")),
-                        raw_error.get("details")
-                        if isinstance(raw_error.get("details"), dict)
-                        else None,
-                    )
-                )
+                error = _safe_result_error(raw_error)
             else:
                 error = permanent("JOB_HANDLER_FAILED", "The background job handler failed safely.")
             await self._fail_job(
@@ -262,9 +306,14 @@ class Worker:
                 error,
             )
             return
+        result_code = result.get("code")
+        if is_provider_credit_error({"code": result_code}):
+            code, message = stable_provider_failure({"code": result_code})
+            await self._fail_job(job, permanent(code, message))
+            return
         await self._complete_job(job, result)
 
-    def _worker_metadata(self) -> dict[str, str | int | bool]:
+    def _worker_metadata(self) -> dict[str, object]:
         development = self._settings.code_generator_development
         generation = self._settings.code_generator_generation
         return {

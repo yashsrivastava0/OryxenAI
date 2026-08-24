@@ -11,9 +11,11 @@ from oryxenai.auth.domain import (
     AuthInputError,
     AuthRole,
     CurrentUser,
+    EntitlementProjection,
     ProviderIdentity,
     normalize_username,
 )
+from oryxenai.auth.entitlements import PortfolioEntitlementRepository, admin_entitlement_projection
 from oryxenai.auth.errors import (
     AccessNotApprovedError,
     AccountDeletedError,
@@ -44,6 +46,7 @@ class AuthService:
         allowed_emails: tuple[str, ...],
     ) -> None:
         self._repo = AuthRepository(db)
+        self._entitlements = PortfolioEntitlementRepository(db) if hasattr(db, "execute") else None
         self._config = config
         self._verifier = verifier
         self._provider = provider
@@ -74,7 +77,14 @@ class AuthService:
             )
         else:
             await self._repo.touch(user)
-        return self._to_current_user(user)
+        current = self._to_current_user(user)
+        if self._entitlements is not None:
+            if current.role is AuthRole.ADMIN:
+                current = self._with_entitlement(current, admin_entitlement_projection())
+            else:
+                projection = await self._entitlements.project_for_user(current.id)
+                current = self._with_entitlement(current, projection)
+        return current
 
     def _role_for(self, identity: ProviderIdentity) -> AuthRole:
         if identity.email in self._admin_emails:
@@ -102,6 +112,17 @@ class AuthService:
             status=status,
         )
 
+    @staticmethod
+    def _with_entitlement(current: CurrentUser, projection: EntitlementProjection) -> CurrentUser:
+        return CurrentUser(
+            id=current.id,
+            supabase_user_id=current.supabase_user_id,
+            username=current.username,
+            role=current.role,
+            status=current.status,
+            entitlement=projection,
+        )
+
     async def claim_username(self, token: str, raw_username: str) -> CurrentUser:
         current = await self.current_user(token)
         try:
@@ -113,4 +134,12 @@ class AuthService:
 
             raise ValidationError(str(exc), details={"field": "username"}) from exc
         user = await self._repo.claim_username(current.id, username)
-        return self._to_current_user(user)
+        current = self._to_current_user(user)
+        if self._entitlements is not None:
+            projection = (
+                admin_entitlement_projection()
+                if current.role is AuthRole.ADMIN
+                else await self._entitlements.project_for_user(current.id)
+            )
+            current = self._with_entitlement(current, projection)
+        return current

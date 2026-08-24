@@ -17,6 +17,7 @@ from oryxenai.api.dependencies import (
     get_executor,
     get_run_repo,
     require_admin,
+    require_mutable_portfolio,
     require_session_owner_or_admin,
 )
 from oryxenai.api.errors import PayloadTooLargeError, ValidationError
@@ -98,6 +99,7 @@ async def create_mock_run(
     body: MockRunRequest,
     _admin: CurrentUser = Depends(require_admin),
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     db: AsyncSession = Depends(get_db_session),
     run_repo: AgentRunRepository = Depends(get_run_repo),
     executor: AgentExecutor = Depends(get_executor),

@@ -30,6 +30,7 @@ from oryxenai.agents.content_architect.state import (
     apply_start,
 )
 from oryxenai.agents.discovery.schemas import DiscoveryState, DiscoveryStatus
+from oryxenai.auth.authorization import durable_snapshot
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.jobs.service import JobService
@@ -148,6 +149,7 @@ class ContentArchitectService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
+            **durable_snapshot(self._job_service.authorization_context),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -223,6 +225,7 @@ class ContentArchitectService:
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
+            **durable_snapshot(self._job_service.authorization_context),
         )
         await self._repository.create_run(run)
         job = await self._job_service.enqueue(
@@ -301,6 +304,7 @@ class ContentArchitectService:
                         "id": str(job.id),
                         "kind": job.job_kind,
                         "status": job.status,
+                        "execution_lane": getattr(job, "execution_lane", None),
                         "attempt": job.attempt,
                         "error": job.error_payload,
                     }

@@ -13,6 +13,7 @@ from oryxenai.agents.content_architect.service import (
 )
 from oryxenai.api.dependencies import (
     get_content_architect_service,
+    require_mutable_portfolio,
     require_session_owner_or_admin,
 )
 from oryxenai.api.errors import AppError
@@ -73,6 +74,7 @@ async def start_content_architect(
     session_id: str,
     body: StartRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: ContentArchitectService = Depends(get_content_architect_service),
 ) -> ContentArchitectStateResponse:
     try:
@@ -96,6 +98,7 @@ async def revise_content_architect(
     session_id: str,
     body: ReviseRequest,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: ContentArchitectService = Depends(get_content_architect_service),
 ) -> ContentArchitectStateResponse:
     try:
@@ -110,6 +113,7 @@ async def revise_content_architect(
 async def approve_content_architect(
     session_id: str,
     access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
     service: ContentArchitectService = Depends(get_content_architect_service),
 ) -> ContentArchitectStateResponse:
     try:

@@ -14,6 +14,7 @@ from oryxenai.auth.web import auth_csp
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
+_AUTH_STATIC_DIR = Path(__file__).resolve().parents[1] / "auth" / "static"
 
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 
@@ -22,6 +23,13 @@ def _asset_version(filename: str) -> str:
     """Return a cheap dev-friendly cache key for a checked-in static asset."""
     try:
         return str((_STATIC_DIR / filename).stat().st_mtime_ns)
+    except OSError:
+        return "0"
+
+
+def _auth_asset_version(filename: str) -> str:
+    try:
+        return str((_AUTH_STATIC_DIR / filename).stat().st_mtime_ns)
     except OSError:
         return "0"
 
@@ -36,6 +44,8 @@ def _shell_context(settings: Any) -> dict[str, object]:
         "model_profiles": [],
         "auth_config": settings.auth_public_config,
         "app_js_version": _asset_version("app.js"),
+        "auth_css_version": _auth_asset_version("auth.css"),
+        "auth_client_version": _auth_asset_version("auth-client.js"),
         "app_css_version": _asset_version("app.css"),
         "auth_runtime_version": _asset_version("auth-runtime.mjs"),
         "app_auth_bootstrap_version": _asset_version("app-auth-bootstrap.mjs"),
@@ -66,6 +76,10 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
         settings = request.app.state.settings
         response = templates.TemplateResponse(
             request=request,
+            # Phase 3 uses the existing authenticated Discovery workspace as
+            # the single product frontend.  The bootstrap hides developer
+            # controls for normal users and supplies the server-bound
+            # entitlement projection before this module is initialized.
             name="index.html",
             context=_shell_context(settings),
         )

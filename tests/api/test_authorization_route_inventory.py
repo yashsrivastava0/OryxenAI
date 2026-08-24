@@ -8,6 +8,7 @@ from oryxenai.api.dependencies import (
     get_bearer_token,
     get_current_user,
     require_admin,
+    require_mutable_portfolio,
     require_onboarded_user,
     require_session_owner_or_admin,
 )
@@ -51,12 +52,58 @@ def _require(route: object, dependency: object) -> None:
     )
 
 
+_MUTATION_CLASSES: dict[tuple[str, str], str] = {
+    ("PUT", "/api/v1/me/username"): "identity_onboarding",
+    ("POST", "/api/v1/sessions"): "portfolio_admission",
+    ("POST", "/api/v1/sessions/{session_id}/runs/mock"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/discovery/start"): "portfolio_mutation",
+    ("PUT", "/api/v1/sessions/{session_id}/discovery/answers"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/discovery/revise"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/discovery/approve"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/content-architect/start"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/content-architect/revise"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/content-architect/approve"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/start"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/revise"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/approve"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/build-preparation/start"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/build-preparation/regenerate"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/code-generator/start"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/code-generator/regenerate"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/code-generator/retry"): "portfolio_mutation",
+    ("POST", "/api/v1/system/worker-probes"): "admin_system_mutation",
+    ("POST", "/api/v1/build-preparation/fixture/run"): "admin_fixture_mutation",
+    ("POST", "/api/v1/build-preparation/fixture/runs"): "admin_fixture_mutation",
+    ("POST", "/api/v1/development/code-generator/provider-preflight"): "admin_development_mutation",
+    ("POST", "/api/v1/development/code-generator/runs"): "admin_development_mutation",
+    (
+        "POST",
+        "/api/v1/development/code-generator/runs/from-build-preparation",
+    ): "admin_development_mutation",
+    ("POST", "/api/v1/development/code-generator/runs/upload"): "admin_development_mutation",
+    (
+        "POST",
+        "/api/v1/development/code-generator/runs/{run_id}/acquire",
+    ): "admin_development_mutation",
+    (
+        "POST",
+        "/api/v1/development/code-generator/runs/{run_id}/generate",
+    ): "admin_development_mutation",
+    (
+        "POST",
+        "/api/v1/development/code-generator/runs/{run_id}/verify",
+    ): "admin_development_mutation",
+}
+
+
 def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
     app = create_app()
     routes = _api_routes(app)
     assert routes
 
     for method, path, route in routes:
+        if method != "GET":
+            assert (method, path) in _MUTATION_CLASSES, f"Unclassified mutation: {method} {path}"
         if path == "/api/v1/me":
             # Identity admission/onboarding routes deliberately remain usable
             # before username onboarding completes.
@@ -66,6 +113,7 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
         if path == "/api/v1/me/username":
             # Username claim performs its own current-user/onboarding decision
             # inside AuthService and must remain reachable before onboarding.
+            assert _MUTATION_CLASSES[(method, path)] == "identity_onboarding"
             _require(route, get_bearer_token)
             assert require_onboarded_user not in _dependency_calls(route)
             continue
@@ -74,24 +122,37 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
             continue
         if path in {"/api/v1/sessions"}:
             _require(route, require_onboarded_user)
+            if method != "GET":
+                assert _MUTATION_CLASSES[(method, path)] == "portfolio_admission"
             continue
         if path.startswith("/api/v1/sessions/{session_id}/runs/mock"):
+            assert _MUTATION_CLASSES[(method, path)] == "portfolio_mutation"
             _require(route, require_admin)
             _require(route, require_session_owner_or_admin)
+            _require(route, require_mutable_portfolio)
             continue
         if (
             path.startswith("/api/v1/sessions/{session_id}/")
             or path == "/api/v1/sessions/{session_id}"
         ):
             _require(route, require_session_owner_or_admin)
+            if method != "GET":
+                assert _MUTATION_CLASSES[(method, path)] == "portfolio_mutation"
+                _require(route, require_mutable_portfolio)
             continue
         if path.startswith("/api/v1/system/") or path == "/api/v1/model-profiles":
+            if method != "GET":
+                assert _MUTATION_CLASSES[(method, path)] == "admin_system_mutation"
             _require(route, require_admin)
             continue
         if path.startswith("/api/v1/build-preparation/fixture/"):
+            if method != "GET":
+                assert _MUTATION_CLASSES[(method, path)] == "admin_fixture_mutation"
             _require(route, require_admin)
             continue
         if path.startswith("/api/v1/development/code-generator/"):
+            if method != "GET":
+                assert _MUTATION_CLASSES[(method, path)] == "admin_development_mutation"
             _require(route, require_admin)
             continue
         raise AssertionError(f"Unclassified business API route: {method} {path}")
