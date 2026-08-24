@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 13:07 +05:30 - Codex (model/provider omitted) - [90d5dfe] - Phase 3 portfolio entitlements and worker fencing
+Implemented migration 0016 with one normal-user portfolio, generation-variant, and verified-success entitlement; trusted durable owner/actor snapshots; global model-generation admission; redacted provider-credit failures; worker reauthorization; verified preview finalization; and server-enforced post-success read-only behavior. Updated the authenticated product shell and Phase 3 documentation/tests. Administrator lifecycle, destructive reset/delete, live multi-account acceptance, and deployment remain Phase 4.
+
 ### 2026-08-24 02:09 +05:30 - Codex (model/provider omitted) - [d288077] - Phase 2 portfolio ownership and API authorization
 Implemented migration 0015 with fail-closed legacy quarantine, owner-scoped session aggregates, centralized owner/admin route dependencies, protected development surfaces, bearer-authenticated product/developer boot, and regression coverage. Recorded D-045; entitlement, worker fencing, administrator lifecycle, and deployment remain Phases 3 and 4.
 
