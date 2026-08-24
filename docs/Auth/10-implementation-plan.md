@@ -40,7 +40,7 @@ production cloud resources were created.
 
 Add Google-only Supabase authentication and complete OryxenAI authorization:
 
-- application allowlist;
+- configurable open Google registration or a restricted application allowlist;
 - maximum 15 normal users plus two initial administrators;
 - unique username onboarding;
 - owner isolation on all resources;
@@ -58,7 +58,9 @@ These do not require another planning choice:
 - Jinja2 + vanilla JavaScript remain.
 - Full-page OAuth redirect and `/auth/callback`.
 - FastAPI/PostgreSQL own authorization.
-- Allowlist from `ORYXENAI_ALLOWED_USER_EMAILS`.
+- `auth.admission_mode = "open"` admits any verified Google identity until the
+  15-user normal capacity is full. `"allowlist"` uses
+  `ORYXENAI_ALLOWED_USER_EMAILS` for restricted environments.
 - Bootstrap admins from `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` after verified
   Supabase identity resolution.
 - Two admins do not consume the 15 normal slots.
@@ -153,9 +155,9 @@ Environment-bound values:
 
 Parse/deduplicate normalized emails. Reject overlap between bootstrap admins
 and normal allowlist. Require exactly two distinct bootstrap admins in required
-development/production auth mode. The development normal allowlist already has
-one private test entry. Production may use a separately reviewed allowlist, but
-required deployments must not start with an accidental empty admission policy.
+development/production auth mode. In `open` mode the normal allowlist is
+optional and the database capacity gate remains authoritative; in
+`allowlist` mode required deployments must provide at least one normal email.
 
 Production validation must reject localhost, HTTP, wildcard origins, missing
 keys, project/issuer mismatch, test override, and auth-disabled mode. Local/test
@@ -338,8 +340,9 @@ If no local user exists:
 2. require matching subject and verified/usable email;
 3. reject a matching deleted-email tombstone unless an explicit audited admin
    readmission cleared it;
-4. compare normalized email to bootstrap admins/normal allowlist;
-5. reject unapproved identity without local data;
+4. compare normalized email to bootstrap admins and apply the configured
+   admission mode (open or normal allowlist);
+5. reject a non-admitted identity without local data;
 6. resolve admin first; otherwise serialize normal admission under capacity;
 7. atomic upsert by immutable subject; and
 8. create normal entitlement exactly once.

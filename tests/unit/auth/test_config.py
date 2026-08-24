@@ -31,6 +31,20 @@ def test_auth_environment_normalizes_admission_lists() -> None:
     )
 
 
+def test_open_admission_allows_empty_normal_list_in_production() -> None:
+    config = _valid_config(admission_mode="open")
+    admins, users = config.validate_environment(
+        app_env="production",
+        supabase_url="https://project.supabase.co",
+        publishable_key="sb_publishable_test",
+        secret_key="sb_secret_test",  # noqa: S106 - sentinel only
+        admin_emails="admin1@example.com admin2@example.com",
+        allowed_emails="",
+    )
+    assert admins == ("admin1@example.com", "admin2@example.com")
+    assert users == ()
+
+
 @pytest.mark.parametrize(
     ("admin_emails", "allowed_emails", "message"),
     [
@@ -95,6 +109,8 @@ def test_auth_policy_rejects_wildcards_and_symmetric_algorithms() -> None:
         AuthConfig(audience="public")
     with pytest.raises(ValueError, match="issuer path"):
         AuthConfig(issuer_path="/custom-auth")
+    with pytest.raises(ValueError, match="admission mode"):
+        AuthConfig(admission_mode="everyone")
 
 
 def test_configured_local_auth_rejects_incomplete_provider_coordinates() -> None:

@@ -63,8 +63,13 @@ async def test_all_phase1_pages_are_direct_html_and_shell_is_safe() -> None:
         assert "<html" in response.text
         assert response.headers["cache-control"] == "no-store"
         assert "Content-Security-Policy" in response.headers
+        assert response.headers["referrer-policy"] == "no-referrer"
+        assert "camera=()" in response.headers["permissions-policy"]
         assert "admin1@example.com" not in response.text
         assert "sb_secret_test" not in response.text
+        assert "access_token" not in response.text
+        assert "refresh_token" not in response.text
+        assert "Bearer " not in response.text
     assert responses[-1].status_code == 200
     assert "Build your portfolio" in responses[-1].text
 
@@ -161,9 +166,11 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     assert "app-auth-bootstrap.mjs" in product.text
     assert product.text.index("auth-client.js") < product.text.index("app-auth-bootstrap.mjs")
     assert "/static/auth.css" not in product.text
+    assert 'oryxenai-admission-mode" content="open"' in product.text
     assert "admin1@example.com" not in product.text
     assert "sb_secret_test" not in product.text
     assert product.headers["cache-control"] == "no-store"
+    assert product.headers["referrer-policy"] == "no-referrer"
     csp = product.headers["content-security-policy"]
     assert "connect-src 'self' https://project.supabase.co wss://project.supabase.co" in csp
     assert "*" not in csp

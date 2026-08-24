@@ -15,6 +15,10 @@ port = 5432
 
 [auth]
 required = true
+# The deployed product accepts any verified Google identity until the
+# database-owned 15-user normal capacity is full.  Bootstrap administrators
+# remain controlled by ORYXENAI_ADMIN_BOOTSTRAP_EMAILS.
+admission_mode = "open"
 
 [image_retrieval]
 # The API fixture can execute provider lookups in the non-root app container.
