@@ -110,6 +110,81 @@ async def test_anthropic_messages_adapter_sends_schema_and_parses_text(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_anthropic_adapter_does_not_duplicate_embedded_prompt_data(monkeypatch):
+    monkeypatch.setenv("TEST_ANTHROPIC_API_KEY", "sk-ant-test")
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg_embedded",
+                "model": "claude-sonnet-5",
+                "content": [{"type": "text", "text": '{"answer":"grounded"}'}],
+                "stop_reason": "end_turn",
+            },
+            request=request,
+        )
+
+    adapter = AnthropicAdapter(_profile())
+    adapter._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.anthropic.com/v1",
+        headers={"x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01"},
+    )
+    instructions = (
+        "## Output JSON schema (contract)\n{...}\n"
+        '<user_input trust="untrusted">{"value":"already embedded"}</user_input>'
+    )
+    await adapter.generate_structured(
+        operation="discovery.build_or_revise_brief",
+        instructions=instructions,
+        input_payload={"value": "must not be repeated"},
+        output_model=_Output,
+        system_prompt="You are the planner.",
+    )
+    await adapter.aclose()
+
+    payload = json.loads(requests[0].content)
+    assert payload["system"] == "You are the planner."
+    assert payload["messages"] == [{"role": "user", "content": instructions}]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_adapter_repairs_literal_json_string_control_characters(monkeypatch):
+    monkeypatch.setenv("TEST_ANTHROPIC_API_KEY", "sk-ant-test")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg_control_char",
+                "model": "claude-sonnet-5",
+                "content": [{"type": "text", "text": '{"answer":"line\nbreak"}'}],
+                "stop_reason": "end_turn",
+            },
+            request=request,
+        )
+
+    adapter = AnthropicAdapter(_profile())
+    adapter._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.anthropic.com/v1",
+        headers={"x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01"},
+    )
+    result = await adapter.generate_structured(
+        operation="discovery.build_or_revise_brief",
+        instructions="Create the brief.",
+        input_payload={},
+        output_model=_Output,
+    )
+    await adapter.aclose()
+
+    assert result.parsed_output == {"answer": "line\nbreak"}
+
+
+@pytest.mark.asyncio
 async def test_anthropic_adapter_falls_back_for_typed_mapping_schema(monkeypatch):
     monkeypatch.setenv("TEST_ANTHROPIC_API_KEY", "sk-ant-test")
     requests: list[httpx.Request] = []

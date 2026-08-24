@@ -1,6 +1,6 @@
 <!--
   Operation B — Create or revise the Portfolio Discovery Brief
-  Version: discovery.build_or_revise_brief.v4
+  Version: discovery.build_or_revise_brief.v5
   Output model: BriefOutput (see schema in the task block below)
 -->
 
