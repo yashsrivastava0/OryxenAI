@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 - Codex (GPT-5 / OpenAI) - [a39bd7e] - Reduce Anthropic interactive latency for first three agents
+Lowered the Discovery, Content Architect, and Visual Design Director Sonnet 5
+budgets/effort and removed duplicate embedded input/schema payloads from the
+Anthropic adapter. Added safe JSON control-character recovery and concise
+interactive brief guidance; focused tests passed and a live Discovery brief
+completed in about 40 seconds.
+
 ### 2026-08-24 - Codex (GPT-5 / OpenAI) - [563b2a6] - Force Google account selection after sign-out
 Updated the Supabase Google OAuth request to include `prompt=select_account`,
 so signing out and signing back in can reliably switch identities instead of
