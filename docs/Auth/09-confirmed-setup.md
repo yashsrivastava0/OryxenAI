@@ -14,7 +14,7 @@ detail, or full allowlist/bootstrap-email value.
 | Sign-in method | Google only |
 | Other methods | No Clerk, password, email OTP, phone, or SMS |
 | Application authorization | FastAPI + PostgreSQL |
-| Registration | Application allowlist |
+| Registration | Configurable admission: open verified-Google registration for the product, or a restricted application allowlist |
 | Normal-user capacity | 15 |
 | Initial administrators | 2, excluded from normal capacity |
 | Normal-user portfolio policy | One session, one variant, one promoted success |
@@ -61,9 +61,21 @@ https://diiestlnmpaarhhexwhi.supabase.co/auth/v1/callback
 
 Two distinct administrator Google accounts and one separate non-admin normal
 test account are configured privately and present in Google's test-user list.
-The normal identity is also present in the private application allowlist. All
-three exact addresses remain in the git-ignored environment/dashboard rather
-than committed documentation.
+The normal identity is also present in the private application configuration.
+All three exact addresses remain in the git-ignored environment/dashboard
+rather than committed documentation. The checked-in product configuration now
+uses `auth.admission_mode = "open"`, so a verified Google identity can join
+until the 15-normal-user capacity is full. Set that value to `"allowlist"` for
+a restricted environment; then `ORYXENAI_ALLOWED_USER_EMAILS` is required for
+normal-user admission.
+
+Google Auth Platform has a separate provider-side audience gate. While the
+OAuth app is in **Testing**, Google only permits its configured test users. To
+let arbitrary Google accounts sign in after deployment, publish the Google
+OAuth app (or add each account as a test user during development), and keep the
+production application origin and callback in Supabase URL Configuration and
+Google's authorized JavaScript origins. This is independent of the local
+OryxenAI admission mode.
 
 ## Supabase development project
 
@@ -104,7 +116,7 @@ The git-ignored `.env` exists. Redaction-safe inspection confirmed:
 | `SUPABASE_PUBLISHABLE_KEY` | Yes | Yes | Value not printed |
 | `SUPABASE_SECRET_KEY` | Yes | Yes | Server-only value not printed |
 | `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` | Yes | Yes | Two distinct expected entries; values not printed |
-| `ORYXENAI_ALLOWED_USER_EMAILS` | Yes | Yes | One separate normal test entry; value not printed |
+| `ORYXENAI_ALLOWED_USER_EMAILS` | Yes | Yes | Optional in open mode; one separate normal test entry remains configured privately |
 
 Phase 1 now reads these settings through typed startup validation and keeps
 secret/admission values server-only. Presence of the entries is still not

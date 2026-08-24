@@ -248,6 +248,7 @@ export async function bootstrapAuthPage() {
   const config = {
     supabaseUrl: readMeta("oryxenai-supabase-url"),
     publishableKey: readMeta("oryxenai-publishable-key"),
+    admissionMode: readMeta("oryxenai-admission-mode") || "allowlist",
     primaryOrigin: readMeta("oryxenai-primary-origin"),
     callbackUrl: readMeta("oryxenai-callback-url"),
     paths: {
@@ -261,6 +262,18 @@ export async function bootstrapAuthPage() {
     },
   };
   const ui = makeDomUi();
+  const openAdmission = config.admissionMode === "open";
+  const signInGuidance = document.getElementById("sign-in-guidance");
+  if (signInGuidance) {
+    signInGuidance.textContent = openAdmission
+      ? "Use any Google account. Normal-user access is available while capacity remains."
+      : "Use an approved Google identity. No password is stored by OryxenAI.";
+  }
+  const accessDetail = document.getElementById("access-detail");
+  if (accessDetail && openAdmission) {
+    accessDetail.textContent =
+      "The 15 normal-user slots may be full, or this Google identity is not yet available from the provider.";
+  }
   const canonical = canonicalDestination(config, window.location);
   if (canonical) {
     window.location.replace(canonical);

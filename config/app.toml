@@ -74,6 +74,10 @@ heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is s
 provider = "supabase"
 enabled = true
 required = false                # production and the Docker overlay require it
+# Public Google registration is the product default.  Set this to
+# "allowlist" in a restricted environment; the database still caps normal
+# users at 15 in either mode.
+admission_mode = "open"
 primary_origin = "http://localhost:8000"
 allowed_origins = ["http://localhost:8000", "http://127.0.0.1:8000"]
 audience = "authenticated"

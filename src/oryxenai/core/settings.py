@@ -181,6 +181,11 @@ class AuthConfig(BaseModel):
     provider: str = "supabase"
     enabled: bool = True
     required: bool = False
+    # ``allowlist`` keeps local/restricted environments closed.  ``open``
+    # admits any verified Google identity until the database-owned normal-user
+    # capacity is full.  The provider still remains Google-only; this setting
+    # controls OryxenAI admission after Supabase has verified the identity.
+    admission_mode: str = "allowlist"
     primary_origin: str = "http://localhost:8000"
     allowed_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:8000", "http://127.0.0.1:8000"]
@@ -209,6 +214,11 @@ class AuthConfig(BaseModel):
             return value.strip().lower() in {"1", "true", "yes", "on"}
         return value
 
+    @field_validator("admission_mode", mode="before")
+    @classmethod
+    def _coerce_admission_mode(cls, value: Any) -> Any:
+        return str(value).strip().lower() if value is not None else value
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def _coerce_origins(cls, value: Any) -> Any:
@@ -229,6 +239,8 @@ class AuthConfig(BaseModel):
             raise ValueError("Only the configured Supabase auth provider is supported.")
         if self.required and not self.enabled:
             raise ValueError("Required authentication cannot be disabled.")
+        if self.admission_mode not in {"allowlist", "open"}:
+            raise ValueError("Auth admission mode must be 'allowlist' or 'open'.")
         if self.audience != "authenticated":
             raise ValueError("Supabase JWT audience must be authenticated.")
         if self.issuer_path != "/auth/v1":
@@ -361,8 +373,10 @@ class AuthConfig(BaseModel):
         if strict_deployment:
             if not supabase_url.strip() or not publishable_key.strip() or not secret_key.strip():
                 raise ValueError("Required Supabase auth coordinates are missing.")
-            if not admins or len(allowed) == 0:
-                raise ValueError("Required auth admission lists must not be empty.")
+            if not admins:
+                raise ValueError("Required bootstrap administrator list must not be empty.")
+            if self.admission_mode == "allowlist" and len(allowed) == 0:
+                raise ValueError("Allowlist admission requires at least one normal-user email.")
         elif admission_configured and (
             not supabase_url.strip() or not publishable_key.strip() or not secret_key.strip()
         ):
@@ -1101,6 +1115,7 @@ class Settings(BaseSettings):
         return {
             "supabaseUrl": self.supabase_url.rstrip("/"),
             "publishableKey": self.supabase_publishable_key.get_secret_value(),
+            "admissionMode": self.auth.admission_mode,
             "primaryOrigin": self.auth.primary_origin,
             "callbackUrl": self.auth.callback_url(),
             "signInPath": self.auth.sign_in_path,

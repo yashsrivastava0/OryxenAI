@@ -129,6 +129,28 @@ async def test_bootstrap_email_gets_admin_role_once(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.asyncio
+async def test_open_admission_provisions_a_verified_non_allowlisted_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _Provider(ProviderIdentity(subject=SUBJECT, email="new-person@example.com"))
+    repo = _Repo()
+    monkeypatch.setattr("oryxenai.auth.service.AuthRepository", lambda _db: repo)
+    service = AuthService(
+        db=object(),
+        config=AuthConfig(admission_mode="open"),
+        verifier=_Verifier(),
+        provider=provider,
+        admin_emails=("admin@example.com", "second-admin@example.com"),
+        allowed_emails=(),
+    )
+
+    current = await service.current_user("token")
+
+    assert current.role is AuthRole.USER
+    assert repo.provision_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_existing_database_role_is_authoritative(monkeypatch: pytest.MonkeyPatch) -> None:
     repo = _Repo(existing=_user(role="admin", username="owner"))
     provider = _Provider(ProviderIdentity(subject=SUBJECT, email="person@example.com"))

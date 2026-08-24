@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f7f5ef">
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
+  <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
   <meta name="oryxenai-primary-origin" content="{{ auth_config.primaryOrigin }}">
   <meta name="oryxenai-callback-url" content="{{ auth_config.callbackUrl }}">
   <meta name="oryxenai-sign-in-path" content="{{ auth_config.signInPath }}">
@@ -41,7 +42,7 @@
     <section id="sign-in-panel" class="panel" hidden aria-labelledby="sign-in-title">
       <p class="eyebrow">Google-only access</p>
       <h2 id="sign-in-title">Continue with Google</h2>
-      <p class="muted">Use an approved Google identity. No password is stored by OryxenAI.</p>
+      <p id="sign-in-guidance" class="muted">Use your Google account. No password is stored by OryxenAI.</p>
       <button id="google-sign-in" class="primary-button" type="button">Continue with Google</button>
       <p id="sign-in-error" class="error-text" role="alert" hidden></p>
       <p class="fine-print">Your session is managed by Supabase and refreshed by its browser client.</p>
@@ -49,8 +50,8 @@
 
     <section id="access-panel" class="panel" hidden aria-labelledby="access-title">
       <p class="eyebrow">Access review</p>
-      <h2 id="access-title">This account is not approved yet.</h2>
-      <p class="muted">OryxenAI could not match this verified Google identity to its current access list.</p>
+      <h2 id="access-title">This account cannot join right now.</h2>
+      <p id="access-detail" class="muted">Normal-user capacity may be full, or this deployment may be using a restricted access list.</p>
       <button class="secondary-button" data-action="logout" type="button">Sign out</button>
     </section>
 

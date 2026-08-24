@@ -23,6 +23,35 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-048 - Make Google registration open by deployment configuration
+
+- **Date & Time:** 2026-08-24 18:30 +05:30 - Codex (model/provider omitted)
+- **Status:** decided-implemented
+- **Context:** The initial three-account allowlist was useful for provider setup,
+  but it also blocked legitimate Google users and was confused with Google's
+  separate OAuth test-user restriction. The product needs simple public
+  registration while retaining a hard normal-user capacity limit.
+- **Decision:** Add a reviewed `auth.admission_mode` with `open` and
+  `allowlist` values. The product and Docker deployment use `open`: any
+  verified Google identity may be admitted as a normal user until the database
+  capacity of 15 is full. Bootstrap administrators remain controlled by the
+  server-only admin email list and do not consume capacity. Restricted
+  environments can select `allowlist`, which requires
+  `ORYXENAI_ALLOWED_USER_EMAILS`. Keep provider-side Google Testing/publishing
+  configuration separate from application admission.
+- **Rejected alternatives:** Removing the server-side capacity gate, trusting a
+  browser toggle, adding passwords/OTP, or silently treating an OAuth app in
+  Google's Testing state as public. A full HttpOnly-cookie SSR conversion was
+  also deferred because this Jinja/vanilla browser client needs a simple
+  bearer-authenticated API boundary.
+- **Consequence:** New users can onboard without a code change or per-email
+  allowlist update when Google OAuth is published for the deployment. Browser
+  sessions still use Supabase's managed PKCE refresh flow; tokens remain
+  client-held by design and are never rendered in HTML, URLs, logs, or API
+  responses. The owner must publish the Google OAuth app and add production
+  origins/redirects before arbitrary external accounts can complete Google
+  sign-in.
+
 ## D-047 - Complete Phase 4 administrator lifecycle with resumable local authority
 
 - **Date & Time:** 2026-08-24 14:40 +05:30 - Codex (model/provider omitted)

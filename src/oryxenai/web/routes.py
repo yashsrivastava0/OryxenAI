@@ -57,6 +57,8 @@ def _set_shell_headers(response: HTMLResponse, settings: Any) -> HTMLResponse:
     response.headers["Content-Security-Policy"] = auth_csp(settings.supabase_url)
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 
 
