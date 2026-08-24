@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 - Codex - [540d33a] - Add native and Docker development run modes
+Added the canonical dual-mode development runbook, native local-PostgreSQL
+configuration and PowerShell/Bash helpers, and the missing isolated Docker Code
+Generator overlay. Docker Compose remains supported for production-like local
+integration.
+
 ### 2026-08-24 - Codex (GPT-5 / OpenAI) - [a39bd7e] - Reduce Anthropic interactive latency for first three agents
 Lowered the Discovery, Content Architect, and Visual Design Director Sonnet 5
 budgets/effort and removed duplicate embedded input/schema payloads from the
