@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { adminEndpoint, bootstrapAdminConsole } from "../../src/oryxenai/auth/static/auth-admin.mjs";
+import {
+  adminEndpoint,
+  adminSubmissionState,
+  bootstrapAdminConsole,
+} from "../../src/oryxenai/auth/static/auth-admin.mjs";
 
 test("administrator actions use reviewed server endpoints", () => {
   assert.equal(
@@ -20,6 +24,17 @@ test("administrator actions use reviewed server endpoints", () => {
     adminEndpoint("delete", "legacy", "project-1"),
     "/api/v1/admin/legacy-projects/project-1/delete",
   );
+  assert.equal(
+    adminEndpoint("resume", "operations", "operation-1"),
+    "/api/v1/admin/operations/operation-1/resume",
+  );
+  assert.throws(() => adminEndpoint("unknown", "projects", "project-1"));
+});
+
+test("cancel can never submit an administrator action", () => {
+  assert.equal(adminSubmissionState("cancel", "target", "target"), "cancel");
+  assert.equal(adminSubmissionState("confirm", "wrong", "target"), "mismatch");
+  assert.equal(adminSubmissionState("confirm", "target", "target"), "confirmed");
 });
 
 test("admin module performs no protected fetch outside the admin panel", async () => {

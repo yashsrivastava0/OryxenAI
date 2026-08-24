@@ -248,6 +248,8 @@ origins.
 | `GET /api/v1/admin/projects` | Active onboarded admin | Bounded project list. |
 | `POST /api/v1/admin/projects/{id}/delete` | Active onboarded admin | Fence work, revoke preview, clean storage, delete aggregate. |
 | `POST /api/v1/admin/users/{id}/entitlement/reset` | Active onboarded admin | Explicitly grant a new portfolio/variant after cleanup. |
+| `GET /api/v1/admin/operations` | Active onboarded admin | Bounded pending/retryable operation inventory with safe projections. |
+| `POST /api/v1/admin/operations/{id}/resume` | Active onboarded admin | Resume a supported retryable delete/cleanup operation. |
 | `GET /api/v1/admin/audit-events` | Active onboarded admin | Recent safe admin actions. |
 
 Implementation may refine names but not access semantics.
@@ -263,6 +265,9 @@ Implementation may refine names but not access semantics.
   loop.
 - Development and production origins come from configuration, never scattered
   localhost literals.
+- A browser opened on a configured non-primary origin is canonicalized to the
+  primary origin before PKCE state is created; query and fragment data are not
+  forwarded during that canonicalization.
 
 ## Error contract
 

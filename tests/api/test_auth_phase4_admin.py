@@ -106,6 +106,20 @@ async def test_failed_user_delete_is_resumable_and_audited(test_engine) -> None:
         first = await client.post(path, headers=headers, json=body)
         assert first.status_code == 503
         assert first.json()["error"]["code"] == "AUTH_ADMIN_PROVIDER_UNAVAILABLE"
+        operations = await client.get("/api/v1/admin/operations")
+        assert operations.status_code == 200
+        pending = operations.json()["items"]
+        assert len(pending) == 1
+        assert pending[0]["status"] == "retryable_failure"
+        assert pending[0]["resumable"] is True
+        assert "idempotency_key" not in operations.text
+        assert "request_fingerprint" not in operations.text
+        resumed = await client.post(
+            f"/api/v1/admin/operations/{pending[0]['id']}/resume",
+            headers={"Idempotency-Key": "resume-delete-target-001"},
+        )
+        assert resumed.status_code == 202
+        assert resumed.json()["status"] == "completed"
         second = await client.post(path, headers=headers, json=body)
         assert second.status_code == 202
         operation = second.json()

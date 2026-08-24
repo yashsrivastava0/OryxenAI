@@ -1,7 +1,8 @@
 import {
-  clearPrivateState,
+  canonicalDestination,
   createBrowserAuth,
   getBrowserStorage,
+  invalidateBrowserSession,
   logoutCurrentBrowser,
   readAuthConfig,
   resolveAuthenticatedContext,
@@ -13,6 +14,12 @@ function replace(location, destination) {
 }
 
 function showBootstrapError(documentRef, message) {
+  const progress = documentRef?.getElementById?.("auth-bootstrap-progress");
+  if (progress) {
+    progress.setAttribute("role", "alert");
+    progress.replaceChildren(message);
+    return;
+  }
   let node = documentRef?.getElementById?.("auth-bootstrap-error");
   if (!node && documentRef?.createElement) {
     node = documentRef.createElement("p");
@@ -22,6 +29,10 @@ function showBootstrapError(documentRef, message) {
     documentRef.querySelector("main")?.prepend(node);
   }
   if (node) node.textContent = message;
+}
+
+function revealWorkspace(documentRef) {
+  documentRef?.body?.classList?.remove?.("auth-pending");
 }
 
 function renderTemporaryDashboard(documentRef, me) {
@@ -81,10 +92,19 @@ export async function bootProductShell({
   const isWorkspacePage = isDeveloperPage || location?.pathname === appPath;
   let appController = null;
   const onAuthFailure = async () => {
-    appController?.stop?.();
-    clearPrivateState(storage);
+    await invalidateBrowserSession({
+      auth,
+      storage,
+      stopActivity: () => appController?.stop?.(),
+    });
     replace(location, signIn);
   };
+
+  const canonical = canonicalDestination(config, location);
+  if (canonical) {
+    location?.replace?.(canonical);
+    return { kind: "canonical_redirect" };
+  }
 
   try {
     auth ||= createBrowserAuth(config, globalRef).auth;
@@ -162,6 +182,7 @@ export async function bootProductShell({
   });
   const adminLink = globalRef.document?.getElementById?.("app-admin-link");
   if (adminLink) adminLink.hidden = context.me.role !== "admin";
+  revealWorkspace(globalRef.document);
   return { ...context, kind: isDeveloperPage ? "developer" : "app" };
 }
 

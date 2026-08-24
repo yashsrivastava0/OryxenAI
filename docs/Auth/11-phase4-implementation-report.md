@@ -39,7 +39,8 @@ safe audit facts, and deletion tombstones.
 ## Delivered admin surface
 
 The authenticated `/admin` shell now loads safe, masked, cursor-paginated
-summary, user, project, legacy-project, deleted-identity, and audit views. It
+summary, user, project, legacy-project, deleted-identity, pending-operation,
+and audit views. It
 supports explicit typed confirmation, optional reason text, stable
 `Idempotency-Key` reuse across retries, one-time authorized fetch refresh, and
 logout. It never renders full email addresses, provider subjects, JWTs, secret
@@ -78,11 +79,37 @@ files `src/oryxenai/agents/build_preparation/visual_input.py`,
 `src/oryxenai/agents/build_preparation/agent.py`. The Phase 4-owned source
 scope is clean under those checks.
 
-The application database was not reset or downgraded. A pre-existing local
-database inconsistency was observed during a read-only application migration
-attempt: its version table reported `0013_codegen_stage_attempts` while the
-`portfolio_sessions` relation was absent. That database was left untouched;
-the dedicated test database is the migration verification source.
+## Final readiness audit
+
+A post-implementation audit corrected release-blocking edge cases without
+creating production resources:
+
+- Modern `sb_secret_...` keys are sent to Supabase as server-side `apikey`
+  headers, never misrepresented as bearer JWTs. Legacy service-role JWTs remain
+  supported during migration. A response-body-free server probe returned 200.
+- The protected browser fetch boundary consumes its bootstrap access token
+  once, reads current Supabase session state on later calls, coalesces refresh,
+  clears local provider state after terminal 401s, and refuses to attach a
+  bearer token outside reviewed local `/api/v1/...` paths.
+- Browsers opened on an allowed non-primary origin move to the configured
+  primary origin before PKCE starts, preventing verifier loss when OAuth
+  returns to the canonical callback origin.
+- The admin shell exposes pending/retryable operations, safe resume, append-only
+  pagination, and guards against cancel-as-confirm, unsafe self-actions, and
+  Code Generator commands on legacy projects.
+- Provider deletion no longer waits while holding application row locks;
+  deletion re-locks and validates local state before finalization. Artifact
+  storage is created lazily only when cleanup finds a typed reference, and
+  demotion rejects more than one session-mode generation variant.
+- Readiness now verifies the minimum migrated schema instead of reporting ready
+  after only `SELECT 1`.
+
+The previously reported application database inconsistency contained no
+application tables or user data. The stale version row was safely stamped to
+base and the complete Alembic chain was applied to
+`0017_auth_admin_lifecycle`. The Docker migration service then completed, and
+the API, PostgreSQL, and worker were healthy with a recent worker heartbeat.
+No database was dropped or reset.
 
 ## Explicit boundary
 

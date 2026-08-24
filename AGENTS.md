@@ -172,7 +172,7 @@ src/oryxenai/
   db/                        async engine, session, models, repositories
   jobs/                      durable PostgreSQL job queue, worker, heartbeat
   agents/shared/             contracts, registry, executor, model_client
-  auth/                      Phase 1 identity, Phase 2 ownership, Phase 3 entitlements/fencing
+  auth/                      identity, ownership, entitlements/fencing, admin lifecycle
   agents/{discovery, content_architect, visual_design_director, code_generator}/
   runtime/                   state_service, mock_runner
   api/routes/                stage/session APIs including build-preparation and code-generator
@@ -378,9 +378,9 @@ Content Architect's architecture one stage down the pipeline:
 
 ## What to implement next
 
-- **Phase 4:** administrator lifecycle/audit operations, destructive
-  cleanup/reset, and local admin UI are implemented. Remaining work is the
-  owner-completed browser acceptance gate and deployment handoff.
+- **Authentication follow-up:** the bounded local implementation is complete
+  through Phase 4. Remaining work is the owner-completed Google browser
+  acceptance gate and a separately authorized production deployment handoff.
 - **Refine and evaluate the Discovery, Content Architect, and Visual Design
   Director agents** using real but privacy-safe examples.
 - **Evaluate Code Generator production generations** with privacy-safe packs;

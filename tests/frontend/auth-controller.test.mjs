@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canonicalDestination,
   createAuthorizedFetch,
   isReviewedDestination,
   logoutCurrentBrowser,
@@ -63,6 +64,23 @@ test("reviewed destinations reject absolute, encoded, foreign, and unknown route
   assert.equal(isReviewedDestination("/app?next=/admin"), false);
   assert.equal(isReviewedDestination("/%61pp"), false);
   assert.equal(isReviewedDestination("/unknown"), false);
+});
+
+test("non-primary origins canonicalize without forwarding query or hash data", () => {
+  assert.equal(
+    canonicalDestination(
+      { primaryOrigin: "http://localhost:8000" },
+      { href: "http://127.0.0.1:8000/auth/callback?code=private#fragment" },
+    ),
+    "http://localhost:8000/auth/callback",
+  );
+  assert.equal(
+    canonicalDestination(
+      { primaryOrigin: "http://localhost:8000" },
+      { href: "http://localhost:8000/app" },
+    ),
+    null,
+  );
 });
 
 test("signed-out first visit does not call a protected API", async () => {
@@ -229,14 +247,66 @@ test("one 401 refreshes once and retries; a failed refresh clears private state"
   assert.equal(failureClears, 1);
 });
 
+test("authorized fetch consumes its bootstrap session once and then reads current state", async () => {
+  let sessionToken = "fresh";
+  let sessionReads = 0;
+  const seen = [];
+  const auth = {
+    async getSession() {
+      sessionReads += 1;
+      return { data: { session: { access_token: sessionToken } } };
+    },
+    async refreshSession() { throw new Error("refresh should not run"); },
+  };
+  const request = createAuthorizedFetch({
+    auth,
+    initialSession: { access_token: "bootstrap" },
+    fetchImpl: async (_url, init) => {
+      seen.push(init.headers.get("Authorization"));
+      return response(200);
+    },
+  });
+  await request("/api/v1/me");
+  sessionToken = "newer";
+  await request("/api/v1/sessions");
+  await request("/api/v1/development/code-generator/runs/id/source-file?path=src%2FApp.tsx");
+  assert.deepEqual(seen, ["Bearer bootstrap", "Bearer newer", "Bearer newer"]);
+  assert.equal(sessionReads, 2);
+});
+
+test("authorized fetch rejects foreign destinations and clears after a second 401", async () => {
+  let fetchCalls = 0;
+  let failures = 0;
+  const auth = {
+    async getSession() { return { data: { session: { access_token: "old" } } }; },
+    async refreshSession() { return { data: { session: { access_token: "new" } } }; },
+  };
+  const request = createAuthorizedFetch({
+    auth,
+    fetchImpl: async () => { fetchCalls += 1; return response(401); },
+    onAuthFailure: async () => { failures += 1; },
+  });
+  await assert.rejects(request("https://evil.example/api/v1/me"), {
+    code: "AUTH_REQUEST_DESTINATION_INVALID",
+  });
+  await assert.rejects(request("/api/v1/%2e%2e/private"), {
+    code: "AUTH_REQUEST_DESTINATION_INVALID",
+  });
+  assert.equal(fetchCalls, 0);
+  await assert.rejects(request("/api/v1/me"), { code: "AUTH_INVALID" });
+  assert.equal(fetchCalls, 2);
+  assert.equal(failures, 1);
+});
+
 test("logout stops activity, clears private UI, signs out, and replaces the page", async () => {
   const location = fakeLocation("/app");
   const ui = uiProbe();
   let stopped = 0;
   let signedOut = 0;
+  let signOutOptions = null;
   const storage = { removed: [], removeItem(key) { this.removed.push(key); } };
   await logoutCurrentBrowser({
-    auth: { async signOut() { signedOut += 1; throw new Error("provider unavailable"); } },
+    auth: { async signOut(options) { signedOut += 1; signOutOptions = options; throw new Error("provider unavailable"); } },
     storage,
     ui,
     location,
@@ -244,6 +314,7 @@ test("logout stops activity, clears private UI, signs out, and replaces the page
   });
   assert.equal(stopped, 1);
   assert.equal(signedOut, 1);
+  assert.deepEqual(signOutOptions, { scope: "local" });
   assert.equal(ui.cleared, true);
   assert.deepEqual(storage.removed, [
     "oryxenai.session_id",

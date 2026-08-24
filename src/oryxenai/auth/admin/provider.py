@@ -6,6 +6,7 @@ is created only in the FastAPI process and never serializes provider bodies.
 
 from __future__ import annotations
 
+import re
 from typing import Protocol
 from uuid import UUID
 
@@ -43,9 +44,14 @@ class SupabaseAdminProvider:
         self._base_url = supabase_url.rstrip("/")
         self._headers = {
             "apikey": secret_key,
-            "Authorization": f"Bearer {secret_key}",
             "Content-Type": "application/json",
         }
+        # Supabase's modern ``sb_secret_...`` keys are opaque API keys and
+        # must not be presented as bearer JWTs.  Legacy service-role JWTs
+        # still require the Authorization header during the migration
+        # window, so keep support without misclassifying arbitrary secrets.
+        if _looks_like_legacy_jwt(secret_key):
+            self._headers["Authorization"] = f"Bearer {secret_key}"
         self._owned_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(
@@ -105,3 +111,9 @@ class SupabaseAdminProvider:
     async def aclose(self) -> None:
         if self._owned_client:
             await self._client.aclose()
+
+
+def _looks_like_legacy_jwt(value: str) -> bool:
+    """Recognize only the compact three-segment JWT form used by legacy keys."""
+    parts = value.split(".")
+    return len(parts) == 3 and all(re.fullmatch(r"[A-Za-z0-9_-]+", part) for part in parts)

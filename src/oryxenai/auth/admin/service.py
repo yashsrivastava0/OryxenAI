@@ -51,7 +51,7 @@ from oryxenai.db.models.code_generator_development import (
     CodeGeneratorStageAttempt,
 )
 from oryxenai.db.models.portfolio_session import PortfolioSession
-from oryxenai.storage.artifacts import ArtifactReference
+from oryxenai.storage.artifacts import ArtifactReference, create_artifact_store
 
 
 def _fingerprint(action: str, target_id: UUID | None, body: Mapping[str, object]) -> str:
@@ -362,11 +362,22 @@ class AdminService:
     ) -> AdminOperation:
         self._require_key(idempotency_key)
         self._validate_admin_actor(await self.repo.get_user(actor_id))
-        operation = await self.repo.session.get(AdminOperation, operation_id)
+        operation = await self.repo.get_operation(operation_id, lock=True)
         if operation is None:
             raise NotFoundError("The administrator operation was not found.")
         if operation.status == "completed":
             return operation
+        if operation.status != "retryable_failure":
+            raise AdminOperationRetryableError()
+        resumable = operation.target_id is not None and operation.action in {
+            "delete",
+            "project_delete",
+            "legacy_project_delete",
+        }
+        if not resumable:
+            raise AdminOperationRetryableError()
+        operation.status = "running"
+        operation.updated_at = datetime.now(UTC)
         await self.repo.add_audit(
             actor_id=actor_id,
             action="operation_resume",
@@ -459,10 +470,36 @@ class AdminService:
         target = await self.repo.get_user(target_id, lock=True)
         if target is None or target.supabase_user_id is None:
             raise DeletedIdentityNotReadmittableError()
+        provider_subject = target.supabase_user_id
+        operation.step = "provider_pending"
+        await self._commit()
         try:
-            await self.provider.delete_user(target.supabase_user_id)
+            await self.provider.delete_user(provider_subject)
         except AdminProviderError as exc:
             await self._provider_failure(operation, actor_id, request_id, exc)
+
+        # Reacquire deterministic row locks after the external call. No
+        # database lock is held while waiting on Supabase.
+        users = await self.repo.lock_users(actor_id, target_id)
+        self._validate_admin_actor(users.get(actor_id))
+        target = users.get(target_id)
+        if target is None:
+            raise DeletedIdentityNotReadmittableError()
+        if target.status == "deleted":
+            tombstone = await self.repo.get_identity_tombstone(target.id, lock=True)
+            if tombstone is None:
+                raise DeletedIdentityNotReadmittableError()
+            await self.repo.finish_operation(
+                operation.id,
+                actor_id=actor_id,
+                outcome="completed",
+                request_id=request_id,
+                safe_state={"local_status": "deleted"},
+            )
+            await self._commit()
+            return await self._get_operation(operation.id)
+        if target.status != "deletion_pending" or target.supabase_user_id != provider_subject:
+            raise DeletedIdentityNotReadmittableError()
 
         tombstone = await self.repo.get_identity_tombstone(target.id, lock=True)
         if tombstone is None:
@@ -732,17 +769,24 @@ class AdminService:
             self.repo.session.add(entitlement)
         if sessions:
             session = sessions[0]
-            run = (
-                await self.repo.session.execute(
-                    select(CodeGeneratorDevelopmentRun)
-                    .where(
-                        CodeGeneratorDevelopmentRun.portfolio_session_id == session.id,
-                        CodeGeneratorDevelopmentRun.run_mode == "session",
+            runs = list(
+                (
+                    await self.repo.session.execute(
+                        select(CodeGeneratorDevelopmentRun)
+                        .where(
+                            CodeGeneratorDevelopmentRun.portfolio_session_id == session.id,
+                            CodeGeneratorDevelopmentRun.run_mode == "session",
+                        )
+                        .order_by(CodeGeneratorDevelopmentRun.created_at.desc())
+                        .limit(2)
                     )
-                    .order_by(CodeGeneratorDevelopmentRun.created_at.desc())
-                    .limit(1)
                 )
-            ).scalar_one_or_none()
+                .scalars()
+                .all()
+            )
+            if len(runs) > 1:
+                raise AdminDemotionRequiresProjectCleanupError()
+            run = runs[0] if runs else None
             entitlement.portfolio_session_id = session.id
             if run is not None:
                 entitlement.generation_run_id = run.id
@@ -837,13 +881,19 @@ class AdminService:
         )
         if replay is not None:
             return replay
+        tombstone_snapshot = await self.repo.session.get(DeletedIdentityTombstone, tombstone_id)
+        if tombstone_snapshot is None:
+            raise DeletedIdentityNotReadmittableError()
+        former_user_id = tombstone_snapshot.former_app_user_id
         await self.repo.lock_capacity()
+        users = await self.repo.lock_users(actor_id, former_user_id)
+        self._validate_admin_actor(users.get(actor_id))
         tombstone = await self.repo.session.get(
             DeletedIdentityTombstone, tombstone_id, with_for_update=True
         )
         if tombstone is None or tombstone.readmission_approved_at is not None:
             raise DeletedIdentityNotReadmittableError()
-        old = await self.repo.get_user(tombstone.former_app_user_id, lock=True)
+        old = users.get(former_user_id)
         if old is None or old.status != "deleted":
             raise DeletedIdentityNotReadmittableError()
         operation, created = await self._operation(
@@ -980,7 +1030,9 @@ class AdminService:
         if not references:
             return
         if self.artifact_store is None:
-            raise RuntimeError("artifact storage is not configured")
+            if self.settings is None:
+                raise RuntimeError("artifact storage is not configured")
+            self.artifact_store = create_artifact_store(self.settings)
         for reference in references.values():
             await self.artifact_store.delete(reference)
 
@@ -1139,8 +1191,36 @@ class AdminService:
             else None,
         }
 
+    async def operations(self, *, limit: int, cursor: str | None) -> dict[str, Any]:
+        limit = bounded_limit(limit)
+        rows = await self.repo.list_operations(limit=limit + 1, cursor=decode_cursor(cursor))
+        more = len(rows) > limit
+        rows = rows[:limit]
+        resumable_actions = {"delete", "project_delete", "legacy_project_delete"}
+        items = [
+            {
+                "id": row.id,
+                "action": row.action,
+                "target_type": row.target_type,
+                "target_id": row.target_id,
+                "status": row.status,
+                "step": row.step,
+                "attempt_count": row.attempt_count,
+                "last_error_code": row.last_error_code,
+                "updated_at": row.updated_at,
+                "resumable": row.status == "retryable_failure" and row.action in resumable_actions,
+            }
+            for row in rows
+        ]
+        return {
+            "items": items,
+            "next_cursor": encode_cursor(rows[-1].updated_at, rows[-1].id)
+            if more and rows
+            else None,
+        }
+
     async def operation(self, operation_id: UUID) -> AdminOperation:
-        operation = await self.repo.session.get(AdminOperation, operation_id)
+        operation = await self.repo.get_operation(operation_id)
         if operation is None:
             raise NotFoundError("The administrator operation was not found.")
         return operation
