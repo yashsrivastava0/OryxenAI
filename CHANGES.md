@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 17:44 +05:30 - Codex (model/provider omitted) - [449b379] - Authentication redirect flicker fix
+Loaded the pinned Supabase browser client before every product/development auth
+bootstrap, removed auth-only CSS from the product workspace, preserved valid
+sessions when workspace code fails, and added callback/script-order regression
+coverage. This removes the false configuration error and `/app` to `/sign-in`
+redirect loop while keeping new-user onboarding and returning-user routing
+deterministic.
+
 ### 2026-08-24 17:11 +05:30 - Codex (model/provider omitted) - [c5b5821] - Final authentication readiness hardening
 Corrected modern Supabase secret-key Admin API headers, browser token refresh,
 canonical PKCE routing, terminal local sign-out, retryable administrator
