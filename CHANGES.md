@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-24 21:16 +05:30 - Codex (GPT-5.6 Luna / OpenAI) - [9b95baf] - Route Build Preparation through direct OpenAI Luna
+Added a dedicated `gpt-5.6-luna` profile using `OPENAI_API_KEY` and the
+official OpenAI endpoint, routed Build Preparation to it, rebuilt the app and
+worker, and verified the local stack plus focused agent tests. The first live
+run reached OpenAI successfully but stopped at the account's exhausted credit
+balance before any pack could be materialized.
+
 ### 2026-08-24 18:36 +05:30 - Codex (model/provider omitted) - [e70b6ab] - Align auth handoff documentation with public admission
 Updated the Auth README, owner deployment checklist, and implementation handoff
 so future agents use the new open/allowlist admission mode rather than the
