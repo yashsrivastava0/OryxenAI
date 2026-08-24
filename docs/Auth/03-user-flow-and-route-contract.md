@@ -178,6 +178,9 @@ settings. The HTML remains public so direct refresh works, but product and
 development JavaScript must resolve the Supabase session and `/api/v1/me`
 before loading protected workspace code. A normal user opening `/dev` is
 replaced with `/app`; the underlying APIs independently require admin.
+Every product and development shell loads the pinned Supabase browser bundle
+before its auth bootstrap module. Auth-shell styles remain isolated from the
+product stylesheet so generic panel/body rules cannot alter workspace layers.
 
 ## One controller decision for every page load
 

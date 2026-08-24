@@ -154,10 +154,21 @@ export async function bootProductShell({
   }
 
   if (isWorkspacePage) {
-    appController = await loadWorkspace();
+    try {
+      appController = await loadWorkspace();
+    } catch (error) {
+      showBootstrapError(
+        globalRef.document,
+        "Your session is active, but the workspace could not be loaded. Refresh to try again.",
+      );
+      return { ...context, kind: "workspace_error", error };
+    }
     if (!appController?.boot) {
-      await onAuthFailure();
-      return { kind: "workspace_error" };
+      showBootstrapError(
+        globalRef.document,
+        "Your session is active, but the workspace could not be initialized. Refresh to try again.",
+      );
+      return { ...context, kind: "workspace_error" };
     }
     appController.boot({
       authorizedFetch: context.authorizedFetch,

@@ -145,6 +145,32 @@ test("callback exchanges PKCE code, strips artifacts, and progresses to onboardi
   assert.ok(ui.progressSteps.includes("google"));
 });
 
+test("callback sends an onboarded user directly to the product app", async () => {
+  const location = fakeLocation("/auth/callback", "?code=oauth-code&state=opaque");
+  const auth = authWithSession();
+  const ui = uiProbe();
+  const result = await routeController({
+    auth,
+    fetchImpl: async () => response(200, {
+      id: "local-id",
+      username: "ready-user",
+      role: "user",
+      status: "active",
+      onboarding_required: false,
+      admin_available: false,
+    }),
+    location,
+    history: { replaceState() {} },
+    storage: { removeItem() {} },
+    ui,
+  });
+
+  assert.equal(result.kind, "app");
+  assert.equal(auth.exchanged, true);
+  assert.deepEqual(location.replacements, ["/app"]);
+  assert.deepEqual(ui.panels.slice(-1), ["app"]);
+});
+
 test("canceled callback clears local state and does not call protected APIs", async () => {
   const location = fakeLocation("/auth/callback", "?error=access_denied&state=opaque");
   const ui = uiProbe();

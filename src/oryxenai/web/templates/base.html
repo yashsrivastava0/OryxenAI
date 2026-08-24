@@ -36,6 +36,7 @@
     <p>{{ app_name }} - Discovery, Content Architect &amp; Visual Design Director. Further generation is controlled by the authenticated server workflow.</p>
   </footer>
 
+  <script src="{{ request.scope.get('root_path', '') }}/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
