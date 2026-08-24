@@ -89,7 +89,7 @@ class AuthService:
     def _role_for(self, identity: ProviderIdentity) -> AuthRole:
         if identity.email in self._admin_emails:
             return AuthRole.ADMIN
-        if identity.email in self._allowed_emails:
+        if self._config.admission_mode == "open" or identity.email in self._allowed_emails:
             return AuthRole.USER
         raise AccessNotApprovedError()
 

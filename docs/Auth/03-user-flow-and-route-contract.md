@@ -113,7 +113,7 @@ GET / or /sign-in
   -> Supabase session resolves
   -> GET /api/v1/me
   -> verify Supabase identity + verified email
-  -> email is in ORYXENAI_ALLOWED_USER_EMAILS
+  -> open admission, or email is in ORYXENAI_ALLOWED_USER_EMAILS
   -> capacity transaction admits normal user (maximum 15)
   -> username missing -> /onboarding
   -> PUT /api/v1/me/username
@@ -125,7 +125,7 @@ GET / or /sign-in
 ```text
 Google/Supabase authentication succeeds
   -> GET /api/v1/me
-  -> email is neither bootstrap admin nor normal allowlist
+  -> email is neither bootstrap admin nor admitted by the configured mode
   -> 403 ACCESS_NOT_APPROVED
   -> no app_users row, entitlement, session, run, or job is created
 ```
@@ -279,7 +279,7 @@ Use the existing safe error envelope and request ID.
 | HTTP | Code | UI behavior |
 | --- | --- | --- |
 | 401 | `AUTH_REQUIRED`, `AUTH_INVALID` | Refresh once; then clear and sign in. |
-| 403 | `ACCESS_NOT_APPROVED` | Explain that the account is not approved; create no product state. |
+| 403 | `ACCESS_NOT_APPROVED` | Explain that this deployment is restricted; create no product state. |
 | 403 | `ACCOUNT_SUSPENDED`, `ACCOUNT_DELETED`, `ADMIN_REQUIRED`, `ONBOARDING_REQUIRED` | Show the only permitted recovery action. |
 | 404 | existing not-found | Same response for missing and foreign-owned objects. |
 | 409 | `USERNAME_TAKEN` | Stay on onboarding. |
