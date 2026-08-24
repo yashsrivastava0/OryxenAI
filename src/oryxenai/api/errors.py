@@ -97,6 +97,17 @@ class ConflictError(AppError):
     status_code = 409
 
 
+class PipelineRestartCleanupError(AppError):
+    code = "PIPELINE_RESTART_CLEANUP_FAILED"
+    status_code = 503
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The pipeline could not be fully cleared. Retry restart to finish cleanup.",
+            retryable=True,
+        )
+
+
 class PayloadTooLargeError(AppError):
     code = "PAYLOAD_TOO_LARGE"
     status_code = 413

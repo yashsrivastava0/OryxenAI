@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -74,6 +74,8 @@ def create_auth_web_router() -> APIRouter:
 
     @router.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> Any:
+        if request.app.state.settings.auth.pipeline_mode == "detached":
+            return RedirectResponse("/app", status_code=307)
         return await render_shell(request, "controller")
 
     @router.get("/sign-in", response_class=HTMLResponse)

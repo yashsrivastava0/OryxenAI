@@ -38,6 +38,12 @@ class PortfolioSession(Base):
         default=True,
         server_default=text("true"),
     )
+    session_mode: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="legacy",
+        server_default="legacy",
+    )
     name: Mapped[str] = mapped_column(Text, nullable=False, default="Untitled session")
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
     deletion_requested_at: Mapped[datetime | None] = mapped_column(
@@ -57,6 +63,15 @@ class PortfolioSession(Base):
             "(owner_user_id IS NOT NULL AND legacy_quarantined = false) OR "
             "(owner_user_id IS NULL AND legacy_quarantined = true)",
             name="ck_portfolio_sessions_owner_legacy_consistency",
+        ),
+        CheckConstraint(
+            "(session_mode = 'owned' AND owner_user_id IS NOT NULL AND legacy_quarantined = false) OR "
+            "(session_mode IN ('detached', 'legacy') AND owner_user_id IS NULL AND legacy_quarantined = true)",
+            name="ck_portfolio_sessions_session_mode_consistency",
+        ),
+        CheckConstraint(
+            "session_mode IN ('owned', 'detached', 'legacy')",
+            name="ck_portfolio_sessions_session_mode",
         ),
         CheckConstraint(
             "status IN ('active', 'deletion_pending', 'deleted')",

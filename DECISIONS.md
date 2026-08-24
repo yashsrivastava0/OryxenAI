@@ -23,6 +23,37 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-049 - Temporarily detach authentication from the main pipeline
+
+- **Date & Time:** 2026-08-25 16:30 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Authentication is implemented, but repeated login, token refresh,
+  and account-switching friction slows development of the main Discovery to
+  Build Preparation workflow. Browser-held state also allowed stale errors and
+  stage state to survive refreshes.
+- **Decision:** Add a config-driven `auth.pipeline_mode` with `detached` and
+  `attached` values. Local development uses `detached`; Docker/test and
+  production-like environments remain `attached`. Detached mode applies only
+  to the main pipeline session and its four stage APIs. Admin, authenticated
+  product, fixture, run, and Code Generator surfaces remain protected. Detached
+  sessions are ownerless but explicitly classified, persist durable state in
+  PostgreSQL, and expose no bearer-auth or Supabase browser bootstrap. The
+  browser stores only an opaque session UUID and rehydrates state from the API;
+  all API/HTML responses use no-store cache policy.
+- **Rejected alternatives:** Disabling authentication globally, making the
+  browser authoritative, storing pipeline JSON in local/session storage,
+  preserving stale sessions after a restart, or letting restart reuse the old
+  session row. Those choices would expose protected development surfaces,
+  reproduce the stale-refresh bug, or leave jobs/artifacts and agent state
+  attached to the wrong run.
+- **Consequence:** A visible Restart Pipeline action is available throughout
+  the detached workspace. It fences old jobs, marks the old session pending
+  deletion, removes exact session-scoped database children and external/local
+  Build Preparation artifacts, then creates a fresh detached session at
+  revision 0 with empty state. Cleanup failures are retryable and do not claim
+  a successful reset. Reattaching authentication later is a configuration and
+  browser-bootstrap change, while the durable session/restart boundary remains.
+
 ## D-048 - Make Google registration open by deployment configuration
 
 - **Date & Time:** 2026-08-24 18:30 +05:30 - Codex (model/provider omitted)

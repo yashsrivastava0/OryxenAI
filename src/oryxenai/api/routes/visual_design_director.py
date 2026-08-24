@@ -13,8 +13,8 @@ from oryxenai.agents.visual_design_director.service import (
 )
 from oryxenai.api.dependencies import (
     get_visual_design_director_service,
-    require_mutable_portfolio,
-    require_session_owner_or_admin,
+    require_pipeline_mutable,
+    require_pipeline_session,
 )
 from oryxenai.api.errors import AppError
 from oryxenai.auth.authorization import PortfolioAccess
@@ -56,7 +56,7 @@ def _translate(exc: VisualDesignDirectorOperationError) -> NoReturn:
 @router.get("", response_model=VisualDesignDirectorStateResponse)
 async def get_visual_design_director_state(
     session_id: str,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    access: PortfolioAccess = Depends(require_pipeline_session),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
@@ -75,8 +75,8 @@ async def get_visual_design_director_state(
 async def start_visual_design_director(
     session_id: str,
     body: StartRequest,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
@@ -99,8 +99,8 @@ async def start_visual_design_director(
 async def revise_visual_design_director(
     session_id: str,
     body: ReviseRequest,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:
@@ -114,8 +114,8 @@ async def revise_visual_design_director(
 @router.post("/approve", response_model=VisualDesignDirectorStateResponse)
 async def approve_visual_design_director(
     session_id: str,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
 ) -> VisualDesignDirectorStateResponse:
     try:

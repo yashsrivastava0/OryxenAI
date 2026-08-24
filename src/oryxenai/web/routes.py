@@ -34,21 +34,24 @@ def _auth_asset_version(filename: str) -> str:
         return "0"
 
 
-def _shell_context(settings: Any) -> dict[str, object]:
+def _shell_context(settings: Any, *, pipeline_mode: str | None = None) -> dict[str, object]:
     # No model profiles, identity, session state, or provider credentials are
     # rendered into a public HTML shell.  The authenticated bootstrap may
     # request safe profile metadata only after an administrator check.
+    effective_pipeline_mode = pipeline_mode or settings.auth.pipeline_mode
     return {
         "app_name": settings.app.name,
         "dev_ui": settings.is_dev_ui_enabled,
         "model_profiles": [],
         "auth_config": settings.auth_public_config,
+        "pipeline_mode": effective_pipeline_mode,
         "app_js_version": _asset_version("app.js"),
         "auth_css_version": _auth_asset_version("auth.css"),
         "auth_client_version": _auth_asset_version("auth-client.js"),
         "app_css_version": _asset_version("app.css"),
         "auth_runtime_version": _asset_version("auth-runtime.mjs"),
         "app_auth_bootstrap_version": _asset_version("app-auth-bootstrap.mjs"),
+        "pipeline_bootstrap_version": _asset_version("pipeline-bootstrap.mjs"),
         "dev_auth_bootstrap_version": _asset_version("dev-auth-bootstrap.mjs"),
     }
 
@@ -95,7 +98,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
             response = templates.TemplateResponse(
                 request=request,
                 name="index.html",
-                context=_shell_context(settings),
+                context=_shell_context(settings, pipeline_mode="attached"),
             )
             return _set_shell_headers(response, settings)
 

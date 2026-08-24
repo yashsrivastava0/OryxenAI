@@ -263,6 +263,7 @@ class WorkerAuthorizationFence:
             or session.status in {"deletion_pending", "deleted"}
             or not session.legacy_quarantined
             or session.owner_user_id is not None
+            or getattr(session, "session_mode", "legacy") not in {"detached", "legacy"}
         ):
             raise AuthorizationFenceError()
 

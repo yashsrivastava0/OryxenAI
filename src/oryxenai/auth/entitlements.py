@@ -117,6 +117,7 @@ class PortfolioEntitlementRepository:
         session = PortfolioSession(
             owner_user_id=user_id,
             legacy_quarantined=False,
+            session_mode="owned",
             name=name,
         )
         self._session.add(session)

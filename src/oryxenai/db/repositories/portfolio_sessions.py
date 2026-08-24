@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,7 @@ class PortfolioSessionRepository:
         obj = PortfolioSession(
             owner_user_id=owner_user_id,
             legacy_quarantined=False,
+            session_mode="owned",
             name=name,
         )
         self._session.add(obj)
@@ -40,7 +41,25 @@ class PortfolioSessionRepository:
         method keeps fixtures and older internal tooling from accidentally
         assigning ownership to a caller-controlled value.
         """
-        obj = PortfolioSession(name=name)
+        obj = PortfolioSession(name=name, session_mode="legacy")
+        self._session.add(obj)
+        await self._session.flush()
+        await self._session.refresh(obj)
+        return obj
+
+    async def create_detached(
+        self,
+        name: str = "Untitled session",
+        *,
+        session_id: UUID | None = None,
+    ) -> PortfolioSession:
+        """Create an anonymous development-only pipeline session."""
+        obj = PortfolioSession(
+            id=session_id or uuid4(),
+            legacy_quarantined=True,
+            session_mode="detached",
+            name=name,
+        )
         self._session.add(obj)
         await self._session.flush()
         await self._session.refresh(obj)
@@ -80,6 +99,15 @@ class PortfolioSessionRepository:
             PortfolioSession.id == session_id,
             PortfolioSession.owner_user_id == owner_user_id,
             PortfolioSession.legacy_quarantined.is_(False),
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_detached_by_id(self, session_id: UUID) -> PortfolioSession | None:
+        stmt = select(PortfolioSession).where(
+            PortfolioSession.id == session_id,
+            PortfolioSession.session_mode == "detached",
+            PortfolioSession.status == "active",
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
