@@ -109,6 +109,8 @@ class JobService:
                 session is None
                 or not session.legacy_quarantined
                 or session.owner_user_id is not None
+                or getattr(session, "session_mode", "legacy") not in {"detached", "legacy"}
+                or session.status != "active"
             ):
                 raise EntitlementBindingConflictError()
         run_value = payload.get("code_generator_run_id") or payload.get("development_run_id")

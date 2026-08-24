@@ -74,6 +74,9 @@ heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is s
 provider = "supabase"
 enabled = true
 required = false                # production and the Docker overlay require it
+# Development workflow switch. The main Discovery-to-Build Preparation
+# pipeline is anonymous locally; the auth/admin boundary remains mounted.
+pipeline_mode = "detached"     # attached | detached (local/test only)
 # Public Google registration is the product default.  Set this to
 # "allowlist" in a restricted environment; the database still caps normal
 # users at 15 in either mode.

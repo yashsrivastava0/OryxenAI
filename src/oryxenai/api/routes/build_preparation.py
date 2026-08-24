@@ -22,8 +22,8 @@ from oryxenai.agents.build_preparation.service import (
 from oryxenai.api.dependencies import (
     get_build_preparation_service,
     require_admin,
-    require_mutable_portfolio,
-    require_session_owner_or_admin,
+    require_pipeline_mutable,
+    require_pipeline_session,
 )
 from oryxenai.api.errors import AppError
 from oryxenai.auth.authorization import PortfolioAccess
@@ -163,7 +163,7 @@ def _fixture_manager(request: Request) -> FixtureRunManager:
 @router.get("", response_model=BuildPreparationStateResponse)
 async def get_build_preparation_state(
     session_id: str,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
+    access: PortfolioAccess = Depends(require_pipeline_session),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
@@ -180,8 +180,8 @@ async def get_build_preparation_state(
 async def start_build_preparation(
     session_id: str,
     body: StartRequest,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:
@@ -204,8 +204,8 @@ async def start_build_preparation(
 async def regenerate_build_preparation(
     session_id: str,
     body: StartRequest | None = None,
-    access: PortfolioAccess = Depends(require_session_owner_or_admin),
-    _mutable: PortfolioAccess = Depends(require_mutable_portfolio),
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> BuildPreparationStateResponse:
     try:

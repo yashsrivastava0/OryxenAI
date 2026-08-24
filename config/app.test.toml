@@ -75,6 +75,7 @@ registries_enabled = false
 # identity is accepted by the application.
 enabled = true
 required = false
+pipeline_mode = "attached"
 admission_mode = "allowlist"
 primary_origin = "http://test"
 allowed_origins = ["http://test"]

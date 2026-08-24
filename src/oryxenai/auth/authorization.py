@@ -20,12 +20,12 @@ class PortfolioAccess:
     supplied identifier or trusting a client-provided owner field.
     """
 
-    actor: CurrentUser
+    actor: CurrentUser | None
     session: PortfolioSession
 
     @property
     def is_admin(self) -> bool:
-        return self.actor.role is AuthRole.ADMIN
+        return self.actor is not None and self.actor.role is AuthRole.ADMIN
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +69,11 @@ class DurableAuthorizationContext:
         entitlement_revision: int | None = None,
     ) -> DurableAuthorizationContext:
         session = access.session
-        if session.owner_user_id is None or session.legacy_quarantined:
+        if (
+            access.actor is None
+            or session.owner_user_id is None
+            or session.legacy_quarantined
+        ):
             return cls(None, None, None, authorization_context_version=0)
         context = cls(
             portfolio_session_id=session.id,

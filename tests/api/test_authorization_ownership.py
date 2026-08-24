@@ -10,7 +10,7 @@ import pytest
 from httpx import ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from oryxenai.api.dependencies import get_current_user, require_onboarded_user
+from oryxenai.api.dependencies import get_current_user, get_pipeline_user, require_onboarded_user
 from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
 from oryxenai.auth.models import AppUser
 from oryxenai.db.models.portfolio_session import PortfolioSession
@@ -68,6 +68,7 @@ async def test_owner_and_admin_session_isolation(test_engine) -> None:
 
     def set_identity(user: CurrentUser) -> None:
         app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_pipeline_user] = lambda: user
         app.dependency_overrides[require_onboarded_user] = lambda: user
 
     set_identity(owner)
