@@ -48,6 +48,7 @@
   var portfolioReadOnly = false;
   var serverSessionId = null;
   var sessionCreatePromise = null;
+  var lastSessionCreateError = null;
   var booted = false;
   var pipelineMode = "attached";
   var pipelineEpoch = 0;
@@ -830,7 +831,7 @@
     if (!selectedSessionId) {
       var session = await createSessionQuiet("Portfolio chat");
       if (!session) {
-        chatError("Could not create a session. Is the API running?", "Try again", sendMessageRetry);
+        chatError(describeSessionCreateFailure(lastSessionCreateError), "Try again", sendMessageRetry);
         return;
       }
       selectedSessionId = session.id;
@@ -855,18 +856,32 @@
     sessionCreatePromise = (async function () {
       try {
         var body = name ? { name: name } : {};
-        return await fetchJson(API + "/sessions", {
+        var session = await fetchJson(API + "/sessions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        lastSessionCreateError = null;
+        return session;
       } catch (e) {
+        lastSessionCreateError = e;
         return null;
       } finally {
         sessionCreatePromise = null;
       }
     })();
     return sessionCreatePromise;
+  }
+
+  function describeSessionCreateFailure(err) {
+    if (!err || (!err.status && !err.message)) {
+      return "Could not create a session. Is the API running?";
+    }
+    if (!err.status) {
+      return "Could not create a session: " + (err.message || "network error reaching the API") + ".";
+    }
+    return "Could not create a session (" + err.status + (err.code ? " " + err.code : "") + "): " +
+      (err.message || "the server rejected the request") + ".";
   }
 
   async function startDiscovery(message, documentText) {

@@ -98,7 +98,10 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
             response = templates.TemplateResponse(
                 request=request,
                 name="index.html",
-                context=_shell_context(settings, pipeline_mode="attached"),
+                # Follow the configured pipeline mode, same as /app, so local
+                # detached development doesn't force the full Supabase login
+                # flow just because /dev was used instead of /app.
+                context=_shell_context(settings),
             )
             return _set_shell_headers(response, settings)
 
