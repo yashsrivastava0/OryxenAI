@@ -177,9 +177,12 @@ class VisualDesignDirectorService:
         # literal default profile name (never blank) so the persisted state
         # always records which profile actually ran, for debugging and
         # reproducibility.
-        resolved_profile = (
-            model_profile or content_architect.model_profile or "visual_design_director"
-        )
+        if model_profile and model_profile != content_architect.model_profile:
+            raise VisualDesignDirectorOperationError(
+                "MODEL_PROFILE_LOCKED",
+                "Visual Design Director must use the model profile selected in Discovery.",
+            )
+        resolved_profile = content_architect.model_profile
 
         all_route_plan_dump = [
             route.model_dump(mode="json") for route in content_architect.route_plan

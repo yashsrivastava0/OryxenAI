@@ -360,17 +360,25 @@ class DiscoveryService:
         """Validate a requested model-profile override against model config.
 
         An empty request keeps whatever the session already committed to
-        (sticky, set once at the first successful start()). An unrecognised
-        request is logged and ignored — it never blocks the session.
+        (sticky, set once at the first successful start()). Unknown,
+        unselectable, or conflicting requests fail explicitly.
         """
         router = ModelRouter(self._settings.models)
         if not requested:
-            return sticky if not sticky or router.is_selectable(sticky) else ""
+            return sticky
         if not router.is_selectable(requested):
-            logger.warning(
-                "requested model_profile '%s' is not selectable - using default", requested
+            raise DiscoveryOperationError(
+                "MODEL_PROFILE_NOT_SELECTABLE",
+                "The requested model profile is not available for this pipeline.",
+                status_code=400,
+                details={"model_profile": requested},
             )
-            return sticky if not sticky or router.is_selectable(sticky) else ""
+        if sticky and requested != sticky:
+            raise DiscoveryOperationError(
+                "MODEL_PROFILE_LOCKED",
+                "The model profile is locked after Discovery starts. Restart the pipeline to change it.",
+                status_code=409,
+            )
         return requested
 
     async def _require_session(self, session_id: UUID) -> Any:

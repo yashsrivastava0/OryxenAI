@@ -13,6 +13,11 @@ if ($LASTEXITCODE -ne 0) { $doctorFailed = $true }
 
 Write-Host ""
 
+uv run python "$PSScriptRoot\verify_database.py"
+if ($LASTEXITCODE -ne 0) { $doctorFailed = $true }
+
+Write-Host ""
+
 uv run python -c @"
 from oryxenai.jobs.worker import Worker; print('Worker module import: OK')
 "@

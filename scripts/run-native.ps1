@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("migrate", "api", "worker", "preview", "doctor")]
+    [ValidateSet("align-db", "migrate", "api", "worker", "preview", "doctor")]
     [string]$Service
 )
 
@@ -17,6 +17,9 @@ $env:OryxenAI_CONFIG_OVERLAY = "config/app.native.toml"
 New-Item -ItemType Directory -Force -Path "$REPO_ROOT\.workspace\cache\python" | Out-Null
 
 switch ($Service) {
+    "align-db" {
+        uv run python "$PSScriptRoot\align_native_postgres.py"
+    }
     "migrate" {
         uv run alembic upgrade head
     }
@@ -34,6 +37,6 @@ switch ($Service) {
         uv run python -m oryxenai.preview.gateway
     }
     "doctor" {
-        uv run python "$PSScriptRoot\verify_environment.py"
+        & "$PSScriptRoot\doctor.ps1"
     }
 }

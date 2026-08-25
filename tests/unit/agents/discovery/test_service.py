@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from oryxenai.agents.discovery.service import DiscoveryService, _brief_hash, _elapsed_seconds
+import pytest
+
+from oryxenai.agents.discovery.service import (
+    DiscoveryOperationError,
+    DiscoveryService,
+    _brief_hash,
+    _elapsed_seconds,
+)
+from oryxenai.core.settings import Settings
 
 
 class TestElapsedSeconds:
@@ -32,6 +40,31 @@ class TestBriefHash:
 
     def test_differs_for_different_markdown(self):
         assert _brief_hash("brief one") != _brief_hash("brief two")
+
+
+class TestModelProfileSelection:
+    @staticmethod
+    def _service() -> DiscoveryService:
+        service = DiscoveryService.__new__(DiscoveryService)
+        service._settings = Settings()
+        return service
+
+    def test_empty_selection_keeps_sticky_profile(self):
+        assert self._service()._resolve_model_profile("", "sticky") == "sticky"
+
+    def test_unknown_selection_is_rejected(self):
+        with pytest.raises(DiscoveryOperationError) as exc_info:
+            self._service()._resolve_model_profile("unknown", "")
+        assert exc_info.value.code == "MODEL_PROFILE_NOT_SELECTABLE"
+        assert exc_info.value.status_code == 400
+
+    def test_selection_cannot_change_after_start(self):
+        service = self._service()
+        selectable = service._settings.models.routing.selectable_profiles
+        assert selectable
+        with pytest.raises(DiscoveryOperationError) as exc_info:
+            service._resolve_model_profile(selectable[0], "different-profile")
+        assert exc_info.value.code == "MODEL_PROFILE_LOCKED"
 
 
 class TestIdempotencyKey:
