@@ -13,6 +13,7 @@ from oryxenai.agents.build_preparation.fixture import (
     _load_content_snapshot,
     _load_default,
     fixture_storage_preflight,
+    resolve_fixture_model_profile,
     run_fixture,
 )
 from oryxenai.core.settings import Settings
@@ -97,6 +98,20 @@ def test_fixture_stamps_explicit_inputs_for_canonical_pack_approval() -> None:
 
     assert content["approved"]["content_hash"] == "content-source-hash"
     assert visual["approved"]["visual_direction_hash"]
+
+
+def test_fixture_model_profile_uses_selectable_vdd_profile() -> None:
+    settings = Settings()
+    settings.build_preparation.model_profile = "build_preparation"
+
+    assert (
+        resolve_fixture_model_profile(
+            settings,
+            visual_input={"model_profile": "openai_luna"},
+        )
+        == "openai_luna"
+    )
+    assert resolve_fixture_model_profile(settings) == ""
 
 
 def test_fixture_diagnostics_retry_transient_windows_replace(

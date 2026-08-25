@@ -9,7 +9,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from oryxenai.agents.build_preparation.fixture import FixturePreparationError, run_fixture
+from oryxenai.agents.build_preparation.fixture import (
+    FixturePreparationError,
+    resolve_fixture_model_profile,
+    run_fixture,
+)
 from oryxenai.agents.shared.model_client import build_provider_client
 from oryxenai.core.settings import get_settings
 
@@ -74,10 +78,13 @@ async def _run(args: argparse.Namespace) -> None:
     model_client = None
     live_mode = not args.offline
     if live_mode:
+        profile_override = resolve_fixture_model_profile(
+            settings, args.model_profile, visual_override
+        )
         model_client = build_provider_client(
             "build_preparation",
             settings.models,
-            override_profile_name=args.model_profile or settings.build_preparation.model_profile,
+            override_profile_name=profile_override,
         )
         if model_client is None:
             raise ValueError(
