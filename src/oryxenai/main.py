@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from oryxenai.agents.build_preparation.fixture_runs import FixtureRunManager
+from oryxenai.agents.shared.model_runtime import close_model_runtime, get_model_runtime
 from oryxenai.api.errors import (
     AppError,
     app_error_handler,
@@ -135,6 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.auth_provider.aclose()
         await app.state.auth_admin_provider.aclose()
         await app.state.fixture_run_manager.close()
+        await close_model_runtime(settings.models)
         await dispose_engine(app.state.engine)
         logger.info("shutdown complete")
 
@@ -157,6 +159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = get_engine(s)
     app.state.sessionmaker = get_sessionmaker(s)
     app.state.fixture_run_manager = FixtureRunManager(s)
+    app.state.model_runtime = get_model_runtime(s.models)
     app.state.auth_verifier = SupabaseJwtVerifier(
         supabase_url=s.supabase_url,
         config=s.auth,

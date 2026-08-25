@@ -19,7 +19,7 @@
 [routing]
 fallback_profile = "default"
 # Add a profile name here when it should become a safe UI/API selection.
-selectable_profiles = []
+selectable_profiles = ["openai_luna", "discovery_opencode_go"]
 
 [routing.engine_profiles]
 discovery = "discovery"
@@ -69,7 +69,11 @@ model = "claude-sonnet-5"
 display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
-timeout_seconds = 60
+# A higher ceiling costs nothing on a fast successful call — it only
+# matters on the slower end of real variance, where 60s was proven too
+# tight for this profile family (see visual_design_director's identical
+# fix; content_architect hit the same live PROVIDER_TIMEOUT_ERROR).
+timeout_seconds = 180
 max_retries = 0
 max_output_tokens = 12000
 reasoning_effort = "low"
@@ -97,7 +101,9 @@ model = "claude-sonnet-5"
 display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
-timeout_seconds = 60
+# Live-reproduced PROVIDER_TIMEOUT_ERROR at 60s (user-reported, same class
+# as visual_design_director's guaranteed 3-attempt timeout failure).
+timeout_seconds = 180
 max_retries = 0
 max_output_tokens = 12000
 reasoning_effort = "low"
@@ -125,9 +131,19 @@ model = "claude-sonnet-5"
 display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
-timeout_seconds = 60
+# 60s was too tight for direct_page_experience's per-route/per-scene
+# storyboard generation — live-reproduced a guaranteed 3-attempt
+# PROVIDER_TIMEOUT_ERROR failure loop. Matched to build_preparation's
+# budget, which does comparably complex structured multi-item output.
+timeout_seconds = 180
 max_retries = 0
-max_output_tokens = 12000
+# 12000 was also too small — live-reproduced MODEL_OUTPUT_TRUNCATED on a
+# real content-rich portfolio (multiple routes/case-studies): VDD's
+# per-route storyboards, scenes, motion/interaction system, and asset
+# intent genuinely need more room than a lighter single-brief agent like
+# Discovery. Matched to build_preparation's budget for the same reason as
+# the timeout above.
+max_output_tokens = 24000
 reasoning_effort = "low"
 prompt_cache_ttl = "5m"
 store = false
@@ -154,7 +170,7 @@ display_name = "Anthropic — Claude Sonnet 5"
 base_url = "https://api.anthropic.com/v1"
 api_key_env = "ANTHROPIC_API_KEY"
 timeout_seconds = 180
-max_retries = 1
+max_retries = 0
 max_output_tokens = 24000
 reasoning_effort = "medium"
 prompt_cache_ttl = "5m"
@@ -407,13 +423,29 @@ uses_max_completion_tokens = true
 [profiles.discovery_opencode_go]
 provider = "opencode_go"
 model = "gpt-5.6-luna"
+display_name = "OpenCode Go — GPT-5.6 Luna"
 base_url = "https://opencode.ai/zen/go/v1"
 api_key_env = "OPENCODE_GO_API_KEY"
-timeout_seconds = 90
-max_retries = 1
-max_output_tokens = 16000
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 24000
 reasoning_effort = ""
 store = false
+
+[profiles.discovery_opencode_go.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = true
+context_cache_metadata = false
+supports_store_parameter = true
+uses_max_completion_tokens = false
 
 # Direct OpenAI API route for Build Preparation. Keep this separate from the
 # OpenCode-compatible Luna route so the credential and endpoint are explicit.
@@ -424,7 +456,7 @@ display_name = "OpenAI — GPT-5.6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 180
-max_retries = 1
+max_retries = 0
 max_output_tokens = 24000
 reasoning_effort = "medium"
 store = false
@@ -435,7 +467,12 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+# "output_config_effort" is Anthropic's own field name (read directly by
+# providers/anthropic.py) and was copy-pasted here rather than tuned for
+# this OpenAI-protocol profile. The OpenCodeGo/OpenAI adapter sends
+# reasoning effort as a flat "reasoning_effort" Chat Completions parameter
+# (providers/opencode_go.py), which is what this enum value names.
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
