@@ -21,6 +21,15 @@ _CREDIT_MARKERS = (
     "billing_hard_limit",
     "billing_not_active",
     "payment_required",
+    # Anthropic's actual wording for this condition doesn't use a distinct
+    # error code — it's a plain "invalid_request_error" whose message reads
+    # "Your credit balance is too low to access the Anthropic API. Please go
+    # to Plans & Billing to upgrade or purchase credits." Without these
+    # markers this fell through to the generic PROVIDER_INVALID_REQUEST_ERROR
+    # bucket instead of the dedicated, correctly-retried credit-error path.
+    "credit balance is too low",
+    "plans & billing",
+    "purchase credits",
 )
 _SAFE_FAILURE_MESSAGES = {
     "PROVIDER_AUTH_ERROR": "The configured model provider rejected its credentials.",
