@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 20:20 +05:30 - Codex (model/provider omitted) - [87cad46] - detached Build Preparation auth boundary
+Extended local detached mode through the Build Preparation fixture and progress
+APIs, bypassed Supabase bootstrap with the anonymous no-store request boundary,
+and redirected detached `/sign-in` to `/app`. Attached, Docker, test, and
+production-like modes retain the admin boundary; added API/frontend regression
+coverage (D-052).
+
 ### 2026-08-25 16:10 +05:30 — Codex (model/provider omitted) — [b70dde2] — detached fixture profile selection
 Fixed the detached Build Preparation frontend and CLI so the internal
 `build_preparation` engine route is not passed as a selectable profile. Live
