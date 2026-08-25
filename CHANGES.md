@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 15:06 +05:30 — Codex (model/provider omitted) — [62166f3] — durable model-output retries
+Converted deterministic output-contract failures from terminal handler errors
+into bounded, privacy-safe retries across Discovery, Content Architect, and
+Visual Design Director. Successful retries now clear stale job errors; the
+failed live OpenAI Luna VDD run recovered on attempt two to `design_review`,
+and focused worker/integration verification passed.
+
 ### 2026-08-25 13:03 +05:30 — Codex (model/provider omitted) — [5f272b3] — migration and native doctor acceptance fix
 Shortened the Build Preparation checkpoint revision ID to fit Alembic's
 version column, added a chain-wide revision-length guard, and made the native
