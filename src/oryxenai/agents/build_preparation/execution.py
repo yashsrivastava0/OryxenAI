@@ -313,7 +313,28 @@ def compile_execution_contract(
                 },
             )
         elif _is_visual_resource(need):
-            message = f"Known visual role '{need.source_id}' has no verified local image or component source."
+            attempts = [
+                item
+                for item in resource.get("materialization_attempts", []) or []
+                if isinstance(item, dict)
+            ]
+            rejected_attempts = [item for item in attempts if item.get("status") == "rejected"]
+            if rejected_attempts:
+                last_reason = str(
+                    rejected_attempts[-1].get("rejection_reason", "") or "unspecified"
+                )
+                gap_detail = (
+                    f"{len(rejected_attempts)} candidate(s) were tried and rejected during "
+                    f"materialization; last reason: {last_reason}."
+                )
+            elif attempts:
+                gap_detail = "A candidate was attempted but materialization did not complete."
+            else:
+                gap_detail = "No provider candidate was selected or attempted for this role."
+            message = (
+                f"Known visual role '{need.source_id}' has no verified local image or component "
+                f"source. {gap_detail}"
+            )
             gap = ExecutionGap(
                 slot_id=slot_id,
                 route_id=route_id,
