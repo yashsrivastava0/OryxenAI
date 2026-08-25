@@ -27,6 +27,11 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from oryxenai.agents.shared.model_runtime import (
+    close_model_runtime,
+    get_model_runtime,
+    validate_pipeline_job_timeouts,
+)
 from oryxenai.agents.shared.providers.errors import (
     ProviderError,
     is_provider_credit_error,
@@ -60,7 +65,7 @@ def _safe_handler_error(error: Any) -> Any:
         )
     if hasattr(error, "retryable") and hasattr(error, "code") and hasattr(error, "message"):
         return error
-    return retryable("HANDLER_ERROR", "The background job handler failed.")
+    return permanent("HANDLER_ERROR", "The background job handler failed.")
 
 
 def _safe_result_error(raw_error: dict[str, Any]) -> Any:
@@ -84,11 +89,26 @@ def _safe_result_error(raw_error: dict[str, Any]) -> Any:
     )
 
 
+def _timeout_decision(
+    message: str, *, attempt: int, max_attempts: int
+) -> tuple[Any, dict[str, Any]]:
+    error = retryable("JOB_TIMEOUT", message)
+    return error, {
+        "code": error.code,
+        "message": error.message,
+        "details": {},
+        "retryable": True,
+        "will_retry": should_retry(error, attempt, max_attempts),
+    }
+
+
 class Worker:
     """Polling job worker with heartbeat and graceful shutdown."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
+        self._model_runtime = get_model_runtime(self._settings.models)
+        validate_pipeline_job_timeouts(self._settings)
         self._instance_id = uuid.uuid4().hex
         self._running = True
         self._active_tasks: set[asyncio.Task[None]] = set()
@@ -114,6 +134,7 @@ class Worker:
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
             await self._shutdown()
+            await close_model_runtime(self._settings.models)
             await engine.dispose()
             reset_engine_cache()
             logger.info("worker instance=%s stopped", self._instance_id)
@@ -273,12 +294,34 @@ class Worker:
                 timeout=self._settings.worker_job.timeout_for(kind),
             )
         except TimeoutError:
+            timeout_message = (
+                f"Handler exceeded {self._settings.worker_job.timeout_for(kind)}s timeout."
+            )
+            timeout_error, timeout_payload = _timeout_decision(
+                timeout_message,
+                attempt=job.attempt,
+                max_attempts=job.max_attempts,
+            )
+            # asyncio.wait_for cancels handler.execute() from outside, so the
+            # handler's own try/except (which normally persists a terminal
+            # failure into its agent-specific session state) never runs.
+            # Without this, a session hits max_attempts and stays stuck
+            # reporting "running"/"build_running" forever with no visible
+            # error and no way to retry through the UI (live-reproduced).
+            on_timeout = getattr(handler, "on_timeout", None)
+            if on_timeout is not None:
+                try:
+                    await on_timeout(
+                        payload,
+                        timeout_payload,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "on_timeout hook failed kind=%s error=%s", kind, type(exc).__name__
+                    )
             await self._fail_job(
                 job,
-                retryable(
-                    "JOB_TIMEOUT",
-                    f"Handler exceeded {self._settings.worker_job.timeout_for(kind)}s timeout.",
-                ),
+                timeout_error,
             )
             return
         except Exception as exc:

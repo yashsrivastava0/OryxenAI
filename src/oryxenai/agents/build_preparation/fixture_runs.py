@@ -73,19 +73,19 @@ def _issue_from_error(exc: Exception) -> dict[str, Any]:
     message = str(getattr(exc, "message", str(exc)) or "Build Preparation fixture failed.")
     messages = {
         "PROVIDER_CONNECTION_ERROR": (
-            "The configured OpenAI model provider could not be reached while composing resource queries."
+            "The configured model provider could not be reached while composing resource queries."
         ),
         "PROVIDER_TIMEOUT_ERROR": (
-            "The configured OpenAI model provider timed out while composing resource queries."
+            "The configured model provider timed out while composing resource queries."
         ),
         "PROVIDER_AUTH_ERROR": (
-            "The configured OpenAI model provider rejected its API key while composing resource queries."
+            "The configured model provider rejected its API key while composing resource queries."
         ),
         "PROVIDER_RATE_LIMIT_ERROR": (
-            "The configured OpenAI model provider rate-limited resource-query composition."
+            "The configured model provider rate-limited resource-query composition."
         ),
         "PROVIDER_SERVER_ERROR": (
-            "The configured OpenAI model provider returned a server error while composing resource queries."
+            "The configured model provider returned a server error while composing resource queries."
         ),
     }
     message = messages.get(code, message)

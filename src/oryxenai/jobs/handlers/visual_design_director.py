@@ -17,6 +17,7 @@ from uuid import UUID
 
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
+from oryxenai.agents.shared.observability import durable_model_metadata
 from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
 from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorModelOutputError
 from oryxenai.agents.visual_design_director.schemas import (
@@ -49,33 +50,49 @@ class VisualDesignDirectorBuildHandler:
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         return await _execute_persisted(payload, instance_id)
 
+    async def on_timeout(self, payload: dict[str, Any], error: dict[str, Any]) -> None:
+        """Called by the worker when the outer job-handler timeout fires.
+
+        asyncio.wait_for cancels the execute() coroutine from outside, so its
+        own try/except (which calls _persist_failure) never runs — this is
+        the only chance to reflect a terminal timeout into the
+        visual_design_director session state instead of leaving it stuck at
+        "build_running" forever (live-reproduced during local testing).
+        The worker supplies the same retryable/will_retry decision used for
+        queue rescheduling, so the session cannot report a terminal failure
+        while another automatic attempt is pending.
+        """
+        from oryxenai.core.settings import get_settings
+
+        session_id = UUID(str(payload["portfolio_session_id"]))
+        run_id = UUID(str(payload["agent_run_id"]))
+        settings = get_settings()
+        sessionmaker = get_sessionmaker(settings)
+        attempt = int(payload.get("attempt", 1))
+        max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+        )
+
 
 def _build_visual_design_director_agent(override_profile_name: str = "") -> Any:
     """Create a VisualDesignDirectorAgent with the live provider adapter.
 
-    override_profile_name is the session-sticky model/provider choice
-    inherited from Content Architect (see VisualDesignDirectorService.start),
-    if any. build_provider_client falls back to the default
-    "visual_design_director" profile on its own if the override isn't usable.
+    override_profile_name is the validated, session-sticky model/provider
+    choice inherited from Content Architect (see
+    VisualDesignDirectorService.start). Unknown or unselectable values fail
+    closed in the shared runtime.
     """
-    from oryxenai.agents.shared.model_client import build_provider_client
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
     from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorAgent
     from oryxenai.core.settings import get_settings
 
     settings = get_settings()
-    client = build_provider_client(
-        "visual_design_director", settings.models, override_profile_name=override_profile_name
-    )
-    if client is None:
-        from oryxenai.agents.shared.providers.errors import ProviderConfigError
-
-        raise ProviderConfigError(
-            "Visual Design Director agent requires a configured model profile. "
-            "Check config/models.toml [profiles.visual_design_director] and ensure "
-            "the matching API key is set in .env"
-        )
+    runtime = get_model_runtime(settings.models)
+    resolved_profile = runtime.resolve_profile_name("visual_design_director", override_profile_name)
     return VisualDesignDirectorAgent(
-        model_client=client, profile_name=override_profile_name or "visual_design_director"
+        model_client=runtime.resolve("visual_design_director", override_profile_name),
+        profile_name=resolved_profile,
     )
 
 
@@ -108,6 +125,12 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)
 
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+    input_payload["runtime_profile_id"] = get_model_runtime(settings.models).resolve_profile_name(
+        "visual_design_director", str(input_payload.get("model_profile", "") or "")
+    )
+
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
     agent = _build_visual_design_director_agent(str(input_payload.get("model_profile", "") or ""))
@@ -138,7 +161,8 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     except VisualDesignDirectorModelOutputError as exc:
         # A one-off generation-quality issue on the same input, not a permanent
         # condition — retry it like any other transient provider error, bounded
-        # by the same max_attempts budget.
+        # by the same max_attempts budget. Do not log validation detail: it can
+        # contain generated portfolio content rather than safe diagnostics.
         logger.warning(
             "visual_design_director build produced invalid output type=%s", type(exc).__name__
         )
@@ -169,7 +193,15 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         )
         raise
 
-    return await _apply_result(sessionmaker, session_id, run_id, payload, result, attempt)
+    return await _apply_result(
+        sessionmaker,
+        session_id,
+        run_id,
+        payload,
+        result,
+        attempt,
+        str(input_payload["runtime_profile_id"]),
+    )
 
 
 async def _apply_result(
@@ -179,6 +211,7 @@ async def _apply_result(
     payload: dict[str, Any],
     result: Any,
     attempt: int,
+    runtime_profile_id: str,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -255,7 +288,11 @@ async def _apply_result(
             output,
             state_after,
             prompt_version=result.prompt_version,
-            model_metadata={**result.model_metadata, "result_status": "succeeded"},
+            model_metadata=durable_model_metadata(
+                {**result.model_metadata, "result_status": "succeeded"},
+                profile_id=runtime_profile_id,
+                attempt=attempt,
+            ),
         )
         await db.commit()
         return {"status": "succeeded", "run_id": str(run_id), "operation": "build"}
@@ -287,10 +324,19 @@ async def _persist_failure(
         safe_error = {
             "code": code,
             "message": message,
-            "retryable": bool(getattr(error, "retryable", False)),
+            "retryable": bool(
+                error.get("retryable", False)
+                if isinstance(error, dict)
+                else getattr(error, "retryable", False)
+            ),
         }
         state = await repo.get_visual_design_director_state(session_id)
-        is_final = not safe_error["retryable"] or attempt >= max_attempts
+        will_retry = bool(
+            error.get("will_retry")
+            if isinstance(error, dict) and "will_retry" in error
+            else safe_error["retryable"] and attempt < max_attempts
+        )
+        is_final = not will_retry
         if is_final:
             try:
                 next_state = apply_needs_attention(state, safe_error)

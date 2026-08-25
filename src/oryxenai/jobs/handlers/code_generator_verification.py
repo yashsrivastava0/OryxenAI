@@ -1272,7 +1272,15 @@ async def _attempt_repair(
         max_total=int(settings.code_generator_generation.max_repair_rounds_total),
         max_per_unit=int(settings.code_generator_generation.max_repair_rounds_per_unit),
         total_used=projection.repair_rounds,
-        per_unit_used={"final": projection.repair_rounds},
+        # This call site only ever repairs unit_id="final"; seeding
+        # per_unit_used["final"] to the same value as total_used made the
+        # two counters increase in lockstep, so max_per_unit (2) always
+        # bound before max_repair_rounds_total (6) could ever be reached —
+        # the configured total was unreachable dead configuration. Starting
+        # this counter at 0 lets it track actual final-stage repair rounds
+        # independently, so max_repair_rounds_total governs as its name
+        # promises.
+        per_unit_used={"final": 0},
     )
     for receipt in projection.repair_receipts:
         for fingerprint in receipt.diagnostic_fingerprints:

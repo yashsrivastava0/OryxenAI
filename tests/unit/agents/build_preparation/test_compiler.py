@@ -194,17 +194,20 @@ def test_stage0_compiles_routes_and_resource_needs_without_model_calls() -> None
         "hero-photo",
         "hero-card",
     }
+    # Both fixtures declare importance/priority "optional" — required_for_handoff
+    # is now importance-driven (only "critical"/"important" roles block
+    # handoff), so an explicitly optional role must not be required.
     assert (
         next(
             need for need in result.resource_needs if need.source_id == "hero-photo"
         ).required_for_handoff
-        is True
+        is False
     )
     assert (
         next(
             need for need in result.resource_needs if need.source_id == "hero-card"
         ).required_for_handoff
-        is True
+        is False
     )
     assert result.model_calls == 0
     assert result.source_ref.content_architect_content_hash == "ca-hash"

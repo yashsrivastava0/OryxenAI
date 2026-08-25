@@ -33,6 +33,7 @@ from oryxenai.agents.discovery.state import (
 )
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
+from oryxenai.agents.shared.observability import durable_model_metadata
 from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
@@ -51,6 +52,26 @@ _QUESTIONS_OPS = {"understand_and_question", "prepare_questions"}
 _BRIEF_OPS = {"build_or_revise_brief", "build_brief"}
 
 
+async def _on_timeout_persisted(payload: dict[str, Any], error: dict[str, Any]) -> None:
+    """Shared by every Discovery handler kind (worker.py calls this when the
+    outer job-handler timeout fires). asyncio.wait_for cancels execute() from
+    outside, so its own try/except (which calls _persist_failure) never
+    runs — this is the only chance to reflect a terminal timeout into the
+    discovery session state instead of leaving it stuck at a "*_running"
+    status forever. See visual_design_director.py's identical hook for the
+    same live-reproduced issue.
+    """
+    from oryxenai.core.settings import get_settings
+
+    session_id = UUID(str(payload["portfolio_session_id"]))
+    run_id = UUID(str(payload["agent_run_id"]))
+    settings = get_settings()
+    sessionmaker = get_sessionmaker(settings)
+    attempt = int(payload.get("attempt", 1))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    await _persist_failure(sessionmaker, session_id, run_id, payload, error, attempt, max_attempts)
+
+
 class DiscoveryUnderstandAndQuestionHandler:
     """Worker handler for discovery.understand_and_question."""
 
@@ -58,6 +79,9 @@ class DiscoveryUnderstandAndQuestionHandler:
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         return await _execute_persisted(payload, instance_id, "understand_and_question")
+
+    async def on_timeout(self, payload: dict[str, Any], error: dict[str, Any]) -> None:
+        await _on_timeout_persisted(payload, error)
 
 
 class DiscoveryBuildOrReviseBriefHandler:
@@ -68,6 +92,9 @@ class DiscoveryBuildOrReviseBriefHandler:
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         return await _execute_persisted(payload, instance_id, "build_or_revise_brief")
 
+    async def on_timeout(self, payload: dict[str, Any], error: dict[str, Any]) -> None:
+        await _on_timeout_persisted(payload, error)
+
 
 class DiscoveryPrepareQuestionsHandler:
     """Legacy alias handler for discovery.prepare_questions."""
@@ -76,6 +103,9 @@ class DiscoveryPrepareQuestionsHandler:
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         return await _execute_persisted(payload, instance_id, "prepare_questions")
+
+    async def on_timeout(self, payload: dict[str, Any], error: dict[str, Any]) -> None:
+        await _on_timeout_persisted(payload, error)
 
 
 class DiscoveryBuildBriefHandler:
@@ -86,32 +116,28 @@ class DiscoveryBuildBriefHandler:
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         return await _execute_persisted(payload, instance_id, "build_brief")
 
+    async def on_timeout(self, payload: dict[str, Any], error: dict[str, Any]) -> None:
+        await _on_timeout_persisted(payload, error)
+
 
 def _build_discovery_agent(override_profile_name: str = "") -> Any:
     """Create a DiscoveryAgent with the live provider adapter.
 
-    override_profile_name is the user's session-sticky model/provider choice
-    (from the home page dropdown), if any. build_provider_client falls back
-    to the default "discovery" profile on its own if the override isn't
-    usable, so this never fails just because an override was requested.
+    override_profile_name is the user's validated, session-sticky
+    model/provider choice from the detached-development selector, if any.
+    Unknown or unselectable values fail closed in the shared runtime.
     """
     from oryxenai.agents.discovery.agent import DiscoveryAgent
-    from oryxenai.agents.shared.model_client import build_provider_client
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
     from oryxenai.core.settings import get_settings
 
     settings = get_settings()
-    client = build_provider_client(
-        "discovery", settings.models, override_profile_name=override_profile_name
+    runtime = get_model_runtime(settings.models)
+    resolved_profile = runtime.resolve_profile_name("discovery", override_profile_name)
+    return DiscoveryAgent(
+        model_client=runtime.resolve("discovery", override_profile_name),
+        profile_name=resolved_profile,
     )
-    if client is None:
-        from oryxenai.agents.shared.providers.errors import ProviderConfigError
-
-        raise ProviderConfigError(
-            "Discovery agent requires a configured model profile. "
-            "Check config/models.toml [profiles.discovery] and ensure "
-            "the environment variable named by api_key_env is set in .env"
-        )
-    return DiscoveryAgent(model_client=client, profile_name=override_profile_name or "discovery")
 
 
 async def _execute_persisted(
@@ -146,6 +172,12 @@ async def _execute_persisted(
         await db.commit()
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)
+
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+    input_payload["runtime_profile_id"] = get_model_runtime(settings.models).resolve_profile_name(
+        "discovery", str(input_payload.get("model_profile", "") or "")
+    )
 
     agent = _build_discovery_agent(str(input_payload.get("model_profile", "") or ""))
     agent_input: dict[str, Any] = {
@@ -221,6 +253,7 @@ async def _execute_persisted(
         operation,
         result,
         attempt,
+        str(input_payload["runtime_profile_id"]),
     )
 
 
@@ -253,6 +286,7 @@ async def _apply_result(
     operation: str,
     result: Any,
     attempt: int,
+    runtime_profile_id: str,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -304,7 +338,11 @@ async def _apply_result(
             result.output,
             state_after,
             prompt_version=result.prompt_version,
-            model_metadata={**result.model_metadata, "result_status": "succeeded"},
+            model_metadata=durable_model_metadata(
+                {**result.model_metadata, "result_status": "succeeded"},
+                profile_id=runtime_profile_id,
+                attempt=attempt,
+            ),
         )
         await db.commit()
         return {"status": "succeeded", "run_id": str(run_id), "operation": operation}
@@ -339,10 +377,19 @@ async def _persist_failure(
         safe_error = {
             "code": code,
             "message": message,
-            "retryable": bool(getattr(error, "retryable", False)),
+            "retryable": bool(
+                error.get("retryable", False)
+                if isinstance(error, dict)
+                else getattr(error, "retryable", False)
+            ),
         }
         state = await repo.get_discovery_state(session_id)
-        is_final = not safe_error["retryable"] or attempt >= max_attempts
+        will_retry = bool(
+            error.get("will_retry")
+            if isinstance(error, dict) and "will_retry" in error
+            else safe_error["retryable"] and attempt < max_attempts
+        )
+        is_final = not will_retry
         if is_final:
             try:
                 next_state = apply_needs_attention(state, safe_error)

@@ -98,7 +98,13 @@ class BuildPreparationService:
             content_architect_session_revision=session.revision,
             visual_design_director_session_revision=session.revision,
         )
-        resolved_profile = model_profile or state.model_profile or "build_preparation"
+        sticky_profile = visual_design_director.model_profile
+        if model_profile and model_profile != sticky_profile:
+            raise BuildPreparationOperationError(
+                "MODEL_PROFILE_LOCKED",
+                "Build Preparation must use the model profile selected in Discovery.",
+            )
+        resolved_profile = sticky_profile
         key = self._idempotency_key(session_id, source_ref, resolved_profile, state.attempt)
         run = AgentRun(
             id=uuid4(),
@@ -110,7 +116,7 @@ class BuildPreparationService:
                 "max_routes": self._settings.build_preparation.max_routes,
                 "live_model": self._settings.build_preparation.reasoning_enabled,
                 "live_providers": self._settings.build_preparation.reasoning_enabled,
-                "output_dir": self._settings.build_preparation.fixture_output_dir,
+                "output_dir": self._settings.build_preparation.session_staging_root,
                 "artifact_upload": True,
                 "debug_mirror": self._settings.build_preparation.debug_mirror_enabled,
                 "bundle_expires_at": (

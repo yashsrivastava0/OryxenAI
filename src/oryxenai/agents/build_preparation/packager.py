@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import random
 import re
 import shutil
+import time
 import zipfile
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
@@ -28,6 +30,60 @@ from oryxenai.storage.artifacts import (
 )
 
 _INDIA_TIME = timezone(timedelta(hours=5, minutes=30), name="IST")
+
+# Windows antivirus/indexer scans can transiently lock a file immediately
+# after creation, raising PermissionError on the very next write/mkdir into
+# the same fresh tree (live-reproduced during local Docker Desktop testing:
+# a debug-mirror restore of a freshly extracted pack hit this). Mirrors the
+# same bounded retry cadence already validated for Code Generator's own
+# filesystem transitions (agents/code_generator/core/fs_safe.py, D-023) —
+# duplicated locally rather than imported cross-agent, since
+# code_generator.core is that agent's sole standalone implementation
+# namespace (D-026), not a shared utility.
+_FS_RETRY_DELAYS_SECONDS = (0.3, 0.6, 1.0, 1.5, 2.5, 4.0)
+
+
+def _sleep_before_fs_retry(attempt: int) -> None:
+    delay = _FS_RETRY_DELAYS_SECONDS[min(attempt, len(_FS_RETRY_DELAYS_SECONDS) - 1)]
+    time.sleep(delay + random.uniform(0.0, 0.2))  # noqa: S311
+
+
+def mkdir_with_retry(path: Path, *, exist_ok: bool) -> None:
+    last_error: OSError | None = None
+    for attempt in range(len(_FS_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            path.mkdir(parents=True, exist_ok=exist_ok)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            if attempt < len(_FS_RETRY_DELAYS_SECONDS):
+                _sleep_before_fs_retry(attempt)
+                continue
+            break
+    raise PackageError(
+        "BUILD_PACK_FS_MKDIR_FAILED",
+        f"Directory creation stayed locked after retries: {path}",
+        details={"error": str(last_error)},
+    )
+
+
+def write_bytes_with_retry(path: Path, data: bytes) -> None:
+    last_error: OSError | None = None
+    for attempt in range(len(_FS_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            path.write_bytes(data)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            if attempt < len(_FS_RETRY_DELAYS_SECONDS):
+                _sleep_before_fs_retry(attempt)
+                continue
+            break
+    raise PackageError(
+        "BUILD_PACK_FS_WRITE_FAILED",
+        f"File write stayed locked after retries: {path}",
+        details={"error": str(last_error)},
+    )
 
 
 class PackageError(ValueError):
@@ -105,8 +161,8 @@ def _read_tree(root: Path) -> list[tuple[str, bytes]]:
 
 def _write(root: Path, relative: str, data: bytes) -> None:
     path = root / _safe_relative(relative)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+    mkdir_with_retry(path.parent, exist_ok=True)
+    write_bytes_with_retry(path, data)
 
 
 def _manifest_files(entries: Iterable[tuple[str, bytes]]) -> list[dict[str, Any]]:
@@ -286,11 +342,11 @@ def _mirror_path(output_dir: Path, run_id: str) -> Path:
 def restore_verified_bundle(data: bytes, destination: Path, *, max_bytes: int) -> list[str]:
     """Extract verified ZIP bytes without trusting archive paths."""
     manifest = verify_bundle_bytes(data, max_bytes=max_bytes)
-    destination.mkdir(parents=True, exist_ok=False)
+    mkdir_with_retry(destination, exist_ok=False)
     written: list[str] = []
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         manifest_target = destination / "manifest.json"
-        manifest_target.write_bytes(archive.read("manifest.json"))
+        write_bytes_with_retry(manifest_target, archive.read("manifest.json"))
         written.append("manifest.json")
         for entry in manifest["files"]:
             relative = _safe_relative(str(entry["path"]))
@@ -299,9 +355,9 @@ def restore_verified_bundle(data: bytes, destination: Path, *, max_bytes: int) -
                 raise PackageError(
                     "BUILD_PACK_UNSAFE_PATH", "The mirror path escaped its destination."
                 )
-            target.parent.mkdir(parents=True, exist_ok=True)
+            mkdir_with_retry(target.parent, exist_ok=True)
             content = archive.read(relative)
-            target.write_bytes(content)
+            write_bytes_with_retry(target, content)
             written.append(relative)
     return written
 
@@ -392,7 +448,7 @@ async def package_and_store(
             else str(destination)
         )
         archive_path = destination.parent / "build-pack.zip"
-        archive_path.write_bytes(archive_bytes)
+        write_bytes_with_retry(archive_path, archive_bytes)
         local_archive_path = str(archive_path)
         local_archive_relative_path = (
             str(archive_path.relative_to(Path.cwd())).replace("\\", "/")
@@ -441,9 +497,9 @@ async def package_and_store(
 def staging_directory(output_dir: str | Path = "output") -> Iterator[str]:
     """Create a disposable staging directory for one agent run."""
     base = Path(output_dir)
-    base.mkdir(parents=True, exist_ok=True)
+    mkdir_with_retry(base, exist_ok=True)
     staging = base / "build-preparation-staging" / str(uuid4())
-    staging.mkdir(parents=True, exist_ok=False)
+    mkdir_with_retry(staging, exist_ok=False)
     try:
         yield str(staging)
     finally:

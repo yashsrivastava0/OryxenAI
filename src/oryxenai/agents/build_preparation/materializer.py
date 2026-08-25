@@ -21,6 +21,10 @@ from oryxenai.agents.build_preparation.contracts import (
     validate_execution_contract_shape,
 )
 from oryxenai.agents.build_preparation.execution import compile_execution_contract
+from oryxenai.agents.build_preparation.packager import (
+    mkdir_with_retry,
+    write_bytes_with_retry,
+)
 from oryxenai.agents.build_preparation.providers import download_font
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
@@ -111,8 +115,8 @@ def _json_bytes(value: Any) -> bytes:
 
 def _write(root: Path, relative: str, content: bytes, kind: str) -> MaterializedFile:
     path = root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(content)
+    mkdir_with_retry(path.parent, exist_ok=True)
+    write_bytes_with_retry(path, content)
     return MaterializedFile(
         relative_path=relative.replace("\\", "/"),
         kind=kind,  # type: ignore[arg-type]
@@ -759,7 +763,7 @@ async def materialize_build_context(
         if root_override is not None
         else Path(output_dir) / "build-preparation" / _safe_name(run_id, "run") / "build-context"
     )
-    root.mkdir(parents=True, exist_ok=True)
+    mkdir_with_retry(root, exist_ok=True)
     files: list[MaterializedFile] = []
     warnings: list[str] = []
     licenses: list[dict[str, Any]] = []
@@ -1383,21 +1387,23 @@ async def materialize_build_context(
             base_entry.update({"disposition": "custom_implementation_required"})
         elif candidate.kind == "font" and candidate.provider == "fontsource":
             try:
-                downloader = download_font_files or (lambda item: download_font(item, settings))
-                font_files = await downloader(candidate)
+                font_downloader = download_font_files or (
+                    lambda item: download_font(item, settings)
+                )
+                font_files = await font_downloader(candidate)
                 font_root = f"resources/fonts/{resource_id}"
-                source_entries: list[dict[str, Any]] = []
+                font_source_entries: list[dict[str, Any]] = []
                 for variant, font_bytes in sorted(font_files.items()):
                     extension = str(
                         getattr(settings.resource_providers, "fontsource_format", "woff2")
                     )
                     font_path = f"{font_root}/{_safe_name(variant)}.{extension}"
                     item = _write(root, font_path, font_bytes, "font")
-                    source_entries.append(
+                    font_source_entries.append(
                         {"variant": variant, "local_path": font_path, "sha256": item.sha256}
                     )
                     files.append(item)
-                if not source_entries:
+                if not font_source_entries:
                     raise ValueError("Fontsource returned no font files")
                 files.append(
                     _write(
@@ -1410,7 +1416,7 @@ async def materialize_build_context(
                                 "weights": candidate.font_weights,
                                 "license": candidate.license,
                                 "license_reference": candidate.license_reference,
-                                "files": source_entries,
+                                "files": font_source_entries,
                             }
                         ),
                         "metadata",
@@ -1421,7 +1427,7 @@ async def materialize_build_context(
                         "font_family": candidate.font_family,
                         "font_weights": candidate.font_weights,
                         "local_directory": font_root,
-                        "source_files": source_entries,
+                        "source_files": font_source_entries,
                         "disposition": "local_file",
                     }
                 )
@@ -1486,11 +1492,11 @@ async def materialize_build_context(
                         )
                         resource_manifest.append(base_entry)
                         continue
-                    source_entries: list[dict[str, Any]] = []
+                    component_source_entries: list[dict[str, Any]] = []
                     for source_path, relative, content in resolved_sources:
                         item = _write(root, relative, content.encode("utf-8"), "text")
                         files.append(item)
-                        source_entries.append(
+                        component_source_entries.append(
                             {
                                 "original_path": source_path,
                                 "local_path": relative,
@@ -1501,12 +1507,14 @@ async def materialize_build_context(
                         {
                             "dependencies_allowed": True,
                             "local_directory": f"{component_root}/source",
-                            "source_files": source_entries,
+                            "source_files": component_source_entries,
                             "disposition": "adaptable_source",
                             "release_pin": candidate.source_version,
                         }
                     )
-                    source_hashes = [str(item.get("sha256", "")) for item in source_entries]
+                    source_hashes = [
+                        str(item.get("sha256", "")) for item in component_source_entries
+                    ]
                     explicit_exports = [
                         str(item)
                         for item in (
@@ -1520,7 +1528,9 @@ async def materialize_build_context(
                     base_entry["usage_contract"].update(
                         {
                             "local_directory": f"{component_root}/source",
-                            "local_paths": [item["local_path"] for item in source_entries],
+                            "local_paths": [
+                                item["local_path"] for item in component_source_entries
+                            ],
                             "expected_exports": export_names,
                             "export_name": export_names[0] if export_names else "",
                             "sha256": source_hashes,
