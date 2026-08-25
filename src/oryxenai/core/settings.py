@@ -362,7 +362,9 @@ class AuthConfig(BaseModel):
         admission_configured = provider_coordinates_present or bool(admins or allowed)
         environment = app_env.strip().lower()
         if self.pipeline_mode == "detached" and (self.required or environment == "production"):
-            raise ValueError("Detached pipeline mode is allowed only in non-production development.")
+            raise ValueError(
+                "Detached pipeline mode is allowed only in non-production development."
+            )
         if (self.required or environment == "production" or admission_configured) and len(
             admins
         ) != self.bootstrap_admin_count:
@@ -495,6 +497,14 @@ class BuildPreparationConfig(BaseModel):
     fixture_upload: bool = True
     fixture_reasoning_enabled: bool = False
     fixture_debug_mirror_enabled: bool = True
+    # Ephemeral per-run staging for the real session/worker path — deliberately
+    # separate from fixture_output_dir, which is host-mounted (./output) only
+    # for the detached developer fixture/CLI and is NOT volume-mounted into the
+    # worker container. Follows the same .workspace/<agent-purpose> convention
+    # already used by every other agent's ephemeral Docker-writable paths
+    # (code_generator_acquisition.materials_root etc.) so it works unmodified
+    # under the non-root container user without any Dockerfile/volume change.
+    session_staging_root: str = ".workspace/build-preparation-staging"
     debug_mirror_enabled: bool = True
     model_profile: str = "build_preparation"
     reasoning_enabled: bool = True

@@ -397,7 +397,14 @@ def compile_stage0(
             source_status=str(asset.get("source_status", "") or ""),
             source_policy=source_policy,
             importance=str(asset.get("importance", "") or ""),
-            required_for_handoff=is_component_role or is_image_role,
+            # Only "critical"/"important" visual roles are hard-required.
+            # "supporting" (Build Preparation's own auto-derivation vocabulary)
+            # and "optional" (Visual Design Director's vocabulary) roles are
+            # still attempted (photo/component acquisition doesn't gate on
+            # this flag) but must not block the whole pack if they don't
+            # resolve — see quality.py's HandoffIssue.blocking.
+            required_for_handoff=(is_component_role or is_image_role)
+            and str(asset.get("importance", "") or "").casefold() in {"critical", "important"},
             query_terms=query_terms,
             fallback=fallback,
             details={
@@ -512,8 +519,18 @@ def compile_stage0(
                 required_for_handoff=(
                     bool(resource["required_for_handoff"])
                     if isinstance(resource.get("required_for_handoff"), bool)
-                    else str(resource.get("category", "") or "").casefold()
-                    in {"visual_component", "component", "registry_component"}
+                    else (
+                        str(resource.get("category", "") or "").casefold()
+                        in {"visual_component", "component", "registry_component"}
+                        # Visual Design Director's ResourceCandidate.priority is
+                        # free text (no validated enum), so an explicit
+                        # low-priority signal is trusted to demote a role to
+                        # non-required; an empty/unrecognized value stays
+                        # required (the prior, safer default) rather than
+                        # guessing at every synonym a model might produce.
+                        and str(resource.get("priority", "") or "").casefold()
+                        not in {"optional", "low", "supporting", "secondary", "nice-to-have"}
+                    )
                 ),
                 component_intent=component_intent,
             )

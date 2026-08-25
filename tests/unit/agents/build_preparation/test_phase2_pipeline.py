@@ -10,6 +10,7 @@ from oryxenai.agents.build_preparation.agent import (
     BuildPreparationAgent,
     _normalize_context_payload,
 )
+from oryxenai.agents.build_preparation.checkpoint import BuildPreparationCheckpoint
 from oryxenai.agents.build_preparation.fixture import _offline_candidates
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
@@ -418,6 +419,146 @@ async def test_live_model_path_uses_structured_handoff_review_when_integration_i
 
 
 @pytest.mark.asyncio
+async def test_retry_resumes_validated_model_stages_but_rebuilds_package() -> None:
+    output_dir = _output_dir()
+    checkpoints: list[BuildPreparationCheckpoint] = []
+
+    async def save_checkpoint(checkpoint: BuildPreparationCheckpoint) -> None:
+        checkpoints.append(checkpoint)
+
+    try:
+        settings = Settings()
+        settings.build_preparation.fixture_output_dir = str(output_dir)
+        settings.build_preparation.integration_route_threshold = 1
+        run_id = str(uuid4())
+        base_input = {
+            "operation": "build",
+            "visual_design_director": _visual(),
+            "content_architect": _content(),
+            "live_model": True,
+            "live_providers": False,
+            "output_dir": str(output_dir),
+            "integration_route_threshold": 1,
+            "checkpoint_binding": {
+                "run_id": run_id,
+                "approved_source_hash": "source-hash",
+                "profile_fingerprint": "profile-fingerprint",
+            },
+        }
+        first_model = _Phase2Model()
+        first = await BuildPreparationAgent(
+            model_client=first_model,
+            live_model=True,
+            live_providers=False,
+            settings=settings,
+            checkpoint_sink=save_checkpoint,
+        ).run(
+            build_context(
+                portfolio_session_id=uuid4(),
+                agent_key=AgentKey.BUILD_PREPARATION,
+                current_state={},
+                agent_input=base_input,
+                run_id=uuid4(),
+            )
+        )
+
+        checkpoint = checkpoints[-1]
+        assert checkpoint.completed_stage == "stage_4"
+        assert first_model.operations[:4] == [
+            "compose_resource_queries",
+            "select_resources",
+            "write_build_context",
+            "integrate_cross_route",
+        ]
+        assert "package" not in checkpoint.data
+        assert "materialization" not in checkpoint.data
+
+        second_model = _Phase2Model()
+        second = await BuildPreparationAgent(
+            model_client=second_model,
+            live_model=True,
+            live_providers=False,
+            settings=settings,
+        ).run(
+            build_context(
+                portfolio_session_id=uuid4(),
+                agent_key=AgentKey.BUILD_PREPARATION,
+                current_state={},
+                agent_input={
+                    **base_input,
+                    "checkpoint_payload": checkpoint.model_dump(mode="json"),
+                },
+                run_id=uuid4(),
+            )
+        )
+
+        assert second_model.operations == ["review_handoff_quality"]
+        assert second.output["package"]["archive_sha256"]
+        assert second.output["model_calls"] == first.output["model_calls"]
+        resumed = {event["event_id"] for event in second.output["events"]}
+        assert {
+            "stage_1_checkpoint_resumed",
+            "stage_2_checkpoint_resumed",
+            "stage_3_checkpoint_resumed",
+            "stage_4_checkpoint_resumed",
+        } <= resumed
+
+        changed_candidates = checkpoint.model_copy(
+            update={"candidate_set_hash": "different-candidate-set"}
+        )
+        third_model = _Phase2Model()
+        third = await BuildPreparationAgent(
+            model_client=third_model,
+            live_model=True,
+            live_providers=False,
+            settings=settings,
+        ).run(
+            build_context(
+                portfolio_session_id=uuid4(),
+                agent_key=AgentKey.BUILD_PREPARATION,
+                current_state={},
+                agent_input={
+                    **base_input,
+                    "checkpoint_payload": changed_candidates.model_dump(mode="json"),
+                },
+                run_id=uuid4(),
+            )
+        )
+
+        assert third_model.operations == [
+            "select_resources",
+            "write_build_context",
+            "integrate_cross_route",
+            "review_handoff_quality",
+        ]
+        invalidated_events = {event["event_id"] for event in third.output["events"]}
+        assert "stage_1_checkpoint_resumed" in invalidated_events
+        assert "checkpoint_candidate_set_changed" in invalidated_events
+        assert "stage_2_checkpoint_resumed" not in invalidated_events
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+def test_checkpoint_binding_rejects_source_and_profile_changes() -> None:
+    checkpoint = BuildPreparationCheckpoint(
+        run_id="run",
+        approved_source_hash="source",
+        profile_fingerprint="profile",
+        completed_stage="stage_1",
+    )
+
+    assert checkpoint.compatible_with(
+        run_id="run", approved_source_hash="source", profile_fingerprint="profile"
+    )
+    assert not checkpoint.compatible_with(
+        run_id="run", approved_source_hash="changed", profile_fingerprint="profile"
+    )
+    assert not checkpoint.compatible_with(
+        run_id="run", approved_source_hash="source", profile_fingerprint="changed"
+    )
+
+
+@pytest.mark.asyncio
 async def test_live_handoff_review_failure_retains_deterministic_package() -> None:
     output_dir = _output_dir()
     try:
@@ -448,8 +589,13 @@ async def test_live_handoff_review_failure_retains_deterministic_package() -> No
 
         report = result.output["handoff_report"]
         assert result.output["model_calls"] == 4
-        assert report["handoff_eligible"] is False
-        assert any(issue["code"] == "MODEL_REVIEW_UNAVAILABLE" for issue in report["issues"])
+        # Stage 5 is advisory only (per its own prompt): a live-review
+        # failure must retain the deterministic report's eligibility, not
+        # force needs_attention. The failure is recorded as diagnostic
+        # metadata in model_review, not as a blocking issue.
+        assert report["handoff_eligible"] is True
+        assert not any(issue["code"] == "MODEL_REVIEW_UNAVAILABLE" for issue in report["issues"])
+        assert report["model_review"]["mode"] == "live_model_unavailable"
         assert result.output["package"]["archive_size_bytes"] > 0
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)

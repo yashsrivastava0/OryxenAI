@@ -1,4 +1,4 @@
-Write the human- and machine-readable handoff for the future Code Generator.
+Write the human- and machine-readable handoff for the separate Code Generator.
 Create one detailed site overview and one route-by-route brief for every
 approved route. Ground route data in the supplied public Content Architect
 projection and the supplied Visual Design Director direction. Explain the

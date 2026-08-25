@@ -82,11 +82,11 @@ def build_resource_context_packet(
         if str(item.get("category", "") or "").casefold()
         in {"component", "visual_component", "registry_component"}
     ]
-    component_intents = [
-        item.get("component_intent")
-        for item in component_roles
-        if isinstance(item.get("component_intent"), dict)
-    ]
+    component_intents: list[dict[str, Any]] = []
+    for item in component_roles:
+        component_intent = item.get("component_intent")
+        if isinstance(component_intent, dict):
+            component_intents.append(component_intent)
     canonical_provider_terms = {
         str(item.get("role_id", "")): [
             str(term) for term in item.get("provider_terms", []) if str(term).strip()

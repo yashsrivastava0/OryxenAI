@@ -257,6 +257,11 @@ class HandoffIssue(BaseModel):
     message: str
     need_id: str = ""
     next_action: str = ""
+    # True (default) for every issue that must block Code Generator handoff.
+    # False marks an advisory issue about a non-required ("supporting"/
+    # "optional") role that failed to resolve — visible for review but not
+    # eligibility-blocking. See build_handoff_report()'s `eligible` computation.
+    blocking: bool = True
 
 
 class LocalRecipe(BaseModel):
