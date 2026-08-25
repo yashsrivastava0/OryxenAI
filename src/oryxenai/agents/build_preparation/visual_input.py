@@ -91,6 +91,15 @@ _IMAGE_ROLE_SPECS = (
         "landscape",
         "16:9",
     ),
+    (
+        "context",
+        "Quiet decorative atmosphere for a supporting section whose subject is not "
+        "one of the named roles above; kept profession-neutral rather than assumed technical.",
+        ["abstract editorial texture", "quiet material study", "neutral atmospheric backdrop"],
+        "quiet, restrained, unobtrusive",
+        "landscape",
+        "3:2",
+    ),
 )
 _COMPONENT_PROVIDER_VOCABULARY: dict[str, tuple[str, ...]] = {
     "capability-grouping": (
@@ -495,7 +504,13 @@ def _ordered_descriptors(
             return "education"
         if _section_matches(section_id, ("connect", "contact", "cta")):
             return "connect"
-        return "selected-work"
+        # A section whose ID doesn't match any named role above (e.g. "problem",
+        # "outcome", "design-system-note") has no basis for being treated as a
+        # flagship "selected-work" role — that previously over-promoted generic
+        # body sections to "important"/required status and blocked handoff over
+        # a decorative image nobody actually asked for. Fall back to the
+        # explicitly low-stakes, profession-neutral "context" role instead.
+        return "context"
 
     rank = {name: index for index, (name, *_rest) in enumerate(_IMAGE_ROLE_SPECS)}
     decorated = [
