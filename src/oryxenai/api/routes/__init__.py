@@ -47,7 +47,12 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     router.include_router(visual_design_director.router)
     router.include_router(build_preparation.router)
     if dev_ui_enabled and fixture_enabled:
-        router.include_router(build_preparation.fixture_router)
+        fixture_router = (
+            build_preparation.detached_fixture_router
+            if getattr(getattr(settings, "auth", None), "pipeline_mode", "attached") == "detached"
+            else build_preparation.fixture_router
+        )
+        router.include_router(fixture_router)
     router.include_router(code_generator.router)
     if dev_ui_enabled and code_generator_dev_enabled:
         router.include_router(code_generator_development.router)

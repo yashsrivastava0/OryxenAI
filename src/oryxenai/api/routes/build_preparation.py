@@ -35,6 +35,10 @@ fixture_router = APIRouter(
     tags=["build-preparation-fixture"],
     dependencies=[Depends(require_admin)],
 )
+detached_fixture_router = APIRouter(
+    prefix="/build-preparation/fixture",
+    tags=["build-preparation-fixture"],
+)
 
 
 class StartRequest(BaseModel):
@@ -221,6 +225,7 @@ async def regenerate_build_preparation(
 
 
 @fixture_router.post("/run")
+@detached_fixture_router.post("/run")
 async def run_build_preparation_fixture(
     request: Request,
     body: FixtureRunRequest | None = None,
@@ -247,12 +252,14 @@ async def run_build_preparation_fixture(
 
 
 @fixture_router.get("/preflight")
+@detached_fixture_router.get("/preflight")
 async def get_build_preparation_fixture_preflight(request: Request) -> dict[str, Any]:
     _fixture_enabled(request)
     return _fixture_manager(request).preflight()
 
 
 @fixture_router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
+@detached_fixture_router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
 async def start_build_preparation_fixture_run(
     request: Request,
     body: FixtureRunRequest | None = None,
@@ -276,6 +283,7 @@ async def start_build_preparation_fixture_run(
 
 
 @fixture_router.get("/runs/{run_id}")
+@detached_fixture_router.get("/runs/{run_id}")
 async def get_build_preparation_fixture_run(request: Request, run_id: str) -> dict[str, Any]:
     _fixture_enabled(request)
     try:
@@ -289,6 +297,7 @@ async def get_build_preparation_fixture_run(request: Request, run_id: str) -> di
 
 
 @fixture_router.get("/runs/{run_id}/download")
+@detached_fixture_router.get("/runs/{run_id}/download")
 async def download_build_preparation_fixture_run(request: Request, run_id: str) -> FileResponse:
     _fixture_enabled(request)
     try:

@@ -12,6 +12,21 @@ function replace(location, destination) {
   if (location?.pathname !== destination) location?.replace?.(destination);
 }
 
+export function createDetachedFetch(fetchImpl = globalThis.fetch) {
+  return async (input, init = {}) => {
+    const headers = new Headers(init.headers || {});
+    headers.set("Accept", "application/json");
+    headers.set("Cache-Control", "no-store");
+    headers.delete("Authorization");
+    return fetchImpl(input, {
+      ...init,
+      headers,
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  };
+}
+
 function targetForPath(pathname) {
   if (pathname.includes("build-preparation-fixture/progress")) return "progress";
   if (pathname.includes("build-preparation-fixture")) return "fixture";
@@ -56,6 +71,13 @@ export async function bootDevelopmentShell({
     replace(location, signIn);
   };
   if (!target) return { kind: "unknown_development_page" };
+
+  if (config.pipelineMode === "detached" && (target === "fixture" || target === "progress")) {
+    const request = createDetachedFetch(fetchImpl);
+    globalRef.OryxenAIProtectedFetch = request;
+    await loadProtected(target, request);
+    return { kind: "detached", target, pipelineMode: "detached" };
+  }
 
   const canonical = canonicalDestination(config, location);
   if (canonical) {

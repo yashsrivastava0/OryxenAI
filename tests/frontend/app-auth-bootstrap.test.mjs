@@ -183,3 +183,29 @@ test("admin developer boot resolves /me before loading the protected page", asyn
   assert.equal(loadedTarget, "code-generator");
   assert.equal(typeof loadedRequest, "function");
 });
+
+test("detached Build Preparation boot skips auth and uses the anonymous request boundary", async () => {
+  const page = location("/build-preparation-fixture");
+  let authCalls = 0;
+  let loadedTarget = null;
+  let loadedRequest = null;
+  const result = await bootDevelopmentShell({
+    config: { ...config, pipelineMode: "detached" },
+    location: page,
+    fetchImpl: async (url, init) => {
+      authCalls += 1;
+      return response(200, { url, cache: init.cache, authorization: init.headers.get("Authorization") });
+    },
+    loadProtected: async (target, request) => {
+      loadedTarget = target;
+      loadedRequest = request;
+    },
+  });
+
+  assert.equal(result.kind, "detached");
+  assert.equal(result.target, "fixture");
+  assert.equal(authCalls, 0);
+  assert.equal(loadedTarget, "fixture");
+  const responseValue = await loadedRequest("/api/v1/build-preparation/fixture/preflight");
+  assert.equal(responseValue.status, 200);
+});

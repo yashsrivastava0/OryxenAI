@@ -23,6 +23,27 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-052 - Extend temporary detached auth through the Build Preparation fixture
+
+- **Date & Time:** 2026-08-25 20:09 +05:30 - Codex (model/provider omitted)
+- **Status:** decided-implemented
+- **Context:** The local main pipeline was detached, but the Build Preparation
+  fixture still loaded the authenticated developer bootstrap and required an
+  administrator API token, so opening the intended local fixture URL redirected
+  to the sign-in screen.
+- **Decision:** In `auth.pipeline_mode = "detached"`, the Build Preparation
+  fixture and progress APIs accept the same anonymous, no-store request boundary
+  as the main pipeline, and the browser fixture bootstrap skips Supabase auth.
+  `/sign-in` redirects to `/app` in this mode. Attached, Docker, test, and
+  production-like modes retain the administrator boundary.
+- **Rejected alternatives:** Disabling authentication globally, changing the
+  attached/Docker policy, or making the browser bypass the API dependency. Those
+  choices would weaken protected environments or leave the fixture UI/API
+  inconsistent.
+- **Consequence:** Native detached Build Preparation opens directly at its local
+  fixture URL without login friction; reattaching auth remains a config-mode
+  change, and the protected development surfaces remain unchanged.
+
 ## D-051 - Source-bound Build Preparation checkpoints
 
 - **Date & Time:** 2026-08-25 11:54 +05:30 - Codex (GPT-5 / OpenAI)
@@ -73,7 +94,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 ## D-049 - Temporarily detach authentication from the main pipeline
 
 - **Date & Time:** 2026-08-25 16:30 +05:30 - Codex (GPT-5 / OpenAI)
-- **Status:** decided-implemented
+- **Status:** superseded-by-D-052
 - **Context:** Authentication is implemented, but repeated login, token refresh,
   and account-switching friction slows development of the main Discovery to
   Build Preparation workflow. Browser-held state also allowed stale errors and
