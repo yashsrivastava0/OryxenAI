@@ -290,6 +290,8 @@ def validate_pipeline_job_timeouts(settings: Any) -> None:
     budgets = {
         "discovery.understand_and_question": ("discovery", 1, 60.0),
         "discovery.build_or_revise_brief": ("discovery", 1, 60.0),
+        "discovery.prepare_questions": ("discovery", 1, 60.0),
+        "discovery.build_brief": ("discovery", 1, 60.0),
         "content_architect.build": ("content_architect", 3, 120.0),
         "visual_design_director.build": ("visual_design_director", 3, 120.0),
         "build_preparation.prepare": ("build_preparation", 5, 300.0),
