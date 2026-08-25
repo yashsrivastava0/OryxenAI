@@ -85,11 +85,19 @@ class AnthropicAdapter(BaseProviderAdapter):
 
         schema = output_model.model_json_schema()
         capabilities = self._profile.capabilities
-        if strict_schema and (
-            capabilities is None
-            or not capabilities.json_schema_mode
-            or capabilities.structured_output_mode != "native_json_schema"
-        ):
+        native_schema_compatible = _native_schema_compatible(schema)
+        native_schema_enabled = bool(
+            capabilities is not None
+            and capabilities.json_schema_mode
+            and capabilities.structured_output_mode == "native_json_schema"
+            and native_schema_compatible
+        )
+        native_schema_declared = bool(
+            capabilities is not None
+            and capabilities.json_schema_mode
+            and capabilities.structured_output_mode == "native_json_schema"
+        )
+        if strict_schema and not native_schema_declared:
             from oryxenai.agents.shared.providers.errors import ModelCapabilityUnsupportedError
 
             raise ModelCapabilityUnsupportedError(
@@ -100,14 +108,8 @@ class AnthropicAdapter(BaseProviderAdapter):
             "fences or commentary. The object must conform to this JSON Schema:\n"
             + json.dumps(schema, ensure_ascii=False, sort_keys=True)
         )
-        native_schema_compatible = _native_schema_compatible(schema)
         trusted_system = system_prompt or ""
-        if (
-            not strict_schema
-            or capabilities is None
-            or capabilities.structured_output_mode != "native_json_schema"
-            or not native_schema_compatible
-        ) and not _instructions_embed_schema(instructions):
+        if not native_schema_enabled and not _instructions_embed_schema(instructions):
             trusted_system = "\n\n".join(
                 part for part in (trusted_system, schema_instruction) if part
             )
@@ -123,7 +125,7 @@ class AnthropicAdapter(BaseProviderAdapter):
             system_prompt=trusted_system,
             messages=messages,
             request_params=None,
-            structured_schema=(schema if strict_schema and native_schema_compatible else None),
+            structured_schema=schema if native_schema_enabled else None,
         )
         payload, latency_ms = await self._post_messages(body)
         raw = self._extract_text(payload)
@@ -143,10 +145,18 @@ class AnthropicAdapter(BaseProviderAdapter):
                 f"Model returned non-object JSON: {type(parsed_output).__name__}"
             )
 
-        usage = _usage(payload.get("usage"))
+        usage = (
+            _usage(payload.get("usage"))
+            if capabilities is None or capabilities.usage_metadata
+            else {}
+        )
         return StructuredModelResult(
             parsed_output=parsed_output,
-            response_id=str(payload.get("id", "") or ""),
+            response_id=(
+                str(payload.get("id", "") or "")
+                if capabilities is None or capabilities.response_id
+                else ""
+            ),
             model=str(payload.get("model", "") or self._profile.model),
             usage=usage,
             finish_reason=str(payload.get("stop_reason", "unknown") or "unknown"),
@@ -185,12 +195,22 @@ class AnthropicAdapter(BaseProviderAdapter):
                 ]
             else:
                 body["system"] = system_prompt
-        if thinking_strategy == "adaptive":
+        if (
+            capabilities is not None
+            and capabilities.thinking_mode
+            and thinking_strategy == "adaptive"
+        ):
             body["thinking"] = {"type": "adaptive"}
-        elif thinking_strategy == "disabled":
+        elif (
+            capabilities is not None
+            and capabilities.thinking_mode
+            and thinking_strategy == "disabled"
+        ):
             body["thinking"] = {"type": "disabled"}
         elif (
-            thinking_strategy == "manual_budget"
+            capabilities is not None
+            and capabilities.thinking_mode
+            and thinking_strategy == "manual_budget"
             and reasoning_effort in _THINKING_BUDGETS
             and max_tokens >= 2048
         ):

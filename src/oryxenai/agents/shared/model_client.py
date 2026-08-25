@@ -4,9 +4,8 @@ Reads provider profiles from config/models.toml. Builds concrete provider
 adapters through the factory in providers/. Agent code depends on the
 ModelClient protocol, never on a provider module.
 
-When no real profile is configured (or no API key is set at startup),
-`build_model_client()` returns a `MockModelClient`. This lets the application
-start without any model credentials.
+Mocks are explicit test/development-harness dependencies. Live factories
+always resolve a configured provider through the shared runtime.
 """
 
 from __future__ import annotations
@@ -17,20 +16,15 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.contracts import ModelClient
-from oryxenai.agents.shared.model_router import ModelRouter
-from oryxenai.core.logging import get_logger
 
 if TYPE_CHECKING:
     from oryxenai.core.settings import ModelConfig, ModelProfile
-
-logger = get_logger("oryxenai.agents.model_client")
 
 
 class MockModelClient:
     """A no-network ModelClient that returns a fixed placeholder.
 
-    Used as fallback when no provider is configured or no API key is set.
-    The application can start and pass contract tests without credentials.
+    Used only when a test or development harness injects it explicitly.
     """
 
     async def complete(
@@ -318,40 +312,10 @@ def resolve_api_key(profile: ModelProfile) -> str | None:
 
 
 def build_model_client(model_config: ModelConfig) -> ModelClient:
-    """Build a ModelClient for the given config.
+    """Resolve the configured default through the shared live runtime."""
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
 
-    Returns a real provider adapter when a profile is configured and the
-    required API key environment variable is set. Falls back to
-    MockModelClient otherwise — the application starts without credentials.
-    """
-    from oryxenai.agents.shared.providers.factory import build_adapter, can_build
-
-    router = ModelRouter(model_config)
-    profile_name = router.resolve_profile_name("default")
-    profile = model_config.get_profile(profile_name)
-    if profile is not None and profile.provider and can_build(profile):
-        key = resolve_api_key(profile)
-        if key:
-            logger.info(
-                "building real model client for provider=%s model=%s",
-                profile.provider,
-                profile.model or "(default)",
-            )
-            return build_adapter(profile)
-        logger.info(
-            "provider '%s' configured but API key env var '%s' is not set — using mock client",
-            profile.provider,
-            profile.api_key_env,
-        )
-        return MockModelClient()
-
-    if profile is not None:
-        logger.info(
-            "model profile '%s' provider='%s' not recognised — using mock client",
-            profile_name,
-            profile.provider,
-        )
-    return MockModelClient()
+    return get_model_runtime(model_config).resolve("default")
 
 
 def build_provider_client(
@@ -359,41 +323,8 @@ def build_provider_client(
     model_config: ModelConfig,
     *,
     override_profile_name: str | None = None,
-) -> ModelClient | None:
-    """Build the configured provider adapter for a logical engine/profile."""
-    from oryxenai.agents.shared.providers.factory import build_adapter, can_build
+) -> ModelClient:
+    """Resolve a logical engine/profile through the shared live runtime."""
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
 
-    router = ModelRouter(model_config)
-    requested_override = str(override_profile_name or "").strip()
-    if requested_override and not router.is_selectable(requested_override):
-        logger.warning(
-            "override profile '%s' is not selectable - using configured route for '%s'",
-            requested_override,
-            profile_name,
-        )
-        requested_override = ""
-    resolved_name = router.resolve_profile_name(profile_name, requested_override)
-
-    profile = model_config.get_profile(resolved_name)
-    if profile is None:
-        logger.warning("profile '%s' not found in config/models.toml", resolved_name)
-        return None
-
-    if not profile.provider or not can_build(profile):
-        logger.warning(
-            "profile '%s' provider '%s' is not supported", resolved_name, profile.provider
-        )
-        return None
-
-    key = resolve_api_key(profile)
-    if not key:
-        logger.warning(
-            "profile '%s' API key env var '%s' is not set",
-            resolved_name,
-            profile.api_key_env,
-        )
-        return None
-
-    logger.info("using model route '%s' -> profile '%s'", profile_name, resolved_name)
-    logger.info("building %s adapter for profile '%s'", profile.provider, resolved_name)
-    return build_adapter(profile)
+    return get_model_runtime(model_config).resolve(profile_name, str(override_profile_name or ""))

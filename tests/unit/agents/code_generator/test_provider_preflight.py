@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 from oryxenai.agents.code_generator.core import provider_preflight
@@ -22,33 +20,30 @@ def test_provider_preflight_checks_every_v4_wire_schema_family() -> None:
 
 
 @pytest.mark.asyncio
-async def test_provider_preflight_uses_fixed_input_and_closes_client(monkeypatch):
+async def test_provider_preflight_delegates_to_shared_runtime_without_closing_client(
+    monkeypatch,
+):
     settings = Settings()
-    calls: list[dict[str, object]] = []
+    calls: list[list[str]] = []
 
-    class FakeClient:
-        async def generate_structured(self, **kwargs):
-            calls.append(kwargs)
-            return SimpleNamespace(
-                parsed_output={"ok": True, "protocol": "code-generator-preflight-v1"}
-            )
-
-        async def aclose(self):
-            calls.append({"closed": True})
+    class FakeRuntime:
+        async def preflight(self, profile_names):
+            calls.append(profile_names)
+            return {
+                "profiles": [
+                    {"profile_id": name, "profile_fingerprint": f"fp-{name}"}
+                    for name in profile_names
+                ]
+            }
 
     provider_preflight.clear_provider_preflight_cache()
     monkeypatch.setattr(provider_preflight, "resolve_api_key", lambda _profile: "configured")
-    monkeypatch.setattr(provider_preflight, "build_provider_client", lambda *_args: FakeClient())
+    monkeypatch.setattr(provider_preflight, "get_model_runtime", lambda _config: FakeRuntime())
 
     result = await provider_preflight.run_provider_preflight(
         settings,
         [settings.code_generator_development.planner_profile],
     )
 
-    request = calls[0]
-    assert request["operation"] == "code_generator.provider_preflight"
-    assert request["input_payload"] == {"protocol": "code-generator-preflight-v1"}
-    assert "portfolio data" in str(request["instructions"])
-    assert "portfolio" not in str(request["input_payload"])
-    assert calls[-1] == {"closed": True}
+    assert calls == [[settings.code_generator_development.planner_profile]]
     assert result["private_context_sent"] is False
