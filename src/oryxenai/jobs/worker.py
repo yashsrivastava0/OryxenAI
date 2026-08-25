@@ -38,7 +38,7 @@ from oryxenai.agents.shared.providers.errors import (
     stable_provider_failure,
 )
 from oryxenai.auth.worker_fence import AuthorizationFenceError, WorkerAuthorizationFence
-from oryxenai.core.logging import get_logger
+from oryxenai.core.logging import configure_logging, get_logger
 from oryxenai.core.settings import get_settings
 from oryxenai.db.session import get_engine, reset_engine_cache
 from oryxenai.jobs.contracts import permanent, retryable
@@ -476,6 +476,11 @@ class Worker:
 
 
 def main() -> None:
+    # Unlike main.py's FastAPI lifespan, nothing else configures logging for
+    # this standalone entrypoint — without this, every logger.info/.warning
+    # call in the worker (including job failure diagnostics) is silently
+    # dropped by Python's unconfigured root logger.
+    configure_logging(get_settings())
     worker = Worker()
     asyncio.run(worker.run())
 
