@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 15:44 +05:30 — Codex (model/provider omitted) — [c9f0a95] — native Luna Build Preparation handoff
+Hardened the native live Build Preparation path for bounded Luna output-shape
+recovery, fixture approval stamping, Unicode CLI output, and bounded image
+candidate retries. Aligned Code Generator admission with non-blocking optional
+execution gaps; verified a live `build-preparation-pack-v3` ZIP through the
+exact generator upload/admission path with zero blocking issues.
+
 ### 2026-08-25 15:06 +05:30 — Codex (model/provider omitted) — [62166f3] — durable model-output retries
 Converted deterministic output-contract failures from terminal handler errors
 into bounded, privacy-safe retries across Discovery, Content Architect, and
