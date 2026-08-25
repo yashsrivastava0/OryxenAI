@@ -55,7 +55,12 @@ def create_api_router(settings: object | None = None) -> APIRouter:
         router.include_router(fixture_router)
     router.include_router(code_generator.router)
     if dev_ui_enabled and code_generator_dev_enabled:
-        router.include_router(code_generator_development.router)
+        code_gen_dev_router = (
+            code_generator_development.detached_router
+            if getattr(getattr(settings, "auth", None), "pipeline_mode", "attached") == "detached"
+            else code_generator_development.router
+        )
+        router.include_router(code_gen_dev_router)
     return router
 
 
