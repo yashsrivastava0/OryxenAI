@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 || ! "$1" =~ ^(migrate|api|worker|preview|doctor)$ ]]; then
-  echo "Usage: $0 {migrate|api|worker|preview|doctor}" >&2
+if [[ $# -ne 1 || ! "$1" =~ ^(align-db|migrate|api|worker|preview|doctor)$ ]]; then
+  echo "Usage: $0 {align-db|migrate|api|worker|preview|doctor}" >&2
   exit 2
 fi
 
@@ -16,6 +16,9 @@ export OryxenAI_CONFIG_OVERLAY="config/app.native.toml"
 mkdir -p "$REPO_ROOT/.workspace/cache/python"
 
 case "$1" in
+  align-db)
+    exec uv run python scripts/align_native_postgres.py
+    ;;
   migrate)
     exec uv run alembic upgrade head
     ;;
@@ -35,6 +38,7 @@ case "$1" in
     exec uv run python -m oryxenai.preview.gateway
     ;;
   doctor)
-    exec uv run python scripts/verify_environment.py
+    uv run python scripts/verify_environment.py
+    exec uv run python scripts/verify_database.py
     ;;
 esac

@@ -33,6 +33,8 @@ def test_model_profile_endpoint_is_config_driven_and_safe() -> None:
     assert schema["type"] == "array"
     assert "api_key_env" not in str(schema).lower()
     assert "base_url" not in str(schema).lower()
+    assert "/api/v1/pipeline/model-profiles" in paths
+    assert "/api/v1/pipeline/model-profiles/preflight" in paths
 
 
 def test_removed_endpoints_are_gone() -> None:
@@ -58,6 +60,11 @@ def test_frontend_uses_safe_dom_rendering_and_chat_endpoints() -> None:
     assert "/discovery/approve" in javascript
     assert "oryxenai.session_id" in javascript
     assert "textContent" in javascript
+    assert "/pipeline/model-profiles" in javascript
+    assert "/pipeline/model-profiles/preflight" in javascript
+    assert "ensureModelProfileReady" in javascript
+    assert "resetModelSelector" in javascript
+    assert "future Code Generation Engine" not in javascript
 
 
 def test_frontend_has_chat_page_elements() -> None:

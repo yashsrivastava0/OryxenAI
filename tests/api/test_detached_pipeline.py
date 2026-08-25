@@ -24,9 +24,13 @@ pytestmark = pytest.mark.integration
 async def detached_client(test_engine):
     app = create_app()
     app.state.settings.auth.pipeline_mode = "detached"
-    app.state.sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    app.state.sessionmaker = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
     app.state.artifact_store = MemoryArtifactStore()
-    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client, app
 
 
@@ -40,6 +44,62 @@ async def test_detached_pipeline_does_not_require_auth(detached_client):
     state = await client.get(f"/api/v1/sessions/{body['id']}/discovery")
     assert state.status_code == 200
     assert state.json()["discovery"]["status"] == "not_started"
+
+
+async def test_detached_model_profiles_are_safe_and_preflighted(detached_client):
+    client, app = detached_client
+    calls: list[tuple[list[str], str]] = []
+
+    class FakeRuntime:
+        async def preflight(self, engines, override):
+            calls.append((engines, override))
+            return {
+                "status": "ready",
+                "private_context_sent": False,
+                "profiles": [{"profile_id": "safe-profile"}],
+            }
+
+    app.state.model_runtime = FakeRuntime()
+    listing = await client.get("/api/v1/pipeline/model-profiles")
+    assert listing.status_code == 200
+    assert listing.json()["options"]
+    assert "provider" not in listing.text.casefold()
+    assert "model" not in {
+        key.casefold() for option in listing.json()["options"] for key in option if key != "id"
+    }
+    assert "api_key" not in listing.text.casefold()
+    assert "base_url" not in listing.text.casefold()
+
+    response = await client.post(
+        "/api/v1/pipeline/model-profiles/preflight",
+        json={"model_profile": ""},
+    )
+    assert response.status_code == 200
+    assert response.json()["private_context_sent"] is False
+    assert calls == [
+        (
+            [
+                "discovery",
+                "content_architect",
+                "visual_design_director",
+                "build_preparation",
+            ],
+            "",
+        )
+    ]
+
+
+async def test_pipeline_model_profiles_fail_closed_in_attached_mode(detached_client):
+    client, app = detached_client
+    app.state.settings.auth.pipeline_mode = "attached"
+
+    listing = await client.get("/api/v1/pipeline/model-profiles")
+    preflight = await client.post(
+        "/api/v1/pipeline/model-profiles/preflight", json={"model_profile": ""}
+    )
+
+    assert listing.status_code == 404
+    assert preflight.status_code == 404
 
 
 async def test_restart_deletes_durable_rows_and_recreates_empty_session(detached_client):
@@ -108,12 +168,16 @@ async def test_restart_deletes_durable_rows_and_recreates_empty_session(detached
         assert await db.get(PortfolioSession, replacement_id) is not None
         assert (
             await db.scalar(
-                select(func.count()).select_from(AgentRun).where(AgentRun.portfolio_session_id == old_id)
+                select(func.count())
+                .select_from(AgentRun)
+                .where(AgentRun.portfolio_session_id == old_id)
             )
         ) == 0
         assert (
             await db.scalar(
-                select(func.count()).select_from(BackgroundJob).where(BackgroundJob.portfolio_session_id == old_id)
+                select(func.count())
+                .select_from(BackgroundJob)
+                .where(BackgroundJob.portfolio_session_id == old_id)
             )
         ) == 0
 

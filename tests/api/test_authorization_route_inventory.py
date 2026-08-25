@@ -149,14 +149,27 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
             path.startswith("/api/v1/sessions/{session_id}/")
             or path == "/api/v1/sessions/{session_id}"
         ):
-            pipeline_route = any(
-                stage in path
-                for stage in ("/discovery", "/content-architect", "/visual-design-director", "/build-preparation")
-            ) or path == "/api/v1/sessions/{session_id}"
-            _require(route, require_pipeline_session if pipeline_route else require_session_owner_or_admin)
+            pipeline_route = (
+                any(
+                    stage in path
+                    for stage in (
+                        "/discovery",
+                        "/content-architect",
+                        "/visual-design-director",
+                        "/build-preparation",
+                    )
+                )
+                or path == "/api/v1/sessions/{session_id}"
+            )
+            _require(
+                route,
+                require_pipeline_session if pipeline_route else require_session_owner_or_admin,
+            )
             if method != "GET":
                 assert _MUTATION_CLASSES[(method, path)] == "portfolio_mutation"
-                _require(route, require_pipeline_mutable if pipeline_route else require_mutable_portfolio)
+                _require(
+                    route, require_pipeline_mutable if pipeline_route else require_mutable_portfolio
+                )
             continue
         if path.startswith("/api/v1/system/") or path == "/api/v1/model-profiles":
             if method != "GET":

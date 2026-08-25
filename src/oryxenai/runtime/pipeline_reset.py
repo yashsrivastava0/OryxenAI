@@ -115,13 +115,17 @@ class PipelineResetService:
         run_ids = select(CodeGeneratorDevelopmentRun.id).where(
             CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
         )
-        await self.db.execute(delete(BackgroundJob).where(BackgroundJob.portfolio_session_id == session_id))
+        await self.db.execute(
+            delete(BackgroundJob).where(BackgroundJob.portfolio_session_id == session_id)
+        )
         await self.db.execute(delete(AgentRun).where(AgentRun.portfolio_session_id == session_id))
         await self.db.execute(
             delete(CodeGeneratorStageAttempt).where(CodeGeneratorStageAttempt.run_id.in_(run_ids))
         )
         await self.db.execute(
-            delete(CodeGeneratorDevelopmentEvent).where(CodeGeneratorDevelopmentEvent.run_id.in_(run_ids))
+            delete(CodeGeneratorDevelopmentEvent).where(
+                CodeGeneratorDevelopmentEvent.run_id.in_(run_ids)
+            )
         )
         await self.db.execute(
             delete(CodeGeneratorDevelopmentRun).where(

@@ -18,6 +18,9 @@
   var answeringQuestionId = null;
   var awaitingNextAgentConfirmation = null; // {startFn, label} while a "move to next agent?" prompt is active
   var selectedModelProfile = ""; // Empty means the config-routed default; other values are config-approved profile IDs.
+  var preflightedModelProfile = null;
+  var modelProfilesLoaded = false;
+  var modelPreflightPromise = null;
 
   var RUNNING_STATUSES = ["questions_queued", "questions_running", "brief_running", "answers_in_progress"];
   var TERMINAL_STATUSES = ["questions_ready", "brief_review", "approved", "needs_attention"];
@@ -423,6 +426,8 @@
       throw { status: 401, message: "Authentication is required.", body: null };
     }
     var requestOpts = Object.assign({}, opts || {});
+    var timeoutMs = Number(requestOpts.timeoutMs || 30000);
+    delete requestOpts.timeoutMs;
     requestOpts.headers = Object.assign({}, requestOpts.headers || {});
     requestOpts.headers["Cache-Control"] = "no-store";
     requestOpts.cache = "no-store";
@@ -439,7 +444,7 @@
     }
     var controller = new AbortController();
     requestControllers.add(controller);
-    var timer = window.setTimeout(function () { controller.abort(); }, 30000);
+    var timer = window.setTimeout(function () { controller.abort(); }, timeoutMs);
     requestOpts.signal = controller.signal;
     var resp = null;
     try {
@@ -478,6 +483,110 @@
       throw { status: resp.status, code: code || "", message: msg, body: body };
     }
     return body;
+  }
+
+  function setModelPreflightStatus(message, kind) {
+    var status = document.getElementById("model-preflight-status");
+    if (!status) return;
+    status.textContent = message || "";
+    status.className = "result" + (kind ? " " + kind : "");
+  }
+
+  function populateModelProfiles(options, defaultProfile) {
+    var select = document.getElementById("provider-select");
+    if (!select) return;
+    select.replaceChildren();
+    (options || []).forEach(function (option) {
+      var element = document.createElement("option");
+      element.value = String(option.id || "");
+      element.textContent = String(option.label || option.id || "Configured default");
+      if (element.value === String(defaultProfile || "")) element.selected = true;
+      select.appendChild(element);
+    });
+    if (!select.options.length) {
+      var fallback = document.createElement("option");
+      fallback.value = "";
+      fallback.textContent = "Configured default";
+      select.appendChild(fallback);
+    }
+    select.value = selectedModelProfile || String(defaultProfile || "");
+    selectedModelProfile = select.value;
+    modelProfilesLoaded = true;
+  }
+
+  async function loadModelProfiles() {
+    var endpoint = pipelineMode === "detached"
+      ? API + "/pipeline/model-profiles"
+      : API + "/model-profiles";
+    try {
+      var response = await fetchJson(endpoint);
+      if (Array.isArray(response)) populateModelProfiles(response, "");
+      else populateModelProfiles(response.options || [], response.default_model_profile || "");
+      if (pipelineMode === "detached") await preflightSelectedModel();
+    } catch (e) {
+      modelProfilesLoaded = false;
+      setModelPreflightStatus("Model profiles are unavailable: " + e.message, "error");
+    }
+  }
+
+  async function preflightSelectedModel() {
+    if (pipelineMode !== "detached") return true;
+    if (modelPreflightPromise) return modelPreflightPromise;
+    var profile = selectedModelProfile;
+    if (preflightedModelProfile === profile) return true;
+    var select = document.getElementById("provider-select");
+    if (select) select.disabled = true;
+    setModelPreflightStatus("Checking model readinessâ€¦");
+    modelPreflightPromise = (async function () {
+      try {
+        await fetchJson(API + "/pipeline/model-profiles/preflight", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model_profile: profile }),
+          timeoutMs: 240000,
+        });
+        preflightedModelProfile = profile;
+        setModelPreflightStatus("Ready", "success");
+        return true;
+      } catch (e) {
+        preflightedModelProfile = null;
+        setModelPreflightStatus("Not ready: " + e.message, "error");
+        return false;
+      } finally {
+        modelPreflightPromise = null;
+        if (select) select.disabled = Boolean(chatState && chatState.status !== "not_started");
+      }
+    })();
+    return modelPreflightPromise;
+  }
+
+  async function ensureModelProfileReady() {
+    if (pipelineMode !== "detached") return true;
+    if (!modelProfilesLoaded) await loadModelProfiles();
+    return preflightSelectedModel();
+  }
+
+  function restoreStickyModelProfile() {
+    if (!chatState || !chatState.status || chatState.status === "not_started") return;
+    selectedModelProfile = String(chatState.model_profile || "");
+    var select = document.getElementById("provider-select");
+    if (select) {
+      select.value = selectedModelProfile;
+      select.disabled = true;
+    }
+    preflightedModelProfile = selectedModelProfile;
+  }
+
+  function resetModelSelector() {
+    selectedModelProfile = "";
+    preflightedModelProfile = null;
+    modelPreflightPromise = null;
+    var select = document.getElementById("provider-select");
+    if (select) {
+      select.value = "";
+      select.disabled = false;
+    }
+    setModelPreflightStatus("");
   }
 
   function rememberSession(sessionId) {
@@ -761,6 +870,13 @@
   }
 
   async function startDiscovery(message, documentText) {
+    if (!(await ensureModelProfileReady())) {
+      showChatFailure(
+        "The selected model profile is not ready. Review the model status and try again.",
+        function () { startDiscovery(message, documentText); },
+      );
+      return;
+    }
     var goal = "create my portfolio";
     lastIntake = {
       message: message,
@@ -1397,6 +1513,7 @@
       if (route.agent === "build_preparation") buildPreparationState = state;
       rememberAgentState(route.agent, state, stageJobs[route.agent]);
     });
+    restoreStickyModelProfile();
     renderSidebarOutputTabs();
     recordActivity("system", "Restored the current session state from the API.", "success", "session|restored|" + selectedSessionId);
 
@@ -1951,9 +2068,9 @@
 
   // ── Safe Markdown rendering (DOM nodes only, no HTML injection) ─────────
 
-  // Hidden Build Preparation: explicit developer-harness trigger. There is no
-  // separate review/approval step; this only exposes the durable stage result
-  // while the future Code Generation Engine remains out of scope.
+  // Hidden Build Preparation remains an explicit trigger. There is no
+  // separate review/approval step, and Code Generator stays a separate
+  // protected workflow with no start control in this workspace.
   var buildPreparationState = null;
   var buildPreparationPollTimer = null;
 
@@ -2014,7 +2131,7 @@
     var title = document.createElement("h2");
     title.textContent = "Build package ready";
     content.appendChild(title);
-    content.appendChild(textEl("Verified visual resources, local component references, fallbacks, and scoped route context are ready for the future Code Generation Engine."));
+    content.appendChild(textEl("Verified visual resources, local component references, fallbacks, and scoped route context are ready for the separate Code Generator workflow."));
 
     var ref = buildPreparationState.bundle_ref || {};
     var metadata = document.createElement("p");
@@ -2509,6 +2626,7 @@
     var oldSessionId = selectedSessionId;
     var replacementId = freshSessionId();
     clearClientPipelineState();
+    resetModelSelector();
     if (!oldSessionId) {
       forgetSession();
       chatWelcome();
@@ -2567,7 +2685,7 @@
     var advanced = document.getElementById("advanced");
     if (advanced) advanced.hidden = pipelineMode === "detached" || !options.developer;
     var modelRow = document.querySelector(".model-select-row");
-    if (modelRow) modelRow.hidden = !options.developer;
+    if (modelRow) modelRow.hidden = pipelineMode !== "detached" && !options.developer;
     var adminLink = document.getElementById("app-admin-link");
     if (adminLink) adminLink.hidden = pipelineMode === "detached" || options.role !== "admin";
     document.querySelectorAll('[data-user="username"]').forEach(function (element) {
@@ -2598,11 +2716,14 @@
       loadSystemStatus();
       systemStatusTimer = setInterval(loadSystemStatus, 15000);
     }
+    if (pipelineMode === "detached" || options.developer) loadModelProfiles();
 
     document.getElementById("btn-send").addEventListener("click", sendMessage);
     var providerSelect = document.getElementById("provider-select");
-    if (providerSelect) providerSelect.addEventListener("change", function () {
-      selectedModelProfile = options.developer ? this.value : "";
+    if (providerSelect) providerSelect.addEventListener("change", async function () {
+      selectedModelProfile = (pipelineMode === "detached" || options.developer) ? this.value : "";
+      preflightedModelProfile = null;
+      if (pipelineMode === "detached") await preflightSelectedModel();
     });
     document.getElementById("composer").addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.shiftKey) {
@@ -2703,6 +2824,7 @@
     sessionCreatePromise = null;
     portfolioReadOnly = false;
     pipelineMode = "attached";
+    resetModelSelector();
     clearClientPipelineState();
     forgetSession();
     authorizedRequest = null;

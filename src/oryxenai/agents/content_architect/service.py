@@ -103,7 +103,12 @@ class ContentArchitectService:
         # session — if none is explicitly given here, inherit the choice
         # already recorded on the approved Discovery run rather than asking
         # the user to pick twice.
-        resolved_profile = model_profile or discovery.model_profile
+        if model_profile and model_profile != discovery.model_profile:
+            raise ContentArchitectOperationError(
+                "MODEL_PROFILE_LOCKED",
+                "Content Architect must use the model profile selected in Discovery.",
+            )
+        resolved_profile = discovery.model_profile
 
         intake = ContentArchitectIntake(
             approved_brief_title=discovery.brief.title,

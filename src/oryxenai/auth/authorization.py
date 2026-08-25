@@ -69,11 +69,7 @@ class DurableAuthorizationContext:
         entitlement_revision: int | None = None,
     ) -> DurableAuthorizationContext:
         session = access.session
-        if (
-            access.actor is None
-            or session.owner_user_id is None
-            or session.legacy_quarantined
-        ):
+        if access.actor is None or session.owner_user_id is None or session.legacy_quarantined:
             return cls(None, None, None, authorization_context_version=0)
         context = cls(
             portfolio_session_id=session.id,
