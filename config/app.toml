@@ -184,7 +184,10 @@ editorial_image_maximum = 6
 visual_component_budget = 4
 visual_component_maximum = 6
 # Per-role transport/source retries remain bounded; role count is semantic.
-image_source_attempt_maximum = 3
+# Image search results often repeat one provider asset across adjacent
+# decorative roles. Leave enough bounded candidates to find a distinct,
+# locally valid asset without allowing an unbounded retrieval loop.
+image_source_attempt_maximum = 8
 component_source_attempt_maximum = 3
 provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
