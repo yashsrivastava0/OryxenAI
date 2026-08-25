@@ -182,8 +182,9 @@ class AuthConfig(BaseModel):
     enabled: bool = True
     required: bool = False
     # The main pipeline may be run anonymously only in local/test development.
-    # This is deliberately separate from ``enabled`` because the auth/admin
-    # boundary remains available while the product pipeline is detached.
+    # This is deliberately separate from ``enabled`` because detached mode
+    # only relaxes the explicitly anonymous local pipeline/fixture boundary;
+    # attached and deployment-like surfaces remain protected.
     pipeline_mode: str = "attached"
     # ``allowlist`` keeps local/restricted environments closed.  ``open``
     # admits any verified Google identity until the database-owned normal-user

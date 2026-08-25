@@ -185,7 +185,8 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
         if path.startswith("/api/v1/build-preparation/fixture/"):
             if method != "GET":
                 assert _MUTATION_CLASSES[(method, path)] == "admin_fixture_mutation"
-            _require(route, require_admin)
+            if app.state.settings.auth.pipeline_mode != "detached":
+                _require(route, require_admin)
             continue
         if path.startswith("/api/v1/development/code-generator/"):
             if method != "GET":
@@ -210,6 +211,21 @@ def test_public_health_routes_have_no_auth_dependency() -> None:
         assert get_current_user not in _dependency_calls(route)
         assert require_onboarded_user not in _dependency_calls(route)
         assert require_admin not in _dependency_calls(route)
+
+
+def test_attached_fixture_routes_retain_admin_boundary() -> None:
+    settings = Settings()
+    settings.auth.pipeline_mode = "attached"
+    app = create_app(settings)
+    fixture_routes = [
+        route
+        for _method, path, route in _api_routes(app)
+        if path.startswith("/api/v1/build-preparation/fixture/")
+    ]
+
+    assert fixture_routes
+    for route in fixture_routes:
+        _require(route, require_admin)
 
 
 def test_development_api_routes_are_absent_when_dev_ui_is_disabled() -> None:
