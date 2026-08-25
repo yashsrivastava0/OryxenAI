@@ -91,6 +91,17 @@ shutdown_grace = 3.0
 handler_timeout = 10.0      # short timeout for deterministic test handlers
 lease_duration = 5.0
 
+[worker.job.kind_timeouts]
+# Keep the production model-backed call graphs configuration-valid while
+# retaining the short default for deterministic probe/test handlers.
+"discovery.understand_and_question" = 300.0
+"discovery.build_or_revise_brief" = 300.0
+"discovery.prepare_questions" = 300.0
+"discovery.build_brief" = 300.0
+"content_architect.build" = 900.0
+"visual_design_director.build" = 900.0
+"build_preparation.prepare" = 1800.0
+
 [worker.retry]
 max_attempts = 3
 base_delay = 0.01

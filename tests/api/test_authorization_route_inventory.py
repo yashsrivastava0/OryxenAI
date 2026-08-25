@@ -58,6 +58,7 @@ def _require(route: object, dependency: object) -> None:
 
 _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("PUT", "/api/v1/me/username"): "identity_onboarding",
+    ("POST", "/api/v1/pipeline/model-profiles/preflight"): "detached_diagnostic",
     ("POST", "/api/v1/sessions"): "portfolio_admission",
     ("POST", "/api/v1/sessions/{session_id}/runs/mock"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/discovery/start"): "portfolio_mutation",
@@ -143,6 +144,11 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
             _require(route, require_mutable_portfolio)
             continue
         if path == "/api/v1/sessions/{session_id}/restart":
+            _require(route, require_detached_pipeline_mode)
+            continue
+        if path.startswith("/api/v1/pipeline/model-profiles"):
+            if method != "GET":
+                assert _MUTATION_CLASSES[(method, path)] == "detached_diagnostic"
             _require(route, require_detached_pipeline_mode)
             continue
         if (
