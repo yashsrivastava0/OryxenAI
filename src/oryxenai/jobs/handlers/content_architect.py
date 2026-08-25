@@ -29,7 +29,11 @@ from oryxenai.agents.content_architect.state import (
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.agents.shared.observability import durable_model_metadata
-from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
+from oryxenai.agents.shared.providers.errors import (
+    ModelOutputInvalidError,
+    ProviderError,
+    stable_provider_failure,
+)
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
@@ -161,16 +165,17 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         logger.warning(
             "content_architect build produced invalid output type=%s", type(exc).__name__
         )
+        retry_error = ModelOutputInvalidError()
         await _persist_failure(
             sessionmaker,
             session_id,
             run_id,
             payload,
-            ProviderError(code="MODEL_OUTPUT_INVALID", message=str(exc), retryable=True),
+            retry_error,
             attempt,
             max_attempts,
         )
-        raise
+        raise retry_error from exc
     except Exception as exc:
         logger.warning("content_architect build failed with %s", type(exc).__name__)
         await _persist_failure(

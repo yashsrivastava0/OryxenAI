@@ -11,7 +11,13 @@ from oryxenai.agents.content_architect.service import ContentArchitectService
 from oryxenai.agents.discovery.agent import DiscoveryAgent
 from oryxenai.agents.discovery.schemas import DiscoveryAnswer
 from oryxenai.agents.discovery.service import DiscoveryService
-from oryxenai.agents.shared.providers.errors import ProviderTimeoutError
+from oryxenai.agents.shared.providers.errors import (
+    ModelOutputInvalidError,
+    ProviderTimeoutError,
+)
+from oryxenai.agents.visual_design_director.agent import (
+    VisualDesignDirectorModelOutputError,
+)
 from oryxenai.agents.visual_design_director.service import (
     VisualDesignDirectorOperationError,
     VisualDesignDirectorService,
@@ -26,7 +32,10 @@ from oryxenai.jobs.handlers.discovery import (
     DiscoveryBuildOrReviseBriefHandler,
     DiscoveryUnderstandAndQuestionHandler,
 )
-from oryxenai.jobs.handlers.visual_design_director import VisualDesignDirectorBuildHandler
+from oryxenai.jobs.handlers.visual_design_director import (
+    VisualDesignDirectorBuildHandler,
+    _validation_error_categories,
+)
 from oryxenai.jobs.service import JobService
 from tests.conftest import (
     _ContentArchitectMockModelClient,
@@ -40,6 +49,25 @@ pytestmark = pytest.mark.integration
 class _BoomAgent:
     async def run(self, context):
         raise ProviderTimeoutError("simulated timeout")
+
+
+class _InvalidOutputAgent:
+    async def run(self, context):
+        raise VisualDesignDirectorModelOutputError(
+            "establish_visual_language", ["simulated generated contract mismatch"]
+        )
+
+
+def test_validation_error_categories_do_not_echo_generated_details() -> None:
+    categories = _validation_error_categories(
+        [
+            "Page 0 references unknown route_id 'private-generated-value'",
+            "resource_id(s) ['private-resource-value'] were not in the catalogue shortlist",
+        ]
+    )
+
+    assert categories == ["page_routes", "resources"]
+    assert "private-generated-value" not in repr(categories)
 
 
 def _mock_vdd_agent_factory(*args, **kwargs):
@@ -286,6 +314,41 @@ async def test_transient_failure_does_not_surface_while_retries_remain(
         await VisualDesignDirectorBuildHandler().execute(payload, "test-worker")
     await db_session.commit()
 
+    db_session.expire_all()
+    state_data = await service.get_visual_design_director_state(session_id)
+    assert state_data["visual_design_director"]["status"] == "build_running"
+    assert state_data["visual_design_director"]["latest_error"] is None
+
+
+@pytest.mark.asyncio
+async def test_model_output_failure_is_rethrown_as_retryable_provider_error(
+    db_session, monkeypatch
+) -> None:
+    session = await PortfolioSessionRepository(db_session).create(
+        "Invalid model output visual design director"
+    )
+    session_id = session.id
+    await _approve_discovery_and_content_architect(db_session, session_id, monkeypatch)
+
+    service = VisualDesignDirectorService(
+        VisualDesignDirectorRepository(db_session), JobService(db_session)
+    )
+    started = await service.start(session_id, {})
+    await db_session.commit()
+    monkeypatch.setattr(
+        "oryxenai.jobs.handlers.visual_design_director._build_visual_design_director_agent",
+        lambda *args, **kwargs: _InvalidOutputAgent(),
+    )
+
+    build_job = await JobService(db_session).get(UUID(started["visual_design_director"]["job_id"]))
+    payload = dict(build_job.payload)
+    payload["attempt"] = 1
+    with pytest.raises(ModelOutputInvalidError) as exc_info:
+        await VisualDesignDirectorBuildHandler().execute(payload, "test-worker")
+    await db_session.commit()
+
+    assert exc_info.value.code == "MODEL_OUTPUT_INVALID"
+    assert exc_info.value.retryable is True
     db_session.expire_all()
     state_data = await service.get_visual_design_director_state(session_id)
     assert state_data["visual_design_director"]["status"] == "build_running"

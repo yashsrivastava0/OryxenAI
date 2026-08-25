@@ -33,6 +33,7 @@ _SAFE_FAILURE_MESSAGES = {
     "PROVIDER_CONFIG_ERROR": "The configured model provider is unavailable.",
     "PROVIDER_CONTENT_FILTER_ERROR": "The model provider refused the request safely.",
     "PROVIDER_HTTP_ERROR": "The configured model provider returned an unexpected response.",
+    "MODEL_OUTPUT_INVALID": "The model returned output that did not satisfy the required structure.",
     "NETWORK_RETRY_EXHAUSTED": "The model provider network retry budget was exhausted.",
     "CODE_GENERATOR_PROVIDER_CREDENTIAL_MISSING": "The configured model provider credentials are missing.",
     "CODE_GENERATOR_PROVIDER_UNAVAILABLE": "The configured model provider is unavailable.",
@@ -191,6 +192,13 @@ class ModelJsonInvalidError(ProviderError):
 
     def __init__(self, message: str = "Model returned invalid JSON") -> None:
         super().__init__(message, code="MODEL_JSON_INVALID", retryable=True)
+
+
+class ModelOutputInvalidError(ProviderError):
+    """Parsed model output failed an agent's deterministic output contract."""
+
+    def __init__(self, message: str = "Model output failed structural validation") -> None:
+        super().__init__(message, code="MODEL_OUTPUT_INVALID", retryable=True)
 
 
 class ModelSemanticallyInvalidError(ProviderError):

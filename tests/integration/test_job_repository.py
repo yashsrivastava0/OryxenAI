@@ -106,11 +106,20 @@ async def test_mark_succeeded(db_session):
     claimed = await repo.claim_batch("worker-1", 120.0, 1)
     assert len(claimed) == 1
 
+    await repo.mark_failed(
+        job.id,
+        {"code": "RETRYABLE", "message": "retry once", "retryable": True},
+        available_at=datetime.now(UTC),
+    )
+    claimed_again = await repo.claim_batch("worker-1", 120.0, 1)
+    assert len(claimed_again) == 1
+
     await repo.mark_succeeded(job.id, {"result": "ok"})
     fetched = await repo.get_by_id(job.id)
     assert fetched is not None
     assert fetched.status == JobStatus.SUCCEEDED.value
     assert fetched.result == {"result": "ok"}
+    assert fetched.error_payload is None
 
 
 async def test_mark_failed(db_session):
