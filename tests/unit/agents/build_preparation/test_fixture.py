@@ -8,6 +8,7 @@ import pytest
 from oryxenai.agents.build_preparation import fixture_runs
 from oryxenai.agents.build_preparation.fixture import (
     _content_snapshot_path,
+    _fixture_inputs,
     _fixture_path,
     _load_content_snapshot,
     _load_default,
@@ -80,6 +81,22 @@ def test_fixture_auto_picks_attached_content_and_visual_outputs(
     preflight = fixture_storage_preflight(settings)
     assert preflight["inputs"]["visual_design_director"]["status"] == "ready"
     assert preflight["inputs"]["content_architect"]["status"] == "ready"
+
+
+def test_fixture_stamps_explicit_inputs_for_canonical_pack_approval() -> None:
+    settings = Settings()
+    content, visual = _fixture_inputs(
+        settings,
+        {
+            "source_ref": {"content_architect_content_hash": "content-source-hash"},
+            "approved": None,
+            "pages": [{"route_id": "home", "publication_status": "approved"}],
+        },
+        {"route_plan": [{"route_id": "home", "publication_status": "approved"}]},
+    )
+
+    assert content["approved"]["content_hash"] == "content-source-hash"
+    assert visual["approved"]["visual_direction_hash"]
 
 
 def test_fixture_diagnostics_retry_transient_windows_replace(

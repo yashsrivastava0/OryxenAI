@@ -1453,19 +1453,73 @@ class BuildPreparationAgent(Agent):
 
 
 def _normalize_context_payload(parsed: Any, route_ids: set[str]) -> tuple[Any, list[str]]:
-    """Drop only a closed-set duplicate route scope from live context output.
+    """Normalize bounded duplicate/malformed context scopes from live output.
 
     Some live model responses repeat deterministic route/context fields at
     the envelope level even though Stage 3/4 owns them under ``context``.
-    These repeated fields are not authoritative and must not be merged into
-    the build context.  Accept them only when they are well-formed; any
-    unknown, duplicate, or malformed route remains a hard failure.
+    Luna can also place those same fields inside the first route object, or
+    emit a mapping-shaped route collection with the context field names as
+    entries.  Those values are not authoritative, but the approved route set
+    and the deterministic reconciliation step are.  Recover only these
+    closed-set shape errors; unknown fields and unknown route IDs remain hard
+    failures through the normal Pydantic/semantic validation path.
     """
 
     if not isinstance(parsed, dict):
         return parsed, []
     normalized = dict(parsed)
     dropped_fields: list[str] = []
+
+    context = normalized.get("context")
+    if isinstance(context, dict):
+        context = dict(context)
+        context_routes = context.get("routes")
+        if isinstance(context_routes, dict):
+            # A model occasionally serializes the route list as an object
+            # keyed by route ID.  Convert only keys in the approved route set;
+            # known context fields are handled as misplaced duplicates.
+            route_items: list[Any] = []
+            for key, value in context_routes.items():
+                if key in _CONTEXT_DUPLICATE_FIELDS:
+                    _merge_context_duplicate(context, key, value)
+                    dropped_fields.append(f"context.routes.{key}")
+                    continue
+                if not isinstance(value, dict):
+                    raise BuildPreparationModelOutputError(
+                        "Live context output contains a malformed route mapping."
+                    )
+                route = dict(value)
+                route.setdefault("route_id", key)
+                route_items.append(route)
+            context["routes"] = route_items
+            dropped_fields.append("context.routes(mapping)")
+        elif isinstance(context_routes, list):
+            route_items = []
+            for index, item in enumerate(context_routes):
+                if isinstance(item, str):
+                    # This is a field name leaked from an object-to-list
+                    # serialization.  It cannot be a valid route and the
+                    # deterministic reconciliation will restore any omitted
+                    # approved route below.
+                    dropped_fields.append(f"context.routes[{index}]")
+                    continue
+                if not isinstance(item, dict):
+                    raise BuildPreparationModelOutputError(
+                        "Live context output contains a malformed route entry."
+                    )
+                route = dict(item)
+                for field in _CONTEXT_DUPLICATE_FIELDS:
+                    if field in route:
+                        _merge_context_duplicate(context, field, route.pop(field))
+                        dropped_fields.append(f"context.routes[{index}].{field}")
+                route_items.append(route)
+            context["routes"] = route_items
+        elif context_routes is not None:
+            raise BuildPreparationModelOutputError(
+                "Live context output contains a malformed context route scope."
+            )
+        normalized["context"] = context
+
     if "routes" in normalized:
         routes = normalized["routes"]
         if not isinstance(routes, list):
@@ -1503,9 +1557,52 @@ def _normalize_context_payload(parsed: Any, route_ids: set[str]) -> tuple[Any, l
         return normalized, [
             "Dropped a closed-set duplicate top-level route scope from live context output."
         ]
-    return normalized, [
-        "Dropped closed-set duplicate top-level context fields: " + ", ".join(dropped_fields) + "."
-    ]
+    top_level = [field for field in dropped_fields if not field.startswith("context.")]
+    nested = [field for field in dropped_fields if field.startswith("context.")]
+    warnings: list[str] = []
+    if top_level:
+        warnings.append(
+            "Dropped closed-set duplicate top-level context fields: " + ", ".join(top_level) + "."
+        )
+    if nested:
+        warnings.append(
+            "Reconciled misplaced nested context fields from live output: "
+            + ", ".join(nested)
+            + "."
+        )
+    return normalized, warnings
+
+
+_CONTEXT_DUPLICATE_FIELDS = {
+    "runtime_requirements",
+    "fixed_facts",
+    "freedoms",
+}
+
+
+def _merge_context_duplicate(context: dict[str, Any], field: str, value: Any) -> None:
+    """Merge one known misplaced context field without inventing content."""
+
+    if field == "runtime_requirements":
+        if not isinstance(value, dict):
+            raise BuildPreparationModelOutputError(
+                "Live context output contains malformed runtime requirements."
+            )
+        existing = context.get(field)
+        if not isinstance(existing, dict):
+            context[field] = dict(value)
+        else:
+            context[field] = {**value, **existing}
+        return
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise BuildPreparationModelOutputError(f"Live context output contains malformed {field}.")
+    existing = context.get(field)
+    if existing is None:
+        context[field] = list(value)
+    elif isinstance(existing, list) and all(isinstance(item, str) for item in existing):
+        context[field] = list(dict.fromkeys([*value, *existing]))
+    else:
+        raise BuildPreparationModelOutputError(f"Live context output contains malformed {field}.")
 
 
 def _metadata(

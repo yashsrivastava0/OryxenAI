@@ -77,6 +77,38 @@ def test_normalize_context_payload_drops_well_typed_top_level_context_duplicates
     ]
 
 
+def test_normalize_context_payload_recovers_misplaced_luna_context_fields() -> None:
+    normalized, warnings = _normalize_context_payload(
+        {
+            "stage": "stage_3",
+            "status": "ready",
+            "context": {
+                "overview_markdown": "# Build context",
+                "routes": [
+                    {
+                        "route_id": "home",
+                        "brief_markdown": "# Home",
+                        "runtime_requirements": {"approved_route_ids": ["home"]},
+                        "fixed_facts": ["Use approved copy."],
+                        "freedoms": ["Choose the composition."],
+                    },
+                    "runtime_requirements",
+                    "fixed_facts",
+                    "freedoms",
+                ],
+            },
+        },
+        {"home"},
+    )
+
+    validated = Stage3BuildContextResult.model_validate(normalized)
+    assert validated.context.routes[0].route_id == "home"
+    assert validated.context.runtime_requirements == {"approved_route_ids": ["home"]}
+    assert validated.context.fixed_facts == ["Use approved copy."]
+    assert validated.context.freedoms == ["Choose the composition."]
+    assert any("misplaced nested context fields" in warning for warning in warnings)
+
+
 class _Phase2Model:
     def __init__(self) -> None:
         self.operations: list[str] = []
