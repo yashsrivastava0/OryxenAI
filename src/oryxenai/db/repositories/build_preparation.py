@@ -69,6 +69,11 @@ class BuildPreparationRepository:
     async def mark_run_started(self, run_id: UUID) -> None:
         await self._runs.mark_started(run_id)
 
+    async def save_checkpoint(
+        self, run_id: UUID, checkpoint_payload: dict[str, object] | None
+    ) -> None:
+        await self._runs.save_checkpoint(run_id, checkpoint_payload)
+
     async def mark_run_succeeded(
         self,
         run_id: UUID,

@@ -57,6 +57,7 @@ class AgentRun(Base):
     state_before: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     state_after: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     model_metadata: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    checkpoint_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     error_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(Text, nullable=True)
     finish_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -38,7 +38,8 @@ the ENTIRE output, not just within the page), route_id (matching the parent page
 viewport_role, content_refs (the section_id values from that route's Content Architect page pack
 that this scene realizes — must be real section_ids, never invented), layout_intent,
 alignment_relationships, relative_proportions, layer_stack, background_intent, asset_requirements
-(asset_id references into this response's own asset_briefs), resource_candidates (resource_id
+(asset_id references into this response's own asset_briefs — see the system prompt's asset_id_rule:
+exact short keys, never a re-described sentence), resource_candidates (resource_id
 references — must come from resource_catalogue_shortlist), motion_intent, interaction_states,
 transition_in, transition_out, accessibility_intent, performance_risk, failure_safe_static_state,
 and acceptance_criteria.

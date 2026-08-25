@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID
 
 from oryxenai.agents.build_preparation.agent import (
     BuildPreparationAgent,
+    BuildPreparationModelOutputError,
+)
+from oryxenai.agents.build_preparation.checkpoint import (
+    BuildPreparationCheckpoint,
+    source_binding_hash,
 )
 from oryxenai.agents.build_preparation.compiler import build_source_ref
 from oryxenai.agents.build_preparation.packager import PackageError
@@ -36,11 +41,8 @@ from oryxenai.agents.build_preparation.validators import BuildPreparationValidat
 from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import Agent, AgentKey
-from oryxenai.agents.shared.providers.errors import (
-    ProviderConfigError,
-    ProviderError,
-    stable_provider_failure,
-)
+from oryxenai.agents.shared.observability import durable_model_metadata
+from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
@@ -69,21 +71,24 @@ class BuildPreparationJobError(Exception):
         super().__init__(message)
 
 
-def _build_build_preparation_agent(override_profile_name: str = "") -> Agent:
+def _build_build_preparation_agent(
+    override_profile_name: str = "",
+    *,
+    event_sink: Callable[[StageEvent], Awaitable[None]] | None = None,
+    checkpoint_sink: Callable[[BuildPreparationCheckpoint], Awaitable[None]] | None = None,
+) -> Agent:
     """Create the live Build Preparation agent from the configured profile."""
-    from oryxenai.agents.shared.model_client import build_provider_client
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
     from oryxenai.core.settings import get_settings
 
     settings = get_settings()
-    client = build_provider_client(
-        "build_preparation", settings.models, override_profile_name=override_profile_name
+    runtime = get_model_runtime(settings.models)
+    return BuildPreparationAgent(
+        model_client=runtime.resolve("build_preparation", override_profile_name),
+        settings=settings,
+        event_sink=event_sink,
+        checkpoint_sink=checkpoint_sink,
     )
-    if client is None:
-        raise ProviderConfigError(
-            "Build Preparation requires a configured model profile and API key. "
-            "Check config/models.toml and .env."
-        )
-    return BuildPreparationAgent(model_client=client, settings=settings)
 
 
 class BuildPreparationHandler:
@@ -94,6 +99,34 @@ class BuildPreparationHandler:
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         return await _execute_persisted(payload, instance_id, agent_factory=self._agent_factory)
+
+    async def on_timeout(self, payload: dict[str, Any], error: dict[str, Any]) -> None:
+        """Called by the worker when the outer job-handler timeout fires.
+
+        asyncio.wait_for cancels the execute() coroutine from outside, so its
+        own try/except blocks (which call _persist_failure) never run — this
+        is the only chance to reflect a terminal timeout into the
+        build_preparation session state instead of leaving it stuck at
+        "running" forever (live-reproduced during local testing).
+        """
+        from oryxenai.core.settings import get_settings
+
+        session_id = UUID(str(payload["portfolio_session_id"]))
+        run_id = UUID(str(payload["agent_run_id"]))
+        settings = get_settings()
+        sessionmaker = get_sessionmaker(settings)
+        attempt = int(payload.get("attempt", 1))
+        max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+        await _persist_failure(
+            sessionmaker,
+            session_id,
+            run_id,
+            payload,
+            error,
+            attempt,
+            max_attempts,
+            retryable=bool(error.get("retryable", True)),
+        )
 
 
 async def _execute_persisted(
@@ -110,6 +143,9 @@ async def _execute_persisted(
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+    runtime = get_model_runtime(settings.models)
 
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -149,13 +185,106 @@ async def _execute_persisted(
         await db.commit()
         input_payload = dict(run.input_payload)
 
+        requested_profile = str(input_payload.get("model_profile", "") or "")
+        runtime_profile_id = runtime.resolve_profile_name("build_preparation", requested_profile)
+        profile_fingerprint = runtime.profile_fingerprint(runtime_profile_id)
+        raw_source_ref = input_payload.get("source_ref")
+        source_hash = source_binding_hash(
+            raw_source_ref if isinstance(raw_source_ref, dict) else {}
+        )
+        checkpoint: BuildPreparationCheckpoint | None = None
+        if isinstance(run.checkpoint_payload, dict):
+            try:
+                candidate_checkpoint = BuildPreparationCheckpoint.model_validate(
+                    run.checkpoint_payload
+                )
+            except ValueError:
+                candidate_checkpoint = None
+            if candidate_checkpoint is not None and candidate_checkpoint.compatible_with(
+                run_id=str(run_id),
+                approved_source_hash=source_hash,
+                profile_fingerprint=profile_fingerprint,
+            ):
+                checkpoint = candidate_checkpoint
+        if run.checkpoint_payload is not None and checkpoint is None:
+            await repo.save_checkpoint(run_id, None)
+            await db.commit()
+
+    checkpoint_binding = {
+        "run_id": str(run_id),
+        "approved_source_hash": source_hash,
+        "profile_fingerprint": profile_fingerprint,
+    }
+    input_payload.update(
+        {
+            "runtime_profile_id": runtime_profile_id,
+            "checkpoint_binding": checkpoint_binding,
+            "checkpoint_payload": (
+                checkpoint.model_dump(mode="json") if checkpoint is not None else None
+            ),
+        }
+    )
+
+    async def persist_event(event: StageEvent) -> None:
+        async with sessionmaker() as event_db:
+            await WorkerAuthorizationFence(event_db).validate_payload(payload)
+            event_repo = BuildPreparationRepository(event_db)
+            event_session = await event_repo.get_session(session_id)
+            if event_session is None:
+                return
+            event_state = await event_repo.get_state(session_id)
+            if (
+                event_state.status is not BuildPreparationStatus.RUNNING
+                or event_state.run_id != str(run_id)
+            ):
+                return
+            event_state.current_stage = event.stage
+            event_key = (event.event_id, event.stage, event.timestamp)
+            if not any(
+                (item.event_id, item.stage, item.timestamp) == event_key
+                for item in event_state.events
+            ):
+                event_state.events = [*event_state.events, event][-100:]
+            updated = await event_repo.save_state(session_id, event_state, event_session.revision)
+            if updated is not None:
+                await event_db.commit()
+
+    async def persist_checkpoint(value: BuildPreparationCheckpoint) -> None:
+        if not value.compatible_with(
+            run_id=str(run_id),
+            approved_source_hash=source_hash,
+            profile_fingerprint=profile_fingerprint,
+        ):
+            raise BuildPreparationJobError(
+                "BUILD_PREPARATION_CHECKPOINT_MISMATCH",
+                "Build Preparation rejected an incompatible checkpoint.",
+            )
+        async with sessionmaker() as checkpoint_db:
+            await WorkerAuthorizationFence(checkpoint_db).validate_payload(payload)
+            checkpoint_repo = BuildPreparationRepository(checkpoint_db)
+            checkpoint_run = await checkpoint_repo.get_run(run_id)
+            checkpoint_state = await checkpoint_repo.get_state(session_id)
+            if (
+                checkpoint_run is None
+                or checkpoint_run.status != "running"
+                or checkpoint_state.status is not BuildPreparationStatus.RUNNING
+                or checkpoint_state.run_id != str(run_id)
+            ):
+                return
+            await checkpoint_repo.save_checkpoint(run_id, value.model_dump(mode="json"))
+            await checkpoint_db.commit()
+
     try:
         async with sessionmaker() as db:
             await WorkerAuthorizationFence(db).validate_payload(payload)
         agent = (
             agent_factory()
             if agent_factory is not None
-            else _build_build_preparation_agent(str(input_payload.get("model_profile", "") or ""))
+            else _build_build_preparation_agent(
+                str(input_payload.get("model_profile", "") or ""),
+                event_sink=persist_event,
+                checkpoint_sink=persist_checkpoint,
+            )
         )
         context = build_context(
             portfolio_session_id=session_id,
@@ -167,23 +296,51 @@ async def _execute_persisted(
             run_id=run_id,
         )
         result = await agent.run(context)
+    except BuildPreparationModelOutputError as exc:
+        # A model response that failed the output contract is almost always a
+        # one-off generation-quality issue on the same input (truncated JSON,
+        # a malformed field), not a permanent condition — retry it like any
+        # other transient provider error, bounded by max_attempts. Mirrors
+        # Discovery's DiscoveryModelOutputError handling. Must be checked
+        # before the broader BuildPreparationValidationError branch below,
+        # since this is a subclass of it.
+        logger.warning("build_preparation model output invalid: %s", type(exc).__name__)
+        error = {"code": exc.code, "message": exc.message, "details": exc.details}
+        await _persist_failure(
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts, retryable=True
+        )
+        raise BuildPreparationJobError(exc.code, exc.message, exc.details, retryable=True) from exc
     except BuildPreparationValidationError as exc:
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
         await _persist_failure(
-            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts, retryable=False
         )
         raise BuildPreparationJobError(exc.code, exc.message, exc.details) from exc
     except ProviderError as exc:
         code, message = stable_provider_failure(exc)
         error = {"code": code, "message": message, "details": {}}
         await _persist_failure(
-            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+            sessionmaker,
+            session_id,
+            run_id,
+            payload,
+            error,
+            attempt,
+            max_attempts,
+            retryable=exc.retryable,
         )
         raise BuildPreparationJobError(code, message, {}, retryable=exc.retryable) from exc
     except ArtifactStorageError as exc:
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
         await _persist_failure(
-            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+            sessionmaker,
+            session_id,
+            run_id,
+            payload,
+            error,
+            attempt,
+            max_attempts,
+            retryable=exc.retryable,
         )
         raise BuildPreparationJobError(
             exc.code, exc.message, exc.details, retryable=exc.retryable
@@ -191,10 +348,15 @@ async def _execute_persisted(
     except PackageError as exc:
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
         await _persist_failure(
-            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
+            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts, retryable=False
         )
         raise BuildPreparationJobError(exc.code, exc.message, exc.details) from exc
     except Exception as exc:
+        # Everything with a known transient/classifiable shape is already
+        # handled by the typed except clauses above (model output, provider,
+        # artifact storage, package errors). An exception that reaches here
+        # is unclassified — treat it as a real bug rather than blindly
+        # retrying it up to max_attempts times at full 5-stage cost.
         logger.warning("build_preparation phase 3 failed with %s", type(exc).__name__)
         stage_error: dict[str, Any] = {
             "code": "BUILD_PREPARATION_FAILED",
@@ -202,13 +364,28 @@ async def _execute_persisted(
             "details": {},
         }
         await _persist_failure(
-            sessionmaker, session_id, run_id, payload, stage_error, attempt, max_attempts
+            sessionmaker,
+            session_id,
+            run_id,
+            payload,
+            stage_error,
+            attempt,
+            max_attempts,
+            retryable=False,
         )
         raise BuildPreparationJobError(
-            stage_error["code"], stage_error["message"], stage_error["details"], retryable=True
+            stage_error["code"], stage_error["message"], stage_error["details"], retryable=False
         ) from exc
 
-    return await _apply_result(sessionmaker, session_id, run_id, payload, result, attempt)
+    return await _apply_result(
+        sessionmaker,
+        session_id,
+        run_id,
+        payload,
+        result,
+        attempt,
+        runtime_profile_id,
+    )
 
 
 def _approved_source_ref(content_architect: Any, visual_design_director: Any, settings: Any) -> Any:
@@ -260,6 +437,7 @@ async def _apply_result(
     payload: dict[str, Any],
     result: Any,
     attempt: int,
+    runtime_profile_id: str,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -372,7 +550,11 @@ async def _apply_result(
             persisted_output,
             dict(updated.current_state),
             prompt_version=str(result.prompt_version or "phase2"),
-            model_metadata={**result.model_metadata, "result_status": "succeeded"},
+            model_metadata=durable_model_metadata(
+                {**result.model_metadata, "result_status": "succeeded"},
+                profile_id=runtime_profile_id,
+                attempt=attempt,
+            ),
         )
         await db.commit()
         return {"status": "succeeded", "run_id": str(run_id), "operation": operation}
@@ -386,6 +568,8 @@ async def _persist_failure(
     error: dict[str, Any],
     attempt: int,
     max_attempts: int,
+    *,
+    retryable: bool,
 ) -> None:
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -394,7 +578,18 @@ async def _persist_failure(
         if session is None:
             return
         state = await repo.get_state(session_id)
-        if attempt >= max_attempts and state.status is not BuildPreparationStatus.READY:
+        # A non-retryable failure is exactly as terminal as one that has
+        # exhausted max_attempts — either way, no further worker attempt
+        # will ever run. Only checking attempt >= max_attempts left the
+        # session stuck reporting "running" forever on a fail-fast attempt
+        # 1 failure (live-reproduced: a PermissionError classified
+        # non-retryable never advanced past "running").
+        will_retry = bool(
+            error.get("will_retry")
+            if "will_retry" in error
+            else retryable and attempt < max_attempts
+        )
+        if not will_retry and state.status is not (BuildPreparationStatus.READY):
             next_state = apply_needs_attention(state, error)
             next_state.attempt = attempt
             await repo.save_state(session_id, next_state, session.revision)

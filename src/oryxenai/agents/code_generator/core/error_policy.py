@@ -74,6 +74,7 @@ _REPAIRABLE_PREFIXES = (
     "ACCESSIBILITY_",
     "GEOMETRY_",
     "RUNTIME_",
+    "INTEGRATION_",
 )
 
 

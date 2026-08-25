@@ -52,6 +52,17 @@ lease_duration = 120.0         # seconds before a claimed job is considered stal
 "code_generator.acquire" = 1200.0             # 20 min: provider searches + npm resolution
 "code_generator.generate" = 5400.0            # 90 min: several builder/integrator calls + typechecks
 "code_generator.verify_and_preview" = 3600.0  # 60 min: clean build + Playwright journeys + repair
+# Content Architect and Visual Design Director each drive up to 3 sequential
+# model calls per job (each profile's own timeout_seconds=180) — worst case
+# ~540s alone, over the 300s default. Live-reproduced: a real content-rich
+# portfolio hit JOB_TIMEOUT here after the per-call budget was correctly
+# raised for MODEL_OUTPUT_TRUNCATED/PROVIDER_TIMEOUT_ERROR (see
+# config/models.toml). Build Preparation drives 5 sequential stages
+# (timeout_seconds=180 each, worst case ~900s) plus real Pexels/Pixabay/
+# component-registry network I/O on top — needs the largest margin.
+"content_architect.build" = 900.0             # 15 min
+"visual_design_director.build" = 900.0        # 15 min
+"build_preparation.prepare" = 1800.0          # 30 min
 
 [worker.retry]
 # Retry scheduling for transient failures.

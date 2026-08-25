@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
+from oryxenai.agents.build_preparation.checkpoint import (
+    BuildPreparationCheckpoint,
+    candidate_set_hash,
+)
 from oryxenai.agents.build_preparation.compiler import compile_stage0
 from oryxenai.agents.build_preparation.fixture import (
     _offline_candidates,
@@ -45,6 +49,7 @@ from oryxenai.agents.build_preparation.schemas import (
     HandoffIssue,
     ResourceSelection,
     RouteBuildContext,
+    Stage0Result,
     Stage1QueryPlan,
     Stage2SelectionPlan,
     Stage3BuildContextResult,
@@ -69,6 +74,7 @@ from oryxenai.core.settings import get_settings
 logger = get_logger("oryxenai.agents.build_preparation")
 
 EventSink = Callable[[StageEvent], Awaitable[None]]
+CheckpointSink = Callable[[BuildPreparationCheckpoint], Awaitable[None]]
 
 
 class BuildPreparationModelOutputError(BuildPreparationValidationError):
@@ -121,6 +127,7 @@ class BuildPreparationAgent(Agent):
         live_providers: bool = True,
         settings: Any | None = None,
         event_sink: EventSink | None = None,
+        checkpoint_sink: CheckpointSink | None = None,
     ) -> None:
         self._model_client = model_client
         self._provider_lookup = provider_lookup
@@ -129,6 +136,7 @@ class BuildPreparationAgent(Agent):
         self._live_providers = live_providers
         self._settings = settings or get_settings()
         self._event_sink = event_sink
+        self._checkpoint_sink = checkpoint_sink
 
     async def _emit_event(self, event: StageEvent) -> None:
         if self._event_sink is not None:
@@ -249,6 +257,43 @@ class BuildPreparationAgent(Agent):
             ),
             auto_derive_visual_resources=auto_derive,
         )
+        raw_checkpoint = payload.get("checkpoint_payload")
+        checkpoint = (
+            BuildPreparationCheckpoint.model_validate(raw_checkpoint)
+            if isinstance(raw_checkpoint, dict)
+            else None
+        )
+        resume_checkpoint = checkpoint
+        if resume_checkpoint is not None and resume_checkpoint.includes("stage_0"):
+            stored_stage0 = resume_checkpoint.data.get("stage_0")
+            if isinstance(stored_stage0, dict):
+                restored_stage0 = Stage0Result.model_validate(stored_stage0)
+                if restored_stage0.source_ref == stage0.source_ref:
+                    stage0 = restored_stage0
+        raw_binding = payload.get("checkpoint_binding")
+        checkpoint_binding = dict(raw_binding) if isinstance(raw_binding, dict) else {}
+        checkpoint_data = dict(checkpoint.data) if checkpoint is not None else {}
+
+        async def save_checkpoint(
+            completed_stage: str,
+            *,
+            candidate_hash: str = "",
+        ) -> None:
+            nonlocal checkpoint
+            if self._checkpoint_sink is None or not checkpoint_binding:
+                return
+            checkpoint = BuildPreparationCheckpoint(
+                run_id=str(checkpoint_binding["run_id"]),
+                approved_source_hash=str(checkpoint_binding["approved_source_hash"]),
+                profile_fingerprint=str(checkpoint_binding["profile_fingerprint"]),
+                candidate_set_hash=candidate_hash,
+                completed_stage=cast(Any, completed_stage),
+                data=checkpoint_data,
+                model_calls=model_calls,
+                model_call_receipts=stages_meta,
+            )
+            await self._checkpoint_sink(checkpoint)
+
         events = list(stage0.events)
         for event in events:
             await self._emit_event(event)
@@ -272,10 +317,18 @@ class BuildPreparationAgent(Agent):
         route_ids = {route.route_id for route in stage0.routes}
         live_model = bool(payload.get("live_model", self._live_model))
         live_providers = bool(payload.get("live_providers", self._live_providers))
-        model_profile = str(payload.get("model_profile", "") or "")
+        model_profile = str(
+            payload.get("runtime_profile_id") or payload.get("model_profile", "") or ""
+        )
         stages_meta: list[dict[str, Any]] = []
         prompt_version = "build_preparation.phase2"
         model_calls = 0
+        if resume_checkpoint is not None:
+            stages_meta = list(resume_checkpoint.model_call_receipts)
+            model_calls = resume_checkpoint.model_calls
+        checkpoint_data["stage_0"] = stage0.model_dump(mode="json")
+        if resume_checkpoint is None:
+            await save_checkpoint("stage_0")
         component_maximum = int(
             payload.get(
                 "visual_component_maximum",
@@ -326,7 +379,22 @@ class BuildPreparationAgent(Agent):
                 else "Composing deterministic offline resource queries.",
             )
         )
-        if live_model:
+        stored_query_plan = (
+            resume_checkpoint.data.get("query_plan")
+            if resume_checkpoint is not None and resume_checkpoint.includes("stage_1")
+            else None
+        )
+        resumed_stage_1 = isinstance(stored_query_plan, dict)
+        if resumed_stage_1:
+            query_plan = Stage1QueryPlan.model_validate(stored_query_plan)
+            await record(
+                _event(
+                    "stage_1_checkpoint_resumed",
+                    "stage_1",
+                    "Resumed the validated resource query plan from this run's checkpoint.",
+                )
+            )
+        elif live_model:
             query_plan_value, prompt_version, meta = await self._call_stage(
                 "compose_resource_queries",
                 base_resource_packet,
@@ -362,6 +430,9 @@ class BuildPreparationAgent(Agent):
                 update={"warnings": [*query_plan.warnings, *policy_warnings]}
             )
         validate_query_plan(query_plan, need_ids)
+        checkpoint_data["query_plan"] = query_plan.model_dump(mode="json")
+        if not resumed_stage_1:
+            await save_checkpoint("stage_1")
         query_terms_by_need = _query_terms_by_need(query_plan)
         await record(
             _event(
@@ -391,6 +462,32 @@ class BuildPreparationAgent(Agent):
             else _offline_candidates(query_plan.queries)
         )
         validate_fetched_candidates(candidates, need_ids)
+        current_candidate_hash = candidate_set_hash(candidates)
+        candidate_checkpoint_compatible = bool(
+            resume_checkpoint is not None
+            and resume_checkpoint.includes("stage_2")
+            and resume_checkpoint.candidate_set_hash == current_candidate_hash
+        )
+        if (
+            resume_checkpoint is not None
+            and resume_checkpoint.includes("stage_2")
+            and not candidate_checkpoint_compatible
+        ):
+            for key in ("selection_plan", "build_context"):
+                checkpoint_data.pop(key, None)
+            stages_meta = [
+                item for item in stages_meta if item.get("operation") == "compose_resource_queries"
+            ]
+            model_calls = len(stages_meta)
+            await record(
+                _event(
+                    "checkpoint_candidate_set_changed",
+                    "providers",
+                    "Provider candidates changed; later model-stage checkpoints were invalidated.",
+                    level="warning",
+                )
+            )
+            await save_checkpoint("stage_1", candidate_hash=current_candidate_hash)
         qualifications = qualify_candidates(
             stage0.resource_needs,
             candidates,
@@ -420,7 +517,22 @@ class BuildPreparationAgent(Agent):
                 else "Recording offline provider gaps; no visual fallback is fabricated.",
             )
         )
-        if live_model:
+        stored_selection_plan = (
+            resume_checkpoint.data.get("selection_plan")
+            if candidate_checkpoint_compatible and resume_checkpoint is not None
+            else None
+        )
+        resumed_stage_2 = isinstance(stored_selection_plan, dict)
+        if resumed_stage_2:
+            selection_plan = Stage2SelectionPlan.model_validate(stored_selection_plan)
+            await record(
+                _event(
+                    "stage_2_checkpoint_resumed",
+                    "stage_2",
+                    "Resumed the validated resource selection from this run's checkpoint.",
+                )
+            )
+        elif live_model:
             selection_plan_value, prompt_version, meta = await self._call_stage(
                 "select_resources",
                 {
@@ -505,6 +617,7 @@ class BuildPreparationAgent(Agent):
                 "warnings": [*selection_plan.warnings, *forced_warnings],
             }
         )
+        validate_selection_plan(selection_plan, need_ids, candidates)
 
         # Discovery returns metadata only for live components. Fetch real
         # source after the closed candidate set has been selected, so weak
@@ -667,6 +780,9 @@ class BuildPreparationAgent(Agent):
                 }
             )
         validate_selection_plan(selection_plan, need_ids, candidates)
+        checkpoint_data["selection_plan"] = selection_plan.model_dump(mode="json")
+        if not resumed_stage_2:
+            await save_checkpoint("stage_2", candidate_hash=current_candidate_hash)
         await record(
             _event("stage_2_complete", "stage_2", "Resources selected or explicit gaps recorded.")
         )
@@ -698,7 +814,31 @@ class BuildPreparationAgent(Agent):
                 else "Writing deterministic route-scoped build context.",
             )
         )
-        if live_model:
+        stored_build_context = (
+            resume_checkpoint.data.get("build_context")
+            if candidate_checkpoint_compatible
+            and resume_checkpoint is not None
+            and resume_checkpoint.includes("stage_3")
+            else None
+        )
+        resumed_stage_3 = False
+        if isinstance(stored_build_context, dict):
+            candidate_context = BuildContextDraft.model_validate(stored_build_context)
+            try:
+                validate_build_context(candidate_context, route_ids, _selected_ids(selection_plan))
+            except BuildPreparationValidationError:
+                checkpoint_data.pop("build_context", None)
+            else:
+                build_context = candidate_context
+                resumed_stage_3 = True
+                await record(
+                    _event(
+                        "stage_3_checkpoint_resumed",
+                        "stage_3",
+                        "Resumed validated route-scoped build context from this run's checkpoint.",
+                    )
+                )
+        if not resumed_stage_3 and live_model:
             stage3, prompt_version, meta = await self._call_context_stage(
                 "write_build_context", context_packet, model_profile, route_ids, selection_plan
             )
@@ -719,11 +859,14 @@ class BuildPreparationAgent(Agent):
                         details={"warning_count": len(reconciliation_warnings)},
                     )
                 )
-        else:
+        elif not resumed_stage_3:
             build_context = _offline_context(
                 stage0.routes, stage0.resource_needs, selection_plan, content or {}, visual
             )
         validate_build_context(build_context, route_ids, _selected_ids(selection_plan))
+        checkpoint_data["build_context"] = build_context.model_dump(mode="json")
+        if not resumed_stage_3:
+            await save_checkpoint("stage_3", candidate_hash=current_candidate_hash)
         await record(_event("stage_3_complete", "stage_3", "Route-scoped build context written."))
 
         threshold = int(
@@ -747,7 +890,33 @@ class BuildPreparationAgent(Agent):
                     else "Applying deterministic cross-route build constraints.",
                 )
             )
-            if live_model:
+            stored_integrated_context = (
+                resume_checkpoint.data.get("build_context")
+                if candidate_checkpoint_compatible
+                and resume_checkpoint is not None
+                and resume_checkpoint.includes("stage_4")
+                else None
+            )
+            resumed_stage_4 = False
+            if isinstance(stored_integrated_context, dict):
+                candidate_context = BuildContextDraft.model_validate(stored_integrated_context)
+                try:
+                    validate_build_context(
+                        candidate_context, route_ids, _selected_ids(selection_plan)
+                    )
+                except BuildPreparationValidationError:
+                    pass
+                else:
+                    build_context = candidate_context
+                    resumed_stage_4 = True
+                    await record(
+                        _event(
+                            "stage_4_checkpoint_resumed",
+                            "stage_4",
+                            "Resumed validated cross-route context from this run's checkpoint.",
+                        )
+                    )
+            if not resumed_stage_4 and live_model:
                 stage4, prompt_version, meta = await self._call_context_stage(
                     "integrate_cross_route",
                     integration_packet,
@@ -775,10 +944,13 @@ class BuildPreparationAgent(Agent):
                     )
             await record(_event("stage_4_complete", "stage_4", "Cross-route context integrated."))
             validate_build_context(build_context, route_ids, _selected_ids(selection_plan))
+            checkpoint_data["build_context"] = build_context.model_dump(mode="json")
+            if not resumed_stage_4:
+                await save_checkpoint("stage_4", candidate_hash=current_candidate_hash)
 
         output_dir = str(
-            payload.get("output_dir", self._settings.build_preparation.fixture_output_dir)
-            or "output"
+            payload.get("output_dir", self._settings.build_preparation.session_staging_root)
+            or self._settings.build_preparation.session_staging_root
         )
         artifact_upload = bool(payload.get("artifact_upload", False))
         debug_mirror = bool(
@@ -923,39 +1095,23 @@ class BuildPreparationAgent(Agent):
                         model_profile,
                     )
                 except Exception as exc:
-                    # Deterministic admission is authoritative. A live Stage 5
-                    # review is advisory, so a provider rejection must retain
-                    # the package for review while never granting eligibility.
+                    # Deterministic admission (computed above) is authoritative.
+                    # Stage 5 is an advisory review only, exactly as its own
+                    # prompt states ("do not change eligibility") — a provider
+                    # rejection here must not flip an already-eligible package
+                    # to needs_attention. Record the failure as diagnostic
+                    # metadata only; handoff_eligible/status/issues are left
+                    # exactly as build_handoff_report() computed them.
                     error_code = str(
                         getattr(exc, "code", "MODEL_REVIEW_UNAVAILABLE")
                         or "MODEL_REVIEW_UNAVAILABLE"
                     )
                     handoff_report = handoff_report.model_copy(
                         update={
-                            "handoff_eligible": False,
-                            "status": "needs_attention",
-                            "summary": (
-                                "The deterministic handoff report is retained, but the live "
-                                "Stage 5 review was unavailable."
-                            ),
-                            "issues": [
-                                *handoff_report.issues,
-                                HandoffIssue(
-                                    code="MODEL_REVIEW_UNAVAILABLE",
-                                    message=(
-                                        "The live Stage 5 handoff review could not be completed; "
-                                        "deterministic admission remains authoritative."
-                                    ),
-                                    next_action=(
-                                        "Retry the live handoff review after the configured model "
-                                        "provider accepts the request."
-                                    ),
-                                ),
-                            ],
                             "model_review": {
                                 "stage": "stage_5",
                                 "mode": "live_model_unavailable",
-                                "summary": "Live model review failed; no model eligibility decision was used.",
+                                "summary": "Live model review failed; deterministic admission was retained.",
                                 "error_code": error_code,
                             },
                         }
@@ -1494,17 +1650,17 @@ def _normalize_selection_ids(
         )
     selections: list[ResourceSelection] = []
     for need in needs:
-        selection = selections_by_need.get(need.need_id)
-        if selection is None:
+        reconciled_selection = selections_by_need.get(need.need_id)
+        if reconciled_selection is None:
             warnings.append(
                 f"Model did not produce a valid selection for need '{need.need_id}'; an explicit fallback was recorded."
             )
-            selection = ResourceSelection(
+            reconciled_selection = ResourceSelection(
                 need_id=need.need_id,
                 fallback=need.fallback
                 or "Implement the approved intent using the typed local fallback.",
             )
-        selections.append(selection)
+        selections.append(reconciled_selection)
     return plan.model_copy(update={"selections": selections}), warnings
 
 

@@ -197,7 +197,7 @@ class AssetBrief(BaseModel):
 class ResourceCandidate(BaseModel):
     """A candidate/reference from the local resource catalogue.
 
-    Adaptable, never mandatory — the future Code Generation Engine may use,
+    Adaptable, never mandatory — the Code Generator may use,
     adapt, combine, or ignore it. `resource_id` must always come from the
     catalogue shortlist actually given to the model call that selected it —
     validators.py hard-rejects any other value, so by the time this object

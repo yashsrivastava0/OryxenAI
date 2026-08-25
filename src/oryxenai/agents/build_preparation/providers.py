@@ -780,9 +780,8 @@ async def download_font(
     http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
     try:
         result: dict[str, bytes] = {}
-        limit = int(
-            max_bytes or getattr(settings.resource_providers, "font_max_bytes", 2 * 1024 * 1024)
-        )
+        configured_limit = getattr(settings.resource_providers, "font_max_bytes", 2 * 1024 * 1024)
+        limit = int(max_bytes if max_bytes is not None else configured_limit or 2 * 1024 * 1024)
         for key, url in sorted(candidate.font_urls.items()):
             parsed = urlparse(url)
             if parsed.scheme != "https" or parsed.hostname != "cdn.jsdelivr.net":
@@ -858,13 +857,13 @@ async def download_image(
     """Download a selected Pexels/Pixabay/opt-in Unsplash image safely."""
 
     try:
+        configured_limit = getattr(
+            getattr(settings, "image_retrieval", None),
+            "raw_download_max_bytes",
+            24 * 1024 * 1024,
+        )
         raw_limit = int(
-            max_bytes
-            or getattr(
-                getattr(settings, "image_retrieval", None),
-                "raw_download_max_bytes",
-                24 * 1024 * 1024,
-            )
+            max_bytes if max_bytes is not None else configured_limit or 24 * 1024 * 1024
         )
         return await download_image_bytes(candidate, settings, client=client, max_bytes=raw_limit)
     except ValueError as exc:

@@ -119,19 +119,19 @@ _CONTEXT_EXCLUDED_KEYS = frozenset(
 def _context_terms(value: Any, *, key: str = "") -> list[str]:
     """Extract bounded, human-facing semantic terms from approved context."""
     if isinstance(value, dict):
-        terms: list[str] = []
+        mapping_terms: list[str] = []
         for child_key, child_value in value.items():
             normalized_key = str(child_key).casefold()
             if normalized_key in _CONTEXT_EXCLUDED_KEYS:
                 continue
             if normalized_key in _CONTEXT_VALUE_KEYS or isinstance(child_value, (dict, list)):
-                terms.extend(_context_terms(child_value, key=normalized_key))
-        return terms
+                mapping_terms.extend(_context_terms(child_value, key=normalized_key))
+        return mapping_terms
     if isinstance(value, (list, tuple, set)):
-        terms: list[str] = []
+        sequence_terms: list[str] = []
         for item in value:
-            terms.extend(_context_terms(item, key=key))
-        return terms
+            sequence_terms.extend(_context_terms(item, key=key))
+        return sequence_terms
     if not isinstance(value, (str, int, float)):
         return []
     text = str(value).strip()
@@ -436,21 +436,15 @@ def normalize_query_plan(
             update["kind"] = "photo"
             update["orientation"] = str(need.details.get("orientation", "landscape") or "landscape")
             update["allowed_providers"] = image_providers
-            update["minimum_width"] = int(
-                details.get("minimum_width")
-                or (
-                    getattr(image_config, "minimum_width", 1200)
-                    if image_config is not None
-                    else 1200
-                )
+            configured_width = (
+                getattr(image_config, "minimum_width", 1200) if image_config is not None else 1200
             )
+            configured_height = (
+                getattr(image_config, "minimum_height", 700) if image_config is not None else 700
+            )
+            update["minimum_width"] = int(details.get("minimum_width") or configured_width or 1200)
             update["minimum_height"] = int(
-                details.get("minimum_height")
-                or (
-                    getattr(image_config, "minimum_height", 700)
-                    if image_config is not None
-                    else 700
-                )
+                details.get("minimum_height") or configured_height or 700
             )
         elif need.category in _CUSTOM_CATEGORIES:
             update["kind"] = "custom"
@@ -928,6 +922,7 @@ def build_handoff_report(
                             "Retry the bounded provider/source attempts and inspect the materialization receipt, "
                             "or explicitly remove the role upstream before rerunning."
                         ),
+                        blocking=need.required_for_handoff,
                     )
                 )
             continue
@@ -1045,12 +1040,16 @@ def build_handoff_report(
                     )
             elif resolution.resolution_type == "execution_gap":
                 # The structured gap below supplies the route/scene-specific
-                # revision instruction; this issue makes eligibility visibly false.
+                # revision instruction. Only a required slot's gap blocks
+                # eligibility; a non-required ("supporting"/"optional") role
+                # that couldn't be resolved is visible for review but must
+                # not block the whole pack.
                 issues.append(
                     HandoffIssue(
                         code="VDD_EXECUTION_GAP",
                         message=f"Execution slot '{slot.resource_slot_id}' is blocked by upstream direction.",
                         next_action="Revise and explicitly re-approve Visual Design Director output.",
+                        blocking=slot.required,
                     )
                 )
         for resource in materialization.resources:
@@ -1187,7 +1186,12 @@ def build_handoff_report(
         "provider_calls": int(provider_calls),
         "cache_hits": int(cache_hits),
         "rate_limit_events": int(rate_limit_events),
-        "deferred_optional_roles": list(deferred_optional_roles or []),
+        "deferred_optional_roles": sorted(
+            {
+                *(deferred_optional_roles or []),
+                *(issue.need_id for issue in issues if issue.need_id and not issue.blocking),
+            }
+        ),
         "unresolved_visual_roles": unresolved_visual_roles,
         "role_statuses": role_statuses,
         "total_enrichment_failure": total_enrichment_failure,
@@ -1196,12 +1200,26 @@ def build_handoff_report(
         "visual_input_mode": visual_input_mode,
         "assumption_hash": assumption_hash,
     }
-    eligible = not issues
+    # A "supporting"/"optional" role that failed to resolve is recorded as a
+    # non-blocking advisory issue (HandoffIssue.blocking=False) — only issues
+    # that are still blocking make the package ineligible for handoff.
+    eligible = not any(issue.blocking for issue in issues)
     handoff_summary["code_generator_eligible"] = eligible
+    # Code Generator's own admission check requires this list to be empty
+    # before it will start (agents/code_generator/service.py). A gap for a
+    # non-required ("supporting"/"optional") slot must not appear here even
+    # though it's still visible via readiness["execution_gap"]'s full count
+    # and the corresponding non-blocking issue above.
+    required_gap_slot_ids = {
+        slot.resource_slot_id for slot in materialization.execution_slots if slot.required
+    }
+    blocking_execution_gaps = [
+        gap for gap in materialization.execution_gaps if gap.slot_id in required_gap_slot_ids
+    ]
     return HandoffQualityReport(
         projection_hashes=dict(materialization.projection_hashes),
         readiness=readiness,
-        execution_gaps=materialization.execution_gaps,
+        execution_gaps=blocking_execution_gaps,
         handoff_eligible=eligible,
         upstream_approval_verified=approval_verified,
         status="ready_for_handoff" if eligible else "needs_attention",

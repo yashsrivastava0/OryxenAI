@@ -63,6 +63,15 @@ class AgentRunRepository:
             run.started_at = datetime.now(UTC)
             await self._session.flush()
 
+    async def save_checkpoint(
+        self, run_id: UUID, checkpoint_payload: dict[str, object] | None
+    ) -> None:
+        result = await self._session.execute(select(AgentRun).where(AgentRun.id == run_id))
+        run = result.scalar_one_or_none()
+        if run is not None:
+            run.checkpoint_payload = checkpoint_payload
+            await self._session.flush()
+
     async def mark_succeeded(
         self,
         run_id: UUID,
