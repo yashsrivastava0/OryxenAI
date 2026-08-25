@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 13:03 +05:30 — Codex (model/provider omitted) — [5f272b3] — migration and native doctor acceptance fix
+Shortened the Build Preparation checkpoint revision ID to fit Alembic's
+version column, added a chain-wide revision-length guard, and made the native
+doctor reject revision-stamped databases that are missing required core
+tables. Verified a complete base-to-head replay against the disposable empty
+acceptance schema.
+
 ### 2026-08-25 12:43 +05:30 — Codex (model/provider omitted) — [9055cc3] — runtime startup-gate regressions
 Aligned test-profile timeouts with every bounded model workflow, including
 legacy Discovery job aliases, and added explicit detached-only authorization
@@ -204,6 +211,6 @@ Implemented Google-only Supabase PKCE sessions, asymmetric JWT/JWKS verification
 
 ## Summary (as of last compaction — 2026-08-25)
 
-- Recent detailed entries retained: 20
+- Recent detailed entries retained: 21
 - Compacted milestone bullets: 38
 - Last updated: 2026-08-25 — Codex (model/provider omitted)
