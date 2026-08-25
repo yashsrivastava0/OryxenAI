@@ -1,7 +1,7 @@
 <!--
   Operation: integrate_site_experience (only if warranted — more than 2 routes,
   or a cross-page conflict was flagged)
-  Version: visual_design_director.integrate_site_experience.v3
+  Version: visual_design_director.integrate_site_experience.v4
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -44,6 +44,20 @@ page or scene. Preserve exact shortlist IDs, remove duplicate registry objects, 
 registry when no adaptable catalogue reference is justified. Page/scene lists only say where the
 registered candidate is used.
 </resource_registry>
+
+<id_stability>
+When you rewrite pages/scenes/asset_briefs during this reconciliation pass, every scene_id,
+asset_id, resource_id, and content_ref must stay byte-for-byte identical to the earlier stage's
+value unless you are deliberately merging or removing that exact item — never regenerate, rename,
+or re-derive an ID as a side effect of restating a "complete" version. content_ref in particular
+must remain exactly ONE bare section_id or claim_id string, copied verbatim from Content
+Architect's page packs — never prefix it with a route_id (e.g. "novapay:case-hero"), never join
+two locations with a separator (e.g. "home:featured-projects / novapay:case-hero"), even when the
+same section_id name is reused unchanged across several routes (e.g. every case-study route sharing
+a "case-hero" section_id). That repetition is expected and does not need disambiguating: content_ref
+only names the asset's primary content location, not every place it appears — reuse across pages is
+already expressed by referencing the same asset_id from multiple scenes' asset_requirements.
+</id_stability>
 
 <real_resource_policy>
 Preserve distinct approved image and component roles from earlier stages. Do

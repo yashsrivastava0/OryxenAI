@@ -1,6 +1,6 @@
 <!--
   Operation: direct_page_experience (only if establish_visual_language deferred pages_included=false)
-  Version: visual_design_director.direct_page_experience.v3
+  Version: visual_design_director.direct_page_experience.v4
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -65,7 +65,12 @@ expected_exports; Build Preparation will resolve it through a real component
 registry rather than generating source here.
 
 For every meaningful image/visual requirement across all pages, add ONE asset_briefs entry (unique
-asset_id) with: purpose, content_ref, asset_type, source_status (use media_status/
+asset_id) with: purpose, content_ref (exactly ONE bare section_id or claim_id, copied verbatim —
+never a route_id prefix like "novapay:case-hero" and never two locations joined with a separator
+like "home:featured-projects / novapay:case-hero", even when the same section_id name repeats
+unchanged across several routes; content_ref only names this asset's primary content location, an
+asset reused elsewhere is expressed by referencing its asset_id from other scenes'
+asset_requirements instead), asset_type, source_status (use media_status/
 visual_director_handoff.available_media/unavailable_media as the source of truth — never claim an
 asset is available when Content Architect recorded it as unavailable), source_policy (default
 "curated_local" unless the content genuinely came from an approved user asset), importance
