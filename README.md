@@ -111,6 +111,7 @@ committed files under `config/`:
 ```powershell
 uv python install 3.13
 uv sync --frozen
+.\scripts\run-native.ps1 align-db
 .\scripts\run-native.ps1 migrate
 .\scripts\run-native.ps1 api
 .\scripts\run-native.ps1 worker
@@ -119,13 +120,15 @@ uv sync --frozen
 The native commands require a local PostgreSQL role/database. Docker users
 should follow the Docker Compose section in `docs/run/run.md` instead.
 
-Open `http://127.0.0.1:8000` for the authentication shell.
+Open `http://127.0.0.1:8000/app` for the login-free native four-stage
+workspace. Docker remains attached and production-like.
 
 ## Linux/macOS setup
 
 ```bash
 uv python install 3.13
 uv sync --frozen
+./scripts/run-native.sh align-db
 ./scripts/run-native.sh migrate
 ./scripts/run-native.sh api
 ./scripts/run-native.sh worker

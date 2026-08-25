@@ -22,6 +22,9 @@ configuration remain attached by default; production rejects detached mode.
 
 - The detached bootstrap does not load Supabase, restore an identity, or send a
   bearer token.
+- The workspace lists only allowlisted non-secret model-profile labels. A
+  fixed no-context preflight must succeed before Discovery starts; the chosen
+  profile is then locked and inherited by every remaining stage.
 - The browser keeps only an opaque detached `session_id` in `sessionStorage`.
   It does not persist stage JSON, prompts, errors, agent output, or access
   tokens.
@@ -50,6 +53,8 @@ requires confirmation and then:
 5. The old session is deleted and a new detached session is created with empty
    state, revision 0, and no inherited stage outputs.
 6. The browser selects the replacement and starts again at Discovery.
+7. The model selector is reset and unlocked; stale polling/progress state is
+   discarded with the old pipeline epoch.
 
 If the browser or network retries after the first request committed, the same
 replacement ID is returned when the replacement is still the empty revision-0

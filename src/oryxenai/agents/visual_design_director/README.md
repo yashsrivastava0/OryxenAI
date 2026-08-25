@@ -4,8 +4,8 @@ Visual Design Director is the third OryxenAI workflow stage. It converts an
 **approved** Content Architect output into a complete visual-experience
 direction — global visual language, per-route storyboards, scene-level
 visual/interaction direction, asset intent, local resource references, and
-a motion/interaction system — so a future deterministic Blueprint Compiler
-and Code Generation Engine never have to invent the visual strategy while
+a motion/interaction system — so deterministic Build Preparation and the
+separate Code Generator never have to invent the visual strategy while
 building, but retain full implementation freedom over the actual
 React/CSS/SVG.
 
