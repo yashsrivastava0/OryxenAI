@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0019_build_preparation_checkpoints"
+revision: str = "0019_build_prep_checkpoints"
 down_revision: str | None = "0018_detached_pipeline_sessions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
