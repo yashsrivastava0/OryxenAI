@@ -910,7 +910,6 @@ class ProviderLookup:
     settings: Any
     client: httpx.AsyncClient | None = None
     live: bool = True
-    _blocked_until: dict[str, float] = field(default_factory=dict)
     _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
     calls_made: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
@@ -924,16 +923,12 @@ class ProviderLookup:
         self._semaphore = asyncio.Semaphore(limit)
 
     async def _lookup_one(self, query: ResourceQuery) -> list[FetchedResource]:
-        now = time.monotonic()
         provider = {
             "photo": "pexels",
             "component": "component",
             "font": "fontsource",
             "icon": "lucide",
         }.get(query.kind, query.kind)
-        if now < self._blocked_until.get(provider, 0.0):
-            self.rate_limit_events += 1
-            return []
         self.calls_made += 1
         if self._semaphore is None:
             self.__post_init__()
