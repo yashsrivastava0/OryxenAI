@@ -11,6 +11,44 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 23:35 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [5d6886a] - shared/providers/errors
+Live account credit exhaustion during pipeline testing surfaced a real
+classification gap: Anthropic's "credit balance is too low..." message
+matched none of `_CREDIT_MARKERS` (tuned for OpenAI's vocabulary), so it
+fell through to the generic `PROVIDER_INVALID_REQUEST_ERROR` bucket instead
+of `MODEL_PROVIDER_CREDIT_EXHAUSTED`. Added Anthropic-specific markers;
+reproduced live before and after — now classifies correctly.
+
+### 2026-08-25 23:20 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [8e93fc2] - build-preparation/visual_input
+Live full-pipeline run (real Discovery→CA→VDD→Build Preparation for a
+fictional UI/UX designer profile) surfaced `role_for()`'s fallback silently
+promoting any unrecognized section_id ("problem", "outcome",
+"design-system-note") to the high-importance "selected-work" role,
+required for handoff. Generic decorative images for these sections then
+failed to materialize and correctly-but-wrongly blocked the whole pack
+(5x `REQUIRED_RESOURCE_NOT_MATERIALIZED`). Added a genuinely low-stakes
+"context" fallback role instead.
+
+### 2026-08-25 23:15 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [2f9403b] - shared/component_retrieval
+Same live run: cult-ui.com returned 429 on 15/15 consecutive component
+registry requests across one Build Preparation run — no cross-query memory
+of a prior rate limit, unlike the image-fetch path's existing
+`_PROVIDER_RATE_STATE`. Added an equivalent per-provider backoff window to
+`_get_json`; re-run after the fix hit cult-ui.com once, then correctly
+skipped it.
+
+### 2026-08-25 23:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a6fb12, 60a41a3] - visual_design_director prompts, jobs/worker
+Live-reproduced a 3x Visual Design Director validation failure
+(`validation_categories=['assets','references']`): `integrate_site_experience`'s
+full-pages reconciliation pass rewrote `asset_briefs.content_ref` into
+invented composite forms (e.g. "novapay:case-hero") since several routes
+legitimately reuse the same section_id and the model tried to disambiguate;
+that prompt had no explicit ID-stability guidance for the rewrite, unlike
+`direct_page_experience.md`. Added it; the next live attempt passed
+cleanly. Also fixed `worker.py` never calling `configure_logging()`,
+discovered because the worker log was completely empty while debugging
+this — every `logger.info`/`.warning` call was silently dropped.
+
 ### 2026-08-25 21:20 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [ed9de3b] - build-preparation, materializer, providers, execution
 Gave component materialization the same alternate-candidate retry loop
 images already had (`_materialize_component_candidate`,
@@ -122,37 +160,14 @@ configuration and PowerShell/Bash helpers, and the missing isolated Docker Code
 Generator overlay. Docker Compose remains supported for production-like local
 integration.
 
-### 2026-08-24 - Codex (GPT-5 / OpenAI) - [a39bd7e] - Reduce Anthropic interactive latency for first three agents
-Lowered the Discovery, Content Architect, and Visual Design Director Sonnet 5
-budgets/effort and removed duplicate embedded input/schema payloads from the
-Anthropic adapter. Added safe JSON control-character recovery and concise
-interactive brief guidance; focused tests passed and a live Discovery brief
-completed in about 40 seconds.
-
-### 2026-08-24 - Codex (GPT-5 / OpenAI) - [563b2a6] - Force Google account selection after sign-out
-Updated the Supabase Google OAuth request to include `prompt=select_account`,
-so signing out and signing back in can reliably switch identities instead of
-silently reusing the previous Google account. Rebuilt and restarted the Docker
-app/worker stack and verified the frontend auth regression suite.
-
-### 2026-08-24 21:55 +05:30 - Codex (Claude Sonnet 5 / Anthropic) - [3b3ed9f] - Route Build Preparation through Anthropic Sonnet 5
-Routed the live Build Preparation engine through the configured Anthropic
-`claude-sonnet-5` profile using `ANTHROPIC_API_KEY`, rebuilt and verified the
-Docker app/worker, and completed a live pack run. The pack was materialized,
-ZIP-verified, uploaded to the temporary artifact store, and mirrored locally;
-deterministic admission correctly retained it as `needs_attention` because
-two upstream VDD execution gaps remained.
-
-### 2026-08-24 21:30 +05:30 - Codex (Claude Sonnet 5 / Anthropic) - [456db9c] - Route the first three agents through Anthropic Sonnet 5
-Switched Discovery, Content Architect, and Visual Design Director to the
-configured Anthropic `claude-sonnet-5` profiles using `ANTHROPIC_API_KEY`,
-rebuilt the Docker API/worker images, and verified a live Discovery response.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-24 - Codex (GPT-5 / OpenAI) - [a39bd7e] - Reduced Anthropic interactive latency for the first three agents (lower budgets/effort, safe JSON control-character recovery).
+- 2026-08-24 - Codex (GPT-5 / OpenAI) - [563b2a6] - Forced Google account selection after sign-out via `prompt=select_account`.
+- 2026-08-24 - Codex (Claude Sonnet 5 / Anthropic) - [3b3ed9f, 456db9c] - Routed all four model-backed agents through Anthropic Claude Sonnet 5; a live Build Preparation pack materialized and correctly landed `needs_attention` on two real VDD execution gaps.
 - 2026-08-24 - Codex (GPT-5.6 Luna / OpenAI) - [9b95baf, bf8f63d] - Routed all four model-backed agents through a direct OpenAI Luna profile; live calls reached OpenAI but stopped at `credit_balance_exhausted` before any pack materialized.
 - 2026-08-24 - Codex (model/provider omitted) - [e70b6ab, dddc1ba] - Open Google registration admission mode (open/allowlist, D-048) and matching auth-handoff documentation.
 - 2026-08-24 - Codex (model/provider omitted) - [449b379, c5b5821] - Authentication redirect-flicker fix and final Supabase/PKCE/Admin-API readiness hardening ahead of owner browser acceptance.
@@ -221,5 +236,5 @@ rebuilt the Docker API/worker images, and verified a live Discovery response.
 ## Summary (as of last compaction — 2026-08-25)
 
 - Recent detailed entries retained: 18
-- Compacted milestone bullets: 44
+- Compacted milestone bullets: 47
 - Last updated: 2026-08-25 — Claude Code (Claude Sonnet 5 / Anthropic)
