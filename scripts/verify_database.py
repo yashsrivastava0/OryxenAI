@@ -14,6 +14,14 @@ from sqlalchemy import text
 from oryxenai.core.settings import get_settings
 from oryxenai.db.session import get_engine
 
+_REQUIRED_CORE_TABLES = frozenset(
+    {
+        "agent_runs",
+        "background_jobs",
+        "portfolio_sessions",
+    }
+)
+
 
 def _postgres_tool(name: str) -> Path | None:
     discovered = shutil.which(name)
@@ -48,6 +56,29 @@ def _report_tools() -> bool:
     return ok
 
 
+def _migration_diagnostic(
+    *,
+    current: set[str],
+    expected: set[str],
+    tables: set[str],
+) -> tuple[bool, str]:
+    missing = sorted(_REQUIRED_CORE_TABLES - tables)
+    if missing:
+        return (
+            False,
+            "Migration state: INCONSISTENT - the database revision is stamped but "
+            f"required tables are missing ({', '.join(missing)}). Inspect or restore "
+            "the database; recreate it only when it is known to be disposable.",
+        )
+    if current != expected:
+        return (
+            False,
+            "Migration state: OUT OF DATE - run the native migrate command "
+            f"(database heads={sorted(current)}, repository heads={sorted(expected)}).",
+        )
+    return True, f"Migration state: OK ({', '.join(sorted(current))})"
+
+
 async def _verify_database() -> bool:
     settings = get_settings()
     target = settings.database
@@ -64,6 +95,12 @@ async def _verify_database() -> bool:
             await connection.execute(text("SELECT 1"))
             rows = await connection.execute(text("SELECT version_num FROM alembic_version"))
             current = {str(row[0]) for row in rows}
+            table_rows = await connection.execute(
+                text(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+                )
+            )
+            tables = {str(row[0]) for row in table_rows}
     except Exception as exc:
         name = type(getattr(exc, "orig", exc)).__name__
         if name in {"InvalidPasswordError", "InvalidAuthorizationSpecificationError"}:
@@ -83,15 +120,14 @@ async def _verify_database() -> bool:
     print("Database authentication: OK")
     config = Config("alembic.ini")
     expected = set(ScriptDirectory.from_config(config).get_heads())
-    if current != expected:
-        print(
-            "Migration state: OUT OF DATE - run the native migrate command "
-            f"(database heads={sorted(current)}, repository heads={sorted(expected)})."
-        )
-        return False
-    print(f"Migration state: OK ({', '.join(sorted(current))})")
+    migration_ok, diagnostic = _migration_diagnostic(
+        current=current,
+        expected=expected,
+        tables=tables,
+    )
+    print(diagnostic)
     await engine.dispose()
-    return True
+    return migration_ok
 
 
 async def _main() -> int:
