@@ -230,18 +230,27 @@ def _fixture_inputs(
 
     visual = dict(raw)
     if content_architect_override is not None:
-        return content_architect_override, visual
-    content = _load_content_snapshot(settings)
-    if not content:
-        raw_intake = raw.get("intake")
-        intake = raw_intake if isinstance(raw_intake, dict) else {}
-        content = dict(intake) if intake.get("route_plan") else {}
+        content = dict(content_architect_override)
+    else:
+        content = _load_content_snapshot(settings)
+        if not content:
+            raw_intake = raw.get("intake")
+            intake = raw_intake if isinstance(raw_intake, dict) else {}
+            content = dict(intake) if intake.get("route_plan") else {}
     ca_hash = str((raw.get("source_ref") or {}).get("content_architect_content_hash", "") or "")
-    if content and not isinstance(content.get("approved"), dict):
+    if content and (
+        not isinstance(content.get("approved"), dict)
+        or not str((content.get("approved") or {}).get("content_hash", "") or "")
+    ):
         stamped = dict(content)
-        stamped["approved"] = {"content_hash": ca_hash} if ca_hash else {}
+        stamped["approved"] = {
+            "content_hash": ca_hash or _fixture_direction_hash(content),
+        }
         content = stamped
-    if content and not isinstance(visual.get("approved"), dict):
+    if content and (
+        not isinstance(visual.get("approved"), dict)
+        or not str((visual.get("approved") or {}).get("visual_direction_hash", "") or "")
+    ):
         visual["approved"] = {"visual_direction_hash": _fixture_direction_hash(raw)}
     return content, visual
 

@@ -9,6 +9,7 @@ import pytest
 from oryxenai.agents.code_generator.core.development_input import (
     DevelopmentInputAdapter,
     DevelopmentInputError,
+    _blocking_execution_gaps,
 )
 from oryxenai.core.settings import Settings
 
@@ -17,6 +18,20 @@ def _adapter(tmp_path) -> DevelopmentInputAdapter:
     settings = Settings()
     settings.code_generator_development.input_root = str(tmp_path / "inputs")
     return DevelopmentInputAdapter(settings)
+
+
+def test_optional_execution_gaps_are_admissible_but_required_gaps_block() -> None:
+    optional = {
+        "slots": [{"resource_slot_id": "slot-optional", "required": False}],
+        "execution_gaps": [{"slot_id": "slot-optional"}],
+    }
+    required = {
+        "slots": [{"resource_slot_id": "slot-required", "required": True}],
+        "execution_gaps": [{"slot_id": "slot-required"}],
+    }
+
+    assert _blocking_execution_gaps(optional) == []
+    assert _blocking_execution_gaps(required) == required["execution_gaps"]
 
 
 def test_fixture_and_upload_share_admitted_identity(tmp_path) -> None:

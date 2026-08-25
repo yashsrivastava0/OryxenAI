@@ -93,6 +93,39 @@ def _route_path(value: str) -> bool:
     )
 
 
+def _blocking_execution_gaps(execution: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return only execution gaps that block Code Generator admission.
+
+    Build Preparation keeps optional visual roles explicit as typed gaps so
+    the generator can preserve the approved fallback without inventing a
+    resource.  Required slots remain fail-closed; a gap with no matching slot
+    is also treated as blocking because its provenance cannot be trusted.
+    """
+
+    slots = execution.get("slots")
+    slot_by_id = (
+        {
+            str(slot.get("resource_slot_id", "")): slot
+            for slot in slots
+            if isinstance(slot, dict) and str(slot.get("resource_slot_id", ""))
+        }
+        if isinstance(slots, list)
+        else {}
+    )
+    gaps = execution.get("execution_gaps", [])
+    if not isinstance(gaps, list):
+        return [{"slot_id": "", "reason": "malformed execution gaps"}]
+    blocking: list[dict[str, Any]] = []
+    for gap in gaps:
+        if not isinstance(gap, dict):
+            blocking.append({"slot_id": "", "reason": "malformed execution gap"})
+            continue
+        slot = slot_by_id.get(str(gap.get("slot_id", "")))
+        if slot is None or bool(slot.get("required", True)):
+            blocking.append(gap)
+    return blocking
+
+
 class DevelopmentInputAdapter:
     """Owns only configured fixture IDs and raw ZIP upload bytes."""
 
@@ -824,9 +857,9 @@ class DevelopmentInputAdapter:
                 "PACK_EXECUTION_SCHEMA_UNSUPPORTED", "The execution contract schema is unsupported."
             )
         slots = execution.get("slots")
-        if not isinstance(slots, list) or not slots or execution.get("execution_gaps"):
+        if not isinstance(slots, list) or not slots:
             raise DevelopmentInputError(
-                "PACK_EXECUTION_GAP", "The v3 pack has unresolved execution gaps."
+                "PACK_EXECUTION_SLOT_INVALID", "The v3 execution contract has no slots."
             )
         slot_by_id = {
             str(slot.get("resource_slot_id", "")): slot
@@ -837,6 +870,11 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "PACK_EXECUTION_SLOT_INVALID",
                 "Execution slot identifiers must be unique and non-empty.",
+            )
+        if _blocking_execution_gaps(execution):
+            raise DevelopmentInputError(
+                "PACK_EXECUTION_GAP",
+                "The v3 pack has unresolved required execution gaps.",
             )
         recipes = recipe_manifest.get("recipes")
         recipe_ids = {
@@ -948,6 +986,16 @@ class DevelopmentInputAdapter:
                     raise DevelopmentInputError(
                         "PACK_DELEGATION_POLICY_INVALID",
                         "A delegated slot must carry the explicit closed-set acquisition policy.",
+                    )
+            elif resolution_type == "execution_gap":
+                # Optional Build Preparation roles remain explicit so the
+                # generator can implement their typed fallback. Required gaps
+                # were rejected above; the shared contract validator has also
+                # verified that this diagnostic names the declared slot.
+                if bool(slot.get("required", True)):
+                    raise DevelopmentInputError(
+                        "PACK_EXECUTION_GAP",
+                        "A required execution slot has no admissible resolution.",
                     )
             else:
                 raise DevelopmentInputError(

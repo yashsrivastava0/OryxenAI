@@ -97,7 +97,14 @@ async def _run(args: argparse.Namespace) -> None:
         close = getattr(model_client, "aclose", None)
         if close is not None:
             await close()
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    # PowerShell/Windows hosts may expose a legacy ``charmap`` stdout even
+    # though live portfolio content legitimately contains Unicode. Reconfigure
+    # the stream before emitting the JSON result so a completed pack is not
+    # reported as a failed CLI run during serialization.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8")
+    sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
 
 
 def main() -> None:

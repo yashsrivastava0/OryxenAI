@@ -146,7 +146,7 @@ class CodeGeneratorService:
         if (
             not report.handoff_eligible
             or report.status != "ready_for_handoff"
-            or report.execution_gaps
+            or any(issue.blocking for issue in report.issues)
             or not report.upstream_approval_verified
         ):
             self._not_ready("Build Preparation is not eligible for Code Generator handoff.")
