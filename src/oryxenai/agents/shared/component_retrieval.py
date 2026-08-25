@@ -10,14 +10,24 @@ candidate has been selected by the caller.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
 import httpx
+
+# Tracks, per provider host, the monotonic timestamp until which a prior 429
+# response said to back off. Without this, a single query round with several
+# resource needs re-hits an already-rate-limited registry once per need
+# (observed live: cult-ui.com 429s on every one of 5 consecutive component
+# queries in the same run) instead of skipping it until the window clears.
+_PROVIDER_BLOCKED_UNTIL: dict[str, float] = {}
+_DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 30.0
 
 
 class ComponentRetrievalError(RuntimeError):
@@ -183,6 +193,19 @@ async def _get_json(
     params: dict[str, str | int] | None = None,
 ) -> dict[str, Any]:
     _safe_url(url, hosts)
+    blocked_until = _PROVIDER_BLOCKED_UNTIL.get(provider, 0.0)
+    now = time.monotonic()
+    if blocked_until > now:
+        raise ComponentRetrievalError(
+            f"{provider} rate limit reached; no alternate transport was attempted.",
+            provider=provider,
+            code="RATE_LIMITED",
+            details={
+                "http_status": 429,
+                "retry_delay": round(blocked_until - now, 1),
+                "rate_limit_event": True,
+            },
+        )
     retries = max(0, int(getattr(settings.build_preparation, "network_retry_count", 1)))
     timeout = float(getattr(settings.build_preparation, "network_timeout_seconds", 15.0))
     last_error = "request failed"
@@ -201,6 +224,12 @@ async def _get_json(
             last_error = "connection failed"
         else:
             if response.status_code == 429:
+                retry_after = _DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+                with contextlib.suppress(TypeError, ValueError):
+                    retry_after = max(0.0, float(response.headers.get("Retry-After", "")))
+                _PROVIDER_BLOCKED_UNTIL[provider] = time.monotonic() + (
+                    retry_after or _DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+                )
                 raise ComponentRetrievalError(
                     f"{provider} rate limit reached; no alternate transport was attempted.",
                     provider=provider,
