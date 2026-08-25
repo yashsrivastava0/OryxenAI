@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 16:10 +05:30 — Codex (model/provider omitted) — [b70dde2] — detached fixture profile selection
+Fixed the detached Build Preparation frontend and CLI so the internal
+`build_preparation` engine route is not passed as a selectable profile. Live
+runs now preserve a selectable profile from the approved VDD input, including
+the configured Luna profile, while retaining normal engine routing otherwise.
+
 ### 2026-08-25 15:44 +05:30 — Codex (model/provider omitted) — [c9f0a95] — native Luna Build Preparation handoff
 Hardened the native live Build Preparation path for bounded Luna output-shape
 recovery, fixture approval stamping, Unicode CLI output, and bounded image
