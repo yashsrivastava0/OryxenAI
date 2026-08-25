@@ -23,6 +23,53 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-051 - Source-bound Build Preparation checkpoints
+
+- **Date & Time:** 2026-08-25 11:54 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** A bounded retry previously replayed every successful Build
+  Preparation model stage, while packaging and artifact verification must
+  always be reconstructed from disposable local state.
+- **Decision:** Persist one internal, schema-versioned JSONB checkpoint on the
+  existing agent run after validated stages 0 through 4. Bind it to run ID,
+  approved-source hash, complete model-profile/capability fingerprint, and
+  candidate-set hash. Revalidate every restored DTO and invalidate later
+  stages on any binding or candidate mismatch. Never checkpoint artifact
+  bytes, source files, staging paths, an unverified ZIP, or upload state;
+  materialization, packaging, upload, and read-back always rerun.
+- **Rejected alternatives:** Replaying every model call; storing staged trees
+  or ZIP bytes in PostgreSQL; accepting checkpoints across runs or upstream
+  approvals; checkpointing provider raw responses. These either waste bounded
+  external work, violate disposable-staging boundaries, or weaken provenance
+  and privacy guarantees.
+- **Consequence:** Transient retries resume validated semantic work without
+  replaying successful model calls, while deterministic admission and
+  artifact verification remain authoritative and idempotent.
+
+## D-050 - Detached pipeline model selection and privacy-free preflight
+
+- **Date & Time:** 2026-08-25 11:54 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Native detached development needs provider comparison without
+  exposing configuration secrets, changing providers midway through durable
+  work, or sending portfolio data merely to discover a credential/capability
+  failure.
+- **Decision:** Expose detached-only APIs for allowlisted non-secret profile
+  labels and a fixed-schema, no-context preflight. An empty selection means
+  the configured per-engine routes. A non-empty selection must be allowlisted,
+  is persisted by Discovery, becomes immutable after Discovery starts, and is
+  inherited by Content Architect, Visual Design Director, and Build
+  Preparation. Preflight receipts are cached by the complete
+  profile/capability fingerprint. Attached modes fail closed.
+- **Rejected alternatives:** Returning endpoints/model coordinates to the
+  browser; accepting arbitrary profile IDs; silently falling back from invalid
+  overrides; allowing each stage to choose independently; preflighting with
+  portfolio content. Those choices leak deployment detail, make runs
+  irreproducible, or violate the no-context privacy boundary.
+- **Consequence:** Restart Pipeline is the only way to unlock provider choice.
+  Native development stays login-free, while Docker and production-like
+  behavior remain attached and unchanged.
+
 ## D-049 - Temporarily detach authentication from the main pipeline
 
 - **Date & Time:** 2026-08-25 16:30 +05:30 - Codex (GPT-5 / OpenAI)
