@@ -23,6 +23,36 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-053 - Extend temporary detached auth to the Code Generator standalone dev harness
+
+- **Date & Time:** 2026-08-25 21:10 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** D-049 deliberately kept authentication on admin, product, fixture, run, and
+  Code Generator surfaces while detaching the main Discovery-through-Build-Preparation
+  pipeline. D-052 later extended the detached bypass to the Build Preparation fixture
+  specifically, because that standalone harness has no session/ownership state to
+  protect. The Code Generator standalone development harness
+  (`code_generator_development.py`) is in the same position — it runs isolated
+  fixture/upload-driven generations with no portfolio ownership or entitlement state —
+  but was still admin-gated, blocking the same kind of local iteration D-052 unblocked
+  for Build Preparation.
+- **Decision:** Mirror D-052's `fixture_router`/`detached_fixture_router` split for the
+  Code Generator dev harness: `code_generator_development.py` now exposes both `router`
+  (existing `require_admin` dependency) and `detached_router` (identical routes, no auth
+  dependency), and `api/routes/__init__.py` selects `detached_router` instead of
+  `router` when `settings.auth.pipeline_mode == "detached"`, exactly like the Build
+  Preparation fixture selection already does.
+- **Rejected alternatives:** Removing auth from the production, session-bound Code
+  Generator routes (`code_generator.py`) — rejected because those routes are tied to
+  real portfolio ownership and the Phase 3/4 entitlement guarantees (D-046, D-047),
+  which must hold regardless of pipeline detach mode; introducing a new bypass
+  mechanism instead of reusing D-052's router-split pattern — rejected as unnecessary
+  duplication of an already-reviewed approach.
+- **Consequence:** The standalone Code Generator dev harness can be iterated on locally
+  without admin auth in detached mode, matching Build Preparation's fixture. Attached,
+  Docker, test, and production-like modes are unaffected — `code_generator_development.router`
+  (admin-gated) is still selected whenever `pipeline_mode != "detached"`.
+
 ## D-052 - Extend temporary detached auth through the Build Preparation fixture
 
 - **Date & Time:** 2026-08-25 20:09 +05:30 - Codex (model/provider omitted)
@@ -567,9 +597,9 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-08-19)
+## Summary (as of last update — 2026-08-25)
 
-- Total decisions logged: 38
-- Active decisions: 34 (all logged decisions except D-006, D-010, D-012, and D-014)
-- Superseded decisions: 4 (D-006, D-010, D-012, D-014)
-- Last updated: 2026-08-23 — Codex (model/provider omitted)
+- Total decisions logged: 53
+- Active decisions: 48 (all logged decisions except D-006, D-010, D-012, D-014, and D-049)
+- Superseded decisions: 5 (D-006, D-010, D-012, D-014, D-049 superseded-by-D-052)
+- Last updated: 2026-08-25 — Claude Code (Claude Sonnet 5 / Anthropic)

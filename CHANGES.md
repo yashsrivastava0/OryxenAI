@@ -11,6 +11,43 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 21:20 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [ed9de3b] - build-preparation, materializer, providers, execution
+Gave component materialization the same alternate-candidate retry loop
+images already had (`_materialize_component_candidate`,
+`ComponentMaterializationError`), instead of one rejection sending a
+component straight to an execution gap. Removed ~190 lines of unreachable
+dead code in `materialize_build_context` (a second photo-materialization
+branch guarded by the same condition as the retry loop above it, which
+always `continue`s) and `ProviderLookup._blocked_until` (read but never
+assigned, so it never fired). Enriched `VDD_EXECUTION_GAP` messages to
+distinguish "candidates were rejected, last reason: X" from "nothing was
+ever attempted." `uv run pytest -k "build_preparation or
+code_generator_development"` (106 passed, 7 skipped), ruff, and mypy all
+clean on the touched files.
+
+### 2026-08-25 21:10 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [40d0477] - code_generator_development, routes
+Extended D-052's detached-auth pattern to the standalone Code Generator dev
+harness: added `code_generator_development.detached_router` (no
+`require_admin`) and select it over the admin-gated router in
+`api/routes/__init__.py` when `auth.pipeline_mode == "detached"`. Production
+Code Generator session routes (`code_generator.py`) are untouched. Recorded
+as D-053.
+
+### 2026-08-25 21:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [53cd913] - web/routes, web/static/app.js
+Fixed the concrete cause of "Could not create a session. Is the API
+running?": `/dev` hardcoded `pipeline_mode="attached"` regardless of
+`config/app.toml`, forcing the full Supabase login flow even when
+`auth.pipeline_mode` was `"detached"`. `/dev` now follows
+`settings.auth.pipeline_mode` like `/app` already did. Also stopped
+`createSessionQuiet`/`sendMessage` from collapsing every session-create
+failure into the same generic string — the UI now surfaces the actual
+status/code/message. `uv run pytest -k detached` passed (3 passed, 5
+skipped) after the change. Live browser end-to-end verification is still
+pending: this local machine's port 5544 (expected native PostgreSQL) is
+currently held by Docker Desktop's WSL relay rather than a real Postgres
+instance, so every DB connection attempt times out — a pre-existing local
+environment condition, not caused by this change.
+
 ### 2026-08-25 20:20 +05:30 - Codex (model/provider omitted) - [87cad46] - detached Build Preparation auth boundary
 Extended local detached mode through the Build Preparation fixture and progress
 APIs, bypassed Supabase bootstrap with the anonymous no-store request boundary,
@@ -111,72 +148,17 @@ Switched Discovery, Content Architect, and Visual Design Director to the
 configured Anthropic `claude-sonnet-5` profiles using `ANTHROPIC_API_KEY`,
 rebuilt the Docker API/worker images, and verified a live Discovery response.
 
-### 2026-08-24 21:16 +05:30 - Codex (GPT-5.6 Luna / OpenAI) - [9b95baf] - Route Build Preparation through direct OpenAI Luna
-Added a dedicated `gpt-5.6-luna` profile using `OPENAI_API_KEY` and the
-official OpenAI endpoint, routed Build Preparation to it, rebuilt the app and
-worker, and verified the local stack plus focused agent tests. The first live
-run reached OpenAI successfully but stopped at the account's exhausted credit
-balance before any pack could be materialized.
-
-### 2026-08-24 21:18 +05:30 - Codex (GPT-5.6 Luna / OpenAI) - [bf8f63d] - Route the first three agents through OpenAI Luna
-Switched Discovery, Content Architect, and Visual Design Director to the
-OpenAI-compatible `gpt-5.6-luna` profiles using `OPENAI_API_KEY`, updated the
-runbook and settings coverage, and verified the Docker stack. A bounded live
-Discovery call reached OpenAI but still returned `credit_balance_exhausted`.
-
-### 2026-08-24 18:36 +05:30 - Codex (model/provider omitted) - [e70b6ab] - Align auth handoff documentation with public admission
-Updated the Auth README, owner deployment checklist, and implementation handoff
-so future agents use the new open/allowlist admission mode rather than the
-obsolete allowlist-only policy. Google OAuth Testing/publishing remains a
-separate provider-side deployment gate.
-
-### 2026-08-24 18:30 +05:30 - Codex (model/provider omitted) - [dddc1ba] - Open Google registration and browser auth hardening
-Added explicit `open`/`allowlist` admission modes, with the product and Docker
-deployment admitting verified Google users until the server-side 15-user cap.
-Updated the auth UI copy and route metadata, added no-token HTML assertions and
-security headers, and documented the remaining Google OAuth Testing/publishing
-owner gate (D-048). Supabase PKCE browser sessions remain managed by the pinned
-client; tokens are not rendered in HTML, URLs, logs, or API responses.
-
-### 2026-08-24 17:44 +05:30 - Codex (model/provider omitted) - [449b379] - Authentication redirect flicker fix
-Loaded the pinned Supabase browser client before every product/development auth
-bootstrap, removed auth-only CSS from the product workspace, preserved valid
-sessions when workspace code fails, and added callback/script-order regression
-coverage. This removes the false configuration error and `/app` to `/sign-in`
-redirect loop while keeping new-user onboarding and returning-user routing
-deterministic.
-
-### 2026-08-24 17:11 +05:30 - Codex (model/provider omitted) - [c5b5821] - Final authentication readiness hardening
-Corrected modern Supabase secret-key Admin API headers, browser token refresh,
-canonical PKCE routing, terminal local sign-out, retryable administrator
-operation UX, external-call transaction boundaries, schema-aware readiness,
-and cross-platform Docker startup. Safely migrated the verified-empty local
-application schema to Alembic head and left the API, worker, and PostgreSQL
-stack healthy for owner Google-browser acceptance.
-
-### 2026-08-24 - Codex (model/provider omitted) - [b17227c] - Phase 4 administrator lifecycle and acceptance
-Implemented the linear Phase 4 migration, safe admin operations/audit ledger,
-Supabase Admin API adapter, resumable user/project cleanup, identity/project
-tombstones, entitlement reset, promotion/demotion safety, deletion worker
-fences, Code Generator admin commands, functional masked admin console, and
-deterministic verification/reporting. Local authentication and authorization
-are complete through Phase 4; owner browser acceptance and production
-deployment remain separate gates.
-
-### 2026-08-24 13:07 +05:30 - Codex (model/provider omitted) - [90d5dfe] - Phase 3 portfolio entitlements and worker fencing
-Implemented migration 0016 with one normal-user portfolio, generation-variant, and verified-success entitlement; trusted durable owner/actor snapshots; global model-generation admission; redacted provider-credit failures; worker reauthorization; verified preview finalization; and server-enforced post-success read-only behavior. Updated the authenticated product shell and Phase 3 documentation/tests. Administrator lifecycle, destructive reset/delete, live multi-account acceptance, and deployment remain Phase 4.
-
-### 2026-08-24 02:09 +05:30 - Codex (model/provider omitted) - [d288077] - Phase 2 portfolio ownership and API authorization
-Implemented migration 0015 with fail-closed legacy quarantine, owner-scoped session aggregates, centralized owner/admin route dependencies, protected development surfaces, bearer-authenticated product/developer boot, and regression coverage. Recorded D-045; entitlement, worker fencing, administrator lifecycle, and deployment remain Phases 3 and 4.
-
-### 2026-08-24 00:00 +05:30 - Codex (model/provider omitted) - [48e5f6c] - Supabase Auth Phase 1 foundation
-Implemented Google-only Supabase PKCE sessions, asymmetric JWT/JWKS verification, allowlisted just-in-time admission, two bootstrap admins outside the 15-user capacity, username onboarding, direct auth routes, a self-hosted browser controller, migration 0014, and focused coverage; Phases 2-4 and production cloud setup remain deferred.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-24 - Codex (GPT-5.6 Luna / OpenAI) - [9b95baf, bf8f63d] - Routed all four model-backed agents through a direct OpenAI Luna profile; live calls reached OpenAI but stopped at `credit_balance_exhausted` before any pack materialized.
+- 2026-08-24 - Codex (model/provider omitted) - [e70b6ab, dddc1ba] - Open Google registration admission mode (open/allowlist, D-048) and matching auth-handoff documentation.
+- 2026-08-24 - Codex (model/provider omitted) - [449b379, c5b5821] - Authentication redirect-flicker fix and final Supabase/PKCE/Admin-API readiness hardening ahead of owner browser acceptance.
+- 2026-08-24 - Codex (model/provider omitted) - [b17227c] - Phase 4 administrator lifecycle, audit, and resumable deletion/reset.
+- 2026-08-24 - Codex (model/provider omitted) - [90d5dfe] - Phase 3 portfolio entitlements, durable owner/actor snapshots, and worker fencing.
+- 2026-08-24 - Codex (model/provider omitted) - [d288077, 48e5f6c] - Phase 2 session ownership/API authorization (D-045) and the Phase 1 Supabase Google-only auth foundation.
 - 2026-08-23 - Codex - [c9ad71d, 0f9bc0d, a03ba6f] - Authentication research, prerequisite verification, provider selection, and minimum-route implementation handoff.
 - 2026-08-23 - Codex - [5ca0b85] - Code Generator V4 source realization, quality/runtime contracts, preview hardening, and stable retry semantics.
 - 2026-08-21 - Codex - [3437075, 26890c5] - V4 quality/read-back promotion gates, provider contracts, runtime verification, and preview reliability.
@@ -238,6 +220,6 @@ Implemented Google-only Supabase PKCE sessions, asymmetric JWT/JWKS verification
 
 ## Summary (as of last compaction — 2026-08-25)
 
-- Recent detailed entries retained: 21
-- Compacted milestone bullets: 38
-- Last updated: 2026-08-25 — Codex (model/provider omitted)
+- Recent detailed entries retained: 18
+- Compacted milestone bullets: 44
+- Last updated: 2026-08-25 — Claude Code (Claude Sonnet 5 / Anthropic)
