@@ -34,7 +34,11 @@ from oryxenai.agents.discovery.state import (
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.agents.shared.observability import durable_model_metadata
-from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
+from oryxenai.agents.shared.providers.errors import (
+    ModelOutputInvalidError,
+    ProviderError,
+    stable_provider_failure,
+)
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.discovery import DiscoveryRepository
@@ -218,16 +222,17 @@ async def _execute_persisted(
             operation,
             type(exc).__name__,
         )
+        retry_error = ModelOutputInvalidError()
         await _persist_failure(
             sessionmaker,
             session_id,
             run_id,
             payload,
-            ProviderError(code="MODEL_OUTPUT_INVALID", message=str(exc), retryable=True),
+            retry_error,
             attempt,
             max_attempts,
         )
-        raise
+        raise retry_error from exc
     except Exception as exc:
         logger.warning("discovery operation=%s failed with %s", operation, type(exc).__name__)
         await _persist_failure(

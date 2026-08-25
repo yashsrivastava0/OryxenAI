@@ -272,7 +272,12 @@ class JobRepository:
         stmt = (
             update(BackgroundJob)
             .where(*conditions)
-            .values(status=JobStatus.SUCCEEDED.value, result=result, finished_at=now)
+            .values(
+                status=JobStatus.SUCCEEDED.value,
+                result=result,
+                error_payload=None,
+                finished_at=now,
+            )
         )
         result_proxy = await self._session.execute(stmt)
         return bool(getattr(result_proxy, "rowcount", 0))
