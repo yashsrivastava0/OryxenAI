@@ -172,7 +172,7 @@ async def require_pipeline_session(
 
 
 async def require_detached_pipeline_mode(request: Request) -> None:
-    """Keep restart available for idempotent retries after old-row deletion."""
+    """Fail closed for endpoints that exist only in local detached mode."""
     if not is_detached_pipeline(request):
         from oryxenai.api.errors import SessionNotFoundError
 

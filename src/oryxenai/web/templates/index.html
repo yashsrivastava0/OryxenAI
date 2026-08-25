@@ -20,6 +20,7 @@
         <option value="{{ option.id }}"{% if option.is_default %} selected{% endif %}>{{ option.label }}</option>
         {% endfor %}
       </select>
+      <span id="model-preflight-status" class="result" role="status" aria-live="polite"></span>
     </div>
     <div class="portfolio-identity" aria-label="Authenticated account"{% if pipeline_mode == "detached" %} hidden{% endif %}>
       <span>Signed in as <strong data-user="username">there</strong></span>
