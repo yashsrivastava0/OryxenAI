@@ -24,6 +24,15 @@ router = APIRouter(
     tags=["code-generator-development"],
     dependencies=[Depends(require_admin)],
 )
+# Mirrors build_preparation.py's fixture_router/detached_fixture_router split
+# (D-052): the same standalone dev-harness routes, but with no auth
+# dependency, mounted instead of `router` only when
+# settings.auth.pipeline_mode == "detached" (see api/routes/__init__.py).
+# Production Code Generator session routes (code_generator.py) are untouched.
+detached_router = APIRouter(
+    prefix="/development/code-generator",
+    tags=["code-generator-development"],
+)
 
 
 def _run_id(value: str) -> UUID:
@@ -45,6 +54,7 @@ def _error(exc: DevelopmentRunError | DevelopmentInputError) -> NoReturn:
 
 
 @router.get("/fixtures")
+@detached_router.get("/fixtures")
 async def fixtures(
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
 ) -> dict[str, Any]:
@@ -52,6 +62,7 @@ async def fixtures(
 
 
 @router.get("/readiness")
+@detached_router.get("/readiness")
 async def readiness(
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
 ) -> dict[str, Any]:
@@ -61,6 +72,7 @@ async def readiness(
 
 
 @router.post("/provider-preflight")
+@detached_router.post("/provider-preflight")
 async def provider_preflight(
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
 ) -> dict[str, Any]:
@@ -73,6 +85,7 @@ async def provider_preflight(
 
 
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
+@detached_router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
 async def create_fixture_run(
     request: Request,
     body: FixtureRunRequest,
@@ -89,6 +102,7 @@ async def create_fixture_run(
 
 
 @router.get("/build-preparation-packs")
+@detached_router.get("/build-preparation-packs")
 async def build_preparation_packs(
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
 ) -> dict[str, Any]:
@@ -98,6 +112,7 @@ async def build_preparation_packs(
 
 
 @router.post("/runs/from-build-preparation", status_code=status.HTTP_202_ACCEPTED)
+@detached_router.post("/runs/from-build-preparation", status_code=status.HTTP_202_ACCEPTED)
 async def create_build_preparation_run(
     request: Request,
     body: BuildPreparationRunRequest,
@@ -114,6 +129,7 @@ async def create_build_preparation_run(
 
 
 @router.post("/runs/upload", status_code=status.HTTP_202_ACCEPTED)
+@detached_router.post("/runs/upload", status_code=status.HTTP_202_ACCEPTED)
 async def create_upload_run(
     request: Request,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -150,6 +166,7 @@ async def create_upload_run(
 
 
 @router.get("/runs/{run_id}")
+@detached_router.get("/runs/{run_id}")
 async def get_run(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -161,6 +178,7 @@ async def get_run(
 
 
 @router.get("/runs/{run_id}/events")
+@detached_router.get("/runs/{run_id}/events")
 async def get_events(
     run_id: str,
     after: int = 0,
@@ -175,6 +193,7 @@ async def get_events(
 
 
 @router.get("/runs/{run_id}/plan")
+@detached_router.get("/runs/{run_id}/plan")
 async def get_plan(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -186,6 +205,7 @@ async def get_plan(
 
 
 @router.post("/runs/{run_id}/acquire", status_code=status.HTTP_202_ACCEPTED)
+@detached_router.post("/runs/{run_id}/acquire", status_code=status.HTTP_202_ACCEPTED)
 async def acquire_run(
     request: Request,
     run_id: str,
@@ -202,6 +222,7 @@ async def acquire_run(
 
 
 @router.get("/runs/{run_id}/acquisition")
+@detached_router.get("/runs/{run_id}/acquisition")
 async def get_acquisition(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -213,6 +234,7 @@ async def get_acquisition(
 
 
 @router.get("/runs/{run_id}/dependencies")
+@detached_router.get("/runs/{run_id}/dependencies")
 async def get_dependencies(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -224,6 +246,7 @@ async def get_dependencies(
 
 
 @router.get("/runs/{run_id}/plan-deltas")
+@detached_router.get("/runs/{run_id}/plan-deltas")
 async def get_plan_deltas(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -235,6 +258,7 @@ async def get_plan_deltas(
 
 
 @router.post("/runs/{run_id}/generate", status_code=status.HTTP_202_ACCEPTED)
+@detached_router.post("/runs/{run_id}/generate", status_code=status.HTTP_202_ACCEPTED)
 async def generate_run(
     request: Request,
     run_id: str,
@@ -251,6 +275,7 @@ async def generate_run(
 
 
 @router.get("/runs/{run_id}/generation")
+@detached_router.get("/runs/{run_id}/generation")
 async def get_generation(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -262,6 +287,7 @@ async def get_generation(
 
 
 @router.post("/runs/{run_id}/verify", status_code=status.HTTP_202_ACCEPTED)
+@detached_router.post("/runs/{run_id}/verify", status_code=status.HTTP_202_ACCEPTED)
 async def verify_run(
     request: Request,
     run_id: str,
@@ -278,6 +304,7 @@ async def verify_run(
 
 
 @router.get("/runs/{run_id}/verification")
+@detached_router.get("/runs/{run_id}/verification")
 async def get_verification(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -289,6 +316,7 @@ async def get_verification(
 
 
 @router.get("/runs/{run_id}/preview")
+@detached_router.get("/runs/{run_id}/preview")
 async def get_preview(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -300,6 +328,7 @@ async def get_preview(
 
 
 @router.get("/runs/{run_id}/quality")
+@detached_router.get("/runs/{run_id}/quality")
 async def get_quality(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -311,6 +340,7 @@ async def get_quality(
 
 
 @router.get("/runs/{run_id}/source-manifest")
+@detached_router.get("/runs/{run_id}/source-manifest")
 async def get_source_manifest(
     run_id: str,
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
@@ -322,6 +352,7 @@ async def get_source_manifest(
 
 
 @router.get("/runs/{run_id}/source-file")
+@detached_router.get("/runs/{run_id}/source-file")
 async def get_source_file(
     run_id: str,
     path: str,
