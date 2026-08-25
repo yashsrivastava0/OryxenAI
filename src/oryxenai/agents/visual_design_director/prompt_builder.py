@@ -23,8 +23,8 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 PROMPT_VERSION_SYSTEM = "visual_design_director.system.v3"
 PROMPT_VERSION_ESTABLISH = "visual_design_director.establish_visual_language.v3"
-PROMPT_VERSION_DIRECT_PAGES = "visual_design_director.direct_page_experience.v3"
-PROMPT_VERSION_INTEGRATE = "visual_design_director.integrate_site_experience.v3"
+PROMPT_VERSION_DIRECT_PAGES = "visual_design_director.direct_page_experience.v4"
+PROMPT_VERSION_INTEGRATE = "visual_design_director.integrate_site_experience.v4"
 
 _OPERATION_VERSION_MAP = {
     "establish_visual_language": PROMPT_VERSION_ESTABLISH,
