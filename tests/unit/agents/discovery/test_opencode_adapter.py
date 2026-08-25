@@ -14,6 +14,7 @@ from oryxenai.agents.shared.providers.errors import (
     ProviderBadResponseError,
     ProviderConfigError,
     ProviderConnectionError,
+    ProviderCreditError,
     ProviderRateLimitError,
     ProviderTimeoutError,
 )
@@ -322,6 +323,7 @@ class TestOpenCodeGoAdapterErrors:
             json_object_mode=True,
             json_schema_mode=True,
             thinking_mode=True,
+            structured_output_mode="native_json_schema",
             reasoning_content=False,
             temperature_control=False,
             usage_metadata=True,
@@ -421,6 +423,42 @@ class TestOpenCodeGoAdapterErrors:
                         output_model=QuestionSetOutput,
                     )
                 )
+
+    def test_maps_structured_credit_exhaustion_before_http_429_rate_limit(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+
+        import openai
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        credit_error = openai.RateLimitError(
+            message="Request rejected",
+            response=MagicMock(status_code=429),
+            body={
+                "error": {
+                    "type": "insufficient_quota",
+                    "code": "credit_balance_exhausted",
+                    "message": "billing detail must remain private",
+                }
+            },
+        )
+        adapter = OpenCodeGoAdapter(_make_profile(provider="openai"))
+
+        with patch.object(
+            adapter, "_build_client", return_value=_make_mock_openai_client(credit_error)
+        ):
+            import asyncio
+
+            with pytest.raises(ProviderCreditError) as exc_info:
+                asyncio.run(
+                    adapter.generate_structured(
+                        operation="test",
+                        instructions="test",
+                        input_payload={},
+                        output_model=QuestionSetOutput,
+                    )
+                )
+        assert exc_info.value.retryable is False
 
     def test_maps_timeout_error(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
@@ -620,9 +658,11 @@ class TestOpenCodeGoAdapterCapabilityHandling:
         response = _mock_chat_response('{"ok": true}')
         mock_client = _make_mock_openai_client(response)
 
+        from oryxenai.agents.shared.providers.capabilities import DEFAULT_OPENCODE_GO
         from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
 
-        adapter = OpenCodeGoAdapter(_make_profile(reasoning_effort="high"))
+        caps = DEFAULT_OPENCODE_GO.model_copy(update={"effort_parameter": "reasoning_effort"})
+        adapter = OpenCodeGoAdapter(_make_profile(reasoning_effort="high", capabilities=caps))
 
         with patch.object(adapter, "_build_client", return_value=mock_client):
             import asyncio
@@ -639,7 +679,9 @@ class TestOpenCodeGoAdapterCapabilityHandling:
         assert call_kwargs["reasoning_effort"] == "high"
 
         mock_client.chat.completions.create.reset_mock()
-        adapter_no_thinking = OpenCodeGoAdapter(_make_profile(reasoning_effort=""))
+        adapter_no_thinking = OpenCodeGoAdapter(
+            _make_profile(reasoning_effort="", capabilities=caps)
+        )
         with patch.object(adapter_no_thinking, "_build_client", return_value=mock_client):
             import asyncio
 

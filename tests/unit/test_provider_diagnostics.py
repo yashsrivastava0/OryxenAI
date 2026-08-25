@@ -14,7 +14,7 @@ def test_build_preparation_connection_error_has_network_action() -> None:
     )
 
     assert issue["code"] == "PROVIDER_CONNECTION_ERROR"
-    assert issue["message"].startswith("The configured OpenAI model provider could not be reached")
+    assert issue["message"].startswith("The configured model provider could not be reached")
     assert "endpoint" in issue["next_action"]
     assert issue["details"]["endpoint_host"] == "api.openai.com"
 
