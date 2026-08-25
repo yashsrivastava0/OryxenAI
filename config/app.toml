@@ -86,7 +86,8 @@ provider = "supabase"
 enabled = true
 required = false                # production and the Docker overlay require it
 # Development workflow switch. The main Discovery-to-Build Preparation
-# pipeline is anonymous locally; the auth/admin boundary remains mounted.
+# pipeline and its local Build Preparation fixture are anonymous locally;
+# attached and deployment-like development surfaces remain protected.
 pipeline_mode = "detached"     # attached | detached (local/test only)
 # Public Google registration is the product default.  Set this to
 # "allowlist" in a restricted environment; the database still caps normal

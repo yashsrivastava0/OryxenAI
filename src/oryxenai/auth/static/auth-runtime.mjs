@@ -272,6 +272,7 @@ export function readAuthConfig(documentRef = globalThis.document) {
     supabaseUrl: read("oryxenai-supabase-url"),
     publishableKey: read("oryxenai-publishable-key"),
     admissionMode: read("oryxenai-admission-mode") || "allowlist",
+    pipelineMode: read("oryxenai-pipeline-mode") || "attached",
     primaryOrigin: read("oryxenai-primary-origin"),
     callbackUrl: read("oryxenai-callback-url"),
     paths: {

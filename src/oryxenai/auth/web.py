@@ -80,6 +80,8 @@ def create_auth_web_router() -> APIRouter:
 
     @router.get("/sign-in", response_class=HTMLResponse)
     async def sign_in(request: Request) -> Any:
+        if request.app.state.settings.auth.pipeline_mode == "detached":
+            return RedirectResponse("/app", status_code=307)
         return await render_shell(request, "sign-in")
 
     @router.get("/auth/callback", response_class=HTMLResponse)
