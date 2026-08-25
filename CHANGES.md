@@ -11,6 +11,30 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-25 12:43 +05:30 — Codex (model/provider omitted) — [9055cc3] — runtime startup-gate regressions
+Aligned test-profile timeouts with every bounded model workflow, including
+legacy Discovery job aliases, and added explicit detached-only authorization
+inventory coverage for the model-profile preflight API.
+
+### 2026-08-25 12:22 +05:30 — Codex (model/provider omitted) — [c19e4a1] — detached pipeline UI/API, native PostgreSQL workflow
+Added detached-only safe profile listing and privacy-free preflight, sticky
+four-stage model selection, selector/reset fencing, live Build Preparation
+progress, and interactive native PostgreSQL alignment plus authentication and
+migration diagnostics. Attached Docker/product behavior remains fail-closed
+(D-050).
+
+### 2026-08-25 12:22 +05:30 — Codex (model/provider omitted) — [5b5df50] — durable retries, Build Preparation checkpoints, progress and receipts
+Unified retry/timeout decisions, persisted redacted per-operation receipts and
+live progress, added source/profile/candidate-bound stage checkpoints, and
+kept deterministic package admission authoritative while rerunning all
+materialization and artifact verification on retry (D-051).
+
+### 2026-08-25 12:22 +05:30 — Codex (model/provider omitted) — [2614bde] — shared provider-neutral model runtime
+Centralized profile routing, capability validation, adapter registration and
+reuse, privacy-free preflight caching, client shutdown, and safe provider
+failure normalization behind the stable `ModelClient` contract. Removed live
+mock fallback and rejected the unimplemented Responses transport.
+
 ### 2026-08-25 - Codex (GPT-5 / OpenAI) - [15cf585] - Temporarily detach the main pipeline and add hard restart
 Added config-driven detached development mode for the Discovery through Build
 Preparation workflow while preserving authentication on admin, product,
@@ -114,72 +138,15 @@ Implemented migration 0015 with fail-closed legacy quarantine, owner-scoped sess
 ### 2026-08-24 00:00 +05:30 - Codex (model/provider omitted) - [48e5f6c] - Supabase Auth Phase 1 foundation
 Implemented Google-only Supabase PKCE sessions, asymmetric JWT/JWKS verification, allowlisted just-in-time admission, two bootstrap admins outside the 15-user capacity, username onboarding, direct auth routes, a self-hosted browser controller, migration 0014, and focused coverage; Phases 2-4 and production cloud setup remain deferred.
 
-### 2026-08-23 21:19 +05:30 - Codex (model/provider omitted) - [c9ad71d] - Auth prerequisite and minimum-route handoff
-Recorded the privately configured separate normal test identity, zero-warning
-strict prerequisite result, documentation-only phase boundary, and deterministic
-first-visit/callback/refresh/deployment route controller. No auth runtime,
-migration, dependency, table, secret, or cloud resource was added.
-
-### 2026-08-23 20:56 +05:30 - Codex (model/provider omitted) - [0f9bc0d] - Supabase Auth setup and implementation handoff
-Accepted Supabase Google-only identity with FastAPI/PostgreSQL authorization
-(D-043), replaced the Clerk-first research, recorded the sanitized development
-setup, and added a repository-grounded implementation plan plus redaction-safe
-offline/online prerequisite verifier. Provider checks passed; runtime auth is
-not implemented, and one separate normal-user test identity remains pending.
-
-### 2026-08-23 19:37 +05:30 - Codex (model/provider omitted) - [5ca0b85] - Code Generator V4 realization, verification, and preview hardening
-Activated the V4 source-realization, quality, runtime, and preview contracts,
-added the scaffold source audit and integration-review regression coverage, and
-recorded stable retry versus explicit new-variant semantics (D-042). Refreshed
-the checked-in portfolio input examples and removed obsolete generated/session
-artifacts; repository and clean scaffold verification passed.
-
-### 2026-08-23 14:03 +05:30 — Codex (model/provider omitted) — [a03ba6f] — Authentication research
-Added a source-grounded `docs/Auth/` research and handoff set covering provider
-selection, Google/username flow, ownership and one-success quota semantics,
-admin authority, security, deployment responsibilities, and edge cases. This
-research adds no runtime auth or accepted architecture decision.
-
-### 2026-08-21 22:20 +05:30 - Codex (GPT-5 / OpenAI) - [3437075] - V4 promotion quality/read-back gate
-Required an accepted v4 quality receipt before final verification can promote,
-verified the candidate index before changing the active pointer, and upgraded
-new portfolio exports to additive metadata schema v2 while retaining v1 reader
-compatibility.
-
-### 2026-08-21 22:00 +05:30 - Codex (GPT-5 / OpenAI) - [26890c5] - Code Generator V4 reliability and preview quality contracts
-Added provider-compatible v4 creative/blueprint/search/source/quality DTOs,
-typed token compilation, semantic route ownership, measurable design
-realization, exact bounded provider-query receipts, v4 development quality
-review parity, hash-bound quality API/reporting, and `preview_pending`
-publication retention. Fixed preview CSP origin allowlists, gateway-specific
-health checks, index caching, storage read-back, and pack-v4 mirror admission;
-added focused v4 and gateway coverage while preserving v3 compatibility.
-
-### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [5fcbdd4] — Anthropic model routing, adapter hardening, profile API/UI
-Implemented D-040: all active engines now resolve through the shared
-`ModelRouter` and provider-neutral client factory to Anthropic Claude Sonnet 5
-using the credential named by the active profile. Added adaptive-thinking/
-native-schema capability configuration, prompt caching, safe selectable-profile metadata, live
-fail-closed behavior, and regression coverage; Batch API submission remains
-deferred for a future asynchronous workload.
-
-### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [1b37748] — docs/run/run.md, standalone Code Generator Docker runbook
-Documented the isolated Code Generator development workflow: local Docker
-overlay and database setup, API/worker/preview-gateway startup, shared
-workspace debugging, readiness checks, UI/API usage, output locations, and
-safe shutdown/troubleshooting.
-
-### 2026-08-21 — Codex (GPT-5 / OpenAI) — [0b7a806] — Backend-only Docker, hosted shared previews, and source-linked Code Generator debugging
-Implemented D-039: generated portfolios remain portable Vite/React source plus verified `dist/` with Docker artifacts excluded from exports; hosted previews use configurable S3-compatible immutable storage and conditional promotion pointers; local development keeps filesystem storage; readiness fails closed when preview storage is unavailable; and the developer UI/API can open bounded accepted-source slices from file/line diagnostics. Added the free-host deployment contract covering Render-like ephemeral filesystems, worker limitations, managed PostgreSQL, private object storage, and the shared preview gateway.
-
-### 2026-08-21 00:00 +05:30 — Codex (GPT-5 / OpenAI) — [7eac824] — Code Generator generation, source/runtime verification, build isolation, preview promotion
-Hardened the provider-to-preview path with config-compatible structured output, bounded semantic/schema retries, source-only route workspaces, serialized package installs, deterministic route/content/interaction normalization, pack-resource materialization, writable browser/runtime environments, stale-artifact rejection, and diagnostic candidate-gateway failures (D-038). Verified two live generations from pack `20-35-19-08-6d3c4909` reached `ready` with all source/build/DOM gates passing and stable previews returning HTTP 200.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-23 - Codex - [c9ad71d, 0f9bc0d, a03ba6f] - Authentication research, prerequisite verification, provider selection, and minimum-route implementation handoff.
+- 2026-08-23 - Codex - [5ca0b85] - Code Generator V4 source realization, quality/runtime contracts, preview hardening, and stable retry semantics.
+- 2026-08-21 - Codex - [3437075, 26890c5] - V4 quality/read-back promotion gates, provider contracts, runtime verification, and preview reliability.
+- 2026-08-21 - Codex - [5fcbdd4, 1b37748, 0b7a806, 7eac824] - Provider-neutral routing, standalone runbook, hosted preview architecture, generation, verification, and atomic promotion.
 - 2026-08-21 - Codex (GPT-5 / OpenAI) - [0240f57] - Lightweight LLM observability research and metadata-only tracing recommendation.
 - 2026-08-21 - Codex (GPT-5 / OpenAI) - [b6a2be5] - First-three-agent Docker startup recovery runbook and verified frontend/API/worker state.
 - 2026-08-21 - Codex (live provider run) - [0e965fd] - Code Generator provider contract, planner admission, and Docker workspace portability.
@@ -235,8 +202,8 @@ Hardened the provider-to-preview path with config-compatible structured output, 
 
 ---
 
-## Summary (as of last compaction — 2026-08-24)
+## Summary (as of last compaction — 2026-08-25)
 
-- Recent detailed entries retained: 23
-- Compacted milestone bullets: 34
-- Last updated: 2026-08-24 — Codex (model/provider omitted)
+- Recent detailed entries retained: 20
+- Compacted milestone bullets: 38
+- Last updated: 2026-08-25 — Codex (model/provider omitted)

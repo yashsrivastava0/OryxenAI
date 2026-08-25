@@ -16,10 +16,12 @@ or modify the Compose stack.
 The main frontend is served by FastAPI. There is no separate frontend dev
 server for the Discovery or authenticated product workspace.
 
-The application process serves:
+The application process serves (native base config is detached; Docker is
+attached):
 
-- `/` — Google/Supabase authentication shell
-- `/app` — authenticated product workspace
+- `/` — mode-aware entry controller
+- `/app` — login-free detached pipeline workspace in native mode, or the
+  authenticated product workspace in attached mode
 - `/dev` — developer workspace when enabled
 - `/dev/build-preparation-fixture` — detached Build Preparation UI
 - `/dev/code-generator-development` — standalone Code Generator UI
@@ -43,7 +45,8 @@ from another machine.
 
 - Python `3.13` — the project requires `>=3.13,<3.14`.
 - `uv`.
-- PostgreSQL, with `psql` available on `PATH` for native mode.
+- PostgreSQL. The doctor locates `psql` and `pg_isready` through `PATH` or
+  standard installed PostgreSQL directories.
 - Docker Desktop only when using Docker mode.
 - Node.js/npm when running Code Generator generation and verification.
 - Chromium or the browser required by the configured verification profile for
@@ -136,8 +139,21 @@ CREATE DATABASE oryxenai OWNER oryxen;
 \q
 ```
 
-The password entered by `\password` must match `POSTGRES_PASSWORD` in `.env`.
-Do not put the password in a command-line argument.
+Alternatively, use the repository's interactive alignment command. It reads
+the application-role password from `.env`, prompts for the PostgreSQL
+administrator password, and does not print either secret or put it in a
+command argument:
+
+```powershell
+.\scripts\run-native.ps1 align-db
+```
+
+```bash
+./scripts/run-native.sh align-db
+```
+
+Whether aligned manually or through the helper, the role password must match
+`POSTGRES_PASSWORD` in `.env`.
 
 Check connectivity:
 
@@ -217,15 +233,16 @@ Expected results:
 
 - `/health/live` returns `{"status":"alive"}`.
 - `/health/ready` returns HTTP `200` with database `up`.
-- `/` returns the authentication shell.
+- `/app` returns no-store detached HTML directly, without Supabase or a bearer
+  token. PostgreSQL owns its opaque pipeline UUID and stage state.
 - `alembic current` reports the checked-in head without a hardcoded revision
   number in this document.
 - The worker terminal continues without a database or configuration exception.
 
-After authenticating as an administrator, `/dev` and developer APIs can be
-used. Authenticated `/api/v1/system/status` reports the migration revision and
-worker heartbeat. `/api/v1/agents` lists registered agent keys for an
-onboarded user.
+The detached four-stage workspace does not require authentication. `/dev`,
+administrator APIs, Code Generator surfaces, `/api/v1/system/status`, and
+other protected product/developer routes retain their attached authorization
+boundaries.
 
 ### Native change workflow
 
