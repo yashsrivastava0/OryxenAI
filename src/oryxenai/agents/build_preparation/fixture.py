@@ -29,6 +29,7 @@ from oryxenai.agents.build_preparation.schemas import (
 )
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey, ModelClient
+from oryxenai.agents.shared.model_router import ModelRouter
 from oryxenai.core.settings import Settings
 from oryxenai.storage.artifacts import ArtifactStorageError, ArtifactStore
 
@@ -44,6 +45,39 @@ class FixturePreparationError(Exception):
 
 
 EventSink = Callable[[StageEvent], Awaitable[None]]
+
+
+def resolve_fixture_model_profile(
+    settings: Settings,
+    requested: str = "",
+    visual_input: dict[str, Any] | None = None,
+) -> str:
+    """Return a selectable fixture override, or empty for engine routing.
+
+    ``build_preparation`` is a logical engine route, not a selectable UI
+    profile. Detached runs may receive a real selectable profile from the
+    approved VDD snapshot, so preserve that choice without treating the
+    internal route name as an explicit override.
+    """
+
+    router = ModelRouter(settings.models)
+    explicit = str(requested or "").strip()
+    if explicit:
+        if not router.is_selectable(explicit):
+            raise FixturePreparationError(
+                f"Model profile '{explicit}' is not selectable. Choose an allowlisted pipeline profile.",
+                code="FIXTURE_MODEL_PROFILE_INVALID",
+            )
+        return explicit
+    input_profile = ""
+    if isinstance(visual_input, dict):
+        input_profile = str(visual_input.get("model_profile", "") or "").strip()
+    if input_profile and router.is_selectable(input_profile):
+        return input_profile
+    configured = str(settings.build_preparation.model_profile or "").strip()
+    if configured and router.is_selectable(configured):
+        return configured
+    return ""
 
 
 def fixture_storage_preflight(settings: Settings) -> dict[str, Any]:
@@ -306,6 +340,10 @@ async def run_fixture(
     if isinstance(raw.get("visual_design_director"), dict):
         raw = raw["visual_design_director"]
     content_override, raw = _fixture_inputs(settings, raw, content_architect_override)
+    profile_override = resolve_fixture_model_profile(settings, model_profile, raw)
+    resolved_profile = ModelRouter(settings.models).resolve_profile_name(
+        "build_preparation", profile_override
+    )
     run_uuid = uuid4() if run_id is None else UUID(run_id)
     resolved_run_id = str(run_uuid)
     storage = fixture_storage_preflight(settings)
@@ -322,7 +360,7 @@ async def run_fixture(
         model_client = build_provider_client(
             "build_preparation",
             settings.models,
-            override_profile_name=model_profile or settings.build_preparation.model_profile,
+            override_profile_name=profile_override,
         )
         if model_client is None:
             raise FixturePreparationError(
@@ -344,7 +382,7 @@ async def run_fixture(
         current_state={},
         agent_input={
             "operation": "build",
-            "model_profile": model_profile or settings.build_preparation.model_profile,
+            "model_profile": resolved_profile,
             "max_routes": settings.build_preparation.max_routes,
             "editorial_image_budget": settings.build_preparation.editorial_image_budget,
             "visual_design_director": raw,
