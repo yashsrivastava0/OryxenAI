@@ -1,4 +1,5 @@
 from oryxenai.agents.shared.observability import durable_model_metadata
+from oryxenai.agents.shared.providers.errors import ModelOutputInvalidError
 from oryxenai.jobs.worker import _safe_handler_error, _timeout_decision
 
 
@@ -8,6 +9,15 @@ def test_unknown_programming_error_is_permanent() -> None:
     assert error.code == "HANDLER_ERROR"
     assert error.retryable is False
     assert "private implementation detail" not in error.message
+
+
+def test_model_output_contract_failure_remains_retryable_and_redacted() -> None:
+    error = _safe_handler_error(ModelOutputInvalidError("private generated validation detail"))
+
+    assert error.code == "MODEL_OUTPUT_INVALID"
+    assert error.retryable is True
+    assert "private generated validation detail" not in error.message
+    assert error.message == "The model returned output that did not satisfy the required structure."
 
 
 def test_timeout_hook_and_queue_share_retry_decision() -> None:

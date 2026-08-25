@@ -18,7 +18,11 @@ from uuid import UUID
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.agents.shared.observability import durable_model_metadata
-from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
+from oryxenai.agents.shared.providers.errors import (
+    ModelOutputInvalidError,
+    ProviderError,
+    stable_provider_failure,
+)
 from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorModelOutputError
 from oryxenai.agents.visual_design_director.schemas import (
     AssetBrief,
@@ -40,6 +44,28 @@ logger = get_logger("oryxenai.jobs.handlers.visual_design_director")
 
 _AGENT_KEY = AgentKey.VISUAL_DESIGN_DIRECTOR
 _BUILD_KIND = "visual_design_director.build"
+
+_VALIDATION_CATEGORY_MARKERS = {
+    "mode": ("'mode'", "pages_included"),
+    "visual_language": ("'visual_language'", "'shared_visual_systems'"),
+    "page_routes": ("'pages'", "page ", "route_id"),
+    "scenes": ("scene", "responsive_behavior", "motion_intent"),
+    "assets": ("asset",),
+    "resources": ("resource",),
+    "compiler_handoff": ("compiler_handoff",),
+    "references": ("section", "claim", "content_ref"),
+}
+
+
+def _validation_error_categories(errors: list[str]) -> list[str]:
+    """Reduce generated validation messages to fixed, privacy-safe labels."""
+    categories = {
+        category
+        for error in errors
+        for category, markers in _VALIDATION_CATEGORY_MARKERS.items()
+        if any(marker in error.casefold() for marker in markers)
+    }
+    return sorted(categories or {"other"})
 
 
 class VisualDesignDirectorBuildHandler:
@@ -164,18 +190,24 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         # by the same max_attempts budget. Do not log validation detail: it can
         # contain generated portfolio content rather than safe diagnostics.
         logger.warning(
-            "visual_design_director build produced invalid output type=%s", type(exc).__name__
+            "visual_design_director build produced invalid output type=%s operation=%s "
+            "validation_error_count=%d validation_categories=%s",
+            type(exc).__name__,
+            exc.operation,
+            len(exc.errors),
+            _validation_error_categories(exc.errors),
         )
+        retry_error = ModelOutputInvalidError()
         await _persist_failure(
             sessionmaker,
             session_id,
             run_id,
             payload,
-            ProviderError(code="MODEL_OUTPUT_INVALID", message=str(exc), retryable=True),
+            retry_error,
             attempt,
             max_attempts,
         )
-        raise
+        raise retry_error from exc
     except Exception as exc:
         logger.warning("visual_design_director build failed with %s", type(exc).__name__)
         await _persist_failure(
