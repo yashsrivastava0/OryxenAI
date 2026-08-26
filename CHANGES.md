@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-27 03:08 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — truthful preview readiness and hosted Docker contract
+### 2026-08-27 03:08 +05:30 — Codex (GPT-5 / OpenAI) — [e945f54] — truthful preview readiness and hosted Docker contract
 Made the shared preview gateway part of the default Compose topology and
 passed the hosted storage credentials into that service. Readiness now probes a
 typed internal health URL asynchronously with a short timeout, no redirects,
