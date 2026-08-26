@@ -112,12 +112,14 @@ def test_normalize_context_payload_recovers_misplaced_luna_context_fields() -> N
 class _Phase2Model:
     def __init__(self) -> None:
         self.operations: list[str] = []
+        self.input_payloads: dict[str, dict[str, object]] = {}
 
     async def complete(self, system_prompt: str, task_prompt: str, request_params=None) -> str:
         return ""
 
     async def generate_structured(self, *, operation, output_model, **kwargs):
         self.operations.append(operation)
+        self.input_payloads[operation] = kwargs["input_payload"]
         if output_model is Stage1QueryPlan:
             parsed = Stage1QueryPlan(
                 queries=[
@@ -397,6 +399,21 @@ async def test_live_component_source_failure_tries_closed_set_alternate() -> Non
         assert lookup.fetch_attempts == ["component-primary", "component-alternate"]
         assert selection["selected_resource_id"] == "component-alternate"
         assert result.output["handoff_report"]["handoff_eligible"] is True
+        selection_packet = model.input_payloads["select_resources"]
+        assert selection_packet["existing_resources"] == []
+        selection_candidates = selection_packet["candidate_resources"]
+        assert selection_candidates
+        assert "source_files" not in selection_candidates[0]
+        assert "source_reference" not in selection_candidates[0]
+        context_packet = model.input_payloads["write_build_context"]
+        assert len(context_packet["candidate_resources"]) == 1
+        assert context_packet["provider_attempts"] == []
+        review_packet = model.input_payloads["review_handoff_quality"]
+        assert "resource_context_packet" not in review_packet
+        assert "candidate_resources" not in review_packet
+        assert all(
+            receipt["input_packet_bytes"] > 0 for receipt in result.output["model_call_receipts"]
+        )
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 

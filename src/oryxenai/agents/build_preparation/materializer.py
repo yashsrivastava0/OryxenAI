@@ -219,7 +219,12 @@ def _meaningful_component_source(source_files: dict[str, str]) -> bool:
     separate quality decision.
     """
     combined = "\n".join(str(value or "") for value in source_files.values())
-    normalized = re.sub(r"/\*.*?\*/|//[^\n]*|<!--[\s\S]*?-->", "", combined, flags=re.S)
+    normalized = re.sub(
+        r"/\*.*?\*/|^\s*//[^\n]*|<!--[\s\S]*?-->",
+        "",
+        combined,
+        flags=re.S | re.M,
+    )
     compact = re.sub(r"\s+", " ", normalized).strip()
     if len(compact) < 150 or "return null" in compact.replace(" ", "").casefold():
         return False
@@ -230,6 +235,56 @@ def _meaningful_component_source(source_files: dict[str, str]) -> bool:
         for token in ("classname", "aria-", "data-", "onclick", "onchange", "motion", "ref=")
     )
     return has_export and markup_count >= 2 and ui_signals >= 1
+
+
+def _component_source_violations(
+    source_files: dict[str, str], need: ResourceNeed | None = None
+) -> list[str]:
+    """Return concrete reasons registry source cannot serve the typed role."""
+
+    combined = "\n".join(str(value or "") for value in source_files.values())
+    without_comments = re.sub(
+        r"/\*.*?\*/|^\s*//[^\n]*|<!--[\s\S]*?-->",
+        "",
+        combined,
+        flags=re.S | re.M,
+    )
+    normalized = re.sub(r"\s+", " ", without_comments).casefold()
+    violations: list[str] = []
+    placeholder_markers = (
+        "placeholder.svg",
+        "/placeholder",
+        "lorem ipsum",
+        "example.com",
+        "dummyimage",
+        "placehold.co",
+    )
+    if any(marker in normalized for marker in placeholder_markers):
+        violations.append("component source contains placeholder or demo content")
+    if re.search(
+        r"(?:src|poster)\s*=\s*[{'\"]+https?://|\bfetch\s*\(\s*['\"]https?://|<iframe\b",
+        normalized,
+    ):
+        violations.append("component source requires remote runtime media or data")
+
+    role_id = need.component_intent.role_id if need and need.component_intent else ""
+    if role_id in {"experience-timeline", "process-sequence"} and any(
+        marker in normalized
+        for marker in (
+            "currentstep",
+            "next step",
+            "previous step",
+            "wizard",
+            'type="submit"',
+            "type='submit'",
+        )
+    ):
+        violations.append("step source hides approved content behind wizard-style progression")
+    if role_id == "selected-work-detail" and any(
+        marker in normalized for marker in ("<video", "play video", "video player")
+    ):
+        violations.append("selected-work source is a video demo rather than detail exploration")
+    return list(dict.fromkeys(violations))
 
 
 def _component_exports(source_files: dict[str, str]) -> list[str]:
@@ -298,6 +353,15 @@ def _materialize_component_candidate(
         raise ComponentMaterializationError(
             "component is empty or placeholder source and cannot be handed off",
             details={"rejection_reason": "empty_or_placeholder_source"},
+        )
+    source_violations = _component_source_violations(source_map, need)
+    if source_violations:
+        raise ComponentMaterializationError(
+            "; ".join(source_violations),
+            details={
+                "rejection_reason": "component_source_policy_rejected",
+                "source_violations": source_violations,
+            },
         )
     component_source_entries: list[dict[str, Any]] = []
     for source_path, relative, content in resolved_sources:
@@ -434,6 +498,7 @@ async def _materialize_image_candidate(
     download_image: DownloadImage | None,
     files: list[MaterializedFile],
     image_by_hash: dict[str, str],
+    image_by_perceptual_hash: dict[int, str],
 ) -> dict[str, Any]:
     """Download, inspect, optimize, and write one closed-set image candidate."""
 
@@ -484,6 +549,15 @@ async def _materialize_image_candidate(
                         "pixel_height": pixel_height,
                     },
                 )
+            hash_sample = image.convert("L").resize((9, 8))
+            hash_pixels = list(hash_sample.getdata())
+            perceptual_hash = 0
+            for row in range(8):
+                offset = row * 9
+                for column in range(8):
+                    perceptual_hash = (perceptual_hash << 1) | int(
+                        hash_pixels[offset + column] > hash_pixels[offset + column + 1]
+                    )
     except ImageDownloadError:
         raise
     except Exception as exc:
@@ -518,11 +592,26 @@ async def _materialize_image_candidate(
                 "existing_local_path": image_by_hash[content_hash],
             },
         )
+    for existing_hash, existing_path in image_by_perceptual_hash.items():
+        distance = (perceptual_hash ^ existing_hash).bit_count()
+        if distance <= 6:
+            raise ImageDownloadError(
+                "image pixels are perceptually too similar to an earlier local role",
+                details={
+                    "rejection_reason": "near_duplicate_perceptual_hash",
+                    "perceptual_hash": f"{perceptual_hash:016x}",
+                    "existing_perceptual_hash": f"{existing_hash:016x}",
+                    "perceptual_distance": distance,
+                    "perceptual_distance_threshold": 6,
+                    "existing_local_path": existing_path,
+                },
+            )
     image_path = image_by_hash.get(content_hash, "")
     if not image_path:
         image_path = f"resources/images/{resource_id}.jpg"
         files.append(_write(root, image_path, image_bytes, "image"))
         image_by_hash[content_hash] = image_path
+        image_by_perceptual_hash[perceptual_hash] = image_path
     metadata = {
         "resource_id": resource_id,
         "alt_text": candidate.title,
@@ -540,6 +629,7 @@ async def _materialize_image_candidate(
         "original_width": image_info["original_width"],
         "original_height": image_info["original_height"],
         "content_hash": content_hash,
+        "perceptual_hash": f"{perceptual_hash:016x}",
         "inspection_level": "pixel_inspected",
         "local_path": image_path,
         "response_content_type": candidate.mime_type,
@@ -567,6 +657,7 @@ async def _materialize_image_candidate(
         "source_hashes": [content_hash],
         "disposition": "local_file",
         "content_hash": content_hash,
+        "perceptual_hash": f"{perceptual_hash:016x}",
         "response_content_type": candidate.mime_type,
         "raw_byte_size": len(raw_bytes),
         "optimized_byte_size": len(image_bytes),
@@ -1031,6 +1122,7 @@ async def materialize_build_context(
     icon_names: list[str] = []
     seen_selected: set[str] = set()
     image_by_hash: dict[str, str] = {}
+    image_by_perceptual_hash: dict[int, str] = {}
     effective_selections = list(selections)
     resource_attempts: list[dict[str, Any]] = []
     for selection in selections:
@@ -1159,6 +1251,7 @@ async def materialize_build_context(
                         download_image=download_image,
                         files=files,
                         image_by_hash=image_by_hash,
+                        image_by_perceptual_hash=image_by_perceptual_hash,
                     )
                 except Exception as exc:
                     rejection_details = getattr(exc, "details", {})
@@ -1182,6 +1275,7 @@ async def materialize_build_context(
                         ),
                         **rejection_details,
                     }
+                    rejection_code = str(details.pop("rejection_reason", "") or "")
                     attempts.append(
                         {
                             "need_id": selection.need_id,
@@ -1190,6 +1284,7 @@ async def materialize_build_context(
                             "attempt": attempt_index,
                             "status": "rejected",
                             "rejection_reason": str(exc),
+                            "rejection_code": rejection_code,
                             **details,
                         }
                     )
@@ -1369,6 +1464,8 @@ async def materialize_build_context(
                         files=files,
                     )
                 except ComponentMaterializationError as exc:
+                    rejection_details = dict(exc.details)
+                    rejection_code = str(rejection_details.pop("rejection_reason", "") or "")
                     attempt_record = {
                         "need_id": selection.need_id,
                         "candidate_id": attempt_candidate.resource_id,
@@ -1376,7 +1473,8 @@ async def materialize_build_context(
                         "attempt": attempt_index,
                         "status": "rejected",
                         "rejection_reason": str(exc),
-                        **exc.details,
+                        "rejection_code": rejection_code,
+                        **rejection_details,
                     }
                     component_attempts.append(attempt_record)
                     resource_attempts.append(attempt_record)
@@ -1410,9 +1508,7 @@ async def materialize_build_context(
                             "license_reference": resolved_component.license_reference,
                             "source_version": resolved_component.source_version,
                             "dependencies": list(resolved_component.dependencies),
-                            "registry_dependencies": list(
-                                resolved_component.registry_dependencies
-                            ),
+                            "registry_dependencies": list(resolved_component.registry_dependencies),
                             "provider_receipt": dict(
                                 resolved_component.retrieval_metadata.get("provider_receipt", {})
                             ),
@@ -1427,9 +1523,7 @@ async def materialize_build_context(
                                 "license_reference": resolved_component.license_reference,
                             },
                             "dependencies": list(resolved_component.dependencies),
-                            "registry_dependencies": list(
-                                resolved_component.registry_dependencies
-                            ),
+                            "registry_dependencies": list(resolved_component.registry_dependencies),
                             "source_version": resolved_component.source_version,
                             "provider_receipt": dict(resolved_component.retrieval_metadata),
                         }

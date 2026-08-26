@@ -499,7 +499,7 @@ async def search_components(
     try:
         service = _component_service(settings)
         candidates = await service.discover(
-            " ".join([query.query, *query.provider_terms]),
+            query.query,
             allowed_providers=query.allowed_providers,
             client=http,
             settings=settings,
@@ -913,6 +913,7 @@ class ProviderLookup:
     _semaphore: asyncio.Semaphore | None = field(default=None, init=False, repr=False)
     calls_made: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
+    cooldown_skips: int = field(default=0, init=False)
     cache_hits: int = field(default=0, init=False)
     provider_receipts: list[dict[str, Any]] = field(default_factory=list, init=False)
     _image_asset_ids: set[str] = field(default_factory=set, init=False, repr=False)
@@ -985,6 +986,10 @@ class ProviderLookup:
                     bool(item.get("rate_limit_event"))
                     for item in self.provider_receipts[receipt_start:]
                 )
+                self.cooldown_skips += sum(
+                    bool(item.get("cooldown_skip"))
+                    for item in self.provider_receipts[receipt_start:]
+                )
                 self.cache_hits += (
                     sum(
                         1
@@ -1032,6 +1037,10 @@ class ProviderLookup:
                 )
                 self.rate_limit_events += sum(
                     bool(item.get("rate_limit_event"))
+                    for item in self.provider_receipts[receipt_start:]
+                )
+                self.cooldown_skips += sum(
+                    bool(item.get("cooldown_skip"))
                     for item in self.provider_receipts[receipt_start:]
                 )
             elif query.kind == "icon":

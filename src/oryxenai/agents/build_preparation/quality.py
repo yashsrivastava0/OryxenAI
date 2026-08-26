@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from oryxenai.agents.build_preparation.materializer import (
+    _component_source_violations,
     _meaningful_component_source,
     dependencies_allowed,
 )
@@ -53,6 +54,49 @@ _PROHIBITED_IMAGE_TERMS = frozenset(
         "user interface",
     }
 )
+_QUERY_STOP_TERMS = frozenset(
+    {
+        "about",
+        "approved",
+        "build",
+        "complete",
+        "content",
+        "decorative",
+        "experience",
+        "portfolio",
+        "professional",
+        "section",
+        "show",
+        "support",
+        "supporting",
+        "their",
+        "this",
+        "with",
+    }
+)
+_SENSITIVE_CONTEXT_KEYS = frozenset(
+    {
+        "email",
+        "full_name",
+        "name",
+        "person_name",
+        "phone",
+        "username",
+    }
+)
+_COMPONENT_ROLE_PROHIBITIONS: dict[str, frozenset[str]] = {
+    "capability-grouping": frozenset({"faq", "pricing", "login", "signup", "dashboard"}),
+    "experience-timeline": frozenset(
+        {"wizard", "onboarding", "checkout", "form", "login", "signup", "dashboard"}
+    ),
+    "selected-work-detail": frozenset(
+        {"video", "player", "login", "signup", "dashboard", "authentication"}
+    ),
+    "navigation-disclosure": frozenset({"dashboard", "admin", "sidebar"}),
+    "process-sequence": frozenset(
+        {"wizard", "onboarding", "checkout", "form", "login", "signup", "dashboard"}
+    ),
+}
 
 
 _CONTEXT_VALUE_KEYS = frozenset(
@@ -170,7 +214,7 @@ def _context_for_need(need: ResourceNeed, context: dict[str, Any] | None) -> lis
     scene_ids = {str(item) for item in need.scene_ids if str(item).strip()}
     section_ids = {str(item) for item in need.section_ids if str(item).strip()}
     role_id = need.component_intent.role_id if need.component_intent else ""
-    selected: list[Any] = [context.get("semantic_subject_terms", [])]
+    selected: list[Any] = []
 
     for item in context.get("approved_route_context", []) or []:
         if not isinstance(item, dict) or (
@@ -214,9 +258,76 @@ def _context_for_need(need: ResourceNeed, context: dict[str, Any] | None) -> lis
         [
             context.get("responsive_context", {}),
             context.get("reduced_motion_context", {}),
+            context.get("semantic_subject_terms", []),
         ]
     )
     return _dedupe_terms(selected, limit=40)
+
+
+def _sensitive_context_tokens(value: Any, *, key: str = "") -> set[str]:
+    if isinstance(value, dict):
+        mapping_tokens: set[str] = set()
+        for child_key, child_value in value.items():
+            normalized_key = str(child_key).casefold()
+            if normalized_key in _SENSITIVE_CONTEXT_KEYS:
+                mapping_tokens.update(re.findall(r"[a-z0-9]+", str(child_value).casefold()))
+            elif isinstance(child_value, (dict, list)):
+                mapping_tokens.update(_sensitive_context_tokens(child_value, key=normalized_key))
+        return mapping_tokens
+    if isinstance(value, list):
+        sequence_tokens: set[str] = set()
+        for item in value:
+            sequence_tokens.update(_sensitive_context_tokens(item, key=key))
+        return sequence_tokens
+    return set()
+
+
+def _provider_query_tokens(values: list[Any], *, sensitive: set[str], limit: int) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for token in _context_terms(value):
+            normalized = token.casefold()
+            if (
+                normalized in seen
+                or normalized in sensitive
+                or normalized in _QUERY_STOP_TERMS
+                or normalized in _GENERIC_TERMS
+            ):
+                continue
+            seen.add(normalized)
+            result.append(normalized)
+            if len(result) >= limit:
+                return result
+    return result
+
+
+def _component_query_terms(need: ResourceNeed, query: Any) -> tuple[list[str], list[str]]:
+    intent = need.component_intent
+    role_id = intent.role_id if intent else ""
+    canonical_phrases = list(
+        dict.fromkeys(
+            [
+                *component_provider_terms(role_id),
+                *(intent.provider_terms if intent else []),
+                *(
+                    need.details.get("provider_terms", [])
+                    if isinstance(need.details.get("provider_terms", []), list)
+                    else []
+                ),
+            ]
+        )
+    )
+    canonical_tokens = _provider_query_tokens(canonical_phrases, sensitive=set(), limit=8)
+    canonical_token_set = set(canonical_tokens)
+    model_phrases = [*getattr(query, "provider_terms", []), str(query.query or "")]
+    model_tokens = _provider_query_tokens(model_phrases, sensitive=set(), limit=8)
+    if not canonical_tokens:
+        return model_tokens, model_tokens
+    accepted_model_tokens = [token for token in model_tokens if token in canonical_token_set]
+    provider_tokens = list(dict.fromkeys([*canonical_tokens, *accepted_model_tokens]))[:8]
+    provider_phrases = [str(item).strip() for item in canonical_phrases if str(item).strip()][:8]
+    return provider_tokens, provider_phrases
 
 
 def normalize_query_plan(
@@ -242,6 +353,7 @@ def normalize_query_plan(
     ):
         image_providers.append("unsplash")
     queries = []
+    sensitive_tokens = _sensitive_context_tokens(context or {})
     for query in plan.queries:
         need = by_id[query.need_id]
         details = need.details if isinstance(need.details, dict) else {}
@@ -249,9 +361,15 @@ def normalize_query_plan(
         semantic_terms = _dedupe_terms(
             [*need.query_terms, need.purpose, *contextual_terms], limit=40
         )
-        merged_query_terms = _dedupe_terms(
-            [query.query, *semantic_terms],
-            limit=48,
+        role_terms = (
+            details.get("provider_terms", [])
+            if isinstance(details.get("provider_terms", []), list)
+            else []
+        )
+        merged_query_terms = _provider_query_tokens(
+            [*role_terms[:1], query.query, *contextual_terms, *need.query_terms],
+            sensitive=sensitive_tokens,
+            limit=6,
         )
         contextual_negative = [
             *(
@@ -315,51 +433,14 @@ def normalize_query_plan(
                 for value in getattr(query, "allowed_providers", [])
                 if str(value) in configured_registry_order
             ] or configured_registry_order
-            role_id = (
-                need.component_intent.role_id
-                if need.component_intent is not None
-                else str(details.get("interaction_role", "") or "")
-            )
-            canonical_terms = [
-                str(item) for item in details.get("provider_terms", []) or [] if str(item).strip()
-            ]
-            typed_terms = (
-                [str(item) for item in need.component_intent.provider_terms if str(item).strip()]
-                if need.component_intent
-                else []
-            )
-            interaction_terms = [
-                str(details.get(key, "") or "")
-                for key in ("interaction_class", "interaction_outcome", "placement")
-                if str(details.get(key, "") or "").strip()
-            ]
-            provider_terms = list(
-                dict.fromkeys(
-                    [
-                        *query.provider_terms,
-                        *canonical_terms,
-                        *typed_terms,
-                        *component_provider_terms(role_id),
-                        *interaction_terms,
-                        *contextual_terms,
-                    ]
-                )
-            )
-            query_text = " ".join(
-                dict.fromkeys(
-                    [
-                        *str(query.query or "").split(),
-                        *provider_terms,
-                        *semantic_terms,
-                    ]
-                )
-            ).strip()
+            provider_query_terms, provider_terms = _component_query_terms(need, query)
+            query_text = " ".join(provider_query_terms).strip()
             queries.append(
                 query.model_copy(
                     update={
                         "kind": "component",
                         "query": query_text,
-                        "provider_terms": provider_terms[:24],
+                        "provider_terms": provider_terms,
                         "allowed_providers": registry_order,
                         "required_for_handoff": need.required_for_handoff,
                         "interaction_class": (
@@ -562,39 +643,44 @@ def _qualify(
             ]
         ).lower()
         intent = need.component_intent
-        forbidden = {
-            token
-            for token in re.findall(
-                r"[a-z0-9]+",
-                " ".join(
-                    [
-                        *(intent.negative_concepts if intent else []),
-                        *(intent.prohibitions if intent else []),
-                    ]
-                ).lower(),
-            )
-            if len(token) > 3
-        }
-        if forbidden.intersection(set(re.findall(r"[a-z0-9]+", source_text))):
+        role_id = intent.role_id if intent else ""
+        forbidden_phrases = [
+            str(item).casefold().strip()
+            for item in [
+                *(intent.negative_concepts if intent else []),
+                *(intent.prohibitions if intent else []),
+            ]
+            if str(item).strip()
+        ]
+        role_forbidden = _COMPONENT_ROLE_PROHIBITIONS.get(role_id, frozenset())
+        source_tokens = set(re.findall(r"[a-z0-9]+", source_text))
+        if any(
+            phrase in source_text for phrase in forbidden_phrases
+        ) or role_forbidden.intersection(source_tokens):
             policy_status = "rejected"
             codes.append("COMPONENT_POLICY_REJECTED")
             reasons.append("The candidate metadata contains a prohibited concept for this role.")
-        terms = {
+        canonical_terms = {
             token
             for token in re.findall(
                 r"[a-z0-9]+",
                 " ".join(
                     [
-                        *need.query_terms,
-                        *(query_terms or []),
+                        *(component_provider_terms(role_id) if role_id else need.query_terms),
                         *(intent.provider_terms if intent else []),
-                        *candidate.retrieval_metadata.get("provider_terms", []),
                     ]
                 ).lower(),
             )
             if len(token) > 3 and token not in _GENERIC_TERMS
         }
-        matches = sum(1 for token in terms if token in source_text)
+        query_terms_set = {
+            token
+            for token in re.findall(r"[a-z0-9]+", " ".join(query_terms or []).casefold())
+            if len(token) > 3 and token not in _GENERIC_TERMS
+        }
+        canonical_matches = canonical_terms.intersection(source_tokens)
+        query_matches = query_terms_set.intersection(source_tokens)
+        matches = len(canonical_matches)
         if matches < 1:
             relevance = 0
             codes.append("COMPONENT_NOT_RELEVANT")
@@ -602,7 +688,7 @@ def _qualify(
                 "The registry component does not match the requested interaction or layout intent."
             )
         else:
-            relevance = min(100, 70 + matches * 10)
+            relevance = min(100, 70 + matches * 10 + min(10, len(query_matches) * 2))
         if source_required and not candidate.source_files:
             technical_status = "rejected"
             codes.append("COMPONENT_SOURCE_MISSING")
@@ -611,6 +697,12 @@ def _qualify(
             technical_status = "rejected"
             codes.append("COMPONENT_SOURCE_PLACEHOLDER")
             reasons.append("The registry candidate contains only empty or placeholder source.")
+        elif source_required:
+            source_violations = _component_source_violations(candidate.source_files, need)
+            if source_violations:
+                policy_status = "rejected"
+                codes.append("COMPONENT_SOURCE_POLICY_REJECTED")
+                reasons.append("; ".join(source_violations))
         if not dependencies_allowed(candidate.dependencies):
             technical_status = "rejected"
             codes.append("COMPONENT_DEPENDENCY_NOT_ALLOWED")
@@ -689,19 +781,30 @@ def select_required_candidates(
                 }
             )
             warnings.append(f"Rejected ineligible candidate for need '{need.source_id}'.")
-        if need.required_for_handoff and not selection.selected_resource_id:
+        should_resolve_visual_role = need.category.casefold() in {
+            "component",
+            "visual_component",
+            "registry_component",
+            "image",
+            "photo",
+            "editorial_photo",
+            "portrait",
+        }
+        if (
+            need.required_for_handoff or should_resolve_visual_role
+        ) and not selection.selected_resource_id:
             best = best_by_need.get(need.need_id)
             if best is not None:
                 selection = selection.model_copy(
                     update={
                         "selected_resource_id": best.resource_id,
-                        "why_selected": "Highest-quality policy-compliant provider candidate selected for a required handoff asset.",
-                        "adaptation_notes": "Use only as a non-evidentiary editorial visual with the supplied attribution.",
+                        "why_selected": "Highest-quality policy-compliant provider candidate selected for the approved semantic role.",
+                        "adaptation_notes": (
+                            "Use only within the typed role, local-source, attribution, and accessibility contract."
+                        ),
                     }
                 )
-                warnings.append(
-                    f"Selected the highest-qualified required resource for '{need.source_id}'."
-                )
+                warnings.append(f"Selected the highest-qualified resource for '{need.source_id}'.")
         normalized.append(selection)
     return normalized, warnings
 
