@@ -128,13 +128,96 @@ def export_portfolio(
             "preview": "shared-static-gateway",
             "entrypoint": "dist/index.html",
         },
+        "evaluator_handoff": {
+            "source_path": "source",
+            "dist_path": "dist" if dist_dir.is_dir() else "",
+            "metadata_path": "portfolio.json",
+            "report_path": "generation-report.md",
+        },
         "excluded_source_artifacts": sorted(set(excluded)),
     }
     fs_safe.write_text_atomic(
         target / "portfolio.json",
         json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
     )
+    fs_safe.write_text_atomic(target / "generation-report.md", _generation_report(payload))
     return target
+
+
+def _generation_report(payload: dict[str, Any]) -> str:
+    """Build a compact evaluator handoff without prompts, source, or secrets."""
+
+    quality = payload.get("quality_review")
+    quality_status = (
+        quality.get("status", "not_recorded") if isinstance(quality, dict) else "not_recorded"
+    )
+    verification = payload.get("verification")
+    verification_status = (
+        verification.get("status", "not_recorded")
+        if isinstance(verification, dict)
+        else "not_recorded"
+    )
+    call_ledger = payload.get("call_ledger")
+    call_count = call_ledger.get("call_count", 0) if isinstance(call_ledger, dict) else 0
+    request_rounds = call_ledger.get("request_rounds", 0) if isinstance(call_ledger, dict) else 0
+    repair_rounds = call_ledger.get("repair_rounds", 0) if isinstance(call_ledger, dict) else 0
+    routes = payload.get("routes")
+    route_lines = (
+        [
+            f"- `{item.get('route_id', '')}` → `{item.get('path', '')}`"
+            for item in routes
+            if isinstance(item, dict)
+        ]
+        if isinstance(routes, list)
+        else []
+    )
+    if not route_lines:
+        route_lines = ["- No route list was recorded."]
+    provenance = payload.get("provenance")
+    provenance_status = (
+        provenance.get("status", "recorded") if isinstance(provenance, dict) else "recorded"
+    )
+    lines = [
+        "# OryxenAI generation report",
+        "",
+        "This file is a safe handoff for an evaluator agent reviewing the generator. "
+        "It describes the run and points at the exported artifacts; it does not contain "
+        "model prompts, private intake, raw model responses, or credentials.",
+        "",
+        "## Run identity",
+        f"- Run ID: `{payload.get('run_id', '')}`",
+        f"- Trace ID: `{payload.get('trace_id', '')}`",
+        f"- Exported at (UTC): `{payload.get('exported_at', '')}`",
+        f"- Candidate: `{payload.get('candidate_id', '')}`",
+        f"- Checkpoint: `{payload.get('checkpoint_hash', '')}`",
+        f"- Build hash: `{payload.get('build_hash', '')}`",
+        f"- Build Preparation reference: `{payload.get('pack_reference', '')}`",
+        "",
+        "## Artifact map",
+        "- Source project: `source/`",
+        "- Built site: `dist/`",
+        "- Safe metadata: `portfolio.json`",
+        "- This report: `generation-report.md`",
+        "",
+        "## Pipeline evidence",
+        f"- Quality review: `{quality_status}`",
+        f"- Verification: `{verification_status}`",
+        f"- Provenance: `{provenance_status}`",
+        f"- Recorded model-call receipts: `{call_count}`",
+        f"- Generation request rounds: `{request_rounds}`",
+        f"- Repair rounds: `{repair_rounds}`",
+        "",
+        "## Routes",
+        *route_lines,
+        "",
+        "## Evaluator handoff",
+        "1. Inspect `source/` as the generator output under test.",
+        "2. Run the project's configured checks/build from `source/` when the environment permits.",
+        "3. Compare visible behavior with `dist/` and the preview URL recorded in `portfolio.json`.",
+        "4. Record recurring defects as Code Generator agent changes or regression tests; do not patch this export as the durable fix.",
+        "",
+    ]
+    return "\n".join(str(line) for line in lines) + "\n"
 
 
 __all__ = ["DEFAULT_EXPORT_ROOT", "DEFAULT_EXPORT_TIMEZONE", "export_portfolio"]

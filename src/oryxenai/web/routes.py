@@ -153,8 +153,12 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
                 context={
                     "app_name": settings.app.name,
                     "auth_config": settings.auth_public_config,
+                    "pipeline_mode": settings.auth.pipeline_mode,
                     "auth_client_version": _auth_asset_version("auth-client.js"),
                     "dev_auth_bootstrap_version": _asset_version("dev-auth-bootstrap.mjs"),
+                    "detached_bootstrap_version": _asset_version(
+                        "code-generator-development-detached-bootstrap.mjs"
+                    ),
                     "css_version": _asset_version("code-generator-development.css"),
                     "js_version": _asset_version("code-generator-development.js"),
                 },

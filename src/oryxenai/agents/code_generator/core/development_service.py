@@ -918,6 +918,7 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "candidate_artifact": run.candidate_artifact,
             "pending_promotion": run.pending_promotion,
             "active_preview": run.active_preview,
+            "export_receipt": getattr(run, "export_receipt", None),
             "terminal_failure": run.terminal_failure,
             "issues": run.issues,
             "created_at": run.created_at.isoformat(),

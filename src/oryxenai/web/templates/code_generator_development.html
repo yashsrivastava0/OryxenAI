@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if pipeline_mode != "detached" %}
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -13,59 +14,74 @@
   <meta name="oryxenai-account-unavailable-path" content="{{ auth_config.accountUnavailablePath }}">
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
   <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
-  <title>Code Generator - {{ app_name }}</title>
+  {% endif %}
+  <title>Code Generator control room - {{ app_name }}</title>
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/code-generator-development.css?v={{ css_version }}">
 </head>
 <body>
   <main class="cg-dev" data-code-generator-development>
-    <header class="cg-dev__header">
-      <div class="cg-dev__brand"><span class="cg-dev__brand-mark">O</span> OryxenAI <span>/ Code Generator</span></div>
-      <p class="cg-dev__eyebrow">Temporary preview workspace</p>
-      <h1>Turn the best prepared direction into a portfolio.</h1>
-      <p class="cg-dev__lede">One click starts the durable build. The server selects the best approved Build Preparation pack, advances each stage durably, verifies the result, and shows only the promoted preview.</p>
+    <header class="cg-dev__topbar">
+      <a class="cg-dev__brand" href="/dev" aria-label="OryxenAI developer workspace">
+        <span class="cg-dev__brand-mark" aria-hidden="true">O</span>
+        <span>OryxenAI</span><span class="cg-dev__brand-divider">/</span><span class="cg-dev__brand-muted">Code Generator</span>
+      </a>
+      <div class="cg-dev__topbar-meta">
+        <span class="cg-dev__mode"><i aria-hidden="true"></i> Detached development</span>
+        <span class="cg-dev__topbar-label">Live OpenAI pipeline</span>
+      </div>
     </header>
+
+    <section class="cg-dev__hero" aria-labelledby="workspace-title">
+      <div>
+        <p class="cg-dev__kicker">Generation control room</p>
+        <h1 id="workspace-title">Build, inspect, improve.</h1>
+        <p class="cg-dev__lede">Start from the latest Build Preparation output, watch every durable stage, then hand the exported portfolio to an evaluator agent. The generated site is the specimen; the fix belongs in this generator.</p>
+      </div>
+      <div class="cg-dev__hero-note">
+        <span class="cg-dev__hero-note-label">Input source</span>
+        <strong>Build Preparation mirror</strong>
+        <span data-pack-status>Scanning for an eligible pack...</span>
+      </div>
+    </section>
 
     <section class="cg-dev__launch" aria-labelledby="launch-heading">
       <div class="cg-dev__launch-copy">
-        <p class="cg-dev__eyebrow">Ready when you are</p>
-        <h2 id="launch-heading">Generate a grounded portfolio</h2>
-        <p data-pack-status>Finding the best eligible Build Preparation output...</p>
-        <p class="cg-dev__readiness" data-readiness aria-live="polite">Checking local generation readiness...</p>
-        <p class="cg-dev__error" data-start-error role="alert" hidden></p>
+        <div class="cg-dev__launch-icon" aria-hidden="true">↗</div>
+        <div>
+          <p class="cg-dev__kicker">One controlled run</p>
+          <h2 id="launch-heading">Generate the next portfolio</h2>
+          <p class="cg-dev__muted">The best eligible pack is selected automatically. Every model call, checkpoint, verification gate, and export stays traceable.</p>
+          <p class="cg-dev__readiness" data-readiness aria-live="polite">Checking local generation readiness...</p>
+          <p class="cg-dev__error" data-start-error role="alert" hidden></p>
+        </div>
       </div>
-      <button class="cg-dev__primary" type="button" data-start-build-preparation disabled>Generate portfolio</button>
+      <button class="cg-dev__primary" type="button" data-start-build-preparation disabled><span>Generate portfolio</span><b aria-hidden="true">↗</b></button>
     </section>
 
-    <section class="cg-dev__workspace" aria-label="Generation workspace">
-      <div class="cg-dev__progress-panel">
-        <div class="cg-dev__section-heading">
-          <div>
-            <p class="cg-dev__eyebrow">Durable workflow</p>
-            <h2>Build progress</h2>
-          </div>
-          <span class="cg-dev__status-pill" data-status-pill>Idle</span>
-        </div>
-        <ol class="cg-dev__stages" data-stage-list aria-label="Portfolio generation stages">
-          <li data-stage="prepare"><span>01</span><strong>Prepare</strong><small>Admit the best approved pack</small></li>
-          <li data-stage="resources"><span>02</span><strong>Resources</strong><small>Reconcile assets and dependencies</small></li>
-          <li data-stage="source"><span>03</span><strong>Generate</strong><small>Build the routes and visual system</small></li>
-          <li data-stage="verify"><span>04</span><strong>Verify</strong><small>Build, smoke-test, and promote</small></li>
+    <div class="cg-dev__workspace" aria-label="Generation workspace">
+      <aside class="cg-dev__rail" aria-label="Workflow stages">
+        <div class="cg-dev__rail-heading"><span>Run spine</span><span data-status-pill>Idle</span></div>
+        <ol class="cg-dev__stages" data-stage-list>
+          <li data-stage="prepare"><span class="cg-dev__stage-number">01</span><div><strong>Prepare</strong><small>Admit source</small></div></li>
+          <li data-stage="resources"><span class="cg-dev__stage-number">02</span><div><strong>Resources</strong><small>Assets + packages</small></div></li>
+          <li data-stage="source"><span class="cg-dev__stage-number">03</span><div><strong>Generate</strong><small>Routes + system</small></div></li>
+          <li data-stage="verify"><span class="cg-dev__stage-number">04</span><div><strong>Verify</strong><small>Build + promote</small></div></li>
         </ol>
-        <p class="cg-dev__status" data-status>Choose Generate portfolio to begin.</p>
-        <p class="cg-dev__event" data-event aria-live="polite"></p>
-        <p class="cg-dev__receipt" data-receipt></p>
-      </div>
+        <div class="cg-dev__rail-footer">
+          <span class="cg-dev__rail-footer-label">Current signal</span>
+          <strong data-status aria-live="polite">Choose Generate portfolio to begin.</strong>
+          <p data-event aria-live="polite"></p>
+          <code data-receipt></code>
+        </div>
+      </aside>
 
-      <section class="cg-dev__preview" aria-label="Generated portfolio preview">
-        <div class="cg-dev__section-heading">
-          <div>
-            <p class="cg-dev__eyebrow">Promoted output</p>
-            <h2>Live preview</h2>
-          </div>
+      <section class="cg-dev__preview-card" aria-label="Generated portfolio preview">
+        <div class="cg-dev__panel-heading">
+          <div><p class="cg-dev__kicker">Verified candidate</p><h2>Live preview</h2></div>
           <span class="cg-dev__preview-state" data-preview-status>No preview yet</span>
         </div>
         <div class="cg-dev__preview-toolbar">
-          <label>Route <select data-preview-route aria-label="Preview route" disabled></select></label>
+          <label class="cg-dev__select-label">Route<select data-preview-route aria-label="Preview route" disabled></select></label>
           <div class="cg-dev__viewport-controls" role="group" aria-label="Preview viewport">
             <button type="button" data-preview-viewport="mobile" aria-pressed="false">Mobile</button>
             <button type="button" data-preview-viewport="tablet" aria-pressed="false">Tablet</button>
@@ -74,67 +90,100 @@
           </div>
         </div>
         <div class="cg-dev__preview-actions">
-          <button type="button" data-preview-refresh disabled>Refresh</button>
-          <a data-preview-open target="_blank" rel="noopener noreferrer" hidden>Open in new tab</a>
+          <button type="button" data-preview-refresh disabled>Refresh frame</button>
+          <a data-preview-open target="_blank" rel="noopener noreferrer" hidden>Open preview ↗</a>
         </div>
         <div class="cg-dev__preview-empty" data-preview-empty>
-          <span class="cg-dev__preview-icon" aria-hidden="true">↗</span>
-          <p data-preview-empty-message>The verified portfolio will appear here.</p>
+          <div class="cg-dev__preview-empty-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+          <strong data-preview-empty-message>The verified portfolio will appear here.</strong>
+          <p>Start a run to stream its progress into this frame.</p>
         </div>
         <p class="cg-dev__preview-embed-status" data-preview-embed-status role="status" aria-live="polite"></p>
         <iframe data-preview-frame title="Promoted generated portfolio" sandbox="allow-scripts allow-same-origin" hidden></iframe>
       </section>
-    </section>
+
+      <aside class="cg-dev__inspector" aria-label="Run inspector">
+        <div class="cg-dev__inspector-tabs" role="tablist" aria-label="Run inspector panels">
+          <button type="button" role="tab" aria-selected="true" data-inspector-tab="output">Output</button>
+          <button type="button" role="tab" aria-selected="false" data-inspector-tab="timeline">Timeline</button>
+          <button type="button" role="tab" aria-selected="false" data-inspector-tab="plan">Plan</button>
+          <button type="button" role="tab" aria-selected="false" data-inspector-tab="files">Files</button>
+          <button type="button" role="tab" aria-selected="false" data-inspector-tab="checks">Checks</button>
+        </div>
+        <div class="cg-dev__inspector-panel" data-inspector-panel="output" role="tabpanel">
+          <p class="cg-dev__kicker">Evaluator handoff</p>
+          <h2>Export receipt</h2>
+          <p class="cg-dev__inspector-lede">The generated portfolio is an artifact for review. Fix recurring issues in the agent, then generate again.</p>
+          <div class="cg-dev__output-state" data-output-state>Waiting for a completed run.</div>
+          <dl class="cg-dev__facts">
+            <div><dt>Folder</dt><dd data-output-folder>—</dd></div>
+            <div><dt>Source</dt><dd data-output-source>—</dd></div>
+            <div><dt>Built site</dt><dd data-output-dist>—</dd></div>
+            <div><dt>Report</dt><dd data-output-report>—</dd></div>
+          </dl>
+          <div class="cg-dev__handoff-note"><strong>For the next evaluator</strong><span>Read <code>generation-report.md</code>, inspect <code>source/</code>, and use the trace ID when reporting a generator defect.</span></div>
+          <div class="cg-dev__trace-grid"><span>Run <code data-output-run>—</code></span><span>Trace <code data-output-trace>—</code></span></div>
+        </div>
+        <div class="cg-dev__inspector-panel" data-inspector-panel="timeline" role="tabpanel" hidden>
+          <p class="cg-dev__kicker">Durable events</p><h2>Timeline</h2>
+          <ol class="cg-dev__event-list" data-events aria-label="Persisted event stream"></ol>
+        </div>
+        <div class="cg-dev__inspector-panel" data-inspector-panel="plan" role="tabpanel" hidden>
+          <p class="cg-dev__kicker">Structured handoff</p><h2>Plan &amp; resources</h2>
+          <p class="cg-dev__muted" data-summary>No accepted plan yet.</p>
+          <p class="cg-dev__inline-status" data-plan-issues></p>
+          <h3>Resource receipts</h3><ul class="cg-dev__compact-list" data-resources aria-label="Resources"></ul>
+          <h3>Dependencies</h3><ul class="cg-dev__compact-list" data-dependencies aria-label="Dependencies"></ul>
+          <h3>Work graph</h3><ul class="cg-dev__compact-list" data-work-units aria-label="Generation work units"></ul>
+          <h3>Plan issues</h3><ul class="cg-dev__compact-list" data-plan-issues-list aria-label="Plan issues"></ul>
+        </div>
+        <div class="cg-dev__inspector-panel" data-inspector-panel="files" role="tabpanel" hidden>
+          <p class="cg-dev__kicker">Accepted checkpoint</p><h2>Source files</h2>
+          <p class="cg-dev__muted" data-source-manifest-status>Source manifest appears after generation.</p>
+          <ul class="cg-dev__file-list" data-source-manifest aria-label="Accepted source files"></ul>
+          <section class="cg-dev__source-debug" data-source-debug hidden aria-labelledby="source-debug-heading">
+            <h3 id="source-debug-heading">Accepted source location</h3><p data-source-debug-status></p><pre data-source-code tabindex="0"></pre>
+          </section>
+        </div>
+        <div class="cg-dev__inspector-panel" data-inspector-panel="checks" role="tabpanel" hidden>
+          <p class="cg-dev__kicker">Quality gates</p><h2>Verification</h2>
+          <p data-verify-status>Final verification has not started.</p>
+          <p class="cg-dev__inline-status" data-quality-summary>Quality review has not started.</p>
+          <ul class="cg-dev__gate-list" data-verification-gates aria-label="Verification gates"></ul>
+          <p class="cg-dev__diagnostic-heading" data-generate-status>Waiting for source generation.</p>
+          <p class="cg-dev__muted" data-generation-summary>No source checkpoint yet.</p>
+          <ul class="cg-dev__compact-list" data-acquire-issues aria-label="Acquisition issues"></ul>
+          <ul class="cg-dev__compact-list" data-generation-diagnostics aria-label="Generation diagnostics"></ul>
+          <ul class="cg-dev__compact-list" data-verification-diagnostics aria-label="Verification diagnostics"></ul>
+        </div>
+      </aside>
+    </div>
 
     <details class="cg-dev__advanced" data-advanced>
-      <summary>Advanced / debug controls</summary>
+      <summary><span>Advanced / debug controls</span><small>Manual controls and raw diagnostics · use only when the automatic run needs isolation</small></summary>
       <div class="cg-dev__advanced-body">
         <section class="cg-dev__advanced-card" aria-labelledby="advanced-input-heading">
-          <h2 id="advanced-input-heading">Input overrides</h2>
-          <p class="cg-dev__muted">The normal flow selects the best eligible pack automatically. These controls are for fixture and ZIP troubleshooting.</p>
-          <label>Selected pack <select data-pack aria-label="Build Preparation pack" disabled></select></label>
-          <div class="cg-dev__inline-actions">
-            <label>Stable fixture <select data-fixture aria-label="Stable fixture"></select></label>
-            <button type="button" data-start-fixture>Start fixture</button>
-            <label>ZIP upload <input data-upload type="file" accept="application/zip,.zip"></label>
-            <button type="button" data-start-upload>Upload and plan</button>
+          <div class="cg-dev__advanced-heading"><div><p class="cg-dev__kicker">Overrides</p><h2 id="advanced-input-heading">Input controls</h2></div><label class="cg-dev__checkbox"><input type="checkbox" data-auto-advance checked> Auto-advance</label></div>
+          <p class="cg-dev__muted">The primary action always uses the Build Preparation mirror. Fixtures and ZIP uploads are isolated troubleshooting paths.</p>
+          <div class="cg-dev__control-grid">
+            <label>Selected pack<select data-pack aria-label="Build Preparation pack" disabled></select></label>
+            <label>Stable fixture<select data-fixture aria-label="Stable fixture"></select></label>
+            <label>ZIP upload<input data-upload type="file" accept="application/zip,.zip"></label>
           </div>
-          <label class="cg-dev__checkbox"><input type="checkbox" data-auto-advance checked> Auto-advance stages</label>
+          <div class="cg-dev__inline-actions"><button type="button" data-start-fixture>Start fixture</button><button type="button" data-start-upload>Upload and plan</button></div>
         </section>
-
         <section class="cg-dev__advanced-card" aria-labelledby="advanced-run-heading">
-          <div class="cg-dev__section-heading">
-            <div><h2 id="advanced-run-heading">Run diagnostics</h2><p data-summary>No accepted plan yet.</p></div>
-            <p class="cg-dev__muted" data-plan-issues></p>
-          </div>
-          <p data-acquire-status>Idle.</p>
-          <div class="cg-dev__inline-actions">
-            <button type="button" data-acquire disabled>Run acquisition</button>
-            <button type="button" data-generate disabled>Generate source</button>
-            <button type="button" data-verify disabled>Build and verify</button>
-          </div>
-          <p data-generate-status>Waiting for a resource-complete plan.</p>
-          <p data-generation-summary>No source checkpoint yet.</p>
-          <p data-verify-status>Final verification has not started.</p>
-          <ul class="cg-dev__diagnostics" data-events aria-label="Persisted event stream"></ul>
-          <ul class="cg-dev__diagnostics" data-acquire-issues aria-label="Acquisition issues"></ul>
-          <ul class="cg-dev__diagnostics" data-generation-diagnostics aria-label="Generation diagnostics"></ul>
-          <ul class="cg-dev__diagnostics" data-verification-diagnostics aria-label="Verification diagnostics"></ul>
-          <ul class="cg-dev__diagnostics" data-plan-issues-list aria-label="Plan issues"></ul>
-          <ul class="cg-dev__diagnostics" data-resources aria-label="Resources"></ul>
-          <ul class="cg-dev__diagnostics" data-dependencies aria-label="Dependencies"></ul>
-          <ul class="cg-dev__diagnostics" data-work-units aria-label="Generation work units"></ul>
-          <ul class="cg-dev__diagnostics" data-verification-gates aria-label="Verification gates"></ul>
-          <section class="cg-dev__source-debug" data-source-debug hidden aria-labelledby="source-debug-heading">
-            <h3 id="source-debug-heading">Accepted source location</h3>
-            <p data-source-debug-status></p>
-            <pre data-source-code tabindex="0"></pre>
-          </section>
+          <div class="cg-dev__advanced-heading"><div><p class="cg-dev__kicker">Fallback execution</p><h2 id="advanced-run-heading">Stage controls</h2></div><p class="cg-dev__muted" data-acquire-status>Idle.</p></div>
+          <div class="cg-dev__inline-actions"><button type="button" data-acquire disabled>Run acquisition</button><button type="button" data-generate disabled>Generate source</button><button type="button" data-verify disabled>Build and verify</button></div>
         </section>
       </div>
     </details>
   </main>
+  {% if pipeline_mode == "detached" %}
+  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/code-generator-development-detached-bootstrap.mjs?v={{ detached_bootstrap_version }}"></script>
+  {% else %}
   <script src="{{ request.scope.get('root_path', '') }}/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   <script type="module" src="{{ request.scope.get('root_path', '') }}/static/dev-auth-bootstrap.mjs?v={{ dev_auth_bootstrap_version }}"></script>
+  {% endif %}
 </body>
 </html>
