@@ -11,6 +11,23 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-27 03:08 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — truthful preview readiness and hosted Docker contract
+Made the shared preview gateway part of the default Compose topology and
+passed the hosted storage credentials into that service. Readiness now probes a
+typed internal health URL asynchronously with a short timeout, no redirects,
+and 2xx-only success; native configuration derives a loopback target while
+Docker uses `preview-gateway` service DNS because `localhost` is container-local
+and `0.0.0.0` is only a bind address. Configuration and UI diagnostics
+distinguish a missing/invalid health target from an unreachable gateway.
+
+The hosted `config/app.docker.toml` overlay now alone enables strict public
+preview readback and keeps artifact-backed storage. The isolated
+`oryxenai-codegen` overlay remains local-filesystem-backed and lenient, and
+native/test behavior remains lenient. The browser-facing `preview_base_url`
+contract is unchanged. Added settings, probe, route, frontend, Compose, and
+native-launcher coverage/documentation; no database or migration changes were
+made.
+
 ### 2026-08-27 02:57 +05:30 — Codex (GPT-5 / OpenAI) — [b92a86c] — native process alignment and code-generator diagnostics
 The stuck detached run was caused by two independently verified operational
 conditions. The port-8000 API had an established PostgreSQL connection to the

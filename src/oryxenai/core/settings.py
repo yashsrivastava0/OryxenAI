@@ -767,6 +767,11 @@ class CodeGeneratorVerificationConfig(BaseModel):
     )
     preview_root: str = ".workspace/code-generator-preview"
     preview_base_url: str = "http://127.0.0.1:4174/preview"
+    # Internal service-to-service liveness target.  Empty derives a dialable
+    # native URL from preview_host/preview_port; Docker overlays must use the
+    # preview-gateway service name because localhost is container-local and
+    # 0.0.0.0 is only a bind address.
+    preview_health_url: str = ""
     preview_host: str = "127.0.0.1"
     preview_port: int = 4174
     preview_parent_origin: str = "http://127.0.0.1:8000"

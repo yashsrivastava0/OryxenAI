@@ -258,7 +258,8 @@ boundaries.
 ## Option B — Docker Compose development
 
 Use this mode for the production-like local topology. Compose supplies
-PostgreSQL, the migration job, FastAPI/UI, and the durable worker.
+PostgreSQL, the migration job, FastAPI/UI, the durable worker, and the shared
+preview gateway.
 
 ### Start the main stack
 
@@ -266,8 +267,8 @@ Create `.env`, ensure Docker Desktop is running, and run:
 
 ```powershell
 docker info
-docker compose build migrate app worker
-docker compose up -d migrate app worker
+docker compose build migrate app worker preview-gateway
+docker compose up -d migrate app worker preview-gateway
 docker compose ps
 ```
 
@@ -275,7 +276,7 @@ The migration service must complete successfully before the API and worker
 start. The normal topology is:
 
 ```text
-postgres (host 5544) → migrate → app (host 8000) + worker
+postgres (host 5544) → migrate → app (host 8000) + worker + preview-gateway (host 4174)
 ```
 
 Verify it:
@@ -289,14 +290,14 @@ docker compose ps
 
 The app and worker containers must be running, PostgreSQL must be healthy,
 and the migration container must have exited successfully. Use
-`docker compose logs --tail 200 app worker migrate` for diagnostics.
+`docker compose logs --tail 200 app worker preview-gateway migrate` for diagnostics.
 
 The application image contains a copy of the repository. Rebuild after
 Python, prompt, configuration, migration, or dependency changes:
 
 ```powershell
-docker compose build migrate app worker
-docker compose up -d migrate app worker
+docker compose build migrate app worker preview-gateway
+docker compose up -d migrate app worker preview-gateway
 ```
 
 Changing `.env` also requires recreating affected containers so the new
@@ -306,7 +307,7 @@ an old image.
 ### Stop the main stack safely
 
 ```powershell
-docker compose stop app worker postgres
+docker compose stop app worker preview-gateway postgres
 docker compose ps
 ```
 
@@ -380,7 +381,7 @@ $Project = "oryxenai-codegen"
 $Overlay = "config/app.docker.codegen-run.toml"
 $Workspace = (Resolve-Path (New-Item -ItemType Directory -Force .workspace)).Path
 
-docker compose -p $Project --profile codegen build migrate app worker preview-gateway
+docker compose -p $Project build migrate app worker preview-gateway
 docker compose -p $Project up -d postgres
 
 $ready = $false
@@ -412,7 +413,7 @@ docker compose -p $Project run --rm -d --no-deps `
     -e OryxenAI_CONFIG_OVERLAY=$Overlay `
     worker python -m oryxenai.jobs.worker
 
-docker compose -p $Project --profile codegen run --rm -d --no-deps -p 4174:4174 `
+docker compose -p $Project run --rm -d --no-deps -p 4174:4174 `
     -v "${Workspace}:/app/.workspace" `
     -e OryxenAI_CONFIG_OVERLAY=$Overlay `
     preview-gateway python -m oryxenai.preview.gateway

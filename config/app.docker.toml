@@ -70,6 +70,9 @@ checkpoint_root = "/app/.workspace/code-generator-checkpoints"
 enabled = false
 preview_root = "/app/.workspace/code-generator-preview"
 preview_base_url = "http://localhost:4174/preview"
+# Internal Docker DNS target: localhost is container-local and 0.0.0.0 is a
+# bind address, so app/worker must probe the preview-gateway service by name.
+preview_health_url = "http://preview-gateway:4174/health/live"
 preview_host = "0.0.0.0"
 preview_port = 4174
 browser_executable = "/usr/bin/chromium"
@@ -77,3 +80,4 @@ browser_executable = "/usr/bin/chromium"
 # generated portfolio is never built or deployed as its own Docker service.
 preview_storage_provider = "artifact_storage"
 preview_storage_prefix = "preview"
+preview_public_readback_required = true

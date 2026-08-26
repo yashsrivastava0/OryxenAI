@@ -6,7 +6,10 @@ import os
 import shutil
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlsplit
 from uuid import UUID
+
+import httpx
 
 from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
@@ -87,7 +90,7 @@ class CodeGeneratorDevelopmentService:
             ) from exc
         return result
 
-    def readiness(self) -> dict[str, Any]:
+    async def readiness(self) -> dict[str, Any]:
         """Return non-secret prerequisites so the developer UI never implies readiness."""
 
         profile_names = {
@@ -147,12 +150,11 @@ class CodeGeneratorDevelopmentService:
         if not provider_wire_ready:
             readiness_blockers.append("provider_wire_schema")
         preview_config = self._settings.code_generator_verification
-        preview_gateway_ready = bool(
-            getattr(preview_config, "preview_host", "")
-            and int(getattr(preview_config, "preview_port", 0) or 0) > 0
+        preview_gateway_ready, preview_gateway_blocker = await _probe_preview_gateway(
+            self._settings.code_generator_verification
         )
-        if not preview_gateway_ready:
-            readiness_blockers.append("preview_gateway")
+        if preview_gateway_blocker:
+            readiness_blockers.append(preview_gateway_blocker)
         # A configured key, model name, or wire schema is not proof that the
         # provider can complete a billable structured request.  The explicit
         # no-context preflight endpoint must pass before the UI may describe
@@ -840,6 +842,60 @@ class CodeGeneratorDevelopmentService:
             "total_lines": len(lines),
             "checkpoint_hash": str(checkpoint.get("checkpoint_hash", "")),
         }
+
+
+def _preview_health_url(config: Any) -> str | None:
+    """Resolve and validate the internal preview-gateway health target."""
+
+    configured = str(getattr(config, "preview_health_url", "") or "").strip()
+    if configured:
+        candidate = configured
+    else:
+        host = str(getattr(config, "preview_host", "") or "").strip()
+        try:
+            port = int(getattr(config, "preview_port", 0) or 0)
+        except (TypeError, ValueError):
+            return None
+        # A bind-all address is not a valid destination for a cross-process
+        # probe. Docker supplies an explicit service-DNS URL in its overlay.
+        if not host or host in {"0.0.0.0", "::", "[::]"} or not 1 <= port <= 65535:  # noqa: S104
+            return None
+        candidate = f"http://{host}:{port}/health/live"
+
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError:
+        return None
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return candidate
+
+
+async def _probe_preview_gateway(config: Any) -> tuple[bool, str | None]:
+    """Perform a short, redirect-free liveness probe for readiness."""
+
+    url = _preview_health_url(config)
+    if url is None:
+        return False, "preview_gateway_not_configured"
+    try:
+        async with httpx.AsyncClient(
+            follow_redirects=False,
+            timeout=1.5,
+            trust_env=False,
+        ) as client:
+            response = await client.get(url)
+    except httpx.HTTPError:
+        return False, "preview_gateway_unreachable"
+    if not 200 <= response.status_code < 300:
+        return False, "preview_gateway_unreachable"
+    return True, None
 
 
 def browser_ready(verification: Any) -> bool:

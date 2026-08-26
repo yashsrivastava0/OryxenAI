@@ -23,6 +23,37 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-054 - Shared preview gateway is part of the default Docker stack
+
+- **Date & Time:** 2026-08-27 03:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The main Compose stack started the API and worker while the
+  shared `preview-gateway` remained behind the `codegen` profile. A hosted
+  generation could therefore pass internal build/verification work yet have
+  no running service capable of serving its immutable preview objects. The
+  standalone Code Generator Docker harness is a separate Compose project and
+  has its own database and local-development contract.
+- **Decision:** Start `preview-gateway` as part of the default `oryxenai`
+  Compose topology after migration and alongside the API and worker. Keep the
+  one-shot `build-validation` service profile-gated. The hosted overlay uses
+  the gateway's service-DNS health URL and strict public readback with
+  artifact-backed preview storage; the isolated `oryxenai-codegen` workflow
+  remains separate, local-filesystem-backed, port-8001-flavored, and lenient.
+  Generated portfolios continue to be immutable object-backed artifacts and do
+  not receive one container per portfolio.
+- **Rejected alternatives:** Leaving the gateway profile-gated — rejected
+  because the normal hosted stack would have an off-by-default preview
+  boundary; creating a container per generated portfolio — rejected because it
+  contradicts the object-backed preview architecture and its cleanup model;
+  merging the isolated Code Generator project into the main stack — rejected
+  because it would couple its separate database and local iteration contract to
+  the hosted topology.
+- **Consequence:** The default Docker stack exposes a stable preview boundary
+  and can truthfully probe it through `http://preview-gateway:4174/health/live`.
+  Browser-facing URLs remain controlled by `preview_base_url`; free-tier and
+  paid hosting continue to differ only through configuration and storage
+  credentials, not application code paths.
+
 ## D-053 - Extend temporary detached auth to the Code Generator standalone dev harness
 
 - **Date & Time:** 2026-08-25 21:10 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic)

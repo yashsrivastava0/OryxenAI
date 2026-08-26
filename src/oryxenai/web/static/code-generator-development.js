@@ -2,6 +2,22 @@ import { createCodeGeneratorDevelopmentController } from './code-generator-devel
 
 const API_ROOT = '/api/v1/development/code-generator';
 
+export const READINESS_BLOCKER_LABELS = Object.freeze({
+  planner: 'planner configuration',
+  generation_profiles: 'generation profiles',
+  npm: 'npm',
+  verification_browser: 'verification browser',
+  preview_storage: 'preview storage',
+  provider_wire_schema: 'provider wire schemas',
+  build_preparation_pack: 'eligible Build Preparation pack',
+  preview_gateway_not_configured: 'preview gateway is not configured',
+  preview_gateway_unreachable: 'preview gateway is unreachable',
+});
+
+export function formatReadinessBlocker(code) {
+  return READINESS_BLOCKER_LABELS[code] || String(code || 'local readiness checks');
+}
+
 export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}) {
   if (typeof requestImpl !== 'function') throw new Error('An authorized request function is required.');
   const root = document.querySelector('[data-code-generator-development]');
@@ -76,21 +92,27 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   };
 
   const renderReadiness = (readiness) => {
+    const blockerCodesFromServer = Array.isArray(readiness.readiness_blockers)
+      ? readiness.readiness_blockers
+      : [];
     const fallbackBlockers = [];
-    if (!readiness.planning_ready) fallbackBlockers.push('planner configuration');
-    if (!readiness.generation_ready) fallbackBlockers.push('generation profiles');
+    if (!readiness.planning_ready) fallbackBlockers.push('planner');
+    if (!readiness.generation_ready) fallbackBlockers.push('generation_profiles');
     if (!readiness.package_manager_ready) fallbackBlockers.push('npm');
-    if (!readiness.browser_ready) fallbackBlockers.push('verification browser');
-    if (readiness.preview_storage_ready === false) fallbackBlockers.push('preview storage');
-    if (readiness.provider_wire_ready === false) fallbackBlockers.push('provider wire schemas');
-    if (readiness.preview_gateway_ready === false) fallbackBlockers.push('preview gateway');
-    if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('eligible Build Preparation pack');
+    if (!readiness.browser_ready) fallbackBlockers.push('verification_browser');
+    if (readiness.preview_storage_ready === false) fallbackBlockers.push('preview_storage');
+    if (readiness.provider_wire_ready === false) fallbackBlockers.push('provider_wire_schema');
+    if (readiness.preview_gateway_ready === false && !blockerCodesFromServer.some(
+      (item) => item === 'preview_gateway_not_configured' || item === 'preview_gateway_unreachable',
+    )) fallbackBlockers.push('preview_gateway_unreachable');
+    if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('build_preparation_pack');
     const staticReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
     const preflightRequired = readiness.provider_preflight?.status === 'required';
     readinessReady = Boolean(staticReady || (preflightRequired && fallbackBlockers.length === 0));
-    const blockers = Array.isArray(readiness.readiness_blockers) && readiness.readiness_blockers.length
-      ? readiness.readiness_blockers.filter((item) => item !== 'provider_preflight_required')
+    const blockerCodes = blockerCodesFromServer.length
+      ? blockerCodesFromServer.filter((item) => item !== 'provider_preflight_required')
       : fallbackBlockers;
+    const blockers = blockerCodes.map(formatReadinessBlocker);
     const status = view('readiness');
     if (readinessReady && !blockers.length) {
       status.textContent = 'Ready to run. The first model preflight happens when you start.';
