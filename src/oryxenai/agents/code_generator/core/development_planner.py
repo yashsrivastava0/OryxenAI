@@ -570,10 +570,14 @@ def _validate_v4_experience_blueprint(
             for path in binding.local_paths
             if path.casefold().endswith((".woff", ".woff2"))
         }
-        if not role.local_files or not bound_paths or set(role.local_files) != bound_paths:
+        if (
+            not role.local_files
+            or not bound_paths
+            or not set(role.local_files).issubset(bound_paths)
+        ):
             raise SitePlanValidationError(
                 "PLAN_TYPOGRAPHY_FILES",
-                "V4 font roles must echo the exact admitted local font files.",
+                "V4 font roles must reference only admitted local font files.",
             )
     required_slots = {
         item.resource_slot_id
