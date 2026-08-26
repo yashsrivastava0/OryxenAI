@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-27 02:57 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — native process alignment and code-generator diagnostics
+### 2026-08-27 02:57 +05:30 — Codex (GPT-5 / OpenAI) — [b92a86c] — native process alignment and code-generator diagnostics
 The stuck detached run was caused by two independently verified operational
 conditions. The port-8000 API had an established PostgreSQL connection to the
 manually launched `.workspace/postgres-native-5545` instance, while the worker
