@@ -211,12 +211,12 @@ def compile_site_plan(
     )
     experience_blueprint = plan.experience_blueprint
     if isinstance(experience_blueprint, ExperienceBlueprintV4):
-        section_owners = {
-            (unit.route_id, section_id): unit.unit_id
-            for unit in units
-            if unit.kind == "route_batch"
-            for section_id in unit.section_ids
-        }
+        # ``SectionRegionV4.owner_id`` is a semantic blueprint identity and
+        # must survive compilation unchanged.  A route batch may own several
+        # sections, so replacing each region owner with the batch ID would
+        # violate the V4 uniqueness contract when the persisted plan is
+        # revalidated.  The executable ownership map is the WorkGraph below;
+        # it is intentionally separate from the blueprint's semantic IDs.
         interaction_owners = {
             interaction_id: unit.unit_id
             for unit in units
@@ -224,16 +224,6 @@ def compile_site_plan(
         }
         experience_blueprint = experience_blueprint.model_copy(
             update={
-                "section_regions": [
-                    item.model_copy(
-                        update={
-                            "owner_id": section_owners.get(
-                                (item.route_id, item.section_id), item.owner_id
-                            )
-                        }
-                    )
-                    for item in experience_blueprint.section_regions
-                ],
                 "interaction_assignments": [
                     item.model_copy(
                         update={

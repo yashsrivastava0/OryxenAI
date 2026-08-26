@@ -12,6 +12,8 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationContextReceipt,
     QualityReviewDraftV1,
     ResourceSearchIntentV2,
+    RoutePlan,
+    SitePlan,
     SourceFileChange,
     SourceGenerationEnvelopeV2,
 )
@@ -29,6 +31,7 @@ from oryxenai.agents.code_generator.core.source_generation_adapter import (
 )
 from oryxenai.agents.code_generator.core.source_manifest import _materialize_image_assets
 from oryxenai.agents.code_generator.core.token_compiler import compile_generated_tokens
+from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
 
 
@@ -148,6 +151,68 @@ def test_v4_contracts_are_closed_and_provider_compatible() -> None:
         "editorial workspace",
         "quiet architectural workspace",
     ]
+
+
+def test_v4_compilation_preserves_unique_semantic_section_owners() -> None:
+    blueprint = _blueprint()
+    second_region = blueprint.section_regions[0].model_copy(
+        update={
+            "region_id": "region:proof",
+            "section_id": "proof",
+            "owner_id": "owner:proof",
+            "section_selector": '[data-content-id="proof"]',
+            "region_selector": '[data-region-id="region:proof"]',
+            "order_mobile": 1,
+            "order_tablet": 1,
+            "order_desktop": 1,
+        }
+    )
+    blueprint = blueprint.model_copy(
+        update={
+            "route_shells": [
+                blueprint.route_shells[0].model_copy(update={"section_order": ["hero", "proof"]})
+            ],
+            "section_regions": [*blueprint.section_regions, second_region],
+        }
+    )
+    plan = SitePlan(
+        plan_id="v4-compiler-regression",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero", "proof"],
+                responsive_outcome="Readable at every viewport",
+                reduced_motion_outcome="Content remains visible without motion",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        experience_blueprint=blueprint,
+    )
+
+    compiled = compile_site_plan(
+        plan,
+        {
+            "site/contract.json": {
+                "routes": [
+                    {
+                        "route_id": "home",
+                        "storage_key": "home",
+                        "section_sequence": ["hero", "proof"],
+                    }
+                ]
+            },
+            "execution/contract.json": {"slots": []},
+        },
+        max_sections_per_unit=2,
+    )
+
+    assert compiled.experience_blueprint is not None
+    assert [item.owner_id for item in compiled.experience_blueprint.section_regions] == [
+        "owner:hero",
+        "owner:proof",
+    ]
+    assert SitePlan.model_validate(compiled.model_dump(mode="json"))
 
 
 def test_v4_source_wire_envelope_adapts_without_losing_coverage() -> None:
