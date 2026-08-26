@@ -165,14 +165,15 @@ supervisor hierarchy.
 | --- | --- | --- |
 | `code_generator_planner` | authoritative contracts, admitted resource summary, target public API | `SitePlan`, `WorkGraph` |
 | `code_generator_resource_scout` | plan need, existing bindings, textual provider metadata | `ResourceRequest[]` or candidate selection |
-| `code_generator_foundation_builder` | global plan, shared resources, scaffold API, owned paths | `GenerationResult` |
+| deterministic foundation compiler | validated blueprint, execution bindings, approved public content | generated tokens and content modules |
 | `code_generator_route_builder` | route-batch plan/data, shared signatures, bindings, owned paths | `GenerationResult` |
 | `code_generator_integrator` | plan, manifests, route summaries, selected source slices | `IntegrationResult` |
 | `code_generator_repairer` | `DiagnosticBundle`, affected source, plan/binding slice, owned paths | `GenerationResult` |
 
-Profiles may map to the same configured model. All require native strict
-structured text output and a verified output ceiling appropriate to their
-operation. None requires image input.
+Model-backed profiles may map to the same configured model. They require native
+strict structured text output and a verified output ceiling appropriate to their
+operation. The foundation compiler is deterministic and has no model call or
+provider profile. None of the model-backed operations requires image input.
 
 The provider-neutral adapter returns typed outcomes for success, refusal, empty
 output, truncation, schema violation, transport failure, and provider failure.

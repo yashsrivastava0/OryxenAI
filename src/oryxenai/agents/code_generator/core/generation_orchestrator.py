@@ -1908,7 +1908,6 @@ def _operation_for(unit: WorkUnit) -> str:
 def _profile_for(operation: str, settings: Any) -> str:
     config = settings.code_generator_generation
     return {
-        "foundation": str(config.foundation_profile),
         "route_batch": str(config.route_profile),
         "route_compose": str(config.compose_profile),
         "integrate": str(config.integration_profile),
