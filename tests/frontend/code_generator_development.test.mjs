@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createCodeGeneratorDevelopmentController } from '../../src/oryxenai/web/static/code-generator-development-controller.mjs';
+import { formatReadinessBlocker } from '../../src/oryxenai/web/static/code-generator-development.js';
 
 function harness({ search = '', storedRun = null, status = 'planned', autoAdvance = 'false' } = {}) {
   const calls = [];
@@ -242,4 +243,16 @@ test('setAutoAdvance persists the preference without firing a stage twice', asyn
   await subject.controller.setAutoAdvance(true);  assert.equal(subject.controller.autoAdvance(), true);
   const acquires = subject.calls.filter((call) => call[0] === 'runAcquire');
   assert.equal(acquires.length, 1);
+});
+
+test('readiness blocker labels explain preview configuration failures', () => {
+  assert.equal(
+    formatReadinessBlocker('preview_gateway_not_configured'),
+    'preview gateway is not configured',
+  );
+  assert.equal(
+    formatReadinessBlocker('preview_gateway_unreachable'),
+    'preview gateway is unreachable',
+  );
+  assert.equal(formatReadinessBlocker('unknown_blocker'), 'unknown_blocker');
 });
