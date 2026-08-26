@@ -1,17 +1,19 @@
 import { createCodeGeneratorDevelopmentController } from './code-generator-development-controller.mjs';
 
+const API_ROOT = '/api/v1/development/code-generator';
+
 export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}) {
   if (typeof requestImpl !== 'function') throw new Error('An authorized request function is required.');
   const root = document.querySelector('[data-code-generator-development]');
   if (!root) return null;
-  const apiRoot = '/api/v1/development/code-generator';
+
   const view = (name) => root.querySelector(`[data-${name}]`);
   const all = (name) => root.querySelectorAll(`[data-${name}]`);
   const viewportButtons = () => all('preview-viewport');
   const activeStatuses = new Set([
-    'queued', 'planning', 'planned', 'acquiring', 'generating_foundation',
-    'generating_routes', 'integrating', 'source_ready', 'building',
-    'smoke_testing', 'repairing', 'preview_pending',
+    'queued', 'planning', 'planned', 'acquiring', 'acquired', 'generating_foundation',
+    'generating_routes', 'integrating', 'source_ready', 'building', 'smoke_testing',
+    'repairing', 'preview_pending',
   ]);
   const stageStatuses = {
     prepare: new Set(['queued', 'planning', 'planned']),
@@ -21,16 +23,17 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   };
   const stageOrder = ['prepare', 'resources', 'source', 'verify'];
   const statusLabels = {
-    queued: 'Queued', planning: 'Admitting pack', planned: 'Plan ready',
+    created: 'Created', queued: 'Queued', planning: 'Admitting pack', planned: 'Plan ready',
     acquiring: 'Preparing resources', acquired: 'Resources ready',
     generating_foundation: 'Building visual foundation', generating_routes: 'Building routes',
     integrating: 'Connecting the portfolio', source_ready: 'Source ready',
     building: 'Building production output', smoke_testing: 'Testing the preview',
-    repairing: 'Applying bounded repair', preview_pending: 'Verified; waiting for preview publication', ready: 'Preview promoted',
-    needs_attention: 'Needs attention',
+    repairing: 'Applying bounded repair', preview_pending: 'Verified; waiting for preview publication',
+    ready: 'Preview promoted', needs_attention: 'Needs attention',
   };
+
   const request = async (path, options = {}) => {
-    const response = await requestImpl(`${apiRoot}${path}`, options);
+    const response = await requestImpl(`${API_ROOT}${path}`, options);
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = body.error || body;
@@ -48,11 +51,11 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   let selectedRoutePath = '';
   let selectedViewport = 'fit';
   let currentPreview = null;
-  let providerPreflightReady = false;
   let activeRunId = '';
   let previewLoadSequence = 0;
   let previewLoadTimer = 0;
   let previewBridgeReady = false;
+  let sourceManifestLoadedFor = '';
 
   const clearPreviewLoadTimer = () => {
     if (previewLoadTimer) window.clearTimeout(previewLoadTimer);
@@ -69,7 +72,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     const button = view('start-build-preparation');
     const busy = activeStatuses.has(activeRunStatus);
     button.disabled = !selectedPack || !readinessReady || busy;
-    button.textContent = busy ? 'Generating...' : activeRunStatus === 'ready' ? 'Generate again' : 'Generate portfolio';
+    button.querySelector('span').textContent = busy ? 'Generation in progress' : activeRunStatus === 'ready' ? 'Generate again' : 'Generate portfolio';
   };
 
   const renderReadiness = (readiness) => {
@@ -86,18 +89,20 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     const preflightRequired = readiness.provider_preflight?.status === 'required';
     readinessReady = Boolean(staticReady || (preflightRequired && fallbackBlockers.length === 0));
     const blockers = Array.isArray(readiness.readiness_blockers) && readiness.readiness_blockers.length
-      ? readiness.readiness_blockers
+      ? readiness.readiness_blockers.filter((item) => item !== 'provider_preflight_required')
       : fallbackBlockers;
-    const target = readiness.build_preparation_best?.pack_dir;
-    view('readiness').textContent = readinessReady
-      ? `${providerPreflightReady || !preflightRequired ? 'Ready to run' : 'Provider check runs before start'}${target ? ` with ${target}` : ''}.`
-      : `Waiting for ${blockers.join(', ')}.`;
-    view('readiness').dataset.state = readinessReady ? 'ready' : 'waiting';
+    const status = view('readiness');
+    if (readinessReady && !blockers.length) {
+      status.textContent = 'Ready to run. The first model preflight happens when you start.';
+    } else if (readinessReady) {
+      status.textContent = `Static checks ready; preflight will confirm the provider (${blockers.join(', ')}).`;
+    } else {
+      status.textContent = `Blocked by ${blockers.join(', ') || 'local readiness checks'}.`;
+    }
     updateLaunchButton();
   };
 
-  const renderPacks = (packs) => {
-    const entries = Array.isArray(packs) ? packs : [];
+  const renderPacks = (entries) => {
     const eligible = entries.filter((pack) => pack.eligible);
     const invalid = entries.filter((pack) => !pack.eligible);
     const compareRank = (a, b) => {
@@ -109,69 +114,73 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       }
       return String(b.pack_dir || '').localeCompare(String(a.pack_dir || ''));
     };
-    const best = eligible.slice().sort(compareRank)[0];
-    selectedPack = best?.pack_dir || '';
+    selectedPack = eligible.slice().sort(compareRank)[0]?.pack_dir || '';
     const select = view('pack');
     const labelFor = (pack) => {
       const counts = pack.resource_counts || {};
-      const version = pack.pack_version || 'unknown version';
       const resources = Number(pack.resource_coverage || counts.resource_coverage || 0);
       const visuals = Number(pack.visual_readiness || counts.visual_readiness || 0);
-      return `${pack.pack_dir} - ${version} - ${resources} resource(s), ${visuals} visual route(s) - expires ${String(pack.expires_at || '').slice(0, 16).replace('T', ' ')}`;
+      return `${pack.pack_dir} · ${resources} resources · ${visuals} visual routes`;
     };
     select.replaceChildren(
       ...eligible.map((pack) => new Option(labelFor(pack), pack.pack_dir)),
-      ...invalid.map((pack) => new Option(`${pack.pack_dir} - ${pack.issue || 'not eligible'}`, '')),
+      ...invalid.map((pack) => new Option(`${pack.pack_dir} · ${pack.issue || 'not eligible'}`, '')),
     );
     select.value = selectedPack;
     select.disabled = entries.length === 0;
-    if (!entries.length) {
-      view('pack-status').textContent = 'No eligible Build Preparation output found. Run Build Preparation first.';
-    } else if (selectedPack) {
-      const selected = eligible.find((pack) => pack.pack_dir === selectedPack);
-      view('pack-status').textContent = selected
-        ? `Using ${selected.pack_dir} (${selected.pack_version || 'unknown version'}; hash-bound ZIP ${selected.size_bytes || 0} bytes; eligible).`
-        : `Using best eligible pack ${selectedPack}.`;
-    } else {
-      view('pack-status').textContent = `No eligible pack is available (${entries[0].issue || 'unknown reason'}).`;
-    }
+    const status = view('pack-status');
+    if (!entries.length) status.textContent = 'No eligible Build Preparation output found. Run Build Preparation first.';
+    else if (selectedPack) status.textContent = `Selected ${selectedPack} · server will bind this immutable ZIP.`;
+    else status.textContent = `No eligible pack is available (${entries[0].issue || 'unknown reason'}).`;
     updateLaunchButton();
   };
 
-  const card = (className, title, status, detail) => {
-    const item = document.createElement('li');
-    item.className = className;
-    const strong = document.createElement('strong');
-    strong.textContent = title;
-    const badge = document.createElement('span');
-    badge.className = 'cg-dev__badge';
-    badge.textContent = status;
-    const small = document.createElement('small');
-    small.textContent = detail;
-    item.append(strong, badge, small);
-    return item;
+  const renderList = (target, items, emptyText, mapper) => {
+    target.replaceChildren();
+    if (!items?.length) {
+      const empty = document.createElement('li');
+      empty.className = 'cg-dev__empty-list';
+      empty.textContent = emptyText;
+      target.append(empty);
+      return;
+    }
+    target.append(...items.map(mapper));
+  };
+
+  const diagnosticButton = (issue) => {
+    if (!issue.file) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cg-dev__source-link';
+    button.dataset.sourcePath = issue.file;
+    button.dataset.sourceLine = String(issue.line || 1);
+    button.textContent = 'Open source';
+    return button;
   };
 
   const renderDiagnostics = (target, issues) => {
-    target.replaceChildren(...(issues || []).map((issue) => {
+    renderList(target, issues, 'No diagnostics recorded.', (issue) => {
       const item = document.createElement('li');
-      const location = issue.file
-        ? ` (${issue.file}${issue.line ? `:${issue.line}${issue.column ? `:${issue.column}` : ''}` : ''})`
-        : '';
-      item.append(Object.assign(document.createElement('span'), {
-        textContent: `${issue.code}: ${issue.normalized_message}${location}`,
-      }));
-      if (issue.file) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'cg-dev__source-link';
-        button.dataset.sourcePath = issue.file;
-        button.dataset.sourceLine = String(issue.line || 1);
-        button.textContent = 'Open source';
-        item.append(document.createTextNode(' '), button);
-      }
+      const location = issue.file ? ` · ${issue.file}${issue.line ? `:${issue.line}` : ''}` : '';
+      const text = document.createElement('span');
+      text.textContent = `${issue.code || 'DIAGNOSTIC'}: ${issue.normalized_message || issue.message || 'No detail'}${location}`;
+      item.append(text);
+      const link = diagnosticButton(issue);
+      if (link) item.append(document.createTextNode(' '), link);
       return item;
-    }));
+    });
+  };
+
+  const renderCardList = (target, items, emptyText, title, detail) => {
+    renderList(target, items, emptyText, (itemData) => {
+      const item = document.createElement('li');
+      const strong = document.createElement('strong');
+      strong.textContent = title(itemData);
+      const small = document.createElement('small');
+      small.textContent = detail(itemData);
+      item.append(strong, small);
+      return item;
+    });
   };
 
   const loadSource = async (path, line) => {
@@ -185,20 +194,45 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     try {
       const result = await request(`/runs/${encodeURIComponent(activeRunId)}/source-file?${query.toString()}`);
       const first = result.start_line || 1;
-      code.textContent = result.content
-        .split('\n')
-        .map((sourceLine, index) => `${String(first + index).padStart(5, ' ')} | ${sourceLine}`)
-        .join('\n');
-      status.textContent = `${result.path} — checkpoint ${String(result.checkpoint_hash || '').slice(0, 16)}`;
+      code.textContent = result.content.split('\n').map((sourceLine, index) => `${String(first + index).padStart(5, ' ')} | ${sourceLine}`).join('\n');
+      status.textContent = `${result.path} · checkpoint ${String(result.checkpoint_hash || '').slice(0, 16)}`;
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  };
+
+  const loadSourceManifest = async () => {
+    if (!activeRunId || sourceManifestLoadedFor === activeRunId) return;
+    const status = view('source-manifest-status');
+    try {
+      const result = await request(`/runs/${encodeURIComponent(activeRunId)}/source-manifest`);
+      sourceManifestLoadedFor = activeRunId;
+      const files = result.manifest?.files || [];
+      renderList(view('source-manifest'), files, 'No accepted source files recorded.', (file) => {
+        const item = document.createElement('li');
+        const label = document.createElement('strong');
+        label.textContent = file.path || 'unknown file';
+        const meta = document.createElement('small');
+        meta.textContent = `${file.size_bytes || file.size || 0} bytes${file.sha256 ? ` · ${String(file.sha256).slice(0, 12)}` : ''}`;
+        item.append(label, meta);
+        if (file.path) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.dataset.sourcePath = file.path;
+          button.dataset.sourceLine = '1';
+          button.textContent = 'Inspect';
+          item.append(button);
+        }
+        return item;
+      });
+      status.textContent = `${files.length} accepted file(s) · click Inspect for a bounded source slice.`;
     } catch (error) {
       status.textContent = error.message;
     }
   };
 
   const stageForRun = (run) => {
-    if (run.status !== 'needs_attention') {
-      return stageOrder.findIndex((stage) => stageStatuses[stage].has(run.status));
-    }
+    if (run.status !== 'needs_attention') return stageOrder.findIndex((stage) => stageStatuses[stage].has(run.status));
     if (run.source_checkpoint || run.verification) return 3;
     if (run.acquire_summary || run.resource_ledger) return 1;
     return 0;
@@ -244,7 +278,8 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       return;
     }
     const routePath = selectedRoutePath.replace(/^\/+/, '');
-    const nextSrc = routePath ? new URL(routePath, currentPreview.url).toString() : currentPreview.url;
+    let nextSrc = currentPreview.url;
+    try { nextSrc = routePath ? new URL(routePath, currentPreview.url).toString() : currentPreview.url; } catch { /* server supplied URL is shown as-is */ }
     const sourceChanged = frame.src !== nextSrc;
     if (sourceChanged) {
       previewLoadSequence += 1;
@@ -266,68 +301,112 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     if (sourceChanged || (!previewBridgeReady && !previewLoadTimer)) {
       previewLoadTimer = window.setTimeout(() => {
         if (loadSequence !== previewLoadSequence || previewBridgeReady) return;
-        embedStatus.textContent = 'PREVIEW_EMBED_BLOCKED: the embedded preview did not respond. Use Open in new tab to inspect the verified output.';
+        embedStatus.textContent = 'Embedded preview did not respond. Use Open preview to inspect the verified output.';
       }, 5000);
     }
+  };
+
+  const renderOutput = (run, events) => {
+    const fallback = events.slice().reverse().find((event) => event.event_type === 'exported');
+    const receipt = run.export_receipt || (fallback ? {
+      status: 'exported',
+      relative_path: fallback.details?.relative_path || '',
+      folder: fallback.details?.folder || '',
+      report_path: fallback.details?.report_path || 'generation-report.md',
+    } : null);
+    const state = view('output-state');
+    const status = receipt?.status || 'not_started';
+    state.dataset.state = status === 'exported' ? 'ready' : status === 'failed' ? 'error' : 'waiting';
+    state.textContent = status === 'exported'
+      ? 'Exported and ready for the evaluator agent.'
+      : status === 'failed'
+        ? `Export failed safely${receipt.error_code ? ` · ${receipt.error_code}` : ''}.`
+        : run.status === 'ready' ? 'Run is ready; export receipt is still syncing.' : 'Waiting for a completed run.';
+    const base = receipt?.relative_path || '';
+    view('output-folder').textContent = base || '—';
+    view('output-source').textContent = base && receipt.source_path ? `${base}/${receipt.source_path}` : '—';
+    view('output-dist').textContent = base && receipt.dist_path ? `${base}/${receipt.dist_path}` : '—';
+    view('output-report').textContent = base && receipt.report_path ? `${base}/${receipt.report_path}` : '—';
+    view('output-run').textContent = run.run_id || '—';
+    view('output-trace').textContent = run.trace_id || 'not assigned';
   };
 
   const render = ({ run, events, plan, acquisition, dependencies, generation, verification, preview }) => {
     activeRunId = run.run_id;
     activeRunStatus = run.status;
-    const label = statusLabels[run.status] || run.status;
-    view('status').textContent = label;
-    view('status-pill').textContent = label;
+    view('status').textContent = statusLabels[run.status] || run.status;
+    view('status-pill').textContent = statusLabels[run.status] || run.status;
     view('status-pill').dataset.state = run.status === 'ready' ? 'ready' : run.status === 'needs_attention' ? 'error' : 'active';
     const selectedPackReceipt = run.selected_pack_receipt;
     view('receipt').textContent = selectedPackReceipt?.pack_id
-      ? `Pack ${selectedPackReceipt.pack_id} · ${selectedPackReceipt.pack_version || 'unknown version'} · ${selectedPackReceipt.pack_sha256 || 'hash pending'}`
+      ? `Pack ${selectedPackReceipt.pack_id} · ${selectedPackReceipt.pack_version || 'unknown'} · ${String(selectedPackReceipt.pack_sha256 || 'hash pending').slice(0, 18)}`
       : run.input_receipt?.admitted_identity ? `Receipt ${run.input_receipt.admitted_identity}` : '';
     const latestEvent = events.at(-1);
     view('event').textContent = latestEvent ? latestEvent.message : '';
-    view('events').replaceChildren(...events.map((event) => Object.assign(document.createElement('li'), { textContent: `${event.sequence}. ${event.message}` })));
-    view('status').setAttribute('aria-live', 'polite');
+    renderList(view('events'), events, 'No persisted events yet.', (event) => {
+      const item = document.createElement('li');
+      const sequence = document.createElement('b');
+      sequence.textContent = String(event.sequence || '—').padStart(2, '0');
+      const copy = document.createElement('span');
+      copy.textContent = event.message || event.event_type || 'Event recorded';
+      const meta = document.createElement('small');
+      const detailKeys = Object.keys(event.details || {});
+      meta.textContent = `${event.event_type || 'event'}${event.created_at ? ` · ${String(event.created_at).slice(11, 19)}` : ''}${detailKeys.length ? ` · ${detailKeys.length} detail(s)` : ''}`;
+      const body = document.createElement('div');
+      body.append(copy, meta);
+      item.append(sequence, body);
+      return item;
+    });
+    renderOutput(run, events);
     renderStages(run);
     updateLaunchButton();
 
     const issues = run.issues || [];
-    if (run.status === 'needs_attention' && issues.length) {
-      setError(`${issues[0].code}: ${issues[0].message}`);
-    } else if (run.status !== 'needs_attention') {
-      setError();
-    }
+    if (run.status === 'needs_attention' && issues.length) setError(`${issues[0].code}: ${issues[0].message}`);
+    else if (run.status !== 'needs_attention') setError();
     view('plan-issues').textContent = issues.length ? `${issues.length} issue(s) reported` : '';
-    view('plan-issues-list').replaceChildren(...issues.map((issue) => Object.assign(document.createElement('li'), { textContent: `${issue.code}: ${issue.message}` })));
-    if (plan) view('summary').textContent = `${plan.routes.length} route(s), ${plan.work_graph.units.length} planned work unit(s).`;
+    renderList(view('plan-issues-list'), issues, 'No plan issues recorded.', (issue) => {
+      const item = document.createElement('li');
+      item.textContent = `${issue.code || 'ISSUE'}: ${issue.message || 'No detail'}`;
+      return item;
+    });
+    if (plan) view('summary').textContent = `${plan.routes?.length || 0} route(s), ${plan.work_graph?.units?.length || 0} planned work unit(s).`;
 
     const acquireButton = view('acquire');
     acquireButton.disabled = !plan || !['planned', 'needs_attention'].includes(run.status) || Boolean(run.acquire_summary);
     view('acquire-status').textContent = run.acquire_summary
       ? `${run.acquire_summary.request_count} request(s), ${run.acquire_summary.admitted_resource_count} admitted, ${run.acquire_summary.fallback_resource_count} fallback.`
       : run.status === 'acquiring' ? 'Resource acquisition is running.' : 'Idle.';
-    view('acquire-issues').replaceChildren(...(run.acquire_summary ? issues.map((issue) => Object.assign(document.createElement('li'), { textContent: `${issue.code}: ${issue.message}` })) : []));
-    view('resources').replaceChildren(...((acquisition?.receipts || []).map((receipt) => card('cg-dev__resource-card', receipt.request_hash, receipt.disposition, receipt.provider_key || receipt.fallback?.implementation || 'No external resource selected.'))));
-    view('dependencies').replaceChildren(...((dependencies?.receipts || []).map((receipt) => card('cg-dev__dependency-card', receipt.package_name || 'No package', receipt.decision, receipt.resolved_version || receipt.fallback?.strategy || 'No package mutation.'))));
+    renderList(view('acquire-issues'), run.acquire_summary ? issues : [], 'No acquisition issues recorded.', (issue) => {
+      const item = document.createElement('li'); item.textContent = `${issue.code || 'ISSUE'}: ${issue.message || 'No detail'}`; return item;
+    });
+    renderCardList(view('resources'), acquisition?.receipts, 'No resource receipts yet.', (item) => item.request_hash || 'resource', (item) => `${item.disposition || 'unknown'} · ${item.provider_key || item.fallback?.implementation || 'fallback'}`);
+    renderCardList(view('dependencies'), dependencies?.receipts, 'No dependency receipts yet.', (item) => item.package_name || 'No package', (item) => `${item.decision || 'unknown'} · ${item.resolved_version || item.fallback?.strategy || 'existing stack'}`);
 
     const generateButton = view('generate');
     generateButton.disabled = !(run.status === 'acquired' || (run.status === 'needs_attention' && Boolean(run.acquire_summary))) || Boolean(run.source_checkpoint) || Boolean(run.generation_job_id);
-    view('generate-status').textContent = generation ? `${generation.phase || run.status} - ${generation.active_work_unit_id || 'no active unit'}` : 'Waiting for a resource-complete plan.';
+    view('generate-status').textContent = generation ? `${generation.phase || run.status} · ${generation.active_work_unit_id || 'no active unit'}` : 'Waiting for a resource-complete plan.';
     if (generation) {
       const checkpoint = generation.accepted_checkpoint;
       view('generation-summary').textContent = checkpoint
-        ? `${generation.source_file_count || checkpoint.file_count} generated file(s), checkpoint ${checkpoint.checkpoint_hash.slice(0, 16)}.`
-        : `${generation.work_units?.length || 0} work unit(s), ${generation.request_rounds || 0} request round(s), ${generation.repair_rounds || 0} repair round(s).`;
-      view('work-units').replaceChildren(...(generation.work_units || []).map((unit) => card('cg-dev__resource-card', unit.unit_id, unit.status, `${unit.kind} - ${unit.checkpoint_after ? unit.checkpoint_after.slice(0, 12) : 'pending'}`)));
-      renderDiagnostics(view('generation-diagnostics'), generation.diagnostics);
+        ? `${generation.source_file_count || checkpoint.file_count || 0} generated file(s) · checkpoint ${String(checkpoint.checkpoint_hash || '').slice(0, 16)}.`
+        : `${generation.work_units?.length || 0} work unit(s) · ${generation.request_rounds || 0} request round(s) · ${generation.repair_rounds || 0} repair round(s).`;
+      renderCardList(view('work-units'), generation.work_units, 'No work units recorded yet.', (item) => item.unit_id || 'work unit', (item) => `${item.status || 'pending'} · ${item.kind || 'unit'}`);
+      renderDiagnostics(view('generation-diagnostics'), generation.diagnostics || []);
     } else {
       view('generation-summary').textContent = 'No source checkpoint yet.';
-      view('work-units').replaceChildren();
-      view('generation-diagnostics').replaceChildren();
+      renderList(view('work-units'), [], 'No work units recorded yet.', () => document.createElement('li'));
+      renderDiagnostics(view('generation-diagnostics'), []);
     }
 
     const verifyButton = view('verify');
     verifyButton.disabled = run.status !== 'source_ready' || Boolean(run.verification_job_id);
-    view('verify-status').textContent = verification ? `${verification.phase || run.status} - ${verification.active_gate || 'complete'}` : 'Final verification has not started.';
-    view('verification-gates').replaceChildren(...((verification?.gate_results || []).map((gate) => card('cg-dev__gate-card', gate.gate_id, gate.status, `${gate.diagnostics?.length || 0} diagnostic(s)`))));
+    view('verify-status').textContent = verification ? `${verification.phase || run.status} · ${verification.active_gate || 'complete'}` : 'Final verification has not started.';
+    const quality = run.quality_review || generation?.quality_review;
+    view('quality-summary').textContent = quality
+      ? `Quality review: ${quality.status || 'recorded'}${quality.review_id ? ` · ${quality.review_id}` : ''}`
+      : 'Quality review has not started.';
+    renderCardList(view('verification-gates'), verification?.gate_results, 'No verification gates recorded yet.', (item) => item.gate_id || 'gate', (item) => `${item.status || 'pending'} · ${item.diagnostics?.length || 0} diagnostic(s)`);
     renderDiagnostics(view('verification-diagnostics'), verification?.diagnostics || []);
 
     currentPreview = preview?.active_preview || run.active_preview;
@@ -338,23 +417,16 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     if (!routes.length) selectedRoutePath = '';
     routeSelect.value = selectedRoutePath;
     const latestIssue = issues[0];
-    if (currentPreview?.url && run.status === 'preview_pending') {
-      view('preview-status').textContent = 'Previous preview retained; new publication pending';
-    } else if (currentPreview?.url) {
-      view('preview-status').textContent = 'Verified preview promoted';
-    } else if (run.status === 'preview_pending') {
-      view('preview-status').textContent = 'Verified candidate retained; public read-back pending';
-    } else if (run.status === 'needs_attention') {
-      view('preview-status').textContent = `Preview unavailable${latestIssue?.code ? ` (${latestIssue.code})` : ''}`;
-    } else {
-      view('preview-status').textContent = 'No preview yet';
-    }
+    const previewStatus = view('preview-status');
+    if (currentPreview?.url && run.status === 'preview_pending') previewStatus.textContent = 'Previous preview retained · new publication pending';
+    else if (currentPreview?.url) previewStatus.textContent = 'Verified preview promoted';
+    else if (run.status === 'preview_pending') previewStatus.textContent = 'Candidate retained · public read-back pending';
+    else if (run.status === 'needs_attention') previewStatus.textContent = `Preview unavailable${latestIssue?.code ? ` · ${latestIssue.code}` : ''}`;
+    else previewStatus.textContent = 'No preview yet';
+    previewStatus.dataset.state = currentPreview?.url ? 'ready' : run.status === 'needs_attention' ? 'error' : 'waiting';
     const emptyMessage = view('preview-empty-message');
-    if (!currentPreview?.url && run.status === 'preview_pending') {
-      emptyMessage.textContent = 'The build passed local verification, but public preview publication is pending. Retry after the preview gateway recovers.';
-    } else if (!currentPreview?.url && run.status === 'needs_attention') {
-      emptyMessage.textContent = latestIssue?.message || 'The verified preview is unavailable for this run.';
-    }
+    if (!currentPreview?.url && run.status === 'preview_pending') emptyMessage.textContent = 'The build passed local verification, but preview publication is pending.';
+    else if (!currentPreview?.url && run.status === 'needs_attention') emptyMessage.textContent = latestIssue?.message || 'The verified preview is unavailable for this run.';
     viewportButtons().forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.previewViewport === selectedViewport)));
     updatePreviewFrame();
   };
@@ -379,7 +451,6 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       providerPreflight: () => request('/provider-preflight', { method: 'POST' }),
       createBuildPreparation: async (pack) => {
         await request('/provider-preflight', { method: 'POST' });
-        providerPreflightReady = true;
         return request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'best' }) });
       },
     },
@@ -414,10 +485,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   view('acquire').addEventListener('click', () => runAction(() => controller.acquire()));
   view('generate').addEventListener('click', () => runAction(() => controller.generate()));
   view('verify').addEventListener('click', () => runAction(() => controller.verify()));
-  view('preview-route').addEventListener('change', (event) => {
-    selectedRoutePath = event.target.value;
-    updatePreviewFrame();
-  });
+  view('preview-route').addEventListener('change', (event) => { selectedRoutePath = event.target.value; updatePreviewFrame(); });
   viewportButtons().forEach((button) => button.addEventListener('click', () => {
     selectedViewport = button.dataset.previewViewport;
     viewportButtons().forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
@@ -427,6 +495,12 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     const frame = view('preview-frame');
     if (!frame.hidden) frame.contentWindow?.location.reload();
   });
+  all('inspector-tab').forEach((tab) => tab.addEventListener('click', () => {
+    const selected = tab.dataset.inspectorTab;
+    all('inspector-tab').forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+    all('inspector-panel').forEach((panel) => { panel.hidden = panel.dataset.inspectorPanel !== selected; });
+    if (selected === 'files') loadSourceManifest();
+  }));
   root.addEventListener('click', (event) => {
     const button = event.target.closest('[data-source-path]');
     if (button) loadSource(button.dataset.sourcePath, button.dataset.sourceLine);
@@ -436,19 +510,16 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   const previewBridgeVersion = 'preview-bridge-v1';
   const sendPreviewInit = () => {
     if (previewFrame.hidden || !previewFrame.src || !previewFrame.contentWindow) return;
-    const origin = new URL(previewFrame.src, location.href).origin;
+    let origin;
+    try { origin = new URL(previewFrame.src, location.href).origin; } catch { return; }
     previewFrame.contentWindow.postMessage({ type: 'preview:init', version: previewBridgeVersion }, origin);
   };
-  previewFrame.addEventListener('load', () => {
-    previewBridgeReady = false;
-    sendPreviewInit();
-  });
-  previewFrame.addEventListener('error', () => {
-    view('preview-embed-status').textContent = 'PREVIEW_EMBED_BLOCKED: the preview frame could not load. Use Open in new tab to inspect the verified output.';
-  });
+  previewFrame.addEventListener('load', () => { previewBridgeReady = false; sendPreviewInit(); });
+  previewFrame.addEventListener('error', () => { view('preview-embed-status').textContent = 'Preview frame could not load. Use Open preview to inspect the verified output.'; });
   window.addEventListener('message', (event) => {
     if (event.source !== previewFrame.contentWindow || previewFrame.hidden || !previewFrame.src) return;
-    const origin = new URL(previewFrame.src, location.href).origin;
+    let origin;
+    try { origin = new URL(previewFrame.src, location.href).origin; } catch { return; }
     if (event.origin !== origin) return;
     if (event.data?.type === 'preview:ready' && event.data?.version === previewBridgeVersion) {
       previewBridgeReady = true;

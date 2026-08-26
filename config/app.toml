@@ -212,8 +212,8 @@ schema_version = "build-preparation-contract-v3"
 accepted_pack_versions = ["build-preparation-pack-v3", "build-preparation-pack-v4"]
 accepted_schema_versions = ["build-preparation-contract-v3", "build-preparation-contract-v4"]
 target_contract = "react-vite-v1"
-director_profile = "code_generator_director"
-planner_profile = "code_generator_planner"
+director_profile = "openai_luna"
+planner_profile = "openai_luna"
 max_upload_bytes = 16777216
 max_uncompressed_bytes = 67108864
 max_entries = 256
@@ -223,7 +223,7 @@ max_work_units = 64
 max_events_page_size = 100
 # Local Build Preparation debug mirror consumed by the "from Build Preparation"
 # run source (newest eligible build-pack.zip wins).
-build_preparation_mirror_root = "output/live-build-preparation/build-preparation"
+build_preparation_mirror_root = "prebuild-output/build-preparation"
 pipeline_contract_version = "code-generator-v4"
 worker_release_id = "oryxenai-code-generator-v4"
 quality_gate_version = "quality-gate-v2"
@@ -248,18 +248,18 @@ materials_root = ".workspace/code-generator-materials"
 # Model-assisted candidate selection through the code_generator_resource_scout
 # profile; falls back to the deterministic scorer when the profile is unusable.
 prefer_resource_scout_model = true
-resource_scout_profile = "code_generator_resource_scout"
+resource_scout_profile = "openai_luna"
 
 [code_generator_generation]
 scaffold_profile = "react-vite-v1"
 scaffold_root = "src/oryxenai/agents/code_generator/scaffolds"
 workspace_root = ".workspace/code-generator-generation"
 checkpoint_root = ".workspace/code-generator-checkpoints"
-foundation_profile = "code_generator_foundation_builder"
-route_profile = "code_generator_route_builder"
-compose_profile = "code_generator_route_composer"
-integration_profile = "code_generator_integrator"
-repair_profile = "code_generator_repairer"
+foundation_profile = "openai_luna"
+route_profile = "openai_luna"
+compose_profile = "openai_luna"
+integration_profile = "openai_luna"
+repair_profile = "openai_luna"
 max_file_bytes = 262144
 max_response_bytes = 2097152
 max_source_bytes = 8388608

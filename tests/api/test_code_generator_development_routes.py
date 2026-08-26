@@ -54,5 +54,26 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     assert "Generate portfolio" in response.text
     assert "Live preview" in response.text
     assert "Advanced / debug controls" in response.text
-    assert "Auto-advance stages" in response.text
-    assert response.text.index("auth-client.js") < response.text.index("dev-auth-bootstrap.mjs")
+    assert "Auto-advance" in response.text
+    assert "auth-client.js" not in response.text
+    assert "dev-auth-bootstrap.mjs" not in response.text
+    assert "code-generator-development-detached-bootstrap.mjs" in response.text
+    assert "Detached development" in response.text
+    assert "generation-report.md" in response.text
+
+
+@pytest.mark.asyncio
+async def test_attached_development_shell_retains_future_auth_boundary() -> None:
+    settings = Settings()
+    settings.code_generator_development.enabled = True
+    settings.auth.pipeline_mode = "attached"
+    app = create_app(settings)
+    override_test_identity(app, role="admin")
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/code-generator-development")
+    assert response.status_code == 200
+    assert "auth-client.js" in response.text
+    assert "dev-auth-bootstrap.mjs" in response.text
+    assert "code-generator-development-detached-bootstrap.mjs" not in response.text

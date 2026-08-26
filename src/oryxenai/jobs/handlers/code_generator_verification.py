@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import secrets
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -798,6 +799,7 @@ async def _execute(
             plan=plan,
             candidate_id=candidate_id,
             identity=identity,
+            trace_id=str(run.trace_id or ""),
             pack_reference=str((run.input_reference or {}).get("source_id", "")),
             generation_projection=dict(generation_projection_payload),
             quality_review=quality_payload,
@@ -1412,6 +1414,7 @@ async def _export_portfolio(
     plan: SitePlan,
     candidate_id: str,
     identity: Any,
+    trace_id: str,
     pack_reference: str,
     generation_projection: dict[str, Any],
     quality_review: dict[str, Any] | None,
@@ -1425,6 +1428,7 @@ async def _export_portfolio(
 
     from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
 
+    details: dict[str, object]
     try:
         exported = export_portfolio(
             settings=settings,
@@ -1437,6 +1441,7 @@ async def _export_portfolio(
                 "candidate_identity_hash": identity.identity_hash,
                 "checkpoint_hash": identity.source_checkpoint_hash,
                 "pack_reference": pack_reference,
+                "trace_id": trace_id,
                 "quality_review": quality_review,
                 "realization_contracts": realization_contracts,
                 "provenance": provenance,
@@ -1452,13 +1457,62 @@ async def _export_portfolio(
         logger.warning("portfolio export failed run_id=%s error=%s", run_id, exc)
         event = ("export_failed", "The portfolio export could not be written safely.")
         level = "warning"
+        receipt = {
+            "status": "failed",
+            "error_code": "PORTFOLIO_EXPORT_FAILED",
+        }
+        details = {"error_code": "PORTFOLIO_EXPORT_FAILED", "trace_id": trace_id}
     else:
         logger.info("portfolio exported run_id=%s path=%s", run_id, exported)
-        event = ("exported", f"Complete portfolio exported to {exported}")
+        try:
+            relative_export_path = (
+                exported.resolve().relative_to(repository_root().resolve()).as_posix()
+            )
+        except ValueError:
+            # An explicitly configured test/export root may live outside the
+            # repository. Keep the receipt useful without exposing an absolute
+            # machine path through the browser API.
+            relative_export_path = exported.name
+        receipt = {
+            "status": "exported",
+            "relative_path": relative_export_path,
+            "folder": exported.name,
+            "source_path": "source",
+            "dist_path": "dist" if (exported / "dist").is_dir() else "",
+            "metadata_path": "portfolio.json",
+            "report_path": "generation-report.md",
+            "exported_at": datetime.now(UTC).isoformat(),
+        }
+        event = ("exported", "Complete portfolio export is available for evaluation.")
         level = "info"
+        details = {
+            "relative_path": receipt["relative_path"],
+            "folder": receipt["folder"],
+            "report_path": receipt["report_path"],
+        }
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
-        await repo.append_event(run_id, event_type=event[0], level=level, message=event[1])
+        current = await repo.get(run_id)
+        if current is not None:
+            try:
+                await repo.compare_and_swap(
+                    run_id,
+                    expected_revision=current.revision,
+                    values={"export_receipt": receipt},
+                )
+            except Exception as exc:
+                logger.warning(
+                    "portfolio export receipt persistence failed run_id=%s error=%s",
+                    run_id,
+                    type(exc).__name__,
+                )
+        await repo.append_event(
+            run_id,
+            event_type=event[0],
+            level=level,
+            message=event[1],
+            details=details,
+        )
         await db.commit()
 
 

@@ -2921,6 +2921,22 @@ class DevelopmentEvent(BaseModel):
     created_at: str
 
 
+class ExportReceipt(BaseModel):
+    """Safe, evaluator-facing pointer to the immutable local export."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["not_started", "exported", "failed"] = "not_started"
+    relative_path: str = ""
+    folder: str = ""
+    source_path: str = ""
+    dist_path: str = ""
+    metadata_path: str = ""
+    report_path: str = ""
+    exported_at: str = ""
+    error_code: str = ""
+
+
 class DevelopmentRunProjection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2970,6 +2986,7 @@ class DevelopmentRunProjection(BaseModel):
     candidate_artifact: CandidateArtifact | None = None
     pending_promotion: PendingPromotion | None = None
     active_preview: ActivePreview | None = None
+    export_receipt: ExportReceipt | None = None
     terminal_failure: TerminalFailureReport | None = None
     issues: list[SafeIssue] = Field(default_factory=list)
     created_at: str = ""
