@@ -611,7 +611,6 @@ class CodeGeneratorGenerationConfig(BaseModel):
     scaffold_root: str = "src/oryxenai/agents/code_generator/scaffolds"
     workspace_root: str = ".workspace/code-generator-generation"
     checkpoint_root: str = ".workspace/code-generator-checkpoints"
-    foundation_profile: str = "code_generator_foundation_builder"
     route_profile: str = "code_generator_route_builder"
     compose_profile: str = "code_generator_route_composer"
     integration_profile: str = "code_generator_integrator"

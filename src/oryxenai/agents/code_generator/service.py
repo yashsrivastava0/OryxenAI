@@ -881,7 +881,6 @@ class CodeGeneratorService:
         profile_names = [
             self._settings.code_generator_development.director_profile,
             selected_profile,
-            self._settings.code_generator_generation.foundation_profile,
             self._settings.code_generator_generation.route_profile,
             self._settings.code_generator_generation.compose_profile,
             self._settings.code_generator_generation.integration_profile,

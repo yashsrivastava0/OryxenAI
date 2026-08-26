@@ -70,6 +70,8 @@ def test_model_profiles_loaded():
 
     code_generator_profile = s.models.get_profile("code_generator_director")
     assert code_generator_profile is not None
+    assert s.models.get_profile("code_generator_foundation_builder") is None
+    assert "code_generator_foundation_builder" not in s.models.routing.engine_profiles.values()
     for engine in ("code_generator_director", "code_generator_planner"):
         routed = s.models.get_profile(s.models.routing.engine_profiles[engine])
         assert routed is not None

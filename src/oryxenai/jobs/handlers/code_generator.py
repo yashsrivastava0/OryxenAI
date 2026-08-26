@@ -108,7 +108,7 @@ def _acquisition_failure_issue(exc: Exception) -> SafeIssue:
     """Turn acquisition failures into safe, actionable UI diagnostics."""
     code = str(getattr(exc, "code", "") or "ACQUISITION_FAILED")
     message = str(getattr(exc, "message", "") or "").strip()
-    details: dict[str, object] = {}
+    details: dict[str, str | int | float | bool] = {}
     if isinstance(exc, ValidationError):
         summary = _safe_acquisition_validation_summary(exc)
         message = f"Acquisition produced an invalid local object: {summary}"
