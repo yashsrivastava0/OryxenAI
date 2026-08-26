@@ -166,6 +166,49 @@ def test_component_roles_are_distinct_and_route_aware() -> None:
     assert {item["where_it_may_help"].split(" / ")[0] for item in roles} == {"home"}
 
 
+def test_designer_sections_derive_process_and_design_system_roles_without_quota_padding() -> None:
+    content = _enriched_content()
+    route = content["route_plan"][0]
+    route["section_sequence"] = [
+        *route["section_sequence"],
+        "home:approach",
+        "home:design-systems",
+    ]
+    content["page_content_packs"][0]["sections"].extend(
+        [
+            {
+                "section_id": "home:approach",
+                "content": {"steps": ["Frame", "Explore", "Validate", "Refine"]},
+            },
+            {
+                "section_id": "home:design-systems",
+                "content": {
+                    "capabilities": ["Tokens", "Components", "Documentation", "Governance"]
+                },
+            },
+        ]
+    )
+
+    normalized = normalize_visual_input(content, {}, component_target=2, component_maximum=6)
+    roles = {
+        item["interaction_role"]
+        for item in normalized.visual["resource_candidates"]
+        if item["category"] == "visual_component"
+    }
+
+    assert roles == {
+        "capability-grouping",
+        "experience-timeline",
+        "process-sequence",
+        "selected-work-detail",
+    }
+    assert "stepper" not in next(
+        item["provider_terms"]
+        for item in normalized.visual["resource_candidates"]
+        if item.get("interaction_role") == "experience-timeline"
+    )
+
+
 def test_component_budget_does_not_create_roles_for_static_sections() -> None:
     content, visual = _enriched_content(), {}
     for section in content["page_content_packs"][0]["sections"]:

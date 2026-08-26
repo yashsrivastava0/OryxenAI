@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 from oryxenai.agents.build_preparation.materializer import (
     _overview_text,
@@ -16,6 +16,7 @@ from oryxenai.agents.build_preparation.materializer import (
 )
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
+    ComponentIntent,
     FetchedResource,
     ResourceNeed,
     ResourceSelection,
@@ -29,6 +30,20 @@ def _png() -> bytes:
     buffer = io.BytesIO()
     Image.effect_noise((1200, 700), 40).convert("RGB").save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def _gradient_png(*, brightness: float = 1.0, reverse: bool = False) -> bytes:
+    image = Image.new("RGB", (1200, 700))
+    for x in range(image.width):
+        source_x = image.width - 1 - x if reverse else x
+        value = int(20 + (200 * source_x / (image.width - 1)))
+        for y in range(image.height):
+            image.putpixel((x, y), (value, value, value))
+    if brightness != 1.0:
+        image = ImageEnhance.Brightness(image).enhance(brightness)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
 
 
 def _output_dir() -> Path:
@@ -253,7 +268,11 @@ async def test_materializer_tries_image_alternate_after_duplicate_local_content(
         # uses a different deterministic image so the duplicate guard can
         # exercise the closed-set retry path.
         first_bytes = _png()
-        alternate_bytes = Image.effect_noise((1200, 700), 90).convert("RGB")
+        alternate_bytes = (
+            Image.open(io.BytesIO(first_bytes))
+            .convert("RGB")
+            .transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        )
         alternate_buffer = io.BytesIO()
         alternate_bytes.save(alternate_buffer, format="PNG")
         payloads = {
@@ -302,6 +321,88 @@ async def test_materializer_tries_image_alternate_after_duplicate_local_content(
             alternate.resource_id,
         }
         assert len({item["content_hash"] for item in result.resources}) == 2
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_materializer_rejects_perceptually_duplicate_image_and_uses_alternate() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        route = RouteScope(route_id="home", path="/", title="Home")
+        first_need = ResourceNeed(
+            need_id="first-photo-need",
+            kind="asset",
+            source_id="asset-1",
+            category="photo",
+            purpose="Opening image",
+            route_ids=["home"],
+        )
+        second_need = first_need.model_copy(
+            update={"need_id": "second-photo-need", "source_id": "asset-2"}
+        )
+        first = FetchedResource(
+            resource_id="resource-first",
+            need_id=first_need.need_id,
+            kind="photo",
+            provider="pexels",
+            provider_asset_id="first",
+            image_url="https://images.pexels.com/first.jpg",
+        )
+        near_duplicate = first.model_copy(
+            update={
+                "resource_id": "resource-near-duplicate",
+                "need_id": second_need.need_id,
+                "provider_asset_id": "near-duplicate",
+            }
+        )
+        alternate = near_duplicate.model_copy(
+            update={"resource_id": "resource-alternate", "provider_asset_id": "alternate"}
+        )
+        first_bytes = _gradient_png()
+        payloads = {
+            first.resource_id: first_bytes,
+            near_duplicate.resource_id: _gradient_png(brightness=0.9),
+            alternate.resource_id: _gradient_png(reverse=True),
+        }
+
+        async def download(candidate: FetchedResource) -> bytes:
+            return payloads[candidate.resource_id]
+
+        result = await materialize_build_context(
+            output_dir=output_dir,
+            run_id="run-image-perceptual-duplicate",
+            routes=[route],
+            needs=[first_need, second_need],
+            selections=[
+                ResourceSelection(
+                    need_id=first_need.need_id, selected_resource_id=first.resource_id
+                ),
+                ResourceSelection(
+                    need_id=second_need.need_id,
+                    selected_resource_id=near_duplicate.resource_id,
+                    alternate_resource_ids=[alternate.resource_id],
+                ),
+            ],
+            candidates=[first, near_duplicate, alternate],
+            context=BuildContextDraft(
+                overview_markdown="# Build context",
+                routes=[RouteBuildContext(route_id="home", brief_markdown="# Home")],
+            ),
+            content_architect={},
+            settings=settings,
+            download_image=download,
+        )
+
+        assert result.effective_selections[1].selected_resource_id == alternate.resource_id
+        rejection = result.resource_attempts[1]
+        assert rejection["status"] == "rejected"
+        assert (
+            rejection["rejection_reason"]
+            == "image pixels are perceptually too similar to an earlier local role"
+        )
+        assert rejection["perceptual_distance"] <= 6
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
@@ -545,6 +646,93 @@ async def test_materializer_preserves_component_source_paths_and_license_provena
         assert resource["usage_contract"]["local_paths"]
         assert resource["usage_contract"]["expected_exports"] == ["MagicCard"]
         assert resource["usage_contract"]["source_hashes"]
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_materializer_rejects_demo_component_source_and_uses_role_fit_alternate() -> None:
+    output_dir = _output_dir()
+    try:
+        settings = Settings()
+        need = ResourceNeed(
+            need_id="selected-work-component",
+            kind="resource",
+            source_id="selected-work-detail",
+            category="visual_component",
+            purpose="Let visitors explore approved work details.",
+            route_ids=["home"],
+            section_ids=["home:selected-work"],
+            component_intent=ComponentIntent(
+                role_id="selected-work-detail",
+                route_id="home",
+                section_id="home:selected-work",
+                interaction_class="detail-exploration",
+                interaction_outcome="Let visitors explore approved work details.",
+                provider_terms=["project detail", "dialog", "drawer", "case study"],
+            ),
+        )
+        primary = FetchedResource(
+            resource_id="expandable-video-cards",
+            need_id=need.need_id,
+            kind="component",
+            provider="smoothui",
+            provider_asset_id="expandable-cards",
+            source_files={
+                "expandable-cards.tsx": (
+                    "export function ExpandableCards() { return <article className='cards' "
+                    "data-state='open'><img src='/placeholder.svg' alt='' /><button "
+                    "type='button'>Play video</button><span>Example project</span></article>; }"
+                )
+            },
+            dependencies=["react"],
+            license="MIT",
+            license_reference="https://example.test/license",
+        )
+        alternate = primary.model_copy(
+            update={
+                "resource_id": "project-detail-dialog",
+                "provider": "shadcn",
+                "provider_asset_id": "dialog",
+                "source_files": {
+                    "project-dialog.tsx": (
+                        "import type { ReactNode } from 'react';\n"
+                        "export function ProjectDialog({ children }: { children: ReactNode }) { "
+                        "return <section className='project-dialog' aria-labelledby='project-title' "
+                        "data-state='closed'><button type='button'>Open project details</button>"
+                        "<div id='project-title'>{children}</div></section>; }"
+                    )
+                },
+            }
+        )
+
+        result = await materialize_build_context(
+            output_dir=output_dir,
+            run_id="run-component-source-audit",
+            routes=[RouteScope(route_id="home", path="/")],
+            needs=[need],
+            selections=[
+                ResourceSelection(
+                    need_id=need.need_id,
+                    selected_resource_id=primary.resource_id,
+                    alternate_resource_ids=[alternate.resource_id],
+                )
+            ],
+            candidates=[primary, alternate],
+            context=BuildContextDraft(
+                overview_markdown="# Build context",
+                routes=[RouteBuildContext(route_id="home", brief_markdown="# Home")],
+            ),
+            content_architect={},
+            settings=settings,
+        )
+
+        assert result.effective_selections[0].selected_resource_id == alternate.resource_id
+        assert result.resource_attempts[0]["rejection_reason"] == (
+            "component source contains placeholder or demo content; "
+            "selected-work source is a video demo rather than detail exploration"
+        )
+        assert result.resources[0]["disposition"] == "adaptable_source"
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 

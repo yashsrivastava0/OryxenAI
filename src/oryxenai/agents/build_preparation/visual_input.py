@@ -37,43 +37,63 @@ _IMAGE_FORBIDDEN = [
 _IMAGE_ROLE_SPECS = (
     (
         "hero",
-        "Editorial opening atmosphere for backend and platform engineering; no person or product interface.",
-        ["backend platform engineering", "editorial systems atmosphere", "abstract architecture"],
-        "quiet, technical, high-contrast",
+        "Editorial opening atmosphere for the approved professional practice; no person or product interface.",
+        ["creative professional workspace", "editorial opening atmosphere", "abstract material"],
+        "quiet, distinctive, high-contrast",
         "landscape",
         "16:9",
     ),
     (
         "capabilities",
-        "Decorative systems-mapping atmosphere for capability groups; not a real topology.",
-        ["backend services", "systems mapping", "network topology abstraction"],
+        "Decorative modular atmosphere for approved capability groups; not evidence or a real interface.",
+        ["modular craft materials", "organized creative tools", "structured editorial grid"],
         "structured, analytical, restrained",
         "landscape",
         "3:2",
     ),
     (
         "experience",
-        "Editorial infrastructure and delivery atmosphere supporting an experience timeline.",
-        ["infrastructure delivery", "deployment pipeline abstraction", "observability mood"],
-        "calm, operational, editorial",
+        "Editorial collaboration atmosphere supporting an approved experience timeline.",
+        ["professional collaboration workspace", "studio teamwork", "editorial progression"],
+        "calm, collaborative, editorial",
         "landscape",
         "3:2",
     ),
     (
         "selected-work",
-        "Decorative data-flow atmosphere for selected technical work; no dashboard or screenshot.",
-        ["data flow abstraction", "service architecture", "queues caching delivery"],
-        "dense, precise, technical",
+        "Decorative craft-and-process atmosphere for selected work; no dashboard or screenshot.",
+        ["creative work process", "project materials detail", "portfolio craft atmosphere"],
+        "precise, tactile, considered",
         "landscape",
         "4:3",
     ),
     (
-        "education",
-        "Quiet technical-editorial texture for supporting context, without personal imagery.",
+        "approach",
+        "Editorial process atmosphere for the approved working approach; no invented project evidence.",
         [
-            "software engineering editorial texture",
-            "abstract infrastructure signal",
-            "technical material study",
+            "process sketches planning",
+            "creative workflow materials",
+            "collaborative planning table",
+        ],
+        "methodical, human, clear",
+        "landscape",
+        "3:2",
+    ),
+    (
+        "design-systems",
+        "Editorial modularity atmosphere for an approved design-system or capability section.",
+        ["modular design materials", "organized component library", "systematic visual grid"],
+        "systematic, crafted, restrained",
+        "landscape",
+        "3:2",
+    ),
+    (
+        "education",
+        "Quiet editorial learning atmosphere for supporting context, without personal imagery.",
+        [
+            "books learning workspace",
+            "editorial research materials",
+            "quiet material study",
         ],
         "quiet, spacious, reflective",
         "landscape",
@@ -83,8 +103,8 @@ _IMAGE_ROLE_SPECS = (
         "connect",
         "Non-evidentiary closing atmosphere for a professional connection CTA.",
         [
-            "engineering network connection abstraction",
-            "platform signal lines",
+            "professional connection abstract",
+            "human collaboration details",
             "editorial closing field",
         ],
         "open, focused, restrained",
@@ -112,10 +132,10 @@ _COMPONENT_PROVIDER_VOCABULARY: dict[str, tuple[str, ...]] = {
     ),
     "experience-timeline": (
         "timeline",
-        "stepper",
-        "progression",
         "milestones",
         "chronology",
+        "work history",
+        "career progression",
     ),
     "selected-work-detail": (
         "project detail",
@@ -124,6 +144,14 @@ _COMPONENT_PROVIDER_VOCABULARY: dict[str, tuple[str, ...]] = {
         "drawer",
         "tabs",
         "case study",
+    ),
+    "process-sequence": (
+        "process steps",
+        "stepper",
+        "workflow",
+        "sequence",
+        "progress steps",
+        "method",
     ),
     "navigation-disclosure": (
         "mobile navigation",
@@ -366,6 +394,9 @@ def _semantic_item_count(value: Any) -> int:
                 "projects",
                 "work",
                 "case_studies",
+                "steps",
+                "phases",
+                "principles",
             }:
                 total += _semantic_item_count(child)
         return total
@@ -419,11 +450,15 @@ def _semantic_component_intents(
         "navigation-disclosure": any(
             term in section_text for term in ("mobile nav", "navigation disclosure", "menu drawer")
         ),
+        "process-sequence": any(
+            term in section_text
+            for term in ("process", "workflow", "method", "sequence", "step", "phase")
+        ),
     }
     candidates: list[tuple[str, str, bool]] = []
-    if _section_matches(section_id, ("capabil", "skill", "service")) and (
-        items >= 2 or direction_terms["capability-grouping"]
-    ):
+    if _section_matches(
+        section_id, ("capabil", "skill", "service", "design-system", "design_system")
+    ) and (items >= 2 or direction_terms["capability-grouping"]):
         candidates.append(
             (
                 "capability-grouping",
@@ -447,6 +482,16 @@ def _semantic_component_intents(
                 explicit_required,
             )
         )
+    if _section_matches(section_id, ("approach", "process", "method", "workflow")) and (
+        items >= 3 or direction_terms["process-sequence"]
+    ):
+        candidates.append(
+            (
+                "process-sequence",
+                "Present the approved working approach as a complete sequence.",
+                explicit_required,
+            )
+        )
     if _section_matches(section_id, ("nav", "navigation")) and (
         route_count > 1 or direction_terms["navigation-disclosure"]
     ):
@@ -462,6 +507,31 @@ def _semantic_component_intents(
             "experience-timeline": "progression",
             "selected-work-detail": "detail-exploration",
             "navigation-disclosure": "navigation-disclosure",
+            "process-sequence": "process-sequence",
+        }[role_id]
+        role_negative_concepts = {
+            "capability-grouping": ["faq", "pricing", "dashboard", "login", "signup"],
+            "experience-timeline": [
+                "wizard",
+                "onboarding",
+                "checkout",
+                "form",
+                "dashboard",
+            ],
+            "selected-work-detail": [
+                "video player",
+                "login",
+                "signup",
+                "dashboard",
+            ],
+            "navigation-disclosure": ["dashboard", "sidebar application"],
+            "process-sequence": [
+                "wizard",
+                "onboarding",
+                "checkout",
+                "form",
+                "dashboard",
+            ],
         }[role_id]
         result.append(
             {
@@ -474,7 +544,11 @@ def _semantic_component_intents(
                 "placement": f"{route.get('route_id', '')} / {section_id}",
                 "purpose": outcome,
                 "provider_terms": role_terms,
-                "negative_concepts": ["dashboard", "screenshot", "invented project detail"],
+                "negative_concepts": [
+                    "screenshot",
+                    "invented project detail",
+                    *role_negative_concepts,
+                ],
                 "required": required,
                 "fallback_type": "semantic_local",
                 "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
@@ -500,6 +574,10 @@ def _ordered_descriptors(
             return "experience"
         if _section_matches(section_id, ("work", "project", "proof", "case")):
             return "selected-work"
+        if _section_matches(section_id, ("approach", "process", "method", "workflow")):
+            return "approach"
+        if _section_matches(section_id, ("design-system", "design_system")):
+            return "design-systems"
         if _section_matches(section_id, ("education", "about")):
             return "education"
         if _section_matches(section_id, ("connect", "contact", "cta")):
@@ -552,7 +630,7 @@ def normalize_visual_input(
     visual.setdefault("resource_candidates", [])
     if not _as_dict(visual.get("visual_language")) and not _has_meaningful_visual_input(original):
         visual["visual_language"] = {
-            "style": "technical editorial",
+            "style": "distinctive editorial portfolio",
             "palette": ["charcoal", "mineral", "cobalt accent"],
             "layout": "asymmetric text-led sections with structured reading edges",
             "typography": {"display": "Space Grotesk", "body": "Inter"},
@@ -598,7 +676,7 @@ def normalize_visual_input(
     )
     if not _as_dict(visual.get("visual_language")) and needs_assumed_direction:
         visual["visual_language"] = {
-            "style": "technical editorial",
+            "style": "distinctive editorial portfolio",
             "palette": ["charcoal", "mineral", "cobalt accent"],
             "layout": "asymmetric text-led sections with structured reading edges",
             "typography": {"display": "Space Grotesk", "body": "Inter"},
@@ -693,6 +771,7 @@ def normalize_visual_input(
                 "alt_text_intent": "Decorative atmosphere; empty alt text unless the final composition gives it semantic meaning.",
                 "attribution_requirement": "Record provider, contributor, license, source URL, and SHA-256 in the pack.",
                 "subject": " ".join(terms),
+                "provider_terms": list(terms),
                 "mood": mood,
                 "color_relationship": "charcoal, mineral, cobalt accent",
                 "negative_concepts": list(_IMAGE_FORBIDDEN),

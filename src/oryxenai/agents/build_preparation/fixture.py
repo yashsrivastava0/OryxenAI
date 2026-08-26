@@ -444,6 +444,7 @@ async def run_fixture(
         "model_calls": output.get("model_calls", 0),
         "provider_calls": output.get("provider_calls", 0),
         "provider_rate_limit_events": output.get("provider_rate_limit_events", 0),
+        "provider_cooldown_skips": output.get("provider_cooldown_skips", 0),
         "provider_cache_hits": output.get("provider_cache_hits", 0),
         "provider_receipts": output.get("provider_receipts", []),
         "visual_input_mode": output.get("visual_input_mode", "approved_vdd"),

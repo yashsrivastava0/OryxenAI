@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from oryxenai.agents.shared import component_retrieval
 from oryxenai.agents.shared.component_retrieval import (
     ComponentCandidate,
     McpComponentProvider,
@@ -197,3 +198,49 @@ async def test_registry_rate_limit_diagnostics_are_preserved_while_order_continu
     assert rate_limited["http_status"] == 429
     assert rate_limited["rate_limit_event"] is True
     assert rate_limited["error_code"] == "RATE_LIMITED"
+
+
+@pytest.mark.asyncio
+async def test_registry_rate_limit_makes_later_calls_cooldown_skips_without_http() -> None:
+    component_retrieval._PROVIDER_BLOCKED_UNTIL.clear()
+    settings = Settings()
+    settings.resource_providers.registry_order = ["shadcn"]
+    settings.resource_providers.shadcn_catalog_url = "https://registry.test/catalog.json"
+    settings.resource_providers.shadcn_item_url_template = "https://registry.test/{name}.json"
+    requests = 0
+    diagnostics: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(429, headers={"Retry-After": "30"}, request=request)
+
+    service = build_component_retrieval_service(settings)
+    try:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await service.discover(
+                "accordion disclosure",
+                allowed_providers=["shadcn"],
+                client=client,
+                settings=settings,
+                diagnostics=diagnostics,
+            )
+            await service.discover(
+                "timeline chronology",
+                allowed_providers=["shadcn"],
+                client=client,
+                settings=settings,
+                diagnostics=diagnostics,
+            )
+    finally:
+        component_retrieval._PROVIDER_BLOCKED_UNTIL.clear()
+
+    assert requests == 1
+    assert diagnostics[0]["rate_limit_event"] is True
+    assert diagnostics[0]["cooldown_skip"] is False
+    assert diagnostics[0]["retry_after_seconds"] == 8.0
+    assert diagnostics[1]["rate_limit_event"] is False
+    assert diagnostics[1]["cooldown_skip"] is True
+    assert 0 < diagnostics[1]["retry_after_seconds"] <= 8.0
+    assert diagnostics[1]["error_code"] == "RATE_LIMIT_COOLDOWN"
+    assert service.rate_limit_events == 1

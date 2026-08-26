@@ -257,6 +257,7 @@ def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
         "provider_calls": result.get("provider_calls", 0),
         "provider_cache_hits": result.get("provider_cache_hits", 0),
         "provider_rate_limit_events": result.get("provider_rate_limit_events", 0),
+        "provider_cooldown_skips": result.get("provider_cooldown_skips", 0),
         "deferred_optional_roles": (
             handoff.get("handoff_summary", {}).get("deferred_optional_roles", [])
             if isinstance(handoff.get("handoff_summary"), dict)

@@ -199,11 +199,13 @@ async def _get_json(
         raise ComponentRetrievalError(
             f"{provider} rate limit reached; no alternate transport was attempted.",
             provider=provider,
-            code="RATE_LIMITED",
+            code="RATE_LIMIT_COOLDOWN",
             details={
-                "http_status": 429,
-                "retry_delay": round(blocked_until - now, 1),
-                "rate_limit_event": True,
+                "http_status": None,
+                "retry_delay": 0.0,
+                "retry_after_seconds": round(blocked_until - now, 1),
+                "rate_limit_event": False,
+                "cooldown_skip": True,
             },
         )
     retries = max(0, int(getattr(settings.build_preparation, "network_retry_count", 1)))
@@ -224,20 +226,32 @@ async def _get_json(
             last_error = "connection failed"
         else:
             if response.status_code == 429:
-                retry_after = _DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
-                with contextlib.suppress(TypeError, ValueError):
-                    retry_after = max(0.0, float(response.headers.get("Retry-After", "")))
-                _PROVIDER_BLOCKED_UNTIL[provider] = time.monotonic() + (
-                    retry_after or _DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+                maximum_backoff = max(
+                    1.0,
+                    float(
+                        getattr(settings.build_preparation, "provider_max_wait_seconds", 8.0) or 8.0
+                    ),
                 )
+                retry_after = min(_DEFAULT_RATE_LIMIT_BACKOFF_SECONDS, maximum_backoff)
+                with contextlib.suppress(TypeError, ValueError):
+                    retry_after = max(
+                        0.0,
+                        min(float(response.headers.get("Retry-After", "")), maximum_backoff),
+                    )
+                effective_retry_after = retry_after or min(
+                    _DEFAULT_RATE_LIMIT_BACKOFF_SECONDS, maximum_backoff
+                )
+                _PROVIDER_BLOCKED_UNTIL[provider] = time.monotonic() + effective_retry_after
                 raise ComponentRetrievalError(
                     f"{provider} rate limit reached; no alternate transport was attempted.",
                     provider=provider,
                     code="RATE_LIMITED",
                     details={
                         "http_status": 429,
-                        "retry_delay": min(2.0**attempt, 4.0),
+                        "retry_delay": 0.0,
+                        "retry_after_seconds": effective_retry_after,
                         "rate_limit_event": True,
+                        "cooldown_skip": False,
                     },
                 )
             if response.status_code >= 500:
@@ -404,7 +418,7 @@ class SmoothUIComponentProvider(RegistryComponentProvider):
             )
             items = payload.get("suggestions", [])
         except ComponentRetrievalError as exc:
-            if exc.code == "RATE_LIMITED":
+            if exc.code in {"RATE_LIMITED", "RATE_LIMIT_COOLDOWN"}:
                 raise
             payload = await _get_json(
                 client,
@@ -744,13 +758,15 @@ class ComponentRetrievalService:
                 result.extend(found)
                 receipt.update({"http_status": 200, "candidate_count": len(found)})
             except ComponentRetrievalError as exc:
-                if exc.code == "RATE_LIMITED":
+                if bool(exc.details.get("rate_limit_event")):
                     self.rate_limit_events += 1
                 receipt.update(
                     {
                         "http_status": exc.details.get("http_status"),
                         "retry_delay": exc.details.get("retry_delay", 0.0),
-                        "rate_limit_event": exc.code == "RATE_LIMITED",
+                        "retry_after_seconds": exc.details.get("retry_after_seconds", 0.0),
+                        "rate_limit_event": bool(exc.details.get("rate_limit_event")),
+                        "cooldown_skip": bool(exc.details.get("cooldown_skip")),
                         "candidate_count": 0,
                         "error_code": exc.code,
                         "rejection_reason": str(exc),
