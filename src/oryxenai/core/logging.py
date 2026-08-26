@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import logging
 import logging.config
+import os
+import re
 import sys
 import uuid
 from contextvars import ContextVar
@@ -46,6 +48,40 @@ _SAFE_BLOCKED_KEYS = frozenset(
     }
 )
 
+_SENSITIVE_ASSIGNMENT = re.compile(
+    r"(?i)\b[A-Z][A-Z0-9_]*(?:PASSWORD|API[_-]?KEY|SECRET|TOKEN|CREDENTIALS?)"
+    r"\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+)
+
+
+def _is_sensitive_env_name(name: str) -> bool:
+    normalized = name.casefold()
+    return any(
+        marker in normalized
+        for marker in ("password", "api_key", "apikey", "secret", "token", "credential")
+    )
+
+
+def redact_sensitive_text(value: str) -> str:
+    """Remove environment-style assignments and configured secret values."""
+
+    redacted = _SENSITIVE_ASSIGNMENT.sub(
+        lambda match: f"{match.group(0).split('=', 1)[0].rstrip()}=[REDACTED]",
+        str(value),
+    )
+    secret_values = sorted(
+        {
+            secret
+            for name, secret in os.environ.items()
+            if _is_sensitive_env_name(name) and len(secret) >= 4
+        },
+        key=len,
+        reverse=True,
+    )
+    for secret in secret_values:
+        redacted = redacted.replace(secret, "[REDACTED]")
+    return redacted
+
 
 def _is_safe_key(key: str) -> bool:
     lowered = key.lower()
@@ -56,8 +92,7 @@ class _SafeFormatter(logging.Formatter):
     """Formatter that strips obviously sensitive keys from message args."""
 
     def format(self, record: logging.LogRecord) -> str:
-        message = super().format(record)
-        return message
+        return redact_sensitive_text(super().format(record))
 
 
 def configure_logging(settings: Settings) -> None:

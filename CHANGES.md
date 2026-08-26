@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-26 14:15 +05:30 — Codex (GPT-5 / OpenAI) — [8a918f3] — native detached origin allowlist
+Allowed both native development ports in the local origin policy so the detached Code Generator control room can be tested on an alternate port while another local server remains on 8000. This fixes `ORIGIN_NOT_ALLOWED` for the live provider preflight without adding authentication or session behavior.
+
 ### 2026-08-26 13:59 +05:30 — Codex (GPT-5 / OpenAI) — [7c44add] — Code Generator detached control room, export handoff
 Added the no-auth standalone control room with Build Preparation mirror bootstrapping, OpenAI `openai_luna` routing, responsive preview/timeline/inspector UI, and manual debug controls while preserving the attached auth boundary for later reattachment. Completed exports now persist a safe receipt and emit `generation-report.md` plus evaluator metadata so coding agents can diagnose the generator and fix the generator rather than the generated portfolio.
 
