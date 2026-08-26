@@ -11,6 +11,33 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-27 02:57 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — native process alignment and code-generator diagnostics
+The stuck detached run was caused by two independently verified operational
+conditions. The port-8000 API had an established PostgreSQL connection to the
+manually launched `.workspace/postgres-native-5545` instance, while the worker
+had established connections to the canonical PostgreSQL instance on port 5432;
+the run therefore existed in a database the worker could never poll. Port 5545
+does not occur anywhere in checked-in configuration, scripts, or documentation,
+so the remediation was process cleanup rather than a repository config change.
+The duplicate API (8000/8001) and worker processes were inventoried, the
+identified APIs/workers, preview process, and only the rogue 5545 PostgreSQL
+instance were stopped, and the canonical 5432 instance was kept running. The
+orphaned run `f7c2eece-1ab3-4f2b-8ff3-a573fe9c2ece` and job
+`3193daba-7d28-4dff-bdca-7d516c4e3d90` were deliberately abandoned rather than
+recovered. A clean worker was started after `b4f7daa`; no pre-fix worker
+remained, and a fresh run proved plan success creates the acquire successor.
+
+The same fresh-run evidence exposed a separate deterministic Phase 1b defect:
+the WorkGraph compiler replaced multiple unique V4 semantic section owner IDs
+with one route-batch ID, making the persisted `ExperienceBlueprintV4` invalid
+when revalidated. Compilation now preserves semantic owners and leaves
+executable ownership to the WorkGraph. Safe bounded planner/acquisition
+validation summaries were also surfaced through the existing redacted issue
+path. Focused tests cover both fixes. The subsequent live run reached
+generation and stopped only because offline npm cache mode lacked
+`lucide-react`; that is recorded as a toolchain/environment limitation, not a
+database-split or auto-advance failure.
+
 ### 2026-08-26 22:53 +05:30 — Claude Code (Claude Sonnet 5 / Anthropic) — [b4f7daa] — code_generator/core/coordinator
 `advance_after()` always built a real `DurableAuthorizationContext` when auto-enqueuing the next stage, even for detached development runs with no owner/actor/session; that context's `authorization_context_version` was always 0, which tripped `JobService.enqueue`'s guard against version-0 contexts on portfolio-bound work before it ever reached the development-run recognition path — silently blocking every auto-chained stage advance in the detached control room. Passed `context=None` for non-session runs, mirroring the existing `run_mode`-based payload_key split so development runs go through the `run_mode` check instead.
 
