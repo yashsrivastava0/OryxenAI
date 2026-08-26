@@ -51,6 +51,9 @@ typecheck_command = ["npm", "run", "typecheck"]
 build_command = ["npm", "run", "build"]
 preview_root = "/app/.workspace/code-generator-preview"
 preview_base_url = "http://127.0.0.1:4174/preview"
+# This isolated Compose project also reaches the gateway through service-name
+# DNS; its browser-facing URL and lenient promotion contract remain local-dev.
+preview_health_url = "http://preview-gateway:4174/health/live"
 preview_host = "0.0.0.0"
 preview_port = 4174
 preview_parent_origin = "http://127.0.0.1:8001"

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("align-db", "migrate", "api", "worker", "preview", "doctor")]
+    [ValidateSet("align-db", "migrate", "api", "worker", "preview", "dev", "doctor")]
     [string]$Service
 )
 
@@ -35,6 +35,21 @@ switch ($Service) {
     }
     "preview" {
         uv run python -m oryxenai.preview.gateway
+    }
+    "dev" {
+        foreach ($childService in @("api", "worker", "preview")) {
+            Start-Process powershell.exe `
+                -WindowStyle Hidden `
+                -WorkingDirectory $REPO_ROOT `
+                -ArgumentList @(
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    $PSCommandPath,
+                    $childService
+                ) | Out-Null
+        }
     }
     "doctor" {
         & "$PSScriptRoot\doctor.ps1"

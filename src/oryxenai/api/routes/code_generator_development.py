@@ -68,7 +68,7 @@ async def readiness(
 ) -> dict[str, Any]:
     """Non-secret prerequisites for an honest standalone developer workflow."""
 
-    return service.readiness()
+    return await service.readiness()
 
 
 @router.post("/provider-preflight")

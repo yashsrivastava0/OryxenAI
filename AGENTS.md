@@ -269,6 +269,8 @@ dedicated one-shot migration service before the app or worker start.
 .\scripts\bootstrap.ps1   # install dependencies into .workspace/venv
 .\scripts\run-api.ps1      # start the FastAPI server
 .\scripts\run-worker.ps1   # start the background worker
+.\scripts\run-native.ps1 migrate  # apply migrations before native services
+.\scripts\run-native.ps1 dev      # start one native API, worker, and preview gateway
 .\scripts\test.ps1         # run the test suite
 .\scripts\check.ps1        # lint, format-check, type-check
 .\scripts\doctor.ps1       # environment diagnostics

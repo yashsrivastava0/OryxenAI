@@ -78,6 +78,30 @@ def test_model_profiles_loaded():
         assert routed.api_key_env == code_generator_profile.api_key_env
 
 
+def test_preview_readback_and_health_url_overlay_contract(monkeypatch):
+    """Hosted Docker is strict; local and isolated Docker-dev remain lenient."""
+
+    expectations = (
+        ("config/app.toml", False, "http://127.0.0.1:4174/preview"),
+        ("config/app.native.toml", False, "http://127.0.0.1:4174/preview"),
+        ("config/app.test.toml", False, "http://127.0.0.1:4174/preview"),
+        ("config/app.docker.codegen-run.toml", False, "http://127.0.0.1:4174/preview"),
+        ("config/app.docker.toml", True, "http://localhost:4174/preview"),
+    )
+
+    for overlay, strict, preview_base_url in expectations:
+        if overlay == "config/app.toml":
+            monkeypatch.delenv("OryxenAI_CONFIG_OVERLAY", raising=False)
+        else:
+            monkeypatch.setenv("OryxenAI_CONFIG_OVERLAY", overlay)
+        settings = Settings()
+        verification = settings.code_generator_verification
+        assert verification.preview_public_readback_required is strict
+        assert verification.preview_base_url == preview_base_url
+
+    monkeypatch.delenv("OryxenAI_CONFIG_OVERLAY", raising=False)
+
+
 def test_secrets_not_in_repr():
     """SecretStr values are masked in repr."""
     s = Settings()
