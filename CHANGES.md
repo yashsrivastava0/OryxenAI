@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-26 10:10 +05:30 — Codex (model/provider omitted) — [9b39fe3] — Build Preparation resource relevance
+Replaced generic repeated resource searches with profession-aware image roles and
+semantic component roles, then added component-source and perceptual-image guards.
+Provider/model packets are bounded, cooldown skips are reported separately from
+real rate limits, and focused plus full-suite verification passed locally.
+
 ### 2026-08-25 23:35 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [5d6886a] - shared/providers/errors
 Live account credit exhaustion during pipeline testing surfaced a real
 classification gap: Anthropic's "credit balance is too low..." message
