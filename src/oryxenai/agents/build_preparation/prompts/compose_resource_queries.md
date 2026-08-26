@@ -15,3 +15,10 @@ Do not use only generic phrases such as `visual component`, `composition`, or
 from the approved intent. Do not return provider IDs, URLs, source code,
 dependencies, or invented resources. Preserve responsive, keyboard,
 accessibility, and reduced-motion constraints.
+
+For photos, describe the approved professional subject and the distinct
+section role in six or fewer provider-useful terms. Do not include a person's
+name, contact detail, route prose, palette dump, or the complete site narrative.
+Keep approach, experience, selected-work, capability/design-system, hero, and
+supporting-context intents visibly distinct. The deterministic layer will
+enforce the final provider-safe vocabulary and transport length.

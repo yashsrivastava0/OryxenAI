@@ -109,9 +109,86 @@ def _parsed(result: Any) -> dict[str, Any]:
 
 
 def _candidate_prompt(candidate: FetchedResource) -> dict[str, Any]:
-    data = candidate.model_dump(mode="json")
-    data.pop("source_files", None)
-    return data
+    """Return only metadata that can affect closed-set model selection."""
+
+    metadata = candidate.retrieval_metadata
+    return {
+        "resource_id": candidate.resource_id,
+        "need_id": candidate.need_id,
+        "kind": candidate.kind,
+        "provider": candidate.provider,
+        "provider_asset_id": candidate.provider_asset_id,
+        "title": candidate.title[:240],
+        "description": candidate.description[:600],
+        "width": candidate.width,
+        "height": candidate.height,
+        "orientation": candidate.orientation,
+        "license": candidate.license,
+        "license_reference": candidate.license_reference,
+        "source_version": candidate.source_version,
+        "dependencies": list(candidate.dependencies),
+        "registry_dependencies": list(candidate.registry_dependencies),
+        "tags": list(metadata.get("tags", []))[:16],
+        "technical_metadata": dict(metadata.get("technical_metadata", {}) or {}),
+        "fallback": candidate.fallback,
+    }
+
+
+def _selected_candidate_prompts(
+    candidates: list[FetchedResource], selections: list[ResourceSelection]
+) -> list[dict[str, Any]]:
+    selected_ids = {
+        selection.selected_resource_id for selection in selections if selection.selected_resource_id
+    }
+    return [
+        _candidate_prompt(candidate)
+        for candidate in candidates
+        if candidate.resource_id in selected_ids
+    ]
+
+
+def _compact_provider_attempts(receipts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            key: receipt.get(key)
+            for key in (
+                "provider",
+                "kind",
+                "http_status",
+                "candidate_count",
+                "error_code",
+                "rate_limit_event",
+                "cooldown_skip",
+                "source_fetch_status",
+                "rejection_reason",
+            )
+            if receipt.get(key) not in (None, "", False)
+        }
+        for receipt in receipts
+    ]
+
+
+def _compact_materialized_resources(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            key: resource.get(key)
+            for key in (
+                "id",
+                "need_id",
+                "kind",
+                "provider",
+                "provider_asset_id",
+                "disposition",
+                "local_path",
+                "local_directory",
+                "dependencies_allowed",
+                "expected_exports",
+                "source_hashes",
+            )
+            if resource.get(key) not in (None, "", [], {})
+        }
+        for resource in resources
+    ]
 
 
 class BuildPreparationAgent(Agent):
@@ -533,13 +610,17 @@ class BuildPreparationAgent(Agent):
                 )
             )
         elif live_model:
+            stage2_packet = {
+                **base_resource_packet,
+                "candidate_resources": candidate_payload,
+                # The candidates above are the only closed set. Repeating the
+                # same corpus under a legacy alias doubles model context with
+                # no additional authority or information.
+                "existing_resources": [],
+            }
             selection_plan_value, prompt_version, meta = await self._call_stage(
                 "select_resources",
-                {
-                    **base_resource_packet,
-                    "candidate_resources": candidate_payload,
-                    "existing_resources": candidate_payload,
-                },
+                stage2_packet,
                 model_profile,
             )
             selection_plan = cast(Stage2SelectionPlan, selection_plan_value)
@@ -687,10 +768,12 @@ class BuildPreparationAgent(Agent):
                         error_code = str(
                             getattr(exc, "code", "SOURCE_FETCH_FAILED") or "SOURCE_FETCH_FAILED"
                         )
-                        if error_code == "RATE_LIMITED":
+                        if bool(details.get("rate_limit_event")):
                             lookup.rate_limit_events = (
                                 int(getattr(lookup, "rate_limit_events", 0)) + 1
                             )
+                        if bool(details.get("cooldown_skip")):
+                            lookup.cooldown_skips = int(getattr(lookup, "cooldown_skips", 0)) + 1
                         attempts.append(
                             {
                                 "provider": candidate.provider,
@@ -700,7 +783,8 @@ class BuildPreparationAgent(Agent):
                                 "source_fetch_status": "failed",
                                 "http_status": details.get("http_status"),
                                 "retry_delay": details.get("retry_delay", 0.0),
-                                "rate_limit_event": error_code == "RATE_LIMITED",
+                                "rate_limit_event": bool(details.get("rate_limit_event")),
+                                "cooldown_skip": bool(details.get("cooldown_skip")),
                                 "error_code": error_code,
                                 "rejection_reason": str(exc),
                             }
@@ -787,23 +871,29 @@ class BuildPreparationAgent(Agent):
             _event("stage_2_complete", "stage_2", "Resources selected or explicit gaps recorded.")
         )
 
+        context_candidate_payload = _selected_candidate_prompts(
+            candidates, selection_plan.selections
+        )
         context_packet = build_resource_context_packet(
             content_architect=content or {},
             visual_design_director=visual,
             routes=stage0.routes,
             resource_needs=stage0.resource_needs,
-            candidate_resources=candidate_payload,
+            candidate_resources=context_candidate_payload,
             selections=[
                 selection.model_dump(mode="json") for selection in selection_plan.selections
             ],
             provider_capabilities=base_resource_packet["provider_capabilities"],
             dependency_limits=base_resource_packet["dependency_limits"],
             query_history=[query.model_dump(mode="json") for query in query_plan.queries],
-            provider_attempts=list(getattr(lookup, "provider_receipts", [])),
+            # Complete receipts remain in deterministic run diagnostics. The
+            # context writer needs only selected bindings and explicit gaps.
+            provider_attempts=[],
             previous_attempt_analysis=dict(payload.get("previous_attempt_analysis", {}) or {}),
             materialization_constraints=base_resource_packet["materialization_constraints"],
             quality_boundary=base_resource_packet["quality_boundary"],
         ).model_dump(mode="json")
+        context_packet["existing_resources"] = []
         context_packet_hash = _packet_hash(context_packet)
         await self._emit_event(
             _event(
@@ -1059,6 +1149,9 @@ class BuildPreparationAgent(Agent):
             provider_rate_limit_events = (
                 int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
             )
+            provider_cooldown_skips = (
+                int(getattr(lookup, "cooldown_skips", 0)) if live_providers else 0
+            )
             provider_cache_hits = int(getattr(lookup, "cache_hits", 0)) if live_providers else 0
             await self._emit_event(
                 _event(
@@ -1071,21 +1164,44 @@ class BuildPreparationAgent(Agent):
             )
             if live_model:
                 handoff_packet = {
-                    "handoff_report": handoff_report.model_dump(mode="json"),
-                    "resource_context_packet": context_packet,
-                    "query_plan": query_plan.model_dump(mode="json"),
-                    "candidate_resources": candidate_payload,
-                    "candidate_qualifications": [
-                        item.model_dump(mode="json") for item in qualifications
-                    ],
+                    "handoff_report": {
+                        "status": handoff_report.status,
+                        "handoff_eligible": handoff_report.handoff_eligible,
+                        "summary": handoff_report.summary,
+                        "issues": [item.model_dump(mode="json") for item in handoff_report.issues],
+                        "handoff_summary": handoff_report.handoff_summary,
+                    },
                     "resource_needs": [
-                        need.model_dump(mode="json") for need in stage0.resource_needs
+                        {
+                            "need_id": need.need_id,
+                            "category": need.category,
+                            "purpose": need.purpose,
+                            "route_ids": need.route_ids,
+                            "section_ids": need.section_ids,
+                            "required_for_handoff": need.required_for_handoff,
+                            "component_intent": (
+                                need.component_intent.model_dump(mode="json")
+                                if need.component_intent
+                                else None
+                            ),
+                        }
+                        for need in stage0.resource_needs
                     ],
                     "selections": [
                         selection.model_dump(mode="json") for selection in selection_plan.selections
                     ],
-                    "materialized_resources": materialization.resources,
-                    "provider_attempts": list(getattr(lookup, "provider_receipts", [])),
+                    "materialized_resources": _compact_materialized_resources(
+                        materialization.resources
+                    ),
+                    "provider_summary": {
+                        "calls": provider_calls,
+                        "rate_limit_events": provider_rate_limit_events,
+                        "cooldown_skips": provider_cooldown_skips,
+                        "cache_hits": provider_cache_hits,
+                        "attempts": _compact_provider_attempts(
+                            list(getattr(lookup, "provider_receipts", []))
+                        ),
+                    },
                     "context_packet_hash": context_packet_hash,
                     "authority": {"model_may_not_grant_handoff": True},
                 }
@@ -1123,6 +1239,7 @@ class BuildPreparationAgent(Agent):
                             "status": "failed",
                             "error_code": error_code,
                             "input_packet_hash": _packet_hash(handoff_packet),
+                            "input_packet_bytes": _packet_size(handoff_packet),
                         }
                     )
                     await self._emit_event(
@@ -1189,7 +1306,7 @@ class BuildPreparationAgent(Agent):
                 "retryability": {
                     "provider_failures_retryable": any(
                         str(item.get("error_code", "")).upper()
-                        in {"RATE_LIMITED", "PROVIDER_UNAVAILABLE"}
+                        in {"RATE_LIMITED", "RATE_LIMIT_COOLDOWN", "PROVIDER_UNAVAILABLE"}
                         for item in getattr(lookup, "provider_receipts", [])
                     ),
                     "explicit_regeneration_required": bool(handoff_report.issues),
@@ -1293,6 +1410,7 @@ class BuildPreparationAgent(Agent):
         provider_rate_limit_events = (
             int(getattr(lookup, "rate_limit_events", 0)) if live_providers else 0
         )
+        provider_cooldown_skips = int(getattr(lookup, "cooldown_skips", 0)) if live_providers else 0
         provider_cache_hits = int(getattr(lookup, "cache_hits", 0)) if live_providers else 0
         provider_receipts = list(getattr(lookup, "provider_receipts", [])) if live_providers else []
         handoff_report = handoff_report.model_copy(
@@ -1302,6 +1420,7 @@ class BuildPreparationAgent(Agent):
                     "provider_calls": provider_calls,
                     "cache_hits": provider_cache_hits,
                     "rate_limit_events": provider_rate_limit_events,
+                    "cooldown_skips": provider_cooldown_skips,
                 }
             }
         )
@@ -1338,6 +1457,7 @@ class BuildPreparationAgent(Agent):
                 "model_calls": model_calls,
                 "provider_calls": provider_calls,
                 "provider_rate_limit_events": provider_rate_limit_events,
+                "provider_cooldown_skips": provider_cooldown_skips,
                 "provider_cache_hits": provider_cache_hits,
                 "provider_receipts": provider_receipts,
                 "visual_input_mode": stage0.visual_input_mode,
@@ -1352,6 +1472,7 @@ class BuildPreparationAgent(Agent):
                 "model_calls": model_calls,
                 "provider_calls": provider_calls,
                 "provider_rate_limit_events": provider_rate_limit_events,
+                "provider_cooldown_skips": provider_cooldown_skips,
                 "provider_cache_hits": provider_cache_hits,
                 "provider_receipts": provider_receipts,
                 "visual_input_mode": stage0.visual_input_mode,
@@ -1618,13 +1739,20 @@ def _metadata(
         "finish_reason": str(getattr(result, "finish_reason", "") or ""),
         "prompt_modules": manifest,
         "input_packet_hash": _packet_hash(packet) if packet is not None else "",
+        "input_packet_bytes": _packet_size(packet) if packet is not None else 0,
     }
 
 
+def _packet_bytes(packet: dict[str, Any]) -> bytes:
+    return json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+
+
 def _packet_hash(packet: dict[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(_packet_bytes(packet)).hexdigest()
+
+
+def _packet_size(packet: dict[str, Any]) -> int:
+    return len(_packet_bytes(packet))
 
 
 def _selected_ids(plan: Stage2SelectionPlan) -> set[str]:
@@ -1661,6 +1789,7 @@ def _complete_alternate_rankings(
     qualification_order = {
         item.resource_id: (item.relevance_score, item.quality_score) for item in qualifications
     }
+    eligible_ids = {item.resource_id for item in qualifications if item.eligible}
     result: list[ResourceSelection] = []
     for selection in selections:
         candidates_for_need = sorted(
@@ -1671,12 +1800,16 @@ def _complete_alternate_rankings(
                 candidate.resource_id,
             ),
         )
-        closed_ids = {candidate.resource_id for candidate in candidates_for_need}
+        closed_ids = {
+            candidate.resource_id
+            for candidate in candidates_for_need
+            if candidate.resource_id in eligible_ids
+        }
         ordered = list(
             dict.fromkeys(
                 [
-                    *selection.alternate_resource_ids,
                     *[candidate.resource_id for candidate in candidates_for_need],
+                    *selection.alternate_resource_ids,
                 ]
             )
         )

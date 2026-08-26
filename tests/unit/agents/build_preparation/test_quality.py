@@ -9,6 +9,7 @@ from oryxenai.agents.build_preparation.quality import (
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
     BuildPreparationSourceRef,
+    ComponentIntent,
     FetchedResource,
     MaterializationResult,
     ResourceNeed,
@@ -203,6 +204,48 @@ def test_component_quality_uses_provider_terms_from_typed_intent() -> None:
     assert qualification.relevance_score >= 70
 
 
+def test_component_quality_rejects_remote_runtime_media_source() -> None:
+    need = ResourceNeed(
+        need_id="need-project-detail",
+        kind="resource",
+        source_id="project-detail",
+        category="visual_component",
+        component_intent=ComponentIntent(
+            role_id="selected-work-detail",
+            route_id="home",
+            interaction_class="detail-exploration",
+            interaction_outcome="Open approved project details.",
+            provider_terms=["project detail", "dialog"],
+        ),
+    )
+    candidate = FetchedResource(
+        resource_id="remote-project-dialog",
+        need_id=need.need_id,
+        kind="component",
+        provider="shadcn",
+        provider_asset_id="project-dialog",
+        title="Project detail dialog",
+        source_files={
+            "dialog.tsx": (
+                "export function ProjectDialog() { return <section className='dialog' "
+                "data-state='open' aria-labelledby='project-title'><img "
+                "src='https://images.remote.test/project.jpg' alt='' /><button "
+                "type='button'>Open approved project details</button><h2 id='project-title'>"
+                "Selected work detail</h2><div>Render the approved case-study content here."
+                "</div></section>; }"
+            )
+        },
+        dependencies=["react"],
+        license="MIT",
+        license_reference="https://example.test/license",
+    )
+
+    qualification = qualify_candidates([need], [candidate])[0]
+
+    assert qualification.eligible is False
+    assert "COMPONENT_SOURCE_POLICY_REJECTED" in qualification.issue_codes
+
+
 def test_quality_rejects_npm_alias_for_allowed_dependency_name() -> None:
     need = ResourceNeed(
         need_id="need-component",
@@ -309,7 +352,7 @@ def test_handoff_rejects_empty_public_route_content() -> None:
     assert [issue.code for issue in report.issues] == ["ROUTE_PUBLIC_CONTENT_MISSING"]
 
 
-def test_query_normalization_merges_route_content_and_interaction_context() -> None:
+def test_component_query_normalization_keeps_only_canonical_provider_terms() -> None:
     need = ResourceNeed(
         need_id="need-contextual",
         kind="resource",
@@ -360,11 +403,107 @@ def test_query_normalization_merges_route_content_and_interaction_context() -> N
         },
     )
     query = plan.queries[0]
-    assert "platform" in query.query
-    assert "capabilities" in query.query
+    assert query.query == "accordion collapsible"
     assert "accordion" in query.provider_terms
+    assert len(query.query.split()) <= 8
+    assert "platform" not in query.query
     assert "home" not in query.query
     assert "route-id" not in query.query
+
+
+def test_photo_query_is_role_specific_bounded_and_omits_identity_context() -> None:
+    need = ResourceNeed(
+        need_id="need-approach-photo",
+        kind="asset",
+        source_id="approach-photo",
+        category="editorial_photo",
+        purpose="Editorial process atmosphere for the approved working approach.",
+        route_ids=["home"],
+        section_ids=["home:approach"],
+        source_status="needs_acquisition",
+        source_policy="optional_external_acquisition",
+        query_terms=["creative workflow materials"],
+        details={
+            "provider_terms": ["process sketches planning", "creative workflow materials"],
+            "orientation": "landscape",
+        },
+    )
+    plan = normalize_query_plan(
+        Stage1QueryPlan(
+            queries=[
+                ResourceQuery(
+                    need_id=need.need_id,
+                    kind="photo",
+                    query="Yash product designer collaborative research workshop",
+                )
+            ]
+        ),
+        [need],
+        settings=Settings(),
+        context={
+            "approved_content": {"identity": {"name": "Yash Srivastava"}},
+            "approved_section_context": [
+                {
+                    "route_id": "home",
+                    "section": {
+                        "section_id": "home:approach",
+                        "purpose": "Explain the product design process",
+                    },
+                }
+            ],
+        },
+    )
+
+    query = plan.queries[0]
+    assert query.query.startswith("process sketches planning")
+    assert len(query.query.split()) <= 6
+    assert "yash" not in query.query
+    assert "srivastava" not in query.query
+
+
+def test_component_quality_rejects_broad_but_wrong_role_matches() -> None:
+    need = ResourceNeed(
+        need_id="need-experience",
+        kind="resource",
+        source_id="experience-component",
+        category="visual_component",
+        query_terms=["experience timeline"],
+        component_intent=ComponentIntent(
+            role_id="experience-timeline",
+            route_id="home",
+            section_id="experience",
+            interaction_class="progression",
+            interaction_outcome="Show chronological experience progression.",
+            provider_terms=["timeline", "milestones", "chronology", "work history"],
+            negative_concepts=["wizard", "onboarding", "form"],
+        ),
+    )
+    wrong = FetchedResource(
+        resource_id="animated-stepper",
+        need_id=need.need_id,
+        kind="component",
+        provider="smoothui",
+        provider_asset_id="animated-stepper",
+        title="Animated Stepper Wizard",
+        description="A form wizard that advances through the current step.",
+        dependencies=["react"],
+        license="MIT",
+        license_reference="https://example.test/license",
+    )
+    right = wrong.model_copy(
+        update={
+            "resource_id": "vertical-timeline",
+            "provider_asset_id": "vertical-timeline",
+            "title": "Vertical Timeline",
+            "description": "Chronological milestones and work history.",
+        }
+    )
+
+    wrong_quality, right_quality = qualify_candidates([need], [wrong, right], source_required=False)
+
+    assert wrong_quality.eligible is False
+    assert "COMPONENT_POLICY_REJECTED" in wrong_quality.issue_codes
+    assert right_quality.eligible is True
 
 
 def test_visual_enrichment_report_distinguishes_total_and_partial_failure() -> None:
