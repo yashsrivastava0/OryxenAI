@@ -21,6 +21,7 @@ from oryxenai.agents.shared.model_runtime import (
     get_model_runtime,
 )
 from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
+from oryxenai.core.logging import redact_sensitive_text
 
 _PREFLIGHT_PROTOCOL = "code-generator-preflight-v1"
 _WIRE_MODELS = (
@@ -165,7 +166,7 @@ def clear_provider_preflight_cache() -> None:
 
 
 def _safe_message(exc: Exception) -> str:
-    message = str(exc).strip()
+    message = redact_sensitive_text(str(exc).strip())
     if not message:
         return "The configured Code Generator provider failed its no-context preflight."
     return message[:500]
