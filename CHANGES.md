@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-26 22:53 +05:30 — Claude Code (Claude Sonnet 5 / Anthropic) — [b4f7daa] — code_generator/core/coordinator
+`advance_after()` always built a real `DurableAuthorizationContext` when auto-enqueuing the next stage, even for detached development runs with no owner/actor/session; that context's `authorization_context_version` was always 0, which tripped `JobService.enqueue`'s guard against version-0 contexts on portfolio-bound work before it ever reached the development-run recognition path — silently blocking every auto-chained stage advance in the detached control room. Passed `context=None` for non-session runs, mirroring the existing `run_mode`-based payload_key split so development runs go through the `run_mode` check instead.
+
+### 2026-08-26 22:52 +05:30 — Claude Code (Claude Sonnet 5 / Anthropic) — [9b2d28f] — code_generator/core/development_planner
+The V4 blueprint validator required a font role's `local_files` to exactly equal every WOFF/WOFF2 file under its admitted binding, even when the role's declared weights used only a subset of that binding's files — any shared multi-weight font resource (the common case) failed this check deterministically regardless of model output quality. Now requires `local_files` to be a subset of the admitted binding's files, matching the binding's own `font_weights`/`local_paths` split and the role's independent weights selection.
+
+### 2026-08-26 16:40 +05:30 — Codex (GPT-5 / OpenAI) — [e5d55f9] — safe detached-run database diagnostics
+Classified local PostgreSQL credential failures as an actionable 503 for the detached Code Generator, and added redaction for environment assignments, configured secret values, nested API details, and provider preflight messages. Added focused unit coverage so the control room cannot echo database or provider credentials.
+
 ### 2026-08-26 14:15 +05:30 — Codex (GPT-5 / OpenAI) — [8a918f3] — native detached origin allowlist
 Allowed both native development ports in the local origin policy so the detached Code Generator control room can be tested on an alternate port while another local server remains on 8000. This fixes `ORIGIN_NOT_ALLOWED` for the live provider preflight without adding authentication or session behavior.
 
@@ -132,51 +141,17 @@ doctor reject revision-stamped databases that are missing required core
 tables. Verified a complete base-to-head replay against the disposable empty
 acceptance schema.
 
-### 2026-08-25 12:43 +05:30 — Codex (model/provider omitted) — [9055cc3] — runtime startup-gate regressions
-Aligned test-profile timeouts with every bounded model workflow, including
-legacy Discovery job aliases, and added explicit detached-only authorization
-inventory coverage for the model-profile preflight API.
-
-### 2026-08-25 12:22 +05:30 — Codex (model/provider omitted) — [c19e4a1] — detached pipeline UI/API, native PostgreSQL workflow
-Added detached-only safe profile listing and privacy-free preflight, sticky
-four-stage model selection, selector/reset fencing, live Build Preparation
-progress, and interactive native PostgreSQL alignment plus authentication and
-migration diagnostics. Attached Docker/product behavior remains fail-closed
-(D-050).
-
-### 2026-08-25 12:22 +05:30 — Codex (model/provider omitted) — [5b5df50] — durable retries, Build Preparation checkpoints, progress and receipts
-Unified retry/timeout decisions, persisted redacted per-operation receipts and
-live progress, added source/profile/candidate-bound stage checkpoints, and
-kept deterministic package admission authoritative while rerunning all
-materialization and artifact verification on retry (D-051).
-
-### 2026-08-25 12:22 +05:30 — Codex (model/provider omitted) — [2614bde] — shared provider-neutral model runtime
-Centralized profile routing, capability validation, adapter registration and
-reuse, privacy-free preflight caching, client shutdown, and safe provider
-failure normalization behind the stable `ModelClient` contract. Removed live
-mock fallback and rejected the unimplemented Responses transport.
-
-### 2026-08-25 - Codex (GPT-5 / OpenAI) - [15cf585] - Temporarily detach the main pipeline and add hard restart
-Added config-driven detached development mode for the Discovery through Build
-Preparation workflow while preserving authentication on admin, product,
-fixture, run, and Code Generator surfaces. Added explicit detached session
-classification, migration, durable refresh rehydration, no-store browser/API
-behavior, stale-response fencing, and a visible Restart Pipeline action that
-fences jobs, removes exact database/external/local artifacts, and recreates an
-empty revision-zero session. Added focused API, settings, and frontend
-regression coverage; Docker/test overlays remain attached.
-
-### 2026-08-25 - Codex - [540d33a] - Add native and Docker development run modes
-Added the canonical dual-mode development runbook, native local-PostgreSQL
-configuration and PowerShell/Bash helpers, and the missing isolated Docker Code
-Generator overlay. Docker Compose remains supported for production-like local
-integration.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-25 - Codex (model/provider omitted) - [9055cc3] - Aligned test-profile timeouts across every bounded model workflow and added detached-only authorization inventory coverage for the model-profile preflight API.
+- 2026-08-25 - Codex (model/provider omitted) - [c19e4a1] - Detached-only safe profile listing/preflight, sticky four-stage model selection, live Build Preparation progress, and native PostgreSQL/auth/migration diagnostics.
+- 2026-08-25 - Codex (model/provider omitted) - [5b5df50] - Unified retry/timeout decisions, redacted per-operation receipts/live progress, and source/profile/candidate-bound Build Preparation stage checkpoints (D-051).
+- 2026-08-25 - Codex (model/provider omitted) - [2614bde] - Centralized provider-neutral model runtime (profile routing, capability validation, preflight caching); removed live mock fallback.
+- 2026-08-25 - Codex (GPT-5 / OpenAI) - [15cf585] - Config-driven detached development mode for Discovery-through-Build-Preparation, with session classification, no-store behavior, and a Restart Pipeline action.
+- 2026-08-25 - Codex - [540d33a] - Canonical native/Docker dual-mode development runbook and the isolated Docker Code Generator overlay.
 - 2026-08-24 - Codex (GPT-5 / OpenAI) - [a39bd7e] - Reduced Anthropic interactive latency for the first three agents (lower budgets/effort, safe JSON control-character recovery).
 - 2026-08-24 - Codex (GPT-5 / OpenAI) - [563b2a6] - Forced Google account selection after sign-out via `prompt=select_account`.
 - 2026-08-24 - Codex (Claude Sonnet 5 / Anthropic) - [3b3ed9f, 456db9c] - Routed all four model-backed agents through Anthropic Claude Sonnet 5; a live Build Preparation pack materialized and correctly landed `needs_attention` on two real VDD execution gaps.
@@ -245,8 +220,8 @@ integration.
 
 ---
 
-## Summary (as of last compaction — 2026-08-25)
+## Summary (as of last compaction — 2026-08-27)
 
 - Recent detailed entries retained: 18
-- Compacted milestone bullets: 47
-- Last updated: 2026-08-25 — Claude Code (Claude Sonnet 5 / Anthropic)
+- Compacted milestone bullets: 53
+- Last updated: 2026-08-27 — Claude Code (Claude Sonnet 5 / Anthropic)
