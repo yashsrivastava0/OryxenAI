@@ -13,6 +13,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from oryxenai.agents.code_generator.core.acquisition_validators import (
     AcquisitionValidationError,
     filter_candidates_by_policy,
@@ -74,7 +76,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SafeIssue,
     SitePlan,
 )
-from oryxenai.agents.code_generator.core.planner_operation import run_planner_operation
+from oryxenai.agents.code_generator.core.planner_operation import (
+    PlannerOperationError,
+    run_planner_operation,
+)
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     ResourceProviderError,
@@ -97,6 +102,38 @@ from oryxenai.storage.artifacts import (
 
 _KIND = "code_generator.plan"
 logger = get_logger("oryxenai.jobs.handlers.code_generator")
+
+
+def _acquisition_failure_issue(exc: Exception) -> SafeIssue:
+    """Turn acquisition failures into safe, actionable UI diagnostics."""
+    code = str(getattr(exc, "code", "") or "ACQUISITION_FAILED")
+    message = str(getattr(exc, "message", "") or "").strip()
+    details: dict[str, object] = {}
+    if isinstance(exc, ValidationError):
+        summary = _safe_acquisition_validation_summary(exc)
+        message = f"Acquisition produced an invalid local object: {summary}"
+        details["validation_summary"] = summary
+    if not message:
+        message = "Resource acquisition could not complete safely."
+    return SafeIssue(
+        code=code,
+        message=message[:500],
+        next_action=(
+            "Add a suitable resource to the pack or relax the request, then retry acquire."
+            if code == "REQ_FALLBACK_BLOCKED"
+            else "Review the safe acquisition issue and start a corrected run."
+        ),
+        details=details,
+    )
+
+
+def _safe_acquisition_validation_summary(exc: ValidationError) -> str:
+    entries: list[str] = []
+    for error in exc.errors(include_url=False)[:8]:
+        location = ".".join(str(part) for part in error.get("loc", ())) or "root"
+        message = str(error.get("msg", "invalid value"))[:160]
+        entries.append(f"{location}: {message}")
+    return "; ".join(entries)[:500] or "The acquisition object failed schema validation."
 
 
 def _planner_failure_issue(exc: Exception) -> SafeIssue:
@@ -154,6 +191,11 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
         else {}
     )
     message = messages.get(code)
+    if message is None and isinstance(exc, PlannerOperationError):
+        # PlannerOperationError.message is already reduced to a bounded schema
+        # or semantic-validator summary. Preserve it so the control room can
+        # diagnose the rejected shape without exposing a provider response.
+        message = str(exc.message or "").strip()[:500] or None
     return SafeIssue(
         code=code,
         message=message
@@ -1136,15 +1178,7 @@ async def _execute_acquisition(
             getattr(exc, "code", "ACQUISITION_FAILED"),
             type(exc).__name__,
         )
-        issue = SafeIssue(
-            code=getattr(exc, "code", "ACQUISITION_FAILED"),
-            message=getattr(exc, "message", "Resource acquisition could not complete safely."),
-            next_action=(
-                "Add a suitable resource to the pack or relax the request, then retry acquire."
-                if getattr(exc, "code", "") == "REQ_FALLBACK_BLOCKED"
-                else "Review the safe acquisition issue and start a corrected run."
-            ),
-        )
+        issue = _acquisition_failure_issue(exc)
         values: dict[str, object] = {"issues": [issue.model_dump(mode="json")]}
         if partial_resource_ledger is not None:
             values["resource_ledger"] = partial_resource_ledger.model_dump(mode="json")
