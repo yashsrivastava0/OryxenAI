@@ -13,6 +13,17 @@ enable_dev_ui = true
 host = "127.0.0.1"
 port = 5432
 
+# The standard native port remains 8000. Keep the alternate 8001 origin
+# allowed as well so a second local instance can be started while another
+# development server is still running on the standard port.
+[auth]
+allowed_origins = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+]
+
 # npm is resolved through PATH on both Windows (npm.cmd) and Unix-like hosts.
 [code_generator_dependencies]
 npm_executable = "npm"
