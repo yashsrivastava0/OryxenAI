@@ -74,11 +74,8 @@ async def advance_after(
             "source_ready": str((run.source_checkpoint or {}).get("checkpoint_hash", "")),
         }[completed_stage]
         idempotency_key = f"{run.id}:{stage}:{key_material}:{run.revision}"
-        payload_key = (
-            "code_generator_run_id"
-            if str(getattr(run, "run_mode", "development")) == "session"
-            else "development_run_id"
-        )
+        is_session_run = str(getattr(run, "run_mode", "development")) == "session"
+        payload_key = "code_generator_run_id" if is_session_run else "development_run_id"
         input_fingerprint = fingerprint_input(
             {
                 "completed_stage": completed_stage,
@@ -104,14 +101,18 @@ async def advance_after(
             input_fingerprint=input_fingerprint,
             trace_id=str(getattr(run, "trace_id", "") or ""),
         )
-        context = DurableAuthorizationContext(
-            portfolio_session_id=getattr(run, "portfolio_session_id", None),
-            owner_user_id=getattr(run, "owner_user_id", None),
-            actor_user_id=getattr(run, "actor_user_id", None),
-            authorization_context_version=int(
-                getattr(run, "authorization_context_version", 0) or 0
-            ),
-            entitlement_revision=getattr(run, "entitlement_revision", None),
+        context = (
+            DurableAuthorizationContext(
+                portfolio_session_id=getattr(run, "portfolio_session_id", None),
+                owner_user_id=getattr(run, "owner_user_id", None),
+                actor_user_id=getattr(run, "actor_user_id", None),
+                authorization_context_version=int(
+                    getattr(run, "authorization_context_version", 0) or 0
+                ),
+                entitlement_revision=getattr(run, "entitlement_revision", None),
+            )
+            if is_session_run
+            else None
         )
         await WorkerAuthorizationFence(db).validate_run(run.id)
         job = await JobService(db, context).enqueue(
