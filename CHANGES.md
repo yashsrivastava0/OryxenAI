@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-27 03:32 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — make the native dev launcher reliable from this workspace
+The first clean smoke test exposed two Windows launcher issues in the new
+one-command native path: `uv` was trying to use a user-level cache that was
+not accessible in this workspace, and `Start-Process` split the repository
+path at the space in `Yash Srivastava` when composing the hidden child
+services. The native PowerShell and shell helpers now use the repository-local
+`UV_CACHE_DIR`, and the PowerShell launcher quotes its script path before
+starting exactly one API, worker, and preview child. A clean `dev` start was
+then verified with API and preview health responses, one worker's established
+connections to canonical PostgreSQL 5432, and no listener on 5545 or 8001.
+
 ### 2026-08-27 03:18 +05:30 — Codex (GPT-5 / OpenAI) — [78ee3ea] — remove unreachable foundation model machinery and correct architecture docs
 Removed the unreachable Code Generator foundation model profile, routing entry,
 prompt lookup, prompt file, and preflight/profile admission. The V3/V4
