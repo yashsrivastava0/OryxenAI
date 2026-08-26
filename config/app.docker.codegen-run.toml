@@ -16,6 +16,7 @@ port = 5432
 database = "oryxenai_codegen_run"
 
 [auth]
+pipeline_mode = "detached"
 primary_origin = "http://127.0.0.1:8001"
 allowed_origins = ["http://127.0.0.1:8001", "http://localhost:8001"]
 
@@ -26,7 +27,7 @@ require_lifecycle = false
 [code_generator_development]
 enabled = true
 input_root = "/app/.workspace/code-generator-development"
-build_preparation_mirror_root = "/app/output/live-build-preparation/build-preparation"
+build_preparation_mirror_root = "/app/prebuild-output/build-preparation"
 
 [code_generator_acquisition]
 materials_root = "/app/.workspace/code-generator-materials"

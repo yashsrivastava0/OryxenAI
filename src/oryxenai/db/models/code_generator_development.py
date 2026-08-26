@@ -117,6 +117,7 @@ class CodeGeneratorRun(Base):
     candidate_artifact: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     pending_promotion: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     active_preview: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    export_receipt: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     terminal_failure: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     preview_host: Mapped[str | None] = mapped_column(Text, nullable=True)
     idempotency_scope: Mapped[str] = mapped_column(

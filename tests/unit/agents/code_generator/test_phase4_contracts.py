@@ -169,6 +169,11 @@ def test_portfolio_export_contains_source_dist_and_metadata(tmp_path) -> None:
     assert '"export_folder": "' + exported.name + '"' in metadata
     assert '"docker": false' in metadata
     assert '"Dockerfile"' in metadata
+    report = (exported / "generation-report.md").read_text(encoding="utf-8")
+    assert "# OryxenAI generation report" in report
+    assert "source/" in report
+    assert "Fix recurring defects as Code Generator agent changes" in report
+    assert "private prompt must not be exported" not in report
 
 
 def test_export_call_ledger_contains_references_without_prompt_or_source() -> None:

@@ -403,6 +403,7 @@ docker compose -p $Project run --rm --no-deps `
 docker compose -p $Project run --rm -d --no-deps -p 8001:8000 `
     -v "${Workspace}:/app/.workspace" `
     -v "${PWD}/output:/app/output" `
+    -v "${PWD}/prebuild-output:/app/prebuild-output" `
     -e OryxenAI_CONFIG_OVERLAY=$Overlay `
     app uvicorn oryxenai.main:app --host 0.0.0.0 --port 8000
 
@@ -419,8 +420,10 @@ docker compose -p $Project --profile codegen run --rm -d --no-deps -p 4174:4174 
 docker compose -p $Project ps
 ```
 
-Open `http://127.0.0.1:8001/dev/code-generator-development`. Generated sites
-are exported under `output/code-gen-output`; preview objects are stored in
+Open `http://127.0.0.1:8001/dev/code-generator-development`. The detached
+page has no auth or session logic; it reads the latest eligible pack from
+`prebuild-output/build-preparation`. Generated sites are exported under
+`output/code-gen-output`; preview objects are stored in
 `.workspace/code-generator-preview`. Stop the isolated containers without
 deleting evidence:
 

@@ -1,8 +1,8 @@
 # OryxenAI provider-neutral model configuration (non-secret, committed).
 #
-# Active model-backed engines use the configured Anthropic profile only when a
-# durable real operation is requested. The app and worker can start without a
-# model key.
+# Active model-backed engines use their configured profile only when a durable
+# real operation is requested. The app and worker can start without a model
+# key. Code Generator profiles are routed to the direct OpenAI profile below.
 #
 # Each profile describes how a ModelClient adapter should talk to its provider.
 # Each adapter is selected by the provider-neutral ModelClient boundary. Agent
@@ -192,11 +192,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_director]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 16000
@@ -210,7 +210,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -220,14 +220,12 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_planner]
-# Code Generator is independently configurable from the upstream agents. Its
-# Claude credential remains optional at startup; live calls resolve it lazily.
-# Automated tests inject deterministic clients and never require this key.
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+# Code Generator uses the direct OpenAI route in the standalone harness.
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 32000
@@ -241,7 +239,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -251,11 +249,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_resource_scout]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 180
 max_retries = 1
 max_output_tokens = 4096
@@ -269,7 +267,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -279,11 +277,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_foundation_builder]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
@@ -297,7 +295,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -307,11 +305,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_route_builder]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
@@ -325,7 +323,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -335,11 +333,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_route_composer]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 16000
@@ -353,7 +351,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -363,11 +361,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_integrator]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 20000
@@ -381,7 +379,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -391,11 +389,11 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_repairer]
-provider = "anthropic"
-model = "claude-sonnet-5"
-display_name = "Anthropic — Claude Sonnet 5"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-5.6-luna"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 12000
@@ -409,7 +407,7 @@ json_schema_mode = true
 thinking_mode = true
 structured_output_mode = "native_json_schema"
 thinking_strategy = "adaptive"
-effort_parameter = "output_config_effort"
+effort_parameter = "reasoning_effort"
 reasoning_content = false
 temperature_control = false
 usage_metadata = true
@@ -447,8 +445,9 @@ context_cache_metadata = false
 supports_store_parameter = true
 uses_max_completion_tokens = false
 
-# Direct OpenAI API route for Build Preparation. Keep this separate from the
-# OpenCode-compatible Luna route so the credential and endpoint are explicit.
+# Direct OpenAI API route used by the detached Code Generator (and available
+# to other explicitly configured stages). Keep it separate from the OpenCode-
+# compatible Luna route so the credential and endpoint are explicit.
 [profiles.openai_luna]
 provider = "openai"
 model = "gpt-5.6-luna"
