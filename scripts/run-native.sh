@@ -10,6 +10,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 export UV_PROJECT_ENVIRONMENT="$REPO_ROOT/.workspace/venv"
+export UV_CACHE_DIR="$REPO_ROOT/.workspace/cache/uv"
 export PYTHONPYCACHEPREFIX="$REPO_ROOT/.workspace/cache/python"
 export OryxenAI_CONFIG_OVERLAY="config/app.native.toml"
 

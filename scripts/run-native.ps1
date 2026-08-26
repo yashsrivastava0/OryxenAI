@@ -11,6 +11,7 @@ $REPO_ROOT = (Resolve-Path "$PSScriptRoot\..").Path
 Set-Location $REPO_ROOT
 
 $env:UV_PROJECT_ENVIRONMENT = "$REPO_ROOT\.workspace\venv"
+$env:UV_CACHE_DIR = "$REPO_ROOT\.workspace\cache\uv"
 $env:PYTHONPYCACHEPREFIX = "$REPO_ROOT\.workspace\cache\python"
 $env:OryxenAI_CONFIG_OVERLAY = "config/app.native.toml"
 
@@ -46,7 +47,7 @@ switch ($Service) {
                     "-ExecutionPolicy",
                     "Bypass",
                     "-File",
-                    $PSCommandPath,
+                    "`"$PSCommandPath`"",
                     $childService
                 ) | Out-Null
         }
