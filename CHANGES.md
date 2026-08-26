@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-27 03:32 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — make the native dev launcher reliable from this workspace
+### 2026-08-27 03:32 +05:30 — Codex (GPT-5 / OpenAI) — [1e3610e] — make the native dev launcher reliable from this workspace
 The first clean smoke test exposed two Windows launcher issues in the new
 one-command native path: `uv` was trying to use a user-level cache that was
 not accessible in this workspace, and `Start-Process` split the repository
