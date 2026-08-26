@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-27 03:18 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — remove unreachable foundation model machinery and correct architecture docs
+### 2026-08-27 03:18 +05:30 — Codex (GPT-5 / OpenAI) — [78ee3ea] — remove unreachable foundation model machinery and correct architecture docs
 Removed the unreachable Code Generator foundation model profile, routing entry,
 prompt lookup, prompt file, and preflight/profile admission. The V3/V4
 foundation stage remains a live deterministic compiler boundary for generated
