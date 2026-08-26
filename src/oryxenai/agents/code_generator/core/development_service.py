@@ -73,7 +73,6 @@ class CodeGeneratorDevelopmentService:
         profile_names = [
             self._settings.code_generator_development.director_profile,
             self._settings.code_generator_development.planner_profile,
-            self._settings.code_generator_generation.foundation_profile,
             self._settings.code_generator_generation.route_profile,
             self._settings.code_generator_generation.compose_profile,
             self._settings.code_generator_generation.integration_profile,
@@ -96,7 +95,6 @@ class CodeGeneratorDevelopmentService:
         profile_names = {
             "director": self._settings.code_generator_development.director_profile,
             "planner": self._settings.code_generator_development.planner_profile,
-            "foundation": self._settings.code_generator_generation.foundation_profile,
             "route": self._settings.code_generator_generation.route_profile,
             "compose": self._settings.code_generator_generation.compose_profile,
             "integration": self._settings.code_generator_generation.integration_profile,
@@ -114,6 +112,9 @@ class CodeGeneratorDevelopmentService:
                 and profile.capabilities.json_schema_mode
                 and profile.capabilities.structured_output_mode == "native_json_schema"
             )
+        # Foundation files are compiled deterministically from the admitted
+        # blueprint and do not require a model profile or provider call.
+        profiles["foundation"] = True
         npm = str(self._settings.code_generator_dependencies.npm_executable or "")
         npm_available = bool(npm and shutil.which(npm))
         packs = self.build_preparation_packs()

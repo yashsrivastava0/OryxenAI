@@ -157,6 +157,7 @@ async def test_provider_preflight_is_exposed_as_a_safe_service_operation(monkeyp
     async def fake_preflight(_settings, profile_names):
         assert settings is _settings
         assert settings.code_generator_development.planner_profile in profile_names
+        assert "code_generator_foundation_builder" not in profile_names
         return {
             "status": "ready",
             "checked_profiles": [settings.code_generator_development.planner_profile],

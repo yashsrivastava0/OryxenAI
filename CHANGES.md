@@ -11,6 +11,18 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-27 03:18 +05:30 — Codex (GPT-5 / OpenAI) — [PENDING] — remove unreachable foundation model machinery and correct architecture docs
+Removed the unreachable Code Generator foundation model profile, routing entry,
+prompt lookup, prompt file, and preflight/profile admission. The V3/V4
+foundation stage remains a live deterministic compiler boundary for generated
+tokens and approved content; its WorkGraph unit, lifecycle status, source audit,
+and `foundation_builder` resource-provenance role remain intact. Updated the
+operation-role documentation to describe the deterministic compiler and added
+a current-contract note to the historical v2 architecture document. Corrected
+the preview deployment guide from the never-built wildcard-DNS topology to the
+implemented single-origin `/preview/{host}/{path}` gateway path. The existing
+safe diagnostic mapping also remains statically typed after the cleanup.
+
 ### 2026-08-27 03:08 +05:30 — Codex (GPT-5 / OpenAI) — [e945f54] — truthful preview readiness and hosted Docker contract
 Made the shared preview gateway part of the default Compose topology and
 passed the hosted storage credentials into that service. Readiness now probes a

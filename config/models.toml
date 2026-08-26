@@ -29,7 +29,6 @@ build_preparation = "build_preparation"
 code_generator_director = "code_generator_director"
 code_generator_planner = "code_generator_planner"
 code_generator_resource_scout = "code_generator_resource_scout"
-code_generator_foundation_builder = "code_generator_foundation_builder"
 code_generator_route_builder = "code_generator_route_builder"
 code_generator_route_composer = "code_generator_route_composer"
 code_generator_integrator = "code_generator_integrator"
@@ -262,34 +261,6 @@ prompt_cache_ttl = "5m"
 store = false
 
 [profiles.code_generator_resource_scout.capabilities]
-json_object_mode = true
-json_schema_mode = true
-thinking_mode = true
-structured_output_mode = "native_json_schema"
-thinking_strategy = "adaptive"
-effort_parameter = "reasoning_effort"
-reasoning_content = false
-temperature_control = false
-usage_metadata = true
-response_id = true
-context_cache_metadata = true
-supports_store_parameter = true
-uses_max_completion_tokens = true
-
-[profiles.code_generator_foundation_builder]
-provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
-base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
-timeout_seconds = 600
-max_retries = 1
-max_output_tokens = 24000
-reasoning_effort = "medium"
-prompt_cache_ttl = "5m"
-store = false
-
-[profiles.code_generator_foundation_builder.capabilities]
 json_object_mode = true
 json_schema_mode = true
 thinking_mode = true

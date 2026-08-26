@@ -5,6 +5,13 @@ eligible Build Preparation pack and produces one verified portfolio preview.
 The pack projections, runtime configuration, Pydantic contracts, and receipts
 are authoritative; this document explains how those boundaries fit together.
 
+> **Current-contract note (D-034, D-041).** The live implementation accepts
+> the current V4 planning/realization contracts and pack-v3 compatibility
+> projections, then uses deterministic host compilation and verified preview
+> promotion. The v2 filename is historical; consult the checked-in schemas,
+> settings, and `src/oryxenai/agents/code_generator/` services for the current
+> executable contract.
+
 ## Outcomes and invariants
 
 Code Generator v2 must:

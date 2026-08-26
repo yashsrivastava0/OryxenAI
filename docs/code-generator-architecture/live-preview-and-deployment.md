@@ -5,47 +5,47 @@ preview in local and deployed environments. "Live" means that the stable preview
 updates after an atomic promotion; it does not mean exposing generated code while
 it is being written.
 
-## Decision
+## Implemented decision
 
-Each portfolio session receives one stable, opaque hostname on a dedicated
-registrable preview domain:
+The implemented gateway is a small single-origin, path-prefixed router. A
+promoted portfolio is addressed as:
 
 ```text
-https://<opaque-session-host>.<dedicated-preview-domain>/<client-route>
+http://<preview-origin>/preview/<opaque-host>/<client-route>
 ```
 
-The preview domain must be a different registrable domain from the OryxenAI app,
-not merely another subdomain of the app's domain. Wildcard DNS and TLS route the
-opaque host to the preview gateway. The hostname reveals no user, session,
-generation, or build identifier and remains stable across regenerations.
+The opaque host is an application-generated stable segment, not a DNS hostname.
+The gateway validates that segment, reads the corresponding active pointer from
+immutable object storage, and serves only the verified artifact named by that
+pointer. The browser-facing origin remains the configured `preview_base_url`;
+the internal service health target is a separate `preview_health_url` and is
+never used as the preview URL.
 
-The generated Vite application uses `base: "/"`. Assets are root-relative and
-the trusted dependency-free router owns client routes. There is one current
-verified preview per session and no user-visible preview history,
-alternate-build selector, generation URL, or generation API. Internal immutable
-artifacts and receipts exist only for verification, crash recovery, audit, and
-configured cleanup.
-
-Unpromoted candidates are available only through a protected verifier endpoint
-with service authentication. They are never embedded for the user, opened in a
-user tab, or served from the stable preview hostname.
+The generated Vite application uses `base: "/"`; the gateway injects the
+preview mount for the served document and the trusted dependency-free router
+owns client routes. There is one current verified preview per session and no
+user-visible preview history, alternate-build selector, or live generation
+workspace. Unpromoted candidates remain protected verifier artifacts and are
+never embedded or served through the promoted path.
 
 ## Runtime topology
 
-The cloud implementation has three small boundaries:
+The deployed and local implementations have three small boundaries:
 
 - private object storage holds immutable candidate artifacts, verification
   reports, immutable promotion receipts, and the stable host's active pointer;
-- a preview gateway serves only the artifact named by a valid active pointer,
-  applies SPA routing and security headers, and fails closed on any receipt/hash
-  mismatch; and
+- a preview gateway serves only the artifact named by a valid active pointer at
+  `/preview/{host}/{path}`, applies SPA routing and security headers, and fails
+  closed on any receipt/hash mismatch; and
 - a text/DOM runtime verifier loads candidates through its protected endpoint
   and returns the structured evidence required by
   [Preview, quality, and evaluation](preview-quality-and-evaluation.md).
 
 The application API and worker coordinate generation state but never proxy
 portfolio assets. The preview gateway receives no model credentials or
-application cookies and cannot read arbitrary session data.
+application cookies and cannot read arbitrary session data. In the default
+Docker stack it is a shared service after migration, alongside the API and
+worker; a generated portfolio still does not receive its own container.
 
 Conceptual private keys are:
 
@@ -120,7 +120,7 @@ builds.
 
 ## Gateway routing and isolation
 
-For the stable hostname the gateway:
+For the stable preview path the gateway:
 
 1. validates the opaque host syntax and reads one valid active pointer and its
    immutable receipt;
@@ -132,7 +132,7 @@ For the stable hostname the gateway:
 5. applies SPA fallback to navigation requests so direct client-route loads work,
    while the application renders its designed unknown-route screen; and
 6. serves HTML and active metadata with short/no cache so an atomic promotion is
-   observed without changing the hostname.
+   observed without changing the opaque host segment.
 
 Traversal, encoded separators, dot segments, control characters, oversized
 requests, and unsupported methods are rejected. Preview pages set `noindex`, a
@@ -148,11 +148,12 @@ contract and granted explicitly.
 
 ## Local parity
 
-Local development and CI serve the production `dist` artifact on a dedicated
-loopback port separate from the FastAPI app, for example:
+Local development and CI serve the production `dist` artifact through the same
+path-prefixed gateway on a dedicated loopback port separate from the FastAPI
+app, for example:
 
 ```text
-http://127.0.0.1:<preview-port>/
+http://127.0.0.1:<preview-port>/preview/<opaque-host>/
 ```
 
 The local gateway is not `vite dev` or `vite preview`. It implements the same
@@ -161,10 +162,10 @@ types, cache semantics, CSP, security headers, and iframe contract as the cloud
 gateway. Generated code cannot branch on the adapter. A relaxed local CSP is a
 failed parity test, not a developer convenience.
 
-The local port is bound to loopback only, allocated without colliding with the
-application port, and recorded in ephemeral developer state. Local candidate
-verification uses a separate protected/unguessable endpoint or server instance;
-the user-facing local preview still resolves only the current verified receipt.
+The local port is bound to loopback only and is recorded in ephemeral developer
+state. Local candidate verification uses a separate protected/unguessable
+endpoint or server instance; the user-facing local preview still resolves only
+the current verified receipt.
 
 ## Preview UI contract
 
