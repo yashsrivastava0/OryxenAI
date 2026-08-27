@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 04:20 +05:30 - Codex (GPT-5 / OpenAI) - [0a6dcfe] - enforce split route ownership and imported-content audit
+The tenth frontend generation exposed a contract mismatch after the context
+ceiling was fixed: route-batch checkpoints accepted one model component that
+aggregated several assigned sections and left sibling owned files as helpers,
+while the generated source audit only examined the route index for headings and
+content calls. Split batches now require one literal section anchor and
+route-scoped DOM id in each owned TSX file, reopening stale aggregate
+checkpoints for fresh live repair. The V4 audit now counts rendered section
+modules and recognizes only direct, single-argument forwarding to the trusted
+content accessor, while the composer contract explicitly preserves batch
+ownership and the shell's unique landmark/id boundary. Focused validation,
+contract, lint, and JavaScript syntax checks passed.
+
 ### 2026-08-28 04:03 +05:30 - Codex (GPT-5 / OpenAI) - [0431996] - clear stale diagnostics on same-run resume
 The bounded-context fix let the tenth frontend run reach composition, where
 Luna correctly refused a stale audit bundle that still described pre-repair
