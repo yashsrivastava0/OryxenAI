@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:04 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - keep retry context under the configured ceiling
+After the route-batch resolver reopened the stale checkpoint, its five
+actionable diagnostics were joined by unrelated composer history in the next
+batch prompt and crossed the 120,000-character limit. Context assembly now
+filters diagnostics by active work-unit ownership; the measured retry context
+is 119,838 characters with the accepted checkpoint included.
+
 ### 2026-08-28 03:02 +05:30 - Codex (GPT-5 / OpenAI) - [8ee6947] - bound retry diagnostics to the active work unit
 The route-batch import guard correctly found five stale imports, but the
 retry context also carried unrelated composer history and crossed the 120,000
