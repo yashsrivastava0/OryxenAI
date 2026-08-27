@@ -39,6 +39,20 @@ _GENERATE_SCOPE = "code_generator.generate"
 _VERIFY_SCOPE = "code_generator.verify_and_preview"
 
 
+def _generation_attempt_key(
+    run_id: UUID,
+    *,
+    plan_hash: str,
+    resource_hash: str,
+    dependency_hash: str,
+    attempt: int,
+    revision: int,
+) -> str:
+    """Give each terminally failed same-run retry a fresh durable job key."""
+
+    return f"{run_id}:{plan_hash}:{resource_hash}:{dependency_hash}:{attempt}:{revision}"
+
+
 class DevelopmentRunError(ValueError):
     def __init__(
         self,
@@ -543,8 +557,13 @@ class CodeGeneratorDevelopmentService:
         plan_hash = str(run.planner_receipt.get("plan_hash", ""))
         resource_hash = str((run.resource_ledger or {}).get("ledger_hash", ""))
         dependency_hash = str((run.dependency_ledger or {}).get("dependency_ledger_hash", ""))
-        attempt_key = (
-            f"{run.id}:{plan_hash}:{resource_hash}:{dependency_hash}:{run.current_attempt + 1}"
+        attempt_key = _generation_attempt_key(
+            run.id,
+            plan_hash=plan_hash,
+            resource_hash=resource_hash,
+            dependency_hash=dependency_hash,
+            attempt=run.current_attempt + 1,
+            revision=run.revision,
         )
         existing_job = await self._jobs.find_idempotent(_GENERATE_SCOPE, attempt_key)
         if run.status in {
