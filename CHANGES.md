@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 03:07 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - validate route-batch local export bindings
+### 2026-08-28 03:07 +05:30 - Codex (GPT-5 / OpenAI) - [ab3672f] - validate route-batch local export bindings
 The tenth live frontend run showed that path resolution alone allowed a route
 batch to checkpoint self-imports and invalid named re-exports; the later whole-
 site audit then reported them against the composer. Route batches now validate
