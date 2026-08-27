@@ -109,6 +109,19 @@ async def run_command(
     executable = shutil.which(command[0])
     if executable:
         command = [executable, *command[1:]]
+    if sys.platform == "win32" and Path(command[0]).suffix.casefold() in {".cmd", ".bat"}:
+        # Windows batch files are not native executables.  Some worker launch
+        # contexts reject CreateProcess on a PATH-resolved .cmd with
+        # ERROR_ACCESS_DENIED even though the same command works in an
+        # interactive shell.  The original command has already passed the
+        # allowlist above; use the system interpreter only for this Windows
+        # compatibility boundary and keep shell=False for native commands.
+        command = [
+            os.environ.get("COMSPEC", "cmd.exe"),
+            "/d",
+            "/c",
+            *command,
+        ]
     if not cwd.is_dir():
         raise ProcessRunnerError(
             "COMMAND_CWD_MISSING", "The trusted command directory is unavailable."

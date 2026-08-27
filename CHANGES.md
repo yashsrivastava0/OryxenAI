@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:28 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - launch Windows batch toolchains reliably
+The live worker exposed `[WinError 5] Access is denied` when its process
+runner attempted to spawn the PATH-resolved `npm.CMD` directly, stopping the
+frontend resume before route validation. Allowlisted `.cmd`/`.bat` commands
+now cross the Windows command-interpreter boundary with their validated argv,
+while native executables retain the no-shell process path.
+
 ### 2026-08-28 03:24 +05:30 - Codex (GPT-5 / OpenAI) - [253b1fa] - preserve toolchain launch diagnostics
 The tenth frontend resume was repeatedly stopping before source validation with
 only `TOOLCHAIN_START_FAILED`, although the same configured offline install
