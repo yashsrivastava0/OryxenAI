@@ -7,12 +7,15 @@ Authority and anchor requirements:
 
 - Copy every admitted route id, section id, fact id, criterion id, content
   string, source marker, interaction id, and approved destination exactly.
-- The assigned anchor file must contain the route id, every section id as
-  literal text, `id="<section_id>"`, and `data-content-id="<section_id>"`, every approved content
-  string for those sections, every assigned source marker, and one exact
-  `data-interaction-id` per assigned interaction. Subcomponents do not replace
-  these anchor literals.
-- Re-read the anchor file top to bottom and string-check the contract before
+- Each concrete owned `.tsx` file is the independent owner of exactly one
+  assigned section. That file must contain the section id as literal text,
+  `id="<section_id>"`, and `data-content-id="<section_id>"`, plus every
+  approved content string for that section. Do not put two assigned section
+  anchors in one file, create a route-level aggregator, or leave an owned
+  section file as a helper with no section anchor.
+- The first owned file is only the deterministic validation starting point; it
+  is not an aggregator and does not own the other section files. Re-read every
+  owned section file top to bottom and string-check the contract before
   returning. A copied-from-memory sentence, marker paraphrase, or one-character
   interaction-id change is a failed result.
 
@@ -30,16 +33,15 @@ Do not use four `..` segments from a section file; that leaves `src/` and
 cannot resolve the trusted modules. Before returning, resolve every local
 import against the actual owned source paths.
 
-The first owned `.tsx` path is the batch's verification anchor. It must carry
-the exact route-scoped `id="<section_id>"` and
-`data-content-id="<section_id>"` literals for every assigned section; do not
-shorten authoritative IDs such as `home:hero` to `hero`. Each other owned
-section file is an independent default-exported component. Do not
-turn one section file into an aggregator, import a component from itself, or
-re-export a named component from a sibling unless that sibling visibly exports
-that exact name. A named import or re-export is valid only when the target
-module contains that named export; prefer a direct default import of each
-section file when composing the batch.
+Each owned section file is an independent default-exported component and must
+carry the exact route-scoped `id="<section_id>"` and
+`data-content-id="<section_id>"` literals for its one assigned section; do not
+shorten authoritative IDs such as `home:hero` to `hero`. Do not turn one
+section file into an aggregator, import a component from itself, or re-export
+a named component from a sibling unless that sibling visibly exports that
+exact name. A named import or re-export is valid only when the target module
+contains that named export; prefer a direct default import of each section
+file when composing the batch.
 
 Ownership and shell boundary:
 
@@ -75,6 +77,9 @@ Resource and content contract:
 - A required component binding is used by importing its materialized local
   module and rendering it. A slot id, filename comment, or manifest mention is
   not usage. Never use remote imports, fetch, network URLs, or package changes.
+- Call `contentValue("<literal-approved-content-id>")` directly for every
+  approved content key. Do not hide the key behind a generic alias or generated
+  lookup; the source audit must be able to prove the executable literal.
 - Copy the complete ordered `unit.resource_slot_ids` list exactly into the
   returned `resource_slot_ids` coverage array. Include optional package,
   recipe, and component slots even when the assigned section source does not

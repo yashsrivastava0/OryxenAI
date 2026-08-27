@@ -208,6 +208,49 @@ function callNodes(source) {
   return values;
 }
 
+function directContentForwarders(source, trustedNames) {
+  const aliases = new Set();
+  if (!source || !trustedNames.size) return aliases;
+  function isForwardingCall(node, parameterName) {
+    const call = unwrap(node);
+    if (!call || !ts.isCallExpression(call)) return false;
+    const expression = unwrap(call.expression);
+    if (!ts.isIdentifier(expression) || !trustedNames.has(expression.text)) return false;
+    const argument = call.arguments.length === 1 && unwrap(call.arguments[0]);
+    return ts.isIdentifier(argument) && argument.text === parameterName;
+  }
+  function inspectFunction(name, parameters, body) {
+    const parameter = parameters[0] && parameters[0].name;
+    if (!name || !parameter || !ts.isIdentifier(parameter)) return;
+    if (isForwardingCall(body, parameter.text)) {
+      aliases.add(name);
+      return;
+    }
+    if (!ts.isBlock(body)) return;
+    for (const statement of body.statements) {
+      if (ts.isReturnStatement(statement) && isForwardingCall(statement.expression, parameter.text)) {
+        aliases.add(name);
+        return;
+      }
+    }
+  }
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement)) {
+      inspectFunction(statement.name?.text, statement.parameters, statement.body);
+      continue;
+    }
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) continue;
+      const initializer = unwrap(declaration.initializer);
+      if (initializer && ts.isArrowFunction(initializer)) {
+        inspectFunction(declaration.name.text, initializer.parameters, initializer.body);
+      }
+    }
+  }
+  return aliases;
+}
+
 function allStringLiterals(source) {
   const values = new Set();
   function visit(node) {
@@ -431,8 +474,8 @@ function auditV4Routes() {
     if (!routeJsx.some((node) => jsxTagName(node) === "RouteShell")) {
       report(route.fileName, routeSource, "V4 route must render the trusted RouteShell");
     }
-    const h1Count = routeJsx.filter((node) => jsxTagName(node) === "h1").length;
-    if (h1Count !== 1) report(route.fileName, routeSource, `V4 route must contain exactly one h1 (found ${h1Count})`);
+    const h1Count = jsx.filter((node) => jsxTagName(node) === "h1").length;
+    if (h1Count !== 1) report(route.fileName, routeSource, `V4 route must contain exactly one h1 across its rendered section modules (found ${h1Count})`);
     const routeIdLiterals = new Set(
       routeJsx.flatMap((node) => [...jsxAttributes(node).entries()])
         .filter(([name]) => name === "data-route-id" || name === "routeId")
@@ -470,9 +513,10 @@ function auditV4Routes() {
 
     const contentCalls = new Set();
     const contentFile = path.join(sourceRoot, "content", "generated-content.ts");
-    const trustedContentNames = new Set();
+    const trustedContentNamesByFile = new Map();
     for (const fileName of files) {
       const source = sourceTrees.get(fileName);
+      const names = new Set();
       for (const statement of source?.statements || []) {
         if (!ts.isImportDeclaration(statement)) continue;
         if (localTarget(fileName, moduleName(statement)) !== contentFile) continue;
@@ -480,17 +524,20 @@ function auditV4Routes() {
         if (!bindings || !ts.isNamedImports(bindings)) continue;
         for (const element of bindings.elements) {
           if ((element.propertyName?.text || element.name.text) === "contentValue") {
-            trustedContentNames.add(element.name.text);
+            names.add(element.name.text);
           }
         }
       }
+      trustedContentNamesByFile.set(fileName, names);
     }
-    if (!trustedContentNames.size && (contentByRoute.get(route.routeId) || []).length) {
+    if (![...trustedContentNamesByFile.values()].some((names) => names.size) && (contentByRoute.get(route.routeId) || []).length) {
       report(route.fileName, routeSource, "V4 route must import contentValue from the trusted generated-content module");
     }
-    for (const tree of trees) {
+    for (const [fileName, tree] of files.map((fileName) => [fileName, sourceTrees.get(fileName)])) {
+      const trustedNames = trustedContentNamesByFile.get(fileName) || new Set();
+      const contentNames = new Set([...trustedNames, ...directContentForwarders(tree, trustedNames)]);
       for (const call of callNodes(tree)) {
-        if (!ts.isIdentifier(call.expression) || !trustedContentNames.has(call.expression.text)) continue;
+        if (!ts.isIdentifier(call.expression) || !contentNames.has(call.expression.text)) continue;
         const argument = call.arguments[0] && literalValue(call.arguments[0]);
         if (typeof argument === "string") contentCalls.add(argument);
       }
