@@ -173,16 +173,24 @@ def _compile_v4_tokens(
     display = roles.get("display", body)
     emit("font-body", f'"{body.family}"')
     emit("font-display", f'"{display.family}"')
+    type_step_names = {step.name for step in blueprint.tokens.type_steps}
+    emitted_type_names: set[str] = set()
     for role in (body, display):
+        if role.role in emitted_type_names or role.role in type_step_names:
+            continue
         emit(f"type-{role.role}-min", f"{role.body_min_rem:g}rem")
         emit(f"type-{role.role}-max", f"{role.body_max_rem:g}rem")
         emit(f"type-{role.role}-line-height", f"{role.body_line_height:g}")
         emit(f"type-{role.role}-tracking", f"{role.tracking_em:g}em")
+        emitted_type_names.add(role.role)
     for step in sorted(blueprint.tokens.type_steps, key=lambda item: item.name):
+        if step.name in emitted_type_names:
+            continue
         emit(f"type-{step.name}-min", f"{step.minimum_rem:g}rem")
         emit(f"type-{step.name}-max", f"{step.maximum_rem:g}rem")
         emit(f"type-{step.name}-line-height", f"{step.line_height:g}")
         emit(f"type-{step.name}-tracking", f"{step.tracking_em:g}em")
+        emitted_type_names.add(step.name)
     lines.extend(["}", ""])
 
     for typography in blueprint.tokens.typography_roles:

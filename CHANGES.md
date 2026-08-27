@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - trusted source audit and token emission reliability
+The third live frontend generation passed planning, acquisition, and TypeScript
+typechecking but exposed two deterministic scaffold/compiler defects before
+promotion: the source audit read JSX element fields from the wrong TypeScript
+AST shape, and V4 typography roles could emit duplicate custom properties when
+a type step shared the role name. The audit now handles JSX elements and
+self-closing elements correctly, while typography emission is collision-safe;
+regression coverage asserts unique body/display variables.
+
 ### 2026-08-27 11:40 +05:30 - Codex (GPT-5 / OpenAI) - [caead48] - transactional optional dependency fallback
 The first live frontend generation reached source generation but failed at the
 trusted toolchain because acquisition recorded `lucide-react` as
