@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:35 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - retry denied Windows process-group launches
+The worker continued to receive `[WinError 5]` at process creation even after
+batch commands were routed through `cmd.exe`. The bounded process runner now
+retries an allowlisted Windows batch command without only the optional new
+process-group flag when that flag is denied, retaining no-window execution and
+the existing process-tree cleanup path when the group can be created.
+
 ### 2026-08-28 03:28 +05:30 - Codex (GPT-5 / OpenAI) - [90f2a82] - launch Windows batch toolchains reliably
 The live worker exposed `[WinError 5] Access is denied` when its process
 runner attempted to spawn the PATH-resolved `npm.CMD` directly, stopping the
