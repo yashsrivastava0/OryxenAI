@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from uuid import UUID
 
 import httpx
 import pytest
@@ -33,6 +34,27 @@ def test_preview_health_url_derives_native_target_and_rejects_bind_address() -> 
         )
         == "http://127.0.0.1:4174/health/live"
     )
+
+
+def test_generation_retry_identity_changes_after_terminal_run_write() -> None:
+    first = development_service._generation_attempt_key(
+        UUID("00000000-0000-0000-0000-000000000123"),
+        plan_hash="plan-hash",
+        resource_hash="resource-hash",
+        dependency_hash="dependency-hash",
+        attempt=2,
+        revision=10,
+    )
+    second = development_service._generation_attempt_key(
+        UUID("00000000-0000-0000-0000-000000000123"),
+        plan_hash="plan-hash",
+        resource_hash="resource-hash",
+        dependency_hash="dependency-hash",
+        attempt=2,
+        revision=11,
+    )
+
+    assert first != second
     assert (
         development_service._preview_health_url(
             SimpleNamespace(
