@@ -613,6 +613,21 @@ class CodeGeneratorDevelopmentService:
             "generation_job_id": job.id,
             "issues": [],
         }
+        if resume_projection:
+            resumed_generation = dict(run.generation_projection or {})
+            # Repair ceilings belong to one executable generation attempt.
+            # A same-run retry keeps accepted source checkpoints but must not
+            # inherit the exhausted repair budget from the failed attempt.
+            resumed_generation.update(
+                {
+                    "repair_rounds": 0,
+                    "repair_budget_used": 0,
+                    "repair_fingerprint_counts": {},
+                    "repair_strategies": [],
+                    "issues": [],
+                }
+            )
+            values["generation_projection"] = resumed_generation
         if not resume_projection:
             values.update(
                 {

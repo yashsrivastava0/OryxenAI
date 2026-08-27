@@ -92,6 +92,7 @@ from oryxenai.agents.code_generator.core.source_manifest import (
 from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
+    validate_local_imports,
 )
 from oryxenai.agents.code_generator.core.token_compiler import (
     TokenCompilationError,
@@ -304,6 +305,13 @@ class CodeGeneratorGenerationOrchestrator:
                 workspace.repo_dir, projections, run.dependency_ledger
             )
             public_text = _public_text(projections)
+            stale_route_diagnostics = _invalidate_stale_route_batch_checkpoint(
+                projection,
+                plan=plan,
+                workspace=workspace,
+            )
+            if stale_route_diagnostics:
+                projection.diagnostics.extend(stale_route_diagnostics)
             projection = self._prepare_projection(projection, plan)
             await self._persist(
                 sessionmaker,
@@ -997,6 +1005,28 @@ class CodeGeneratorGenerationOrchestrator:
                 operation = "repair"
                 role_profile = str(settings.code_generator_generation.repair_profile)
                 continue
+            if unit.kind == "route_batch":
+                local_import_diagnostics = validate_local_imports(
+                    workspace.repo_dir,
+                    list(unit.owns_paths),
+                    work_unit_id=unit.unit_id,
+                )
+                if local_import_diagnostics:
+                    projection.diagnostics.extend(local_import_diagnostics)
+                    unit_projection.diagnostics.extend(
+                        item.diagnostic_id for item in local_import_diagnostics
+                    )
+                    _consume_repair_budget(
+                        projection,
+                        local_import_diagnostics,
+                        repair_round=repair_round,
+                        settings=settings,
+                    )
+                    repair_round += 1
+                    unit_projection.repair_round = repair_round
+                    operation = "repair"
+                    role_profile = str(settings.code_generator_generation.repair_profile)
+                    continue
             return checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
                 parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
@@ -2639,6 +2669,52 @@ def _read_json(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _invalidate_stale_route_batch_checkpoint(
+    projection: GenerationProjection,
+    *,
+    plan: SitePlan,
+    workspace: GenerationWorkspace,
+) -> list[SourceDiagnostic]:
+    """Reopen route batches checkpointed before local-import validation existed."""
+
+    route_batches = [unit for unit in plan.work_graph.units if unit.kind == "route_batch"]
+    if not route_batches or projection.accepted_checkpoint is None:
+        return []
+    projections_by_id = {item.unit_id: item for item in projection.work_units}
+    checkpointed = [
+        unit
+        for unit in route_batches
+        if projections_by_id.get(unit.unit_id) is not None
+        and projections_by_id[unit.unit_id].status == "checkpointed"
+    ]
+    if not checkpointed:
+        return []
+    diagnostics: list[SourceDiagnostic] = []
+    for unit in checkpointed:
+        diagnostics.extend(
+            validate_local_imports(
+                workspace.repo_dir,
+                list(unit.owns_paths),
+                work_unit_id=unit.unit_id,
+            )
+        )
+    if not diagnostics:
+        return []
+    for item in projection.work_units:
+        if item.kind not in {"route_batch", "route_compose"}:
+            continue
+        item.status = "pending"
+        item.checkpoint_after = ""
+        item.call_receipt_id = ""
+        item.repair_round = 0
+    projection.phase = "generating_routes"
+    projection.active_work_unit_id = ""
+    projection.source_ready = False
+    projection.source_file_count = 0
+    projection.source_total_bytes = 0
+    return diagnostics
 
 
 def _fallback_receipt(request: Any, reason: str) -> ResourceReceipt:

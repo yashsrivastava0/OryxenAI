@@ -16,6 +16,20 @@ Authority and anchor requirements:
   returning. A copied-from-memory sentence, marker paraphrase, or one-character
   interaction-id change is a failed result.
 
+Import paths are resolved from the repository root, not from the prompt's
+logical `src/...` labels. Use the `@/` alias when possible. If using relative
+imports, the exact paths from a section file at
+`src/routes/<route-storage-key>/sections/<section-file>.tsx` are:
+
+- `src/content/generated-content.ts` → `../../../content/generated-content`
+- `src/components/generated/SharedSystems.tsx` → `../../../components/generated/SharedSystems`
+- `src/app/ResourceUrl.ts` → `../../../app/ResourceUrl`
+- another file in the same `sections/` directory → `./<section-file>`
+
+Do not use four `..` segments from a section file; that leaves `src/` and
+cannot resolve the trusted modules. Before returning, resolve every local
+import against the actual owned source paths.
+
 Ownership and shell boundary:
 
 - A route batch owns section fragments only. It must not create or modify a

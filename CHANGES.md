@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 02:48 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - validate route-batch imports before checkpoint recovery
+The resumed tenth run proved that valid batch ownership was not enough: model
+source could checkpoint imports that only failed once the composed route was
+audited. Route batches now receive an exact trusted-module import map and a
+bounded resolver before checkpointing; same-run retries reopen stale batches
+and reset only the failed attempt's repair budget, preserving the durable run
+and its accepted foundation.
+
 ### 2026-08-28 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [d620d1f] - isolate V4 composer authority and resume terminal generation
 The tenth live frontend run showed that the composer still received batch-owned
 content IDs, facts, and route bindings even after its content instruction was
