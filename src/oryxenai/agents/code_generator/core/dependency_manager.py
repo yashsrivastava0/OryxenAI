@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -140,20 +141,32 @@ class DependencyManager:
         manifest.setdefault("private", True)
         manifest_text = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         manifest_hash = hashlib.sha256(manifest_text.encode("utf-8")).hexdigest()
-        previous_lock = repo_dir / "package-lock.json"
-        previous_lock_hash = (
-            hashlib.sha256(previous_lock.read_bytes()).hexdigest()
-            if previous_lock.is_file()
-            else _canonical_hash(prior_lock)
-        )
-        node_modules = repo_dir / "node_modules"
-        (repo_dir / "package.json").write_text(manifest_text, encoding="utf-8")
-        await self._create_lock(repo_dir, settings)
-        lock_file = repo_dir / "package-lock.json"
-        lock_hash = hashlib.sha256(lock_file.read_bytes()).hexdigest()
-        if previous_lock_hash != lock_hash:
-            shutil.rmtree(node_modules, ignore_errors=True)
-        await self._install(repo_dir, settings)
+
+        # Resolve in a disposable sibling workspace. Optional dependencies are
+        # allowed to fall back, so a failed lockfile/install attempt must not
+        # leave an uninstalled package in the real manifest (or a half-updated
+        # lockfile/node_modules tree) for the later source-toolchain check.
+        stage_dir = Path(tempfile.mkdtemp(prefix=".dependency-stage-", dir=repo_dir.parent))
+        try:
+            stage_manifest = stage_dir / "package.json"
+            stage_lock = stage_dir / "package-lock.json"
+            stage_manifest.write_text(manifest_text, encoding="utf-8")
+            previous_lock = repo_dir / "package-lock.json"
+            if previous_lock.is_file():
+                shutil.copyfile(previous_lock, stage_lock)
+            elif prior_lock:
+                stage_lock.write_text(
+                    json.dumps(prior_lock, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+
+            await self._create_lock(stage_dir, settings)
+            lock_file = stage_dir / "package-lock.json"
+            lock_hash = hashlib.sha256(lock_file.read_bytes()).hexdigest()
+            await self._install(stage_dir, settings)
+            self._commit_stage(repo_dir, stage_dir)
+        finally:
+            shutil.rmtree(stage_dir, ignore_errors=True)
         return DependencyReceipt(
             based_on=basis,
             decision="admitted",
@@ -169,6 +182,17 @@ class DependencyManager:
             lock_hash=lock_hash,
             cache_receipt={"mode": "offline" if not config.allow_network_install else "configured"},
         )
+
+    @staticmethod
+    def _commit_stage(repo_dir: Path, stage_dir: Path) -> None:
+        """Publish a fully installed dependency workspace atomically enough for fallback."""
+
+        shutil.copyfile(stage_dir / "package.json", repo_dir / "package.json")
+        shutil.copyfile(stage_dir / "package-lock.json", repo_dir / "package-lock.json")
+        node_modules = repo_dir / "node_modules"
+        if node_modules.exists():
+            shutil.rmtree(node_modules)
+        shutil.move(str(stage_dir / "node_modules"), str(node_modules))
 
     async def _create_lock(self, repo_dir: Path, settings: Any) -> None:
         """Ask npm to produce the lockfile; application code never synthesizes one."""

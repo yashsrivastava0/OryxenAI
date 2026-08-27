@@ -48,6 +48,7 @@ def test_supported_dependency_never_synthesizes_a_package_install_and_unsupporte
             )
         )
     assert not (tmp_path / "repo" / "node_modules").exists()
+    assert not (tmp_path / "repo" / "package.json").exists()
     assert not (tmp_path / "repo" / "package-lock.json").exists()
     configured_pin = str(
         settings.code_generator_dependencies.supported_packages["lucide-react"]["version_pin"]
