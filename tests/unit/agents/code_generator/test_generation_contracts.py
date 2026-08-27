@@ -183,9 +183,12 @@ def test_prompt_builder_injects_the_normative_generation_contract() -> None:
                     "router_file": "src/app/AppRouter.tsx",
                     "required_behaviors": ["Render Page not found for unknown paths."],
                 },
+                "assigned_resource_slot_ids": ["slot-a", "slot-b"],
             },
         },
     )
     assert "RUNTIME SHELL CONTRACT: src/app/AppRouter.tsx" in instructions
     assert "Render Page not found for unknown paths." in instructions
+    assert "SOURCE COVERAGE RESOURCE SLOT IDS" in instructions
+    assert "slot-a, slot-b" in instructions
     assert receipt.prompt_versions["operation"] == "code_generator.integrate.v5"
