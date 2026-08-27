@@ -274,6 +274,7 @@ def build_generation_contract(
         "routes": route_contracts,
         "acceptance_markers": markers,
         "interactions": interactions,
+        "assigned_resource_slot_ids": list(unit.resource_slot_ids) if unit is not None else [],
         # Recipes are design guidance, not concrete resource bindings. Only a
         # required local/package resolution creates a source-level hard gate.
         "required_slot_bindings": [
@@ -463,6 +464,17 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
                 f"package={slot.get('package_name', '') or '(none)'}, "
                 f"exports={', '.join(slot.get('expected_exports', [])) or '(none)'}"
             )
+
+    assigned_resource_slot_ids = contract.get("assigned_resource_slot_ids", [])
+    if assigned_resource_slot_ids:
+        lines.append("")
+        lines.append("SOURCE COVERAGE RESOURCE SLOT IDS")
+        lines.append(
+            "Copy this complete ordered list exactly into the returned "
+            "resource_slot_ids array. Include optional package, recipe, and component "
+            "slots even when the assigned source does not render them directly:"
+        )
+        lines.append(f"- {', '.join(str(item) for item in assigned_resource_slot_ids)}")
 
     preserve = contract.get("must_preserve_text", [])
     if preserve:

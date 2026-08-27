@@ -50,6 +50,11 @@ Resource and content contract:
 - A required component binding is used by importing its materialized local
   module and rendering it. A slot id, filename comment, or manifest mention is
   not usage. Never use remote imports, fetch, network URLs, or package changes.
+- Copy the complete ordered `unit.resource_slot_ids` list exactly into the
+  returned `resource_slot_ids` coverage array. Include optional package,
+  recipe, and component slots even when the assigned section source does not
+  render them directly; this array records the work-unit assignment, not only
+  the image slots you chose to use.
 - All visible copy comes verbatim from `site_contract.public_content`.
   Connective labels and aria text must be approved content or at most three
   words. Never invent claims, metrics, clients, testimonials, credentials,
