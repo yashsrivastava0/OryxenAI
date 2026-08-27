@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:51 +05:30 - Codex (GPT-5 / OpenAI) - [ffac6f6] - bound resumed source-generation context
+The tenth frontend run reproduced `GENERATION_CONTEXT_LIMIT` after live route
+responses and repairs accumulated near the configured 120,000-character
+ceiling. Route batches and composers were receiving the whole repository file
+inventory even though create/replace authority is unit-owned, and rejected
+candidate trees could contribute unrelated source on repair. Route operation
+contexts now carry only owned-file inventory and diagnostic/owned candidate
+files under a bounded total, while prompt receipts measure the same compact
+serialization used by preflight. This preserves the complete trusted contract,
+approved design inputs, and repair source needed by the active unit without
+letting retry history crowd out the next live model call. Focused context,
+contract, lint, and unit tests passed.
+
 ### 2026-08-28 03:48 +05:30 - Codex (GPT-5 / OpenAI) - [958b27a] - add bounded Windows batch launch fallback
 The native worker continued to claim frontend resume jobs but could not start
 the configured npm batch command through either asynchronous Windows launch
