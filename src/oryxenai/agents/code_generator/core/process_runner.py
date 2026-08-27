@@ -162,10 +162,20 @@ async def run_command(
                     *command, **fallback_kwargs
                 )
             except OSError:
-                raise ProcessRunnerError(
-                    "COMMAND_START_FAILED",
-                    f"The trusted command could not start ({exc}).",
-                ) from exc
+                try:
+                    return await asyncio.to_thread(
+                        _run_windows_batch_fallback,
+                        command,
+                        cwd=cwd,
+                        timeout_seconds=timeout_seconds,
+                        max_output_bytes=max_output_bytes,
+                        environment=_safe_environment(environment),
+                    )
+                except OSError:
+                    raise ProcessRunnerError(
+                        "COMMAND_START_FAILED",
+                        f"The trusted command could not start ({exc}).",
+                    ) from exc
         else:
             raise ProcessRunnerError(
                 "COMMAND_START_FAILED",
@@ -189,3 +199,59 @@ async def run_command(
         stderr=stderr,
         timed_out=timed_out,
     )
+
+
+def _run_windows_batch_fallback(
+    command: list[str],
+    *,
+    cwd: Path,
+    timeout_seconds: float,
+    max_output_bytes: int,
+    environment: dict[str, str],
+) -> ProcessResult:
+    """Run a validated Windows batch command from a worker thread.
+
+    This is reached only after both asyncio CreateProcess modes reject the
+    command.  Popen provides a compatible final launch path for hosts whose
+    asyncio child-watcher context denies the batch process; the worker thread
+    keeps the event loop responsive while preserving the same output and
+    timeout contract.
+    """
+
+    process = subprocess.Popen(  # noqa: S603 - command was validated before this fallback
+        command,
+        cwd=str(cwd),
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    timed_out = False
+    try:
+        stdout_bytes, stderr_bytes = process.communicate(timeout=max(0.1, timeout_seconds))
+    except subprocess.TimeoutExpired:
+        _terminate_sync_process_tree(process)
+        stdout_bytes, stderr_bytes = process.communicate()
+        timed_out = True
+    return ProcessResult(
+        command=tuple(command),
+        returncode=int(process.returncode or 0),
+        stdout=stdout_bytes.decode("utf-8", errors="replace")[-max_output_bytes:],
+        stderr=stderr_bytes.decode("utf-8", errors="replace")[-max_output_bytes:],
+        timed_out=timed_out,
+    )
+
+
+def _terminate_sync_process_tree(process: subprocess.Popen[bytes]) -> None:
+    try:
+        taskkill = shutil.which("taskkill") or "taskkill"
+        killer = subprocess.run(  # noqa: S603 - fixed system process-tree command
+            [taskkill, "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        del killer
+    except OSError:
+        process.kill()
