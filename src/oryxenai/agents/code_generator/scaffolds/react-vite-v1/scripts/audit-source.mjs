@@ -167,7 +167,8 @@ function exportNames(source) {
 }
 
 function jsxTagName(node) {
-  const tag = node.tagName;
+  const tag = ts.isJsxElement(node) ? node.openingElement.tagName : node.tagName;
+  if (!tag) return "";
   if (ts.isIdentifier(tag)) return tag.text;
   if (ts.isPropertyAccessExpression(tag)) {
     return `${ts.isIdentifier(tag.expression) ? tag.expression.text : ""}.${tag.name.text}`;
@@ -177,7 +178,8 @@ function jsxTagName(node) {
 
 function jsxAttributes(node) {
   const attributes = new Map();
-  for (const attribute of node.attributes.properties) {
+  const attributeList = ts.isJsxElement(node) ? node.openingElement.attributes : node.attributes;
+  for (const attribute of attributeList.properties) {
     if (!ts.isJsxAttribute(attribute)) continue;
     const name = attribute.name.text;
     const value = attribute.initializer && literalValue(attribute.initializer);
