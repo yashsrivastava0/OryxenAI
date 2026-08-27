@@ -255,9 +255,13 @@ def test_generation_context_reads_only_trusted_and_assigned_source(tmp_path) -> 
         target = repo / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(relative, encoding="utf-8")
-    unrelated = repo / "src/content/generated-content.ts"
-    unrelated.parent.mkdir(parents=True, exist_ok=True)
-    unrelated.write_text("unrelated generated content", encoding="utf-8")
+    content = repo / "src/content/generated-content.ts"
+    content.parent.mkdir(parents=True, exist_ok=True)
+    content.write_text(
+        'export const CONTENT_INDEX = [{"content_id": "home.hero.title", "value": "Approved"}] as const;\n'
+        'export function contentValue(contentId: typeof CONTENT_INDEX[number]["content_id"]): string { return contentId; }\n',
+        encoding="utf-8",
+    )
     component = repo / "src/generated/resources/pack/components/demo/source/index.tsx"
     component.parent.mkdir(parents=True, exist_ok=True)
     component.write_text("export const Demo = () => null;", encoding="utf-8")
@@ -298,7 +302,9 @@ def test_generation_context_reads_only_trusted_and_assigned_source(tmp_path) -> 
 
     shared = _shared_source_for_unit(plan, projections, unit, repo)
 
-    assert "src/content/generated-content.ts" not in shared
+    assert "src/content/generated-content.ts" in shared
+    assert "contentValue" in shared["src/content/generated-content.ts"]
+    assert '"value": "Approved"' not in shared["src/content/generated-content.ts"]
     assert "src/app/ResourceUrl.ts" in shared
     assert "src/generated/resources/pack/components/demo/source/index.tsx" in shared
 
