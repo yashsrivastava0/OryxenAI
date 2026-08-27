@@ -4,6 +4,10 @@ import pytest
 from pydantic import ValidationError
 
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
+from oryxenai.agents.code_generator.core.development_planner import (
+    SitePlanValidationError,
+    validate_v4_blueprint_identities,
+)
 from oryxenai.agents.code_generator.core.development_schemas import (
     CreativeDirectionSetV3,
     DesignTokenSystemV4,
@@ -138,6 +142,31 @@ def _blueprint() -> ExperienceBlueprintV4:
 
 def test_v4_contracts_are_closed_and_provider_compatible() -> None:
     assert schema_compatibility_issues(ExperienceBlueprintV4) == []
+
+
+def test_v4_blueprint_must_echo_host_identity_manifest() -> None:
+    blueprint = _blueprint()
+    context = {
+        "blueprint_identity_manifest": [
+            {
+                "route_id": "home",
+                "section_id": "hero",
+                "region_id": "region:hero",
+                "owner_id": "owner:hero",
+            }
+        ]
+    }
+
+    validate_v4_blueprint_identities(blueprint, context)
+    drifted = blueprint.model_copy(
+        update={
+            "section_regions": [
+                blueprint.section_regions[0].model_copy(update={"owner_id": "owner:other"})
+            ]
+        }
+    )
+    with pytest.raises(SitePlanValidationError, match="echo the host identity"):
+        validate_v4_blueprint_identities(drifted, context)
     assert schema_compatibility_issues(SourceGenerationEnvelopeV2) == []
     intent = ResourceSearchIntentV2(
         slot_id="image:hero",

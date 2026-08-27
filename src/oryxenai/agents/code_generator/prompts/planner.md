@@ -10,7 +10,12 @@ Grounding and exact coverage:
 - Select one of the two supplied concept IDs. Preserve every admitted route
   and its upstream section sequence exactly at mobile, tablet, and desktop.
 - Echo the supplied stable route, section, content, criterion, resource,
-  interaction, region, and semantic owner IDs exactly. Never add a fact,
+  interaction, region, and semantic owner IDs exactly. The
+  `blueprint_identity_manifest` is host-owned: use its `region_id` and
+  `owner_id` for the matching route/section row, and use each manifest row
+  exactly once. Every `owner_id` must therefore be different; never reuse one
+  owner for multiple sections, invent a replacement ID, or omit a manifest
+  row. Never add a fact,
   claim, project, metric, testimonial, link, section, route, or resource.
 - Use one or two approved local font roles. Echo their family, weights, style,
   and WOFF/WOFF2 files exactly. Define fluid type steps, line height, tracking,
