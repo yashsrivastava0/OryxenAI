@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - phase-aware V4 source checks
+### 2026-08-28 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [d1a229d] - phase-aware V4 source checks
 The fourth live frontend generation confirmed that the complete V4 route audit
 was being applied while the deterministic foundation and route-batch phases
 still intentionally contained the scaffold route shell. Source/toolchain
