@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - isolate V4 composer authority and resume terminal generation
+### 2026-08-28 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [d620d1f] - isolate V4 composer authority and resume terminal generation
 The tenth live frontend run showed that the composer still received batch-owned
 content IDs, facts, and route bindings even after its content instruction was
 disabled; Luna consequently retyped copy and failed the host coverage contract.
