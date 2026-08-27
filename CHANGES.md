@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 04:24 +05:30 - Codex (GPT-5 / OpenAI) - [20ea8b8] - keep composer context unit-scoped
+The resumed frontend run reached a second context-ceiling failure after
+stale route-batch checkpoints were correctly reopened. Although the composer
+could only write its route index and route CSS, a later context filter restored
+the full `src/` inventory for its create/replace list. Composer contexts now
+retain only their exact owned paths, while trusted batch signatures and source
+interfaces continue to provide read-only dependency authority. Focused route,
+contract, context, and lint checks passed.
+
 ### 2026-08-28 04:20 +05:30 - Codex (GPT-5 / OpenAI) - [0a6dcfe] - enforce split route ownership and imported-content audit
 The tenth frontend generation exposed a contract mismatch after the context
 ceiling was fixed: route-batch checkpoints accepted one model component that
