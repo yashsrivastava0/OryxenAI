@@ -14,6 +14,12 @@ section order and keep `data-content-id` markers and approved copy in their
 batch modules. The composer anchor must contain the route id, every assigned
 source marker, and every planned interaction id.
 
+The route file is located at
+`src/routes/<route-storage-key>/index.tsx`. Its exact relative import to the
+trusted `src/components/generated/SharedSystems.tsx` module is
+`../../components/generated/SharedSystems` (or use `@/components/generated/SharedSystems`).
+Section modules are siblings below `./sections/`; do not climb above `src/`.
+
 Use the exact emitted blueprint token names. Do not assume or recreate a
 default palette, `.card`, `.surface`, `.grid`, `.reveal`, `.stagger`, or other
 generic scaffold primitive. The trusted `SharedSystems` signature supplies
