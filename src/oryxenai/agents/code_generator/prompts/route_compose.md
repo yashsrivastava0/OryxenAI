@@ -9,10 +9,18 @@ the route-owned element that implements the move.
 The composer owns only the route shell and route-level composition paths. It
 may resolve layout rhythm, landmark structure, section transitions, and
 route-local interaction wiring, but it may not rewrite already-owned batch
-content or create a second visual language. Render each batch in approved
-section order and keep `data-content-id` markers and approved copy in their
-batch modules. The composer anchor must contain the route id, every assigned
-source marker, and every planned interaction id.
+content or create a second visual language. Import and render one completed
+section component for every approved section, in the exact approved order;
+keep each section's `id`, `data-content-id`, and approved copy in that section
+module. Do not retype content, create a second section wrapper, or import an
+aggregator that owns multiple sections.
+
+`RouteShell` already owns the single `main` landmark and its literal
+`data-route-id`. Pass the exact route id to `RouteShell`, but do not add
+another `id="<route_id>"`, `data-route-id="<route_id>"`, or nested shell in the
+route composition. In particular, a route-level wrapper must not duplicate a
+section module's DOM id or the shell's `main-content` id. The composer anchor
+must contain every assigned source marker and every planned interaction id.
 
 The route file is located at
 `src/routes/<route-storage-key>/index.tsx`. Its exact relative import to the
