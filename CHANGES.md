@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 04:42 +05:30 - Codex (GPT-5 / OpenAI) - [93771b9] - audit aliased imports and static content references
+The live tenth frontend run reached the corrected split-section contract but
+the generated source audit rejected two valid forms: the configured `@/`
+alias for the trusted `SharedSystems` module and approved content IDs held in
+literal arrays before being passed to `contentValue`. The audit now resolves
+both forms statically while retaining the trusted-module and executable-call
+requirements, allowing the checker to match the v4 generation contract.
+
 ### 2026-08-28 04:35 +05:30 - Codex (GPT-5 / OpenAI) - [0b46913] - reassert source audit scaffold on resume
 The live run showed that updating the checked-in audit scaffold was
 insufficient for an existing checkpoint: workspace restoration could put the
