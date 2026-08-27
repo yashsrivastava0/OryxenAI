@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 01:30 +05:30 - Codex (GPT-5 / OpenAI) - [169ea5f] - expose bounded generated-content interface
+The seventh live frontend generation passed planning and resource acquisition
+but the route batch could not safely generate because its operation context
+omitted the trusted `src/content/generated-content.ts` API. Route work now
+receives a compact interface excerpt containing the exact approved content-key
+union and frozen export signatures, while approved prose remains supplied by
+the route-scoped contract instead of being duplicated in the context. Added a
+regression test for API presence and prose compaction.
+
 ### 2026-08-28 01:19 +05:30 - Codex (GPT-5 / OpenAI) - [fb1c209] - require explicit V4 typography roles
 The sixth live frontend generation reached the live Luna planner but returned
 an invalid V4 token system because omitted typography roles were defaulted to
