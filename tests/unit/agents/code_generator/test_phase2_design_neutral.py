@@ -19,6 +19,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     WorkUnit,
 )
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    _operation_context,
     _scoped_resource_ledger,
     _shared_source_for_unit,
 )
@@ -33,6 +34,7 @@ from oryxenai.agents.code_generator.core.token_compiler import (
 )
 from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_typescript_source
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
+from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 
 
 def _blueprint() -> ExperienceBlueprintV3:
@@ -327,6 +329,77 @@ def test_resource_context_drops_historical_ledger_payloads() -> None:
     )
 
     assert scoped == {"schema_version": "ledger-v1", "ledger_hash": "ledger-hash"}
+
+
+def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path) -> None:
+    repo = tmp_path / "repo"
+    owned = repo / "src/routes/home/sections/hero.tsx"
+    owned.parent.mkdir(parents=True, exist_ok=True)
+    owned.write_text("export default function Hero() { return null; }", encoding="utf-8")
+    unrelated = repo / "src/routes/home/sections/unrelated.tsx"
+    unrelated.write_text("export default function Unrelated() { return null; }", encoding="utf-8")
+
+    workspace = GenerationWorkspace(
+        tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    workspace.repo_dir = repo
+    candidate = workspace.root / "candidate-route-home"
+    candidate_owned = candidate / "src/routes/home/sections/hero.tsx"
+    candidate_owned.parent.mkdir(parents=True, exist_ok=True)
+    candidate_owned.write_text("candidate source", encoding="utf-8")
+    (candidate / "src/routes/home/sections/unrelated.tsx").write_text(
+        "unrelated candidate source", encoding="utf-8"
+    )
+
+    unit = WorkUnit(
+        unit_id="route-home",
+        kind="route_batch",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=["src/routes/home/sections/hero.tsx"],
+    )
+    plan = SitePlan(
+        plan_id="context-scope",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stacked",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        work_graph=WorkGraph(units=[unit]),
+    )
+    context = _operation_context(
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "criteria": [],
+                "facts": [],
+                "public_content": [],
+            },
+            "design/visual-direction.json": {},
+            "resources/ledger.json": {},
+            "execution/contract.json": {},
+        },
+        unit=unit,
+        operation="route_batch",
+        checkpoint=None,
+        workspace=workspace,
+        role_profile="openai_luna",
+        output_ceiling=2_000_000,
+        diagnostics=[],
+        repair_round=0,
+    )
+
+    assert context["existing_files"] == ["src/routes/home/sections/hero.tsx"]
+    assert context["previous_attempt_files"] == {
+        "src/routes/home/sections/hero.tsx": "candidate source"
+    }
 
 
 def test_v3_typescript_audit_catches_route_contract_regressions(tmp_path) -> None:
