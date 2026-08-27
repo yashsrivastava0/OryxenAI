@@ -27,6 +27,16 @@ class SourceValidationError(ValueError):
 _IMPORT_RE = re.compile(
     r"(?:import\s+(?:[^;]*?\s+from\s+)?|export\s+[^;]*?\s+from\s+|import\s*\()\s*[\"']([^\"']+)[\"']"
 )
+_LOCAL_IMPORT_BINDINGS_RE = re.compile(
+    r"(?:\bimport\s+(?P<import_bindings>[^;]*?)\s+from\s+|"
+    r"\bexport\s+(?P<export_bindings>\{[^}]*\})\s+from\s+)"
+    r"[\"'](?P<module>[^\"']+)[\"']"
+)
+_EXPORT_DECL_RE = re.compile(
+    r"\bexport\s+(?:declare\s+)?(?:const|let|var|function|class|type|interface|enum)\s+"
+    r"([A-Za-z_$][\w$]*)"
+)
+_EXPORT_LIST_RE = re.compile(r"\bexport\s*\{([^}]*)\}")
 _REMOTE_RE = re.compile(r"https?://|//[A-Za-z0-9]", re.IGNORECASE)
 _FORBIDDEN_RUNTIME_RE = re.compile(r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(")
 _PLACEHOLDER_TERMS = ("lorem ipsum", "todo", "placeholder", "coming soon", "fake success")
@@ -235,13 +245,16 @@ def validate_local_imports(
     *,
     work_unit_id: str,
 ) -> list[SourceDiagnostic]:
-    """Validate local module resolution for a bounded set of generated files.
+    """Validate local module resolution and named bindings for a bounded set.
 
     Route batches are intentionally checked before the complete route shell
     exists, so the whole-site TypeScript audit cannot run at that point. This
-    narrower check still catches the mechanical failure that matters to a
+    narrower check still catches the mechanical failures that matter to a
     batch: a section importing a trusted module or sibling that does not
-    resolve from its real source location.
+    resolve from its real source location, or naming an export the target
+    module does not provide. The latter prevents a batch from checkpointing a
+    self-importing or invalid re-export that would only be discovered after
+    route composition.
     """
 
     diagnostics: list[SourceDiagnostic] = []
@@ -267,6 +280,27 @@ def validate_local_imports(
                     relative,
                 )
             )
+        for match in _LOCAL_IMPORT_BINDINGS_RE.finditer(text):
+            imported = match.group("module")
+            if not imported.startswith((".", "/", "@/")):
+                continue
+            target = _resolve_local_import_path(repo_dir, source, imported)
+            if target is None or target.suffix.lower() not in {".ts", ".tsx", ".js", ".jsx"}:
+                continue
+            bindings = match.group("import_bindings") or match.group("export_bindings") or ""
+            names = _local_binding_names(bindings)
+            if not names:
+                continue
+            exported = _module_exports(target)
+            for name in sorted(names - exported):
+                diagnostics.append(
+                    _diagnostic(
+                        "SOURCE_LOCAL_EXPORT_MISSING",
+                        f"Generated local import names an export the target module does not provide: {name}",
+                        work_unit_id,
+                        relative,
+                    )
+                )
     return diagnostics
 
 
@@ -287,6 +321,10 @@ def _safe_path(value: str) -> str:
 
 
 def _resolve_local_import(repo_dir: Path, source: Path, imported: str) -> bool:
+    return _resolve_local_import_path(repo_dir, source, imported) is not None
+
+
+def _resolve_local_import_path(repo_dir: Path, source: Path, imported: str) -> Path | None:
     if imported.startswith("@/"):
         target = (repo_dir / "src" / imported[2:]).resolve()
     elif imported.startswith("/"):
@@ -295,13 +333,58 @@ def _resolve_local_import(repo_dir: Path, source: Path, imported: str) -> bool:
         target = (source.parent / imported).resolve()
     root = repo_dir.resolve()
     if not target.is_relative_to(root):
-        return False
+        return None
     candidates = [target]
     candidates.extend(
         target.with_suffix(suffix) for suffix in (".ts", ".tsx", ".js", ".jsx", ".css", ".json")
     )
     candidates.extend(target / f"index{suffix}" for suffix in (".ts", ".tsx", ".js", ".jsx"))
-    return any(candidate.is_file() for candidate in candidates)
+    return next((candidate for candidate in candidates if candidate.is_file()), None)
+
+
+def _local_binding_names(bindings: str) -> set[str]:
+    """Return source export names referenced by an import/re-export clause."""
+
+    value = bindings.strip()
+    if not value or value.startswith("*"):
+        return set()
+    names: set[str] = set()
+    named_match = re.search(r"\{([^}]*)\}", value, re.DOTALL)
+    if named_match:
+        for item in named_match.group(1).split(","):
+            item = item.strip()
+            if not item:
+                continue
+            item = re.sub(r"^type\s+", "", item).strip()
+            source_name = item.split(" as ", 1)[0].strip()
+            if re.fullmatch(r"[A-Za-z_$][\w$]*", source_name):
+                names.add(source_name)
+        value = value[: named_match.start()].rstrip(" ,")
+    # A default import is the identifier before the optional named clause.
+    default_match = re.match(r"^(?:type\s+)?([A-Za-z_$][\w$]*)\s*(?:,|$)", value)
+    if default_match:
+        names.add("default")
+    return names
+
+
+def _module_exports(path: Path) -> set[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+    clean = re.sub(r"/\*.*?\*/|//[^\r\n]*", " ", text, flags=re.DOTALL)
+    exports = set(_EXPORT_DECL_RE.findall(clean))
+    for group in _EXPORT_LIST_RE.findall(clean):
+        for item in group.split(","):
+            source_name = item.strip().split(" as ", 1)[0].strip()
+            if source_name and re.fullmatch(r"[A-Za-z_$][\w$]*", source_name):
+                exports.add(source_name)
+            alias = item.strip().split(" as ", 1)[-1].strip()
+            if alias and re.fullmatch(r"[A-Za-z_$][\w$]*", alias):
+                exports.add(alias)
+    if re.search(r"\bexport\s+default\b", clean):
+        exports.add("default")
+    return exports
 
 
 def _owned(path: str, owned_paths: list[str]) -> bool:
