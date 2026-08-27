@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 02:20 +05:30 - Codex (GPT-5 / OpenAI) - [772bef1] - align V4 composer content contract with work ownership
+The tenth live frontend run reached route composition after the context ceiling
+fix, but the V4 composer was instructed to report every approved route content
+key even though its WorkUnit owns only the route shell and no sections. The
+validator correctly expected no content coverage for that unit and exhausted
+repairs on the contradictory contract. V4 composer contracts now direct the
+model to render the completed section batches and reserve content-key coverage
+for the section-owning route batches; a regression test locks the boundary.
+
 ### 2026-08-28 02:08 +05:30 - Codex (GPT-5 / OpenAI) - [70b024d] - version the detached generator module with the shell
 The detached development page versioned its bootstrap module but imported the
 main Code Generator module without the computed asset version, allowing the
