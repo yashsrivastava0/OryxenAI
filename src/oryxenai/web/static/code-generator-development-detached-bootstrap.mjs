@@ -1,4 +1,7 @@
-import { bootCodeGeneratorDevelopment } from './code-generator-development.js';
+const generatorModuleUrl = new URL('./code-generator-development.js', import.meta.url);
+const generatorVersion = new URL(import.meta.url).searchParams.get('js');
+if (generatorVersion) generatorModuleUrl.searchParams.set('v', generatorVersion);
+const generatorModule = import(generatorModuleUrl.href);
 
 /**
  * Development-only request boundary. It deliberately has no auth imports,
@@ -21,6 +24,7 @@ export function createAnonymousRequest(fetchImpl = globalThis.fetch) {
 }
 
 export async function bootDetachedCodeGenerator({ fetchImpl = globalThis.fetch } = {}) {
+  const { bootCodeGeneratorDevelopment } = await generatorModule;
   return bootCodeGeneratorDevelopment({ request: createAnonymousRequest(fetchImpl) });
 }
 
