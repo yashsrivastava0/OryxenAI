@@ -686,6 +686,10 @@ class CodeGeneratorGenerationOrchestrator:
             max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
             work_unit_id="route-batch-wave",
             settings=settings,
+            # Route batches own section modules only.  The route shell is
+            # intentionally composed in the following route_compose unit, so
+            # the whole-site V4 audit must wait until that contract exists.
+            include_source_audit=False,
         )
         if diagnostics:
             raise GenerationError(
@@ -762,6 +766,11 @@ class CodeGeneratorGenerationOrchestrator:
                 max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
                 work_unit_id=unit.unit_id,
                 settings=settings,
+                # The foundation updates trusted generated manifests while
+                # route composition is still the scaffold placeholder.  Keep
+                # the toolchain and structural checks active, but defer the
+                # complete route audit to route_compose/integration.
+                include_source_audit=False,
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
@@ -790,6 +799,7 @@ class CodeGeneratorGenerationOrchestrator:
                 max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
                 work_unit_id=unit.unit_id,
                 settings=settings,
+                include_source_audit=unit.kind in {"route_compose", "integration"},
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)

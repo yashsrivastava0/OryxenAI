@@ -77,6 +77,7 @@ async def run_source_checks(
     max_source_bytes: int,
     work_unit_id: str,
     settings: Any,
+    include_source_audit: bool = True,
 ) -> list[SourceDiagnostic]:
     from oryxenai.agents.code_generator.core.source_validation import validate_repository
 
@@ -91,19 +92,26 @@ async def run_source_checks(
         return diagnostics
     if bool(getattr(settings.code_generator_generation, "use_real_typecheck", False)):
         return await _run_configured_typecheck(
-            repo_dir, work_unit_id=work_unit_id, settings=settings
+            repo_dir,
+            work_unit_id=work_unit_id,
+            settings=settings,
+            include_source_audit=include_source_audit,
         )
     return _structural_typecheck(repo_dir, work_unit_id)
 
 
 async def _run_configured_typecheck(
-    repo_dir: Path, *, work_unit_id: str, settings: Any
+    repo_dir: Path,
+    *,
+    work_unit_id: str,
+    settings: Any,
+    include_source_audit: bool = True,
 ) -> list[SourceDiagnostic]:
     audit_command = [
         str(value)
         for value in getattr(settings.code_generator_generation, "source_audit_command", [])
     ]
-    if audit_command:
+    if include_source_audit and audit_command:
         try:
             audit_result = await run_command(
                 audit_command,
