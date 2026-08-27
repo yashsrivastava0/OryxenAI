@@ -313,12 +313,14 @@ def validate_route_batch_contract(
     source_markers: list[str] | None = None,
     work_unit_id: str,
 ) -> list[SourceDiagnostic]:
-    """Validate the route-owned anchor before a split batch is checkpointed.
+    """Validate section ownership before a split batch is checkpointed.
 
-    The first owned TSX path is the deterministic anchor named by the
-    generation contract. Split batches may use helper modules, but that anchor
-    must still carry the authoritative route and section literals; otherwise
-    composition cannot prove that the batch is actually rendered.
+    A split route batch has one concrete TSX owner per assigned section.  The
+    route composer later assembles those independent modules.  Treating the
+    first file as an aggregator makes a superficially valid checkpoint hide
+    duplicate section anchors and leaves the other owned files as unrendered
+    helpers, so this boundary validates the ownership map across every
+    concrete file in the batch.
     """
 
     diagnostics = validate_local_imports(
@@ -327,19 +329,24 @@ def validate_route_batch_contract(
         work_unit_id=work_unit_id,
     )
     normalized_paths = [value.replace("\\", "/") for value in relative_paths]
-    anchor_relative = next(
-        (value for value in normalized_paths if value.endswith(".tsx") and "*" not in value),
-        "",
-    )
-    if not anchor_relative:
-        return diagnostics
-    anchor = (repo_dir / anchor_relative).resolve()
-    try:
-        text = anchor.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    source_paths = [
+        value for value in normalized_paths if value.endswith(".tsx") and "*" not in value
+    ]
+    if not source_paths:
         return diagnostics
 
-    if route_id and route_id not in text:
+    sources: dict[str, str] = {}
+    for relative in source_paths:
+        try:
+            sources[relative] = (repo_dir / relative).resolve().read_text(
+                encoding="utf-8"
+            )
+        except (OSError, UnicodeDecodeError):
+            continue
+
+    anchor_relative = source_paths[0]
+    anchor_text = sources.get(anchor_relative, "")
+    if route_id and route_id not in anchor_text:
         diagnostics.append(
             _diagnostic(
                 "SOURCE_ROUTE_BATCH_ROUTE_ID_MISSING",
@@ -348,35 +355,70 @@ def validate_route_batch_contract(
                 anchor_relative,
             )
         )
+
+    section_pattern = re.compile(r'data-content-id\s*=\s*["\']([^"\']+)["\']')
+    assigned = set(section_ids or [])
+    owners: dict[str, list[str]] = {section_id: [] for section_id in section_ids or []}
+    for relative, text in sources.items():
+        literals = section_pattern.findall(text)
+        assigned_literals = [value for value in literals if value in assigned]
+        if len(assigned_literals) != 1:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_SECTION_OWNERSHIP_INVALID",
+                    "Each owned TSX file must contain exactly one assigned literal "
+                    "data-content-id section anchor; do not aggregate sections or "
+                    "return helper-only files.",
+                    work_unit_id,
+                    relative,
+                )
+            )
+            continue
+        owners[assigned_literals[0]].append(relative)
+
     for section_id in section_ids or []:
+        owner_paths = owners[section_id]
+        if len(owner_paths) != 1:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_SECTION_OWNERSHIP_INVALID",
+                    f"The assigned section {section_id} must have exactly one owned "
+                    "TSX file; split batches cannot duplicate or aggregate section anchors.",
+                    work_unit_id,
+                    anchor_relative,
+                )
+            )
+            continue
+        owner_relative = owner_paths[0]
+        owner_text = sources.get(owner_relative, "")
         content_count = len(
             re.findall(
                 rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']",
-                text,
+                owner_text,
             )
         )
         if content_count != 1:
             diagnostics.append(
                 _diagnostic(
                     "SOURCE_ROUTE_BATCH_ANCHOR_INVALID",
-                    f"The route-batch anchor must contain exactly one data-content-id for {section_id}.",
+                    f"The section owner must contain exactly one data-content-id for {section_id}.",
                     work_unit_id,
-                    anchor_relative,
+                    owner_relative,
                 )
             )
         dom_id_count = len(
             re.findall(
                 rf"(?<![\w-])id\s*=\s*[\"']{re.escape(section_id)}[\"']",
-                text,
+                owner_text,
             )
         )
         if dom_id_count != 1:
             diagnostics.append(
                 _diagnostic(
                     "SOURCE_ROUTE_BATCH_DOM_ID_INVALID",
-                    f"The route-batch anchor must expose exactly one DOM id matching {section_id}.",
+                    f"The section owner must expose exactly one DOM id matching {section_id}.",
                     work_unit_id,
-                    anchor_relative,
+                    owner_relative,
                 )
             )
     for marker in source_markers or []:

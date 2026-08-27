@@ -176,6 +176,9 @@ def build_generation_contract(
                 "route_id": route_id,
                 "route_path": str(route.get("path", "")),
                 "anchor_file": anchor_file,
+                "section_owner_files": list(owned_tsx)
+                if unit is not None and unit.kind == "route_batch"
+                else [],
                 "section_ids": [item["section_id"] for item in sections],
                 "sections": sections,
                 "verbatim_copy": [] if v4 else sorted(set(verbatim))[:_MAX_VERBATIM_STRINGS],
@@ -359,18 +362,38 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         lines.append("")
         anchor = route.get("anchor_file", "")
         lines.append(f"VERIFICATION ANCHOR: {anchor}")
-        lines.append(
-            "This exact file is machine-checked after your change. It MUST itself contain, "
-            "as literal substrings:"
-        )
+        if route.get("section_anchors_required", True):
+            lines.append(
+                "This is a split batch. Every listed owned section file is machine-checked "
+                "after your change and must contain its own section contract. The first "
+                "file is only the deterministic validation starting point."
+            )
+        else:
+            lines.append(
+                "This exact route-composition file is machine-checked after your change. "
+                "It MUST itself contain, as literal substrings:"
+            )
         lines.append(f'- the route_id string "{route.get("route_id", "")}"')
         section_ids = route.get("section_ids", [])
         if section_ids and route.get("section_anchors_required", True):
             lines.append(
-                "- every section_id twice: as a literal string AND as a wrapper "
-                'attribute data-content-id="<section_id>" on that section\'s '
-                f'containing element (e.g. <section data-content-id="home:hero">): {", ".join(section_ids)}'
+                "- this is a split route batch: each listed owned TSX file is one "
+                "independent default-exported section component; each must contain "
+                'exactly one matching id="<section_id>" and '
+                'data-content-id="<section_id>" pair. Never aggregate sections: '
+                f'{", ".join(section_ids)}'
             )
+            owner_files = route.get("section_owner_files", [])
+            if owner_files:
+                lines.append(
+                    "- section owner files, in the same order as section_ids: "
+                    + "; ".join(
+                        f"{section_id} -> {owner_file}"
+                        for section_id, owner_file in zip(
+                            section_ids, owner_files, strict=False
+                        )
+                    )
+                )
         markers = [
             item["source_marker"]
             for item in contract.get("acceptance_markers", [])
@@ -402,8 +425,9 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
                     lines.append(f"    - {text}")
         elif route.get("content_keys_required"):
             lines.append(
-                "- render every approved content key through the trusted typed content module; "
-                "do not retype approved prose in route source"
+                "- render every approved content key through the trusted typed content module "
+                'with a direct contentValue("literal-key") call; do not hide keys behind '
+                "aliases or lookups and do not retype approved prose in route source"
             )
             for section in route.get("sections", []):
                 lines.append(f"  [{section.get('section_id')}] content keys")
