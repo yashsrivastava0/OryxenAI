@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createCodeGeneratorDevelopmentController } from '../../src/oryxenai/web/static/code-generator-development-controller.mjs';
-import { formatReadinessBlocker } from '../../src/oryxenai/web/static/code-generator-development.js';
+import { formatReadinessBlocker, generationCanResume } from '../../src/oryxenai/web/static/code-generator-development.js';
 
 function harness({ search = '', storedRun = null, status = 'planned', autoAdvance = 'false' } = {}) {
   const calls = [];
@@ -243,6 +243,24 @@ test('setAutoAdvance persists the preference without firing a stage twice', asyn
   await subject.controller.setAutoAdvance(true);  assert.equal(subject.controller.autoAdvance(), true);
   const acquires = subject.calls.filter((call) => call[0] === 'runAcquire');
   assert.equal(acquires.length, 1);
+});
+
+test('queued runs with an accepted checkpoint expose the manual resume path', () => {
+  assert.equal(
+    generationCanResume(
+      { status: 'queued' },
+      { accepted_checkpoint: { checkpoint_hash: 'checkpoint' }, work_units: [] },
+    ),
+    true,
+  );
+  assert.equal(
+    generationCanResume(
+      { status: 'queued' },
+      { accepted_checkpoint: null, work_units: [{ status: 'checkpointed' }] },
+    ),
+    true,
+  );
+  assert.equal(generationCanResume({ status: 'queued' }, { work_units: [] }), false);
 });
 
 test('readiness blocker labels explain preview configuration failures', () => {
