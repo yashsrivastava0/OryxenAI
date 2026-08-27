@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 04:35 +05:30 - Codex (GPT-5 / OpenAI) - [0b46913] - reassert source audit scaffold on resume
+The live run showed that updating the checked-in audit scaffold was
+insufficient for an existing checkpoint: workspace restoration could put the
+older generated `scripts/audit-source.mjs` back before every retry. The source
+audit is now part of the trusted shell files restored from the configured
+scaffold on workspace open and checkpoint reassertion, so imported-section
+coverage and shell/batch ownership checks cannot silently regress to an older
+audit implementation. The relevant lint and context/workspace checks passed;
+an unrelated pre-existing export-report assertion remains outside this fix.
+
 ### 2026-08-28 04:24 +05:30 - Codex (GPT-5 / OpenAI) - [20ea8b8] - keep composer context unit-scoped
 The resumed frontend run reached a second context-ceiling failure after
 stale route-batch checkpoints were correctly reopened. Although the composer
