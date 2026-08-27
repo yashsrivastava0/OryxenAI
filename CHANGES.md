@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:12 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - enforce route-batch anchor IDs before composition
+The resumed frontend run showed that route batches could checkpoint validly
+resolving modules while using shortened DOM IDs (`hero`, `experience`) instead
+of the authoritative route-scoped IDs required by the V4 audit. Batch
+checkpointing now validates its deterministic anchor's route, content, DOM-ID,
+and assigned-marker literals, and stale checkpoints are reopened when that
+contract fails so the owning Luna operation receives the repair.
+
 ### 2026-08-28 03:07 +05:30 - Codex (GPT-5 / OpenAI) - [ab3672f] - validate route-batch local export bindings
 The tenth live frontend run showed that path resolution alone allowed a route
 batch to checkpoint self-imports and invalid named re-exports; the later whole-
