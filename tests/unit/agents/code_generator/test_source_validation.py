@@ -22,7 +22,7 @@ def test_validate_local_imports_uses_repository_source_locations(tmp_path) -> No
     section.mkdir(parents=True)
     (tmp_path / "src" / "content").mkdir(parents=True)
     (tmp_path / "src" / "content" / "generated-content.ts").write_text(
-        "export {};", encoding="utf-8"
+        "export const contentValue = '';", encoding="utf-8"
     )
     source = section / "Hero.tsx"
     source.write_text(
@@ -40,6 +40,25 @@ def test_validate_local_imports_uses_repository_source_locations(tmp_path) -> No
     assert len(diagnostics) == 1
     assert diagnostics[0].code == "SOURCE_LOCAL_IMPORT_MISSING"
     assert "../../../../content/generated-content" in diagnostics[0].normalized_message
+
+
+def test_validate_local_imports_rejects_missing_named_export(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    source = section / "Hero.tsx"
+    source.write_text(
+        'import { HeroSection } from "./Hero";\nexport default function Hero() { return null; }\n',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_local_imports(
+        tmp_path,
+        ["src/routes/home/sections/Hero.tsx"],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert diagnostics and diagnostics[0].code == "SOURCE_LOCAL_EXPORT_MISSING"
+    assert "HeroSection" in diagnostics[0].normalized_message
 
 
 def test_stale_route_batch_checkpoint_reopens_route_composition(tmp_path) -> None:
