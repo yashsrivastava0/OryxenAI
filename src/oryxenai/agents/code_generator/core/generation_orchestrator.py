@@ -2040,6 +2040,9 @@ def _operation_context(
             if len(previous_attempt_files) >= 12:
                 break
     owned = _owned_paths(unit, plan, projections)
+    relevant_diagnostics = [
+        item for item in diagnostics if not item.work_unit_id or item.work_unit_id == unit.unit_id
+    ][-12:]
     return {
         "role_profile": role_profile,
         "operation": operation,
@@ -2091,7 +2094,7 @@ def _operation_context(
             "local-resource-only",
             "trusted-generated-manifests",
         ],
-        "diagnostics": [item.model_dump(mode="json") for item in diagnostics[-12:]],
+        "diagnostics": [item.model_dump(mode="json") for item in relevant_diagnostics],
         "repair_round": repair_round,
         "output_ceiling": output_ceiling,
     }
