@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - phase-aware V4 source checks
+The fourth live frontend generation confirmed that the complete V4 route audit
+was being applied while the deterministic foundation and route-batch phases
+still intentionally contained the scaffold route shell. Source/toolchain
+checks now support deferring the whole-site AST audit during those early
+phases; the audit remains required for route composition and final integration.
+Added regression coverage for the explicit audit deferral.
+
 ### 2026-08-28 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [8c07530] - trusted source audit and token emission reliability
 The third live frontend generation passed planning, acquisition, and TypeScript
 typechecking but exposed two deterministic scaffold/compiler defects before
