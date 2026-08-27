@@ -2027,14 +2027,16 @@ def _operation_context(
         "site_contract": {
             "routes": route_slices,
             "criteria": site.get("criteria", []),
-            "facts": site.get("facts", []),
+            "facts": [] if unit.kind == "route_compose" else site.get("facts", []),
             # The approved copy this unit renders — without it the builder can
             # only see metadata and must refuse to fabricate content.
             "public_content": [
                 item
                 for item in site.get("public_content", [])
                 if isinstance(item, dict) and str(item.get("route_id", "")) in route_ids
-            ],
+            ]
+            if unit.kind != "route_compose"
+            else [],
         },
         "visual_direction": context_visual,
         "plan": context_plan,
@@ -2115,6 +2117,14 @@ def _scoped_operation_plan(plan: SitePlan, unit: WorkUnit) -> dict[str, Any]:
         return not criterion_ids or not item_criterion or item_criterion in criterion_ids
 
     value["routes"] = [item for item in value.get("routes", []) if belongs(item)]
+    if unit.kind == "route_compose":
+        # The composer consumes the completed section modules. Content and
+        # fact ownership stays with those batch units; exposing route-level
+        # content bindings here invites the composer to retype their copy.
+        for route in value["routes"]:
+            if isinstance(route, dict):
+                route["content_bindings"] = []
+                route["fact_ids"] = []
     value["resource_slots"] = [item for item in value.get("resource_slots", []) if belongs(item)]
     value["resource_inventory"] = [
         item for item in value.get("resource_inventory", []) if belongs(item)

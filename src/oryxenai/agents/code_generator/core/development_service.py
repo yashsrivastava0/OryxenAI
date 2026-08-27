@@ -542,11 +542,30 @@ class CodeGeneratorDevelopmentService:
                 "A validated plan is required before generation.",
                 status_code=409,
             )
-        if run.status not in {
-            DevelopmentRunStatus.ACQUIRED.value,
-            DevelopmentRunStatus.NEEDS_ATTENTION.value,
-            DevelopmentRunStatus.SOURCE_READY.value,
-        }:
+        # A retry submitted through an older server can leave the run marked
+        # queued while its idempotent job has already failed. Treat that
+        # terminal queued state like needs_attention, but never enqueue a
+        # duplicate while the recorded job is still queued or running.
+        recoverable_queued = False
+        if (
+            run.status == DevelopmentRunStatus.QUEUED.value
+            and run.generation_projection
+            and run.generation_job_id is not None
+        ):
+            queued_job = await self._jobs.get(run.generation_job_id)
+            queued_status = str(getattr(queued_job, "status", ""))
+            if queued_status in {"queued", "running"}:
+                return _projection(run)
+            recoverable_queued = True
+        if (
+            run.status
+            not in {
+                DevelopmentRunStatus.ACQUIRED.value,
+                DevelopmentRunStatus.NEEDS_ATTENTION.value,
+                DevelopmentRunStatus.SOURCE_READY.value,
+            }
+            and not recoverable_queued
+        ):
             raise DevelopmentRunError(
                 "RUN_NOT_ACQUIRED",
                 "Initial resource acquisition must complete before source generation.",

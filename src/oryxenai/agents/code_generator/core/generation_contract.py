@@ -149,7 +149,11 @@ def build_generation_contract(
             section_id = str(section.get("section_id", ""))
             if assigned_sections and section_id not in assigned_sections:
                 continue
-            approved_content_ids = content_keys.get((route_id, section_id), [])
+            approved_content_ids = (
+                []
+                if unit is not None and unit.kind == "route_compose"
+                else content_keys.get((route_id, section_id), [])
+            )
             prose = [
                 text
                 for text in _normalized_strings(section.get("content", {}))

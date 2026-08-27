@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - isolate V4 composer authority and resume terminal generation
+The tenth live frontend run showed that the composer still received batch-owned
+content IDs, facts, and route bindings even after its content instruction was
+disabled; Luna consequently retyped copy and failed the host coverage contract.
+The V4 composer context now removes those ownership fields, and the standalone
+UI plus service recover terminal queued/checkpointed runs through an explicit
+same-run resume path without consuming another full-pipeline attempt.
+
 ### 2026-08-28 02:24 +05:30 - Codex (GPT-5 / OpenAI) - [c0b4087] - give same-run generation retries fresh durable job identities
 After the composer contract fix, the standalone UI correctly attempted to
 resume the failed run, but the generation service reused the completed
