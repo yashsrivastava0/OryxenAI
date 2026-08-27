@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 01:09 +05:30 - Codex (GPT-5 / OpenAI) - [cbe4491] - bound Code Generator operation context to its work unit
+The fifth live frontend generation proved a separate source-generation failure:
+the route model request serialized approximately 245k characters because the
+context builder walked unrelated generated manifests and public-content source,
+exceeding the configured 120k ceiling before the first route call. Context
+assembly now scopes plans, visual/resource/execution projections, trusted APIs,
+and direct route dependencies to the active work unit, preserving the complete
+inputs for host validation and keeping the route/composer contracts bounded.
+Added regression coverage for excluding unrelated source and historical ledger
+payloads.
+
 ### 2026-08-28 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [d1a229d] - phase-aware V4 source checks
 The fourth live frontend generation confirmed that the complete V4 route audit
 was being applied while the deterministic foundation and route-batch phases
