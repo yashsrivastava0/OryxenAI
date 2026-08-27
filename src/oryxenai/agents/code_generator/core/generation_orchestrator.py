@@ -2018,26 +2018,6 @@ def _operation_context(
         # can write. Sending the entire repository inventory is redundant and
         # can consume the bounded context on large resumed workspaces.
         existing_files = [path for path in existing_files if path in exact_owned_paths]
-    if unit.kind == "route_compose":
-        # Composition can only write the route shell and runtime wiring. The
-        # materialized public resources are already bound by the route-batch
-        # contracts, and their long rendition paths add no create-vs-replace
-        # information for this unit.
-        existing_files = [
-            path
-            for path in existing_files
-            if path.startswith("src/")
-            or path
-            in {
-                "index.html",
-                "package.json",
-                "package-lock.json",
-                "tsconfig.app.json",
-                "tsconfig.json",
-                "tsconfig.node.json",
-                "vite.config.ts",
-            }
-        ]
     # The provider receives only the trusted interfaces and direct dependency
     # source needed by this unit.  Walking the entire generated repository here
     # would serialize large manifests and unrelated content into every call.
