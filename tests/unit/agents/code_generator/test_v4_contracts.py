@@ -20,6 +20,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
     SourceFileChange,
     SourceGenerationEnvelopeV2,
+    WorkUnit,
+)
+from oryxenai.agents.code_generator.core.generation_contract import (
+    build_generation_contract,
+    render_contract_instructions,
 )
 from oryxenai.agents.code_generator.core.quality_review import (
     QualityReviewError,
@@ -250,6 +255,60 @@ def test_v4_compilation_preserves_unique_semantic_section_owners() -> None:
         "owner:proof",
     ]
     assert SitePlan.model_validate(compiled.model_dump(mode="json"))
+
+
+def test_v4_composer_contract_delegates_content_to_completed_batches() -> None:
+    plan = SitePlan(
+        plan_id="composer-contract",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="Readable at every viewport",
+                reduced_motion_outcome="Content remains visible without motion",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        experience_blueprint=_blueprint(),
+    )
+    composer = WorkUnit(
+        unit_id="route-home-compose",
+        kind="route_compose",
+        route_id="home",
+        route_ids=["home"],
+        owns_paths=["src/routes/home/index.tsx", "src/routes/home/route.css"],
+        depends_on=["foundation", "route-home-batch-1"],
+    )
+    contract = build_generation_contract(
+        unit=composer,
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "public_content": [
+                    {
+                        "route_id": "home",
+                        "sections": [
+                            {"section_id": "hero", "content": {"headline": "Approved headline"}}
+                        ],
+                    }
+                ],
+                "facts": [],
+            },
+            "design/visual-direction.json": {"global": {"must_preserve": []}},
+            "execution/contract.json": {"slots": []},
+        },
+        operation="route_compose",
+        owned_paths=composer.owns_paths,
+    )
+
+    route = contract["routes"][0]
+    assert route["content_keys_required"] is False
+    assert route["section_ids"] == ["hero"]
+    assert "import and render the completed section batches" in render_contract_instructions(
+        contract
+    )
 
 
 def test_v4_source_wire_envelope_adapts_without_losing_coverage() -> None:
