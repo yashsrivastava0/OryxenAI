@@ -34,6 +34,24 @@ def test_preview_health_url_derives_native_target_and_rejects_bind_address() -> 
         )
         == "http://127.0.0.1:4174/health/live"
     )
+    assert (
+        development_service._preview_health_url(
+            SimpleNamespace(
+                preview_health_url="",
+                preview_host="0.0.0.0",  # noqa: S104
+                preview_port=4174,
+            )
+        )
+        is None
+    )
+    assert (
+        development_service._preview_health_url(
+            SimpleNamespace(
+                preview_health_url="not-a-url", preview_host="127.0.0.1", preview_port=4174
+            )
+        )
+        is None
+    )
 
 
 def test_generation_retry_identity_changes_after_terminal_run_write() -> None:
@@ -55,24 +73,6 @@ def test_generation_retry_identity_changes_after_terminal_run_write() -> None:
     )
 
     assert first != second
-    assert (
-        development_service._preview_health_url(
-            SimpleNamespace(
-                preview_health_url="",
-                preview_host="0.0.0.0",  # noqa: S104
-                preview_port=4174,
-            )
-        )
-        is None
-    )
-    assert (
-        development_service._preview_health_url(
-            SimpleNamespace(
-                preview_health_url="not-a-url", preview_host="127.0.0.1", preview_port=4174
-            )
-        )
-        is None
-    )
 
 
 @pytest.mark.asyncio
