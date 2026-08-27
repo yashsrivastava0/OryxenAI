@@ -109,7 +109,11 @@ async def run_command(
     executable = shutil.which(command[0])
     if executable:
         command = [executable, *command[1:]]
-    if sys.platform == "win32" and Path(command[0]).suffix.casefold() in {".cmd", ".bat"}:
+    windows_batch_command = sys.platform == "win32" and Path(command[0]).suffix.casefold() in {
+        ".cmd",
+        ".bat",
+    }
+    if windows_batch_command:
         # Windows batch files are not native executables.  Some worker launch
         # contexts reject CreateProcess on a PATH-resolved .cmd with
         # ERROR_ACCESS_DENIED even though the same command works in an
@@ -145,10 +149,28 @@ async def run_command(
     try:
         process = await asyncio.create_subprocess_exec(*command, **kwargs)  # type: ignore[arg-type]
     except OSError as exc:
-        raise ProcessRunnerError(
-            "COMMAND_START_FAILED",
-            f"The trusted command could not start ({exc}).",
-        ) from exc
+        if windows_batch_command and creationflags & subprocess.CREATE_NEW_PROCESS_GROUP:
+            # A worker hosted by another process group can reject the group
+            # creation flag with ERROR_ACCESS_DENIED.  The command remains
+            # fully allowlisted and CREATE_NO_WINDOW still prevents console
+            # UI; retrying without only the optional grouping flag preserves
+            # execution while the normal path retains taskkill tree cleanup.
+            fallback_kwargs = dict(kwargs)
+            fallback_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            try:
+                process = await asyncio.create_subprocess_exec(  # type: ignore[arg-type]
+                    *command, **fallback_kwargs
+                )
+            except OSError:
+                raise ProcessRunnerError(
+                    "COMMAND_START_FAILED",
+                    f"The trusted command could not start ({exc}).",
+                ) from exc
+        else:
+            raise ProcessRunnerError(
+                "COMMAND_START_FAILED",
+                f"The trusted command could not start ({exc}).",
+            ) from exc
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             process.communicate(), timeout=max(0.1, timeout_seconds)
