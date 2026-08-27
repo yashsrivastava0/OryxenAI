@@ -176,7 +176,12 @@ def build_generation_contract(
                 "sections": sections,
                 "verbatim_copy": [] if v4 else sorted(set(verbatim))[:_MAX_VERBATIM_STRINGS],
                 "section_anchors_required": unit is None or unit.kind != "route_compose",
-                "content_keys_required": v4,
+                # Route batches own the executable approved-content references.
+                # A V4 composer owns only the route shell and must render those
+                # completed batches, so asking it to report every route content
+                # key would make its honest per-unit coverage impossible: the
+                # composer WorkUnit intentionally has no section ownership.
+                "content_keys_required": v4 and (unit is None or unit.kind != "route_compose"),
                 "verbatim_in_anchor": (unit is None or unit.kind != "route_compose") and not v4,
             }
         )
