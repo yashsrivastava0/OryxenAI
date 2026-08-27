@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 03:35 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - retry denied Windows process-group launches
+### 2026-08-28 03:35 +05:30 - Codex (GPT-5 / OpenAI) - [27b9679] - retry denied Windows process-group launches
 The worker continued to receive `[WinError 5]` at process creation even after
 batch commands were routed through `cmd.exe`. The bounded process runner now
 retries an allowlisted Windows batch command without only the optional new
