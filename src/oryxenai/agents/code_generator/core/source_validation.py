@@ -229,6 +229,47 @@ def validate_repository(
     return diagnostics
 
 
+def validate_local_imports(
+    repo_dir: Path,
+    relative_paths: list[str],
+    *,
+    work_unit_id: str,
+) -> list[SourceDiagnostic]:
+    """Validate local module resolution for a bounded set of generated files.
+
+    Route batches are intentionally checked before the complete route shell
+    exists, so the whole-site TypeScript audit cannot run at that point. This
+    narrower check still catches the mechanical failure that matters to a
+    batch: a section importing a trusted module or sibling that does not
+    resolve from its real source location.
+    """
+
+    diagnostics: list[SourceDiagnostic] = []
+    root = repo_dir.resolve()
+    for relative in sorted({value.replace("\\", "/") for value in relative_paths}):
+        source = (repo_dir / relative).resolve()
+        if not source.is_relative_to(root) or not source.is_file():
+            continue
+        try:
+            text = source.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for imported in _IMPORT_RE.findall(text):
+            if not imported.startswith((".", "/", "@/")):
+                continue
+            if _resolve_local_import(repo_dir, source, imported):
+                continue
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_LOCAL_IMPORT_MISSING",
+                    f"Generated local import does not resolve: {imported}",
+                    work_unit_id,
+                    relative,
+                )
+            )
+    return diagnostics
+
+
 def _safe_path(value: str) -> str:
     normalized = value.replace("\\", "/")
     path = PurePosixPath(normalized)
@@ -243,6 +284,24 @@ def _safe_path(value: str) -> str:
     if any(part.startswith(".") for part in path.parts):
         raise SourceValidationError("SOURCE_HIDDEN_PATH", "Hidden generated paths are not allowed.")
     return path.as_posix()
+
+
+def _resolve_local_import(repo_dir: Path, source: Path, imported: str) -> bool:
+    if imported.startswith("@/"):
+        target = (repo_dir / "src" / imported[2:]).resolve()
+    elif imported.startswith("/"):
+        target = (repo_dir / imported.lstrip("/")).resolve()
+    else:
+        target = (source.parent / imported).resolve()
+    root = repo_dir.resolve()
+    if not target.is_relative_to(root):
+        return False
+    candidates = [target]
+    candidates.extend(
+        target.with_suffix(suffix) for suffix in (".ts", ".tsx", ".js", ".jsx", ".css", ".json")
+    )
+    candidates.extend(target / f"index{suffix}" for suffix in (".ts", ".tsx", ".js", ".jsx"))
+    return any(candidate.is_file() for candidate in candidates)
 
 
 def _owned(path: str, owned_paths: list[str]) -> bool:

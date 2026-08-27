@@ -1,8 +1,12 @@
 from types import SimpleNamespace
 
+from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    _invalidate_stale_route_batch_checkpoint,
+)
 from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
     normalize_generated_route_contract,
+    validate_local_imports,
 )
 
 
@@ -11,6 +15,89 @@ def test_canonical_visible_text_collapses_source_wrapping() -> None:
     wrapped = "Approved copy that spans one\n    rendered sentence."
 
     assert _canonical_visible_text(wrapped) == _canonical_visible_text(approved)
+
+
+def test_validate_local_imports_uses_repository_source_locations(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    (tmp_path / "src" / "content").mkdir(parents=True)
+    (tmp_path / "src" / "content" / "generated-content.ts").write_text(
+        "export {};", encoding="utf-8"
+    )
+    source = section / "Hero.tsx"
+    source.write_text(
+        'import { contentValue } from "../../../content/generated-content";\n'
+        'import { missing } from "../../../../content/generated-content";\n',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_local_imports(
+        tmp_path,
+        ["src/routes/home/sections/Hero.tsx"],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert len(diagnostics) == 1
+    assert diagnostics[0].code == "SOURCE_LOCAL_IMPORT_MISSING"
+    assert "../../../../content/generated-content" in diagnostics[0].normalized_message
+
+
+def test_stale_route_batch_checkpoint_reopens_route_composition(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    source = section / "Hero.tsx"
+    source.write_text(
+        'import { contentValue } from "../../../../content/generated-content";\n',
+        encoding="utf-8",
+    )
+    batch = SimpleNamespace(
+        unit_id="route-home-batch-1",
+        kind="route_batch",
+        owns_paths=["src/routes/home/sections/Hero.tsx"],
+    )
+    composer = SimpleNamespace(
+        unit_id="route-home-compose",
+        kind="route_compose",
+        owns_paths=["src/routes/home/index.tsx"],
+    )
+    projection = SimpleNamespace(
+        accepted_checkpoint=object(),
+        work_units=[
+            SimpleNamespace(
+                unit_id=batch.unit_id,
+                kind=batch.kind,
+                status="checkpointed",
+                checkpoint_after="old",
+                call_receipt_id="old-call",
+                repair_round=2,
+            ),
+            SimpleNamespace(
+                unit_id=composer.unit_id,
+                kind=composer.kind,
+                status="model_requested",
+                checkpoint_after="",
+                call_receipt_id="",
+                repair_round=1,
+            ),
+        ],
+        phase="generating_routes",
+        active_work_unit_id=composer.unit_id,
+        source_ready=False,
+        source_file_count=0,
+        source_total_bytes=0,
+    )
+    plan = SimpleNamespace(work_graph=SimpleNamespace(units=[batch, composer]))
+
+    diagnostics = _invalidate_stale_route_batch_checkpoint(
+        projection,
+        plan=plan,
+        workspace=SimpleNamespace(repo_dir=tmp_path),
+    )
+
+    assert diagnostics and diagnostics[0].code == "SOURCE_LOCAL_IMPORT_MISSING"
+    assert all(item.status == "pending" for item in projection.work_units)
+    assert all(item.checkpoint_after == "" for item in projection.work_units)
+    assert all(item.call_receipt_id == "" for item in projection.work_units)
 
 
 def test_route_contract_normalizer_deduplicates_markers_and_restores_heading(tmp_path) -> None:
