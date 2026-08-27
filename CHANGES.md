@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - trusted source audit and token emission reliability
+### 2026-08-28 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [8c07530] - trusted source audit and token emission reliability
 The third live frontend generation passed planning, acquisition, and TypeScript
 typechecking but exposed two deterministic scaffold/compiler defects before
 promotion: the source audit read JSX element fields from the wrong TypeScript
