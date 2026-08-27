@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 02:00 +05:30 - Codex (GPT-5 / OpenAI) - [5edcb30] - resume bounded generation after a context failure
+The tenth live frontend run completed both route batches but stopped before the
+composer model call because its bounded context was 122,064 characters. The
+composer now receives only source-relevant existing-file names and no duplicate
+generated-content interface; the measured context is 115,003 characters against
+the 120,000-character ceiling. Same-run generation retries preserve the durable
+generation projection and accepted work-unit checkpoints, and the standalone
+frontend exposes that path as Resume generation instead of requiring a fresh
+portfolio run.
+
 ### 2026-08-28 01:44 +05:30 - Codex (GPT-5 / OpenAI) - [e12d787] - defer route-batch whole-site audit
 The ninth live frontend generation produced valid route-batch responses, but
 the post-batch source audit still inspected the scaffold route shell before
