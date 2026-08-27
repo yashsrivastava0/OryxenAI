@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 04:46 +05:30 - Codex (GPT-5 / OpenAI) - [bb9454e] - trace mapped content keys in source audit
+The same live run showed that approved content IDs in a literal array were
+consumed through a `.map` callback parameter, so the audit still could not
+prove their `contentValue` calls. The static checker now follows that bounded
+local mapping and records the resulting keys, keeping the audit fail-closed
+for missing calls while accepting the generated component pattern.
+
 ### 2026-08-28 04:42 +05:30 - Codex (GPT-5 / OpenAI) - [93771b9] - audit aliased imports and static content references
 The live tenth frontend run reached the corrected split-section contract but
 the generated source audit rejected two valid forms: the configured `@/`
