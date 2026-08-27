@@ -180,7 +180,7 @@
     </details>
   </main>
   {% if pipeline_mode == "detached" %}
-  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/code-generator-development-detached-bootstrap.mjs?v={{ detached_bootstrap_version }}"></script>
+  <script type="module" src="{{ request.scope.get('root_path', '') }}/static/code-generator-development-detached-bootstrap.mjs?v={{ detached_bootstrap_version }}&js={{ js_version }}"></script>
   {% else %}
   <script src="{{ request.scope.get('root_path', '') }}/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   <script type="module" src="{{ request.scope.get('root_path', '') }}/static/dev-auth-bootstrap.mjs?v={{ dev_auth_bootstrap_version }}"></script>
