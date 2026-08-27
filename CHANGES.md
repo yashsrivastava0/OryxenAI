@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 02:24 +05:30 - Codex (GPT-5 / OpenAI) - [c0b4087] - give same-run generation retries fresh durable job identities
+After the composer contract fix, the standalone UI correctly attempted to
+resume the failed run, but the generation service reused the completed
+idempotency key from the earlier resume and left the run queued without a new
+worker job. Generation retry keys now include the run revision, preserving
+checkpoint reuse while ensuring every terminal retry is executable and
+observable.
+
 ### 2026-08-28 02:20 +05:30 - Codex (GPT-5 / OpenAI) - [772bef1] - align V4 composer content contract with work ownership
 The tenth live frontend run reached route composition after the context ceiling
 fix, but the V4 composer was instructed to report every approved route content
