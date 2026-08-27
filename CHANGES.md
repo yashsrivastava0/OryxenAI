@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:02 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - bound retry diagnostics to the active work unit
+The route-batch import guard correctly found five stale imports, but the
+retry context also carried unrelated composer history and crossed the 120,000
+character ceiling before Luna was called. Generation prompts now include only
+diagnostics owned by the active work unit, keeping the actionable repair data
+while preserving the configured context limit.
+
 ### 2026-08-28 02:48 +05:30 - Codex (GPT-5 / OpenAI) - [eb55728] - validate route-batch imports before checkpoint recovery
 The resumed tenth run proved that valid batch ownership was not enough: model
 source could checkpoint imports that only failed once the composed route was
