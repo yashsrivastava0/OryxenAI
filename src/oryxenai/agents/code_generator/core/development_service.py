@@ -565,17 +565,28 @@ class CodeGeneratorDevelopmentService:
             idempotency_scope=_GENERATE_SCOPE,
             idempotency_key=attempt_key,
         )
+        # A generation failure can happen after one or more work units have
+        # already been checkpointed. Keep that durable projection on a
+        # same-run retry so the worker resumes at the failed unit instead of
+        # replaying successful model calls and discarding the user's progress.
+        resume_projection = bool(run.generation_projection)
+        values: dict[str, object] = {
+            "status": DevelopmentRunStatus.QUEUED.value,
+            "generation_job_id": job.id,
+            "issues": [],
+        }
+        if not resume_projection:
+            values.update(
+                {
+                    "generation_projection": None,
+                    "source_checkpoint": None,
+                    "source_summary": {},
+                }
+            )
         updated = await self._repo.compare_and_swap(
             run.id,
             expected_revision=run.revision,
-            values={
-                "status": DevelopmentRunStatus.QUEUED.value,
-                "generation_job_id": job.id,
-                "generation_projection": None,
-                "source_checkpoint": None,
-                "source_summary": {},
-                "issues": [],
-            },
+            values=values,
         )
         if updated is None:
             raise DevelopmentRunError(

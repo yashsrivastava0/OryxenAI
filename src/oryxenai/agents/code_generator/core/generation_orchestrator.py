@@ -1956,6 +1956,26 @@ def _operation_context(
         for path in workspace.repo_dir.rglob("*")
         if path.is_file() and not any(part in {"node_modules", "dist"} for part in path.parts)
     )[:500]
+    if unit.kind == "route_compose":
+        # Composition can only write the route shell and runtime wiring. The
+        # materialized public resources are already bound by the route-batch
+        # contracts, and their long rendition paths add no create-vs-replace
+        # information for this unit.
+        existing_files = [
+            path
+            for path in existing_files
+            if path.startswith("src/")
+            or path
+            in {
+                "index.html",
+                "package.json",
+                "package-lock.json",
+                "tsconfig.app.json",
+                "tsconfig.json",
+                "tsconfig.node.json",
+                "vite.config.ts",
+            }
+        ]
     # The provider receives only the trusted interfaces and direct dependency
     # source needed by this unit.  Walking the entire generated repository here
     # would serialize large manifests and unrelated content into every call.
@@ -2284,10 +2304,15 @@ def _shared_source_for_unit(
             {
                 "src/app/ResourceUrl.ts",
                 "src/components/generated/SharedSystems.tsx",
-                "src/content/generated-content.ts",
                 "src/design/generated-tokens.css",
             }
         )
+    if unit.kind == "route_batch":
+        # Route batches receive the trusted content API alongside their
+        # route-scoped approved copy.  The composer consumes the frozen batch
+        # modules and does not need this duplicate interface, which can push
+        # an otherwise bounded composition context over its ceiling.
+        paths.add("src/content/generated-content.ts")
     if unit.kind == "route_compose":
         paths.update({"src/app/AppRouter.tsx", "src/main.tsx"})
 
