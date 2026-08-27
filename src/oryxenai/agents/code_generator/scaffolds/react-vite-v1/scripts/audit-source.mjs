@@ -76,6 +76,38 @@ function literalValue(node) {
   return undefined;
 }
 
+function staticLiteralValue(node, source, seen = new Set()) {
+  const direct = literalValue(node);
+  if (direct !== undefined) return direct;
+  const value = unwrap(node);
+  if (!value || !source) return undefined;
+  if (ts.isIdentifier(value)) {
+    if (seen.has(value.text)) return undefined;
+    let initializer;
+    function visit(current) {
+      if (initializer || !current) return;
+      if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name) && current.name.text === value.text) {
+        initializer = current.initializer;
+        return;
+      }
+      ts.forEachChild(current, visit);
+    }
+    visit(source);
+    return staticLiteralValue(initializer, source, new Set([...seen, value.text]));
+  }
+  if (ts.isElementAccessExpression(value)) {
+    const object = staticLiteralValue(value.expression, source, seen);
+    const index = literalValue(value.argumentExpression);
+    if (Array.isArray(object) && typeof index === "number" && Number.isInteger(index)) return object[index];
+    if (object && typeof object === "object" && typeof index === "string") return object[index];
+  }
+  if (ts.isPropertyAccessExpression(value)) {
+    const object = staticLiteralValue(value.expression, source, seen);
+    if (object && typeof object === "object") return object[value.name.text];
+  }
+  return undefined;
+}
+
 function exportedInitializer(source, exportName) {
   if (!source) return undefined;
   for (const statement of source.statements) {
@@ -274,6 +306,17 @@ function importedNames(source, expectedModule) {
   return { found, names };
 }
 
+function importedNamesAny(source, expectedModules) {
+  const names = new Set();
+  let found = false;
+  for (const expectedModule of expectedModules) {
+    const imported = importedNames(source, expectedModule);
+    found ||= imported.found;
+    for (const name of imported.names) names.add(name);
+  }
+  return { found, names };
+}
+
 function readRoutes() {
   const registryFile = path.join(sourceRoot, "generated", "route-registry.ts");
   const registry = sourceTrees.get(registryFile);
@@ -467,7 +510,10 @@ function auditV4Routes() {
     const trees = files.map((fileName) => sourceTrees.get(fileName)).filter(Boolean);
     const jsx = trees.flatMap((tree) => jsxNodes(tree));
     const routeJsx = jsxNodes(routeSource);
-    const routeImports = importedNames(routeSource, "../../components/generated/SharedSystems");
+    const routeImports = importedNamesAny(routeSource, [
+      "../../components/generated/SharedSystems",
+      "@/components/generated/SharedSystems",
+    ]);
     if (!routeImports.found || !routeImports.names.has("RouteShell")) {
       report(route.fileName, routeSource, "V4 route must import RouteShell from the trusted SharedSystems module");
     }
@@ -538,7 +584,7 @@ function auditV4Routes() {
       const contentNames = new Set([...trustedNames, ...directContentForwarders(tree, trustedNames)]);
       for (const call of callNodes(tree)) {
         if (!ts.isIdentifier(call.expression) || !contentNames.has(call.expression.text)) continue;
-        const argument = call.arguments[0] && literalValue(call.arguments[0]);
+        const argument = call.arguments[0] && staticLiteralValue(call.arguments[0], tree);
         if (typeof argument === "string") contentCalls.add(argument);
       }
     }
