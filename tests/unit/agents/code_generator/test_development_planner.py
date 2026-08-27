@@ -4,6 +4,7 @@ import pytest
 
 from oryxenai.agents.code_generator.core.development_planner import (
     SitePlanValidationError,
+    build_planner_context,
     validate_site_plan,
 )
 from oryxenai.agents.code_generator.core.development_schemas import SitePlan, WorkUnit
@@ -17,6 +18,52 @@ def _projections() -> dict[str, dict[str, object]]:
             "criteria": [{"criterion_id": "criterion:home:0", "route_id": "home"}],
         }
     }
+
+
+def test_build_planner_context_supplies_deterministic_blueprint_identities() -> None:
+    projections = {
+        "site/contract.json": {
+            "routes": [
+                {
+                    "route_id": "home",
+                    "path": "/",
+                    "section_sequence": ["hero", "proof"],
+                }
+            ],
+            "public_content": [
+                {
+                    "route_id": "home",
+                    "sections": [{"section_id": "hero"}, {"section_id": "proof"}],
+                }
+            ],
+            "facts": [],
+        },
+        "design/visual-direction.json": {},
+        "resources/projection.json": {},
+        "execution/contract.json": {"slots": []},
+        "resources/ledger.json": {"resource_decisions": []},
+        "provenance/targets.json": {"target": {}},
+    }
+
+    context = build_planner_context(
+        projections,
+        {"admitted_identity": "admitted", "projection_hashes": {}},
+    )
+
+    assert context["blueprint_identity_manifest"] == [
+        {
+            "route_id": "home",
+            "section_id": "hero",
+            "region_id": "region:home:hero",
+            "owner_id": "owner:home:hero",
+        },
+        {
+            "route_id": "home",
+            "section_id": "proof",
+            "region_id": "region:home:proof",
+            "owner_id": "owner:home:proof",
+        },
+    ]
 
 
 def _plan() -> SitePlan:

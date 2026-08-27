@@ -61,11 +61,74 @@ def build_planner_context(
             }
             for (route_id, section_id), values in sorted(content_ids.items())
         ],
+        "blueprint_identity_manifest": _blueprint_identity_manifest(site),
         "receipt": {
             "admitted_identity": input_receipt["admitted_identity"],
             "projection_hashes": input_receipt["projection_hashes"],
         },
     }
+
+
+def _blueprint_identity_manifest(site_contract: dict[str, Any]) -> list[dict[str, str]]:
+    """Create the host-owned V4 identity map the model must echo exactly.
+
+    The upstream pack owns route and section identities, but it has no reason
+    to know about the V4 planner's region/semantic-owner fields. Deriving
+    those fields here makes the planner contract closed and deterministic; the
+    model remains responsible for arranging and styling regions, not for
+    inventing identifiers that downstream ownership checks depend on.
+    """
+
+    manifest: list[dict[str, str]] = []
+    for route in site_contract.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", "")).strip()
+        section_ids = route.get("section_sequence", [])
+        if not route_id or not isinstance(section_ids, list):
+            continue
+        for section_value in section_ids:
+            section_id = str(section_value).strip()
+            if not section_id:
+                continue
+            manifest.append(
+                {
+                    "route_id": route_id,
+                    "section_id": section_id,
+                    "region_id": f"region:{route_id}:{section_id}",
+                    "owner_id": f"owner:{route_id}:{section_id}",
+                }
+            )
+    return manifest
+
+
+def validate_v4_blueprint_identities(
+    blueprint: ExperienceBlueprintV4, context: dict[str, Any]
+) -> None:
+    """Require V4 region and semantic-owner IDs to match the host manifest."""
+
+    raw_manifest = context.get("blueprint_identity_manifest")
+    if not isinstance(raw_manifest, list):
+        return
+    manifest = [item for item in raw_manifest if isinstance(item, dict)]
+    expected = {
+        (str(item.get("route_id", "")), str(item.get("section_id", ""))): item for item in manifest
+    }
+    observed = {(item.route_id, item.section_id): item for item in blueprint.section_regions}
+    if set(observed) != set(expected):
+        raise SitePlanValidationError(
+            "PLAN_BLUEPRINT_IDENTITY_COVERAGE",
+            "V4 section regions must cover the host identity manifest exactly.",
+        )
+    for key, region in observed.items():
+        identity = expected[key]
+        if region.region_id != str(identity.get("region_id", "")) or region.owner_id != str(
+            identity.get("owner_id", "")
+        ):
+            raise SitePlanValidationError(
+                "PLAN_BLUEPRINT_IDENTITY_DRIFT",
+                "V4 region and semantic-owner IDs must echo the host identity manifest exactly.",
+            )
 
 
 def context_hash(context: dict[str, Any]) -> str:

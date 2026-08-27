@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-27 11:40 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - transactional optional dependency fallback
+### 2026-08-27 11:40 +05:30 - Codex (GPT-5 / OpenAI) - [caead48] - transactional optional dependency fallback
 The first live frontend generation reached source generation but failed at the
 trusted toolchain because acquisition recorded `lucide-react` as
 `rejected_fallback` while its partially mutated workspace manifest still
@@ -22,6 +22,13 @@ optional package therefore cannot poison the later npm toolchain check, while
 successful admitted dependencies still replace the workspace as one complete
 installed set. The regression test verifies that a failed optional install
 leaves no package manifest behind.
+
+### 2026-08-27 12:05 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - host-owned V4 blueprint identity contract
+The live frontend planner context contained no semantic owner IDs even though
+the trusted prompt required Luna to echo them, allowing duplicate owners to
+reach the V4 validator. Added a deterministic route/section identity manifest,
+exact host-side identity validation, prompt grounding, and regression tests so
+V4 planning cannot invent or reuse region ownership identities.
 
 ### 2026-08-27 03:32 +05:30 — Codex (GPT-5 / OpenAI) — [1e3610e] — make the native dev launcher reliable from this workspace
 The first clean smoke test exposed two Windows launcher issues in the new
