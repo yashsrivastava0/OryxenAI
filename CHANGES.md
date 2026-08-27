@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 01:38 +05:30 - Codex (GPT-5 / OpenAI) - [d5247dd] - make V4 resource coverage explicit
+The eighth live frontend generation passed the planner and model source calls,
+but both route batches reported only the image slots they used. The host
+correctly requires the coverage array to match the complete work-unit
+assignment, including optional package, recipe, and component slots. The
+normative generation contract and route-batch prompt now expose and require
+that exact ordered list, with focused prompt-contract regression coverage.
+
 ### 2026-08-28 01:30 +05:30 - Codex (GPT-5 / OpenAI) - [169ea5f] - expose bounded generated-content interface
 The seventh live frontend generation passed planning and resource acquisition
 but the route batch could not safely generate because its operation context
