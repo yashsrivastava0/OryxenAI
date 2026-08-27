@@ -304,6 +304,94 @@ def validate_local_imports(
     return diagnostics
 
 
+def validate_route_batch_contract(
+    repo_dir: Path,
+    relative_paths: list[str],
+    *,
+    route_id: str = "",
+    section_ids: list[str] | None = None,
+    source_markers: list[str] | None = None,
+    work_unit_id: str,
+) -> list[SourceDiagnostic]:
+    """Validate the route-owned anchor before a split batch is checkpointed.
+
+    The first owned TSX path is the deterministic anchor named by the
+    generation contract. Split batches may use helper modules, but that anchor
+    must still carry the authoritative route and section literals; otherwise
+    composition cannot prove that the batch is actually rendered.
+    """
+
+    diagnostics = validate_local_imports(
+        repo_dir,
+        relative_paths,
+        work_unit_id=work_unit_id,
+    )
+    normalized_paths = [value.replace("\\", "/") for value in relative_paths]
+    anchor_relative = next(
+        (value for value in normalized_paths if value.endswith(".tsx") and "*" not in value),
+        "",
+    )
+    if not anchor_relative:
+        return diagnostics
+    anchor = (repo_dir / anchor_relative).resolve()
+    try:
+        text = anchor.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return diagnostics
+
+    if route_id and route_id not in text:
+        diagnostics.append(
+            _diagnostic(
+                "SOURCE_ROUTE_BATCH_ROUTE_ID_MISSING",
+                f"The route-batch anchor must contain the authoritative route ID: {route_id}",
+                work_unit_id,
+                anchor_relative,
+            )
+        )
+    for section_id in section_ids or []:
+        content_count = len(
+            re.findall(
+                rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']",
+                text,
+            )
+        )
+        if content_count != 1:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_ANCHOR_INVALID",
+                    f"The route-batch anchor must contain exactly one data-content-id for {section_id}.",
+                    work_unit_id,
+                    anchor_relative,
+                )
+            )
+        dom_id_count = len(
+            re.findall(
+                rf"(?<![\w-])id\s*=\s*[\"']{re.escape(section_id)}[\"']",
+                text,
+            )
+        )
+        if dom_id_count != 1:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_DOM_ID_INVALID",
+                    f"The route-batch anchor must expose exactly one DOM id matching {section_id}.",
+                    work_unit_id,
+                    anchor_relative,
+                )
+            )
+    for marker in source_markers or []:
+        if marker and marker not in text:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_MARKER_MISSING",
+                    f"The route-batch anchor is missing its assigned source marker: {marker}",
+                    work_unit_id,
+                    anchor_relative,
+                )
+            )
+    return diagnostics
+
+
 def _safe_path(value: str) -> str:
     normalized = value.replace("\\", "/")
     path = PurePosixPath(normalized)

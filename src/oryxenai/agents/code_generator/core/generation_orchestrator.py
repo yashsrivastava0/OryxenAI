@@ -92,7 +92,7 @@ from oryxenai.agents.code_generator.core.source_manifest import (
 from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
-    validate_local_imports,
+    validate_route_batch_contract,
 )
 from oryxenai.agents.code_generator.core.token_compiler import (
     TokenCompilationError,
@@ -1006,19 +1006,27 @@ class CodeGeneratorGenerationOrchestrator:
                 role_profile = str(settings.code_generator_generation.repair_profile)
                 continue
             if unit.kind == "route_batch":
-                local_import_diagnostics = validate_local_imports(
+                batch_diagnostics = validate_route_batch_contract(
                     workspace.repo_dir,
                     list(unit.owns_paths),
+                    route_id=unit.route_id,
+                    section_ids=list(unit.section_ids),
+                    source_markers=[
+                        coverage.source_marker
+                        for coverage in plan.acceptance_coverage
+                        if coverage.route_id == unit.route_id
+                        and coverage.criterion_id in unit.criterion_ids
+                    ],
                     work_unit_id=unit.unit_id,
                 )
-                if local_import_diagnostics:
-                    projection.diagnostics.extend(local_import_diagnostics)
+                if batch_diagnostics:
+                    projection.diagnostics.extend(batch_diagnostics)
                     unit_projection.diagnostics.extend(
-                        item.diagnostic_id for item in local_import_diagnostics
+                        item.diagnostic_id for item in batch_diagnostics
                     )
                     _consume_repair_budget(
                         projection,
-                        local_import_diagnostics,
+                        batch_diagnostics,
                         repair_round=repair_round,
                         settings=settings,
                     )
@@ -2697,9 +2705,11 @@ def _invalidate_stale_route_batch_checkpoint(
     diagnostics: list[SourceDiagnostic] = []
     for unit in checkpointed:
         diagnostics.extend(
-            validate_local_imports(
+            validate_route_batch_contract(
                 workspace.repo_dir,
                 list(unit.owns_paths),
+                route_id=str(getattr(unit, "route_id", "")),
+                section_ids=list(getattr(unit, "section_ids", [])),
                 work_unit_id=unit.unit_id,
             )
         )
