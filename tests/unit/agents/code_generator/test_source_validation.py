@@ -7,6 +7,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
     normalize_generated_route_contract,
     validate_local_imports,
+    validate_route_batch_contract,
 )
 
 
@@ -59,6 +60,27 @@ def test_validate_local_imports_rejects_missing_named_export(tmp_path) -> None:
 
     assert diagnostics and diagnostics[0].code == "SOURCE_LOCAL_EXPORT_MISSING"
     assert "HeroSection" in diagnostics[0].normalized_message
+
+
+def test_validate_route_batch_contract_requires_authoritative_dom_ids(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    anchor = section / "Hero.tsx"
+    anchor.write_text(
+        '<section id="hero" data-content-id="home:hero" />\n'
+        '<section id="selected-work" data-content-id="home:selected-work" />\n',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        ["src/routes/home/sections/Hero.tsx"],
+        route_id="home",
+        section_ids=["home:hero", "home:selected-work"],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert {item.code for item in diagnostics} == {"SOURCE_ROUTE_BATCH_DOM_ID_INVALID"}
 
 
 def test_stale_route_batch_checkpoint_reopens_route_composition(tmp_path) -> None:
