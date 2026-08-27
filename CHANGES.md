@@ -23,7 +23,7 @@ successful admitted dependencies still replace the workspace as one complete
 installed set. The regression test verifies that a failed optional install
 leaves no package manifest behind.
 
-### 2026-08-27 12:05 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - host-owned V4 blueprint identity contract
+### 2026-08-27 12:05 +05:30 - Codex (GPT-5 / OpenAI) - [d4fe70f] - host-owned V4 blueprint identity contract
 The live frontend planner context contained no semantic owner IDs even though
 the trusted prompt required Luna to echo them, allowing duplicate owners to
 reach the V4 validator. Added a deterministic route/section identity manifest,
