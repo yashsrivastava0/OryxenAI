@@ -133,7 +133,8 @@ async def run_command(
         process = await asyncio.create_subprocess_exec(*command, **kwargs)  # type: ignore[arg-type]
     except OSError as exc:
         raise ProcessRunnerError(
-            "COMMAND_START_FAILED", "The trusted command could not start."
+            "COMMAND_START_FAILED",
+            f"The trusted command could not start ({exc}).",
         ) from exc
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(

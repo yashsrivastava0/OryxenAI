@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 03:24 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - preserve toolchain launch diagnostics
+The tenth frontend resume was repeatedly stopping before source validation with
+only `TOOLCHAIN_START_FAILED`, although the same configured offline install
+worked in isolation. Process-start diagnostics now retain the operating-system
+error and the worker surfaces it in the bounded source diagnostic, making a
+native launch failure observable and actionable.
+
 ### 2026-08-28 03:12 +05:30 - Codex (GPT-5 / OpenAI) - [414b0c7] - enforce route-batch anchor IDs before composition
 The resumed frontend run showed that route batches could checkpoint validly
 resolving modules while using shortened DOM IDs (`hero`, `experience`) instead

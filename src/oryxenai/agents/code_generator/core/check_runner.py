@@ -50,7 +50,10 @@ async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnosti
         )
     except ProcessRunnerError as exc:
         return _command_diagnostic(
-            "TOOLCHAIN_START_FAILED", "The source toolchain could not start.", "toolchain", str(exc)
+            "TOOLCHAIN_START_FAILED",
+            f"The source toolchain could not start: {exc.message}",
+            "toolchain",
+            str(exc),
         )
     if result.timed_out:
         return _command_diagnostic(
