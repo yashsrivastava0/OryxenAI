@@ -883,7 +883,9 @@ class MotionTokenV4(BaseModel):
 class TypographyBindingV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    role: Literal["body", "display"] = "body"
+    role: Literal["body", "display"] = Field(
+        description="Explicit typography role. Emit exactly one body role and optionally one display role."
+    )
     approved_font_slot: str
     family: str
     weights: list[int] = Field(min_length=1, max_length=8)
@@ -980,7 +982,14 @@ class DesignTokenSystemV4(BaseModel):
     borders: list[BorderTokenV4] = Field(default_factory=list, max_length=16)
     shadows: list[ShadowTokenV4] = Field(default_factory=list, max_length=16)
     motion: list[MotionTokenV4] = Field(default_factory=list, max_length=16)
-    typography_roles: list[TypographyBindingV4] = Field(min_length=1, max_length=2)
+    typography_roles: list[TypographyBindingV4] = Field(
+        min_length=1,
+        max_length=2,
+        description=(
+            "One or two roles: exactly one object with role body and optionally one object "
+            "with role display; every role value is explicit."
+        ),
+    )
     type_steps: list[FluidTypeStepV4] = Field(min_length=2, max_length=12)
     containers: list[ContainerTokenV4] = Field(min_length=1, max_length=8)
     container_max_px: int = Field(ge=480, le=2400)
