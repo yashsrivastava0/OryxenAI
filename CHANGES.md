@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 03:02 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - bound retry diagnostics to the active work unit
+### 2026-08-28 03:02 +05:30 - Codex (GPT-5 / OpenAI) - [8ee6947] - bound retry diagnostics to the active work unit
 The route-batch import guard correctly found five stale imports, but the
 retry context also carried unrelated composer history and crossed the 120,000
 character ceiling before Luna was called. Generation prompts now include only
