@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 03:12 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - enforce route-batch anchor IDs before composition
+### 2026-08-28 03:12 +05:30 - Codex (GPT-5 / OpenAI) - [414b0c7] - enforce route-batch anchor IDs before composition
 The resumed frontend run showed that route batches could checkpoint validly
 resolving modules while using shortened DOM IDs (`hero`, `experience`) instead
 of the authoritative route-scoped IDs required by the V4 audit. Batch
