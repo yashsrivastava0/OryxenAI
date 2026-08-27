@@ -136,6 +136,15 @@ class GenerationError(ValueError):
         self.message = message
 
 
+def _reset_generation_attempt_projection(projection: GenerationProjection) -> None:
+    """Drop rejected-attempt diagnostics before a same-run retry."""
+
+    projection.diagnostics = []
+    projection.issues = []
+    for unit_projection in projection.work_units:
+        unit_projection.diagnostics = []
+
+
 async def _prepare_isolated_route_repo(source_repo: Path, isolated_root: Path) -> Path:
     """Create a source-only route workspace without blocking the event loop.
 
@@ -228,6 +237,13 @@ class CodeGeneratorGenerationOrchestrator:
                 if resumed
                 else self._initial_projection(run, generation_id, plan)
             )
+            if resumed:
+                # A frontend resume starts a new executable attempt. Keep
+                # accepted checkpoints and immutable receipts, but do not
+                # feed diagnostics from the rejected attempt back into the
+                # next model operation; those diagnostics can describe a
+                # candidate tree that will be rebuilt or restored below.
+                _reset_generation_attempt_projection(projection)
             updated = await _cas(
                 repo,
                 run,
