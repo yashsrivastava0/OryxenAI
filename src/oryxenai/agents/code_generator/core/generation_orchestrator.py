@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import fnmatch
 import hashlib
 import json
 import re
@@ -1994,6 +1995,13 @@ def _operation_context(
         for path in workspace.repo_dir.rglob("*")
         if path.is_file() and not any(part in {"node_modules", "dist"} for part in path.parts)
     )[:500]
+    owned = _owned_paths(unit, plan, projections)
+    exact_owned_paths = {path.replace("\\", "/").strip("/") for path in owned if "*" not in path}
+    if unit.kind in {"route_batch", "route_compose"} and exact_owned_paths:
+        # Create-vs-replace only needs ground truth for the files this unit
+        # can write. Sending the entire repository inventory is redundant and
+        # can consume the bounded context on large resumed workspaces.
+        existing_files = [path for path in existing_files if path in exact_owned_paths]
     if unit.kind == "route_compose":
         # Composition can only write the route shell and runtime wiring. The
         # materialized public resources are already bound by the route-batch
@@ -2033,6 +2041,21 @@ def _operation_context(
     previous_attempt_files: dict[str, str] = {}
     candidate_dir = workspace.root / f"candidate-{_unit_dir_slug(unit.unit_id)}"
     if candidate_dir.is_dir():
+        diagnostic_paths = {
+            str(item.file).replace("\\", "/").strip("/")
+            for item in diagnostics
+            if str(item.file).strip()
+        }
+
+        def belongs_to_unit(relative: str) -> bool:
+            if diagnostic_paths:
+                return relative in diagnostic_paths
+            if exact_owned_paths:
+                return relative in exact_owned_paths
+            return any(fnmatch.fnmatchcase(relative, owner) for owner in owned)
+
+        included_bytes = 0
+        max_candidate_bytes = 48_000
         for path in sorted(candidate_dir.rglob("*")):
             if (
                 not path.is_file()
@@ -2041,13 +2064,18 @@ def _operation_context(
             ):
                 continue
             relative = path.relative_to(candidate_dir).as_posix()
+            if not belongs_to_unit(relative):
+                continue
             try:
-                previous_attempt_files[relative] = path.read_text(encoding="utf-8")[:20_000]
+                source = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            if len(previous_attempt_files) >= 12:
+            if len(source) > 20_000 or included_bytes + len(source) > max_candidate_bytes:
+                continue
+            previous_attempt_files[relative] = source
+            included_bytes += len(source)
+            if len(previous_attempt_files) >= 8:
                 break
-    owned = _owned_paths(unit, plan, projections)
     relevant_diagnostics = [
         item for item in diagnostics if not item.work_unit_id or item.work_unit_id == unit.unit_id
     ][-12:]
