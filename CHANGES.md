@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 01:19 +05:30 - Codex (GPT-5 / OpenAI) - [fb1c209] - require explicit V4 typography roles
+The sixth live frontend generation reached the live Luna planner but returned
+an invalid V4 token system because omitted typography roles were defaulted to
+`body`, producing duplicate body roles. The schema now requires every
+typography binding to carry an explicit `body` or `display` role, and the
+planner contract states the exact one-body/optional-display invariant. Added a
+regression test proving an omitted role is rejected before generation.
+
 ### 2026-08-28 01:09 +05:30 - Codex (GPT-5 / OpenAI) - [cbe4491] - bound Code Generator operation context to its work unit
 The fifth live frontend generation proved a separate source-generation failure:
 the route model request serialized approximately 245k characters because the
