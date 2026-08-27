@@ -2279,6 +2279,7 @@ def _shared_source_for_unit(
             {
                 "src/app/ResourceUrl.ts",
                 "src/components/generated/SharedSystems.tsx",
+                "src/content/generated-content.ts",
                 "src/design/generated-tokens.css",
             }
         )
@@ -2321,10 +2322,53 @@ def _shared_source_for_unit(
                 continue
             try:
                 relative_candidate = candidate.relative_to(repo_dir).as_posix()
-                shared_source[relative_candidate] = candidate.read_text(encoding="utf-8")[:30_000]
+                source = candidate.read_text(encoding="utf-8")
+                if relative_candidate == "src/content/generated-content.ts":
+                    source = _compact_generated_content_interface(source)
+                shared_source[relative_candidate] = source[:30_000]
             except (OSError, UnicodeDecodeError):
                 continue
     return shared_source
+
+
+def _compact_generated_content_interface(source: str) -> str:
+    """Expose the generated-content API without duplicating approved prose.
+
+    Route batches already receive their route-scoped approved content and
+    literal content keys in the operation contract. Sending the complete
+    generated module would duplicate that prose and can push a bounded model
+    context over its ceiling. The source excerpt keeps the frozen export names,
+    signatures, and exact approved key union available to the model.
+    """
+
+    index_match = re.search(
+        r"export const CONTENT_INDEX = (?P<index>\[.*?\]) as const;",
+        source,
+        flags=re.DOTALL,
+    )
+    entries: list[dict[str, str]] = []
+    if index_match:
+        try:
+            parsed = json.loads(index_match.group("index"))
+        except json.JSONDecodeError:
+            parsed = []
+        if isinstance(parsed, list):
+            entries = [
+                {"content_id": str(item.get("content_id", ""))}
+                for item in parsed
+                if isinstance(item, dict) and str(item.get("content_id", ""))
+            ]
+    ids = [json.dumps(item["content_id"], ensure_ascii=False) for item in entries]
+    approved_type = " | ".join(ids) or "never"
+    return (
+        "/* Trusted generated-content API excerpt; approved values remain in the generated module. */\n"
+        "export interface PublicContentPack { readonly route_id: string; readonly sections: readonly unknown[]; }\n"
+        "export declare const PUBLIC_CONTENT: readonly PublicContentPack[];\n"
+        f"export type ApprovedContentId = {approved_type};\n"
+        "export declare function contentForRoute(routeId: string): PublicContentPack | undefined;\n"
+        "export declare function sectionForRoute(routeId: string, sectionId: string): unknown;\n"
+        "export declare function contentValue(contentId: ApprovedContentId): string;\n"
+    )
 
 
 def _enforce_context_ceiling(context: dict[str, Any], maximum: int) -> dict[str, Any]:
