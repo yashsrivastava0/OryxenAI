@@ -11,6 +11,18 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-27 11:40 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - transactional optional dependency fallback
+The first live frontend generation reached source generation but failed at the
+trusted toolchain because acquisition recorded `lucide-react` as
+`rejected_fallback` while its partially mutated workspace manifest still
+required the uncached package. Dependency resolution now runs lockfile and
+offline installation in a disposable sibling workspace, publishing the
+manifest, lockfile, and installed modules only after success. A rejected
+optional package therefore cannot poison the later npm toolchain check, while
+successful admitted dependencies still replace the workspace as one complete
+installed set. The regression test verifies that a failed optional install
+leaves no package manifest behind.
+
 ### 2026-08-27 03:32 +05:30 — Codex (GPT-5 / OpenAI) — [1e3610e] — make the native dev launcher reliable from this workspace
 The first clean smoke test exposed two Windows launcher issues in the new
 one-command native path: `uv` was trying to use a user-level cache that was
