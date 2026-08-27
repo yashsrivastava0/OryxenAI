@@ -18,6 +18,12 @@ export function formatReadinessBlocker(code) {
   return READINESS_BLOCKER_LABELS[code] || String(code || 'local readiness checks');
 }
 
+export function generationCanResume(run, generation) {
+  return ['needs_attention', 'queued'].includes(run?.status) && Boolean(
+    generation?.accepted_checkpoint || generation?.work_units?.some((item) => item.status === 'checkpointed'),
+  );
+}
+
 export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}) {
   if (typeof requestImpl !== 'function') throw new Error('An authorized request function is required.');
   const root = document.querySelector('[data-code-generator-development]');
@@ -406,9 +412,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     renderCardList(view('dependencies'), dependencies?.receipts, 'No dependency receipts yet.', (item) => item.package_name || 'No package', (item) => `${item.decision || 'unknown'} · ${item.resolved_version || item.fallback?.strategy || 'existing stack'}`);
 
     const generateButton = view('generate');
-    const resumableGeneration = run.status === 'needs_attention' && Boolean(
-      generation?.accepted_checkpoint || generation?.work_units?.some((item) => item.status === 'checkpointed')
-    );
+    const resumableGeneration = generationCanResume(run, generation);
     const generationReady = run.status === 'acquired'
       || (run.status === 'needs_attention' && Boolean(run.acquire_summary) && !generation)
       || resumableGeneration;

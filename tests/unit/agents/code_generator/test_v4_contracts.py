@@ -306,6 +306,7 @@ def test_v4_composer_contract_delegates_content_to_completed_batches() -> None:
     route = contract["routes"][0]
     assert route["content_keys_required"] is False
     assert route["section_ids"] == ["hero"]
+    assert route["sections"][0]["content_ids"] == []
     assert "import and render the completed section batches" in render_contract_instructions(
         contract
     )
