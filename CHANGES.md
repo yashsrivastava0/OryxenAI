@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 03:24 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - preserve toolchain launch diagnostics
+### 2026-08-28 03:24 +05:30 - Codex (GPT-5 / OpenAI) - [253b1fa] - preserve toolchain launch diagnostics
 The tenth frontend resume was repeatedly stopping before source validation with
 only `TOOLCHAIN_START_FAILED`, although the same configured offline install
 worked in isolation. Process-start diagnostics now retain the operating-system
