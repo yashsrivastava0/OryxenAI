@@ -21,6 +21,7 @@ class WorkspaceError(ValueError):
 # checked-in scaffold on every workspace open so a resumed run can never keep
 # a stale or partially generated router/runtime entrypoint.
 TRUSTED_SHELL_FILES = (
+    "scripts/audit-source.mjs",
     "src/main.tsx",
     "src/app/AppRouter.tsx",
     "src/app/PreviewBridge.ts",
