@@ -977,6 +977,11 @@ class CodeGeneratorGenerationOrchestrator:
                 max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
                 work_unit_id=unit.unit_id,
                 settings=settings,
+                # Route batches are fragment owners.  Their route shell is
+                # still the scaffold until the dependent composer runs, so a
+                # whole-site audit here would report composer-owned failures
+                # back to the wrong model operation.
+                include_source_audit=unit.kind != "route_batch",
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
