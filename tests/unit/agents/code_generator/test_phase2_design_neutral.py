@@ -18,6 +18,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     WorkGraph,
     WorkUnit,
 )
+from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    _scoped_resource_ledger,
+    _shared_source_for_unit,
+)
 from oryxenai.agents.code_generator.core.ownership import (
     OwnershipError,
     validate_work_ownership,
@@ -239,6 +243,80 @@ def test_content_compiler_is_stable_and_route_addressable() -> None:
     assert "Approved" in compiled
     assert "contentForRoute" in compiled
     assert compiled == compile_content_module(content)
+
+
+def test_generation_context_reads_only_trusted_and_assigned_source(tmp_path) -> None:
+    repo = tmp_path / "repo"
+    for relative in (
+        "src/app/ResourceUrl.ts",
+        "src/components/generated/SharedSystems.tsx",
+        "src/design/generated-tokens.css",
+    ):
+        target = repo / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(relative, encoding="utf-8")
+    unrelated = repo / "src/content/generated-content.ts"
+    unrelated.parent.mkdir(parents=True, exist_ok=True)
+    unrelated.write_text("unrelated generated content", encoding="utf-8")
+    component = repo / "src/generated/resources/pack/components/demo/source/index.tsx"
+    component.parent.mkdir(parents=True, exist_ok=True)
+    component.write_text("export const Demo = () => null;", encoding="utf-8")
+
+    unit = WorkUnit(
+        unit_id="route-home-batch",
+        kind="route_batch",
+        route_id="home",
+        route_ids=["home"],
+        resource_slot_ids=["component-slot"],
+    )
+    plan = SitePlan(
+        plan_id="context-scope",
+        routes=[],
+        work_graph=WorkGraph(
+            units=[
+                WorkUnit(
+                    unit_id="foundation",
+                    kind="foundation",
+                    owns_paths=["src/content/generated-content.ts"],
+                ),
+                unit,
+            ]
+        ),
+    )
+    projections = {
+        "execution/contract.json": {
+            "slots": [
+                {
+                    "resource_slot_id": "component-slot",
+                    "resolution": {
+                        "local_paths": ["resources/components/demo/source"],
+                    },
+                }
+            ]
+        }
+    }
+
+    shared = _shared_source_for_unit(plan, projections, unit, repo)
+
+    assert "src/content/generated-content.ts" not in shared
+    assert "src/app/ResourceUrl.ts" in shared
+    assert "src/generated/resources/pack/components/demo/source/index.tsx" in shared
+
+
+def test_resource_context_drops_historical_ledger_payloads() -> None:
+    unit = WorkUnit(unit_id="composer", kind="route_compose", route_id="home")
+    scoped = _scoped_resource_ledger(
+        {
+            "schema_version": "ledger-v1",
+            "ledger_hash": "ledger-hash",
+            "active_bindings": [{"binding_id": "binding-1"}],
+            "receipts": [{"receipt_id": "receipt-1"}],
+            "requests": [{"request_id": "request-1"}],
+        },
+        unit,
+    )
+
+    assert scoped == {"schema_version": "ledger-v1", "ledger_hash": "ledger-hash"}
 
 
 def test_v3_typescript_audit_catches_route_contract_regressions(tmp_path) -> None:

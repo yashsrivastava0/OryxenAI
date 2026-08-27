@@ -1939,7 +1939,6 @@ def _operation_context(
     repair_round: int,
 ) -> dict[str, Any]:
     site = projections["site/contract.json"]
-    visual = projections["design/visual-direction.json"]
     routes = {
         str(item.get("route_id", "")): item
         for item in site.get("routes", [])
@@ -1952,41 +1951,20 @@ def _operation_context(
         for path in workspace.repo_dir.rglob("*")
         if path.is_file() and not any(part in {"node_modules", "dist"} for part in path.parts)
     )[:500]
-    # Frozen source this unit builds against (scaffold app layer, foundation
-    # shared files, generated manifest shapes) — the checkpoint's file hashes
-    # alone are not enough to author compatible imports.
-    shared_source: dict[str, str] = {}
-    if unit.kind != "foundation":
-        dependency_ids = set(unit.depends_on)
-        dependency_paths = [
-            owned_path
-            for dependency in plan.work_graph.units
-            if dependency.unit_id in dependency_ids
-            for owned_path in dependency.owns_paths
-            if "*" not in owned_path
-        ]
-        for relative in dependency_paths:
-            path = workspace.repo_dir / relative
-            if not path.is_file() or path.suffix.lower() not in {".ts", ".tsx", ".css"}:
-                continue
-            try:
-                shared_source[relative] = path.read_text(encoding="utf-8")[:30_000]
-            except (OSError, UnicodeDecodeError):
-                continue
-        for path in sorted(workspace.repo_dir.rglob("*")):
-            if (
-                not path.is_file()
-                or path.suffix.lower() not in {".ts", ".tsx", ".css", ".html"}
-                or any(part in {"node_modules", "dist"} for part in path.parts)
-            ):
-                continue
-            relative = path.relative_to(workspace.repo_dir).as_posix()
-            try:
-                shared_source[relative] = path.read_text(encoding="utf-8")[:20_000]
-            except (OSError, UnicodeDecodeError):
-                continue
-            if len(shared_source) >= 32:
-                break
+    # The provider receives only the trusted interfaces and direct dependency
+    # source needed by this unit.  Walking the entire generated repository here
+    # would serialize large manifests and unrelated content into every call.
+    context_plan = _scoped_operation_plan(plan, unit)
+    context_visual = _scoped_visual_direction(
+        projections.get("design/visual-direction.json", {}), unit
+    )
+    context_resource_bindings = _scoped_resource_ledger(
+        projections.get("resources/ledger.json", {}), unit
+    )
+    context_execution_contract = _scoped_execution_contract(
+        projections.get("execution/contract.json", {}), unit
+    )
+    shared_source = _shared_source_for_unit(plan, projections, unit, workspace.repo_dir)
     # The rejected files from a prior attempt, when its candidate tree is
     # still on disk — the repairer needs the exact content it must correct.
     previous_attempt_files: dict[str, str] = {}
@@ -2033,10 +2011,10 @@ def _operation_context(
                 if isinstance(item, dict) and str(item.get("route_id", "")) in route_ids
             ],
         },
-        "visual_direction": visual,
-        "plan": plan.model_dump(mode="json"),
-        "resource_bindings": projections.get("resources/ledger.json", {}),
-        "execution_contract": projections.get("execution/contract.json", {}),
+        "visual_direction": context_visual,
+        "plan": context_plan,
+        "resource_bindings": context_resource_bindings,
+        "execution_contract": context_execution_contract,
         "prior_checkpoint": checkpoint.model_dump(mode="json") if checkpoint else {},
         "owned_paths": owned,
         # Ground truth for create-vs-replace: files present in the current
@@ -2060,6 +2038,293 @@ def _operation_context(
         "repair_round": repair_round,
         "output_ceiling": output_ceiling,
     }
+
+
+def _scoped_operation_plan(plan: SitePlan, unit: WorkUnit) -> dict[str, Any]:
+    """Build the plan slice needed by one source-generation operation.
+
+    The complete SitePlan remains immutable host input and is used for every
+    validation decision. Prompt context is a different concern: route work
+    should receive the assigned route and sections plus the token contract,
+    not unrelated route graphs and duplicate global resource records.
+    """
+
+    value = plan.model_dump(mode="json")
+    route_ids = set(unit.route_ids) or ({unit.route_id} if unit.route_id else set())
+    section_ids = set(unit.section_ids)
+    slot_ids = set(unit.resource_slot_ids)
+    interaction_ids = set(unit.interaction_ids)
+    criterion_ids = set(unit.criterion_ids)
+    if not route_ids:
+        return value
+
+    def belongs(item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        item_route = str(item.get("route_id", ""))
+        item_routes_value = item.get("route_ids", [])
+        item_routes = (
+            {str(entry) for entry in item_routes_value if str(entry)}
+            if isinstance(item_routes_value, list)
+            else set()
+        )
+        if item_route and item_route not in route_ids:
+            return False
+        if item_routes and not item_routes.intersection(route_ids):
+            return False
+        item_section = str(item.get("section_id", ""))
+        item_sections_value = item.get("section_ids", [])
+        item_sections = (
+            {str(entry) for entry in item_sections_value if str(entry)}
+            if isinstance(item_sections_value, list)
+            else set()
+        )
+        if section_ids and item_section and item_section not in section_ids:
+            return False
+        if section_ids and item_sections and not item_sections.intersection(section_ids):
+            return False
+        item_slot = str(item.get("resource_slot_id", ""))
+        if slot_ids and item_slot and item_slot not in slot_ids:
+            return False
+        item_criterion = str(item.get("criterion_id", ""))
+        return not criterion_ids or not item_criterion or item_criterion in criterion_ids
+
+    value["routes"] = [item for item in value.get("routes", []) if belongs(item)]
+    value["resource_slots"] = [item for item in value.get("resource_slots", []) if belongs(item)]
+    value["resource_inventory"] = [
+        item for item in value.get("resource_inventory", []) if belongs(item)
+    ]
+    value["execution_bindings"] = [
+        item
+        for item in value.get("execution_bindings", [])
+        if isinstance(item, dict)
+        and (str(item.get("resource_slot_id", "")) in slot_ids or (not slot_ids and belongs(item)))
+    ]
+    value["acceptance_coverage"] = [
+        item
+        for item in value.get("acceptance_coverage", [])
+        if belongs(item)
+        and (not criterion_ids or str(item.get("criterion_id", "")) in criterion_ids)
+    ]
+    value["interactions"] = [
+        item
+        for item in value.get("interactions", [])
+        if belongs(item)
+        and (unit.kind != "route_batch" or str(item.get("interaction_id", "")) in interaction_ids)
+    ]
+
+    blueprint = value.get("experience_blueprint")
+    if isinstance(blueprint, dict):
+        blueprint["route_shells"] = [
+            item for item in blueprint.get("route_shells", []) if belongs(item)
+        ]
+        blueprint["section_regions"] = [
+            item for item in blueprint.get("section_regions", []) if belongs(item)
+        ]
+        blueprint["distinctive_moves"] = [
+            item for item in blueprint.get("distinctive_moves", []) if belongs(item)
+        ]
+        blueprint["interaction_assignments"] = [
+            item
+            for item in blueprint.get("interaction_assignments", [])
+            if belongs(item)
+            and (
+                unit.kind != "route_batch" or str(item.get("interaction_id", "")) in interaction_ids
+            )
+        ]
+        blueprint["resource_placements"] = [
+            item
+            for item in blueprint.get("resource_placements", [])
+            if belongs(item) and (not slot_ids or str(item.get("resource_slot_id", "")) in slot_ids)
+        ]
+        blueprint["motion_beats"] = [
+            item for item in blueprint.get("motion_beats", []) if belongs(item)
+        ]
+
+    graph = value.get("work_graph")
+    if isinstance(graph, dict):
+        related_ids = {unit.unit_id, *unit.depends_on}
+        graph["units"] = [
+            item
+            for item in graph.get("units", [])
+            if isinstance(item, dict) and str(item.get("unit_id", "")) in related_ids
+        ]
+    if unit.kind == "route_compose":
+        # Route sections already received their executable resource bindings.
+        # The composer only needs their frozen signatures and the route's
+        # composition contract, not duplicate inventory/placement records.
+        value["resource_slots"] = []
+        value["resource_inventory"] = []
+        value["execution_bindings"] = []
+    return value
+
+
+def _scoped_visual_direction(value: dict[str, Any], unit: WorkUnit) -> dict[str, Any]:
+    """Keep global visual rules and only the assigned route's direction."""
+
+    if not isinstance(value, dict):
+        return {}
+    route_ids = set(unit.route_ids) or ({unit.route_id} if unit.route_id else set())
+    section_ids = set(unit.section_ids)
+
+    def in_scope(item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        route = str(item.get("route_id", ""))
+        routes_value = item.get("route_ids", [])
+        routes = (
+            {str(entry) for entry in routes_value if str(entry)}
+            if isinstance(routes_value, list)
+            else set()
+        )
+        section = str(item.get("section_id", ""))
+        sections_value = item.get("section_ids", [])
+        sections = (
+            {str(entry) for entry in sections_value if str(entry)}
+            if isinstance(sections_value, list)
+            else set()
+        )
+        if route_ids and route and route not in route_ids:
+            return False
+        if route_ids and routes and not routes.intersection(route_ids):
+            return False
+        if section_ids and section and section not in section_ids:
+            return False
+        return not section_ids or not sections or bool(sections.intersection(section_ids))
+
+    result = dict(value)
+    for key in ("routes", "assets", "resources"):
+        items = value.get(key)
+        if isinstance(items, list):
+            result[key] = [item for item in items if in_scope(item)]
+    return result
+
+
+def _scoped_resource_ledger(value: dict[str, Any], unit: WorkUnit) -> dict[str, Any]:
+    """Retain only resource-ledger records usable by the current unit."""
+
+    if not isinstance(value, dict):
+        return {}
+    result = {
+        key: value[key]
+        for key in ("schema_version", "ledger_hash", "based_on_input_and_plan")
+        if key in value
+    }
+    active_bindings = value.get("active_bindings")
+    if isinstance(active_bindings, list):
+        result["active_bindings"] = active_bindings
+    if unit.kind == "route_compose":
+        result.pop("active_bindings", None)
+    return result
+
+
+def _scoped_execution_contract(value: dict[str, Any], unit: WorkUnit) -> dict[str, Any]:
+    """Retain the execution policy and route/unit resource slot bindings."""
+
+    if not isinstance(value, dict):
+        return {}
+    route_ids = set(unit.route_ids) or ({unit.route_id} if unit.route_id else set())
+    slot_ids = set(unit.resource_slot_ids)
+    result = dict(value)
+    if unit.kind == "route_compose":
+        result["slots"] = []
+        return result
+    items = value.get("slots")
+    if isinstance(items, list):
+        result["slots"] = [
+            item
+            for item in items
+            if isinstance(item, dict)
+            and (
+                str(item.get("resource_slot_id", "")) in slot_ids
+                if slot_ids
+                else (
+                    not route_ids
+                    or not str(item.get("route_id", ""))
+                    or str(item.get("route_id", "")) in route_ids
+                )
+            )
+        ]
+    return result
+
+
+def _shared_source_for_unit(
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    unit: WorkUnit,
+    repo_dir: Path,
+) -> dict[str, str]:
+    """Read only trusted interfaces and direct dependency-owned source.
+
+    The old fallback walked the entire repository and accidentally supplied
+    generated manifests, public-data modules, and other unrelated source.
+    This operation-specific allowlist keeps the prompt useful and bounded.
+    """
+
+    if unit.kind == "foundation":
+        return {}
+    paths: set[str] = set()
+    if unit.kind == "route_compose":
+        dependency_ids = set(unit.depends_on)
+        for dependency in plan.work_graph.units:
+            if dependency.unit_id in dependency_ids:
+                paths.update(
+                    path
+                    for path in dependency.owns_paths
+                    if "*" not in path and path.startswith("src/routes/")
+                )
+
+    if unit.kind in {"route_batch", "route_compose"}:
+        paths.update(
+            {
+                "src/app/ResourceUrl.ts",
+                "src/components/generated/SharedSystems.tsx",
+                "src/design/generated-tokens.css",
+            }
+        )
+    if unit.kind == "route_compose":
+        paths.update({"src/app/AppRouter.tsx", "src/main.tsx"})
+
+    execution = projections.get("execution/contract.json", {})
+    requested_slots = set(unit.resource_slot_ids)
+    for slot in execution.get("slots", []) if isinstance(execution, dict) else []:
+        if (
+            not isinstance(slot, dict)
+            or str(slot.get("resource_slot_id", "")) not in requested_slots
+        ):
+            continue
+        resolution = slot.get("resolution", {})
+        if not isinstance(resolution, dict):
+            continue
+        for local_path in resolution.get("local_paths", []):
+            normalized = str(local_path).replace("\\", "/").strip("/")
+            if normalized:
+                paths.add(f"src/generated/{normalized}")
+                if normalized.startswith("resources/"):
+                    paths.add(
+                        "src/generated/resources/pack/" + normalized.removeprefix("resources/")
+                    )
+
+    source_extensions = {".ts", ".tsx", ".css", ".html"}
+    shared_source: dict[str, str] = {}
+    for relative in sorted(paths):
+        path = repo_dir / relative
+        candidates = [path]
+        if path.is_dir():
+            candidates = sorted(
+                item
+                for item in path.rglob("*")
+                if item.is_file() and item.suffix.lower() in source_extensions
+            )[:8]
+        for candidate in candidates:
+            if not candidate.is_file() or candidate.suffix.lower() not in source_extensions:
+                continue
+            try:
+                relative_candidate = candidate.relative_to(repo_dir).as_posix()
+                shared_source[relative_candidate] = candidate.read_text(encoding="utf-8")[:30_000]
+            except (OSError, UnicodeDecodeError):
+                continue
+    return shared_source
 
 
 def _enforce_context_ceiling(context: dict[str, Any], maximum: int) -> dict[str, Any]:
