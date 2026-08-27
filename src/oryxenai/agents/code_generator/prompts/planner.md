@@ -17,8 +17,12 @@ Grounding and exact coverage:
   owner for multiple sections, invent a replacement ID, or omit a manifest
   row. Never add a fact,
   claim, project, metric, testimonial, link, section, route, or resource.
-- Use one or two approved local font roles. Echo their family, weights, style,
-  and WOFF/WOFF2 files exactly. Define fluid type steps, line height, tracking,
+- Emit `typography_roles` with exactly one object whose explicit `role` is
+  `body`, plus at most one second object whose explicit `role` is `display`.
+  Never omit `role`, emit two `body` objects, or use a font family as the role.
+  Every `type_steps[*].role` must be one of those explicit roles. Use one or
+  two approved local font roles. Echo their family, weights, style, and
+  WOFF/WOFF2 files exactly. Define fluid type steps, line height, tracking,
   semantic colors, typed lengths, borders, shadows, spacing, radii,
   containers, and motion tokens without fallback expressions.
 - Give every section exact selectors, viewport order, columns, measure, gap,

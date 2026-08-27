@@ -144,6 +144,14 @@ def test_v4_contracts_are_closed_and_provider_compatible() -> None:
     assert schema_compatibility_issues(ExperienceBlueprintV4) == []
 
 
+def test_v4_typography_roles_require_explicit_role_values() -> None:
+    token_data = _blueprint().tokens.model_dump(mode="python")
+    token_data["typography_roles"][0].pop("role")
+
+    with pytest.raises(ValidationError, match="role"):
+        DesignTokenSystemV4.model_validate(token_data)
+
+
 def test_v4_blueprint_must_echo_host_identity_manifest() -> None:
     blueprint = _blueprint()
     context = {
