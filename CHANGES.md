@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 04:03 +05:30 - Codex (GPT-5 / OpenAI) - [0431996] - clear stale diagnostics on same-run resume
+The bounded-context fix let the tenth frontend run reach composition, where
+Luna correctly refused a stale audit bundle that still described pre-repair
+section imports and claimed those files were outside composer ownership. A
+same-run frontend resume now clears rejected-attempt diagnostics and per-unit
+diagnostic references while retaining accepted checkpoints and immutable model
+receipts. The next attempt therefore validates the restored source tree and
+routes each fresh finding to its current owner. Focused orchestration and
+context tests passed.
+
 ### 2026-08-28 03:51 +05:30 - Codex (GPT-5 / OpenAI) - [ffac6f6] - bound resumed source-generation context
 The tenth frontend run reproduced `GENERATION_CONTEXT_LIMIT` after live route
 responses and repairs accumulated near the configured 120,000-character
