@@ -15,7 +15,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from oryxenai.agents.code_generator.core.blueprint_compiler import compile_blueprint_site_plan
-from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
+from oryxenai.agents.code_generator.core.development_planner import (
+    validate_site_plan,
+    validate_v4_blueprint_identities,
+)
 from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
@@ -144,6 +147,7 @@ async def run_planner_operation(
         try:
             if uses_v4:
                 blueprint = ExperienceBlueprintV4.model_validate(parsed)
+                validate_v4_blueprint_identities(blueprint, context)
                 if projections is None:
                     raise PlannerOperationError(
                         "PLANNER_PROJECTIONS_REQUIRED",
