@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 02:08 +05:30 - Codex (GPT-5 / OpenAI) - [70b024d] - version the detached generator module with the shell
+The detached development page versioned its bootstrap module but imported the
+main Code Generator module without the computed asset version, allowing the
+browser to retain stale controls after a frontend fix. The shell now passes the
+main module version through the bootstrap and dynamically imports that exact
+version, ensuring the standalone UI exercises the committed implementation.
+
 ### 2026-08-28 02:00 +05:30 - Codex (GPT-5 / OpenAI) - [5edcb30] - resume bounded generation after a context failure
 The tenth live frontend run completed both route batches but stopped before the
 composer model call because its bounded context was 122,064 characters. The
