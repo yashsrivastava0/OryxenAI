@@ -55,7 +55,17 @@ def build_instructions(
         render_contract_instructions(contract) if isinstance(contract, dict) and contract else ""
     )
     schema = json.dumps(output_model.model_json_schema(), ensure_ascii=False, sort_keys=True)
-    serialized = json.dumps(context, ensure_ascii=False, sort_keys=True, default=str)
+    # Keep receipt accounting identical to the orchestrator's preflight
+    # ceiling check. Whitespace is not part of the provider payload contract,
+    # and counting it here made receipts report a larger context than the
+    # value that was actually admitted.
+    serialized = json.dumps(
+        context,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
     task = (
         f"{operation_prompt}\n\n"
         + (f"{contract_block}\n\n" if contract_block else "")
