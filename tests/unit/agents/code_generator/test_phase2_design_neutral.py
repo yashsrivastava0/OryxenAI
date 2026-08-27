@@ -10,16 +10,20 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DesignTokenSystemV3,
     ExecutionBindingV2,
     ExperienceBlueprintV3,
+    GenerationProjection,
+    GenerationWorkUnitProjection,
     InteractionContract,
     RoutePlan,
     RouteShellV3,
     SitePlan,
+    SourceDiagnostic,
     TypedTokenGroupV3,
     WorkGraph,
     WorkUnit,
 )
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
     _operation_context,
+    _reset_generation_attempt_projection,
     _scoped_resource_ledger,
     _shared_source_for_unit,
 )
@@ -400,6 +404,40 @@ def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path)
     assert context["previous_attempt_files"] == {
         "src/routes/home/sections/hero.tsx": "candidate source"
     }
+
+
+def test_resumed_generation_clears_rejected_attempt_diagnostics_only() -> None:
+    projection = GenerationProjection(
+        generation_id="generation-1",
+        input_receipt_hash="input",
+        site_plan_hash="plan",
+        phase="generating_routes",
+        diagnostics=[
+            SourceDiagnostic(
+                diagnostic_id="diagnostic-stale",
+                code="SOURCE_STALE",
+                group="source_contract",
+                owner="generator",
+                phase="source_generation",
+                normalized_message="stale",
+                fingerprint="stale-fingerprint",
+            )
+        ],
+        issues=[],
+        work_units=[
+            GenerationWorkUnitProjection(
+                unit_id="route-home",
+                kind="route_batch",
+                status="checkpointed",
+                diagnostics=["stale-diagnostic"],
+            )
+        ],
+    )
+    _reset_generation_attempt_projection(projection)
+
+    assert projection.diagnostics == []
+    assert projection.issues == []
+    assert projection.work_units[0].diagnostics == []
 
 
 def test_v3_typescript_audit_catches_route_contract_regressions(tmp_path) -> None:
