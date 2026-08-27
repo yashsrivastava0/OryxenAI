@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 01:44 +05:30 - Codex (GPT-5 / OpenAI) - [e12d787] - defer route-batch whole-site audit
+The ninth live frontend generation produced valid route-batch responses, but
+the post-batch source audit still inspected the scaffold route shell before
+the composer owned it. Its repair diagnostics therefore asked the batch
+operation to mutate the trusted route shell. Route batches now run repository
+and toolchain checks without the whole-site AST audit; composition and final
+integration retain the audit at the correct ownership boundary.
+
 ### 2026-08-28 01:38 +05:30 - Codex (GPT-5 / OpenAI) - [d5247dd] - make V4 resource coverage explicit
 The eighth live frontend generation passed the planner and model source calls,
 but both route batches reported only the image slots they used. The host
