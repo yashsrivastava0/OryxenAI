@@ -406,7 +406,16 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     renderCardList(view('dependencies'), dependencies?.receipts, 'No dependency receipts yet.', (item) => item.package_name || 'No package', (item) => `${item.decision || 'unknown'} · ${item.resolved_version || item.fallback?.strategy || 'existing stack'}`);
 
     const generateButton = view('generate');
-    generateButton.disabled = !(run.status === 'acquired' || (run.status === 'needs_attention' && Boolean(run.acquire_summary))) || Boolean(run.source_checkpoint) || Boolean(run.generation_job_id);
+    const resumableGeneration = run.status === 'needs_attention' && Boolean(
+      generation?.accepted_checkpoint || generation?.work_units?.some((item) => item.status === 'checkpointed')
+    );
+    const generationReady = run.status === 'acquired'
+      || (run.status === 'needs_attention' && Boolean(run.acquire_summary) && !generation)
+      || resumableGeneration;
+    generateButton.disabled = !generationReady || (
+      !resumableGeneration && (Boolean(run.source_checkpoint) || Boolean(run.generation_job_id))
+    );
+    generateButton.textContent = resumableGeneration ? 'Resume generation' : 'Generate source';
     view('generate-status').textContent = generation ? `${generation.phase || run.status} · ${generation.active_work_unit_id || 'no active unit'}` : 'Waiting for a resource-complete plan.';
     if (generation) {
       const checkpoint = generation.accepted_checkpoint;

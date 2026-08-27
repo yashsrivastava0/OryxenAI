@@ -308,6 +308,10 @@ def test_generation_context_reads_only_trusted_and_assigned_source(tmp_path) -> 
     assert "src/app/ResourceUrl.ts" in shared
     assert "src/generated/resources/pack/components/demo/source/index.tsx" in shared
 
+    composer = unit.model_copy(update={"unit_id": "route-home-compose", "kind": "route_compose"})
+    composer_shared = _shared_source_for_unit(plan, projections, composer, repo)
+    assert "src/content/generated-content.ts" not in composer_shared
+
 
 def test_resource_context_drops_historical_ledger_payloads() -> None:
     unit = WorkUnit(unit_id="composer", kind="route_compose", route_id="home")
