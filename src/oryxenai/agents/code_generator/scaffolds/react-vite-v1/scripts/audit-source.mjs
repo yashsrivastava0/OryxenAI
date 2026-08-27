@@ -76,6 +76,34 @@ function literalValue(node) {
   return undefined;
 }
 
+function findParameterDeclaration(source, name) {
+  let declaration;
+  function visit(current) {
+    if (declaration || !current) return;
+    if (ts.isParameter(current) && ts.isIdentifier(current.name) && current.name.text === name) {
+      declaration = current;
+      return;
+    }
+    ts.forEachChild(current, visit);
+  }
+  visit(source);
+  return declaration;
+}
+
+function mappedCollection(parameter, source, seen) {
+  const functionNode = parameter?.parent;
+  const call = functionNode?.parent;
+  if (
+    !functionNode ||
+    !call ||
+    !ts.isCallExpression(call) ||
+    !ts.isPropertyAccessExpression(call.expression) ||
+    call.expression.name.text !== "map" ||
+    !call.arguments.some((argument) => argument === functionNode)
+  ) return undefined;
+  return staticLiteralValue(call.expression.expression, source, seen);
+}
+
 function staticLiteralValue(node, source, seen = new Set()) {
   const direct = literalValue(node);
   if (direct !== undefined) return direct;
@@ -93,11 +121,24 @@ function staticLiteralValue(node, source, seen = new Set()) {
       ts.forEachChild(current, visit);
     }
     visit(source);
+    if (!initializer) {
+      const parameter = findParameterDeclaration(source, value.text);
+      const collection = mappedCollection(parameter, source, new Set([...seen, value.text]));
+      if (collection !== undefined) return collection;
+    }
     return staticLiteralValue(initializer, source, new Set([...seen, value.text]));
   }
   if (ts.isElementAccessExpression(value)) {
-    const object = staticLiteralValue(value.expression, source, seen);
     const index = literalValue(value.argumentExpression);
+    const expression = unwrap(value.expression);
+    if (ts.isIdentifier(expression) && typeof index === "number") {
+      const parameter = findParameterDeclaration(source, expression.text);
+      const collection = mappedCollection(parameter, source, new Set([...seen, expression.text]));
+      if (Array.isArray(collection)) {
+        return collection.map((item) => Array.isArray(item) ? item[index] : undefined).filter((item) => item !== undefined);
+      }
+    }
+    const object = staticLiteralValue(value.expression, source, seen);
     if (Array.isArray(object) && typeof index === "number" && Number.isInteger(index)) return object[index];
     if (object && typeof object === "object" && typeof index === "string") return object[index];
   }
@@ -586,6 +627,9 @@ function auditV4Routes() {
         if (!ts.isIdentifier(call.expression) || !contentNames.has(call.expression.text)) continue;
         const argument = call.arguments[0] && staticLiteralValue(call.arguments[0], tree);
         if (typeof argument === "string") contentCalls.add(argument);
+        else if (Array.isArray(argument)) {
+          for (const value of argument) if (typeof value === "string") contentCalls.add(value);
+        }
       }
     }
     for (const contentId of contentByRoute.get(route.routeId) || []) {
