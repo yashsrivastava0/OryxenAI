@@ -30,6 +30,13 @@ Do not use four `..` segments from a section file; that leaves `src/` and
 cannot resolve the trusted modules. Before returning, resolve every local
 import against the actual owned source paths.
 
+Each owned section file is an independent default-exported component. Do not
+turn one section file into an aggregator, import a component from itself, or
+re-export a named component from a sibling unless that sibling visibly exports
+that exact name. A named import or re-export is valid only when the target
+module contains that named export; prefer a direct default import of each
+section file when composing the batch.
+
 Ownership and shell boundary:
 
 - A route batch owns section fragments only. It must not create or modify a

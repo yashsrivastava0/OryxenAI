@@ -2680,7 +2680,7 @@ def _invalidate_stale_route_batch_checkpoint(
     plan: SitePlan,
     workspace: GenerationWorkspace,
 ) -> list[SourceDiagnostic]:
-    """Reopen route batches checkpointed before local-import validation existed."""
+    """Reopen route batches that fail the bounded source contract."""
 
     route_batches = [unit for unit in plan.work_graph.units if unit.kind == "route_batch"]
     if not route_batches or projection.accepted_checkpoint is None:
