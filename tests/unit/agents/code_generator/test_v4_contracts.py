@@ -367,6 +367,8 @@ def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
     assert "font-weight: 400" in css
     assert 'format("woff2")' in css
     assert "var(--token," not in css
+    assert css.count("--type-body-min:") == 1
+    assert css.count("--type-display-min:") == 1
 
 
 def test_v4_realization_is_hash_bound() -> None:
