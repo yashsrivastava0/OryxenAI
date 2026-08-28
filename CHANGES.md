@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 09:45 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - preserve planner route storage keys in source audit
+The first verification attempt after the quality-binding fix reached the
+source contract and revealed that the v4 validator semantic-hashed an already
+collision-safe planner `storage_key` a second time. It therefore searched for
+an invented route directory and reported the trusted RouteShell as unused.
+Source auditing now reuses an existing planner storage key verbatim and only
+semanticizes a raw route ID when no storage key exists; focused path-regression
+tests cover both cases.
+
 ### 2026-08-28 09:34 +05:30 - Codex (GPT-5 / OpenAI) - [17fd5e3] - expose source-ready verification retry
 The frontend kept the Build and verify control disabled whenever a
 verification job identifier existed, including after that job had terminated
