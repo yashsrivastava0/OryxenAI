@@ -83,6 +83,7 @@ async def test_build_preparation_routes_are_exposed() -> None:
     assert "/api/v1/sessions/{session_id}/build-preparation" in app.openapi()["paths"]
     assert "/api/v1/sessions/{session_id}/build-preparation/start" in app.openapi()["paths"]
     assert "/api/v1/sessions/{session_id}/build-preparation/regenerate" in app.openapi()["paths"]
+    assert "/api/v1/sessions/{session_id}/build-preparation/download" in app.openapi()["paths"]
     assert "/api/v1/build-preparation/fixture/run" in app.openapi()["paths"]
 
 
@@ -191,7 +192,7 @@ async def test_two_harness_pages_are_available(tmp_path: Path) -> None:
         input_page = await client.get("/build-preparation-fixture")
         progress_page = await client.get("/build-preparation-fixture/progress")
     assert input_page.status_code == 200
-    assert "Run Phase 3" in input_page.text
+    assert "Run diagnostic build" in input_page.text
     assert "Content Architect JSON" in input_page.text
     assert "content-architect-input" in input_page.text
     assert input_page.text.index("auth-client.js") < input_page.text.index("dev-auth-bootstrap.mjs")

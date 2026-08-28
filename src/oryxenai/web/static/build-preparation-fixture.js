@@ -131,8 +131,8 @@
     var tone = record.status === "ready" || record.status === "ready_for_handoff" ? "ok" : record.status === "needs_attention" || record.status === "failed" ? "warn" : "running";
     setStatus(record.status === "needs_attention" ? "Local ready · R2 attention" : record.status, tone);
     status.textContent = record.status === "running" ? "Running " + (record.current_stage || "Build Preparation") + "…" : record.status === "ready" ? "Phase 3 completed." : record.status === "needs_attention" ? "Local result completed; review the issue card." : "Run failed; review the issue card.";
-    if (record.status === "ready_for_handoff") { setStatus("Ready for Code Generator", "ok"); status.textContent = "Package verified and eligible for Code Generator."; }
-    if (record.status === "needs_attention" && record.result && record.result.handoff_report) { setStatus("Handoff blocked", "warn"); status.textContent = "Package retained for review; Code Generator handoff is blocked."; }
+    if (record.status === "ready_for_handoff") { setStatus("Ready for downstream build", "ok"); status.textContent = "Package verified and eligible for the downstream build stage."; }
+    if (record.status === "needs_attention" && record.result && record.result.handoff_report) { setStatus("Handoff blocked", "warn"); status.textContent = "Package retained for review; downstream handoff is blocked."; }
     setStages(record); setEvents(record.events); renderLocal(record); renderIssue(record.issue); renderSummary(record);
     renderPreflight(record.storage || {});
   }

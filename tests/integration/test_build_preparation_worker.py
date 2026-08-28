@@ -81,6 +81,21 @@ async def test_start_requires_approved_content_architect(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_start_requires_approved_visual_design_director(db_session) -> None:
+    session = await PortfolioSessionRepository(db_session).create("Build Preparation visual gate")
+    session.current_state = {"content_architect": _approved_upstream_state()["content_architect"]}
+    await db_session.flush()
+    service = BuildPreparationService(
+        BuildPreparationRepository(db_session), JobService(db_session)
+    )
+
+    with pytest.raises(BuildPreparationOperationError) as exc_info:
+        await service.start(session.id)
+
+    assert exc_info.value.code == "BUILD_PREPARATION_VISUAL_DESIGN_DIRECTOR_NOT_APPROVED"
+
+
+@pytest.mark.asyncio
 async def test_phase_3_start_and_worker_flow_persist_blocked_visual_state(db_session) -> None:
     session = await PortfolioSessionRepository(db_session).create("Build Preparation worker")
     session_id = session.id
