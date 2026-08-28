@@ -224,3 +224,53 @@ def test_prompt_builder_excludes_accepted_mode_for_first_time_generation() -> No
     )
     assert "result_tag to exactly one of changes/requests/cannot_complete" in v4_instructions
     assert "never a valid choice here" in v4_instructions
+
+
+def _accepted_envelope_payload() -> dict[str, object]:
+    return {
+        "result": "accepted",
+        "files": [],
+        "exported_signatures": [],
+        "content_ids": ["hero"],
+        "criterion_ids": [],
+        "resource_slot_ids": [],
+        "interaction_ids": [],
+        "resource_requests": [],
+        "dependency_requests": [],
+        "failure_details": [],
+    }
+
+
+def test_v4_envelope_rejects_accepted_result_for_first_time_generation() -> None:
+    """Regression test for the 2026-08-28 bug: two live confirmation runs
+    deterministically returned result="accepted" for a route batch that had
+    never been generated before, and strict structured-output schema
+    enforcement meant prose-only prompt guidance could not reliably prevent
+    it. The schema itself must reject it via validation context, forcing
+    the existing schema-correction retry with explicit feedback."""
+    with pytest.raises(ValueError, match='result: "accepted" is not valid'):
+        SourceGenerationEnvelopeV2.model_validate(
+            _accepted_envelope_payload(),
+            context={"forbid_accepted_result": True},
+        )
+    # Without the context flag (e.g. integrate/repair operations), or with
+    # it explicitly false, "accepted" remains valid.
+    accepted = SourceGenerationEnvelopeV2.model_validate(_accepted_envelope_payload())
+    assert accepted.result == "accepted"
+    accepted_explicit = SourceGenerationEnvelopeV2.model_validate(
+        _accepted_envelope_payload(), context={"forbid_accepted_result": False}
+    )
+    assert accepted_explicit.result == "accepted"
+
+
+def test_generation_result_rejects_accepted_mode_for_first_time_generation() -> None:
+    payload = {
+        "operation_id": "route_batch:unit-1",
+        "based_on_context_receipt": "context-hash",
+        "mode": "accepted",
+        "accepted": {"summary": "nothing to change", "verified_contracts": ["hero"]},
+    }
+    with pytest.raises(ValueError, match='mode="accepted" is not valid'):
+        GenerationResult.model_validate(payload, context={"forbid_accepted_result": True})
+    accepted = GenerationResult.model_validate(payload)
+    assert accepted.mode == "accepted"
