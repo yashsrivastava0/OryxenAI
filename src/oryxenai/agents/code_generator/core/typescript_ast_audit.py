@@ -136,7 +136,10 @@ def _route_source_path(route: dict[str, Any], *, semantic: bool = False) -> str:
     storage_key = storage_key.replace("\\", "/").strip("/")
     if storage_key.startswith("routes/"):
         storage_key = storage_key.removeprefix("routes/")
-    if semantic:
+    # The planner already stores a collision-safe route directory in
+    # ``storage_key``. Re-semanticizing that value would append a second hash
+    # and make the validator look for a route file the generator never wrote.
+    if semantic and not route.get("storage_key"):
         from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 
         storage_key = semantic_segment(storage_key or str(route.get("route_id", "")))
