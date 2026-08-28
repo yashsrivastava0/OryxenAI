@@ -435,7 +435,11 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     }
 
     const verifyButton = view('verify');
-    verifyButton.disabled = run.status !== 'source_ready' || Boolean(run.verification_job_id);
+    // A source-ready run cannot have an active verification job: queuing
+    // verification moves it to a queued/building state. A previous terminal
+    // job identifier is therefore safe to ignore here and must not hide the
+    // explicit retry action from the frontend.
+    verifyButton.disabled = run.status !== 'source_ready';
     view('verify-status').textContent = verification ? `${verification.phase || run.status} · ${verification.active_gate || 'complete'}` : 'Final verification has not started.';
     const quality = run.quality_review || generation?.quality_review;
     view('quality-summary').textContent = quality
