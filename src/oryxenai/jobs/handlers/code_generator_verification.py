@@ -1269,7 +1269,14 @@ async def _terminal(
         run_id,
         projection,
         DevelopmentRunStatus.NEEDS_ATTENTION.value,
-        values={"terminal_failure": report.model_dump(mode="json"), "pending_promotion": None},
+        values={
+            "terminal_failure": report.model_dump(mode="json"),
+            "pending_promotion": None,
+            # A terminal verification job is no longer active. Clearing the
+            # identifier keeps same-run retries and the frontend action state
+            # aligned with the durable job lifecycle.
+            "verification_job_id": None,
+        },
         event=("needs_attention", summary),
     )
     # The run already contains a complete, fail-closed terminal report. Do
