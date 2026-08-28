@@ -11,6 +11,26 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 13:05 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - assign per-file font weights and stop double-prefixing tokens
+Resuming run `73268104` with the prior fix now persisting the real
+rejection reason (instead of discarding it) replaced an earlier
+circumstantial "content got stripped" hypothesis with ground truth:
+the review confirmed content/copy/imagery were fine and flagged 4
+concrete technical defects instead. Two were real, previously-invisible
+compiler bugs: `_font_weight_for_path`'s regex required a `-`/`_` left
+boundary that a `/` path separator never satisfied (materialized font
+files are named `{weight}-{style}.ext` inside a resource directory),
+so every file in a multi-weight binding silently collapsed to the same
+weight - confirmed directly from the live run's `generated-tokens.css`
+(8 `@font-face` blocks, all `font-weight: 400`, for four distinct
+400/500/600/700 files). `_compile_v4_tokens` also unconditionally
+double-prefixed a blueprint token already named e.g. `space-5` into
+`--space-space-5`. Both fixed; `route_batch.md`/`route_compose.md`/
+`repair_source.md` now also spell out the exact group-prefix
+convention, since 3 of the review's 5 undefined token references were
+the model omitting a prefix outright. Regression tests cover both
+compiler fixes.
+
 ### 2026-08-28 12:03 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - persist the real quality-review rejection instead of discarding it
 An independent audit of the prior session's work (91 commits since the
 last handoff, cross-checked against the live filesystem/process state
@@ -319,6 +339,6 @@ contract, lint, and JavaScript syntax checks passed.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 18
+- Recent detailed entries retained: 19
 - Compacted milestone bullets: 99
 - Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
