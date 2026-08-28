@@ -6,6 +6,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationChanges,
     GenerationResult,
     SourceFileChange,
+    SourceGenerationEnvelopeV2,
 )
 from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
 from oryxenai.agents.code_generator.core.source_validation import (
@@ -192,3 +193,34 @@ def test_prompt_builder_injects_the_normative_generation_contract() -> None:
     assert "SOURCE COVERAGE RESOURCE SLOT IDS" in instructions
     assert "slot-a, slot-b" in instructions
     assert receipt.prompt_versions["operation"] == "code_generator.integrate.v5"
+
+
+def test_prompt_builder_excludes_accepted_mode_for_first_time_generation() -> None:
+    """Regression test for the 2026-08-28 bug: two live confirmation runs
+    deterministically hit GENERATION_CHANGES_MISSING because route_batch's
+    task instructions unconditionally listed mode=accepted as a valid
+    choice, undermining the prompt-file guidance not to use it. A
+    first-time-generation operation must never see "accepted" listed."""
+    for operation in ("route_batch", "route_compose"):
+        _system, instructions, _receipt = build_instructions(
+            operation, {"context_receipt_hash": "context"}
+        )
+        assert "changes/requests/cannot_complete" in instructions
+        assert "accepted" not in instructions.split("Set mode to exactly one of")[-1].split(";")[0]
+        assert "never a valid choice here" in instructions
+
+    for operation in ("integrate", "repair"):
+        _system, instructions, _receipt = build_instructions(
+            operation, {"context_receipt_hash": "context"}
+        )
+        assert "changes/requests/accepted/cannot_complete" in instructions
+
+    # The actual live failure was on the V4 wire envelope (result_tag), not
+    # the legacy GenerationResult (mode) path - cover it explicitly.
+    _system, v4_instructions, _receipt = build_instructions(
+        "route_batch",
+        {"context_receipt_hash": "context"},
+        output_model=SourceGenerationEnvelopeV2,
+    )
+    assert "result_tag to exactly one of changes/requests/cannot_complete" in v4_instructions
+    assert "never a valid choice here" in v4_instructions
