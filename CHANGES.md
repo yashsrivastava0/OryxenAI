@@ -11,6 +11,23 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 15:21 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [c354841] - reject result:"accepted" at the schema level for fresh generation
+The prose fix (5a89eb0) held for zero live attempts: with
+`strict_schema=True` the provider enforces the JSON schema's own enum
+directly, so a model sampling under constrained decoding can still
+choose "accepted" regardless of surrounding instructions - two
+consecutive live retries proved this (a different unit failed each
+time). `GenerationResult`/`SourceGenerationEnvelopeV2`'s existing
+`@model_validator(mode="after")` hooks now accept a `ValidationInfo`
+and reject `mode`/`result="accepted"` when `_model_result` marks the
+operation `forbid_accepted_result=True` (route_batch/route_compose;
+integrate/repair still legitimately allow it) via
+`model_validate(..., context=...)`. A live occurrence now raises a
+real `ValidationError` that the existing 2-attempt schema-correction
+retry loop catches and feeds back to the model explicitly, instead of
+silently reaching `GENERATION_CHANGES_MISSING` with no path to
+recovery.
+
 ### 2026-08-28 13:08 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [5a89eb0] - stop unconditionally offering result:accepted to fresh-generation calls
 The prior fix's prose guidance in route_batch.md/route_compose.md did
 not hold on a live retry: the model chose `result=accepted` for a
@@ -370,6 +387,6 @@ contract, lint, and JavaScript syntax checks passed.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 21
+- Recent detailed entries retained: 22
 - Compacted milestone bullets: 99
 - Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
