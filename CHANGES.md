@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 09:28 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - clear terminal verification jobs for same-run retry
+### 2026-08-28 09:28 +05:30 - Codex (GPT-5 / OpenAI) - [f20f5c5] - clear terminal verification jobs for same-run retry
 The first corrected verification retry exposed a second lifecycle bug: the
 terminal verification job identifier remained on the run after failure, so
 the frontend disabled Build and verify even after source generation produced a
