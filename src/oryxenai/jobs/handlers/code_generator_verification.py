@@ -40,6 +40,7 @@ from oryxenai.agents.code_generator.core.generation_orchestrator import (
 )
 from oryxenai.agents.code_generator.core.quality_review import (
     QualityReviewError,
+    rebind_quality_review_receipt_source,
     validate_quality_review_receipt,
 )
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
@@ -276,6 +277,7 @@ async def _execute(
                 "SOURCE_CHECKPOINT_DRIFT",
                 "The restored source checkpoint does not match its source manifest.",
             )
+        checkpoint_before_normalization = checkpoint.checkpoint_hash
         checkpoint = await _normalize_host_generated_tokens(
             sessionmaker=sessionmaker,
             run_id=run_id,
@@ -285,6 +287,16 @@ async def _execute(
             checkpoint_store=checkpoint_store,
             checkpoint=checkpoint,
         )
+        if checkpoint.checkpoint_hash != checkpoint_before_normalization:
+            # Host normalization is deterministic, but it still changes the
+            # immutable source manifest. Reload the projection that the
+            # normalizer rebound so the final verification gate never mixes
+            # the old in-memory quality receipt with the corrected source.
+            async with sessionmaker() as db:
+                current = await CodeGeneratorDevelopmentRepository(db).get(run_id)
+            if current is None:
+                raise VerificationFailure("RUN_NOT_FOUND", "The verification run was not found.")
+            run = current
         source_manifest = checkpoint.source_manifest_hash
         identity = build_candidate_identity(
             run=run,
@@ -1137,11 +1149,42 @@ async def _normalize_host_generated_tokens(
         work_unit_id="deterministic-token-normalization",
         parent_hash=checkpoint.checkpoint_hash,
     )
+    quality_rebound = False
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
         current = await repo.get(run_id)
         if current is None:
             raise VerificationFailure("RUN_NOT_FOUND", "The verification run was not found.")
+        generation_projection_update: dict[str, Any] | None = None
+        generation_payload = current.generation_projection
+        quality_payload = (
+            generation_payload.get("quality_review")
+            if isinstance(generation_payload, dict)
+            else None
+        )
+        if isinstance(quality_payload, dict):
+            try:
+                quality_receipt = QualityReviewReceiptV2.model_validate(quality_payload)
+            except ValueError:
+                # Leave malformed or legacy quality state untouched. The
+                # normal verification path will report the precise binding
+                # failure instead of silently manufacturing a receipt.
+                quality_receipt = None
+            if (
+                quality_receipt is not None
+                and quality_receipt.source_manifest_hash == checkpoint.source_manifest_hash
+            ):
+                rebound_receipt = rebind_quality_review_receipt_source(
+                    quality_receipt,
+                    source_manifest_hash=corrected.source_manifest_hash,
+                )
+                rebound_projection = GenerationProjection.model_validate(generation_payload)
+                rebound_projection.accepted_checkpoint = corrected
+                rebound_projection.source_file_count = corrected.file_count
+                rebound_projection.source_total_bytes = corrected.total_bytes
+                rebound_projection.quality_review = rebound_receipt
+                generation_projection_update = rebound_projection.model_dump(mode="json")
+                quality_rebound = True
         updated = await repo.compare_and_swap(
             run_id,
             expected_revision=current.revision,
@@ -1153,6 +1196,11 @@ async def _normalize_host_generated_tokens(
                     "source_ready": True,
                     "checkpoint_hash": corrected.checkpoint_hash,
                 },
+                **(
+                    {"generation_projection": generation_projection_update}
+                    if generation_projection_update is not None
+                    else {}
+                ),
             },
         )
         if updated is None:
@@ -1165,7 +1213,11 @@ async def _normalize_host_generated_tokens(
             event_type="deterministic_source_normalized",
             level="info",
             message="Host-owned generated tokens were recompiled before final verification.",
-            details={"parent_checkpoint": checkpoint.checkpoint_hash},
+            details={
+                "parent_checkpoint": checkpoint.checkpoint_hash,
+                "quality_receipt_rebound": quality_rebound,
+                "source_manifest": corrected.source_manifest_hash,
+            },
         )
         await db.commit()
     logger.info(

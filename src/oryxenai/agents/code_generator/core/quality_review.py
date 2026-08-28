@@ -132,8 +132,29 @@ def stamp_quality_review_receipt(
     )
 
 
+def rebind_quality_review_receipt_source(
+    receipt: QualityReviewReceiptV2,
+    *,
+    source_manifest_hash: str,
+) -> QualityReviewReceiptV2:
+    """Re-stamp a receipt after a deterministic host-only source rewrite.
+
+    A host normalization may change the source manifest without changing the
+    reviewed creative output.  Rebinding is deliberately limited to the
+    source hash and recomputes the receipt hash through the same schema
+    validator; the model's findings, scores, and review identity remain
+    unchanged.
+    """
+
+    payload = receipt.model_dump(mode="json")
+    payload["source_manifest_hash"] = source_manifest_hash
+    payload["receipt_hash"] = ""
+    return QualityReviewReceiptV2.model_validate(payload)
+
+
 __all__ = [
     "QualityReviewError",
+    "rebind_quality_review_receipt_source",
     "stamp_quality_review_receipt",
     "validate_quality_review_receipt",
 ]
