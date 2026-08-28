@@ -6,6 +6,14 @@ unchanged; verify them by string search before returning. For every assigned
 distinctive move, place its exact `data-distinctive-move-id="..."` marker on
 the route-owned element that implements the move.
 
+Return `result: "accepted"` only when the context supplied to you explicitly
+shows this exact unit's own files already generated and accepted in a prior
+attempt, with nothing left to change. If no such existing accepted content
+for this unit appears in your context, there is nothing yet to accept:
+return `result: "changes"` with the complete new file set instead.
+`result: "accepted"` with no qualifying prior content is a contract
+violation, not a valid outcome.
+
 The composer owns only the route shell and route-level composition paths. It
 may resolve layout rhythm, landmark structure, section transitions, and
 route-local interaction wiring, but it may not rewrite already-owned batch
