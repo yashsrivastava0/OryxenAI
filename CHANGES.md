@@ -11,6 +11,20 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 17:15 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [664d88e] - explain token name format in the planner prompt
+The only eligible Build Preparation pack expired, so switched to
+Code Generator's own fixture-based `/runs` entry point (bypasses
+Discovery/CA/VDD/Build Preparation entirely, same real live pipeline
+otherwise) to keep testing. Two fresh fixture runs
+(`privacy-safe-v3-rich`, then plain `privacy-safe-v3`) both failed
+`PLANNER_OUTPUT_INVALID` on "token names must be lowercase semantic
+identifiers" - the schema requires `^[a-z][a-z0-9-]*$` for color/
+spacing/size/radius/motion token names, but `planner.md` never stated
+that rule, so a natural choice like a bare numeric spacing scale
+("1", "7") fails validation. Same pattern as this session's earlier
+token_compiler.py/route_batch.md fixes. Retrying to see if this
+resolves planning.
+
 ### 2026-08-28 15:40 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a4a345] - add a diagnostic backstop for the still-unresolved accepted-mode bug (root cause open)
 Three consecutive live retries (prose fix, operation-aware prompt-instruction
 fix, validation-context schema check) all failed to stop the model
