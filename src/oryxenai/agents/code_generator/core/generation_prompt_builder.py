@@ -72,21 +72,47 @@ def build_instructions(
         + "Return exactly one JSON object. The transport enforces the declared output schema; "
         "do not include prose, Markdown, or reasoning outside that object."
     )
+    # "accepted" only has a real meaning for an operation that reviews
+    # already-generated content (integrate, repair): it means "the existing
+    # source already satisfies the contract, nothing to change." For a
+    # first-time generation operation (route_batch, route_compose,
+    # foundation, director) there is no prior content for this unit to
+    # accept, yet listing "accepted" as an equally valid, unqualified choice
+    # here - appearing last, closest to the actual output - was observed
+    # live to make the model choose it anyway even after prompt-level
+    # guidance said not to. Excluding it from the listed choices for
+    # generation-only operations is the fix that actually held.
+    accepted_valid = operation in {"integrate", "repair"}
+    mode_choices = (
+        "changes/requests/accepted/cannot_complete"
+        if accepted_valid
+        else "changes/requests/cannot_complete"
+    )
     if output_model is GenerationResult:
         task += (
             "\nCopy the input's context_receipt_hash value EXACTLY, unchanged, into "
             "based_on_context_receipt.\n"
-            "Set mode to exactly one of changes/requests/accepted/cannot_complete; every payload "
+            f"Set mode to exactly one of {mode_choices}; every payload "
             "field that does not match your mode MUST be null."
         )
+        if not accepted_valid:
+            task += (
+                " This unit has not been generated before, so mode=accepted is never a valid "
+                "choice here."
+            )
     elif output_model.__name__ == "SourceGenerationEnvelopeV2":
         task += (
-            "\nSet result_tag to exactly one of changes/requests/accepted/cannot_complete. "
+            f"\nSet result_tag to exactly one of {mode_choices}. "
             "Always include files, exported_signatures, content_ids, criterion_ids, "
             "resource_slot_ids, interaction_ids, resource_requests, dependency_requests, "
             "and failure_details as separate arrays; "
             "use empty arrays when a result kind does not need that payload."
         )
+        if not accepted_valid:
+            task += (
+                " This unit has not been generated before, so result_tag=accepted is never a "
+                "valid choice here."
+            )
     context_hash = _hash(context)
     schema_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()
     operation_version = _VERSIONS[operation]
