@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 07:08 +05:30 - Codex (GPT-5 / OpenAI) - [f72ab5e] - keep repair context below the ceiling
+The next live retry showed that supplying complete current owned files exposed
+the repair call to the full generation-only planner and asset history. That
+made the host fail closed at `GENERATION_CONTEXT_LIMIT` before the repair
+model could act. Repair contexts now retain the route narrative, distinctive
+move/motion/resource contracts, diagnostics, trusted interfaces, and complete
+owned source while omitting redundant token, region, work-graph, and asset
+history fields. The focused context suite and Ruff check pass.
+
 ### 2026-08-28 06:50 +05:30 - Codex (GPT-5 / OpenAI) - [bf0e076] - supply current files to integration repair
 The live tenth frontend run exposed a repair-context authority gap: the
 integration reviewer identified a blocking defect in an existing route
