@@ -1598,13 +1598,24 @@ class CodeGeneratorGenerationOrchestrator:
         raw: Any = None
         result: GenerationResult | None = None
         last_issue = ""
-        # Only integrate/repair legitimately review already-generated content
-        # and may report mode/result="accepted" (nothing to change). A
-        # first-time generation operation has nothing of its own yet to
-        # accept - see the matching schema validators in
-        # development_schemas.py for why this is enforced there rather than
-        # only in prose.
-        validation_context = {"forbid_accepted_result": operation not in {"integrate", "repair"}}
+        # _model_result has exactly two callers (_run_unit's main dispatch
+        # loop and _review_and_polish's owner-scoped polish loop), and both
+        # already treat mode/result="accepted" as unconditionally invalid on
+        # their own terms: _run_unit raises GENERATION_UNIT_ACCEPTED_WITHOUT_
+        # CHANGES for it regardless of operation, and _review_and_polish
+        # requires exactly mode="changes", rejecting anything else including
+        # "accepted". An operation-name allowlist here (`operation not in
+        # {"integrate", "repair"}`) was wrong: _run_unit's own retry loop
+        # reassigns its local `operation` variable to "repair" after a
+        # validation failure purely to select the repair prompt (see the
+        # `operation = "repair"` reassignments a few hundred lines up), which
+        # is a completely different meaning from FinalRepairer's standalone
+        # post-generation repair operation (a separate function entirely,
+        # never routed through _model_result) - the allowlist accidentally
+        # let a mid-generation diagnostic-retry accept its own unfixed
+        # response instead of correcting it. Forbid it unconditionally here
+        # instead of trying to name every operation that shouldn't get it.
+        validation_context = {"forbid_accepted_result": True}
         for attempt in range(2):
             call_instructions = instructions
             if last_issue:
