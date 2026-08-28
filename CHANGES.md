@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 09:45 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - preserve planner route storage keys in source audit
+### 2026-08-28 09:45 +05:30 - Codex (GPT-5 / OpenAI) - [65801b7] - preserve planner route storage keys in source audit
 The first verification attempt after the quality-binding fix reached the
 source contract and revealed that the v4 validator semantic-hashed an already
 collision-safe planner `storage_key` a second time. It therefore searched for
