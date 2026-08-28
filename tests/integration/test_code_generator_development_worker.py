@@ -20,6 +20,8 @@ from oryxenai.jobs.handlers.code_generator import (
     CodeGeneratorPlanningHandler,
 )
 
+pytestmark = pytest.mark.integration
+
 
 def _plan(*, resource_slot: bool = False) -> SitePlan:
     return SitePlan.model_validate(

@@ -22,6 +22,8 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
 from oryxenai.core.settings import get_settings
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 
+pytestmark = pytest.mark.integration
+
 
 def _plan() -> SitePlan:
     return SitePlan.model_validate(

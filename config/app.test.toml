@@ -3,6 +3,13 @@
 # Secrets come from .env (POSTGRES_PASSWORD), CI sets POSTGRES_PASSWORD=oryxen_test.
 
 [database]
+# The base config/app.toml default (port 5544) has no listener on this
+# machine; the actual local PostgreSQL server used for both native
+# development and testing runs on 5432 (see config/app.native.toml). Without
+# this override, every integration/worker test silently skipped with
+# "PostgreSQL unavailable" instead of running.
+host = "127.0.0.1"
+port = 5432
 database = "oryxenai_test"
 
 [database.pool]
