@@ -11,6 +11,27 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 15:40 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a4a345] - add a diagnostic backstop for the still-unresolved accepted-mode bug (root cause open)
+Three consecutive live retries (prose fix, operation-aware prompt-instruction
+fix, validation-context schema check) all failed to stop the model
+from returning `result="accepted"` for a first-time route-batch unit.
+Isolated testing proves the new validator correctly rejects this exact
+payload/context shape outside the worker process; inside the live
+worker it evidently still is not firing, through a mechanism not yet
+identified. Ruled out: stale bytecode (tried a full process restart
+with the bytecode cache cleared), a non-editable/duplicate install
+(confirmed the venv's editable install points at this `src/` tree),
+and a pre-validated-instance short-circuit (the OpenAI-compatible
+provider always returns a plain parsed dict). Added a loud, specific
+backstop instead of continuing to guess: if an accepted envelope with
+`forbid_accepted_result=True` ever reaches the post-validation point
+regardless, it now raises `GENERATION_DIAGNOSTIC_VALIDATOR_DID_NOT_FIRE`
+with the actual operation/context/envelope-class observed. Further
+live testing is blocked: the only eligible Build Preparation pack
+expired mid-investigation (`expires_at` 2026-08-28T10:06:34Z). This is
+honestly an open investigation, not a claimed fix - flagged for the
+next session/agent to pick up with fresh live budget and a fresh pack.
+
 ### 2026-08-28 15:21 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [c354841] - reject result:"accepted" at the schema level for fresh generation
 The prose fix (5a89eb0) held for zero live attempts: with
 `strict_schema=True` the provider enforces the JSON schema's own enum
@@ -387,6 +408,6 @@ contract, lint, and JavaScript syntax checks passed.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 22
+- Recent detailed entries retained: 23
 - Compacted milestone bullets: 99
 - Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
