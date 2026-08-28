@@ -28,6 +28,18 @@ Apply the diagnostic's correct repair:
 - `SOURCE_VISUAL_CONTRACT_MISSING`: include the missing preservation string.
 - `SOURCE_LOCAL_IMPORT_MISSING` / `SOURCE_UNDECLARED_IMPORT`: fix or remove the
   import using only files and packages admitted in the current context.
+- `SOURCE_ROUTE_H1_COUNT_INVALID` / `SOURCE_SECTION_ANCHOR_COUNT_INVALID` /
+  `SOURCE_SECTION_DOM_ID_MISSING` / `SOURCE_SECTION_ORDER_INVALID`: for a V4
+  route, section `.tsx` modules own their single literal section anchors and
+  the route composer only renders those modules. Do not add duplicate wrapper
+  anchors or a route-level `<h1>`; remove duplicate composer markup and
+  preserve the hero section's sole heading. The route composer must not import
+  `src/content/generated-content`, call `contentValue(...)`, or create an
+  `approvedContent` array. If the composer imports that module, remove the
+  import and its unused content projection. Resolve trusted relative imports
+  from `src/routes/<route-storage-key>/index.tsx` (for example,
+  `../../components/generated/SharedSystems`); do not use a third `..` segment
+  to reach modules directly under `src/`.
 - `SOURCE_PLACEHOLDER` / `SOURCE_SECRET_ACCESS`: remove the placeholder or
   secret access.
 - `TYPECHECK_FAILED` / `TYPECHECK_STRUCTURE_INVALID`: fix only the named files
