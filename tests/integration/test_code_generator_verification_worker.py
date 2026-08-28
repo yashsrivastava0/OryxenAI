@@ -1,14 +1,38 @@
 from __future__ import annotations
 
+import pytest
+
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
-from oryxenai.agents.code_generator.core.development_schemas import GenerationProjection, SitePlan
-from oryxenai.agents.code_generator.core.generation_orchestrator import _unit_projection_dict
+from oryxenai.agents.code_generator.core.development_schemas import (
+    CandidateIdentity,
+    DesignTokenSystemV4,
+    Diagnostic,
+    ExperienceBlueprintV4,
+    GenerationProjection,
+    QualityFindingV2,
+    QualityReviewDraftV1,
+    QualityReviewReceiptV2,
+    QualityScoreEvidenceV1,
+    SitePlan,
+    VerificationProfile,
+    VerificationProjection,
+)
+from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    CodeGeneratorGenerationOrchestrator,
+    _unit_projection_dict,
+)
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 from oryxenai.core.settings import get_settings
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
-from oryxenai.jobs.handlers.code_generator_verification import CodeGeneratorVerificationHandler
+from oryxenai.jobs.handlers.code_generator_verification import (
+    CodeGeneratorVerificationHandler,
+    VerificationFailure,
+    _attempt_repair,
+)
 from oryxenai.storage.preview import MemoryPreviewStorage
+
+pytestmark = pytest.mark.integration
 
 
 class _UnexpectedRepairModel:
@@ -201,3 +225,302 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
     assert refreshed.active_preview is not None
     assert refreshed.pending_promotion is None
     assert refreshed.verification_projection["gate_results"][-1]["status"] == "passed"
+
+
+def _v4_blueprint() -> ExperienceBlueprintV4:
+    return ExperienceBlueprintV4(
+        selected_concept_id="concept:proof",
+        narrative_arc="positioning to evidence",
+        tokens=DesignTokenSystemV4(
+            colors=[
+                {"name": "ink", "value": "#121212"},
+                {"name": "paper", "value": "#f6f2ea"},
+            ],
+            spacing=[{"name": "section", "value": 4, "unit": "rem"}],
+            typography_roles=[
+                {
+                    "role": "body",
+                    "approved_font_slot": "font:body",
+                    "family": "Local Sans",
+                    "weights": [400, 700],
+                    "local_files": ["resources/fonts/local/400-normal.woff2"],
+                    "body_min_rem": 1,
+                    "body_max_rem": 1.2,
+                    "heading_ratio": 1.25,
+                    "body_line_height": 1.5,
+                }
+            ],
+            type_steps=[
+                {
+                    "name": "body",
+                    "role": "body",
+                    "minimum_rem": 1,
+                    "maximum_rem": 1.2,
+                    "line_height": 1.5,
+                    "tracking_em": 0,
+                },
+                {
+                    "name": "display",
+                    "role": "body",
+                    "minimum_rem": 2,
+                    "maximum_rem": 3,
+                    "line_height": 1.05,
+                    "tracking_em": -0.02,
+                },
+            ],
+            containers=[
+                {
+                    "name": "content",
+                    "maximum": {"name": "content-max", "value": 1120, "unit": "px"},
+                    "inline_padding": {"name": "content-pad", "value": 1, "unit": "rem"},
+                }
+            ],
+            container_max_px=1120,
+        ),
+        route_shells=[
+            {
+                "route_id": "home",
+                "storage_key": "home",
+                "h1_owner": "hero",
+                "section_order": ["hero"],
+            }
+        ],
+        section_regions=[
+            {
+                "region_id": "region:hero",
+                "route_id": "home",
+                "section_id": "hero",
+                "owner_id": "owner:hero",
+                "section_selector": '[data-content-id="hero"]',
+                "region_selector": '[data-region-id="region:hero"]',
+                "order_mobile": 0,
+                "order_tablet": 0,
+                "order_desktop": 0,
+                "columns_mobile": 1,
+                "columns_tablet": 2,
+                "columns_desktop": 2,
+                "max_measure_ch": 68,
+                "gap": {"name": "hero-gap", "value": 2, "unit": "rem"},
+            }
+        ],
+        distinctive_moves=[
+            {
+                "move_id": "move:hero-rail",
+                "route_id": "home",
+                "section_id": "hero",
+                "region_id": "region:hero",
+                "implementation_kind": "asymmetric_width",
+                "thesis": "The proof rail offsets the positioning headline.",
+                "runtime_marker": 'data-distinctive-move-id="move:hero-rail"',
+                "source_selector": '[data-distinctive-move-id="move:hero-rail"]',
+                "target_selector": '[data-content-id="hero"]',
+                "relationship": "width_ratio",
+                "minimum_ratio": 0.25,
+                "maximum_ratio": 1,
+                "viewports": ["mobile", "tablet", "desktop"],
+                "required_css_properties": ["grid-template-columns"],
+            }
+        ],
+    )
+
+
+async def test_attempt_repair_persists_rejected_quality_review(
+    db_session, test_engine, tmp_path, monkeypatch
+) -> None:
+    """Regression test for the 2026-08-28 bug: QUALITY_REVIEW_REJECTED_AFTER_REPAIR
+    used to raise before any persist ran, silently discarding the real
+    rejection reason. It must now be readable afterward via the run's
+    generation_projection/integration_review, and the run's accepted
+    source_checkpoint must be left untouched (a rejected repair is never
+    promoted)."""
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_generation.max_repair_rounds_total = 6
+    settings.code_generator_generation.max_repair_rounds_per_unit = 2
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    plan = _plan().model_copy(update={"experience_blueprint": _v4_blueprint()})
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+
+    original_source_checkpoint = {"note": "the run's accepted checkpoint before any repair"}
+    generation = GenerationProjection(
+        generation_id=f"generation-{run.id}",
+        input_receipt_hash=receipt.admitted_identity,
+        site_plan_hash="plan-hash",
+        phase="source_ready",
+        accepted_checkpoint=checkpoint,
+        source_ready=True,
+        work_units=[_unit_projection_dict(unit) for unit in plan.work_graph.units],
+    )
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={
+            "status": "repairing",
+            "plan": plan.model_dump(mode="json"),
+            "generation_projection": generation.model_dump(mode="json"),
+            "source_checkpoint": original_source_checkpoint,
+        },
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    identity = CandidateIdentity(
+        input_receipt_hash="irh",
+        site_plan_hash="sph",
+        work_graph_hash="wgh",
+        source_checkpoint_hash=checkpoint.checkpoint_hash,
+        source_manifest_hash="smh",
+        scaffold_toolchain_profile_hash="stph",
+        verification_profile_hash="vph",
+    )
+    profile = VerificationProfile(profile_id="test-profile")
+    projection = VerificationProjection(
+        generation_id=f"generation-{run.id}",
+        candidate_identity=identity,
+        verification_profile=profile,
+        phase="repairing",
+        status="repairing",
+    )
+    diagnostics = [
+        Diagnostic(
+            diagnostic_id="diag-1",
+            group="source_contract",
+            code="TEST_DIAGNOSTIC",
+            phase="source_contract",
+            normalized_message="test diagnostic requiring a repair attempt",
+            fingerprint="fingerprint-1",
+        )
+    ]
+
+    rejected_findings = [
+        QualityFindingV2(
+            finding_id="finding-1",
+            severity="blocking",
+            owner_work_unit_id="route-home-compose",
+            code="CONTENT_COVERAGE_EMPTY",
+            file="src/routes/home/index.tsx",
+            line=12,
+            marker="content-coverage",
+            evidence="The repaired route dropped every real content binding.",
+            requested_outcome="Restore the section's real copy and CTA bindings.",
+        )
+    ]
+    score_evidence = [
+        QualityScoreEvidenceV1(
+            dimension=dimension,
+            score=2 if dimension == "resource_fit" else 4,
+            owner_work_unit_id="route-home-compose",
+            file="src/routes/home/index.tsx",
+            line=12,
+            marker="content-coverage",
+            evidence="Scored against the repaired route source.",
+        )
+        for dimension in ("hierarchy", "composition", "typography", "resource_fit", "motion")
+    ]
+    rejected_receipt = QualityReviewReceiptV2(
+        source_manifest_hash="smh-2",
+        plan_hash="plan-hash-2",
+        realization_hash="realization-hash",
+        review_context_hash="context-hash",
+        response_id="response-1",
+        review_hash="review-hash",
+        quality_gate_version="test-gate-v1",
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=2,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=rejected_findings,
+        accepted=False,
+    )
+    rejected_draft = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=2,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=rejected_findings,
+        review_summary="The repair stripped real content to dodge a build error.",
+    )
+
+    async def fake_repair(self, **_kwargs):
+        return checkpoint, checkpoint_repair_receipt
+
+    async def fake_integration_review(self, *, projection, **_kwargs):
+        projection.quality_review = rejected_receipt
+        return rejected_draft
+
+    from oryxenai.agents.code_generator.core.development_schemas import RepairReceipt
+    from oryxenai.agents.code_generator.core.final_repair import FinalRepairer
+
+    checkpoint_repair_receipt = RepairReceipt(
+        generation_id=f"generation-{run.id}",
+        diagnostic_fingerprints=["fingerprint-1"],
+        strategy_summary="bounded-simplification",
+        based_on_checkpoint=checkpoint.checkpoint_hash,
+        context_receipt="context-receipt-hash",
+        corrected_checkpoint=checkpoint.checkpoint_hash,
+        accepted_at="2026-08-28T00:00:00Z",
+    )
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+
+    monkeypatch.setattr(FinalRepairer, "repair", fake_repair)
+    monkeypatch.setattr(
+        CodeGeneratorGenerationOrchestrator, "_integration_review", fake_integration_review
+    )
+    with pytest.raises(VerificationFailure) as excinfo:
+        await _attempt_repair(
+            sessionmaker=sessionmaker,
+            run_id=run.id,
+            settings=settings,
+            workspace=workspace,
+            checkpoint_store=CheckpointStore(workspace, generation_id=str(run.id)),
+            checkpoint=checkpoint,
+            identity=identity,
+            plan=plan,
+            projections=projections,
+            projection=projection,
+            diagnostics=diagnostics,
+            public_text=set(),
+            allowed_packages=set(),
+            model_factory=None,
+        )
+
+    assert excinfo.value.code == "QUALITY_REVIEW_REJECTED_AFTER_REPAIR"
+    assert "resource_fit=2" in excinfo.value.message
+    assert "CONTENT_COVERAGE_EMPTY" in excinfo.value.message
+    assert "stripped real content" in excinfo.value.message
+
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert refreshed.integration_review is not None
+    assert refreshed.integration_review["review_summary"] == (
+        "The repair stripped real content to dodge a build error."
+    )
+    assert refreshed.generation_projection["quality_review"]["accepted"] is False
+    assert refreshed.generation_projection["quality_review"]["resource_fit_score"] == 2
+    # The rejected repair must never be promoted to the run's accepted checkpoint.
+    assert refreshed.source_checkpoint == original_source_checkpoint
