@@ -2625,9 +2625,19 @@ def _enforce_context_ceiling(context: dict[str, Any], maximum: int) -> dict[str,
 
     serialized = json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     if maximum <= 0 or len(serialized) > maximum:
+        largest_keys = sorted(
+            (
+                (key, len(json.dumps(value, ensure_ascii=False, default=str)))
+                for key, value in context.items()
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:5]
         raise GenerationError(
             "GENERATION_CONTEXT_LIMIT",
-            "The bounded generation context exceeds the configured character ceiling.",
+            f"The bounded generation context ({len(serialized)} chars) exceeds the "
+            f"configured character ceiling ({maximum} chars). Largest fields: "
+            + ", ".join(f"{key}={size}" for key, size in largest_keys),
         )
     return context
 
@@ -3064,7 +3074,7 @@ def _canonicalize_review_owners(
         if owner_id in valid_owner_ids:
             return owner_id
         if owner_id.endswith("-composer"):
-            candidate = f"{owner_id[:-len('-composer')]}-compose"
+            candidate = f"{owner_id[: -len('-composer')]}-compose"
             if candidate in valid_owner_ids:
                 return candidate
         return owner_id
