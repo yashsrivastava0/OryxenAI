@@ -11,6 +11,44 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 12:03 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - persist the real quality-review rejection instead of discarding it
+An independent audit of the prior session's work (91 commits since the
+last handoff, cross-checked against the live filesystem/process state
+and the documented V4 contract) confirmed the remaining blocker
+(`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` on run `73268104`) was a
+substantive judge rejection, not a mechanical bug - but found a real
+bug next to it: `_attempt_repair()` raised before the persist call
+that would write the rejecting review's `generation_projection`/
+`integration_review` to the run row, so `GET /runs/{id}/quality` kept
+showing the stale pre-repair receipt and the terminal report carried
+no diagnostic detail on every occurrence. The rejection is now
+persisted (without promoting its source to `source_checkpoint`), and
+the raised message is built from the review's real scores/findings
+instead of a static string. A regression test covers both.
+
+### 2026-08-28 11:58 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [eef4c7d] - repoint the test overlay at the reachable Postgres and mark integration tests
+Verifying the fix above required running the integration suite, which
+was silently skipping every test in this area with "PostgreSQL
+unavailable": `config/app.test.toml` inherited the base config's port
+5544, which has no listener on this machine, while the real
+`oryxenai_test` database already lives on 5432 alongside the native
+app database. Separately, three integration test files
+(`test_auth_foundation.py`, `test_code_generator_development_worker.py`,
+`test_code_generator_generation_worker.py`) never got the
+`pytestmark = pytest.mark.integration` convention the rest of
+`tests/integration/` uses, so even with a reachable database neither
+the autouse overlay fixture nor `scripts/test.ps1 -Suite integration`'s
+marker filter would ever select them - these files' tests have likely
+never actually run in this environment. Fixing this also surfaced a
+genuine, pre-existing, *separate* regression: `test_code_generator_
+generation_worker.py`'s two tests now fail with `KeyError: 'foundation'`
+in `generation_orchestrator.py::_profile_for`, because commit `78ee3ea`
+removed the (confirmed-dead) foundation model profile without updating
+the fallback for a plan with no `experience_blueprint` set. This does
+not affect real V4 runs (which always take the deterministic-foundation
+branch), only this one legacy-shaped test fixture - left unfixed here,
+flagged for a follow-up pass.
+
 ### 2026-08-28 09:53 +05:30 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit and bounded repair caching
 The live tenth frontend run exposed two core contract defects: the V4 source
 audit re-derived an already planner-owned route directory and required section
@@ -154,412 +192,57 @@ content accessor, while the composer contract explicitly preserves batch
 ownership and the shell's unique landmark/id boundary. Focused validation,
 contract, lint, and JavaScript syntax checks passed.
 
-### 2026-08-28 04:03 +05:30 - Codex (GPT-5 / OpenAI) - [0431996] - clear stale diagnostics on same-run resume
-The bounded-context fix let the tenth frontend run reach composition, where
-Luna correctly refused a stale audit bundle that still described pre-repair
-section imports and claimed those files were outside composer ownership. A
-same-run frontend resume now clears rejected-attempt diagnostics and per-unit
-diagnostic references while retaining accepted checkpoints and immutable model
-receipts. The next attempt therefore validates the restored source tree and
-routes each fresh finding to its current owner. Focused orchestration and
-context tests passed.
-
-### 2026-08-28 03:51 +05:30 - Codex (GPT-5 / OpenAI) - [ffac6f6] - bound resumed source-generation context
-The tenth frontend run reproduced `GENERATION_CONTEXT_LIMIT` after live route
-responses and repairs accumulated near the configured 120,000-character
-ceiling. Route batches and composers were receiving the whole repository file
-inventory even though create/replace authority is unit-owned, and rejected
-candidate trees could contribute unrelated source on repair. Route operation
-contexts now carry only owned-file inventory and diagnostic/owned candidate
-files under a bounded total, while prompt receipts measure the same compact
-serialization used by preflight. This preserves the complete trusted contract,
-approved design inputs, and repair source needed by the active unit without
-letting retry history crowd out the next live model call. Focused context,
-contract, lint, and unit tests passed.
-
-### 2026-08-28 03:48 +05:30 - Codex (GPT-5 / OpenAI) - [958b27a] - add bounded Windows batch launch fallback
-The native worker continued to claim frontend resume jobs but could not start
-the configured npm batch command through either asynchronous Windows launch
-mode. The process runner now uses a worker-thread Popen fallback only after
-those modes fail, retaining the allowlisted command, no-window execution,
-bounded output, timeout, and process-tree cleanup contract.
-
-### 2026-08-28 03:35 +05:30 - Codex (GPT-5 / OpenAI) - [27b9679] - retry denied Windows process-group launches
-The worker continued to receive `[WinError 5]` at process creation even after
-batch commands were routed through `cmd.exe`. The bounded process runner now
-retries an allowlisted Windows batch command without only the optional new
-process-group flag when that flag is denied, retaining no-window execution and
-the existing process-tree cleanup path when the group can be created.
-
-### 2026-08-28 03:28 +05:30 - Codex (GPT-5 / OpenAI) - [90f2a82] - launch Windows batch toolchains reliably
-The live worker exposed `[WinError 5] Access is denied` when its process
-runner attempted to spawn the PATH-resolved `npm.CMD` directly, stopping the
-frontend resume before route validation. Allowlisted `.cmd`/`.bat` commands
-now cross the Windows command-interpreter boundary with their validated argv,
-while native executables retain the no-shell process path.
-
-### 2026-08-28 03:24 +05:30 - Codex (GPT-5 / OpenAI) - [253b1fa] - preserve toolchain launch diagnostics
-The tenth frontend resume was repeatedly stopping before source validation with
-only `TOOLCHAIN_START_FAILED`, although the same configured offline install
-worked in isolation. Process-start diagnostics now retain the operating-system
-error and the worker surfaces it in the bounded source diagnostic, making a
-native launch failure observable and actionable.
-
-### 2026-08-28 03:12 +05:30 - Codex (GPT-5 / OpenAI) - [414b0c7] - enforce route-batch anchor IDs before composition
-The resumed frontend run showed that route batches could checkpoint validly
-resolving modules while using shortened DOM IDs (`hero`, `experience`) instead
-of the authoritative route-scoped IDs required by the V4 audit. Batch
-checkpointing now validates its deterministic anchor's route, content, DOM-ID,
-and assigned-marker literals, and stale checkpoints are reopened when that
-contract fails so the owning Luna operation receives the repair.
-
-### 2026-08-28 03:07 +05:30 - Codex (GPT-5 / OpenAI) - [ab3672f] - validate route-batch local export bindings
-The tenth live frontend run showed that path resolution alone allowed a route
-batch to checkpoint self-imports and invalid named re-exports; the later whole-
-site audit then reported them against the composer. Route batches now validate
-named local imports/re-exports against target-module exports before checkpoint,
-reopen stale invalid batches on resume, and receive explicit one-component-per-
-owned-file guidance.
-
-### 2026-08-28 03:02 +05:30 - Codex (GPT-5 / OpenAI) - [8ee6947] - bound retry diagnostics to the active work unit
-The route-batch import guard correctly found five stale imports, but the
-retry context also carried unrelated composer history and crossed the 120,000
-character ceiling before Luna was called. Generation prompts now include only
-diagnostics owned by the active work unit, keeping the actionable repair data
-while preserving the configured context limit.
-
-### 2026-08-28 02:48 +05:30 - Codex (GPT-5 / OpenAI) - [eb55728] - validate route-batch imports before checkpoint recovery
-The resumed tenth run proved that valid batch ownership was not enough: model
-source could checkpoint imports that only failed once the composed route was
-audited. Route batches now receive an exact trusted-module import map and a
-bounded resolver before checkpointing; same-run retries reopen stale batches
-and reset only the failed attempt's repair budget, preserving the durable run
-and its accepted foundation.
-
-### 2026-08-28 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [d620d1f] - isolate V4 composer authority and resume terminal generation
-The tenth live frontend run showed that the composer still received batch-owned
-content IDs, facts, and route bindings even after its content instruction was
-disabled; Luna consequently retyped copy and failed the host coverage contract.
-The V4 composer context now removes those ownership fields, and the standalone
-UI plus service recover terminal queued/checkpointed runs through an explicit
-same-run resume path without consuming another full-pipeline attempt.
-
-### 2026-08-28 02:24 +05:30 - Codex (GPT-5 / OpenAI) - [c0b4087] - give same-run generation retries fresh durable job identities
-After the composer contract fix, the standalone UI correctly attempted to
-resume the failed run, but the generation service reused the completed
-idempotency key from the earlier resume and left the run queued without a new
-worker job. Generation retry keys now include the run revision, preserving
-checkpoint reuse while ensuring every terminal retry is executable and
-observable.
-
-### 2026-08-28 02:20 +05:30 - Codex (GPT-5 / OpenAI) - [772bef1] - align V4 composer content contract with work ownership
-The tenth live frontend run reached route composition after the context ceiling
-fix, but the V4 composer was instructed to report every approved route content
-key even though its WorkUnit owns only the route shell and no sections. The
-validator correctly expected no content coverage for that unit and exhausted
-repairs on the contradictory contract. V4 composer contracts now direct the
-model to render the completed section batches and reserve content-key coverage
-for the section-owning route batches; a regression test locks the boundary.
-
-### 2026-08-28 02:08 +05:30 - Codex (GPT-5 / OpenAI) - [70b024d] - version the detached generator module with the shell
-The detached development page versioned its bootstrap module but imported the
-main Code Generator module without the computed asset version, allowing the
-browser to retain stale controls after a frontend fix. The shell now passes the
-main module version through the bootstrap and dynamically imports that exact
-version, ensuring the standalone UI exercises the committed implementation.
-
-### 2026-08-28 02:00 +05:30 - Codex (GPT-5 / OpenAI) - [5edcb30] - resume bounded generation after a context failure
-The tenth live frontend run completed both route batches but stopped before the
-composer model call because its bounded context was 122,064 characters. The
-composer now receives only source-relevant existing-file names and no duplicate
-generated-content interface; the measured context is 115,003 characters against
-the 120,000-character ceiling. Same-run generation retries preserve the durable
-generation projection and accepted work-unit checkpoints, and the standalone
-frontend exposes that path as Resume generation instead of requiring a fresh
-portfolio run.
-
-### 2026-08-28 01:44 +05:30 - Codex (GPT-5 / OpenAI) - [e12d787] - defer route-batch whole-site audit
-The ninth live frontend generation produced valid route-batch responses, but
-the post-batch source audit still inspected the scaffold route shell before
-the composer owned it. Its repair diagnostics therefore asked the batch
-operation to mutate the trusted route shell. Route batches now run repository
-and toolchain checks without the whole-site AST audit; composition and final
-integration retain the audit at the correct ownership boundary.
-
-### 2026-08-28 01:38 +05:30 - Codex (GPT-5 / OpenAI) - [d5247dd] - make V4 resource coverage explicit
-The eighth live frontend generation passed the planner and model source calls,
-but both route batches reported only the image slots they used. The host
-correctly requires the coverage array to match the complete work-unit
-assignment, including optional package, recipe, and component slots. The
-normative generation contract and route-batch prompt now expose and require
-that exact ordered list, with focused prompt-contract regression coverage.
-
-### 2026-08-28 01:30 +05:30 - Codex (GPT-5 / OpenAI) - [169ea5f] - expose bounded generated-content interface
-The seventh live frontend generation passed planning and resource acquisition
-but the route batch could not safely generate because its operation context
-omitted the trusted `src/content/generated-content.ts` API. Route work now
-receives a compact interface excerpt containing the exact approved content-key
-union and frozen export signatures, while approved prose remains supplied by
-the route-scoped contract instead of being duplicated in the context. Added a
-regression test for API presence and prose compaction.
-
-### 2026-08-28 01:19 +05:30 - Codex (GPT-5 / OpenAI) - [fb1c209] - require explicit V4 typography roles
-The sixth live frontend generation reached the live Luna planner but returned
-an invalid V4 token system because omitted typography roles were defaulted to
-`body`, producing duplicate body roles. The schema now requires every
-typography binding to carry an explicit `body` or `display` role, and the
-planner contract states the exact one-body/optional-display invariant. Added a
-regression test proving an omitted role is rejected before generation.
-
-### 2026-08-28 01:09 +05:30 - Codex (GPT-5 / OpenAI) - [cbe4491] - bound Code Generator operation context to its work unit
-The fifth live frontend generation proved a separate source-generation failure:
-the route model request serialized approximately 245k characters because the
-context builder walked unrelated generated manifests and public-content source,
-exceeding the configured 120k ceiling before the first route call. Context
-assembly now scopes plans, visual/resource/execution projections, trusted APIs,
-and direct route dependencies to the active work unit, preserving the complete
-inputs for host validation and keeping the route/composer contracts bounded.
-Added regression coverage for excluding unrelated source and historical ledger
-payloads.
-
-### 2026-08-28 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [d1a229d] - phase-aware V4 source checks
-The fourth live frontend generation confirmed that the complete V4 route audit
-was being applied while the deterministic foundation and route-batch phases
-still intentionally contained the scaffold route shell. Source/toolchain
-checks now support deferring the whole-site AST audit during those early
-phases; the audit remains required for route composition and final integration.
-Added regression coverage for the explicit audit deferral.
-
-### 2026-08-28 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [8c07530] - trusted source audit and token emission reliability
-The third live frontend generation passed planning, acquisition, and TypeScript
-typechecking but exposed two deterministic scaffold/compiler defects before
-promotion: the source audit read JSX element fields from the wrong TypeScript
-AST shape, and V4 typography roles could emit duplicate custom properties when
-a type step shared the role name. The audit now handles JSX elements and
-self-closing elements correctly, while typography emission is collision-safe;
-regression coverage asserts unique body/display variables.
-
-### 2026-08-27 11:40 +05:30 - Codex (GPT-5 / OpenAI) - [caead48] - transactional optional dependency fallback
-The first live frontend generation reached source generation but failed at the
-trusted toolchain because acquisition recorded `lucide-react` as
-`rejected_fallback` while its partially mutated workspace manifest still
-required the uncached package. Dependency resolution now runs lockfile and
-offline installation in a disposable sibling workspace, publishing the
-manifest, lockfile, and installed modules only after success. A rejected
-optional package therefore cannot poison the later npm toolchain check, while
-successful admitted dependencies still replace the workspace as one complete
-installed set. The regression test verifies that a failed optional install
-leaves no package manifest behind.
-
-### 2026-08-27 12:05 +05:30 - Codex (GPT-5 / OpenAI) - [d4fe70f] - host-owned V4 blueprint identity contract
-The live frontend planner context contained no semantic owner IDs even though
-the trusted prompt required Luna to echo them, allowing duplicate owners to
-reach the V4 validator. Added a deterministic route/section identity manifest,
-exact host-side identity validation, prompt grounding, and regression tests so
-V4 planning cannot invent or reuse region ownership identities.
-
-### 2026-08-27 03:32 +05:30 — Codex (GPT-5 / OpenAI) — [1e3610e] — make the native dev launcher reliable from this workspace
-The first clean smoke test exposed two Windows launcher issues in the new
-one-command native path: `uv` was trying to use a user-level cache that was
-not accessible in this workspace, and `Start-Process` split the repository
-path at the space in `Yash Srivastava` when composing the hidden child
-services. The native PowerShell and shell helpers now use the repository-local
-`UV_CACHE_DIR`, and the PowerShell launcher quotes its script path before
-starting exactly one API, worker, and preview child. A clean `dev` start was
-then verified with API and preview health responses, one worker's established
-connections to canonical PostgreSQL 5432, and no listener on 5545 or 8001.
-
-### 2026-08-27 03:18 +05:30 — Codex (GPT-5 / OpenAI) — [78ee3ea] — remove unreachable foundation model machinery and correct architecture docs
-Removed the unreachable Code Generator foundation model profile, routing entry,
-prompt lookup, prompt file, and preflight/profile admission. The V3/V4
-foundation stage remains a live deterministic compiler boundary for generated
-tokens and approved content; its WorkGraph unit, lifecycle status, source audit,
-and `foundation_builder` resource-provenance role remain intact. Updated the
-operation-role documentation to describe the deterministic compiler and added
-a current-contract note to the historical v2 architecture document. Corrected
-the preview deployment guide from the never-built wildcard-DNS topology to the
-implemented single-origin `/preview/{host}/{path}` gateway path. The existing
-safe diagnostic mapping also remains statically typed after the cleanup.
-
-### 2026-08-27 03:08 +05:30 — Codex (GPT-5 / OpenAI) — [e945f54] — truthful preview readiness and hosted Docker contract
-Made the shared preview gateway part of the default Compose topology and
-passed the hosted storage credentials into that service. Readiness now probes a
-typed internal health URL asynchronously with a short timeout, no redirects,
-and 2xx-only success; native configuration derives a loopback target while
-Docker uses `preview-gateway` service DNS because `localhost` is container-local
-and `0.0.0.0` is only a bind address. Configuration and UI diagnostics
-distinguish a missing/invalid health target from an unreachable gateway.
-
-The hosted `config/app.docker.toml` overlay now alone enables strict public
-preview readback and keeps artifact-backed storage. The isolated
-`oryxenai-codegen` overlay remains local-filesystem-backed and lenient, and
-native/test behavior remains lenient. The browser-facing `preview_base_url`
-contract is unchanged. Added settings, probe, route, frontend, Compose, and
-native-launcher coverage/documentation; no database or migration changes were
-made.
-
-### 2026-08-27 02:57 +05:30 — Codex (GPT-5 / OpenAI) — [b92a86c] — native process alignment and code-generator diagnostics
-The stuck detached run was caused by two independently verified operational
-conditions. The port-8000 API had an established PostgreSQL connection to the
-manually launched `.workspace/postgres-native-5545` instance, while the worker
-had established connections to the canonical PostgreSQL instance on port 5432;
-the run therefore existed in a database the worker could never poll. Port 5545
-does not occur anywhere in checked-in configuration, scripts, or documentation,
-so the remediation was process cleanup rather than a repository config change.
-The duplicate API (8000/8001) and worker processes were inventoried, the
-identified APIs/workers, preview process, and only the rogue 5545 PostgreSQL
-instance were stopped, and the canonical 5432 instance was kept running. The
-orphaned run `f7c2eece-1ab3-4f2b-8ff3-a573fe9c2ece` and job
-`3193daba-7d28-4dff-bdca-7d516c4e3d90` were deliberately abandoned rather than
-recovered. A clean worker was started after `b4f7daa`; no pre-fix worker
-remained, and a fresh run proved plan success creates the acquire successor.
-
-The same fresh-run evidence exposed a separate deterministic Phase 1b defect:
-the WorkGraph compiler replaced multiple unique V4 semantic section owner IDs
-with one route-batch ID, making the persisted `ExperienceBlueprintV4` invalid
-when revalidated. Compilation now preserves semantic owners and leaves
-executable ownership to the WorkGraph. Safe bounded planner/acquisition
-validation summaries were also surfaced through the existing redacted issue
-path. Focused tests cover both fixes. The subsequent live run reached
-generation and stopped only because offline npm cache mode lacked
-`lucide-react`; that is recorded as a toolchain/environment limitation, not a
-database-split or auto-advance failure.
-
-### 2026-08-26 22:53 +05:30 — Claude Code (Claude Sonnet 5 / Anthropic) — [b4f7daa] — code_generator/core/coordinator
-`advance_after()` always built a real `DurableAuthorizationContext` when auto-enqueuing the next stage, even for detached development runs with no owner/actor/session; that context's `authorization_context_version` was always 0, which tripped `JobService.enqueue`'s guard against version-0 contexts on portfolio-bound work before it ever reached the development-run recognition path — silently blocking every auto-chained stage advance in the detached control room. Passed `context=None` for non-session runs, mirroring the existing `run_mode`-based payload_key split so development runs go through the `run_mode` check instead.
-
-### 2026-08-26 22:52 +05:30 — Claude Code (Claude Sonnet 5 / Anthropic) — [9b2d28f] — code_generator/core/development_planner
-The V4 blueprint validator required a font role's `local_files` to exactly equal every WOFF/WOFF2 file under its admitted binding, even when the role's declared weights used only a subset of that binding's files — any shared multi-weight font resource (the common case) failed this check deterministically regardless of model output quality. Now requires `local_files` to be a subset of the admitted binding's files, matching the binding's own `font_weights`/`local_paths` split and the role's independent weights selection.
-
-### 2026-08-26 16:40 +05:30 — Codex (GPT-5 / OpenAI) — [e5d55f9] — safe detached-run database diagnostics
-Classified local PostgreSQL credential failures as an actionable 503 for the detached Code Generator, and added redaction for environment assignments, configured secret values, nested API details, and provider preflight messages. Added focused unit coverage so the control room cannot echo database or provider credentials.
-
-### 2026-08-26 14:15 +05:30 — Codex (GPT-5 / OpenAI) — [8a918f3] — native detached origin allowlist
-Allowed both native development ports in the local origin policy so the detached Code Generator control room can be tested on an alternate port while another local server remains on 8000. This fixes `ORIGIN_NOT_ALLOWED` for the live provider preflight without adding authentication or session behavior.
-
-### 2026-08-26 13:59 +05:30 — Codex (GPT-5 / OpenAI) — [7c44add] — Code Generator detached control room, export handoff
-Added the no-auth standalone control room with Build Preparation mirror bootstrapping, OpenAI `openai_luna` routing, responsive preview/timeline/inspector UI, and manual debug controls while preserving the attached auth boundary for later reattachment. Completed exports now persist a safe receipt and emit `generation-report.md` plus evaluator metadata so coding agents can diagnose the generator and fix the generator rather than the generated portfolio.
-
-### 2026-08-26 10:10 +05:30 — Codex (model/provider omitted) — [9b39fe3] — Build Preparation resource relevance
-Replaced generic repeated resource searches with profession-aware image roles and
-semantic component roles, then added component-source and perceptual-image guards.
-Provider/model packets are bounded, cooldown skips are reported separately from
-real rate limits, and focused plus full-suite verification passed locally.
-
-### 2026-08-25 23:35 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [5d6886a] - shared/providers/errors
-Live account credit exhaustion during pipeline testing surfaced a real
-classification gap: Anthropic's "credit balance is too low..." message
-matched none of `_CREDIT_MARKERS` (tuned for OpenAI's vocabulary), so it
-fell through to the generic `PROVIDER_INVALID_REQUEST_ERROR` bucket instead
-of `MODEL_PROVIDER_CREDIT_EXHAUSTED`. Added Anthropic-specific markers;
-reproduced live before and after — now classifies correctly.
-
-### 2026-08-25 23:20 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [8e93fc2] - build-preparation/visual_input
-Live full-pipeline run (real Discovery→CA→VDD→Build Preparation for a
-fictional UI/UX designer profile) surfaced `role_for()`'s fallback silently
-promoting any unrecognized section_id ("problem", "outcome",
-"design-system-note") to the high-importance "selected-work" role,
-required for handoff. Generic decorative images for these sections then
-failed to materialize and correctly-but-wrongly blocked the whole pack
-(5x `REQUIRED_RESOURCE_NOT_MATERIALIZED`). Added a genuinely low-stakes
-"context" fallback role instead.
-
-### 2026-08-25 23:15 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [2f9403b] - shared/component_retrieval
-Same live run: cult-ui.com returned 429 on 15/15 consecutive component
-registry requests across one Build Preparation run — no cross-query memory
-of a prior rate limit, unlike the image-fetch path's existing
-`_PROVIDER_RATE_STATE`. Added an equivalent per-provider backoff window to
-`_get_json`; re-run after the fix hit cult-ui.com once, then correctly
-skipped it.
-
-### 2026-08-25 23:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a6fb12, 60a41a3] - visual_design_director prompts, jobs/worker
-Live-reproduced a 3x Visual Design Director validation failure
-(`validation_categories=['assets','references']`): `integrate_site_experience`'s
-full-pages reconciliation pass rewrote `asset_briefs.content_ref` into
-invented composite forms (e.g. "novapay:case-hero") since several routes
-legitimately reuse the same section_id and the model tried to disambiguate;
-that prompt had no explicit ID-stability guidance for the rewrite, unlike
-`direct_page_experience.md`. Added it; the next live attempt passed
-cleanly. Also fixed `worker.py` never calling `configure_logging()`,
-discovered because the worker log was completely empty while debugging
-this — every `logger.info`/`.warning` call was silently dropped.
-
-### 2026-08-25 21:20 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [ed9de3b] - build-preparation, materializer, providers, execution
-Gave component materialization the same alternate-candidate retry loop
-images already had (`_materialize_component_candidate`,
-`ComponentMaterializationError`), instead of one rejection sending a
-component straight to an execution gap. Removed ~190 lines of unreachable
-dead code in `materialize_build_context` (a second photo-materialization
-branch guarded by the same condition as the retry loop above it, which
-always `continue`s) and `ProviderLookup._blocked_until` (read but never
-assigned, so it never fired). Enriched `VDD_EXECUTION_GAP` messages to
-distinguish "candidates were rejected, last reason: X" from "nothing was
-ever attempted." `uv run pytest -k "build_preparation or
-code_generator_development"` (106 passed, 7 skipped), ruff, and mypy all
-clean on the touched files.
-
-### 2026-08-25 21:10 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [40d0477] - code_generator_development, routes
-Extended D-052's detached-auth pattern to the standalone Code Generator dev
-harness: added `code_generator_development.detached_router` (no
-`require_admin`) and select it over the admin-gated router in
-`api/routes/__init__.py` when `auth.pipeline_mode == "detached"`. Production
-Code Generator session routes (`code_generator.py`) are untouched. Recorded
-as D-053.
-
-### 2026-08-25 21:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [53cd913] - web/routes, web/static/app.js
-Fixed the concrete cause of "Could not create a session. Is the API
-running?": `/dev` hardcoded `pipeline_mode="attached"` regardless of
-`config/app.toml`, forcing the full Supabase login flow even when
-`auth.pipeline_mode` was `"detached"`. `/dev` now follows
-`settings.auth.pipeline_mode` like `/app` already did. Also stopped
-`createSessionQuiet`/`sendMessage` from collapsing every session-create
-failure into the same generic string — the UI now surfaces the actual
-status/code/message. `uv run pytest -k detached` passed (3 passed, 5
-skipped) after the change. Live browser end-to-end verification is still
-pending: this local machine's port 5544 (expected native PostgreSQL) is
-currently held by Docker Desktop's WSL relay rather than a real Postgres
-instance, so every DB connection attempt times out — a pre-existing local
-environment condition, not caused by this change.
-
-### 2026-08-25 20:20 +05:30 - Codex (model/provider omitted) - [87cad46] - detached Build Preparation auth boundary
-Extended local detached mode through the Build Preparation fixture and progress
-APIs, bypassed Supabase bootstrap with the anonymous no-store request boundary,
-and redirected detached `/sign-in` to `/app`. Attached, Docker, test, and
-production-like modes retain the admin boundary; added API/frontend regression
-coverage (D-052).
-
-### 2026-08-25 16:10 +05:30 — Codex (model/provider omitted) — [b70dde2] — detached fixture profile selection
-Fixed the detached Build Preparation frontend and CLI so the internal
-`build_preparation` engine route is not passed as a selectable profile. Live
-runs now preserve a selectable profile from the approved VDD input, including
-the configured Luna profile, while retaining normal engine routing otherwise.
-
-### 2026-08-25 15:44 +05:30 — Codex (model/provider omitted) — [c9f0a95] — native Luna Build Preparation handoff
-Hardened the native live Build Preparation path for bounded Luna output-shape
-recovery, fixture approval stamping, Unicode CLI output, and bounded image
-candidate retries. Aligned Code Generator admission with non-blocking optional
-execution gaps; verified a live `build-preparation-pack-v3` ZIP through the
-exact generator upload/admission path with zero blocking issues.
-
-### 2026-08-25 15:06 +05:30 — Codex (model/provider omitted) — [62166f3] — durable model-output retries
-Converted deterministic output-contract failures from terminal handler errors
-into bounded, privacy-safe retries across Discovery, Content Architect, and
-Visual Design Director. Successful retries now clear stale job errors; the
-failed live OpenAI Luna VDD run recovered on attempt two to `design_review`,
-and focused worker/integration verification passed.
-
-### 2026-08-25 13:03 +05:30 — Codex (model/provider omitted) — [5f272b3] — migration and native doctor acceptance fix
-Shortened the Build Preparation checkpoint revision ID to fit Alembic's
-version column, added a chain-wide revision-length guard, and made the native
-doctor reject revision-stamped databases that are missing required core
-tables. Verified a complete base-to-head replay against the disposable empty
-acceptance schema.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [0431996] - Cleared stale rejected-attempt diagnostics on same-run resume so retries validate against the restored source tree instead of replaying pre-repair audit findings.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [ffac6f6] - Bounded resumed source-generation context to owned-file inventory to stay under the 120k-character ceiling during repair.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [958b27a] - Added a worker-thread Popen fallback for Windows batch toolchain launches when async launch modes fail.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [27b9679] - Retried denied Windows process-group launches without the optional new-process-group flag.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [90f2a82] - Routed allowlisted .cmd/.bat toolchain commands through the Windows command interpreter to fix [WinError 5] Access is denied.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [253b1fa] - Preserved the OS-level error in toolchain start-failure diagnostics so a native launch failure is observable.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [414b0c7] - Enforced route-scoped (not shortened) DOM anchor IDs at route-batch checkpoint time, reopening stale checkpoints on violation.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [ab3672f] - Validated route-batch named local imports/re-exports against target-module exports before checkpoint, reopening stale invalid batches.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [8ee6947, 4bd5d7b] - Bounded retry diagnostics to the active work unit so unrelated composer history stopped crowding out the context ceiling (4bd5d7b's own entry was written then deleted as a near-duplicate of this one without swapping in its real hash; folded in here instead of left orphaned).
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [eb55728] - Gave route batches an exact trusted-module import map and bounded resolver before checkpointing, with same-run reopening of stale batches.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [d620d1f] - Removed batch-owned content IDs/facts/route bindings from V4 composer context, and added a same-run resume path for terminal queued/checkpointed runs.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [c0b4087] - Gave same-run generation retries fresh durable job identities (keyed by run revision) so a terminal retry always gets a worker job.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [772bef1] - Aligned V4 composer content contract so composers reserve content-key coverage for section-owning route batches, not themselves.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [70b024d] - Fixed the detached generator shell to import the main Code Generator module at its computed asset version, preventing stale cached controls.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [5edcb30] - Trimmed composer context (dropped duplicate generated-content interface) to resolve GENERATION_CONTEXT_LIMIT, and added same-run "Resume generation" in the standalone frontend.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [e12d787] - Deferred the whole-site route audit out of the route-batch phase so batch diagnostics stop targeting the still-scaffold route shell.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [d5247dd] - Made V4 resource coverage reporting require the complete work-unit slot assignment, not just used slots.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [169ea5f] - Exposed a bounded generated-content.ts interface excerpt to route-batch context instead of omitting it entirely.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [fb1c209] - Required every V4 typography binding to declare an explicit body/display role instead of silently defaulting to body.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [cbe4491] - Bounded Code Generator operation context to the active work unit's plans/projections/APIs/dependencies to fix a ~245k-character context overflow.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [d1a229d] - Made source/toolchain checks phase-aware so the whole-site AST audit defers until route composition/final integration.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [8c07530] - Fixed JSX-element AST field reads in the source audit and made V4 typography custom-property emission collision-safe.
+- 2026-08-27 - Codex (GPT-5 / OpenAI) - [caead48] - Made optional dependency installation transactional (disposable sibling workspace) so a rejected fallback package can't poison the toolchain check.
+- 2026-08-27 - Codex (GPT-5 / OpenAI) - [d4fe70f] - Added a deterministic route/section identity manifest and host-side identity validation so V4 planning can't invent or reuse region ownership IDs.
+- 2026-08-27 - Codex (GPT-5 / OpenAI) - [1e3610e] - Fixed the native dev launcher's UV cache path and PowerShell path-quoting for repository paths containing spaces.
+- 2026-08-27 - Codex (GPT-5 / OpenAI) - [78ee3ea] - Removed the unreachable Code Generator foundation model profile/routing/prompt (confirmed dead; foundation stays a deterministic compiler boundary) and corrected architecture docs.
+- 2026-08-27 - Codex (GPT-5 / OpenAI) - [e945f54] - Made the preview gateway part of the default Docker stack with a real async health probe, and set strict public-readback only on the hosted overlay (D-054).
+- 2026-08-27 - Codex (GPT-5 / OpenAI) - [b92a86c] - Root-caused and fixed the stuck detached run: API/worker were split across a stray port-5545 Postgres and the canonical 5432 instance; stopped the stray process, abandoned the orphaned run, and fixed a WorkGraph compiler bug that collapsed unique V4 section owner IDs into one.
+- 2026-08-26 - Claude Code (Claude Sonnet 5 / Anthropic) - [b4f7daa] - Fixed advance_after() building a real (version-0) authorization context for detached runs, which silently blocked every auto-chained stage advance.
+- 2026-08-26 - Claude Code (Claude Sonnet 5 / Anthropic) - [9b2d28f] - Relaxed the V4 font-role file-set check to a subset match instead of requiring exact equality.
+- 2026-08-26 - Codex (GPT-5 / OpenAI) - [e5d55f9] - Classified local PostgreSQL credential failures as an actionable 503 and added secret redaction across detached diagnostics.
+- 2026-08-26 - Codex (GPT-5 / OpenAI) - [8a918f3] - Allowed both native dev ports in the local origin allowlist to fix ORIGIN_NOT_ALLOWED on an alternate port.
+- 2026-08-26 - Codex (GPT-5 / OpenAI) - [7c44add] - Added the no-auth standalone Code Generator control room (Build Preparation mirror bootstrap, Luna routing, inspector UI) with safe export receipts/generation-report.md.
+- 2026-08-26 - Codex (model/provider omitted) - [9b39fe3] - Replaced generic repeated resource searches with profession-aware image/component roles and added provider/rate-limit guards.
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [5d6886a] - Added Anthropic-specific credit-exhaustion error markers, which previously fell through to a generic provider-error bucket.
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [8e93fc2] - Fixed role_for()'s fallback wrongly promoting unrecognized sections to the required "selected-work" role; added a genuine low-stakes fallback.
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [2f9403b] - Added per-provider rate-limit backoff to the component-registry fetch path, matching the existing image-fetch cross-query memory.
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a6fb12, 60a41a3] - Added ID-stability guidance to the VDD full-pages reconciliation prompt (was inventing composite content_ref IDs) and fixed the worker never calling configure_logging().
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [ed9de3b] - Gave component materialization the same alternate-candidate retry loop as images, removed ~190 lines of dead code, and enriched execution-gap messages.
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [40d0477] - Added a detached-auth router for the standalone Code Generator dev harness, selected when auth.pipeline_mode == "detached" (D-053).
+- 2026-08-25 - Claude Code (Claude Sonnet 5 / Anthropic) - [53cd913] - Fixed /dev hardcoding pipeline_mode="attached" instead of following config, and stopped the frontend collapsing session-create failures into a generic message.
+- 2026-08-25 - Codex (model/provider omitted) - [87cad46] - Extended detached mode through Build Preparation fixture/progress APIs and redirected detached /sign-in to /app (D-052).
+- 2026-08-25 - Codex (model/provider omitted) - [b70dde2] - Fixed the detached Build Preparation frontend/CLI exposing the internal build_preparation engine route as a selectable profile.
+- 2026-08-25 - Codex (model/provider omitted) - [c9f0a95] - Hardened the native live Build Preparation path (Luna output-shape recovery, fixture stamping, image-candidate retries); verified a live pack ZIP end to end.
+- 2026-08-25 - Codex (model/provider omitted) - [62166f3] - Converted deterministic output-contract failures into bounded, privacy-safe retries across Discovery/CA/VDD.
+- 2026-08-25 - Codex (model/provider omitted) - [5f272b3] - Shortened the Build Preparation checkpoint revision ID to fit Alembic's version column and hardened the native doctor's schema check.
 - 2026-08-25 - Codex (model/provider omitted) - [9055cc3] - Aligned test-profile timeouts across every bounded model workflow and added detached-only authorization inventory coverage for the model-profile preflight API.
 - 2026-08-25 - Codex (model/provider omitted) - [c19e4a1] - Detached-only safe profile listing/preflight, sticky four-stage model selection, live Build Preparation progress, and native PostgreSQL/auth/migration diagnostics.
 - 2026-08-25 - Codex (model/provider omitted) - [5b5df50] - Unified retry/timeout decisions, redacted per-operation receipts/live progress, and source/profile/candidate-bound Build Preparation stage checkpoints (D-051).
@@ -634,8 +317,8 @@ acceptance schema.
 
 ---
 
-## Summary (as of last compaction — 2026-08-27)
+## Summary (as of last compaction — 2026-08-28)
 
 - Recent detailed entries retained: 18
-- Compacted milestone bullets: 53
-- Last updated: 2026-08-27 — Claude Code (Claude Sonnet 5 / Anthropic)
+- Compacted milestone bullets: 99
+- Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
