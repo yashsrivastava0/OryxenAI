@@ -154,7 +154,6 @@ class FinalRepairer:
                 )
             else:
                 result = GenerationResult.model_validate(parsed)
-            workspace.write_json(result_path, result.model_dump(mode="json"))
         if result.based_on_context_receipt not in {
             context_receipt.context_hash,
             context_receipt.receipt_id,
@@ -246,6 +245,10 @@ class FinalRepairer:
             work_unit_id=f"final-repair-{round_number}",
             parent_hash=checkpoint.checkpoint_hash,
         )
+        # Cache only a repair that passed every bounded validation gate. A
+        # rejected model response must never become the retry candidate for
+        # the same checkpoint and diagnostic context.
+        workspace.write_json(result_path, result.model_dump(mode="json"))
         receipt = RepairReceipt(
             generation_id=identity.identity_hash,
             diagnostic_fingerprints=sorted({item.fingerprint for item in diagnostics}),

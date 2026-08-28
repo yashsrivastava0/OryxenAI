@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -40,6 +42,7 @@ from oryxenai.agents.code_generator.core.source_generation_adapter import (
 )
 from oryxenai.agents.code_generator.core.source_manifest import _materialize_image_assets
 from oryxenai.agents.code_generator.core.token_compiler import compile_generated_tokens
+from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_typescript_source
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
 
@@ -147,6 +150,51 @@ def _blueprint() -> ExperienceBlueprintV4:
 
 def test_v4_contracts_are_closed_and_provider_compatible() -> None:
     assert schema_compatibility_issues(ExperienceBlueprintV4) == []
+
+
+def test_v4_route_audit_reads_anchors_from_rendered_section_modules() -> None:
+    plan = SitePlan(
+        plan_id="audit",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                storage_key="home",
+                section_ids=["hero"],
+                section_order=["hero"],
+                responsive_outcome="stacked on mobile",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        experience_blueprint=_blueprint(),
+    )
+    files = {
+        "src/components/generated/SharedSystems.tsx": """export function RouteShell() { return <main />; }
+export function SectionAnchor() { return publicSectionUrl('/'); }
+export function useDisclosure() { return { close: () => {} }; }
+export function Disclosure() { return <button aria-expanded={false}>x</button>; }
+export function LocalImage() { return null; }
+export const keyboardBehavior = \"Escape closes and returns focus\";
+""",
+        "src/routes/home/index.tsx": """import { RouteShell } from \"@/components/generated/SharedSystems\";
+import Hero from \"@/routes/home/sections/hero\";
+export default function HomeRoute() {
+  return <RouteShell routeId=\"home\" routePath=\"/\"><Hero /></RouteShell>;
+}
+""",
+        "src/routes/home/sections/hero.tsx": """export default function Hero() {
+  return <section id=\"hero\" data-content-id=\"hero\" data-distinctive-move-id=\"move:hero-rail\"><h1>Proof</h1></section>;
+}
+""",
+        "src/routes/home/route.css": '[data-distinctive-move-id=\"move:hero-rail\"] { grid-template-columns: 1fr 1fr; }',
+    }
+
+    diagnostics = audit_typescript_source(Path("."), files=files, plan=plan)
+    assert not diagnostics, [
+        (item.code, item.symbol, item.file, item.expected, item.observed)
+        for item in diagnostics
+    ]
 
 
 def test_v4_typography_roles_require_explicit_role_values() -> None:

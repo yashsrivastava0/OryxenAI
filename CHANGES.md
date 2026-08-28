@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 09:53 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - V4 route composition audit and bounded repair caching
+The live tenth frontend run exposed two core contract defects: the V4 source
+audit re-derived an already planner-owned route directory and required section
+anchors in the composer even though rendered section modules own them, while a
+rejected final-repair response was cached and replayed on retry. The audit now
+uses the planner-selected route path, checks anchors and headings across the
+composed route modules, accepts the documented `@/` shell import, and the
+repair cache is written only after all validation gates pass. Route-composer and
+repair prompts now state the V4 ownership boundary explicitly.
+
 ### 2026-08-28 09:45 +05:30 - Codex (GPT-5 / OpenAI) - [65801b7] - preserve planner route storage keys in source audit
 The first verification attempt after the quality-binding fix reached the
 source contract and revealed that the v4 validator semantic-hashed an already

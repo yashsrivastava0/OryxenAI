@@ -15,6 +15,17 @@ keep each section's `id`, `data-content-id`, and approved copy in that section
 module. Do not retype content, create a second section wrapper, or import an
 aggregator that owns multiple sections.
 
+For the V4 contract, section modules are the only executable owners of section
+anchors and approved content. The route composer must not import
+`src/content/generated-content`, call `contentValue(...)`, build an
+`approvedContent` array, or add a route-level `<h1>`. Render the completed
+section components directly as children of `RouteShell`; the section module
+that owns the hero owns the single page `<h1>`. Do not add `id="<section_id>"`
+or `data-content-id="<section_id>"` wrappers around those components. The
+source audit checks the composed route together with its child modules, so
+duplicating an anchor in `index.tsx` creates duplicate DOM IDs and fails the
+contract.
+
 `RouteShell` already owns the single `main` landmark and its literal
 `data-route-id`. Pass the exact route id to `RouteShell`, but do not add
 another `id="<route_id>"`, `data-route-id="<route_id>"`, or nested shell in the
