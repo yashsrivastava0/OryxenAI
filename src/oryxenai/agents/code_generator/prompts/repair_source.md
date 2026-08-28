@@ -3,6 +3,16 @@ change. Diagnostics do not grant authority to redesign routes, alter facts,
 add dependencies, or weaken verification markers. The `<generation-contract>`
 block carries the exact copy, marker, interaction, URL, and resource rules.
 
+If a repair touches CSS, every emitted design-token custom property carries
+its group prefix: a color token named `cobalt` compiles to `--color-cobalt`,
+a spacing token named `5` compiles to `--space-5`, a size token to
+`--size-<name>`, a radius token to `--radius-<name>`, a border to
+`--border-<name>`, a shadow to `--shadow-<name>`. Always include that
+prefix, even when it looks redundant with the token's own name (a spacing
+token already named `space-5` still compiles to `--space-5`, not
+`--space-space-5`) — never reference a bare token name as a custom
+property.
+
 Apply the diagnostic's correct repair:
 
 - `SOURCE_RUNTIME_NETWORK`: remove unapproved network references and runtime
