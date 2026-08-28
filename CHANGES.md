@@ -11,6 +11,28 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 18:28 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - accepted-mode fix (557201b) confirmed live; new, separate bug found (not yet fixed)
+Confirmed via three separate live runs on the fresh real pack: zero
+`GENERATION_UNIT_ACCEPTED_WITHOUT_CHANGES` occurrences after 557201b,
+across runs that previously hit it reliably. The model now correctly
+uses `mode="changes"` or honestly declines with `mode="cannot_complete"`
+instead of falsely claiming "accepted". This was the session's actual
+blocking bug and it is fixed.
+
+A new, separate bug surfaced once that one was out of the way: a
+route-batch unit's first call correctly returns `mode="changes"` with
+real files, but if that response is later rejected by a downstream
+check, the retry's `cannot_complete` response cites `safe_reason:
+"existing_files is empty and no rejected or current source bodies
+were supplied"` - and on disk, no `candidate-<unit>/` directory exists
+at all for that run, confirming the rejected attempt's content was
+never persisted anywhere `_operation_context`'s `previous_attempt_files`
+logic could read it back from on the retry. Not yet diagnosed further
+(no code change) - this needs the same kind of focused, evidence-first
+investigation as the accepted-mode bug got, not a rushed guess. Left
+for a fresh investigation pass rather than continuing under time
+pressure on top of an already very long debugging session.
+
 ### 2026-08-28 18:05 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - root cause found: forbid accepted mode unconditionally in _model_result
 Traced the retry evidence from the previous entry to its exact cause.
 `_run_unit`'s main dispatch loop reassigns its local `operation`
@@ -274,101 +296,21 @@ now accepts and persists a new source checkpoint after every successful owner
 repair, updates the projection's resumable checkpoint, and carries that
 checkpoint into subsequent owner repairs and retries.
 
-### 2026-08-28 07:34 +05:30 - Codex (GPT-5 / OpenAI) - [4c8f361] - require v4 repair envelope metadata
-The live repair path reached an owner-scoped compose correction, but the
-model returned valid file content without the v4 machine-checked export
-signatures and exact coverage arrays. The repair prompt now states the
-envelope invariant explicitly, including one exact exported signature per
-changed route file and unit-scoped ID arrays, so valid source corrections are
-not rejected for missing transport metadata.
-
-### 2026-08-28 07:24 +05:30 - Codex (GPT-5 / OpenAI) - [1b447a4] - preserve v4 repair envelope selection
-The live repair call reached the provider after the context bound was fixed,
-then failed locally because the compacted repair blueprint omitted its v4
-schema discriminator. The returned v4 coverage was consequently interpreted
-through the legacy envelope and rejected as non-exact. Repair compaction now
-preserves the discriminator while still dropping generation-only payloads; a
-focused regression test covers the envelope-selection invariant.
-
-### 2026-08-28 07:08 +05:30 - Codex (GPT-5 / OpenAI) - [f72ab5e] - keep repair context below the ceiling
-The next live retry showed that supplying complete current owned files exposed
-the repair call to the full generation-only planner and asset history. That
-made the host fail closed at `GENERATION_CONTEXT_LIMIT` before the repair
-model could act. Repair contexts now retain the route narrative, distinctive
-move/motion/resource contracts, diagnostics, trusted interfaces, and complete
-owned source while omitting redundant token, region, work-graph, and asset
-history fields. The focused context suite and Ruff check pass.
-
-### 2026-08-28 06:50 +05:30 - Codex (GPT-5 / OpenAI) - [bf0e076] - supply current files to integration repair
-The live tenth frontend run exposed a repair-context authority gap: the
-integration reviewer identified a blocking defect in an existing route
-composer file, but the bounded repair context contained no rejected candidate
-tree and therefore supplied no complete current file body. Repair contexts now
-fall back to the authoritative current contents of their exact owned source
-paths, keeping ordinary generation contexts scoped while allowing a model to
-return a safe complete replacement under the existing validation contract.
-The focused context test and Ruff check pass; the live run remains the
-acceptance validation.
-
-### 2026-08-28 06:35 +05:30 - Codex (GPT-5 / OpenAI) - [f536178] - canonicalize integration-review composer owner
-The live frontend run reached integration review and exposed a reviewer
-vocabulary mismatch: it returned the human suffix `-composer`, while the
-canonical executable work unit is `-compose`. The orchestrator now maps that
-single unambiguous alias only when the canonical owner exists; unknown owner
-IDs remain fail-closed, with a focused regression test.
-
-### 2026-08-28 04:46 +05:30 - Codex (GPT-5 / OpenAI) - [bb9454e] - trace mapped content keys in source audit
-The same live run showed that approved content IDs in a literal array were
-consumed through a `.map` callback parameter, so the audit still could not
-prove their `contentValue` calls. The static checker now follows that bounded
-local mapping and records the resulting keys, keeping the audit fail-closed
-for missing calls while accepting the generated component pattern.
-
-### 2026-08-28 04:42 +05:30 - Codex (GPT-5 / OpenAI) - [93771b9] - audit aliased imports and static content references
-The live tenth frontend run reached the corrected split-section contract but
-the generated source audit rejected two valid forms: the configured `@/`
-alias for the trusted `SharedSystems` module and approved content IDs held in
-literal arrays before being passed to `contentValue`. The audit now resolves
-both forms statically while retaining the trusted-module and executable-call
-requirements, allowing the checker to match the v4 generation contract.
-
-### 2026-08-28 04:35 +05:30 - Codex (GPT-5 / OpenAI) - [0b46913] - reassert source audit scaffold on resume
-The live run showed that updating the checked-in audit scaffold was
-insufficient for an existing checkpoint: workspace restoration could put the
-older generated `scripts/audit-source.mjs` back before every retry. The source
-audit is now part of the trusted shell files restored from the configured
-scaffold on workspace open and checkpoint reassertion, so imported-section
-coverage and shell/batch ownership checks cannot silently regress to an older
-audit implementation. The relevant lint and context/workspace checks passed;
-an unrelated pre-existing export-report assertion remains outside this fix.
-
-### 2026-08-28 04:24 +05:30 - Codex (GPT-5 / OpenAI) - [20ea8b8] - keep composer context unit-scoped
-The resumed frontend run reached a second context-ceiling failure after
-stale route-batch checkpoints were correctly reopened. Although the composer
-could only write its route index and route CSS, a later context filter restored
-the full `src/` inventory for its create/replace list. Composer contexts now
-retain only their exact owned paths, while trusted batch signatures and source
-interfaces continue to provide read-only dependency authority. Focused route,
-contract, context, and lint checks passed.
-
-### 2026-08-28 04:20 +05:30 - Codex (GPT-5 / OpenAI) - [0a6dcfe] - enforce split route ownership and imported-content audit
-The tenth frontend generation exposed a contract mismatch after the context
-ceiling was fixed: route-batch checkpoints accepted one model component that
-aggregated several assigned sections and left sibling owned files as helpers,
-while the generated source audit only examined the route index for headings and
-content calls. Split batches now require one literal section anchor and
-route-scoped DOM id in each owned TSX file, reopening stale aggregate
-checkpoints for fresh live repair. The V4 audit now counts rendered section
-modules and recognizes only direct, single-argument forwarding to the trusted
-content accessor, while the composer contract explicitly preserves batch
-ownership and the shell's unique landmark/id boundary. Focused validation,
-contract, lint, and JavaScript syntax checks passed.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [4c8f361] - Stated the v4 repair envelope invariant explicitly (exact signatures, coverage arrays) so valid corrections stop being rejected for missing transport metadata.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [1b447a4] - Preserved the v4 schema discriminator through repair-context compaction so returned coverage is interpreted through the correct envelope.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [f72ab5e] - Trimmed repair context to route/contract/diagnostic essentials to fix a GENERATION_CONTEXT_LIMIT failure from supplying complete owned files.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [bf0e076] - Repair context now falls back to authoritative current file contents when no rejected candidate tree exists, fixing a repair-context authority gap.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [f536178] - Canonicalized the reviewer's "-composer" owner alias to the real "-compose" work unit ID, fail-closed for unknown owners.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [bb9454e] - Made the source audit trace content IDs consumed through a .map() callback, instead of failing to prove their contentValue() calls.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [93771b9] - Made the source audit resolve the @/ SharedSystems alias and array-held content IDs statically instead of rejecting both valid forms.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [0b46913] - Made the source audit scaffold part of the trusted shell files restored on workspace open, so it can't silently regress to an older version.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [20ea8b8] - Scoped composer contexts to their exact owned paths only, fixing a second GENERATION_CONTEXT_LIMIT from a stale full-src-inventory filter.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [0a6dcfe] - Enforced one literal section anchor/DOM id per owned TSX file for split route batches, and widened the V4 audit to count rendered section modules.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [0431996] - Cleared stale rejected-attempt diagnostics on same-run resume so retries validate against the restored source tree instead of replaying pre-repair audit findings.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [ffac6f6] - Bounded resumed source-generation context to owned-file inventory to stay under the 120k-character ceiling during repair.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [958b27a] - Added a worker-thread Popen fallback for Windows batch toolchain launches when async launch modes fail.
@@ -491,6 +433,6 @@ contract, lint, and JavaScript syntax checks passed.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 23
-- Compacted milestone bullets: 99
+- Recent detailed entries retained: 18
+- Compacted milestone bullets: 109
 - Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
