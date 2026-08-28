@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 09:53 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - V4 route composition audit and bounded repair caching
+### 2026-08-28 09:53 +05:30 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit and bounded repair caching
 The live tenth frontend run exposed two core contract defects: the V4 source
 audit re-derived an already planner-owned route directory and required section
 anchors in the composer even though rendered section modules own them, while a
