@@ -58,15 +58,21 @@ def test_model_profiles_loaded():
     assert profile.api_key_env == "ANTHROPIC_API_KEY"
     assert profile.prompt_cache_ttl == "5m"
     assert s.models.routing.fallback_profile == "default"
-    assert s.models.routing.engine_profiles["discovery"] == "discovery"
-    discovery_profile = s.models.get_profile("discovery")
-    assert discovery_profile is not None
-    for engine in ("discovery", "content_architect", "visual_design_director"):
+    pipeline_profile_id = "openai_luna"
+    assert s.models.routing.engine_profiles["discovery"] == pipeline_profile_id
+    pipeline_profile = s.models.get_profile(pipeline_profile_id)
+    assert pipeline_profile is not None
+    for engine in (
+        "discovery",
+        "content_architect",
+        "visual_design_director",
+        "build_preparation",
+    ):
         routed = s.models.get_profile(s.models.routing.engine_profiles[engine])
         assert routed is not None
-        assert routed.provider == discovery_profile.provider
-        assert routed.model == discovery_profile.model
-        assert routed.api_key_env == discovery_profile.api_key_env
+        assert routed.provider == pipeline_profile.provider
+        assert routed.model == pipeline_profile.model
+        assert routed.api_key_env == pipeline_profile.api_key_env
 
     code_generator_profile = s.models.get_profile("code_generator_director")
     assert code_generator_profile is not None

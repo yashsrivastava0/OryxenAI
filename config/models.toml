@@ -2,7 +2,8 @@
 #
 # Active model-backed engines use their configured profile only when a durable
 # real operation is requested. The app and worker can start without a model
-# key. Code Generator profiles are routed to the direct OpenAI profile below.
+# key. The native development pipeline uses the selectable Luna profile below;
+# Code Generator profiles retain their separate routes.
 #
 # Each profile describes how a ModelClient adapter should talk to its provider.
 # Each adapter is selected by the provider-neutral ModelClient boundary. Agent
@@ -22,10 +23,10 @@ fallback_profile = "default"
 selectable_profiles = ["openai_luna", "discovery_opencode_go"]
 
 [routing.engine_profiles]
-discovery = "discovery"
-content_architect = "content_architect"
-visual_design_director = "visual_design_director"
-build_preparation = "build_preparation"
+discovery = "openai_luna"
+content_architect = "openai_luna"
+visual_design_director = "openai_luna"
+build_preparation = "openai_luna"
 code_generator_director = "code_generator_director"
 code_generator_planner = "code_generator_planner"
 code_generator_resource_scout = "code_generator_resource_scout"

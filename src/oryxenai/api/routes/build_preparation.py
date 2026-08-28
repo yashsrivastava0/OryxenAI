@@ -6,7 +6,7 @@ import json
 from typing import Any, NoReturn, cast
 
 from fastapi import APIRouter, Depends, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from oryxenai.agents.build_preparation.fixture import FixturePreparationError, run_fixture
@@ -222,6 +222,27 @@ async def regenerate_build_preparation(
         )
     except BuildPreparationOperationError as exc:
         _translate(exc)
+
+
+@router.get("/download")
+async def download_build_preparation_artifact(
+    session_id: str,
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    service: BuildPreparationService = Depends(get_build_preparation_service),
+) -> Response:
+    try:
+        data, content_type = await service.download_artifact(access.session.id)
+    except BuildPreparationOperationError as exc:
+        _translate(exc)
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="build-preparation-{str(access.session.id)[:8]}.zip"'
+            )
+        },
+    )
 
 
 @fixture_router.post("/run")
