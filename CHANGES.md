@@ -11,6 +11,22 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 13:08 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [5a89eb0] - stop unconditionally offering result:accepted to fresh-generation calls
+The prior fix's prose guidance in route_batch.md/route_compose.md did
+not hold on a live retry: the model chose `result=accepted` for a
+different unit (batch-1 instead of batch-2) despite it. The real cause
+sat one layer deeper - `build_instructions()` unconditionally appended
+"Set mode/result_tag to exactly one of changes/requests/accepted/
+cannot_complete" to every operation's task text regardless of whether
+that operation's context ever shows prior accepted content, and that
+line, sitting closer to the generated output than the earlier prose,
+evidently won out. It is now operation-aware: route_batch/route_compose
+list only changes/requests/cannot_complete with an explicit "never a
+valid choice here" line; integrate/repair (which do legitimately
+review existing content) keep all four. Regression tests cover both
+the `mode` (GenerationResult) and `result_tag`
+(SourceGenerationEnvelopeV2, the actual live path) wording.
+
 ### 2026-08-28 13:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [510d8d1] - explain result:"accepted" semantics and diagnose its misuse
 Two fresh confirmation runs both hit `GENERATION_CHANGES_MISSING`
 deterministically during route-batch generation. Adding the actual
@@ -354,6 +370,6 @@ contract, lint, and JavaScript syntax checks passed.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 20
+- Recent detailed entries retained: 21
 - Compacted milestone bullets: 99
 - Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
