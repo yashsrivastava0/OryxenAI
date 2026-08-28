@@ -9,7 +9,15 @@ import re
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 
 class DevelopmentRunStatus(StrEnum):
@@ -1750,7 +1758,7 @@ class SourceGenerationEnvelopeV2(BaseModel):
     failure_details: list[FailureDetailV2] = Field(min_length=0)
 
     @model_validator(mode="after")
-    def _matching_payload(self) -> SourceGenerationEnvelopeV2:
+    def _matching_payload(self, info: ValidationInfo) -> SourceGenerationEnvelopeV2:
         if self.result == "changes" and not self.files:
             raise ValueError("changes result requires files")
         if self.result == "requests" and not (self.resource_requests or self.dependency_requests):
@@ -1759,6 +1767,21 @@ class SourceGenerationEnvelopeV2(BaseModel):
             raise ValueError("cannot_complete result requires safe failure details")
         if self.result == "accepted" and self.files:
             raise ValueError("accepted result cannot include source files")
+        context = info.context or {}
+        if self.result == "accepted" and context.get("forbid_accepted_result"):
+            # A model call is only allowed to report "accepted" (nothing to
+            # change) when the operation legitimately reviews already-
+            # generated content (integrate/repair). A first-time generation
+            # operation (route_batch, route_compose, foundation) has nothing
+            # of its own yet to accept; validation-context-gating this here
+            # (rather than only in prose) means a live occurrence forces the
+            # existing schema-correction retry with explicit feedback,
+            # instead of silently reaching GENERATION_CHANGES_MISSING.
+            raise ValueError(
+                'result: "accepted" is not valid for this operation - it has no prior '
+                'generated content of its own to accept. Return result: "changes" with the '
+                "complete new file set instead."
+            )
         return self
 
     @property
@@ -2294,7 +2317,7 @@ class GenerationResult(BaseModel):
         return data
 
     @model_validator(mode="after")
-    def validate_tagged_payload(self) -> GenerationResult:
+    def validate_tagged_payload(self, info: ValidationInfo) -> GenerationResult:
         payloads = {
             "changes": self.changes,
             "requests": self.requests,
@@ -2310,6 +2333,15 @@ class GenerationResult(BaseModel):
             or not (self.requests.resource_requests or self.requests.dependency_requests)
         ):
             raise ValueError("requests mode requires a resource or dependency request")
+        context = info.context or {}
+        if self.mode == "accepted" and context.get("forbid_accepted_result"):
+            # See SourceGenerationEnvelopeV2._matching_payload for why this is
+            # validation-context-gated rather than prose-only.
+            raise ValueError(
+                'mode="accepted" is not valid for this operation - it has no prior generated '
+                'content of its own to accept. Return mode="changes" with the complete new '
+                "file set instead."
+            )
         return self
 
 
