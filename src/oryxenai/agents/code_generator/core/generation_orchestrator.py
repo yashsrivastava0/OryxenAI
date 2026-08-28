@@ -1598,6 +1598,13 @@ class CodeGeneratorGenerationOrchestrator:
         raw: Any = None
         result: GenerationResult | None = None
         last_issue = ""
+        # Only integrate/repair legitimately review already-generated content
+        # and may report mode/result="accepted" (nothing to change). A
+        # first-time generation operation has nothing of its own yet to
+        # accept - see the matching schema validators in
+        # development_schemas.py for why this is enforced there rather than
+        # only in prose.
+        validation_context = {"forbid_accepted_result": operation not in {"integrate", "repair"}}
         for attempt in range(2):
             call_instructions = instructions
             if last_issue:
@@ -1629,12 +1636,14 @@ class CodeGeneratorGenerationOrchestrator:
                     parsed = {**parsed, "operation_id": f"{operation}:{unit_id}"}
                 if output_model is SourceGenerationEnvelopeV2:
                     result = adapt_v4_generation_result(
-                        SourceGenerationEnvelopeV2.model_validate(parsed),
+                        SourceGenerationEnvelopeV2.model_validate(
+                            parsed, context=validation_context
+                        ),
                         operation_id=f"{operation}:{unit_id}",
                         context_receipt=context_receipt,
                     )
                 else:
-                    result = GenerationResult.model_validate(parsed)
+                    result = GenerationResult.model_validate(parsed, context=validation_context)
                 break
             except (ModelJsonInvalidError, ModelOutputTruncatedError, ValidationError) as exc:
                 last_issue = _safe_generation_model_issue(exc)
