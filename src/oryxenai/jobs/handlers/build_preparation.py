@@ -14,7 +14,9 @@ from oryxenai.agents.build_preparation.checkpoint import (
     BuildPreparationCheckpoint,
     source_binding_hash,
 )
-from oryxenai.agents.build_preparation.compiler import build_source_ref
+from oryxenai.agents.build_preparation.input_integrator import (
+    BuildPreparationInputIntegrator,
+)
 from oryxenai.agents.build_preparation.packager import PackageError
 from oryxenai.agents.build_preparation.schemas import (
     BuildContextDraft,
@@ -38,7 +40,6 @@ from oryxenai.agents.build_preparation.state import (
     apply_result,
 )
 from oryxenai.agents.build_preparation.validators import BuildPreparationValidationError
-from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import Agent, AgentKey
 from oryxenai.agents.shared.observability import durable_model_metadata
@@ -389,45 +390,14 @@ async def _execute_persisted(
 
 
 def _approved_source_ref(content_architect: Any, visual_design_director: Any, settings: Any) -> Any:
-    content_projection = {
-        "approved": content_architect.approved.model_dump(mode="json")
-        if content_architect.approved
-        else {},
-        "route_plan": [route.model_dump(mode="json") for route in content_architect.route_plan],
-        "page_content_packs": [
-            {**pack.model_dump(mode="json"), "internal_notes": {}}
-            for pack in content_architect.page_content_packs
-        ],
-        "public_content_manifest": content_architect.public_content_manifest,
-    }
-    visual_projection = {
-        "approved": visual_design_director.approved.model_dump(mode="json")
-        if visual_design_director.approved
-        else {},
-        "visual_language": visual_design_director.visual_language,
-        "resource_policy": visual_design_director.resource_policy,
-        "visual_input_mode": getattr(visual_design_director, "visual_input_mode", ""),
-        "assumption_hash": getattr(visual_design_director, "assumption_hash", ""),
-        "assumptions": getattr(visual_design_director, "assumptions", []),
-        "pages": [page.model_dump(mode="json") for page in visual_design_director.pages],
-        "asset_briefs": [
-            asset.model_dump(mode="json") for asset in visual_design_director.asset_briefs
-        ],
-        "resource_candidates": [
-            resource.model_dump(mode="json")
-            for resource in visual_design_director.resource_candidates
-        ],
-    }
-    normalized = normalize_visual_input(
-        content_projection,
-        visual_projection,
-        image_target=int(settings.build_preparation.editorial_image_budget),
-        image_maximum=int(settings.build_preparation.editorial_image_maximum),
-        component_target=int(settings.build_preparation.visual_component_budget),
-        component_maximum=int(settings.build_preparation.visual_component_maximum),
-        enabled=bool(settings.build_preparation.auto_derive_visual_resources),
+    return (
+        BuildPreparationInputIntegrator(settings)
+        .compose(
+            content_architect,
+            visual_design_director,
+        )
+        .source_ref
     )
-    return build_source_ref(content_projection, normalized.visual)
 
 
 async def _apply_result(

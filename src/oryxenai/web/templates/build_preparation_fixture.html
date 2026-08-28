@@ -23,8 +23,8 @@
       <header class="header">
         <div>
           <p class="eyebrow">Developer harness</p>
-          <h1>Build Preparation</h1>
-          <p class="lede">Compile approved content and visual direction into a verified local build pack, then upload the same ZIP to R2 when configured.</p>
+          <h1>Build Preparation diagnostic</h1>
+          <p class="lede">Inspect the same two-input compiler used by the main workflow: approved content plus approved visual direction.</p>
         </div>
       </header>
 
@@ -33,7 +33,7 @@
       {% else %}
       <section class="panel">
         <div class="panel-heading"><h2>Input</h2><span class="badge">Detached · no session required</span></div>
-        <p class="muted">Leave both fields empty to auto-pick the newest matching Content Architect and Visual Design Director outputs from <span class="mono">Input-Output-Of-Engine</span>. You can still paste or choose JSON for an explicit override.</p>
+        <p class="muted">This page is a standalone diagnostic and does not create a pipeline session. Leave both fields empty to auto-pick the newest matching outputs from <span class="mono">Input-Output-Of-Engine</span>.</p>
         <div class="actions">
           <label class="button secondary">Choose VDD JSON<input id="fixture-file" type="file" accept="application/json,.json"></label>
           <button id="use-default" class="button secondary" type="button">Auto-pick attached outputs</button>
@@ -48,7 +48,7 @@
           <label><input id="live-model" type="checkbox"> Use configured live model for query/context orchestration</label>
           <label><input id="live-providers" type="checkbox"> Use live resource APIs (required for handoffable images/components)</label>
         </div>
-        <div class="actions"><button id="run-phase3" class="button primary" type="button">Run Phase 3</button><span id="status" class="muted" aria-live="polite"></span></div>
+        <div class="actions"><button id="run-phase3" class="button primary" type="button">Run diagnostic build</button><span id="status" class="muted" aria-live="polite"></span></div>
       </section>
 
       <section id="summary" class="panel" hidden>

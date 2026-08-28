@@ -4,8 +4,9 @@
   <div class="chat-header">
     <div class="workspace-heading">
       <div>
+        <p class="eyebrow">OryxenAI / pipeline studio</p>
         <h2>Build your portfolio</h2>
-        <p class="subtitle">Tell us about yourself, attach a document, and we will ask a few questions and prepare your portfolio brief.</p>
+        <p class="subtitle">Move from raw intent to a verified build package, one approved stage at a time.</p>
       </div>
       <div class="workspace-actions">
         <a id="app-admin-link" class="workspace-launcher" href="{{ auth_config.adminPath }}" hidden>Admin</a>
@@ -32,6 +33,48 @@
     </p>
     <button id="open-agent-workspace" class="workspace-launcher" type="button">Open outputs &amp; live activity</button>
   </div>
+
+  <section class="pipeline-overview" aria-labelledby="pipeline-overview-title">
+    <div class="pipeline-overview-heading">
+      <div>
+        <p class="eyebrow">The handoff map</p>
+        <h2 id="pipeline-overview-title">Four deliberate passes</h2>
+      </div>
+      <p id="pipeline-next-action" class="pipeline-next-action" role="status" aria-live="polite">Start with Discovery.</p>
+    </div>
+    <ol id="pipeline-stage-list" class="pipeline-stage-list">
+      <li class="pipeline-stage-item locked" data-stage="discovery">
+        <span class="stage-index">01</span>
+        <div class="pipeline-stage-copy">
+          <div class="pipeline-stage-topline"><strong>Discovery</strong><span data-stage-state>Ready</span></div>
+          <p data-stage-detail>Shape the intent, evidence, and point of view.</p>
+        </div>
+      </li>
+      <li class="pipeline-stage-item locked" data-stage="content_architect">
+        <span class="stage-index">02</span>
+        <div class="pipeline-stage-copy">
+          <div class="pipeline-stage-topline"><strong>Content Architect</strong><span data-stage-state>Waiting</span></div>
+          <p data-stage-detail>Unlocked when the Discovery brief is approved.</p>
+        </div>
+      </li>
+      <li class="pipeline-stage-item locked" data-stage="visual_design_director">
+        <span class="stage-index">03</span>
+        <div class="pipeline-stage-copy">
+          <div class="pipeline-stage-topline"><strong>Visual Design Director</strong><span data-stage-state>Waiting</span></div>
+          <p data-stage-detail>Turn the approved content structure into a visual system.</p>
+        </div>
+      </li>
+      <li class="pipeline-stage-item locked" data-stage="build_preparation">
+        <span class="stage-index">04</span>
+        <div class="pipeline-stage-copy">
+          <div class="pipeline-stage-topline"><strong>Build Preparation</strong><span data-stage-state>Waiting</span></div>
+          <p data-stage-detail>Compile both approved handoffs into a verified ZIP.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="build-package-panel" class="build-package-panel" hidden aria-labelledby="build-package-title"></section>
 
   <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
 

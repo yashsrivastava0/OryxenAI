@@ -8,13 +8,14 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
-from oryxenai.agents.build_preparation.compiler import build_source_ref
+from oryxenai.agents.build_preparation.input_integrator import (
+    BuildPreparationInputIntegrator,
+)
 from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationSourceRef,
     BuildPreparationStatus,
 )
 from oryxenai.agents.build_preparation.state import apply_start, reset_for_regeneration
-from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorStatus
 from oryxenai.auth.authorization import durable_snapshot_for_session
@@ -60,6 +61,7 @@ class BuildPreparationService:
         self._job_service = job_service
         self._artifact_store = artifact_store
         self._settings = get_settings()
+        self._input_integrator = BuildPreparationInputIntegrator(self._settings)
 
     async def start(
         self,
@@ -81,23 +83,15 @@ class BuildPreparationService:
         )
         self._require_approved_upstream(content_architect, visual_design_director)
 
-        ca_payload = self._content_projection(content_architect)
-        vdd_payload = self._visual_projection(visual_design_director)
-        vdd_payload = normalize_visual_input(
-            ca_payload,
-            vdd_payload,
-            image_target=self._settings.build_preparation.editorial_image_budget,
-            image_maximum=self._settings.build_preparation.editorial_image_maximum,
-            component_target=self._settings.build_preparation.visual_component_budget,
-            component_maximum=self._settings.build_preparation.visual_component_maximum,
-            enabled=self._settings.build_preparation.auto_derive_visual_resources,
-        ).visual
-        source_ref = build_source_ref(
-            ca_payload,
-            vdd_payload,
+        inputs = self._input_integrator.compose(
+            content_architect,
+            visual_design_director,
             content_architect_session_revision=session.revision,
             visual_design_director_session_revision=session.revision,
         )
+        ca_payload = inputs.content_architect
+        vdd_payload = inputs.visual_design_director
+        source_ref = inputs.source_ref
         sticky_profile = visual_design_director.model_profile
         if model_profile and model_profile != sticky_profile:
             raise BuildPreparationOperationError(
@@ -193,31 +187,15 @@ class BuildPreparationService:
             visual_design_director = await self._repository.get_visual_design_director_snapshot(
                 session_id
             )
-            if content_architect.approved is not None and (
-                visual_design_director.approved is not None
-                or (
-                    bool(
-                        getattr(
-                            self._settings.build_preparation, "auto_derive_visual_resources", True
-                        )
-                    )
-                    and visual_design_director.status is VisualDesignDirectorStatus.NOT_STARTED
-                )
-            ):
-                ca_payload = self._content_projection(content_architect)
-                vdd_payload = normalize_visual_input(
-                    ca_payload,
-                    self._visual_projection(visual_design_director),
-                    image_target=self._settings.build_preparation.editorial_image_budget,
-                    image_maximum=self._settings.build_preparation.editorial_image_maximum,
-                    component_target=self._settings.build_preparation.visual_component_budget,
-                    component_maximum=self._settings.build_preparation.visual_component_maximum,
-                    enabled=self._settings.build_preparation.auto_derive_visual_resources,
-                ).visual
-                current_source_ref = build_source_ref(
-                    ca_payload,
-                    vdd_payload,
-                )
+            has_approved_inputs = (
+                content_architect.approved is not None
+                and visual_design_director.approved is not None
+            )
+            if has_approved_inputs:
+                current_source_ref = self._input_integrator.compose(
+                    content_architect,
+                    visual_design_director,
+                ).source_ref
                 upstream_stale = (
                     current_source_ref.visual_design_director_direction_hash
                     != state.source_ref.visual_design_director_direction_hash
@@ -227,6 +205,11 @@ class BuildPreparationService:
                 if upstream_stale:
                     stale_reasons.append("approved_upstream_changed")
                 stale = upstream_stale
+            elif state.status is not BuildPreparationStatus.NOT_STARTED and (
+                state.source_ref.input_projection_hash or state.package is not None
+            ):
+                stale = True
+                stale_reasons.append("approved_upstream_unavailable")
         except Exception:
             current_source_ref = None
 
@@ -284,6 +267,48 @@ class BuildPreparationService:
             "jobs": jobs,
         }
 
+    async def download_artifact(self, session_id: UUID) -> tuple[bytes, str]:
+        """Return the current verified ZIP and its content type."""
+        state_response = await self.get_state(session_id)
+        payload = state_response["build_preparation"]
+        if bool(payload.get("stale")):
+            raise BuildPreparationOperationError(
+                "BUILD_PREPARATION_ARTIFACT_STALE",
+                "The Build Preparation package is stale. Regenerate it before downloading.",
+                details={"stale_reasons": payload.get("stale_reasons", [])},
+            )
+        package = payload.get("package")
+        if not isinstance(package, dict):
+            raise BuildPreparationOperationError(
+                "BUILD_PREPARATION_ARTIFACT_NOT_READY",
+                "Build Preparation has not produced a downloadable package yet.",
+            )
+        reference = package.get("artifact")
+        if not isinstance(reference, dict):
+            raise BuildPreparationOperationError(
+                "BUILD_PREPARATION_ARTIFACT_UNAVAILABLE",
+                "The verified Build Preparation package is not available in object storage.",
+            )
+        from oryxenai.storage.artifacts import ArtifactReference
+
+        artifact = ArtifactReference.model_validate(reference)
+        if is_expired(artifact):
+            raise BuildPreparationOperationError(
+                "BUILD_PREPARATION_ARTIFACT_EXPIRED",
+                "The Build Preparation package has expired. Regenerate it before downloading.",
+            )
+        try:
+            store = self._artifact_store or create_artifact_store(self._settings)
+            data = await store.get_verified(artifact)
+        except ArtifactStorageError as exc:
+            raise BuildPreparationOperationError(
+                exc.code,
+                exc.message,
+                status_code=404 if exc.code == "ARTIFACT_NOT_FOUND" else 503,
+                details=exc.details,
+            ) from exc
+        return data, artifact.content_type or "application/zip"
+
     async def _require_session(self, session_id: UUID) -> Any:
         session = await self._repository.get_session(session_id)
         if session is None:
@@ -308,61 +333,11 @@ class BuildPreparationService:
             visual_design_director.status is not VisualDesignDirectorStatus.APPROVED
             or visual_design_director.approved is None
         ):
-            if (
-                bool(
-                    getattr(self._settings.build_preparation, "auto_derive_visual_resources", True)
-                )
-                and visual_design_director.status is VisualDesignDirectorStatus.NOT_STARTED
-            ):
-                return
             raise BuildPreparationOperationError(
                 "BUILD_PREPARATION_VISUAL_DESIGN_DIRECTOR_NOT_APPROVED",
                 "Visual Design Director must be approved before Build Preparation can start.",
                 details={"visual_design_director_status": visual_design_director.status.value},
             )
-
-    @staticmethod
-    def _content_projection(state: Any) -> dict[str, Any]:
-        return {
-            "approved": state.approved.model_dump(mode="json") if state.approved else {},
-            "site_story_strategy": state.site_story_strategy,
-            "decision_basis": [
-                decision.model_dump(mode="json") for decision in state.decision_basis
-            ],
-            "route_plan": [route.model_dump(mode="json") for route in state.route_plan],
-            "page_content_packs": [
-                {**pack.model_dump(mode="json"), "internal_notes": {}}
-                for pack in state.page_content_packs
-            ],
-            "claim_grounding": [
-                claim.model_dump(mode="json")
-                for claim in state.claim_grounding
-                if claim.publication_status.value == "approved"
-            ],
-            "public_content_manifest": state.public_content_manifest,
-            "visual_director_handoff": state.visual_director_handoff,
-        }
-
-    @staticmethod
-    def _visual_projection(state: Any) -> dict[str, Any]:
-        return {
-            "approved": state.approved.model_dump(mode="json") if state.approved else {},
-            "visual_language": state.visual_language,
-            "shared_visual_systems": state.shared_visual_systems,
-            "navigation_direction": state.navigation_direction,
-            "motion_system": state.motion_system,
-            "interaction_system": state.interaction_system,
-            "accessibility_and_performance": state.accessibility_and_performance,
-            "must_preserve": state.must_preserve,
-            "must_not_fabricate": state.must_not_fabricate,
-            "resource_policy": state.resource_policy,
-            "compiler_handoff": state.compiler_handoff,
-            "pages": [page.model_dump(mode="json") for page in state.pages],
-            "asset_briefs": [asset.model_dump(mode="json") for asset in state.asset_briefs],
-            "resource_candidates": [
-                resource.model_dump(mode="json") for resource in state.resource_candidates
-            ],
-        }
 
     @staticmethod
     def _idempotency_key(

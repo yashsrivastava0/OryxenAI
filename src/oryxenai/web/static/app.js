@@ -78,6 +78,99 @@
     "build_preparation",
   ];
 
+  function stageApproved(agent, state) {
+    if (!state) return false;
+    return agent === "build_preparation"
+      ? state.status === "ready"
+      : state.status === "approved";
+  }
+
+  function stageWorking(agent, state) {
+    if (!state) return false;
+    var status = String(state.status || "");
+    if (agent === "discovery") return RUNNING_STATUSES.indexOf(status) >= 0;
+    return status === "build_running" || status === "running" || status === "preparing";
+  }
+
+  function stageReviewing(agent, state) {
+    if (!state) return false;
+    var status = String(state.status || "");
+    return agent === "discovery"
+      ? status === "questions_ready" || status === "brief_review"
+      : status === "content_review" || status === "design_review";
+  }
+
+  function renderPipelineRail() {
+    var list = document.getElementById("pipeline-stage-list");
+    if (!list) return;
+    var items = list.querySelectorAll("[data-stage]");
+    var firstAction = "Start with Discovery.";
+    var actionSet = false;
+    Array.prototype.forEach.call(items, function (item, index) {
+      var agent = item.getAttribute("data-stage");
+      var state = agentStates[agent];
+      var status = String((state && state.status) || "not_started");
+      var previous = index === 0 ? null : agentStates[STAGE_ORDER[index - 1]];
+      var unlocked = index === 0 || stageApproved(STAGE_ORDER[index - 1], previous);
+      var stale = agent === "build_preparation" && Boolean(state && state.stale);
+      var tone = "locked";
+      var label = unlocked ? "Ready" : "Waiting";
+      var detail = unlocked
+        ? "Ready when you are."
+        : "Approve " + STAGE_LABELS[STAGE_ORDER[index - 1]] + " to unlock this stage.";
+
+      if (stageApproved(agent, state)) {
+        tone = "complete";
+        label = agent === "build_preparation" ? "Package ready" : "Approved";
+        detail = agent === "build_preparation"
+          ? "Verified package created from both approved handoffs."
+          : "Approved. The next handoff is unlocked.";
+      } else if (stale) {
+        tone = "attention";
+        label = "Stale";
+        detail = "Upstream output changed. Regenerate this package.";
+      } else if (status === "needs_attention") {
+        tone = "attention";
+        label = "Attention";
+        detail = (state.latest_error && state.latest_error.message)
+          || "Review the stage details and retry when ready.";
+      } else if (stageWorking(agent, state)) {
+        tone = "active";
+        label = "Working";
+        detail = stageStatusMessage(agent, state);
+      } else if (stageReviewing(agent, state)) {
+        tone = "review";
+        label = "Review";
+        detail = "Review the output in the conversation, then approve it to continue.";
+      } else if (unlocked) {
+        tone = "next";
+        label = "Ready";
+        detail = agent === "discovery"
+          ? "Shape the intent, evidence, and point of view."
+          : "The previous approval is complete. Start this stage from the conversation.";
+      }
+
+      item.className = "pipeline-stage-item " + tone;
+      item.setAttribute("aria-current", tone === "active" || tone === "review" || tone === "next" ? "step" : "false");
+      var stateEl = item.querySelector("[data-stage-state]");
+      var detailEl = item.querySelector("[data-stage-detail]");
+      if (stateEl) stateEl.textContent = label;
+      if (detailEl) detailEl.textContent = detail;
+
+      if (!actionSet && (status === "needs_attention" || stale)) {
+        firstAction = detail;
+        actionSet = true;
+      } else if (!actionSet && unlocked && !stageApproved(agent, state)) {
+        firstAction = agent === "discovery"
+          ? (selectedSessionId ? "Discovery is ready for your next message." : "Send your first message to create a session.")
+          : "Continue with " + STAGE_LABELS[agent] + " from the conversation.";
+        actionSet = true;
+      }
+    });
+    var nextAction = document.getElementById("pipeline-next-action");
+    if (nextAction) nextAction.textContent = firstAction;
+  }
+
   function prettyJson(obj) {
     try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
   }
@@ -219,6 +312,7 @@
     var previousSignature = observedStageSignatures[agent];
     agentStates[agent] = state;
     observeStageState(agent, state, jobs);
+    renderPipelineRail();
     renderSidebarOutputTabs();
     var sidebar = document.getElementById("brief-sidebar");
     if (sidebarView === "output" && sidebar && sidebar.classList.contains("open") &&
@@ -1916,10 +2010,10 @@
     }
   }
 
-  // ── Visual Design Director (minimal — testing harness, not the full UI) ─
+  // ── Visual Design Director ──────────────────────────────────────────────
   // Mirrors the Content Architect section above, one stage further down the
-  // pipeline. Code Generation stays out of scope — it remains a deterministic
-  // mock with no durable-job route, so the flow ends after approval here.
+  // pipeline. Code Generator is a later explicit stage and stays out of this
+  // four-stage product workflow.
 
   var vddState = null;
   var vddPollTimer = null;
@@ -2072,7 +2166,7 @@
       rememberAgentState("visual_design_director", vddState, stageJobs.visual_design_director);
       recordActivity("visual_design_director", "Visual Design Director approval was saved.", "success");
       promptNextAgentPrompt(
-        "Visual Design Director approved — the hidden Build Preparation stage can now materialize the image, component, and code-generation resources.",
+        "Visual Design Director approved — Build Preparation can now compile both approved handoffs into a verified package.",
         "Prepare Build Package",
         startBuildPreparation
       );
@@ -2083,9 +2177,8 @@
 
   // ── Safe Markdown rendering (DOM nodes only, no HTML injection) ─────────
 
-  // Hidden Build Preparation remains an explicit trigger. There is no
-  // separate review/approval step, and Code Generator stays a separate
-  // protected workflow with no start control in this workspace.
+  // Build Preparation remains an explicit trigger. There is no separate
+  // review/approval step, and Code Generator stays outside this workflow.
   var buildPreparationState = null;
   var buildPreparationPollTimer = null;
 
@@ -2101,11 +2194,33 @@
       buildPreparationState = data.build_preparation;
       stageJobs.build_preparation = Array.isArray(data.jobs) ? data.jobs : [];
       rememberAgentState("build_preparation", buildPreparationState, stageJobs.build_preparation);
+      renderBuildPreparationPanel();
       recordActivity("build_preparation", "API accepted Build Preparation and queued a durable job.");
       pollBuildPreparation();
     } catch (e) {
       clearAnalyzingBubble();
       chatError("Could not start Build Preparation: " + e.message, "Try again", startBuildPreparation);
+    }
+  }
+
+  async function regenerateBuildPreparation() {
+    recordActivity("build_preparation", "Sending the Build Preparation regeneration request to the API.");
+    chatAnalyzing("Regenerating the build package from the current approved handoffs...");
+    try {
+      var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/build-preparation/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_profile: selectedModelProfile }),
+      });
+      buildPreparationState = data.build_preparation;
+      stageJobs.build_preparation = Array.isArray(data.jobs) ? data.jobs : [];
+      rememberAgentState("build_preparation", buildPreparationState, stageJobs.build_preparation);
+      renderBuildPreparationPanel();
+      recordActivity("build_preparation", "Build Preparation regeneration was queued.");
+      pollBuildPreparation();
+    } catch (e) {
+      clearAnalyzingBubble();
+      chatError("Could not regenerate Build Preparation: " + e.message, "Try again", regenerateBuildPreparation);
     }
   }
 
@@ -2123,6 +2238,7 @@
         var data = await fetchJson(API + "/sessions/" + selectedSessionId + "/build-preparation");
         buildPreparationState = data.build_preparation;
         stageJobs.build_preparation = Array.isArray(data.jobs) ? data.jobs : [];
+        renderBuildPreparationPanel();
       } catch (e) {
         clearAnalyzingBubble();
         chatError("Lost contact while preparing the build package: " + e.message, "Retry", startBuildPreparation);
@@ -2132,12 +2248,202 @@
     }, 1500);
   }
 
+  function renderBuildPreparationPanel() {
+    var panel = document.getElementById("build-package-panel");
+    if (!panel) return;
+    var state = buildPreparationState;
+    var terminal = state && (state.status === "ready" || state.status === "needs_attention");
+    if (!terminal) {
+      panel.hidden = true;
+      clearElement(panel);
+      return;
+    }
+
+    panel.hidden = false;
+    clearElement(panel);
+    panel.className = "build-package-panel " + (state.status === "ready" && !state.stale ? "ready" : "attention");
+
+    var header = document.createElement("div");
+    header.className = "package-panel-header";
+    var eyebrow = document.createElement("p");
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = "Build Preparation / final handoff";
+    header.appendChild(eyebrow);
+    var title = document.createElement("h2");
+    title.id = "build-package-title";
+    title.textContent = state.status === "ready" && !state.stale
+      ? "Verified build package"
+      : state.package
+        ? "Package created — review required"
+        : "Build Preparation needs attention";
+    header.appendChild(title);
+    var summary = document.createElement("p");
+    summary.className = "package-summary";
+    var report = state.handoff_report || {};
+    summary.textContent = report.summary
+      || (state.status === "ready" && !state.stale
+        ? "Both approved upstream handoffs are bound to this package."
+        : "Review the diagnostics below, then regenerate the package when the inputs are ready.");
+    header.appendChild(summary);
+    panel.appendChild(header);
+
+    var sources = document.createElement("div");
+    sources.className = "package-sources";
+    var sourceRef = state.source_ref || {};
+    [["Content Architect", sourceRef.content_architect_content_hash], ["Visual Design Director", sourceRef.visual_design_director_direction_hash]].forEach(function (source) {
+      var badge = document.createElement("div");
+      badge.className = "package-source-badge";
+      var label = document.createElement("span");
+      label.textContent = source[0];
+      badge.appendChild(label);
+      var hash = document.createElement("code");
+      var value = String(source[1] || "");
+      hash.textContent = value ? value.slice(0, 16) + "..." : "not recorded";
+      badge.appendChild(hash);
+      sources.appendChild(badge);
+    });
+    panel.appendChild(sources);
+
+    var metrics = document.createElement("div");
+    metrics.className = "package-metrics";
+    var packageResult = state.package || {};
+    var artifact = packageResult.artifact || {};
+    var archiveHash = packageResult.archive_sha256 || artifact.sha256 || "not recorded";
+    var archiveSize = packageResult.archive_size_bytes || artifact.size_bytes || 0;
+    var expiry = packageResult.expires_at || artifact.expires_at || "not recorded";
+    [["Routes", Array.isArray(state.routes) ? state.routes.length : 0], ["Resources", Array.isArray(state.resource_needs) ? state.resource_needs.length : 0], ["Archive", archiveSize ? Math.round(archiveSize / 1024) + " KB" : "not available"], ["Expires", expiry]].forEach(function (metric) {
+      var item = document.createElement("div");
+      item.className = "package-metric";
+      var metricLabel = document.createElement("span");
+      metricLabel.className = "package-metric-label";
+      metricLabel.textContent = metric[0];
+      item.appendChild(metricLabel);
+      var metricValue = document.createElement("strong");
+      metricValue.textContent = String(metric[1]);
+      item.appendChild(metricValue);
+      metrics.appendChild(item);
+    });
+    panel.appendChild(metrics);
+
+    var hashLine = document.createElement("p");
+    hashLine.className = "package-hash";
+    hashLine.textContent = "SHA-256 " + (archiveHash.length > 32 ? archiveHash.slice(0, 32) + "..." : archiveHash);
+    panel.appendChild(hashLine);
+
+    function appendFindings(titleText, values, className) {
+      if (!Array.isArray(values) || !values.length) return;
+      var section = document.createElement("section");
+      section.className = "package-findings " + (className || "");
+      var heading = document.createElement("h3");
+      heading.textContent = titleText;
+      section.appendChild(heading);
+      var list = document.createElement("ul");
+      values.forEach(function (value) {
+        var item = document.createElement("li");
+        if (typeof value === "string") {
+          item.textContent = value;
+        } else {
+          item.textContent = String(value.message || value.next_action || "Review this finding.");
+          if (value.next_action && value.message) item.textContent += " Next: " + value.next_action;
+        }
+        list.appendChild(item);
+      });
+      section.appendChild(list);
+      panel.appendChild(section);
+    }
+
+    appendFindings("Handoff issues", report.issues, "error");
+    appendFindings("Execution gaps", report.execution_gaps, "error");
+    appendFindings("Warnings", state.warnings, "warning");
+
+    var actions = document.createElement("div");
+    actions.className = "package-actions";
+    var outputButton = document.createElement("button");
+    outputButton.type = "button";
+    outputButton.className = "choice-btn";
+    outputButton.textContent = "View full Build Preparation output";
+    outputButton.addEventListener("click", function () { openAgentOutputSidebar("build_preparation"); });
+    actions.appendChild(outputButton);
+    if (artifact.key && !state.stale) {
+      var downloadButton = document.createElement("button");
+      downloadButton.type = "button";
+      downloadButton.className = "primary-action";
+      downloadButton.textContent = state.status === "ready" ? "Download verified ZIP" : "Download diagnostic ZIP";
+      downloadButton.addEventListener("click", downloadBuildPreparationArtifact);
+      actions.appendChild(downloadButton);
+    }
+    if (!portfolioReadOnly && (state.status === "needs_attention" || state.stale)) {
+      var regenerateButton = document.createElement("button");
+      regenerateButton.type = "button";
+      regenerateButton.className = "primary-action";
+      regenerateButton.textContent = "Regenerate package";
+      regenerateButton.addEventListener("click", regenerateBuildPreparation);
+      actions.appendChild(regenerateButton);
+    }
+    panel.appendChild(actions);
+  }
+
+  async function downloadBuildPreparationArtifact() {
+    if (!selectedSessionId || typeof authorizedRequest !== "function") return;
+    setResult("chat-status", "Preparing the verified ZIP download...");
+    try {
+      var response = await authorizedRequest(API + "/sessions/" + selectedSessionId + "/build-preparation/download", {
+        method: "GET",
+        headers: { "Cache-Control": "no-store" },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        var body = await response.json().catch(function () { return {}; });
+        throw new Error((body.error && body.error.message) || response.statusText || "Download failed.");
+      }
+      var blob = await response.blob();
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = "build-preparation.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      setResult("chat-status", "Verified ZIP download started.", "success");
+    } catch (e) {
+      setResult("chat-status", "The package download failed: " + e.message, "error");
+    }
+  }
+
   function renderBuildPreparationState() {
     if (!buildPreparationState) return;
     rememberAgentState("build_preparation", buildPreparationState, stageJobs.build_preparation);
-    if (buildPreparationState.status === "needs_attention") {
+    renderBuildPreparationPanel();
+    var previousAttention = document.getElementById("build-preparation-attention-bubble");
+    if (previousAttention && buildPreparationState.status !== "needs_attention" && !buildPreparationState.stale) {
+      previousAttention.remove();
+    }
+    if (buildPreparationState.status === "needs_attention" || buildPreparationState.stale) {
       var error = buildPreparationState.latest_error || {};
-      chatError(error.message || "Build Preparation needs attention.", "Try again", startBuildPreparation);
+      if (!document.getElementById("build-preparation-attention-bubble")) {
+        var attention = textEl(
+          error.message
+            || (buildPreparationState.stale
+              ? "The package is stale because an approved upstream handoff changed."
+              : "Build Preparation needs attention.")
+        );
+        attention.className = "bubble-text bubble-error";
+        if (!portfolioReadOnly) {
+          var retry = document.createElement("button");
+          retry.type = "button";
+          retry.className = "primary-action";
+          retry.textContent = buildPreparationState.stale ? "Regenerate package" : "Retry Build Preparation";
+          retry.addEventListener("click", function () {
+            retry.disabled = true;
+            (buildPreparationState.stale ? regenerateBuildPreparation : startBuildPreparation)();
+          });
+          attention.appendChild(document.createElement("br"));
+          attention.appendChild(retry);
+        }
+        var attentionBubble = addBubble("assistant", attention);
+        attentionBubble.id = "build-preparation-attention-bubble";
+      }
       return;
     }
 
@@ -2146,14 +2452,15 @@
     var title = document.createElement("h2");
     title.textContent = "Build package ready";
     content.appendChild(title);
-    content.appendChild(textEl("Verified visual resources, local component references, fallbacks, and scoped route context are ready for the separate Code Generator workflow."));
+    content.appendChild(textEl("Verified visual resources, local component references, fallbacks, and scoped route context are ready for the next build stage."));
 
-    var ref = buildPreparationState.bundle_ref || {};
+    var packageResult = buildPreparationState.package || {};
+    var ref = packageResult.artifact || {};
     var metadata = document.createElement("p");
     metadata.className = "bubble-meta";
-    metadata.textContent = "Bundle " + (ref.sha256 ? ref.sha256.slice(0, 16) + "…" : "verified") +
-      (ref.size_bytes ? " · " + Math.round(ref.size_bytes / 1024) + " KB" : "") +
-      (ref.expires_at ? " · expires " + ref.expires_at : "");
+    metadata.textContent = "Package " + ((packageResult.archive_sha256 || ref.sha256) ? (packageResult.archive_sha256 || ref.sha256).slice(0, 16) + "..." : "verified") +
+      ((packageResult.archive_size_bytes || ref.size_bytes) ? " · " + Math.round((packageResult.archive_size_bytes || ref.size_bytes) / 1024) + " KB" : "") +
+      ((packageResult.expires_at || ref.expires_at) ? " · expires " + (packageResult.expires_at || ref.expires_at) : "");
     content.appendChild(metadata);
 
     var warningItems = Array.isArray(buildPreparationState.warnings) ? buildPreparationState.warnings : [];
@@ -2179,6 +2486,14 @@
     viewFullBtn.textContent = "View full output";
     viewFullBtn.addEventListener("click", function () { openAgentOutputSidebar("build_preparation"); });
     actions.appendChild(viewFullBtn);
+    if (ref.key && !buildPreparationState.stale) {
+      var downloadBtn = document.createElement("button");
+      downloadBtn.type = "button";
+      downloadBtn.className = "primary-action";
+      downloadBtn.textContent = "Download verified ZIP";
+      downloadBtn.addEventListener("click", downloadBuildPreparationArtifact);
+      actions.appendChild(downloadBtn);
+    }
     content.appendChild(actions);
 
     var raw = document.createElement("details");
@@ -2611,6 +2926,7 @@
     var providerSelect = document.getElementById("provider-select");
     if (providerSelect) providerSelect.disabled = false;
     closeFullBriefSidebar();
+    renderPipelineRail();
     renderSidebarOutputTabs();
     renderActivityLog();
     disableComposer(portfolioReadOnly || restartInFlight);
@@ -2720,6 +3036,7 @@
     }
 
     chatWelcome();
+    renderPipelineRail();
     renderSidebarOutputTabs();
     renderActivityLog();
     checkHealth();
