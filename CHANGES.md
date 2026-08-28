@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 09:20 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - rebind quality after deterministic source normalization
+### 2026-08-28 09:20 +05:30 - Codex (GPT-5 / OpenAI) - [5e3ea5c] - rebind quality after deterministic source normalization
 The live tenth frontend run passed its v4 quality review, then verification
 deterministically normalized the host-owned generated token file and changed
 the source manifest. The verification handler persisted the new checkpoint
