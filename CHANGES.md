@@ -11,6 +11,32 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 17:56 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - new evidence on the accepted-mode bug: it is a retry, not a first-time call (root cause still open)
+On the fresh real pack (post context-ceiling fix), planning and
+acquisition succeeded and route-batch-1 got a genuine, correct
+`mode="changes"` response on its first model call (confirmed: cache
+file `ae66e576...json`, real file content). ~13 seconds later a SECOND
+call for the exact same unit produced `mode="accepted"` (cache file
+`23dd3d5e...json`), and that is the one the run failed on with
+`GENERATION_UNIT_ACCEPTED_WITHOUT_CHANGES`. This means the earlier
+"first-time generation never has anything to accept" framing behind
+the three prior fix attempts (5a89eb0, c354841, 2a4a345) is incomplete:
+this specific failing call was a retry of a unit that DOES already
+have prior content in its context (most likely triggered by a
+SourceValidationError on the first response, which feeds the rejected
+attempt back into context for a repair-round retry) - not a truly
+first-time call with nothing to accept. The retry still passes
+`operation="route_batch"`, which the existing validator still gates
+via `forbid_accepted_result=True`, so it is not yet clear why the
+validator did not block it even under this corrected understanding;
+isolated testing continues to prove both validators correctly reject
+this exact payload/context shape outside the worker process. No code
+change from this entry - flagging the corrected mental model for
+whoever continues, since the earlier "blanket-forbid for route_batch"
+premise itself may need to become context-aware (checkpoint/prior
+content aware) rather than purely operation-name-based, once the
+non-firing mystery is actually resolved.
+
 ### 2026-08-28 17:46 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [d36c053] - raise the generation context ceiling for rich real content; produced a fresh eligible Build Preparation pack
 The original expired pack was replaced by regenerating one live: the
 default VDD fixture file (`Input-Output-Of-Engine/Visual Design
