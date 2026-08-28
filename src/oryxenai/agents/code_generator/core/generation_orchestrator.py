@@ -1635,10 +1635,21 @@ class CodeGeneratorGenerationOrchestrator:
                     # source-bearing fields remain strictly model-validated.
                     parsed = {**parsed, "operation_id": f"{operation}:{unit_id}"}
                 if output_model is SourceGenerationEnvelopeV2:
+                    envelope = SourceGenerationEnvelopeV2.model_validate(
+                        parsed, context=validation_context
+                    )
+                    if envelope.result == "accepted" and validation_context.get(
+                        "forbid_accepted_result"
+                    ):
+                        raise GenerationError(
+                            "GENERATION_DIAGNOSTIC_VALIDATOR_DID_NOT_FIRE",
+                            f"DIAGNOSTIC: envelope validated as accepted despite "
+                            f"forbid_accepted_result=True; operation={operation!r} "
+                            f"validation_context={validation_context!r} "
+                            f"envelope_class={type(envelope).__module__}.{type(envelope).__qualname__}",
+                        )
                     result = adapt_v4_generation_result(
-                        SourceGenerationEnvelopeV2.model_validate(
-                            parsed, context=validation_context
-                        ),
+                        envelope,
                         operation_id=f"{operation}:{unit_id}",
                         context_receipt=context_receipt,
                     )
