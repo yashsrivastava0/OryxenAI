@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 07:34 +05:30 - Codex (GPT-5 / OpenAI) - [4c8f361] - require v4 repair envelope metadata
+The live repair path reached an owner-scoped compose correction, but the
+model returned valid file content without the v4 machine-checked export
+signatures and exact coverage arrays. The repair prompt now states the
+envelope invariant explicitly, including one exact exported signature per
+changed route file and unit-scoped ID arrays, so valid source corrections are
+not rejected for missing transport metadata.
+
 ### 2026-08-28 07:24 +05:30 - Codex (GPT-5 / OpenAI) - [1b447a4] - preserve v4 repair envelope selection
 The live repair call reached the provider after the context bound was fixed,
 then failed locally because the compacted repair blueprint omitted its v4
