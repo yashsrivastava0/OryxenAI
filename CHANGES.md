@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 06:50 +05:30 - Codex (GPT-5 / OpenAI) - [bf0e076] - supply current files to integration repair
+The live tenth frontend run exposed a repair-context authority gap: the
+integration reviewer identified a blocking defect in an existing route
+composer file, but the bounded repair context contained no rejected candidate
+tree and therefore supplied no complete current file body. Repair contexts now
+fall back to the authoritative current contents of their exact owned source
+paths, keeping ordinary generation contexts scoped while allowing a model to
+return a safe complete replacement under the existing validation contract.
+The focused context test and Ruff check pass; the live run remains the
+acceptance validation.
+
 ### 2026-08-28 06:35 +05:30 - Codex (GPT-5 / OpenAI) - [f536178] - canonicalize integration-review composer owner
 The live frontend run reached integration review and exposed a reviewer
 vocabulary mismatch: it returned the human suffix `-composer`, while the
