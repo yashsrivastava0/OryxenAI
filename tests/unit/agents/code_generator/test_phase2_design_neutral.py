@@ -24,6 +24,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
     _operation_context,
     _reset_generation_attempt_projection,
+    _scoped_repair_plan,
     _scoped_resource_ledger,
     _shared_source_for_unit,
 )
@@ -333,6 +334,30 @@ def test_resource_context_drops_historical_ledger_payloads() -> None:
     )
 
     assert scoped == {"schema_version": "ledger-v1", "ledger_hash": "ledger-hash"}
+
+
+def test_repair_context_preserves_v4_envelope_discriminator() -> None:
+    scoped = _scoped_repair_plan(
+        {
+            "plan_id": "plan-1",
+            "routes": [{"route_id": "home"}],
+            "work_graph": {"units": ["generation-only"]},
+            "tokens": {"large": "generation-only"},
+            "experience_blueprint": {
+                "schema_version": "code-generator-experience-blueprint-v4",
+                "narrative_arc": "approved narrative",
+                "distinctive_moves": [{"move_id": "move-1"}],
+                "resource_placements": [{"resource_slot_id": "slot-1"}],
+                "motion_beats": [{"motion_id": "motion-1"}],
+                "section_regions": [{"region_id": "generation-only"}],
+            },
+        }
+    )
+
+    assert scoped["experience_blueprint"]["schema_version"].endswith("-v4")
+    assert "work_graph" not in scoped
+    assert "tokens" not in scoped
+    assert "section_regions" not in scoped["experience_blueprint"]
 
 
 def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path) -> None:

@@ -2036,42 +2036,8 @@ def _operation_context(
         projections.get("execution/contract.json", {}), unit
     )
     if operation == "repair":
-        # A repair receives the exact diagnostic and current owned source, so
-        # it does not need the planner's generation-only token/region/work
-        # graph payloads. Keep the route narrative plus the visual contracts
-        # that can affect a safe source correction, and omit the redundant
-        # asset/resource history. This preserves repair authority while
-        # leaving enough headroom for complete replacement file bodies.
-        blueprint = context_plan.get("experience_blueprint", {})
-        context_plan = {
-            key: context_plan[key]
-            for key in (
-                "plan_id",
-                "routes",
-                "creative_thesis",
-                "visual_system",
-                "shell",
-                "shared_component_contracts",
-            )
-            if key in context_plan
-        }
-        if isinstance(blueprint, dict):
-            context_plan["experience_blueprint"] = {
-                key: blueprint[key]
-                for key in (
-                    "narrative_arc",
-                    "distinctive_moves",
-                    "resource_placements",
-                    "motion_beats",
-                    "anti_patterns",
-                )
-                if key in blueprint
-            }
-        context_visual = {
-            key: context_visual[key]
-            for key in ("global", "routes", "pack_version", "schema_version")
-            if key in context_visual
-        }
+        context_plan = _scoped_repair_plan(context_plan)
+        context_visual = _scoped_repair_visual(context_visual)
     shared_source = _shared_source_for_unit(plan, projections, unit, workspace.repo_dir)
     # The rejected files from a prior attempt, when its candidate tree is
     # still on disk — the repairer needs the exact content it must correct.
@@ -2203,6 +2169,51 @@ def _operation_context(
         "diagnostics": [item.model_dump(mode="json") for item in relevant_diagnostics],
         "repair_round": repair_round,
         "output_ceiling": output_ceiling,
+    }
+
+
+def _scoped_repair_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    """Keep repair design authority without repeating generation-only data."""
+
+    blueprint = plan.get("experience_blueprint", {})
+    scoped = {
+        key: plan[key]
+        for key in (
+            "plan_id",
+            "routes",
+            "creative_thesis",
+            "visual_system",
+            "shell",
+            "shared_component_contracts",
+        )
+        if key in plan
+    }
+    if isinstance(blueprint, dict):
+        scoped["experience_blueprint"] = {
+            key: blueprint[key]
+            for key in (
+                # This discriminator selects the exact v4 source envelope;
+                # dropping it would silently route a v4 repair through the
+                # legacy coverage contract.
+                "schema_version",
+                "narrative_arc",
+                "distinctive_moves",
+                "resource_placements",
+                "motion_beats",
+                "anti_patterns",
+            )
+            if key in blueprint
+        }
+    return scoped
+
+
+def _scoped_repair_visual(visual: dict[str, Any]) -> dict[str, Any]:
+    """Retain visual system outcomes while omitting asset/history repetition."""
+
+    return {
+        key: visual[key]
+        for key in ("global", "routes", "pack_version", "schema_version")
+        if key in visual
     }
 
 
