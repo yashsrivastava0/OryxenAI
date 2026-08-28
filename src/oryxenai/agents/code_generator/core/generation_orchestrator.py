@@ -1368,6 +1368,10 @@ class CodeGeneratorGenerationOrchestrator:
                 "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
             ),
         )
+        review = _canonicalize_review_owners(
+            review,
+            {unit.unit_id for unit in plan.work_graph.units},
+        )
         context_path = workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
         workspace.write_json(context_path, context)
         context_receipt = context_receipt.model_copy(
@@ -2902,6 +2906,44 @@ def _review_accepted(review: IntegrationReviewV1 | QualityReviewDraftV1) -> bool
         review.resource_fit_score,
         review.motion_score,
     ) >= 4 and not any(item.severity == "blocking" for item in review.findings)
+
+
+def _canonicalize_review_owners(
+    review: IntegrationReviewV1 | QualityReviewDraftV1,
+    valid_owner_ids: set[str],
+) -> IntegrationReviewV1 | QualityReviewDraftV1:
+    """Map the reviewer's human composer label to the canonical work-unit ID.
+
+    The model-facing work graph uses ``-compose`` as the executable unit ID,
+    while a reviewer may describe that same owner as ``-composer``. Only this
+    unambiguous suffix alias is accepted; every other unknown owner remains
+    unchanged and is rejected by the owner validation in the polish path.
+    """
+
+    def canonical(owner_id: str) -> str:
+        if owner_id in valid_owner_ids:
+            return owner_id
+        if owner_id.endswith("-composer"):
+            candidate = f"{owner_id[:-len('-composer')]}-compose"
+            if candidate in valid_owner_ids:
+                return candidate
+        return owner_id
+
+    updates: dict[str, object] = {}
+    findings = [
+        item.model_copy(update={"owner_work_unit_id": canonical(item.owner_work_unit_id)})
+        for item in review.findings
+    ]
+    if findings != review.findings:
+        updates["findings"] = findings
+    if isinstance(review, QualityReviewDraftV1):
+        score_evidence = [
+            item.model_copy(update={"owner_work_unit_id": canonical(item.owner_work_unit_id)})
+            for item in review.score_evidence
+        ]
+        if score_evidence != review.score_evidence:
+            updates["score_evidence"] = score_evidence
+    return review.model_copy(update=updates) if updates else review
 
 
 async def _cas(repo: Any, run: Any, status: str, values: dict[str, object]) -> Any:
