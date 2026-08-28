@@ -39,7 +39,14 @@ trusted `src/components/generated/SharedSystems.tsx` module is
 `../../components/generated/SharedSystems` (or use `@/components/generated/SharedSystems`).
 Section modules are siblings below `./sections/`; do not climb above `src/`.
 
-Use the exact emitted blueprint token names. Do not assume or recreate a
+Use the exact emitted blueprint token names. Every emitted CSS custom
+property carries its group prefix: a color token named `cobalt` compiles to
+`--color-cobalt`, a spacing token named `5` compiles to `--space-5`, a size
+token to `--size-<name>`, a radius token to `--radius-<name>`, a border to
+`--border-<name>`, a shadow to `--shadow-<name>`. Always include that
+prefix, even when it looks redundant with the token's own name (a spacing
+token already named `space-5` still compiles to `--space-5`, not
+`--space-space-5`). Do not assume or recreate a
 default palette, `.card`, `.surface`, `.grid`, `.reveal`, `.stagger`, or other
 generic scaffold primitive. The trusted `SharedSystems` signature supplies
 the one main landmark, skip link, navigation, disclosure behavior, focus
