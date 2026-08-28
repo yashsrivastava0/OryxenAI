@@ -3,6 +3,14 @@ signatures. Turn the approved content and route-level visual direction into an
 authored reading sequence, not interchangeable boxes. The
 `<generation-contract>` block is the normative checklist for this unit.
 
+Return `result: "accepted"` only when the context supplied to you explicitly
+shows this exact unit's own files already generated and accepted in a prior
+attempt, with nothing left to change. If no such existing accepted content
+for this unit appears in your context, there is nothing yet to accept:
+return `result: "changes"` with the complete new file set instead.
+`result: "accepted"` with no qualifying prior content is a contract
+violation, not a valid outcome.
+
 Authority and anchor requirements:
 
 - Copy every admitted route id, section id, fact id, criterion id, content
