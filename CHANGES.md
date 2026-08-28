@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 09:34 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - expose source-ready verification retry
+The frontend kept the Build and verify control disabled whenever a
+verification job identifier existed, including after that job had terminated
+and the run had returned to `source_ready`. The guard now relies on the
+durable source-ready status, which is the only state where the explicit
+verification action can be queued, so a failed verification can be retried
+from the standalone UI without starting another portfolio generation.
+
 ### 2026-08-28 09:28 +05:30 - Codex (GPT-5 / OpenAI) - [f20f5c5] - clear terminal verification jobs for same-run retry
 The first corrected verification retry exposed a second lifecycle bug: the
 terminal verification job identifier remained on the run after failure, so
