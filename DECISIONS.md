@@ -628,9 +628,9 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-08-25)
+## Summary (as of last update — 2026-08-28)
 
-- Total decisions logged: 53
-- Active decisions: 48 (all logged decisions except D-006, D-010, D-012, D-014, and D-049)
+- Total decisions logged: 54
+- Active decisions: 49 (all logged decisions except D-006, D-010, D-012, D-014, and D-049)
 - Superseded decisions: 5 (D-006, D-010, D-012, D-014, D-049 superseded-by-D-052)
-- Last updated: 2026-08-25 — Claude Code (Claude Sonnet 5 / Anthropic)
+- Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
