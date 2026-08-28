@@ -845,6 +845,7 @@ class CodeGeneratorGenerationOrchestrator:
                     projections=projections,
                     workspace=workspace,
                     projection=projection,
+                    checkpoint_store=checkpoint_store,
                     checkpoint=checkpoint,
                     allowed_packages=allowed_packages,
                     public_text=public_text,
@@ -1135,6 +1136,7 @@ class CodeGeneratorGenerationOrchestrator:
         projections: dict[str, dict[str, Any]],
         workspace: GenerationWorkspace,
         projection: GenerationProjection,
+        checkpoint_store: CheckpointStore,
         checkpoint: SourceCheckpoint | None,
         allowed_packages: set[str],
         public_text: set[str],
@@ -1256,6 +1258,25 @@ class CodeGeneratorGenerationOrchestrator:
                 public_text=public_text,
                 settings=settings,
                 checkpoint=checkpoint,
+            )
+            # A polish pass can still leave advisory/blocking review findings
+            # after its single bounded repair attempt. Persist the repaired
+            # source as the new resumable checkpoint before final review, or
+            # the next frontend Resume would restore the pre-polish source
+            # and repeat the same findings indefinitely.
+            checkpoint = checkpoint_store.accept(
+                work_unit_id=f"{owner.unit_id}-integration-polish",
+                parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
+            )
+            projection.accepted_checkpoint = checkpoint
+            projection.source_file_count = checkpoint.file_count
+            projection.source_total_bytes = checkpoint.total_bytes
+            await self._persist(
+                sessionmaker,
+                run_id,
+                projection,
+                status=DevelopmentRunStatus.INTEGRATING.value,
+                source_checkpoint=checkpoint,
             )
         diagnostics = await run_source_checks(
             workspace.repo_dir,
