@@ -1311,6 +1311,37 @@ async def _safe_issue(sessionmaker: Any, run_id: UUID, issue: SafeIssue) -> None
         await db.commit()
 
 
+def _quality_rejection_summary(review: Any) -> str:
+    """Build a concrete, human-readable rejection reason from a quality review.
+
+    Handles both the draft (`QualityReviewDraftV1`, which carries a free-text
+    `review_summary`) and receipt shapes defensively via getattr, since the
+    exact type varies by schema version.
+    """
+
+    parts = ["The final repaired source did not pass bounded whole-site re-review."]
+    scores = {
+        dimension: getattr(review, f"{dimension}_score", None)
+        for dimension in ("hierarchy", "composition", "typography", "resource_fit", "motion")
+    }
+    score_text = " ".join(
+        f"{dimension}={value}" for dimension, value in scores.items() if value is not None
+    )
+    if score_text:
+        parts.append(f"Scores: {score_text}.")
+    findings = getattr(review, "findings", None) or []
+    blocking = [item for item in findings if getattr(item, "severity", "") == "blocking"]
+    if blocking:
+        finding_text = "; ".join(
+            f"{item.code} ({item.file}:{item.line}): {item.evidence}" for item in blocking[:3]
+        )
+        parts.append(f"{len(blocking)} blocking finding(s): {finding_text}.")
+    review_summary = getattr(review, "review_summary", "") or ""
+    if review_summary:
+        parts.append(f"Reviewer summary: {review_summary}")
+    return " ".join(parts)
+
+
 async def _attempt_repair(
     *,
     sessionmaker: Any,
@@ -1391,6 +1422,7 @@ async def _attempt_repair(
     projection.gate_results = []
     generation_projection_payload: dict[str, Any] | None = None
     integration_review_payload: dict[str, Any] | None = None
+    quality_rejected_review: Any | None = None
     if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
         async with sessionmaker() as db:
             current = await CodeGeneratorDevelopmentRepository(db).get(run_id)
@@ -1421,16 +1453,37 @@ async def _attempt_repair(
                 round_number=2,
                 persist=False,
             )
+            generation_projection_payload = generation_projection.model_dump(mode="json")
+            integration_review_payload = review.model_dump(mode="json")
             if generation_projection.quality_review is None or not bool(
                 generation_projection.quality_review.accepted
             ):
-                raise VerificationFailure(
-                    "QUALITY_REVIEW_REJECTED_AFTER_REPAIR",
-                    "The final repaired source did not pass bounded whole-site re-review.",
-                    owner="generator",
-                )
-            generation_projection_payload = generation_projection.model_dump(mode="json")
-            integration_review_payload = review.model_dump(mode="json")
+                quality_rejected_review = review
+        if quality_rejected_review is not None:
+            # The rejection reason was previously computed and then silently
+            # discarded: the raise below used to happen before any persist
+            # ran, so GET /runs/{id}/quality kept showing the stale
+            # pre-repair receipt with no record of why the repair failed.
+            # Persist the real review now that the nested session above has
+            # closed (mirroring the accepted-path persist further down,
+            # which also waits until outside that session), but deliberately
+            # do NOT write source_checkpoint/source_summary — a rejected
+            # repair must never become the run's accepted checkpoint.
+            await _persist_projection(
+                sessionmaker,
+                run_id,
+                projection,
+                DevelopmentRunStatus.REPAIRING.value,
+                values={
+                    "generation_projection": generation_projection_payload,
+                    "integration_review": integration_review_payload,
+                },
+            )
+            raise VerificationFailure(
+                "QUALITY_REVIEW_REJECTED_AFTER_REPAIR",
+                _quality_rejection_summary(quality_rejected_review),
+                owner="generator",
+            )
     await _persist_projection(
         sessionmaker,
         run_id,
