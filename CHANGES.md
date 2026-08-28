@@ -11,6 +11,28 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 17:46 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [d36c053] - raise the generation context ceiling for rich real content; produced a fresh eligible Build Preparation pack
+The original expired pack was replaced by regenerating one live: the
+default VDD fixture file (`Input-Output-Of-Engine/Visual Design
+Director output.md`) turned out to have been overwritten with an
+incomplete mid-build snapshot at some point this session, so restored
+the last committed complete version (`git show 5ca0b85:...`) and paired
+it with the current real, approved Content Architect output via
+Build Preparation's detached fixture endpoint. That run also revealed
+`build_preparation`'s configured Anthropic profile has an exhausted
+credit balance (a billing issue, not a code bug - flagged for the user
+separately) - routed around it with an explicit `model_profile=
+"openai_luna"` override, which worked. The resulting pack materialized
+correctly but the fixture endpoint's default output directory doesn't
+match where Code Generator's own pack discovery scans
+(`build_preparation.fixture_output_dir` vs `code_generator_development.
+build_preparation_mirror_root` are two different config keys pointing
+at two different directories) - copied the pack across rather than
+chasing that config split under time pressure. The resulting fresh
+live run then hit `GENERATION_CONTEXT_LIMIT` on real, richer 6-section
+content even after existing per-unit scoping; see the paired commit
+for that fix's own detail.
+
 ### 2026-08-28 17:15 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [664d88e] - explain token name format in the planner prompt
 The only eligible Build Preparation pack expired, so switched to
 Code Generator's own fixture-based `/runs` entry point (bypasses
