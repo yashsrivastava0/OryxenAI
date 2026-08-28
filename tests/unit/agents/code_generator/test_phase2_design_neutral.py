@@ -435,6 +435,9 @@ def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path)
     assert repair_context["previous_attempt_files"] == {
         "src/routes/home/sections/hero.tsx": "export default function Hero() { return null; }"
     }
+    assert "work_graph" not in repair_context["plan"]
+    assert "section_regions" not in repair_context["plan"]
+    assert "assets" not in repair_context["visual_direction"]
 
 
 def test_resumed_generation_clears_rejected_attempt_diagnostics_only() -> None:
