@@ -275,7 +275,7 @@ use_real_typecheck = true
 route_concurrency = 3
 artifact_store_provider = "local_fs"
 artifact_root = ".workspace/code-generator-artifacts"
-max_context_chars = 120000
+max_context_chars = 170000
 quality_review_max_context_chars = 600000
 stable_prompt_prefix_version = "code-generator-prompts-v4"
 
