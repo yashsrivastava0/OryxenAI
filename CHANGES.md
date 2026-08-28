@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 07:48 +05:30 - Codex (GPT-5 / OpenAI) - [a63162d] - persist integration polish checkpoints
+The live run showed that accepted owner-scoped polish changes were applied to
+the workspace but discarded when an unresolved final quality review caused a
+frontend Resume to restore the older checkpoint. The integration polish loop
+now accepts and persists a new source checkpoint after every successful owner
+repair, updates the projection's resumable checkpoint, and carries that
+checkpoint into subsequent owner repairs and retries.
+
 ### 2026-08-28 07:34 +05:30 - Codex (GPT-5 / OpenAI) - [4c8f361] - require v4 repair envelope metadata
 The live repair path reached an owner-scoped compose correction, but the
 model returned valid file content without the v4 machine-checked export
