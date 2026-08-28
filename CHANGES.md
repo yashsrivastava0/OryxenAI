@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 09:20 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - rebind quality after deterministic source normalization
+The live tenth frontend run passed its v4 quality review, then verification
+deterministically normalized the host-owned generated token file and changed
+the source manifest. The verification handler persisted the new checkpoint
+but kept the in-memory quality receipt bound to the pre-normalization hash,
+causing a false `QUALITY_SOURCE_STALE` stop. Host-only normalization now
+rebinds the existing receipt through the schema validator, persists the
+updated generation projection, and reloads it before final verification. A
+focused regression test covers the source rebind and receipt-hash recompute.
+
 ### 2026-08-28 07:48 +05:30 - Codex (GPT-5 / OpenAI) - [a63162d] - persist integration polish checkpoints
 The live run showed that accepted owner-scoped polish changes were applied to
 the workspace but discarded when an unresolved final quality review caused a
