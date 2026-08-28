@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 07:24 +05:30 - Codex (GPT-5 / OpenAI) - [1b447a4] - preserve v4 repair envelope selection
+The live repair call reached the provider after the context bound was fixed,
+then failed locally because the compacted repair blueprint omitted its v4
+schema discriminator. The returned v4 coverage was consequently interpreted
+through the legacy envelope and rejected as non-exact. Repair compaction now
+preserves the discriminator while still dropping generation-only payloads; a
+focused regression test covers the envelope-selection invariant.
+
 ### 2026-08-28 07:08 +05:30 - Codex (GPT-5 / OpenAI) - [f72ab5e] - keep repair context below the ceiling
 The next live retry showed that supplying complete current owned files exposed
 the repair call to the full generation-only planner and asset history. That
