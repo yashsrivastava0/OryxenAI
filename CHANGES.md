@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-08-28 09:34 +05:30 - Codex (GPT-5 / OpenAI) - [PENDING] - expose source-ready verification retry
+### 2026-08-28 09:34 +05:30 - Codex (GPT-5 / OpenAI) - [17fd5e3] - expose source-ready verification retry
 The frontend kept the Build and verify control disabled whenever a
 verification job identifier existed, including after that job had terminated
 and the run had returned to `source_ready`. The guard now relies on the
