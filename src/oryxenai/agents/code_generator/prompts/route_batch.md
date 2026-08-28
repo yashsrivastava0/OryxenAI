@@ -56,7 +56,14 @@ Ownership and shell boundary:
 
 Visual and implementation contract:
 
-- Use the exact token names and values emitted from the validated blueprint. Do not
+- Use the exact token names and values emitted from the validated blueprint.
+  Every emitted CSS custom property carries its group prefix: a color token
+  named `cobalt` compiles to `--color-cobalt`, a spacing token named `5`
+  compiles to `--space-5`, a size token to `--size-<name>`, a radius token to
+  `--radius-<name>`, a border to `--border-<name>`, a shadow to
+  `--shadow-<name>`. Always include that prefix, even when it looks redundant
+  with the token's own name (a spacing token already named `space-5` still
+  compiles to `--space-5`, not `--space-space-5`). Do not
   assume or recreate a default palette, `.card`, `.surface`, `.grid`,
   `.reveal`, `.stagger`, or other generic scaffold primitive. Do not add a
   second token system, arbitrary gradients, glass panels, floating blobs,

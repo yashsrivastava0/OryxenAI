@@ -129,8 +129,17 @@ def _compile_v4_tokens(
             raise TokenCompilationError(f"token {name} contains unsafe CSS")
         lines.append(f"  --{normalized}: {rendered};")
 
+    def group_name(group: str, name: str) -> str:
+        # A blueprint-authored token name (e.g. a spacing step literally
+        # named "space-5") already carrying its own group prefix must not be
+        # prefixed a second time: that produced unpredictable emitted names
+        # like "--space-space-5" that a model generating source against the
+        # blueprint's own token names has no way to anticipate, and its
+        # references to the intended "--space-5" then went undefined.
+        return name if name == group or name.startswith(f"{group}-") else f"{group}-{name}"
+
     for color_token in sorted(blueprint.tokens.colors, key=lambda item: item.name):
-        emit(f"color-{color_token.name}", color_token.value)
+        emit(group_name("color", color_token.name), color_token.value)
     for group, values in (
         ("space", blueprint.tokens.spacing),
         ("size", blueprint.tokens.sizes),
@@ -138,23 +147,23 @@ def _compile_v4_tokens(
     ):
         for length_token in sorted(values, key=lambda item: item.name):
             emit(
-                f"{group}-{length_token.name}",
+                group_name(group, length_token.name),
                 f"{length_token.value:g}{length_token.unit}",
             )
     for border_token in sorted(blueprint.tokens.borders, key=lambda item: item.name):
         lines.append(
-            f"  --border-{border_token.name}: "
+            f"  --{group_name('border', border_token.name)}: "
             f"{border_token.width.value:g}{border_token.width.unit} "
-            f"{border_token.style} var(--color-{border_token.color_token});"
+            f"{border_token.style} var(--{group_name('color', border_token.color_token)});"
         )
     for shadow in sorted(blueprint.tokens.shadows, key=lambda item: item.name):
         lines.append(
-            f"  --shadow-{shadow.name}: "
+            f"  --{group_name('shadow', shadow.name)}: "
             f"{shadow.offset_x.value:g}{shadow.offset_x.unit} "
             f"{shadow.offset_y.value:g}{shadow.offset_y.unit} "
             f"{shadow.blur.value:g}{shadow.blur.unit} "
             f"{shadow.spread.value:g}{shadow.spread.unit} "
-            f"var(--color-{shadow.color_token});"
+            f"var(--{group_name('color', shadow.color_token)});"
         )
     for container in sorted(blueprint.tokens.containers, key=lambda item: item.name):
         emit(
@@ -234,7 +243,17 @@ def _compile_v4_tokens(
 def _font_weight_for_path(
     normalized_path: str, binding: ExecutionBindingV2, fallback: list[int]
 ) -> int:
-    match = re.search(r"(?:^|[-_])([1-9][0-9]{2})(?:[-_.]|$)", normalized_path)
+    # Materialized font files are named "{weight}-{style}.{ext}" (e.g.
+    # "400-normal.woff2") inside a resource directory, so the weight always
+    # sits immediately after a "/" path separator. Matching against the
+    # filename alone (not the full path) avoids two failure modes of
+    # matching the full path: a "/" left boundary was never recognized by
+    # the "-"/"_" boundary class below, so every file in a multi-weight
+    # binding silently fell back to the same weight; and a resource-id
+    # segment earlier in the path could in principle contain a spurious
+    # 3-digit run of its own.
+    filename = normalized_path.rsplit("/", 1)[-1]
+    match = re.search(r"(?:^|[-_])([1-9][0-9]{2})(?:[-_.]|$)", filename)
     if match is not None:
         return int(match.group(1))
     weights = [int(value) for value in binding.font_weights if str(value).isdigit()]

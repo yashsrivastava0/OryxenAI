@@ -487,6 +487,65 @@ def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
     assert css.count("--type-display-min:") == 1
 
 
+def test_v4_token_compiler_assigns_distinct_weights_per_font_file() -> None:
+    """Regression test for the 2026-08-28 bug: every file in a multi-weight
+    binding collapsed to the same font-weight, because the weight-extraction
+    regex required a "-"/"_" left boundary that a "/" path separator never
+    satisfies (materialized files are named "{weight}-{style}.ext" inside a
+    resource directory, so the weight always follows a "/")."""
+    blueprint = _blueprint()
+    css = compile_generated_tokens(
+        blueprint,
+        [
+            ExecutionBindingV2(
+                resource_slot_id="font:body",
+                route_id="",
+                category="font",
+                purpose="approved font",
+                resolution_type="local_materialized",
+                local_paths=[
+                    "resources/fonts/resource-fontsource-abc123/400-normal.woff2",
+                    "resources/fonts/resource-fontsource-abc123/500-normal.woff2",
+                    "resources/fonts/resource-fontsource-abc123/600-normal.woff2",
+                    "resources/fonts/resource-fontsource-abc123/700-normal.woff2",
+                ],
+                font_family="Local Sans",
+                font_weights=["400", "500", "600", "700"],
+            )
+        ],
+    )
+    assert css.count("font-weight: 400;") == 1
+    assert css.count("font-weight: 500;") == 1
+    assert css.count("font-weight: 600;") == 1
+    assert css.count("font-weight: 700;") == 1
+
+
+def test_v4_token_compiler_does_not_double_prefix_group_named_tokens() -> None:
+    """Regression test: a token already named with its group prefix (e.g. a
+    spacing step literally named "space-5") must not be prefixed a second
+    time into an unpredictable "--space-space-5" that generated source could
+    never correctly reference."""
+    from oryxenai.agents.code_generator.core.development_schemas import LengthTokenV4
+
+    blueprint = _blueprint().model_copy(
+        update={
+            "tokens": _blueprint().tokens.model_copy(
+                update={
+                    "spacing": [
+                        LengthTokenV4(name="space-5", value=1.5, unit="rem"),
+                        LengthTokenV4(name="space-7", value=2, unit="rem"),
+                    ]
+                }
+            )
+        }
+    )
+    css = compile_generated_tokens(blueprint)
+    assert "--space-5:" in css
+    assert "--space-space-5" not in css
+    assert "--space-7:" in css
+    assert "--space-space-7" not in css
+
+
 def test_v4_realization_is_hash_bound() -> None:
     realization = compile_design_realization(_blueprint(), route_id="home", section_order=["hero"])
     assert realization.signature_move_ids == ["move:hero-rail"]
