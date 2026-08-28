@@ -187,7 +187,7 @@ def audit_typescript_source(
             route_file = _route_source_path(route.model_dump(mode="json"), semantic=blueprint_v4)
             route_source = clean_files.get(route_file, "")
             if not re.search(r"\bRouteShell\b", route_source) or not re.search(
-                r"import\s+\{[^}]*\bRouteShell\b[^}]*\}\s+from\s+[\"'](?:\.\.?/)+components/generated/SharedSystems",
+                r"import\s+\{[^}]*\bRouteShell\b[^}]*\}\s+from\s+[\"'](?:(?:\.\.?/)+components/generated/SharedSystems|@/components/generated/SharedSystems)",
                 route_source,
             ):
                 diagnostics.append(
@@ -311,20 +311,29 @@ def audit_typescript_source(
         route_data = route.model_dump(mode="json")
         route_id = str(route_data.get("route_id", ""))
         route_file = _route_source_path(route_data, semantic=blueprint_v4)
-        route_storage_key = (
-            str(route_data.get("storage_key") or route_id).replace("\\", "/").strip("/")
-        )
-        if route_storage_key.startswith("routes/"):
-            route_storage_key = route_storage_key.removeprefix("routes/")
-        if blueprint_v4:
-            from oryxenai.agents.code_generator.core.path_policy import semantic_segment
-
-            route_storage_key = semantic_segment(route_storage_key or route_id)
-        route_prefix = f"src/routes/{route_storage_key}/"
+        # Reuse the exact path selected by _route_source_path. The planner's
+        # storage_key is already collision-safe; semanticizing it again here
+        # would point the route-wide audit at a different directory than the
+        # generator wrote.
+        route_prefix = f"{route_file.rsplit('/', 1)[0]}/"
         route_source = clean_files.get(route_file, "")
         if not route_source:
             continue
         route_source_with_shell = f"{shared}\n{route_source}"
+        route_section_sources = {
+            path: source
+            for path, source in clean_files.items()
+            if path.startswith(f"{route_prefix}sections/") and path.endswith(".tsx")
+        }
+        route_files_source = "\n".join(
+            [route_source, *[route_section_sources[path] for path in sorted(route_section_sources)]]
+        )
+        # V4 section batches own their executable anchors. The composer only
+        # renders those components; requiring duplicate anchors in index.tsx
+        # would create duplicate DOM IDs. Include the completed route modules
+        # in route-level checks while keeping shell checks scoped to the
+        # composer and trusted shell.
+        route_contract_source = route_files_source if blueprint_v4 else route_source
         if _route_ids_in_source(route_data, route_source_with_shell) != route_id:
             diagnostics.append(
                 _diagnostic(
@@ -335,7 +344,12 @@ def audit_typescript_source(
                 )
             )
         main_count = len(re.findall(r"<main\b", route_source_with_shell))
-        h1_count = len(re.findall(r"<h1\b", route_source_with_shell))
+        h1_count = len(
+            re.findall(
+                r"<h1\b",
+                f"{shared}\n{route_contract_source}" if blueprint_v4 else route_source_with_shell,
+            )
+        )
         if main_count != 1:
             diagnostics.append(
                 _diagnostic(
@@ -373,10 +387,10 @@ def audit_typescript_source(
                     )
                 )
 
-        for fragment in _FRAGMENT_RE.findall(route_source_with_shell):
+        for fragment in _FRAGMENT_RE.findall(route_contract_source):
             if not re.search(
                 rf"(?<![\w-])id\s*=\s*[\"']{re.escape(fragment)}[\"']",
-                route_source_with_shell,
+                route_contract_source,
             ):
                 diagnostics.append(
                     _diagnostic(
@@ -392,11 +406,13 @@ def audit_typescript_source(
         if not route_sections:
             route_sections = [str(item) for item in route_data.get("section_ids", [])]
         positions: list[int] = []
+        section_owner_paths: dict[str, str] = {}
+        section_anchor_source = route_contract_source if blueprint_v4 else route_source
         for section_id in route_sections:
             matches = list(
                 re.finditer(
                     rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']",
-                    route_source,
+                    section_anchor_source,
                 )
             )
             if len(matches) != 1:
@@ -414,7 +430,7 @@ def audit_typescript_source(
             dom_id_matches = list(
                 re.finditer(
                     rf"(?<![\w-])id\s*=\s*[\"']{re.escape(section_id)}[\"']",
-                    route_source,
+                    section_anchor_source,
                 )
             )
             if len(dom_id_matches) != 1:
@@ -429,8 +445,26 @@ def audit_typescript_source(
                         observed=str(len(dom_id_matches)),
                     )
                 )
-            if matches:
+            if blueprint_v4:
+                owners = [
+                    path
+                    for path, source in route_section_sources.items()
+                    if re.search(
+                        rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']",
+                        source,
+                    )
+                ]
+                if len(owners) == 1:
+                    section_owner_paths[section_id] = owners[0]
+            elif matches:
                 positions.append(matches[0].start())
+        if blueprint_v4:
+            # For a composer, import order is the source-level representation
+            # of rendered section order because the anchors live in children.
+            for section_id in route_sections:
+                owner = section_owner_paths.get(section_id)
+                if owner is not None:
+                    positions.append(route_source.find(Path(owner).stem))
         if positions != sorted(positions):
             diagnostics.append(
                 _diagnostic(
@@ -480,9 +514,6 @@ def audit_typescript_source(
         ]
         for move in route_moves:
             marker = f'data-distinctive-move-id="{move.move_id}"'
-            route_files_source = "\n".join(
-                value for path, value in clean_files.items() if path.startswith(route_prefix)
-            )
             if marker not in route_files_source:
                 diagnostics.append(
                     _diagnostic(
@@ -525,9 +556,6 @@ def audit_typescript_source(
             for beat in v4_blueprint.motion_beats:
                 if beat.route_id != route_id:
                     continue
-                route_files_source = "\n".join(
-                    value for path, value in clean_files.items() if path.startswith(route_prefix)
-                )
                 marker_present = (
                     beat.target_marker in route_files_source
                     and beat.target_selector in route_files_source
@@ -570,9 +598,6 @@ def audit_typescript_source(
             for assignment in v4_blueprint.interactions:
                 if assignment.route_id != route_id:
                     continue
-                route_files_source = "\n".join(
-                    value for path, value in clean_files.items() if path.startswith(route_prefix)
-                )
                 if assignment.literal_marker not in route_files_source or not re.search(
                     r"(?:onClick|onKeyDown|href=|download=)", route_files_source
                 ):
