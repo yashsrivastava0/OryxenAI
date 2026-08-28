@@ -969,6 +969,24 @@ class CodeGeneratorGenerationOrchestrator:
                 )
                 request_round += 1
                 continue
+            if result.mode == "accepted":
+                # "accepted" is a valid GenerationResult.mode, but this unit
+                # dispatch loop has no notion of an already-generated file to
+                # accept as-is - every unit reaching here is being generated
+                # (or regenerated) for the first time in this attempt, so a
+                # bare mode="accepted" with no changes was previously silently
+                # treated as GENERATION_CHANGES_MISSING with no indication of
+                # what the model actually returned or why. Surface the
+                # model's own stated reasoning instead, so a real occurrence
+                # is diagnosable rather than a black box.
+                summary = result.accepted.summary if result.accepted else ""
+                raise GenerationError(
+                    "GENERATION_UNIT_ACCEPTED_WITHOUT_CHANGES",
+                    f"The model returned mode=accepted for {unit.kind} unit "
+                    f"{unit.unit_id!r}, which has no prior generated content to "
+                    f"accept - it must return mode=changes instead. "
+                    f"Model's stated reasoning: {summary or '(none given)'}",
+                )
             try:
                 self._apply_changes(
                     changes=result.changes,

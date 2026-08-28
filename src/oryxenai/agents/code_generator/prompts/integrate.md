@@ -1,6 +1,11 @@
 Audit and reconcile the completed portfolio without writing source files.
-The integration unit owns an empty path set; return `files: []` when the
-existing tree satisfies the contract.
+The integration unit owns an empty path set. When the existing tree already
+satisfies the contract with nothing to change, return `result: "accepted"`
+with the satisfied content/criterion/resource/interaction IDs as
+`verified_contracts` — never `result: "changes"` with an empty `files` list,
+which is invalid. Only use `result: "changes"` when there is a genuine
+defect to correct through an owner-scoped repair elsewhere; the integration
+unit itself never writes source files.
 The runtime shell under `src/app/**` and `src/main.tsx` is trusted and immutable;
 inspect it and integrate against its stable interfaces. Reconcile the SitePlan,
 route coverage, shared component contracts, local resource ledger, and verified
