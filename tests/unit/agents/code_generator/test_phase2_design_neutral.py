@@ -405,6 +405,37 @@ def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path)
         "src/routes/home/sections/hero.tsx": "candidate source"
     }
 
+    repair_workspace = GenerationWorkspace(
+        tmp_path / "repair-workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    repair_workspace.repo_dir = repo
+    repair_context = _operation_context(
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "criteria": [],
+                "facts": [],
+                "public_content": [],
+            },
+            "design/visual-direction.json": {},
+            "resources/ledger.json": {},
+            "execution/contract.json": {},
+        },
+        unit=unit,
+        operation="repair",
+        checkpoint=None,
+        workspace=repair_workspace,
+        role_profile="openai_luna",
+        output_ceiling=2_000_000,
+        diagnostics=[],
+        repair_round=1,
+    )
+
+    assert repair_context["previous_attempt_files"] == {
+        "src/routes/home/sections/hero.tsx": "export default function Hero() { return null; }"
+    }
+
 
 def test_resumed_generation_clears_rejected_attempt_diagnostics_only() -> None:
     projection = GenerationProjection(

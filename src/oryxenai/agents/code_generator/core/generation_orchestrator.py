@@ -2076,6 +2076,39 @@ def _operation_context(
             included_bytes += len(source)
             if len(previous_attempt_files) >= 8:
                 break
+    if operation == "repair" and not previous_attempt_files:
+        # Integration polish repairs run against the accepted repository
+        # checkpoint rather than a rejected per-unit candidate tree. Supply
+        # the complete current owned files so a model can safely return a
+        # replacement for a source diagnostic (the generation contract
+        # requires complete file bodies for replace operations). This is
+        # deliberately limited to repair contexts and the unit's write
+        # surface so ordinary generation contexts stay small and scoped.
+        included_bytes = 0
+        for path in sorted(workspace.repo_dir.rglob("*")):
+            if (
+                not path.is_file()
+                or path.suffix.lower() not in {".ts", ".tsx", ".css"}
+                or any(part in {"node_modules", "dist"} for part in path.parts)
+            ):
+                continue
+            relative = path.relative_to(workspace.repo_dir).as_posix()
+            if exact_owned_paths:
+                belongs_to_unit = relative in exact_owned_paths
+            else:
+                belongs_to_unit = any(fnmatch.fnmatchcase(relative, owner) for owner in owned)
+            if not belongs_to_unit:
+                continue
+            try:
+                source = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if len(source) > 20_000 or included_bytes + len(source) > 48_000:
+                continue
+            previous_attempt_files[relative] = source
+            included_bytes += len(source)
+            if len(previous_attempt_files) >= 8:
+                break
     relevant_diagnostics = [
         item for item in diagnostics if not item.work_unit_id or item.work_unit_id == unit.unit_id
     ][-12:]
