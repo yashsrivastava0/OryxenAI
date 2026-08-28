@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 06:35 +05:30 - Codex (GPT-5 / OpenAI) - [f536178] - canonicalize integration-review composer owner
+The live frontend run reached integration review and exposed a reviewer
+vocabulary mismatch: it returned the human suffix `-composer`, while the
+canonical executable work unit is `-compose`. The orchestrator now maps that
+single unambiguous alias only when the canonical owner exists; unknown owner
+IDs remain fail-closed, with a focused regression test.
+
 ### 2026-08-28 04:46 +05:30 - Codex (GPT-5 / OpenAI) - [bb9454e] - trace mapped content keys in source audit
 The same live run showed that approved content IDs in a literal array were
 consumed through a `.map` callback parameter, so the audit still could not
