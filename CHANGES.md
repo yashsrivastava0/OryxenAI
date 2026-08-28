@@ -11,6 +11,21 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 13:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [510d8d1] - explain result:"accepted" semantics and diagnose its misuse
+Two fresh confirmation runs both hit `GENERATION_CHANGES_MISSING`
+deterministically during route-batch generation. Adding the actual
+`result` mode to the error (instead of the generic "did not include
+changes" message) revealed the model was returning `result:"accepted"`
+for a route batch that had never been generated before - a schema
+value neither `route_batch.md` nor `route_compose.md` ever explained.
+Also found `integrate.md` telling the model to return `files: []` for
+"nothing to change", which `SourceGenerationEnvelopeV2`'s own
+validator rejects; `"accepted"` is the schema's actual mechanism for
+that case, just never named correctly in the prompt. Confirmed the
+route-batch/compose fix and this correction don't conflict: the
+integration unit kind returns through its own early branch before ever
+reaching the dispatch code this touches.
+
 ### 2026-08-28 13:05 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - assign per-file font weights and stop double-prefixing tokens
 Resuming run `73268104` with the prior fix now persisting the real
 rejection reason (instead of discarding it) replaced an earlier
@@ -339,6 +354,6 @@ contract, lint, and JavaScript syntax checks passed.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 19
+- Recent detailed entries retained: 20
 - Compacted milestone bullets: 99
 - Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
