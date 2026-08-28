@@ -11,6 +11,11 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 19:30 +05:30 - Codex (GPT-5 / OpenAI) - [26d1a61] - integrate Build Preparation into the four-stage pipeline
+Connected the main native workflow as Discovery → Content Architect → Visual Design Director → Build Preparation. A shared DB projection integrator now gives Build Preparation the approved public Content Architect handoff and approved Visual Design Director handoff, strips private content notes, normalizes visual inputs, and stamps one source reference used by both the API and worker. The session route now requires both approvals and exposes verified ZIP download with stale/expiry/object checks.
+
+The main UI now presents the four-stage gate rail, package source hashes, package metrics/findings, download and regeneration actions, and detached/no-auth messaging; the diagnostic fixture remains explicitly standalone. Native model routing selects the configured Luna profile for the four pipeline stages while Code Generator routes remain separate. Focused unit, API, integration, static, and browser checks pass. A synthetic live UI run reached the configured Luna provider but was rejected for unavailable provider credit; no mock response was substituted.
+
 ### 2026-08-28 18:28 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - accepted-mode fix (557201b) confirmed live; new, separate bug found (not yet fixed)
 Confirmed via three separate live runs on the fresh real pack: zero
 `GENERATION_UNIT_ACCEPTED_WITHOUT_CHANGES` occurrences after 557201b,
@@ -433,6 +438,6 @@ checkpoint into subsequent owner repairs and retries.
 
 ## Summary (as of last compaction — 2026-08-28)
 
-- Recent detailed entries retained: 18
+- Recent detailed entries retained: 19
 - Compacted milestone bullets: 109
-- Last updated: 2026-08-28 — Claude Code (Claude Sonnet 5 / Anthropic)
+- Last updated: 2026-08-28 — Codex (GPT-5 / OpenAI)
