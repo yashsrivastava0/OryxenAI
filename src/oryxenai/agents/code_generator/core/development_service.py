@@ -611,6 +611,11 @@ class CodeGeneratorDevelopmentService:
         values: dict[str, object] = {
             "status": DevelopmentRunStatus.QUEUED.value,
             "generation_job_id": job.id,
+            # Source generation invalidates any previous verification job.
+            # Clear its terminal identifier so the frontend can expose the
+            # explicit Build and verify action after a same-run resume.
+            "verification_job_id": None,
+            "verification_projection": None,
             "issues": [],
         }
         if resume_projection:
