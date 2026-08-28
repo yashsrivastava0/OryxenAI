@@ -19,6 +19,8 @@ from oryxenai.auth.repository import AuthRepository
 from oryxenai.auth.service import AuthService
 from oryxenai.core.settings import AuthConfig
 
+pytestmark = pytest.mark.integration
+
 SUBJECT = UUID("11111111-1111-4111-8111-111111111111")
 
 
