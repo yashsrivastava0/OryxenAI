@@ -33,6 +33,18 @@ Apply the diagnostic's correct repair:
 - `TYPECHECK_FAILED` / `TYPECHECK_STRUCTURE_INVALID`: fix only the named files
   and preserve the design intent.
 
+For a v4 repair, preserve the v4 source-generation envelope. The arrays are
+machine-checked, not prose: `content_ids`, `criterion_ids`, `resource_slot_ids`,
+and `interaction_ids` must exactly equal the corresponding IDs required by the
+current unit in `<generation-contract>` (use `[]` when that unit owns none).
+For route, route-batch, or route-compose changes, populate
+`exported_signatures` with one entry for every changed exported source file,
+using its exact returned `path` and exported symbol name (for example,
+`HomeRoute` for a file containing `export default function HomeRoute`). Include
+the complete changed file bodies in `files`; never replace these arrays with
+sentences describing what was preserved. Keep `self_check` truthful but do not
+omit the required envelope arrays.
+
 When rejected file bodies are supplied, return the complete corrected file.
 Preserve public truth, route ownership, resource bindings, accessibility,
 responsive behavior, and reduced-motion behavior. Re-check the diagnostic and
