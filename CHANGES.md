@@ -11,6 +11,27 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-08-28 18:05 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - root cause found: forbid accepted mode unconditionally in _model_result
+Traced the retry evidence from the previous entry to its exact cause.
+`_run_unit`'s main dispatch loop reassigns its local `operation`
+variable to `"repair"` after ANY validation failure
+(`SourceValidationError`, `run_source_checks` diagnostics, route-batch
+contract diagnostics) purely to select the repair prompt for the
+retry - a different, mid-generation meaning of the string "repair"
+than `FinalRepairer`'s standalone post-generation operation (a
+separate function that never routes through `_model_result` at all).
+The prior fix's allowlist (`operation not in {"integrate", "repair"}`)
+treated both as the same thing, so a mid-generation diagnostic-retry
+was allowed to answer "accepted" instead of fixing the diagnostic -
+exactly what happened: route-batch-1's first call correctly returned
+real changes, hit a validation diagnostic, retried with `operation`
+now "repair", and answered "accepted" on the retry, which the
+allowlist let straight through. `_model_result` has exactly two
+callers and both already treat "accepted" as unconditionally invalid
+on their own terms regardless of operation, so `validation_context`
+now forbids it unconditionally rather than trying to enumerate which
+operation names are safe.
+
 ### 2026-08-28 17:56 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - new evidence on the accepted-mode bug: it is a retry, not a first-time call (root cause still open)
 On the fresh real pack (post context-ceiling fix), planning and
 acquisition succeeded and route-batch-1 got a genuine, correct
