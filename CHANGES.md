@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 02:20 +05:30 - Codex (GPT-5 / OpenAI) - [c0c1f67] - guard visual identity at Code Generator admission
+Added the belt-and-suspenders admission check over compiled `site/contract.json` facts and `design/visual-direction.json` global direction. Contradictory packs now fail before planning with the same stable `PACK_VISUAL_IDENTITY_MISMATCH` code, including packs already present in the local mirror.
+
 ### 2026-09-02 02:15 +05:30 - Codex (GPT-5 / OpenAI) - [a622d7d] - reject visual direction identity mismatches
 Added a conservative repeated proper-name consistency check at the Build Preparation boundary, using approved Content Architect facts as the identity authority. The check hard-fails contradictory visual direction while preserving the existing projection shape and does not reject a single incidental capitalized phrase.
 
@@ -236,26 +239,12 @@ convention, since 3 of the review's 5 undefined token references were
 the model omitting a prefix outright. Regression tests cover both
 compiler fixes.
 
-### 2026-08-28 12:03 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - persist the real quality-review rejection instead of discarding it
-An independent audit of the prior session's work (91 commits since the
-last handoff, cross-checked against the live filesystem/process state
-and the documented V4 contract) confirmed the remaining blocker
-(`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` on run `73268104`) was a
-substantive judge rejection, not a mechanical bug - but found a real
-bug next to it: `_attempt_repair()` raised before the persist call
-that would write the rejecting review's `generation_projection`/
-`integration_review` to the run row, so `GET /runs/{id}/quality` kept
-showing the stale pre-repair receipt and the terminal report carried
-no diagnostic detail on every occurrence. The rejection is now
-persisted (without promoting its source to `source_checkpoint`), and
-the raised message is built from the review's real scores/findings
-instead of a static string. A regression test covers both.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - Quality-review rejection is persisted with its real diagnostics instead of being discarded during repair failure.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [eef4c7d] - Test overlay now points at reachable PostgreSQL and marks the previously skipped integration files; it also documented a separate legacy foundation-profile regression.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit now honors planner-owned paths and section ownership, while invalid repair responses stay out of the cache.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [65801b7] - Source audit preserves planner route storage keys instead of deriving a second path identity.
@@ -396,5 +385,5 @@ instead of a static string. A regression test covers both.
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 116
+- Compacted milestone bullets: 117
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
