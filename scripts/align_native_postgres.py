@@ -11,7 +11,7 @@ from oryxenai.core.settings import get_settings
 
 
 async def _quoted_command(connection: asyncpg.Connection, template: str, *values: str) -> str:
-    placeholders = ", ".join(f"${index}" for index in range(1, len(values) + 1))
+    placeholders = ", ".join(f"${index}::text" for index in range(1, len(values) + 1))
     command = await connection.fetchval(f"SELECT format('{template}', {placeholders})", *values)
     if not isinstance(command, str):
         raise RuntimeError("PostgreSQL did not produce the requested safe command.")
