@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 01:05 +05:30 - Codex (GPT-5 / OpenAI) - [234a05d] - restore Code Generator per-role model profiles
+Restored the seven dedicated Code Generator role profile bindings in `config/app.toml`, added a settings regression check that loads the committed configuration, and recorded the routing boundary decision. Live role selection is now independently configurable while remaining provider-neutral.
+
 ### 2026-09-02 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [aecfe40] - v4 selector and responsive image-size contracts
 Normalized provider-echoed V4 distinctive-move sources to the exact executable layout region, allowed marker-qualified CSS evidence in the AST audit, and rejected non-browser-valid image `sizes` policies before source generation. The live baseline now clears the corresponding source-generation contracts.
 
