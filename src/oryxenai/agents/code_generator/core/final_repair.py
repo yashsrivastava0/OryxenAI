@@ -85,6 +85,11 @@ class FinalRepairer:
             "diagnostic_bundle": bundle.model_dump(mode="json"),
             "strategy": strategy,
             "round": round_number,
+            # Final verification is entered only after the current source has
+            # failed a blocking gate. An accepted response cannot resolve that
+            # state; the model must return a bounded correction or an honest
+            # cannot-complete result.
+            "forbid_accepted_result": True,
             "owned_paths": allowed_paths,
             # Full-scope contract so repairs can satisfy the final gates'
             # literal checks (copy coverage, markers, slot evidence) exactly.
@@ -129,7 +134,8 @@ class FinalRepairer:
             )
         elif result_path.is_file():
             result = GenerationResult.model_validate(
-                json.loads(result_path.read_text(encoding="utf-8"))
+                json.loads(result_path.read_text(encoding="utf-8")),
+                context={"forbid_accepted_result": True},
             )
         else:
             client = self._client(settings, str(settings.code_generator_generation.repair_profile))
@@ -149,12 +155,16 @@ class FinalRepairer:
             parsed = getattr(raw, "parsed_output", raw)
             if is_v4:
                 result = adapt_v4_generation_result(
-                    SourceGenerationEnvelopeV2.model_validate(parsed),
+                    SourceGenerationEnvelopeV2.model_validate(
+                        parsed, context={"forbid_accepted_result": True}
+                    ),
                     operation_id="code-generator.repair",
                     context_receipt=context_receipt,
                 )
             else:
-                result = GenerationResult.model_validate(parsed)
+                result = GenerationResult.model_validate(
+                    parsed, context={"forbid_accepted_result": True}
+                )
         if result.based_on_context_receipt not in {
             context_receipt.context_hash,
             context_receipt.receipt_id,
@@ -253,6 +263,7 @@ class FinalRepairer:
         receipt = RepairReceipt(
             generation_id=identity.identity_hash,
             diagnostic_fingerprints=sorted({item.fingerprint for item in diagnostics}),
+            repair_unit_id=diagnostics[0].group if diagnostics else "final",
             strategy_summary=strategy,
             based_on_checkpoint=checkpoint.checkpoint_hash,
             context_receipt=context_receipt.context_hash,
