@@ -732,6 +732,13 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
             "runtime marker on the rendered element and make both named selectors expose the "
             "required CSS relationship at every listed viewport."
         )
+        lines.append(
+            "The required declarations must appear in a literal CSS rule whose selector is "
+            "exactly the listed source selector, or that selector qualified by the same "
+            "runtime-marker attribute. Put the runtime marker on the same JSX/HTML element "
+            "matched by source. A rule on an ancestor or descendant such as `source child` "
+            "does not satisfy the move."
+        )
         for move in distinctive_moves:
             lines.append(
                 f"- {move.get('move_id')}: marker {move.get('runtime_marker')}; "

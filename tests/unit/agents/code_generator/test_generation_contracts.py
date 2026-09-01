@@ -344,6 +344,28 @@ def test_v4_envelope_rejects_accepted_result_for_first_time_generation() -> None
     assert accepted_explicit.result == "accepted"
 
 
+def test_repair_prompt_treats_unlisted_quality_findings_as_binding() -> None:
+    _system, instructions, receipt = build_instructions(
+        "repair",
+        {"context_receipt_hash": "context"},
+    )
+
+    assert "requested_outcome" in instructions
+    assert "JSX/HTML source order is authoritative" in instructions
+    assert "`order` rule alone does not repair" in instructions
+    assert receipt.prompt_versions["operation"] == "code_generator.repair.v6"
+
+
+def test_v4_planner_prompt_requires_concrete_responsive_sizes() -> None:
+    _system, instructions, receipt = build_instructions("planner_v4", {})
+
+    assert "browser-valid concrete policy" in instructions
+    assert "never spell out a number" in instructions
+    assert "copy the matching `section_regions[*].region_selector`" in instructions
+    assert "BAD `(max-width: sixtyrem) 100vw, 58vw`" in instructions
+    assert receipt.prompt_versions["operation"] == "code_generator.planner.v11"
+
+
 def test_generation_result_rejects_accepted_mode_for_first_time_generation() -> None:
     payload = {
         "operation_id": "route_batch:unit-1",

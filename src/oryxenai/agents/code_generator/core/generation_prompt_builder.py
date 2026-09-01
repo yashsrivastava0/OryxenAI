@@ -20,14 +20,14 @@ from oryxenai.agents.code_generator.core.generation_contract import (
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
     "director": "code_generator.director.v2",
-    "planner_v4": "code_generator.planner.v8",
+    "planner_v4": "code_generator.planner.v11",
     "planner_legacy": "code_generator.planner.v7",
     "foundation": "code_generator.foundation_compat.v1",
-    "route_batch": "code_generator.route_batch.v7",
+    "route_batch": "code_generator.route_batch.v8",
     "route_compose": "code_generator.route_compose.v6",
     "integrate": "code_generator.integrate.v5",
     "integration_review": "code_generator.integration_review.v1",
-    "repair": "code_generator.repair.v5",
+    "repair": "code_generator.repair.v6",
 }
 _FILES = {
     "director": "director.md",

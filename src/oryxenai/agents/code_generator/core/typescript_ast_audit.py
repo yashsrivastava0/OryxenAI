@@ -578,7 +578,11 @@ def audit_typescript_source(
                 scoped_css = "\n".join(
                     value for path, value in route_css.items() if path.startswith(route_prefix)
                 )
-                declarations = _selector_declarations(scoped_css, v4_move.source_selector)
+                declarations = _selector_declarations(
+                    scoped_css,
+                    v4_move.source_selector,
+                    runtime_marker=marker,
+                )
                 missing_properties = [
                     property_name
                     for property_name in v4_move.required_css_properties
@@ -678,15 +682,27 @@ def _dedupe(values: list[Diagnostic]) -> list[Diagnostic]:
     return result
 
 
-def _selector_declarations(css: str, selector: str) -> set[str]:
+def _selector_declarations(
+    css: str,
+    selector: str,
+    *,
+    runtime_marker: str = "",
+) -> set[str]:
     """Return declarations from the exact selector block, never unrelated CSS."""
 
     if not selector.strip():
         return set()
+    accepted_selectors = [selector]
+    if runtime_marker.strip():
+        accepted_selectors.append(f"{selector.strip()}[{runtime_marker.strip()}]")
     blocks: list[str] = []
     for match in re.finditer(r"(?P<selectors>[^{}]+)\{(?P<body>[^{}]*)\}", css, re.DOTALL):
         selectors = [item.strip() for item in match.group("selectors").split(",")]
-        if any(_selector_targets_contract(item, selector) for item in selectors):
+        if any(
+            _selector_targets_contract(item, expected)
+            for item in selectors
+            for expected in accepted_selectors
+        ):
             blocks.append(match.group("body"))
     return {
         match.group(1).casefold()

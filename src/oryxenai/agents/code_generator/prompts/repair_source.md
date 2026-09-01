@@ -15,6 +15,20 @@ property.
 
 Apply the diagnostic's correct repair:
 
+Integration-review diagnostics may use a domain-specific code that is not
+listed below. For any such diagnostic, treat its `requested_outcome` as a
+binding repair requirement: inspect the quoted `evidence` and exact `marker`,
+make the smallest change that satisfies that outcome inside the owned files,
+and return a complete body for every changed file. Do not return an unchanged
+file while claiming the finding is repaired. When a finding concerns DOM
+hierarchy or reading order, JSX/HTML source order is authoritative. A CSS
+`order` rule alone does not repair a desktop DOM-order finding. Preserve any
+responsive ordering that the diagnostic explicitly requires. If a finding
+names a trusted or compiler-owned file, leave it untouched and repair only the
+owned source when the requested outcome is applicable there. Before returning,
+re-read the returned bodies and verify that the diagnostic's observed state is
+actually gone.
+
 - `SOURCE_RUNTIME_NETWORK`: remove unapproved network references and runtime
   calls. Approved external links are content only.
 - `SOURCE_REPLACE_MISSING` / `SOURCE_CREATE_EXISTS`: choose create or replace
@@ -45,7 +59,10 @@ Apply the diagnostic's correct repair:
   on the rendered element matched by the move's `source_selector`, then define
   every required CSS property on that exact selector. The CSS selector may be
   qualified by the same runtime-marker attribute, but never replace its route
-  and section scope with a shorter class selector.
+  and section scope with a shorter class selector. If the source selector is a
+  region selector, move the marker and declarations onto that exact region;
+  declarations on its section ancestor or a descendant do not satisfy the
+  move.
 - `SOURCE_ROUTE_BATCH_MOTION_INVALID` / `MOTION_BEATS_NOT_IMPLEMENTED`:
   implement every exact motion marker, selector, before/after value, and
   reduced-motion final state. A viewport trigger needs IntersectionObserver

@@ -801,10 +801,101 @@ _CSS_COLOR_RE = re.compile(
     re.IGNORECASE,
 )
 _CSS_UNIT_RE = re.compile(r"^(?:px|rem|em|%|vw|vh|vmin|vmax|ch|ex|fr|ms|s)$")
+_CSS_SOURCE_SIZE_LENGTH_RE = re.compile(
+    r"^(?:0|(?:\d+(?:\.\d*)?|\.\d+)(?:px|cm|mm|q|in|pc|pt|rem|em|ex|ch|cap|ic|lh|rlh|vw|vh|vi|vb|vmin|vmax|svw|svh|svi|svb|svmin|svmax|lvw|lvh|lvi|lvb|lvmin|lvmax|dvw|dvh|dvi|dvb|dvmin|dvmax|cqw|cqh|cqi|cqb|cqmin|cqmax|fr|%))$",
+    re.IGNORECASE,
+)
+_CSS_SOURCE_SIZE_FUNCTION_RE = re.compile(
+    r"^(?:calc|min|max|clamp|var|env)\([^{};\"']+\)$",
+    re.IGNORECASE,
+)
+_CSS_WORD_LENGTH_RE = re.compile(
+    r"(?<![\w-])[a-z][a-z0-9-]*\s*(?:px|cm|mm|q|in|pc|pt|rem|em|ex|ch|cap|ic|lh|rlh|vw|vh|vi|vb|vmin|vmax|svw|svh|svi|svb|svmin|svmax|lvw|lvh|lvi|lvb|lvmin|lvmax|dvw|dvh|dvi|dvb|dvmin|dvmax|cqw|cqh|cqi|cqb|cqmin|cqmax|fr|%)(?![\w-])",
+    re.IGNORECASE,
+)
+_CSS_MEDIA_DIMENSION_RE = re.compile(
+    r"\b(?:min|max)-(?:width|height)\s*:\s*([^\s,)]+)",
+    re.IGNORECASE,
+)
 _EASING_RE = re.compile(
     r"^(?:linear|ease(?:-in|-out|-in-out)?|cubic-bezier\([^()]+\)|steps\([^()]+\))$",
     re.IGNORECASE,
 )
+
+
+def _balanced_parentheses(value: str) -> bool:
+    depth = 0
+    for character in value:
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0
+
+
+def _split_top_level_commas(value: str) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    for index, character in enumerate(value):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+        elif character == "," and depth == 0:
+            parts.append(value[start:index].strip())
+            start = index + 1
+    parts.append(value[start:].strip())
+    return parts
+
+
+def _is_concrete_source_size(value: str) -> bool:
+    normalized = value.strip()
+    if normalized.casefold() == "auto":
+        return True
+    if _CSS_SOURCE_SIZE_LENGTH_RE.fullmatch(normalized):
+        return True
+    return bool(
+        _CSS_SOURCE_SIZE_FUNCTION_RE.fullmatch(normalized)
+        and _balanced_parentheses(normalized)
+        and not _CSS_WORD_LENGTH_RE.search(normalized)
+    )
+
+
+def _validate_source_sizes(value: str) -> str:
+    normalized = " ".join(value.strip().split())
+    if not normalized or any(character in normalized for character in ('"', "'", ";", "{", "}")):
+        raise ValueError(
+            "resource placement sizes require a concrete browser-safe CSS sizes policy"
+        )
+    if not _balanced_parentheses(normalized):
+        raise ValueError("resource placement sizes must have balanced CSS parentheses")
+    if _CSS_WORD_LENGTH_RE.search(normalized):
+        raise ValueError(
+            "resource placement sizes must use numeric CSS lengths; do not spell out a number"
+        )
+    for component in _split_top_level_commas(normalized):
+        if not component:
+            raise ValueError("resource placement sizes cannot contain an empty source-size item")
+        for match in _CSS_MEDIA_DIMENSION_RE.finditer(component):
+            dimension = match.group(1)
+            if dimension.casefold().startswith(("calc(", "min(", "max(", "clamp(", "var(")):
+                continue
+            if not _is_concrete_source_size(dimension):
+                raise ValueError(
+                    "resource placement media conditions must use concrete CSS lengths"
+                )
+        if _CSS_SOURCE_SIZE_FUNCTION_RE.fullmatch(component):
+            continue
+        source_size = component.rsplit(")", 1)[-1].strip()
+        if not _is_concrete_source_size(source_size):
+            raise ValueError(
+                "resource placement sizes must end each item with a numeric CSS length, "
+                "auto, or calc/min/max/clamp expression"
+            )
+    return normalized
 
 
 class NamedColorTokenV4(BaseModel):
@@ -1233,6 +1324,11 @@ class ResourcePlacementV4(BaseModel):
         if not self.element_selector.strip() or not self.sizes.strip():
             raise ValueError("resource placements require exact selectors and sizes policy")
         return self
+
+    @field_validator("sizes")
+    @classmethod
+    def _sizes(cls, value: str) -> str:
+        return _validate_source_sizes(value)
 
 
 class MotionPropertyExpectationV4(BaseModel):
