@@ -143,14 +143,14 @@ async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> Non
         metadata = json.loads((root / f"resources/images/{candidate.resource_id}.json").read_text())
         assert metadata["inspection_level"] == "pixel_inspected"
         assert (root / "resources/manifest.json").is_file()
-        assert (root / "resources/plan.json").is_file()
+        assert (root / "resources/ledger.json").is_file()
         assert not (root / "target/package-lock.json").exists()
         target = json.loads((root / "target/target-contract.json").read_text())
         assert target["dependency_resolution"]["lockfile_included"] is False
         assert target["dependency_resolution"]["code_generator_must_generate_lockfile"] is True
         route_resources = json.loads((root / "routes/home/resources.json").read_text())
         assert route_resources["need_ids"] == [need.need_id]
-        plan = json.loads((root / "resources/plan.json").read_text())
+        plan = json.loads((root / "resources/ledger.json").read_text())
         assert plan["needs"][0]["disposition"] == "local_file"
         assert plan["needs"][0]["later_fetch"]["allowed"] is False
     finally:
@@ -768,7 +768,7 @@ async def test_resource_plan_makes_later_fetch_an_exclusive_codegen_only_fallbac
         )
 
         plan = json.loads(
-            (Path(result.root_path) / "resources/plan.json").read_text(encoding="utf-8")
+            (Path(result.root_path) / "resources/ledger.json").read_text(encoding="utf-8")
         )
         entry = plan["needs"][0]
         assert entry["disposition"] == "custom_fallback"
