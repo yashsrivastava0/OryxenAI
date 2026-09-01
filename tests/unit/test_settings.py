@@ -86,6 +86,32 @@ def test_model_profiles_loaded():
         assert routed.api_key_env == code_generator_profile.api_key_env
 
 
+def test_code_generator_uses_one_configured_profile_per_role():
+    """The live app config keeps each Code Generator role independently routable."""
+    s = Settings()
+
+    configured = {
+        s.code_generator_development.director_profile: "director",
+        s.code_generator_development.planner_profile: "planner",
+        s.code_generator_acquisition.resource_scout_profile: "resource scout",
+        s.code_generator_generation.route_profile: "route builder",
+        s.code_generator_generation.compose_profile: "route composer",
+        s.code_generator_generation.integration_profile: "integrator",
+        s.code_generator_generation.repair_profile: "repairer",
+    }
+
+    assert configured == {
+        "code_generator_director": "director",
+        "code_generator_planner": "planner",
+        "code_generator_resource_scout": "resource scout",
+        "code_generator_route_builder": "route builder",
+        "code_generator_route_composer": "route composer",
+        "code_generator_integrator": "integrator",
+        "code_generator_repairer": "repairer",
+    }
+    assert all(s.models.get_profile(profile_id) is not None for profile_id in configured)
+
+
 def test_preview_readback_and_health_url_overlay_contract(monkeypatch):
     """Hosted Docker is strict; local and isolated Docker-dev remain lenient."""
 
