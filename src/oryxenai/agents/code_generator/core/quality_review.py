@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import (
     QualityReviewDraftV1,
@@ -13,10 +14,132 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 
 
 class QualityReviewError(ValueError):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
         self.message = message
+        self.details = details or {}
         super().__init__(message)
+
+
+def _nearby_unique_marker(source: str, reported_line: int) -> str:
+    """Select an exact, bounded source literal near an approximate model line."""
+
+    lines = source.splitlines()
+    indexes = sorted(range(len(lines)), key=lambda index: (abs(index + 1 - reported_line), index))
+    for index in indexes:
+        line = lines[index].strip()
+        if len(line) < 3 or line in {"{", "}"}:
+            continue
+        candidates = [line] if len(line) <= 400 else [line[:400], line[-400:]]
+        for candidate in candidates:
+            if source.count(candidate) == 1:
+                return candidate
+    return ""
+
+
+def validate_quality_review_draft_evidence(
+    draft: QualityReviewDraftV1,
+    *,
+    assembled_source: dict[str, str],
+    repairable_owner_ids: set[str] | None = None,
+) -> QualityReviewDraftV1:
+    """Require every V4 review claim to point at exact assembled source.
+
+    The provider is allowed to assess quality, but it cannot create evidence
+    paths, line numbers, or markers. A score below the acceptance floor also
+    needs a blocking finding on the same owner/file so the bounded polish pass
+    receives an actionable defect for that dimension.
+    """
+
+    def validate_record(record: Any, *, label: str) -> Any:
+        path = str(record.file).replace("\\", "/").strip("/")
+        source = assembled_source.get(path)
+        if source is None:
+            raise QualityReviewError(
+                "QUALITY_EVIDENCE_FILE_INVALID",
+                f"{label} references a file outside the assembled source: {path}",
+            )
+        marker = str(record.marker)
+        reported_line = int(record.line)
+        positions: list[int] = []
+        start = 0
+        while marker and (position := source.find(marker, start)) >= 0:
+            positions.append(position)
+            start = position + max(1, len(marker))
+        if not positions:
+            raise QualityReviewError(
+                "QUALITY_EVIDENCE_MARKER_INVALID",
+                f"{label} marker does not occur in its source file: {path}",
+                details={
+                    "label": label,
+                    "file": path,
+                    "rejected_marker": marker,
+                    "reported_line": reported_line,
+                    "suggested_marker": _nearby_unique_marker(source, reported_line),
+                },
+            )
+        marker_lines = {source.count("\n", 0, position) + 1 for position in positions}
+        if reported_line in marker_lines:
+            canonical_line = reported_line
+        else:
+            nearest_distance = min(abs(line - reported_line) for line in marker_lines)
+            nearest_lines = sorted(
+                line for line in marker_lines if abs(line - reported_line) == nearest_distance
+            )
+            if len(nearest_lines) != 1:
+                raise QualityReviewError(
+                    "QUALITY_EVIDENCE_LINE_AMBIGUOUS",
+                    f"{label} uses a repeated literal marker in {path}, and its approximate "
+                    f"line is equally close to {nearest_lines}.",
+                )
+            canonical_line = nearest_lines[0]
+        if path == record.file and canonical_line == int(record.line):
+            return record
+        return record.model_copy(update={"file": path, "line": canonical_line})
+
+    score_evidence = [
+        validate_record(evidence, label=f"{evidence.dimension} score evidence")
+        for evidence in draft.score_evidence
+    ]
+    findings = [
+        validate_record(finding, label=f"finding {finding.finding_id}")
+        for finding in draft.findings
+    ]
+    canonical = draft.model_copy(update={"score_evidence": score_evidence, "findings": findings})
+
+    blocking = [item for item in canonical.findings if item.severity == "blocking"]
+    if repairable_owner_ids is not None:
+        for finding in blocking:
+            owner = finding.owner_work_unit_id
+            composer_alias = (
+                f"{owner[: -len('-composer')]}-compose" if owner.endswith("-composer") else ""
+            )
+            if owner not in repairable_owner_ids and composer_alias not in repairable_owner_ids:
+                raise QualityReviewError(
+                    "QUALITY_FINDING_OWNER_INVALID",
+                    f"Blocking finding {finding.finding_id} targets non-repairable owner {owner}.",
+                )
+    for evidence in canonical.score_evidence:
+        if evidence.score >= 4:
+            continue
+        if not any(
+            finding.owner_work_unit_id == evidence.owner_work_unit_id
+            and finding.file.replace("\\", "/").strip("/")
+            == evidence.file.replace("\\", "/").strip("/")
+            for finding in blocking
+        ):
+            raise QualityReviewError(
+                "QUALITY_SCORE_FINDING_MISSING",
+                f"The {evidence.dimension} score is below four but has no blocking "
+                "finding on the same owned source file.",
+            )
+    return canonical
 
 
 def validate_quality_review_receipt(
@@ -156,5 +279,6 @@ __all__ = [
     "QualityReviewError",
     "rebind_quality_review_receipt_source",
     "stamp_quality_review_receipt",
+    "validate_quality_review_draft_evidence",
     "validate_quality_review_receipt",
 ]

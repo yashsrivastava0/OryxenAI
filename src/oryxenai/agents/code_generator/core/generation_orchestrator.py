@@ -25,6 +25,7 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
     validate_plan_delta,
     validate_resource_request,
 )
+from oryxenai.agents.code_generator.core.blueprint_compiler import canonicalize_generation_plan
 from oryxenai.agents.code_generator.core.check_runner import prepare_toolchain, run_source_checks
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointError, CheckpointStore
 from oryxenai.agents.code_generator.core.content_compiler import (
@@ -76,7 +77,10 @@ from oryxenai.agents.code_generator.core.parallel_scheduler import (
     isolated_workspace_path,
 )
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
-from oryxenai.agents.code_generator.core.quality_review import stamp_quality_review_receipt
+from oryxenai.agents.code_generator.core.quality_review import (
+    QualityReviewError,
+    stamp_quality_review_receipt,
+)
 from oryxenai.agents.code_generator.core.resource_adapters import (
     OfflineResourceProviderRegistry,
     ResourceProviderError,
@@ -84,6 +88,7 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
 )
 from oryxenai.agents.code_generator.core.source_generation_adapter import (
     adapt_v4_generation_result,
+    stamp_v4_required_coverage,
 )
 from oryxenai.agents.code_generator.core.source_manifest import (
     build_source_manifest,
@@ -94,6 +99,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     validate_generation_changes,
     validate_route_batch_contract,
+    validate_route_composer_contract,
 )
 from oryxenai.agents.code_generator.core.token_compiler import (
     TokenCompilationError,
@@ -222,7 +228,7 @@ class CodeGeneratorGenerationOrchestrator:
                 DevelopmentRunStatus.INTEGRATING.value,
             }:
                 return {"status": "discarded", "run_id": str(run_id)}
-            plan = SitePlan.model_validate(run.plan or {})
+            plan = canonicalize_generation_plan(SitePlan.model_validate(run.plan or {}))
             if not run.input_receipt:
                 raise GenerationError(
                     "INPUT_RECEIPT_MISSING", "The generation run has no admitted input receipt."
@@ -268,7 +274,7 @@ class CodeGeneratorGenerationOrchestrator:
             reference = self._reference(run)
             input_adapter = DevelopmentInputAdapter(settings)
             input_receipt, projections = input_adapter.admit(reference)
-            plan = SitePlan.model_validate(run.plan or {})
+            plan = canonicalize_generation_plan(SitePlan.model_validate(run.plan or {}))
             validate_site_plan(
                 plan,
                 projections,
@@ -288,7 +294,7 @@ class CodeGeneratorGenerationOrchestrator:
                 workspace.reassert_trusted_shell()
             if run.resource_ledger:
                 projections["resources/ledger.json"] = dict(run.resource_ledger)
-            materialize_trusted_manifests(
+            generated_manifests = materialize_trusted_manifests(
                 workspace,
                 projections,
                 plan,
@@ -300,6 +306,9 @@ class CodeGeneratorGenerationOrchestrator:
                 ),
                 settings=settings,
             )
+            projections["generated/resource-assets.json"] = {
+                "image_assets": list(generated_manifests.get("image_assets", []))
+            }
             configured_workspace_root = Path(settings.code_generator_dependencies.workspaces_root)
             dependency_repo = (
                 (
@@ -326,6 +335,7 @@ class CodeGeneratorGenerationOrchestrator:
                 projection,
                 plan=plan,
                 workspace=workspace,
+                projections=projections,
             )
             if stale_route_diagnostics:
                 projection.diagnostics.extend(stale_route_diagnostics)
@@ -388,6 +398,7 @@ class CodeGeneratorGenerationOrchestrator:
         except (
             WorkspaceError,
             SourceValidationError,
+            QualityReviewError,
             AcquisitionValidationError,
             CheckpointError,
             fs_safe.FsSafeError,
@@ -856,6 +867,7 @@ class CodeGeneratorGenerationOrchestrator:
             )
         request_round = 0
         repair_round = 0
+        rejected_attempt_files: dict[str, str] = {}
         while True:
             context = _operation_context(
                 plan=plan,
@@ -868,6 +880,7 @@ class CodeGeneratorGenerationOrchestrator:
                 output_ceiling=int(settings.code_generator_generation.max_response_bytes),
                 diagnostics=projection.diagnostics,
                 repair_round=repair_round,
+                rejected_attempt_files=rejected_attempt_files,
             )
             context = _enforce_context_ceiling(
                 context,
@@ -987,6 +1000,14 @@ class CodeGeneratorGenerationOrchestrator:
                     f"accept - it must return mode=changes instead. "
                     f"Model's stated reasoning: {summary or '(none given)'}",
                 )
+            rejected_attempt_files = (
+                {
+                    item.path.replace("\\", "/").strip("/"): item.complete_utf8_content
+                    for item in result.changes.files
+                }
+                if result.changes is not None
+                else {}
+            )
             try:
                 self._apply_changes(
                     changes=result.changes,
@@ -1026,6 +1047,12 @@ class CodeGeneratorGenerationOrchestrator:
                 # whole-site audit here would report composer-owned failures
                 # back to the wrong model operation.
                 include_source_audit=unit.kind != "route_batch",
+                # A parallel batch starts from a source-only copy of the
+                # current repository, which can contain stale files owned by
+                # another batch. Attribute repository policy diagnostics only
+                # to files this operation can actually replace; the merged
+                # wave and integration checks remain whole-repository.
+                source_paths=list(unit.owns_paths) if unit.kind == "route_batch" else None,
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
@@ -1042,6 +1069,12 @@ class CodeGeneratorGenerationOrchestrator:
                 role_profile = str(settings.code_generator_generation.repair_profile)
                 continue
             if unit.kind == "route_batch":
+                (
+                    section_content_ids,
+                    section_selectors,
+                    interaction_markers,
+                    interaction_contracts,
+                ) = _v4_route_batch_contract_data(plan, unit)
                 batch_diagnostics = validate_route_batch_contract(
                     workspace.repo_dir,
                     list(unit.owns_paths),
@@ -1053,6 +1086,15 @@ class CodeGeneratorGenerationOrchestrator:
                         if coverage.route_id == unit.route_id
                         and coverage.criterion_id in unit.criterion_ids
                     ],
+                    content_ids_by_section=section_content_ids,
+                    section_selectors_by_section=section_selectors,
+                    interaction_ids=list(unit.interaction_ids),
+                    interaction_markers=interaction_markers,
+                    interaction_contracts=interaction_contracts,
+                    image_assets_by_slot=_v4_image_assets_for_unit(plan, unit, projections),
+                    distinctive_moves=_v4_distinctive_moves_for_unit(plan, unit),
+                    motion_beats=_v4_motion_beats_for_unit(plan, unit),
+                    h1_owner_section_id=_v4_h1_owner_for_route(plan, unit.route_id),
                     work_unit_id=unit.unit_id,
                 )
                 if batch_diagnostics:
@@ -1063,6 +1105,35 @@ class CodeGeneratorGenerationOrchestrator:
                     _consume_repair_budget(
                         projection,
                         batch_diagnostics,
+                        repair_round=repair_round,
+                        settings=settings,
+                    )
+                    repair_round += 1
+                    unit_projection.repair_round = repair_round
+                    operation = "repair"
+                    role_profile = str(settings.code_generator_generation.repair_profile)
+                    continue
+            if unit.kind == "route_compose" and isinstance(
+                plan.experience_blueprint, ExperienceBlueprintV4
+            ):
+                composer_diagnostics = validate_route_composer_contract(
+                    workspace.repo_dir,
+                    list(unit.owns_paths),
+                    section_selectors_by_section={
+                        region.section_id: region.section_selector
+                        for region in plan.experience_blueprint.section_regions
+                        if region.route_id == unit.route_id
+                    },
+                    work_unit_id=unit.unit_id,
+                )
+                if composer_diagnostics:
+                    projection.diagnostics.extend(composer_diagnostics)
+                    unit_projection.diagnostics.extend(
+                        item.diagnostic_id for item in composer_diagnostics
+                    )
+                    _consume_repair_budget(
+                        projection,
+                        composer_diagnostics,
                         repair_round=repair_round,
                         settings=settings,
                     )
@@ -1169,161 +1240,219 @@ class CodeGeneratorGenerationOrchestrator:
             projection=projection,
             round_number=0,
         )
-        if _review_accepted(review):
-            return
-        blocking_findings = [
-            finding for finding in review.findings if finding.severity == "blocking"
-        ]
-        if not blocking_findings:
-            # Advisory observations are persisted for the receipt but cannot
-            # spend the single owner-scoped polish call.
-            return
         owners = {item.unit_id: item for item in plan.work_graph.units if not item.terminal}
-        grouped: dict[str, list[SourceDiagnostic]] = {}
-        for finding in blocking_findings:
-            owner = owners.get(finding.owner_work_unit_id)
-            if owner is None:
-                raise GenerationError(
-                    "INTEGRATION_REVIEW_OWNER_INVALID",
-                    "The integration reviewer returned a finding without a valid work owner.",
+        maximum_rounds = int(
+            getattr(settings.code_generator_generation, "max_integration_polish_rounds", 2)
+        )
+        for polish_round in range(1, maximum_rounds + 1):
+            if _review_accepted(review):
+                return
+            blocking_findings = [
+                finding for finding in review.findings if finding.severity == "blocking"
+            ]
+            if not blocking_findings:
+                # Advisory observations are persisted for the receipt but
+                # cannot spend an owner-scoped source-polish call.
+                return
+            grouped: dict[str, list[SourceDiagnostic]] = {}
+            for finding in blocking_findings:
+                owner = owners.get(finding.owner_work_unit_id)
+                if owner is None:
+                    raise GenerationError(
+                        "INTEGRATION_REVIEW_OWNER_INVALID",
+                        "The integration reviewer returned a finding without a valid work owner.",
+                    )
+                grouped.setdefault(owner.unit_id, []).append(
+                    SourceDiagnostic(
+                        diagnostic_id=f"integration-{finding.finding_id}",
+                        group="source_contract",
+                        code=finding.code,
+                        severity=finding.severity,
+                        phase="integration_review",
+                        normalized_message=finding.requested_outcome,
+                        work_unit_id=owner.unit_id,
+                        route_id=str(getattr(finding, "route_id", "")),
+                        file=str(
+                            getattr(finding, "file", "") or getattr(finding, "section_id", "")
+                        ),
+                        line=int(getattr(finding, "line", 0) or 0),
+                        observed=finding.evidence,
+                        expected=finding.requested_outcome,
+                        fingerprint=digest(
+                            {
+                                "finding_id": finding.finding_id,
+                                "owner": owner.unit_id,
+                                "code": finding.code,
+                            }
+                        ),
+                    )
                 )
-            grouped.setdefault(owner.unit_id, []).append(
-                SourceDiagnostic(
-                    diagnostic_id=f"integration-{finding.finding_id}",
-                    group="source_contract",
-                    code=finding.code,
-                    severity=finding.severity,
-                    phase="integration_review",
-                    normalized_message=finding.requested_outcome,
-                    work_unit_id=owner.unit_id,
-                    route_id=str(getattr(finding, "route_id", "")),
-                    file=str(getattr(finding, "file", "") or getattr(finding, "section_id", "")),
-                    line=int(getattr(finding, "line", 0) or 0),
-                    observed=finding.evidence,
-                    expected=finding.requested_outcome,
-                    fingerprint=digest(
-                        {
-                            "finding_id": finding.finding_id,
-                            "owner": owner.unit_id,
-                            "code": finding.code,
+            for owner_id, diagnostics in grouped.items():
+                owner = owners[owner_id]
+                projection.diagnostics.extend(diagnostics)
+                role_profile = str(settings.code_generator_generation.repair_profile)
+                active_diagnostics = list(diagnostics)
+                rejected_attempt_files: dict[str, str] = {}
+                source_repair_round = 0
+                while True:
+                    context = _operation_context(
+                        plan=plan,
+                        projections=projections,
+                        unit=owner,
+                        operation="repair",
+                        checkpoint=checkpoint,
+                        workspace=workspace,
+                        role_profile=role_profile,
+                        output_ceiling=int(settings.code_generator_generation.max_response_bytes),
+                        diagnostics=active_diagnostics,
+                        repair_round=source_repair_round,
+                        rejected_attempt_files=rejected_attempt_files,
+                    )
+                    context = _enforce_context_ceiling(
+                        context,
+                        int(settings.code_generator_generation.max_context_chars),
+                    )
+                    repair_output_model = (
+                        SourceGenerationEnvelopeV2
+                        if _context_uses_v4_contract(context)
+                        else GenerationResult
+                    )
+                    system, instructions, context_receipt = build_instructions(
+                        "repair", context, output_model=repair_output_model
+                    )
+                    context_path = (
+                        workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
+                    )
+                    workspace.write_json(context_path, context)
+                    context_receipt = context_receipt.model_copy(
+                        update={
+                            "stored_relative_path": context_path.relative_to(
+                                workspace.root
+                            ).as_posix()
                         }
-                    ),
-                )
-            )
-        for owner_id, diagnostics in grouped.items():
-            owner = owners[owner_id]
-            projection.diagnostics.extend(diagnostics)
-            role_profile = str(settings.code_generator_generation.repair_profile)
-            context = _operation_context(
-                plan=plan,
-                projections=projections,
-                unit=owner,
-                operation="repair",
-                checkpoint=checkpoint,
-                workspace=workspace,
-                role_profile=role_profile,
-                output_ceiling=int(settings.code_generator_generation.max_response_bytes),
-                diagnostics=diagnostics,
-                repair_round=1,
-            )
-            context = _enforce_context_ceiling(
-                context,
-                int(settings.code_generator_generation.max_context_chars),
-            )
-            repair_output_model = (
-                SourceGenerationEnvelopeV2
-                if _context_uses_v4_contract(context)
-                else GenerationResult
-            )
-            system, instructions, context_receipt = build_instructions(
-                "repair", context, output_model=repair_output_model
-            )
-            context_path = (
-                workspace.ledger_dir / "contexts" / f"{context_receipt.context_hash}.json"
-            )
-            workspace.write_json(context_path, context)
-            context_receipt = context_receipt.model_copy(
-                update={"stored_relative_path": context_path.relative_to(workspace.root).as_posix()}
-            )
-            projection.context_receipts.append(context_receipt)
-            await self._validate_run(sessionmaker, run_id)
-            result, call_receipt = await self._model_result(
-                settings=settings,
-                operation="repair",
-                role_profile=role_profile,
-                context=context,
-                system=system,
-                instructions=instructions,
-                context_receipt=context_receipt,
-                workspace=workspace,
-                generation_id=projection.generation_id,
-                unit_id=f"{owner.unit_id}-integration-polish",
-                request_round=0,
-            )
-            projection.call_receipts.append(call_receipt)
-            if result.mode != "changes":
-                raise GenerationError(
-                    "INTEGRATION_POLISH_INCOMPLETE",
-                    "The bounded integration polish pass did not return owner-scoped source changes.",
-                )
-            self._apply_changes(
-                changes=result.changes,
-                unit=owner,
-                plan=plan,
-                projections=projections,
-                workspace=workspace,
+                    )
+                    projection.context_receipts.append(context_receipt)
+                    await self._validate_run(sessionmaker, run_id)
+                    polish_unit_id = f"{owner.unit_id}-integration-polish"
+                    if polish_round > 1:
+                        polish_unit_id = f"{polish_unit_id}-{polish_round}"
+                    if source_repair_round:
+                        polish_unit_id = f"{polish_unit_id}-source-repair-{source_repair_round}"
+                    result, call_receipt = await self._model_result(
+                        settings=settings,
+                        operation="repair",
+                        role_profile=role_profile,
+                        context=context,
+                        system=system,
+                        instructions=instructions,
+                        context_receipt=context_receipt,
+                        workspace=workspace,
+                        generation_id=projection.generation_id,
+                        unit_id=polish_unit_id,
+                        request_round=0,
+                    )
+                    projection.call_receipts.append(call_receipt)
+                    if result.mode != "changes":
+                        raise GenerationError(
+                            "INTEGRATION_POLISH_INCOMPLETE",
+                            "The bounded integration polish pass did not return owner-scoped "
+                            "source changes.",
+                        )
+                    rejected_attempt_files = (
+                        {
+                            item.path.replace("\\", "/").strip("/"): item.complete_utf8_content
+                            for item in result.changes.files
+                        }
+                        if result.changes is not None
+                        else {}
+                    )
+                    source_diagnostics: list[SourceDiagnostic] = []
+                    try:
+                        self._apply_changes(
+                            changes=result.changes,
+                            unit=owner,
+                            plan=plan,
+                            projections=projections,
+                            workspace=workspace,
+                            allowed_packages=allowed_packages,
+                            public_text=public_text,
+                            settings=settings,
+                            checkpoint=checkpoint,
+                        )
+                    except SourceValidationError as exc:
+                        source_diagnostics = [_diagnostic_from_exception(exc, owner.unit_id)]
+                    if not source_diagnostics:
+                        source_diagnostics = await run_source_checks(
+                            workspace.repo_dir,
+                            allowed_packages=allowed_packages,
+                            public_text=public_text,
+                            max_source_bytes=int(
+                                settings.code_generator_generation.max_source_bytes
+                            ),
+                            work_unit_id=owner.unit_id,
+                            settings=settings,
+                        )
+                    if source_diagnostics:
+                        projection.diagnostics.extend(source_diagnostics)
+                        _consume_repair_budget(
+                            projection,
+                            source_diagnostics,
+                            repair_round=source_repair_round,
+                            settings=settings,
+                        )
+                        source_repair_round += 1
+                        active_diagnostics = [*diagnostics, *source_diagnostics]
+                        continue
+
+                    # A polish is durable only after the complete candidate
+                    # tree passes independent source/type checks. A malformed
+                    # structured response therefore remains a rejected
+                    # attempt available to the bounded repair call, never an
+                    # accepted checkpoint that poisons a same-run resume.
+                    checkpoint = checkpoint_store.accept(
+                        work_unit_id=polish_unit_id,
+                        parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
+                    )
+                    projection.accepted_checkpoint = checkpoint
+                    projection.source_file_count = checkpoint.file_count
+                    projection.source_total_bytes = checkpoint.total_bytes
+                    await self._persist(
+                        sessionmaker,
+                        run_id,
+                        projection,
+                        status=DevelopmentRunStatus.INTEGRATING.value,
+                        source_checkpoint=checkpoint,
+                    )
+                    break
+            diagnostics = await run_source_checks(
+                workspace.repo_dir,
                 allowed_packages=allowed_packages,
                 public_text=public_text,
+                max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+                work_unit_id="integration-review",
                 settings=settings,
-                checkpoint=checkpoint,
             )
-            # A polish pass can still leave advisory/blocking review findings
-            # after its single bounded repair attempt. Persist the repaired
-            # source as the new resumable checkpoint before final review, or
-            # the next frontend Resume would restore the pre-polish source
-            # and repeat the same findings indefinitely.
-            checkpoint = checkpoint_store.accept(
-                work_unit_id=f"{owner.unit_id}-integration-polish",
-                parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
+            if diagnostics:
+                projection.diagnostics.extend(diagnostics)
+                raise GenerationError(
+                    "INTEGRATION_POLISH_SOURCE_CHECK_FAILED",
+                    "The bounded integration polish pass introduced source diagnostics.",
+                )
+            review = await self._integration_review(
+                sessionmaker=sessionmaker,
+                run_id=run_id,
+                settings=settings,
+                run=run,
+                plan=plan,
+                workspace=workspace,
+                projection=projection,
+                round_number=polish_round,
             )
-            projection.accepted_checkpoint = checkpoint
-            projection.source_file_count = checkpoint.file_count
-            projection.source_total_bytes = checkpoint.total_bytes
-            await self._persist(
-                sessionmaker,
-                run_id,
-                projection,
-                status=DevelopmentRunStatus.INTEGRATING.value,
-                source_checkpoint=checkpoint,
-            )
-        diagnostics = await run_source_checks(
-            workspace.repo_dir,
-            allowed_packages=allowed_packages,
-            public_text=public_text,
-            max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
-            work_unit_id="integration-review",
-            settings=settings,
-        )
-        if diagnostics:
-            projection.diagnostics.extend(diagnostics)
-            raise GenerationError(
-                "INTEGRATION_POLISH_SOURCE_CHECK_FAILED",
-                "The bounded integration polish pass introduced source diagnostics.",
-            )
-        final_review = await self._integration_review(
-            sessionmaker=sessionmaker,
-            run_id=run_id,
-            settings=settings,
-            run=run,
-            plan=plan,
-            workspace=workspace,
-            projection=projection,
-            round_number=1,
-        )
-        if not _review_accepted(final_review):
+        if not _review_accepted(review):
             raise GenerationError(
                 "INTEGRATION_REVIEW_UNRESOLVED",
-                "The completed source tree did not pass the bounded whole-site quality review.",
+                "The completed source tree did not pass the bounded whole-site quality review "
+                f"after {maximum_rounds} polish rounds.",
             )
 
     async def _integration_review(
@@ -1389,6 +1518,16 @@ class CodeGeneratorGenerationOrchestrator:
             "design_realization_contracts": [
                 item.model_dump(mode="json") for item in realization_contracts
             ],
+            "trusted_build_runtime": {
+                "bundler": "vite",
+                "base": "./",
+                "public_source_prefix": "/resources/pack/",
+                "public_css_build_behavior": (
+                    "Vite rewrites admitted root-public CSS URLs to base-relative "
+                    "../resources/pack URLs in the built artifact. Nested-preview safety is "
+                    "verified after build, not inferred from the source URL alone."
+                ),
+            },
             "source_manifest": build_source_manifest(workspace.repo_dir),
             "assembled_source": source,
         }
@@ -1568,6 +1707,13 @@ class CodeGeneratorGenerationOrchestrator:
         output_model = (
             SourceGenerationEnvelopeV2 if _context_uses_v4_contract(context) else GenerationResult
         )
+        generation_contract = context.get("generation_contract")
+        required_coverage = (
+            generation_contract.get("required_coverage")
+            if isinstance(generation_contract, dict)
+            and isinstance(generation_contract.get("required_coverage"), dict)
+            else None
+        )
         # The cache key binds the prompt text (via the operation-prompt hash)
         # so a prompt change invalidates previously cached model calls.
         prompt_hash = str((context_receipt.prompt_versions or {}).get("operation_hash", ""))
@@ -1579,6 +1725,12 @@ class CodeGeneratorGenerationOrchestrator:
             cached_result = GenerationResult.model_validate(
                 json.loads(result_path.read_text(encoding="utf-8"))
             )
+            cached_result = stamp_v4_required_coverage(cached_result, required_coverage)
+            # Calls are cached before source validation. An older cache may
+            # therefore contain a model-transcribed coverage typo that the
+            # current trusted contract can normalize without another paid
+            # call. Persist the normalized internal DTO for later resumes.
+            workspace.write_json(result_path, cached_result.model_dump(mode="json"))
             return cached_result, GenerationCallReceipt(
                 receipt_id=f"call-{key[:20]}",
                 operation_id=operation,
@@ -1663,6 +1815,7 @@ class CodeGeneratorGenerationOrchestrator:
                         envelope,
                         operation_id=f"{operation}:{unit_id}",
                         context_receipt=context_receipt,
+                        required_coverage=required_coverage,
                     )
                 else:
                     result = GenerationResult.model_validate(parsed, context=validation_context)
@@ -2052,6 +2205,12 @@ def _operation_for(unit: WorkUnit) -> str:
 def _profile_for(operation: str, settings: Any) -> str:
     config = settings.code_generator_generation
     return {
+        # Blueprint-backed V3/V4 foundations are compiled above without a
+        # model call. Legacy SitePlans with no blueprint still carry a
+        # foundation work unit, so keep that compatibility operation on the
+        # existing route profile instead of resurrecting a dedicated model
+        # profile that production never needs.
+        "foundation": str(config.route_profile),
         "route_batch": str(config.route_profile),
         "route_compose": str(config.compose_profile),
         "integrate": str(config.integration_profile),
@@ -2071,6 +2230,7 @@ def _operation_context(
     output_ceiling: int,
     diagnostics: list[SourceDiagnostic],
     repair_round: int,
+    rejected_attempt_files: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     site = projections["site/contract.json"]
     routes = {
@@ -2109,26 +2269,78 @@ def _operation_context(
         context_plan = _scoped_repair_plan(context_plan)
         context_visual = _scoped_repair_visual(context_visual)
     shared_source = _shared_source_for_unit(plan, projections, unit, workspace.repo_dir)
-    # The rejected files from a prior attempt, when its candidate tree is
-    # still on disk — the repairer needs the exact content it must correct.
+    relevant_diagnostics = [
+        item for item in diagnostics if not item.work_unit_id or item.work_unit_id == unit.unit_id
+    ][-12:]
+    owner_wide_repair = operation == "repair" and any(
+        item.phase == "integration_review" for item in relevant_diagnostics
+    )
+    diagnostic_paths = {
+        str(item.file).replace("\\", "/").strip("/")
+        for item in relevant_diagnostics
+        if str(item.file).strip()
+    }
+    # Source diagnostics name the primary offending file, but executable
+    # behavior commonly spans a section module and its sibling stylesheet.
+    # Keep that exact owned source pair visible to repair calls so a rejected
+    # one-file correction cannot hide the companion file needed by the next
+    # diagnostic round.
+    for relative in list(diagnostic_paths):
+        path = Path(relative)
+        if path.suffix.lower() in {".ts", ".tsx"}:
+            companion = path.with_suffix(".css").as_posix()
+            if companion in exact_owned_paths:
+                diagnostic_paths.add(companion)
+        elif path.suffix.lower() == ".css":
+            for suffix in (".tsx", ".ts"):
+                companion = path.with_suffix(suffix).as_posix()
+                if companion in exact_owned_paths:
+                    diagnostic_paths.add(companion)
+
+    def belongs_to_owned_paths(relative: str) -> bool:
+        if exact_owned_paths:
+            return relative in exact_owned_paths
+        return any(fnmatch.fnmatchcase(relative, owner) for owner in owned)
+
+    def belongs_to_unit(relative: str) -> bool:
+        return belongs_to_owned_paths(relative) and (
+            owner_wide_repair or not diagnostic_paths or relative in diagnostic_paths
+        )
+
+    # A structured model result is persisted to the call ledger before host
+    # source validation. Preserve its exact file bodies in the next repair
+    # context even when validation failed before a candidate tree could be
+    # created. The candidate/repository reads below remain fallbacks for later
+    # checks that reject an already-materialized attempt.
     previous_attempt_files: dict[str, str] = {}
+    included_bytes = 0
+    max_candidate_bytes = 48_000
+
+    def include_source(relative: str, source: str, *, use_diagnostic_scope: bool = True) -> None:
+        nonlocal included_bytes
+        normalized = relative.replace("\\", "/").strip("/")
+        belongs = belongs_to_unit if use_diagnostic_scope else belongs_to_owned_paths
+        if (
+            normalized in previous_attempt_files
+            or Path(normalized).suffix.lower() not in {".ts", ".tsx", ".css"}
+            or not belongs(normalized)
+            or len(source) > 20_000
+            or included_bytes + len(source) > max_candidate_bytes
+            or len(previous_attempt_files) >= 8
+        ):
+            return
+        previous_attempt_files[normalized] = source
+        included_bytes += len(source)
+
+    for relative, source in sorted((rejected_attempt_files or {}).items()):
+        # A rejected structured response is one atomic proposed change set.
+        # Its diagnostic may point at only the first offending file (for
+        # example, one repeated path), but repairing it safely requires every
+        # returned file in the unit's ownership surface.
+        include_source(relative, source, use_diagnostic_scope=False)
+
     candidate_dir = workspace.root / f"candidate-{_unit_dir_slug(unit.unit_id)}"
-    if candidate_dir.is_dir():
-        diagnostic_paths = {
-            str(item.file).replace("\\", "/").strip("/")
-            for item in diagnostics
-            if str(item.file).strip()
-        }
-
-        def belongs_to_unit(relative: str) -> bool:
-            if diagnostic_paths:
-                return relative in diagnostic_paths
-            if exact_owned_paths:
-                return relative in exact_owned_paths
-            return any(fnmatch.fnmatchcase(relative, owner) for owner in owned)
-
-        included_bytes = 0
-        max_candidate_bytes = 48_000
+    if not previous_attempt_files and candidate_dir.is_dir():
         for path in sorted(candidate_dir.rglob("*")):
             if (
                 not path.is_file()
@@ -2143,21 +2355,16 @@ def _operation_context(
                 source = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            if len(source) > 20_000 or included_bytes + len(source) > max_candidate_bytes:
-                continue
-            previous_attempt_files[relative] = source
-            included_bytes += len(source)
+            include_source(relative, source)
             if len(previous_attempt_files) >= 8:
                 break
-    if operation == "repair" and not previous_attempt_files:
-        # Integration polish repairs run against the accepted repository
-        # checkpoint rather than a rejected per-unit candidate tree. Supply
-        # the complete current owned files so a model can safely return a
-        # replacement for a source diagnostic (the generation contract
-        # requires complete file bodies for replace operations). This is
-        # deliberately limited to repair contexts and the unit's write
-        # surface so ordinary generation contexts stay small and scoped.
-        included_bytes = 0
+    if operation == "repair":
+        # Repair calls need the current diagnostic-scoped repository source in
+        # addition to any rejected response bodies. The rejected files remain
+        # authoritative because include_source keeps the first copy, while
+        # current companion files fill the gaps needed for cross-file fixes.
+        # This also covers integration polish, which starts from an accepted
+        # repository checkpoint rather than a rejected per-unit candidate.
         for path in sorted(workspace.repo_dir.rglob("*")):
             if (
                 not path.is_file()
@@ -2166,25 +2373,13 @@ def _operation_context(
             ):
                 continue
             relative = path.relative_to(workspace.repo_dir).as_posix()
-            if exact_owned_paths:
-                belongs_to_unit = relative in exact_owned_paths
-            else:
-                belongs_to_unit = any(fnmatch.fnmatchcase(relative, owner) for owner in owned)
-            if not belongs_to_unit:
-                continue
             try:
                 source = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            if len(source) > 20_000 or included_bytes + len(source) > 48_000:
-                continue
-            previous_attempt_files[relative] = source
-            included_bytes += len(source)
+            include_source(relative, source)
             if len(previous_attempt_files) >= 8:
                 break
-    relevant_diagnostics = [
-        item for item in diagnostics if not item.work_unit_id or item.work_unit_id == unit.unit_id
-    ][-12:]
     return {
         "role_profile": role_profile,
         "operation": operation,
@@ -2246,7 +2441,7 @@ def _scoped_repair_plan(plan: dict[str, Any]) -> dict[str, Any]:
     """Keep repair design authority without repeating generation-only data."""
 
     blueprint = plan.get("experience_blueprint", {})
-    scoped = {
+    scoped: dict[str, Any] = {
         key: plan[key]
         for key in (
             "plan_id",
@@ -2460,7 +2655,7 @@ def _scoped_resource_ledger(value: dict[str, Any], unit: WorkUnit) -> dict[str, 
 
     if not isinstance(value, dict):
         return {}
-    result = {
+    result: dict[str, Any] = {
         key: value[key]
         for key in ("schema_version", "ledger_hash", "based_on_input_and_plan")
         if key in value
@@ -2876,6 +3071,7 @@ def _invalidate_stale_route_batch_checkpoint(
     *,
     plan: SitePlan,
     workspace: GenerationWorkspace,
+    projections: dict[str, dict[str, Any]] | None = None,
 ) -> list[SourceDiagnostic]:
     """Reopen route batches that fail the bounded source contract."""
 
@@ -2893,12 +3089,35 @@ def _invalidate_stale_route_batch_checkpoint(
         return []
     diagnostics: list[SourceDiagnostic] = []
     for unit in checkpointed:
+        (
+            section_content_ids,
+            section_selectors,
+            interaction_markers,
+            interaction_contracts,
+        ) = _v4_route_batch_contract_data(plan, unit)
         diagnostics.extend(
             validate_route_batch_contract(
                 workspace.repo_dir,
                 list(unit.owns_paths),
                 route_id=str(getattr(unit, "route_id", "")),
                 section_ids=list(getattr(unit, "section_ids", [])),
+                source_markers=[
+                    coverage.source_marker
+                    for coverage in getattr(plan, "acceptance_coverage", [])
+                    if coverage.route_id == getattr(unit, "route_id", "")
+                    and coverage.criterion_id in getattr(unit, "criterion_ids", [])
+                ],
+                content_ids_by_section=section_content_ids,
+                section_selectors_by_section=section_selectors,
+                interaction_ids=list(getattr(unit, "interaction_ids", [])),
+                interaction_markers=interaction_markers,
+                interaction_contracts=interaction_contracts,
+                image_assets_by_slot=_v4_image_assets_for_unit(plan, unit, projections or {}),
+                distinctive_moves=_v4_distinctive_moves_for_unit(plan, unit),
+                motion_beats=_v4_motion_beats_for_unit(plan, unit),
+                h1_owner_section_id=_v4_h1_owner_for_route(
+                    plan, str(getattr(unit, "route_id", ""))
+                ),
                 work_unit_id=unit.unit_id,
             )
         )
@@ -2917,6 +3136,112 @@ def _invalidate_stale_route_batch_checkpoint(
     projection.source_file_count = 0
     projection.source_total_bytes = 0
     return diagnostics
+
+
+def _v4_route_batch_contract_data(
+    plan: SitePlan | Any,
+    unit: WorkUnit | Any,
+) -> tuple[
+    dict[str, list[str]],
+    dict[str, str],
+    dict[str, str],
+    dict[str, dict[str, Any]],
+]:
+    """Compile the exact V4 batch selector and interaction evidence."""
+
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return {}, {}, {}, {}
+    route_id = str(getattr(unit, "route_id", ""))
+    section_ids = set(getattr(unit, "section_ids", []) or [])
+    interaction_ids = set(getattr(unit, "interaction_ids", []) or [])
+    regions = [
+        region
+        for region in blueprint.section_regions
+        if region.route_id == route_id and region.section_id in section_ids
+    ]
+    return (
+        {region.section_id: list(region.content_ids) for region in regions},
+        {region.section_id: region.section_selector for region in regions},
+        {
+            assignment.interaction_id: assignment.literal_marker
+            for assignment in blueprint.interaction_assignments
+            if assignment.route_id == route_id and assignment.interaction_id in interaction_ids
+        },
+        {
+            assignment.interaction_id: assignment.model_dump(mode="json")
+            for assignment in blueprint.interaction_assignments
+            if assignment.route_id == route_id and assignment.interaction_id in interaction_ids
+        },
+    )
+
+
+def _v4_image_assets_for_unit(
+    plan: SitePlan | Any,
+    unit: WorkUnit | Any,
+    projections: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return {}
+    section_ids = set(getattr(unit, "section_ids", []) or [])
+    placements = {
+        placement.resource_slot_id: placement
+        for placement in blueprint.resource_placements
+        if placement.route_id == str(getattr(unit, "route_id", ""))
+        and placement.section_id in section_ids
+    }
+    materialized = projections.get("generated/resource-assets.json", {})
+    assets = materialized.get("image_assets", []) if isinstance(materialized, dict) else []
+    return {
+        str(asset.get("resource_id", "")): {
+            **dict(asset),
+            "element_marker": placements[str(asset.get("resource_id", ""))].element_marker,
+            "element_selector": placements[str(asset.get("resource_id", ""))].element_selector,
+        }
+        for asset in assets
+        if isinstance(asset, dict) and str(asset.get("resource_id", "")) in placements
+    }
+
+
+def _v4_motion_beats_for_unit(
+    plan: SitePlan | Any,
+    unit: WorkUnit | Any,
+) -> list[dict[str, Any]]:
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return []
+    section_ids = set(getattr(unit, "section_ids", []) or [])
+    return [
+        beat.model_dump(mode="json")
+        for beat in blueprint.motion_beats
+        if beat.route_id == str(getattr(unit, "route_id", "")) and beat.section_id in section_ids
+    ]
+
+
+def _v4_distinctive_moves_for_unit(
+    plan: SitePlan | Any,
+    unit: WorkUnit | Any,
+) -> list[dict[str, Any]]:
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return []
+    section_ids = set(getattr(unit, "section_ids", []) or [])
+    return [
+        move.model_dump(mode="json")
+        for move in blueprint.distinctive_moves
+        if move.route_id == str(getattr(unit, "route_id", "")) and move.section_id in section_ids
+    ]
+
+
+def _v4_h1_owner_for_route(plan: SitePlan | Any, route_id: str) -> str:
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return ""
+    shell = next((item for item in blueprint.route_shells if item.route_id == route_id), None)
+    if shell is None or not shell.section_order:
+        return ""
+    return shell.section_order[0]
 
 
 def _fallback_receipt(request: Any, reason: str) -> ResourceReceipt:
@@ -2956,15 +3281,22 @@ def _consume_repair_budget(
     repair_round: int,
     settings: Any,
 ) -> None:
+    diagnostic_summary = "; ".join(
+        f"{item.code}: {item.normalized_message}" for item in diagnostics[:4]
+    )[:1200]
     if repair_round >= int(settings.code_generator_generation.max_repair_rounds_per_unit):
         raise GenerationError(
-            "SOURCE_REPAIR_EXHAUSTED", "Source generation repair budget was exhausted."
+            "SOURCE_REPAIR_EXHAUSTED",
+            "Source generation repair budget was exhausted. Final diagnostics: "
+            + (diagnostic_summary or "none recorded"),
         )
     if projection.repair_budget_used >= int(
         settings.code_generator_generation.max_repair_rounds_total
     ):
         raise GenerationError(
-            "SOURCE_REPAIR_TOTAL_EXHAUSTED", "The total source repair budget was exhausted."
+            "SOURCE_REPAIR_TOTAL_EXHAUSTED",
+            "The total source repair budget was exhausted. Final diagnostics: "
+            + (diagnostic_summary or "none recorded"),
         )
     fingerprints = sorted({item.fingerprint for item in diagnostics})
     recurrence = any(projection.repair_fingerprint_counts.get(item, 0) > 0 for item in fingerprints)
@@ -3042,10 +3374,19 @@ def _validate_v4_generation_coverage(
             "SOURCE_EXPORT_SIGNATURE_PATH",
             "An exported signature references a file outside the v4 source envelope.",
         )
-    if unit.kind in {"route_batch", "route_compose", "route"} and not signatures:
+    signature_paths = {path for path, _export in signatures}
+    changed_exported_paths = {
+        item.path.replace("\\", "/")
+        for item in changes.files
+        if Path(item.path).suffix.casefold() in {".js", ".jsx", ".ts", ".tsx"}
+        and re.search(r"(?m)^\s*export\b", item.complete_utf8_content)
+    }
+    missing_signature_paths = changed_exported_paths - signature_paths
+    if unit.kind in {"route_batch", "route_compose", "route"} and missing_signature_paths:
         raise SourceValidationError(
             "SOURCE_EXPORT_SIGNATURE_MISSING",
-            "V4 route work must declare its concrete exported signatures.",
+            "V4 route work must declare a concrete exported signature for every changed "
+            f"exported source file; missing: {', '.join(sorted(missing_signature_paths))}.",
         )
 
 

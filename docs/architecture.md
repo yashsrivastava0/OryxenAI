@@ -1,5 +1,8 @@
 # OryxenAI Architecture — Discovery Phase
 
+output/build-preparation/00-06-26-08-9df0cecb/   
+    build-pack.zip.
+Srivastava/Desktop/01_Projects/OryxenAI/output/build-preparation/10-29-26-08-0e6dc7a6"
 > This document explains **why** the current Discovery implementation is designed
 > the way it is. It does not describe excluded downstream product stages.
 > For **current implementation status** (what's actually built today), see

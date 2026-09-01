@@ -21,8 +21,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     SitePlan,
 )
+from oryxenai.agents.code_generator.core.source_lexing import (
+    static_jsx_attribute_values,
+    strip_source_comments,
+)
 
-_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\r\n]*|<!--[\s\S]*?-->", re.DOTALL)
 _IMPORT_RE = re.compile(
     r"(?:import\s+(?P<bindings>[\s\S]*?)\s+from\s+|export\s+[\s\S]*?\s+from\s+|import\s*\()"
     r"[\"'](?P<module>[^\"']+)[\"']"
@@ -50,7 +53,7 @@ _FRAGMENT_RE = re.compile(r"href\s*=\s*[\"']#([^\"']+)[\"']")
 
 
 def _without_comments(value: str) -> str:
-    return _COMMENT_RE.sub(" ", value)
+    return strip_source_comments(value)
 
 
 def _diagnostic(
@@ -151,6 +154,40 @@ def _route_ids_in_source(route: dict[str, Any], source: str) -> str:
     return route_id if route_id in source else ""
 
 
+def _literal_selector_positions(source: str, selector: str) -> list[int] | None:
+    """Return source positions for simple planner selectors, if provable."""
+
+    value = selector.strip()
+    id_match = re.fullmatch(r"#([A-Za-z_][\w-]*)", value)
+    if id_match:
+        return [
+            position
+            for position, attribute_value in static_jsx_attribute_values(source, "id")
+            if attribute_value == id_match.group(1)
+        ]
+    attribute_match = re.fullmatch(
+        r"\[\s*([A-Za-z_:][\w:.-]*)\s*=\s*([\"'])(.*?)\2\s*\]",
+        value,
+    )
+    if attribute_match:
+        name, _, expected = attribute_match.groups()
+        return [
+            position
+            for position, attribute_value in static_jsx_attribute_values(source, name)
+            if attribute_value == expected
+        ]
+    class_match = re.fullmatch(r"\.([A-Za-z_][\w-]*)", value)
+    if class_match:
+        expected = class_match.group(1)
+        return [
+            position
+            for name in ("class", "className")
+            for position, attribute_value in static_jsx_attribute_values(source, name)
+            if expected in attribute_value.split()
+        ]
+    return None
+
+
 def audit_typescript_source(
     repo_dir: Path,
     *,
@@ -175,6 +212,14 @@ def audit_typescript_source(
 
     blueprint_v4 = isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
     v4_blueprint = cast(ExperienceBlueprintV4, plan.experience_blueprint)
+    v4_section_selectors = (
+        {
+            (region.route_id, region.section_id): region.section_selector
+            for region in v4_blueprint.section_regions
+        }
+        if blueprint_v4
+        else {}
+    )
     route_css = {
         path: _without_comments(text)
         for path, text in files.items()
@@ -427,22 +472,19 @@ def audit_typescript_source(
                         observed=str(len(matches)),
                     )
                 )
-            dom_id_matches = list(
-                re.finditer(
-                    rf"(?<![\w-])id\s*=\s*[\"']{re.escape(section_id)}[\"']",
-                    section_anchor_source,
-                )
-            )
-            if len(dom_id_matches) != 1:
+            section_selector = v4_section_selectors.get((route_id, section_id), f"#{section_id}")
+            selector_matches = _literal_selector_positions(section_anchor_source, section_selector)
+            if selector_matches is not None and len(selector_matches) != 1:
                 diagnostics.append(
                     _diagnostic(
                         "SOURCE_SECTION_DOM_ID_MISSING",
-                        "Each approved section must expose its compiler-supplied DOM ID exactly once.",
+                        "Each approved section must implement its exact compiler-supplied "
+                        "section selector once.",
                         file=route_file,
                         route_id=route_id,
-                        symbol=section_id,
+                        symbol=section_selector,
                         expected="1",
-                        observed=str(len(dom_id_matches)),
+                        observed=str(len(selector_matches)),
                     )
                 )
             if blueprint_v4:
@@ -513,13 +555,18 @@ def audit_typescript_source(
             if move.route_id == route_id
         ]
         for move in route_moves:
-            marker = f'data-distinctive-move-id="{move.move_id}"'
+            marker = (
+                str(getattr(move, "runtime_marker", ""))
+                if blueprint_v4
+                else f'data-distinctive-move-id="{move.move_id}"'
+            )
+            owner_file = section_owner_paths.get(getattr(move, "section_id", ""), route_file)
             if marker not in route_files_source:
                 diagnostics.append(
                     _diagnostic(
                         "SOURCE_BLUEPRINT_MOVE_UNUSED",
                         "A blueprint distinctive move has no traceable route implementation marker.",
-                        file=route_file,
+                        file=owner_file,
                         route_id=route_id,
                         symbol=move.move_id,
                     )
@@ -542,7 +589,7 @@ def audit_typescript_source(
                         _diagnostic(
                             "SOURCE_BLUEPRINT_MOVE_MARKER_ONLY",
                             "A distinctive-move marker is present without selector-scoped CSS evidence.",
-                            file=route_file,
+                            file=owner_file,
                             route_id=route_id,
                             symbol=(
                                 f"{move.move_id}:{','.join(missing_properties)}"
@@ -556,10 +603,8 @@ def audit_typescript_source(
             for beat in v4_blueprint.motion_beats:
                 if beat.route_id != route_id:
                     continue
-                marker_present = (
-                    beat.target_marker in route_files_source
-                    and beat.target_selector in route_files_source
-                )
+                marker_present = beat.target_marker in route_files_source
+                owner_file = section_owner_paths.get(beat.section_id, route_file)
                 scoped_css = "\n".join(
                     value for path, value in route_css.items() if path.startswith(route_prefix)
                 )
@@ -580,7 +625,7 @@ def audit_typescript_source(
                         _diagnostic(
                             "SOURCE_MOTION_BEAT_UNIMPLEMENTED",
                             "Every v4 motion beat needs a target marker and executable source behavior.",
-                            file=route_file,
+                            file=owner_file,
                             route_id=route_id,
                             symbol=beat.motion_id,
                         )
@@ -590,7 +635,7 @@ def audit_typescript_source(
                         _diagnostic(
                             "SOURCE_MOTION_REDUCED_MOTION_MISSING",
                             "Every v4 motion beat needs a prefers-reduced-motion replacement.",
-                            file=route_file,
+                            file=owner_file,
                             route_id=route_id,
                             symbol=beat.motion_id,
                         )
@@ -641,7 +686,7 @@ def _selector_declarations(css: str, selector: str) -> set[str]:
     blocks: list[str] = []
     for match in re.finditer(r"(?P<selectors>[^{}]+)\{(?P<body>[^{}]*)\}", css, re.DOTALL):
         selectors = [item.strip() for item in match.group("selectors").split(",")]
-        if selector.strip() in selectors:
+        if any(_selector_targets_contract(item, selector) for item in selectors):
             blocks.append(match.group("body"))
     return {
         match.group(1).casefold()
@@ -650,11 +695,29 @@ def _selector_declarations(css: str, selector: str) -> set[str]:
     }
 
 
+_MOTION_STATE_QUALIFIER_RE = re.compile(
+    r'\[data-motion-(?:ready|state)(?:\s*=\s*["\'][^"\']*["\'])?\]',
+    re.IGNORECASE,
+)
+
+
+def _selector_targets_contract(candidate: str, expected: str) -> bool:
+    """Allow runtime motion state qualifiers without changing the target."""
+
+    normalized_candidate = " ".join(candidate.strip().split())
+    normalized_expected = " ".join(expected.strip().split())
+    if normalized_candidate == normalized_expected:
+        return True
+    without_runtime_state = _MOTION_STATE_QUALIFIER_RE.sub("", normalized_candidate)
+    return " ".join(without_runtime_state.split()) == normalized_expected
+
+
 def _selector_has_reduced_motion(css: str, selector: str) -> bool:
     """Require the reduced-motion rule to target the declared selector."""
 
     for match in re.finditer(
-        r"@media[^{}]*prefers-reduced-motion[^{}]*\{(?P<body>[^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",
+        r"@media[^{}]*prefers-reduced-motion\s*:\s*reduce[^{}]*"
+        r"\{(?P<body>[^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",
         css,
         re.IGNORECASE | re.DOTALL,
     ):
@@ -731,8 +794,22 @@ def _audit_v4_anti_slop(
                 route_id=route_id,
             )
         )
-    fade_count = len(re.findall(r"opacity\s*:\s*0|translate[xy]?\(", route_css))
-    if fade_count >= len(section_sources) and "blanket" not in direction_text:
+    section_css = [
+        text.casefold()
+        for path, text in files.items()
+        if path.startswith(f"{route_prefix}sections/") and path.endswith(".css")
+    ]
+    reveal_sections = sum(
+        bool(
+            re.search(
+                r"opacity\s*:\s*0|"
+                r"transform\s*:[^;]*translate[xy]?\(\s*(?!0(?:\.0+)?(?:[a-z%]+)?\s*\))",
+                text,
+            )
+        )
+        for text in section_css
+    )
+    if reveal_sections >= max(3, len(section_sources) - 1) and "blanket" not in direction_text:
         diagnostics.append(
             _diagnostic(
                 "SOURCE_BLANKET_REVEAL_MOTION",

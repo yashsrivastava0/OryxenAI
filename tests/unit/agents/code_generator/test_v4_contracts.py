@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
+from oryxenai.agents.code_generator.core import final_source_validation
+from oryxenai.agents.code_generator.core.blueprint_compiler import (
+    _canonicalize_resource_placement_slots,
+    canonicalize_generation_plan,
+    canonicalize_v4_h1_owners,
+    canonicalize_v4_resource_placement_selectors,
+)
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_planner import (
     SitePlanValidationError,
@@ -15,7 +23,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DesignTokenSystemV4,
     ExecutionBindingV2,
     ExperienceBlueprintV4,
+    ExportedSignature,
+    GenerationChanges,
     GenerationContextReceipt,
+    InteractionContract,
     QualityReviewDraftV1,
     ResourceSearchIntentV2,
     RoutePlan,
@@ -28,9 +39,13 @@ from oryxenai.agents.code_generator.core.generation_contract import (
     build_generation_contract,
     render_contract_instructions,
 )
+from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    _validate_v4_generation_coverage,
+)
 from oryxenai.agents.code_generator.core.quality_review import (
     QualityReviewError,
     stamp_quality_review_receipt,
+    validate_quality_review_draft_evidence,
     validate_quality_review_receipt,
 )
 from oryxenai.agents.code_generator.core.resource_query import (
@@ -40,7 +55,12 @@ from oryxenai.agents.code_generator.core.resource_query import (
 from oryxenai.agents.code_generator.core.source_generation_adapter import (
     adapt_v4_generation_result,
 )
-from oryxenai.agents.code_generator.core.source_manifest import _materialize_image_assets
+from oryxenai.agents.code_generator.core.source_manifest import (
+    _contract_meta,
+    _materialize_image_assets,
+    _public_runtime_data,
+)
+from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
 from oryxenai.agents.code_generator.core.token_compiler import compile_generated_tokens
 from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_typescript_source
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
@@ -152,7 +172,124 @@ def test_v4_contracts_are_closed_and_provider_compatible() -> None:
     assert schema_compatibility_issues(ExperienceBlueprintV4) == []
 
 
+def test_v4_materialized_resource_ids_canonicalize_to_unique_execution_slots() -> None:
+    payload = _blueprint().model_dump(mode="python")
+    payload["resource_placements"] = [
+        {
+            "resource_slot_id": "resource-hero-photo",
+            "route_id": "home",
+            "section_id": "hero",
+            "element_marker": 'data-resource-slot="slot-hero-photo"',
+            "element_selector": '[data-resource-slot="slot-hero-photo"]',
+            "alt_policy": "decorative",
+            "fit": "cover",
+            "focal_position": "center",
+            "loading": "eager",
+            "responsive_behavior": "Stack below approved hero copy.",
+            "sizes": "(max-width: 48rem) 100vw, 40vw",
+            "aspect_ratio_min": 1.2,
+            "aspect_ratio_max": 1.8,
+            "minimum_visible_ratio": 0.4,
+        }
+    ]
+    blueprint = ExperienceBlueprintV4.model_validate(payload)
+
+    canonical = _canonicalize_resource_placement_slots(
+        blueprint,
+        {
+            "execution/contract.json": {
+                "slots": [
+                    {
+                        "resource_slot_id": "slot-hero-photo",
+                        "resolution": {"resource_id": "resource-hero-photo"},
+                    }
+                ]
+            }
+        },
+    )
+
+    assert canonical.resource_placements[0].resource_slot_id == "slot-hero-photo"
+
+
+def test_v4_resource_selector_canonicalizes_to_generated_wrapper_marker() -> None:
+    payload = _blueprint().model_dump(mode="python")
+    payload["resource_placements"] = [
+        {
+            "resource_slot_id": "slot-hero-photo",
+            "route_id": "home",
+            "section_id": "hero",
+            "element_marker": 'data-resource="hero-image"',
+            "element_selector": "#hero-media img",
+            "alt_policy": "decorative",
+            "fit": "cover",
+            "focal_position": "center",
+            "loading": "eager",
+            "responsive_behavior": "Stack below approved hero copy.",
+            "sizes": "(max-width: 48rem) 100vw, 40vw",
+            "aspect_ratio_min": 1.2,
+            "aspect_ratio_max": 1.8,
+            "minimum_visible_ratio": 0.4,
+        }
+    ]
+    blueprint = ExperienceBlueprintV4.model_validate(payload)
+
+    canonical = canonicalize_v4_resource_placement_selectors(blueprint)
+
+    assert canonical.resource_placements[0].element_selector == '[data-resource="hero-image"]'
+
+
+def test_v4_page_heading_owner_canonicalizes_to_first_approved_section() -> None:
+    blueprint = _blueprint()
+    blueprint = blueprint.model_copy(
+        update={
+            "route_shells": [
+                blueprint.route_shells[0].model_copy(
+                    update={
+                        "h1_owner": "trusted_shell",
+                        "section_order": ["home:hero", "home:work"],
+                    }
+                )
+            ]
+        }
+    )
+
+    canonical = canonicalize_v4_h1_owners(blueprint)
+
+    assert canonical.route_shells[0].h1_owner == "home:hero"
+    assert blueprint.route_shells[0].h1_owner == "trusted_shell"
+
+    plan = SitePlan(plan_id="canonical-stage-plan", routes=[], experience_blueprint=blueprint)
+    canonical_plan = canonicalize_generation_plan(plan)
+
+    assert canonical_plan.experience_blueprint.route_shells[0].h1_owner == "home:hero"
+    assert plan.experience_blueprint.route_shells[0].h1_owner == "trusted_shell"
+
+
 def test_v4_route_audit_reads_anchors_from_rendered_section_modules() -> None:
+    blueprint = _blueprint()
+    blueprint = blueprint.model_copy(
+        update={
+            "route_shells": [
+                blueprint.route_shells[0].model_copy(
+                    update={"h1_owner": "home:hero", "section_order": ["home:hero"]}
+                )
+            ],
+            "section_regions": [
+                blueprint.section_regions[0].model_copy(
+                    update={"section_id": "home:hero", "section_selector": "#hero"}
+                )
+            ],
+            "distinctive_moves": [
+                blueprint.distinctive_moves[0].model_copy(
+                    update={
+                        "section_id": "home:hero",
+                        "runtime_marker": 'data-distinctive-move="hero-rail"',
+                        "source_selector": '[data-distinctive-move="hero-rail"]',
+                    }
+                )
+            ],
+        }
+    )
     plan = SitePlan(
         plan_id="audit",
         routes=[
@@ -160,14 +297,14 @@ def test_v4_route_audit_reads_anchors_from_rendered_section_modules() -> None:
                 route_id="home",
                 path="/",
                 storage_key="home",
-                section_ids=["hero"],
-                section_order=["hero"],
+                section_ids=["home:hero"],
+                section_order=["home:hero"],
                 responsive_outcome="stacked on mobile",
                 reduced_motion_outcome="static",
                 interaction_outcome="keyboard accessible",
             )
         ],
-        experience_blueprint=_blueprint(),
+        experience_blueprint=blueprint,
     )
     files = {
         "src/components/generated/SharedSystems.tsx": """export function RouteShell() { return <main />; }
@@ -184,17 +321,40 @@ export default function HomeRoute() {
 }
 """,
         "src/routes/home/sections/hero.tsx": """export default function Hero() {
-  return <section id=\"hero\" data-content-id=\"hero\" data-distinctive-move-id=\"move:hero-rail\"><h1>Proof</h1></section>;
+  return <section id=\"hero\" data-content-id=\"home:hero\" data-distinctive-move=\"hero-rail\"><h1>Proof</h1></section>;
 }
 """,
-        "src/routes/home/route.css": '[data-distinctive-move-id=\"move:hero-rail\"] { grid-template-columns: 1fr 1fr; }',
+        "src/routes/home/route.css": '[data-distinctive-move="hero-rail"] { grid-template-columns: 1fr 1fr; }',
     }
 
     diagnostics = audit_typescript_source(Path("."), files=files, plan=plan)
     assert not diagnostics, [
-        (item.code, item.symbol, item.file, item.expected, item.observed)
-        for item in diagnostics
+        (item.code, item.symbol, item.file, item.expected, item.observed) for item in diagnostics
     ]
+
+
+def test_v4_contract_meta_preserves_section_identity_selector_split() -> None:
+    blueprint = _blueprint().model_copy(
+        update={
+            "section_regions": [
+                _blueprint()
+                .section_regions[0]
+                .model_copy(update={"section_id": "home:hero", "section_selector": "#hero"})
+            ]
+        }
+    )
+    plan = SitePlan(plan_id="meta", routes=[], experience_blueprint=blueprint)
+
+    assert _contract_meta(plan) == {
+        "pipeline_contract_version": "code-generator-v4",
+        "section_selectors": [
+            {
+                "route_id": "home",
+                "section_id": "home:hero",
+                "section_selector": "#hero",
+            }
+        ],
+    }
 
 
 def test_v4_typography_roles_require_explicit_role_values() -> None:
@@ -228,6 +388,22 @@ def test_v4_blueprint_must_echo_host_identity_manifest() -> None:
     )
     with pytest.raises(SitePlanValidationError, match="echo the host identity"):
         validate_v4_blueprint_identities(drifted, context)
+
+
+def test_v4_blueprint_rejects_media_only_distinctive_move_properties() -> None:
+    blueprint = _blueprint()
+    invalid = blueprint.model_copy(
+        update={
+            "distinctive_moves": [
+                blueprint.distinctive_moves[0].model_copy(
+                    update={"required_css_properties": ["display", "object-fit"]}
+                )
+            ]
+        }
+    )
+
+    with pytest.raises(SitePlanValidationError, match="media-only properties"):
+        validate_v4_blueprint_identities(invalid, {})
     assert schema_compatibility_issues(SourceGenerationEnvelopeV2) == []
     intent = ResourceSearchIntentV2(
         slot_id="image:hero",
@@ -344,7 +520,9 @@ def test_v4_composer_contract_delegates_content_to_completed_batches() -> None:
                 ],
                 "facts": [],
             },
-            "design/visual-direction.json": {"global": {"must_preserve": []}},
+            "design/visual-direction.json": {
+                "global": {"must_preserve": ["Aarav Mehta", "Senior Architect"]}
+            },
             "execution/contract.json": {"slots": []},
         },
         operation="route_compose",
@@ -358,6 +536,400 @@ def test_v4_composer_contract_delegates_content_to_completed_batches() -> None:
     assert "import and render the completed section batches" in render_contract_instructions(
         contract
     )
+
+
+def test_v4_generation_contract_exposes_exact_unit_coverage_arrays() -> None:
+    plan = SitePlan(
+        plan_id="batch-coverage-contract",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="Readable at every viewport",
+                reduced_motion_outcome="Content remains visible without motion",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        experience_blueprint=_blueprint(),
+    )
+    batch = WorkUnit(
+        unit_id="route-home-batch-1",
+        kind="route_batch",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=["src/routes/home/sections/hero.tsx"],
+        criterion_ids=[],
+        resource_slot_ids=["slot-hero"],
+        interaction_ids=[],
+    )
+    contract = build_generation_contract(
+        unit=batch,
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "public_content": [
+                    {
+                        "route_id": "home",
+                        "sections": [
+                            {"section_id": "hero", "content": {"headline": "Approved headline"}}
+                        ],
+                    }
+                ],
+                "facts": [],
+            },
+            "design/visual-direction.json": {"global": {"must_preserve": []}},
+            "execution/contract.json": {"slots": []},
+        },
+        operation="route_batch",
+        owned_paths=batch.owns_paths,
+    )
+
+    expected_content = contract["routes"][0]["sections"][0]["content_ids"]
+    assert contract["contract_version"] == "code-generator-generation-contract-v4"
+    assert contract["required_coverage"] == {
+        "content_ids": expected_content,
+        "criterion_ids": [],
+        "resource_slot_ids": ["slot-hero"],
+        "interaction_ids": [],
+    }
+    instructions = render_contract_instructions(contract)
+    assert f"content_ids = {expected_content!r}".replace("'", '"') in instructions
+    assert "criterion_ids = []" in instructions
+    assert "canonical page heading section hero" in instructions
+    assert "exactly one visible <h1>" in instructions
+
+
+def test_v4_generation_contract_exposes_browser_images_and_motion() -> None:
+    base = _blueprint()
+    blueprint = ExperienceBlueprintV4.model_validate(
+        {
+            **base.model_dump(mode="json"),
+            "resource_placements": [
+                {
+                    "resource_slot_id": "slot-hero",
+                    "route_id": "home",
+                    "section_id": "hero",
+                    "element_marker": 'data-resource="hero"',
+                    "element_selector": '[data-resource="hero"]',
+                    "alt_policy": "decorative",
+                    "fit": "cover",
+                    "focal_position": "center center",
+                    "loading": "eager",
+                    "responsive_behavior": "Stack below copy on narrow screens.",
+                    "sizes": "100vw",
+                    "aspect_ratio_min": 1.2,
+                    "aspect_ratio_max": 1.8,
+                    "minimum_visible_ratio": 0.3,
+                }
+            ],
+            "motion_beats": [
+                {
+                    "motion_id": "motion:hero",
+                    "route_id": "home",
+                    "section_id": "hero",
+                    "target_marker": 'data-motion-target="hero-copy"',
+                    "target_selector": "#hero .hero-copy",
+                    "trigger_selector": "#hero",
+                    "trigger": "viewport",
+                    "changed_properties": [
+                        {
+                            "property_name": "opacity",
+                            "before_value": "0",
+                            "after_value": "1",
+                        }
+                    ],
+                    "duration_min_ms": 300,
+                    "duration_max_ms": 420,
+                    "easing": "ease-out",
+                    "purposeful_outcome": "Establish the opening hierarchy.",
+                    "performance_budget_ms": 16,
+                    "reduced_motion_replacement": "Render the complete final state.",
+                }
+            ],
+        }
+    )
+    plan = SitePlan(
+        plan_id="materialized-contract",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="Readable",
+                reduced_motion_outcome="Static",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        experience_blueprint=blueprint,
+    )
+    unit = WorkUnit(
+        unit_id="route-home-batch-1",
+        kind="route_batch",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=["src/routes/home/sections/hero.tsx"],
+        resource_slot_ids=["slot-hero"],
+    )
+    contract = build_generation_contract(
+        unit=unit,
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "public_content": [
+                    {"route_id": "home", "sections": [{"section_id": "hero", "content": {}}]}
+                ],
+                "facts": [],
+            },
+            "design/visual-direction.json": {"global": {"must_preserve": []}},
+            "execution/contract.json": {"slots": []},
+            "generated/resource-assets.json": {
+                "image_assets": [
+                    {
+                        "resource_id": "slot-hero",
+                        "route_id": "home",
+                        "section_ids": ["hero"],
+                        "sizes": "100vw",
+                        "loading": "eager",
+                        "fit": "cover",
+                        "focal_position": "center center",
+                        "alt_policy": "decorative",
+                        "sources": [
+                            {
+                                "path": "resources/renditions/hero-480w.webp",
+                                "width": 480,
+                                "height": 320,
+                                "format": "webp",
+                            }
+                        ],
+                    }
+                ]
+            },
+        },
+        operation="route_batch",
+        owned_paths=unit.owns_paths,
+    )
+
+    instructions = render_contract_instructions(contract)
+    assert contract["planned_image_assets"][0]["resource_id"] == "slot-hero"
+    assert contract["planned_image_assets"][0]["manifest_source_count"] == 1
+    assert "sources" not in contract["planned_image_assets"][0]
+    assert contract["planned_image_assets"][0]["element_marker"] == 'data-resource="hero"'
+    assert contract["must_preserve_text"] == []
+    assert contract["motion_beats"][0]["motion_id"] == "motion:hero"
+    assert "resources/renditions/hero-480w.webp" not in instructions
+    assert "Aarav Mehta" not in instructions
+    assert "Omit the sources prop" in instructions
+    assert 'wrapperMarker=data-resource="hero"' in instructions
+    assert "IntersectionObserver-driven state" in instructions
+    assert 'data-motion-target="hero-copy"' in instructions
+
+
+def test_scaffold_font_fallback_precedes_generated_font_tokens() -> None:
+    global_css = Path(
+        "src/oryxenai/agents/code_generator/scaffolds/react-vite-v1/src/design/global.css"
+    ).read_text(encoding="utf-8")
+
+    assert global_css.index('@import "./fonts.css";') < global_css.index('@import "./tokens.css";')
+    assert ":root { color-scheme: light; }" in global_css
+    assert "color-scheme: light dark" not in global_css
+
+
+def test_scaffold_local_image_resolves_immutable_sources_from_manifest() -> None:
+    scaffold = Path("src/oryxenai/agents/code_generator/scaffolds/react-vite-v1/src")
+    shared = (scaffold / "components/generated/SharedSystems.tsx").read_text(encoding="utf-8")
+    placeholder_manifest = (scaffold / "generated/resource-manifest.ts").read_text(encoding="utf-8")
+
+    assert 'import { RESOURCE_MANIFEST } from "../../generated/resource-manifest";' in shared
+    assert "sources?: readonly LocalImageSource[]" in shared
+    assert "sources ?? manifestAsset?.sources ?? []" in shared
+    assert '<picture style={{ display: "block", inlineSize: "100%", blockSize: "100%" }}>' in shared
+    assert shared.count('inlineSize: "100%"') >= 2
+    assert shared.count('blockSize: "100%"') >= 2
+    assert "image_assets: []" in placeholder_manifest
+
+
+def test_v4_public_runtime_data_excludes_internal_visual_fact_authority() -> None:
+    site = {"site_title": "Arjun Mehta — Senior UI/UX Designer"}
+    visual = {"global": {"must_preserve": ["Aarav Mehta", "Senior Architect"]}}
+    target = {"framework": "react-vite"}
+
+    v4 = _public_runtime_data(
+        site=site,
+        visual=visual,
+        target=target,
+        plan=SimpleNamespace(experience_blueprint=_blueprint()),
+    )
+    legacy = _public_runtime_data(
+        site=site,
+        visual=visual,
+        target=target,
+        plan=SimpleNamespace(experience_blueprint=None),
+    )
+
+    assert v4 == {"site": site, "target": target}
+    assert legacy["visual_direction"] == visual
+
+
+def test_v4_final_source_does_not_require_visual_direction_facts(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(final_source_validation, "validate_repository", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        final_source_validation, "audit_typescript_source", lambda *args, **kwargs: []
+    )
+    projections = {
+        "site/contract.json": {"routes": [], "public_content": [], "facts": []},
+        "design/visual-direction.json": {
+            "global": {"must_preserve": ["Aarav Mehta", "Senior Architect"]}
+        },
+        "execution/contract.json": {"slots": []},
+    }
+    plan = SimpleNamespace(
+        experience_blueprint=_blueprint(), acceptance_coverage=[], interactions=[]
+    )
+
+    diagnostics = final_source_validation.validate_final_source(
+        tmp_path,
+        plan=plan,
+        projections=projections,
+        allowed_packages=set(),
+        public_text=set(),
+    )
+
+    assert "SOURCE_VISUAL_CONTRACT_MISSING" not in {item.code for item in diagnostics}
+
+
+def test_v4_interaction_is_owned_by_its_selector_matched_section_batch() -> None:
+    base_blueprint = _blueprint()
+    contact_region = base_blueprint.section_regions[0].model_copy(
+        update={
+            "region_id": "region:contact",
+            "section_id": "contact",
+            "owner_id": "owner:contact",
+            "section_selector": '[data-content-id="contact"]',
+            "region_selector": '[data-region-id="region:contact"]',
+            "order_mobile": 1,
+            "order_tablet": 1,
+            "order_desktop": 1,
+        }
+    )
+    blueprint = ExperienceBlueprintV4.model_validate(
+        {
+            **base_blueprint.model_dump(),
+            "route_shells": [
+                base_blueprint.route_shells[0]
+                .model_copy(update={"section_order": ["hero", "contact"]})
+                .model_dump()
+            ],
+            "section_regions": [
+                base_blueprint.section_regions[0].model_dump(),
+                contact_region.model_dump(),
+            ],
+            "interaction_assignments": [
+                {
+                    "interaction_id": "interaction:home:hero:contact",
+                    "route_id": "home",
+                    "owner_work_unit_id": "owner:hero",
+                    "literal_marker": 'data-interaction="hero-contact"',
+                    "target_selector": '[data-content-id="hero"] a',
+                    "outcome_selector": '[data-content-id="contact"]',
+                    "trigger": "navigation",
+                    "keyboard_behavior": "Enter activates the focused link.",
+                    "state_transition": "idle to navigated",
+                    "focus_behavior": "Focus remains visible.",
+                    "expected_navigation": "Same-page navigation to #contact.",
+                }
+            ],
+        }
+    )
+    plan = SitePlan(
+        plan_id="interaction-owner",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero", "contact"],
+                section_order=["hero", "contact"],
+                responsive_outcome="Readable at every viewport",
+                reduced_motion_outcome="Content remains visible without motion",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        interactions=[
+            InteractionContract(
+                interaction_id="interaction:home:hero:contact",
+                route_id="home",
+                trigger="navigation",
+                outcome="idle to navigated",
+                keyboard_behavior="Enter activates the focused link.",
+                reduced_motion_behavior="No motion is required.",
+                target='[data-content-id="hero"] a',
+            )
+        ],
+        experience_blueprint=blueprint,
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [
+                {
+                    "route_id": "home",
+                    "path": "/",
+                    "storage_key": "home",
+                    "section_sequence": ["hero", "contact"],
+                }
+            ],
+            "public_content": [
+                {
+                    "route_id": "home",
+                    "sections": [
+                        {"section_id": "hero", "content": {"headline": "Approved headline"}},
+                        {"section_id": "contact", "content": {"heading": "Contact"}},
+                    ],
+                }
+            ],
+            "facts": [],
+        },
+        "design/visual-direction.json": {"global": {"must_preserve": []}},
+        "execution/contract.json": {"slots": []},
+    }
+
+    compiled = compile_site_plan(plan, projections)
+    batch = next(
+        item
+        for item in compiled.work_graph.units
+        if item.kind == "route_batch" and "hero" in item.section_ids
+    )
+    composer = next(item for item in compiled.work_graph.units if item.kind == "route_compose")
+
+    assert batch.interaction_ids == ["interaction:home:hero:contact"]
+    assert composer.interaction_ids == []
+    assert compiled.experience_blueprint is not None
+    assert compiled.experience_blueprint.interaction_assignments[0].owner_work_unit_id == (
+        batch.unit_id
+    )
+    contract = build_generation_contract(
+        unit=batch,
+        plan=compiled,
+        projections=projections,
+        operation="route_batch",
+        owned_paths=batch.owns_paths,
+    )
+    assert [item["interaction_id"] for item in contract["interactions"]] == [
+        "interaction:home:hero:contact"
+    ]
+    assert contract["interactions"][0]["literal_marker"] == ('data-interaction="hero-contact"')
+    assert contract["interactions"][0]["target_selector"] == ('[data-content-id="hero"] a')
+    assert contract["interactions"][0]["outcome_selector"] == ('[data-content-id="contact"]')
+    assert contract["routes"][0]["sections"][0]["section_selector"] == ('[data-content-id="hero"]')
+    instructions = render_contract_instructions(contract)
+    assert 'data-interaction="hero-contact"' in instructions
+    assert '[data-content-id="contact"]' in instructions
+    assert contract["required_coverage"]["interaction_ids"] == ["interaction:home:hero:contact"]
 
 
 def test_v4_source_wire_envelope_adapts_without_losing_coverage() -> None:
@@ -400,6 +972,275 @@ def test_v4_source_wire_envelope_adapts_without_losing_coverage() -> None:
     assert result.changes.criterion_coverage == ["criterion:home:proof"]
     assert result.changes.resource_usage == ["image:hero"]
     assert result.changes.interaction_coverage == ["interaction:home:contact"]
+
+
+def test_v4_source_wire_coverage_is_stamped_from_trusted_work_unit() -> None:
+    receipt = GenerationContextReceipt(
+        receipt_id="context-stamp",
+        operation_id="repair",
+        role_profile="offline-test",
+        output_schema_hash="schema",
+        context_hash="context-stamp-hash",
+    )
+    envelope = SourceGenerationEnvelopeV2(
+        result_tag="changes",
+        files=[
+            SourceFileChange(
+                path="src/routes/home/hero.tsx",
+                operation="replace",
+                complete_utf8_content="export default function Hero() { return null; }\n",
+            ),
+            SourceFileChange(
+                path="src/routes/home/hero.tsx",
+                operation="replace",
+                complete_utf8_content="export default function Hero() { return null; }\n",
+            ),
+        ],
+        exported_signatures=[],
+        # One character is transposed, matching the live integration-polish
+        # failure that motivated deterministic host stamping.
+        content_ids=["content:home:section-label-7cacd7b3"],
+        criterion_ids=["wrong-criterion"],
+        resource_slot_ids=[],
+        interaction_ids=[],
+        resource_requests=[],
+        dependency_requests=[],
+        failure_details=[],
+    )
+
+    result = adapt_v4_generation_result(
+        envelope,
+        operation_id="repair:home",
+        context_receipt=receipt,
+        required_coverage={
+            "content_ids": ["content:home:section-label-7cac7d3b"],
+            "criterion_ids": [],
+            "resource_slot_ids": ["slot:hero"],
+            "interaction_ids": ["interaction:hero"],
+        },
+    )
+
+    assert result.changes is not None
+    assert result.changes.content_coverage == ["content:home:section-label-7cac7d3b"]
+    assert result.changes.criterion_coverage == []
+    assert result.changes.resource_usage == ["slot:hero"]
+    assert result.changes.interaction_coverage == ["interaction:hero"]
+    assert [item.path for item in result.changes.files] == ["src/routes/home/hero.tsx"]
+
+
+def test_v4_source_wire_discards_signatures_for_unchanged_sibling_files() -> None:
+    receipt = GenerationContextReceipt(
+        receipt_id="context-signature-scope",
+        operation_id="repair",
+        role_profile="offline-test",
+        output_schema_hash="schema",
+        context_hash="context-signature-scope-hash",
+    )
+    envelope = SourceGenerationEnvelopeV2(
+        result_tag="changes",
+        files=[
+            SourceFileChange(
+                path="src/routes/home/design-systems.css",
+                operation="replace",
+                complete_utf8_content=".design-systems { aspect-ratio: 3 / 2; }\n",
+            ),
+            SourceFileChange(
+                path="src/routes/home/experience.tsx",
+                operation="replace",
+                complete_utf8_content=(
+                    "export default function HomeExperience() { return <section />; }\n"
+                ),
+            ),
+        ],
+        exported_signatures=[
+            ExportedSignature(
+                path="src/routes/home/design-systems.tsx",
+                export_name="HomeDesignSystems",
+                kind="component",
+            ),
+            ExportedSignature(
+                path="src/routes/home/experience.tsx",
+                export_name="HomeExperience",
+                kind="component",
+            ),
+        ],
+        content_ids=[],
+        criterion_ids=[],
+        resource_slot_ids=[],
+        interaction_ids=[],
+        resource_requests=[],
+        dependency_requests=[],
+        failure_details=[],
+    )
+
+    result = adapt_v4_generation_result(
+        envelope,
+        operation_id="repair:home:batch-2",
+        context_receipt=receipt,
+        required_coverage={
+            "content_ids": [],
+            "criterion_ids": [],
+            "resource_slot_ids": [],
+            "interaction_ids": [],
+        },
+    )
+
+    assert result.changes is not None
+    assert [item.path for item in result.changes.exported_signatures] == [
+        "src/routes/home/experience.tsx"
+    ]
+
+
+def test_v4_source_wire_derives_omitted_signature_from_changed_export() -> None:
+    receipt = GenerationContextReceipt(
+        receipt_id="context-signature-completion",
+        operation_id="repair",
+        role_profile="offline-test",
+        output_schema_hash="schema",
+        context_hash="context-signature-completion-hash",
+    )
+    path = "src/routes/home/approach.tsx"
+    envelope = SourceGenerationEnvelopeV2(
+        result_tag="changes",
+        files=[
+            SourceFileChange(
+                path=path,
+                operation="replace",
+                complete_utf8_content=(
+                    "export default function HomeApproach() { return <section />; }\n"
+                ),
+            )
+        ],
+        exported_signatures=[],
+        content_ids=[],
+        criterion_ids=[],
+        resource_slot_ids=[],
+        interaction_ids=[],
+        resource_requests=[],
+        dependency_requests=[],
+        failure_details=[],
+    )
+
+    result = adapt_v4_generation_result(
+        envelope,
+        operation_id="repair:home:batch-1",
+        context_receipt=receipt,
+        required_coverage={
+            "content_ids": [],
+            "criterion_ids": [],
+            "resource_slot_ids": [],
+            "interaction_ids": [],
+        },
+    )
+
+    assert result.changes is not None
+    assert [item.model_dump(mode="json") for item in result.changes.exported_signatures] == [
+        {"path": path, "export_name": "HomeApproach", "kind": "component"}
+    ]
+
+
+def test_v4_source_wire_keeps_conflicting_duplicate_files_for_rejection() -> None:
+    receipt = GenerationContextReceipt(
+        receipt_id="context-conflict",
+        operation_id="route_batch",
+        role_profile="offline-test",
+        output_schema_hash="schema",
+        context_hash="context-conflict-hash",
+    )
+    envelope = SourceGenerationEnvelopeV2(
+        result_tag="changes",
+        files=[
+            SourceFileChange(
+                path="src/routes/home/hero.tsx",
+                operation="replace",
+                complete_utf8_content="export default function Hero() { return null; }\n",
+            ),
+            SourceFileChange(
+                path="src/routes/home/hero.tsx",
+                operation="replace",
+                complete_utf8_content="export default function Hero() { return <main />; }\n",
+            ),
+        ],
+        exported_signatures=[],
+        content_ids=[],
+        criterion_ids=[],
+        resource_slot_ids=[],
+        interaction_ids=[],
+        resource_requests=[],
+        dependency_requests=[],
+        failure_details=[],
+    )
+
+    result = adapt_v4_generation_result(
+        envelope,
+        operation_id="route_batch:home",
+        context_receipt=receipt,
+        required_coverage={
+            "content_ids": [],
+            "criterion_ids": [],
+            "resource_slot_ids": [],
+            "interaction_ids": [],
+        },
+    )
+
+    assert result.changes is not None
+    assert len(result.changes.files) == 2
+
+
+def test_v4_css_only_route_polish_does_not_require_export_signatures() -> None:
+    unit = WorkUnit(
+        unit_id="route-home-batch-1",
+        kind="route_batch",
+        owns_paths=["src/routes/home/hero.css", "src/routes/home/hero.tsx"],
+    )
+    projections = {
+        "site/contract.json": {"public_content": [], "facts": []},
+    }
+    css_changes = GenerationChanges(
+        files=[
+            SourceFileChange(
+                path="src/routes/home/hero.css",
+                operation="replace",
+                complete_utf8_content="#hero { aspect-ratio: 1.7 / 1; }\n",
+            )
+        ],
+        exported_signatures=[],
+        content_coverage=[],
+        criterion_coverage=[],
+        resource_usage=[],
+        interaction_coverage=[],
+    )
+
+    _validate_v4_generation_coverage(
+        css_changes,
+        unit,
+        SimpleNamespace(),
+        projections,
+    )
+
+    exported_source_changes = css_changes.model_copy(
+        update={
+            "files": [
+                SourceFileChange(
+                    path="src/routes/home/hero.tsx",
+                    operation="replace",
+                    complete_utf8_content=(
+                        "export default function Hero() { return <section />; }\n"
+                    ),
+                )
+            ]
+        }
+    )
+    with pytest.raises(SourceValidationError) as exc_info:
+        _validate_v4_generation_coverage(
+            exported_source_changes,
+            unit,
+            SimpleNamespace(),
+            projections,
+        )
+
+    assert exc_info.value.code == "SOURCE_EXPORT_SIGNATURE_MISSING"
+    assert "src/routes/home/hero.tsx" in exc_info.value.message
 
 
 def test_acquired_image_assets_do_not_require_pack_slots(tmp_path) -> None:
@@ -642,4 +1483,150 @@ def test_v4_quality_scores_require_exact_concrete_evidence() -> None:
             motion_score=4,
             score_evidence=mismatched,
             review_summary="Mismatched dimension score.",
+        )
+
+
+def test_v4_quality_review_evidence_must_exist_and_make_low_scores_actionable() -> None:
+    dimensions = ["hierarchy", "composition", "typography", "resource_fit", "motion"]
+    source_path = "src/routes/home/hero.tsx"
+    source = "\n".join(f"<div data-quality-{dimension} />" for dimension in dimensions)
+    evidence = [
+        {
+            "dimension": dimension,
+            "score": 3 if dimension == "motion" else 4,
+            "owner_work_unit_id": "route-home-batch-1",
+            "file": source_path,
+            "line": index + 1,
+            "marker": f"data-quality-{dimension}",
+            "evidence": f"Observed {dimension} evidence.",
+        }
+        for index, dimension in enumerate(dimensions)
+    ]
+    unrelated_blocker = {
+        "finding_id": "finding-hierarchy",
+        "severity": "blocking",
+        "owner_work_unit_id": "route-home-batch-2",
+        "code": "HIERARCHY_DEFECT",
+        "file": source_path,
+        "line": 1,
+        "marker": "data-quality-hierarchy",
+        "evidence": "The hierarchy needs correction.",
+        "requested_outcome": "Correct the hierarchy.",
+    }
+    draft = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=3,
+        score_evidence=evidence,
+        findings=[unrelated_blocker],
+        review_summary="Motion remains below the acceptance floor.",
+    )
+
+    with pytest.raises(QualityReviewError, match="no blocking finding"):
+        validate_quality_review_draft_evidence(
+            draft,
+            assembled_source={source_path: source},
+        )
+
+    motion_blocker = {
+        "finding_id": "finding-motion",
+        "severity": "blocking",
+        "owner_work_unit_id": "route-home-batch-1",
+        "code": "MOTION_DEFECT",
+        "file": source_path,
+        "line": 5,
+        "marker": "data-quality-motion",
+        "evidence": "The motion fallback needs correction.",
+        "requested_outcome": "Correct the motion fallback.",
+    }
+    actionable = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=3,
+        score_evidence=evidence,
+        findings=[motion_blocker],
+        review_summary="Motion has one concrete blocking defect.",
+    )
+    canonical = validate_quality_review_draft_evidence(
+        actionable,
+        assembled_source={source_path: source},
+    )
+    assert canonical == actionable
+
+    off_by_one_evidence = [dict(item) for item in evidence]
+    off_by_one_evidence[-1]["line"] = 4
+    off_by_one = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=3,
+        score_evidence=off_by_one_evidence,
+        findings=[motion_blocker],
+        review_summary="The host must stamp the unique marker's real line.",
+    )
+    canonical = validate_quality_review_draft_evidence(
+        off_by_one,
+        assembled_source={source_path: source},
+    )
+    assert canonical.score_evidence[-1].line == 5
+
+    fabricated_evidence = [dict(item) for item in evidence]
+    fabricated_evidence[-1]["file"] = "src/routes/home/fabricated.tsx"
+    fabricated = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=3,
+        score_evidence=fabricated_evidence,
+        findings=[motion_blocker],
+        review_summary="Motion evidence uses a fabricated path.",
+    )
+    with pytest.raises(QualityReviewError, match="outside the assembled source"):
+        validate_quality_review_draft_evidence(
+            fabricated,
+            assembled_source={source_path: source},
+        )
+
+    repeated_marker = "<div data-quality-motion />\n<div data-quality-motion />"
+    canonical = validate_quality_review_draft_evidence(
+        off_by_one,
+        assembled_source={
+            source_path: source.replace("<div data-quality-motion />", repeated_marker)
+        },
+    )
+    assert canonical.score_evidence[-1].line == 5
+
+    tied_evidence = [dict(item) for item in evidence]
+    tied_evidence[-1]["line"] = 6
+    tied = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=3,
+        score_evidence=tied_evidence,
+        findings=[motion_blocker],
+        review_summary="The repeated marker is equally close to two lines.",
+    )
+    tied_source = source.replace(
+        "<div data-quality-motion />",
+        '<div data-quality-motion />\n<div aria-hidden="true" />\n<div data-quality-motion />',
+    )
+    with pytest.raises(QualityReviewError, match="equally close"):
+        validate_quality_review_draft_evidence(
+            tied,
+            assembled_source={source_path: tied_source},
+        )
+
+    with pytest.raises(QualityReviewError, match="non-repairable owner"):
+        validate_quality_review_draft_evidence(
+            actionable,
+            assembled_source={source_path: source},
+            repairable_owner_ids={"route-home-batch-2"},
         )

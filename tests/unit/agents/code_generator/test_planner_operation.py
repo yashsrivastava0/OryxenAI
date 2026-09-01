@@ -75,3 +75,4 @@ async def test_planner_retries_semantic_output_once(monkeypatch) -> None:
     assert plan.plan_id == "plan-retry"
     assert len(planner.calls) == 2
     assert "PLAN_SHARED_COMPONENTS" in planner.calls[1]
+    assert "Shared components must be owned by the route composer." in planner.calls[1]

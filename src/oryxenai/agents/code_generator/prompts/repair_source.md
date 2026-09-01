@@ -31,19 +31,62 @@ Apply the diagnostic's correct repair:
   `data-interaction-id="<interaction_id>"` on the interactive element in the
   anchor file; do not hide it behind a dynamic prop/helper.
 - `SOURCE_EXECUTION_SLOT_UNUSED`: use executable resource binding. Import and
-  render the admitted local component module, use the admitted
-  `/resources/pack/...` media URL in JSX/CSS, or import the admitted package
-  and export. A slot ID, filename in a comment, manifest text, or prose mention
-  does not count.
+  render the admitted local component module, render a planned image through
+  `LocalImage` with its exact short `resourceId` and no `sources` prop, or
+  import the admitted package and export. Never use an acquisition-ledger path
+  containing a run id and never invent a root-relative media URL. A slot ID,
+  filename in a comment, manifest text, or prose mention does not count.
+- `SOURCE_ROUTE_BATCH_IMAGE_BINDING_INVALID` / `RESOURCE_RUNTIME_PATH_MISMATCH`:
+  remove every inline `sources` prop and render the trusted `LocalImage` with
+  the exact short `resourceId`, sizes, loading, fit, focal position, and alt
+  policy supplied by `PLANNED LOCAL IMAGE BINDINGS`. The trusted component
+  resolves immutable paths, hashes, dimensions, and formats from the manifest.
+- `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID`: put the exact runtime marker
+  on the rendered element matched by the move's `source_selector`, then define
+  every required CSS property on that exact selector. The CSS selector may be
+  qualified by the same runtime-marker attribute, but never replace its route
+  and section scope with a shorter class selector.
+- `SOURCE_ROUTE_BATCH_MOTION_INVALID` / `MOTION_BEATS_NOT_IMPLEMENTED`:
+  implement every exact motion marker, selector, before/after value, and
+  reduced-motion final state. A viewport trigger needs IntersectionObserver
+  state or a CSS view timeline, not a load-time animation. For essential
+  content with a before opacity of 0, keep the unguarded CSS baseline at
+  opacity 1; put opacity 0 only beneath `[data-motion-ready="true"]`, and call
+  `setAttribute("data-motion-ready", "true")` only after confirming
+  IntersectionObserver support.
+- `SOURCE_ROUTE_COMPOSER_NAVIGATION_MISSING` /
+  `APPROVED_ANCHOR_NAVIGATION_MISSING`: pass a compact `<nav>` through
+  RouteShell's `navigation` prop with every literal section href from the
+  generation contract.
+- `SOURCE_ROUTE_BATCH_INTERACTION_STATE_MISSING` /
+  `INTERACTION_STATE_NOT_REALIZED`: implement the exact state attribute/value,
+  navigation, focus, and keyboard transition on the assigned target.
+- Disclosure repairs render one capability/content list only. Synchronize the
+  button's `aria-expanded` and `aria-controls` with `hidden={!open}` (or
+  conditional rendering) on that single panel. The native semantic list is
+  the static fallback; never duplicate the same items in a simultaneous
+  fallback branch.
 - `SOURCE_VISUAL_CONTRACT_MISSING`: include the missing preservation string.
+- `SOURCE_CSS_INVALID_LENGTH`: replace the named spelled-out unit with a valid
+  numeric CSS length or an admitted design token (`50ch`, not `fiftych`).
+- `SOURCE_CSS_CUSTOM_PROPERTY_UNBOUND`: replace every undefined custom
+  property with an exact compiler-emitted token, or define an intentional
+  runtime custom property literally on the owning JSX element. Do not invent
+  a parallel token name.
+- `SOURCE_ROUTE_FONT_FACE_FORBIDDEN`: remove route-authored `@font-face`
+  rules. The compiler-owned `src/design/generated-tokens.css` already emits
+  the admitted local font faces and root-public URLs.
 - `SOURCE_LOCAL_IMPORT_MISSING` / `SOURCE_UNDECLARED_IMPORT`: fix or remove the
   import using only files and packages admitted in the current context.
 - `SOURCE_ROUTE_H1_COUNT_INVALID` / `SOURCE_SECTION_ANCHOR_COUNT_INVALID` /
   `SOURCE_SECTION_DOM_ID_MISSING` / `SOURCE_SECTION_ORDER_INVALID`: for a V4
   route, section `.tsx` modules own their single literal section anchors and
   the route composer only renders those modules. Do not add duplicate wrapper
-  anchors or a route-level `<h1>`; remove duplicate composer markup and
-  preserve the hero section's sole heading. The route composer must not import
+  anchors or a route-level `<h1>`; preserve the route-scoped section ID in
+  `data-content-id` and implement the independent exact `section_selector`
+  from `<generation-contract>` (for example, `#hero` requires `id="hero"`).
+  Remove duplicate composer markup and preserve the hero section's sole
+  heading. The route composer must not import
   `src/content/generated-content`, call `contentValue(...)`, or create an
   `approvedContent` array. If the composer imports that module, remove the
   import and its unused content projection. Resolve trusted relative imports
@@ -63,9 +106,10 @@ For route, route-batch, or route-compose changes, populate
 `exported_signatures` with one entry for every changed exported source file,
 using its exact returned `path` and exported symbol name (for example,
 `HomeRoute` for a file containing `export default function HomeRoute`). Include
-the complete changed file bodies in `files`; never replace these arrays with
-sentences describing what was preserved. Keep `self_check` truthful but do not
-omit the required envelope arrays.
+no signatures for unchanged or omitted files. Include the complete changed file
+bodies in `files`; never replace these arrays with sentences describing what
+was preserved. Keep `self_check` truthful but do not omit the required envelope
+arrays.
 
 When rejected file bodies are supplied, return the complete corrected file.
 Preserve public truth, route ownership, resource bindings, accessibility,

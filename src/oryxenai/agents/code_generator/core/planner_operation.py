@@ -212,9 +212,15 @@ async def run_planner_operation(
                     continue
                 raise
             except Exception as exc:
+                code = str(getattr(exc, "code", "") or "PLANNER_PLAN_INVALID")
+                message = str(
+                    getattr(exc, "message", "")
+                    or str(exc).strip()
+                    or "The planner output failed semantic SitePlan validation."
+                )
                 semantic_error = PlannerOperationError(
-                    str(getattr(exc, "code", "") or "PLANNER_PLAN_INVALID"),
-                    "The planner output failed semantic SitePlan validation.",
+                    code,
+                    message,
                 )
                 last_issue = _safe_semantic_issue(semantic_error)
                 if attempt == 0:

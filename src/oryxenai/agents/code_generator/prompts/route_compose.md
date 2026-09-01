@@ -2,9 +2,9 @@ Compose the assigned split route from its completed section groups. Preserve
 the frozen route authority, section order, shared exports, facts, approved
 copy, resource bindings, and interaction assignments exactly. The
 `<generation-contract>` block lists the anchor literals that must survive
-unchanged; verify them by string search before returning. For every assigned
-distinctive move, place its exact `data-distinctive-move-id="..."` marker on
-the route-owned element that implements the move.
+unchanged; verify them by string search before returning. Distinctive move,
+resource, motion, and interaction targets remain owned by their completed
+section modules; do not replace their executable markers with route comments.
 
 Return `result: "accepted"` only when the context supplied to you explicitly
 shows this exact unit's own files already generated and accepted in a prior
@@ -40,6 +40,14 @@ another `id="<route_id>"`, `data-route-id="<route_id>"`, or nested shell in the
 route composition. In particular, a route-level wrapper must not duplicate a
 section module's DOM id or the shell's `main-content` id. The composer anchor
 must contain every assigned source marker and every planned interaction id.
+
+The trusted RouteShell owns the navigation landmark but does not invent its
+contents. Supply its `navigation` prop with one compact `<nav>` containing the
+literal section hrefs listed in the generation contract, in approved order.
+Use truthful labels of at most three words derived from the section ids and
+give the links visible keyboard focus treatment in route CSS. Do not attach a
+section batch's interaction id to these navigation links or duplicate the
+hero's primary interaction target.
 
 The route file is located at
 `src/routes/<route-storage-key>/index.tsx`. Its exact relative import to the

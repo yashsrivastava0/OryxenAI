@@ -214,7 +214,7 @@ def _generation_report(payload: dict[str, Any]) -> str:
         "1. Inspect `source/` as the generator output under test.",
         "2. Run the project's configured checks/build from `source/` when the environment permits.",
         "3. Compare visible behavior with `dist/` and the preview URL recorded in `portfolio.json`.",
-        "4. Record recurring defects as Code Generator agent changes or regression tests; do not patch this export as the durable fix.",
+        "4. Fix recurring defects as Code Generator agent changes or regression tests; do not patch this export as the durable fix.",
         "",
     ]
     return "\n".join(str(line) for line in lines) + "\n"
