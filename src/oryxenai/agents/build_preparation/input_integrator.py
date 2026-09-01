@@ -14,6 +14,9 @@ from typing import Any
 
 from oryxenai.agents.build_preparation.compiler import build_source_ref
 from oryxenai.agents.build_preparation.schemas import BuildPreparationSourceRef
+from oryxenai.agents.build_preparation.validators import (
+    validate_content_visual_identity_consistency,
+)
 from oryxenai.agents.build_preparation.visual_input import normalize_visual_input
 
 
@@ -122,6 +125,7 @@ class BuildPreparationInputIntegrator:
             component_maximum=int(config.visual_component_maximum),
             enabled=bool(config.auto_derive_visual_resources),
         )
+        validate_content_visual_identity_consistency(content, normalized.visual)
         return BuildPreparationInputs(
             content_architect=content,
             visual_design_director=normalized.visual,

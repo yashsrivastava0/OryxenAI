@@ -4,6 +4,8 @@ import hashlib
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from oryxenai.agents.build_preparation.input_integrator import (
     BuildPreparationInputIntegrator,
 )
@@ -13,6 +15,10 @@ from oryxenai.agents.build_preparation.schemas import (
     PackageResult,
 )
 from oryxenai.agents.build_preparation.service import BuildPreparationService
+from oryxenai.agents.build_preparation.validators import (
+    BuildPreparationValidationError,
+    validate_content_visual_identity_consistency,
+)
 from oryxenai.agents.content_architect.schemas import (
     ContentArchitectApproval,
     ContentArchitectState,
@@ -95,6 +101,43 @@ def test_integrator_source_ref_changes_when_either_upstream_changes() -> None:
         _content(), changed_visual
     ).source_ref.visual_design_director_direction_hash != (
         original.visual_design_director_direction_hash
+    )
+
+
+def test_integrator_rejects_repeated_visual_identity_mismatch() -> None:
+    content = _content()
+    content["claim_grounding"] = [
+        {
+            "claim_id": "role",
+            "publication_status": "approved",
+            "statement": "Arjun Mehta is a Senior UI/UX Designer.",
+        }
+    ]
+    visual = _visual()
+    visual["must_preserve"] = ["Aarav Mehta"]
+    visual["visual_language"] = {
+        "anti_patterns": ["Do not present Aarav as the owner of team outcomes."],
+    }
+
+    with pytest.raises(BuildPreparationValidationError) as caught:
+        BuildPreparationInputIntegrator(Settings()).compose(content, visual)
+
+    assert caught.value.code == "PACK_VISUAL_IDENTITY_MISMATCH"
+    assert caught.value.details == {
+        "approved_name": "Arjun Mehta",
+        "mismatched_names": "Aarav Mehta",
+    }
+
+
+def test_identity_validator_accepts_compiled_canonical_projection() -> None:
+    validate_content_visual_identity_consistency(
+        {"facts": [{"fact_id": "role", "statement": "Arjun Mehta is a designer."}]},
+        {
+            "global": {
+                "must_preserve": ["Arjun Mehta"],
+                "visual_language": {"style": "technical editorial"},
+            }
+        },
     )
 
 

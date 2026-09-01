@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections import Counter
 from typing import Any
 
 from oryxenai.agents.build_preparation.schemas import (
@@ -22,6 +24,173 @@ class BuildPreparationValidationError(ValueError):
         self.message = message
         self.details = details or {}
         super().__init__(message)
+
+
+class VisualIdentityMismatchError(BuildPreparationValidationError):
+    """A hard failure when visual direction names a different person."""
+
+    code = "PACK_VISUAL_IDENTITY_MISMATCH"
+
+
+_PERSON_NAME_RE = re.compile(r"\b([A-Z][a-z]{1,30})\s+([A-Z][a-z]{1,30})\b")
+_NON_PERSON_NAME_WORDS = frozenset(
+    {
+        "accent",
+        "architect",
+        "background",
+        "bengaluru",
+        "body",
+        "button",
+        "card",
+        "color",
+        "content",
+        "design",
+        "designer",
+        "display",
+        "editorial",
+        "experience",
+        "font",
+        "foreground",
+        "grotesk",
+        "india",
+        "interface",
+        "karnataka",
+        "lead",
+        "material",
+        "muted",
+        "neutral",
+        "paper",
+        "product",
+        "primary",
+        "professional",
+        "secondary",
+        "senior",
+        "space",
+        "system",
+        "technical",
+        "text",
+        "ui",
+        "ux",
+        "visual",
+    }
+)
+_NON_PERSON_NAME_LAST_WORDS = _NON_PERSON_NAME_WORDS
+
+
+def _person_name_candidates(value: Any) -> list[str]:
+    """Return conservative two-word proper-name candidates from free text."""
+
+    text = str(value or "")
+    candidates: list[str] = []
+    for match in _PERSON_NAME_RE.finditer(text):
+        first, last = match.groups()
+        if first.casefold() in _NON_PERSON_NAME_WORDS or last.casefold() in (
+            _NON_PERSON_NAME_LAST_WORDS
+        ):
+            continue
+        candidates.append(f"{first} {last}")
+    return candidates
+
+
+def _walk_text(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for child in value.values() for text in _walk_text(child)]
+    if isinstance(value, list):
+        return [text for child in value for text in _walk_text(child)]
+    return []
+
+
+def _approved_fact_statements(content_architect: dict[str, Any]) -> list[str]:
+    statements: list[str] = []
+    for field in ("claim_grounding", "facts"):
+        values = content_architect.get(field)
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            status = item.get("publication_status", "approved")
+            status = getattr(status, "value", status)
+            if str(status or "approved") != "approved":
+                continue
+            statement = str(item.get("statement", "") or "").strip()
+            if statement:
+                statements.append(statement)
+    return statements
+
+
+def _visual_identity_texts(visual_design_director: dict[str, Any]) -> list[str]:
+    scope = visual_design_director.get("global")
+    if not isinstance(scope, dict):
+        scope = visual_design_director
+    return [
+        text
+        for field in ("must_preserve", "visual_language")
+        for text in _walk_text(scope.get(field))
+    ]
+
+
+def _count_person_names(values: list[str]) -> tuple[Counter[str], dict[str, str]]:
+    counts: Counter[str] = Counter()
+    display_names: dict[str, str] = {}
+    for value in values:
+        for candidate in _person_name_candidates(value):
+            key = candidate.casefold()
+            counts[key] += 1
+            display_names.setdefault(key, candidate)
+    return counts, display_names
+
+
+def _count_name_first_tokens(values: list[str], candidates: dict[str, str]) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for key in candidates:
+        first = key.split(" ", 1)[0]
+        pattern = re.compile(rf"\b{re.escape(first)}\b", re.IGNORECASE)
+        counts[key] = sum(len(pattern.findall(value)) for value in values)
+    return counts
+
+
+def validate_content_visual_identity_consistency(
+    content_architect: dict[str, Any],
+    visual_design_director: dict[str, Any],
+) -> None:
+    """Reject repeated visual-direction names that contradict approved content.
+
+    The check is intentionally narrow: it needs an owner name from approved
+    facts and a repeated, two-word proper-name candidate in the visual
+    handoff.  A single incidental capitalized phrase is not enough to reject
+    a pack, while the common failure mode of copying a different person's
+    name into multiple visual constraints is hard-failed.
+    """
+
+    if not isinstance(content_architect, dict) or not isinstance(visual_design_director, dict):
+        return
+    content_counts, content_display_names = _count_person_names(
+        _approved_fact_statements(content_architect)
+    )
+    if not content_counts:
+        return
+    approved_key, approved_count = content_counts.most_common(1)[0]
+    if approved_count < 1:
+        return
+    visual_texts = _visual_identity_texts(visual_design_director)
+    visual_counts, visual_display_names = _count_person_names(visual_texts)
+    visual_first_token_counts = _count_name_first_tokens(visual_texts, visual_display_names)
+    mismatches = sorted(
+        visual_display_names[key]
+        for key, count in visual_counts.items()
+        if key != approved_key and (count > 1 or visual_first_token_counts.get(key, 0) > 1)
+    )
+    if mismatches:
+        raise VisualIdentityMismatchError(
+            "Visual direction repeatedly names a person other than the approved content owner.",
+            details={
+                "approved_name": content_display_names[approved_key],
+                "mismatched_names": ", ".join(mismatches),
+            },
+        )
 
 
 def _as_list(value: Any, field: str) -> list[Any]:
