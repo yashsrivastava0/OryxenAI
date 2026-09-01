@@ -33,14 +33,32 @@ Grounding and exact coverage:
 - Give every section exact selectors, viewport order, columns, measure, gap,
   width range, overlap ceiling, and sticky authority. Responsive changes must
   preserve approved copy and reading order.
+- For every `route_shells` row, preserve the exact approved `section_order`
+  and set `h1_owner` to the first section ID in that order. The trusted shell
+  owns the main landmark but has no authority to invent a content heading;
+  never use `trusted_shell`, `composer`, a file name, or a new ID as the
+  heading owner.
 - Give every route at least one content-specific distinctive move. Bind it to
   source and target selectors, a machine-readable geometric relationship,
   ratio range, viewport set, and the CSS properties that establish it. A data
-  marker by itself is not implementation.
-- Place each required resource once in its approved section. State selector,
-  honest alt policy, fit, focal position, responsive `sizes`, loading policy,
-  visible-ratio floor, and aspect-ratio range. Representative media is never
-  personal evidence.
+  marker by itself is not implementation. Every required CSS property must be
+  valid and effective on the exact `source_selector` element itself. Use
+  composition/layout properties here; never require `object-fit` or
+  `object-position` on a section/panel wrapper. Media fit and focal position
+  belong to the resource placement and its rendered image.
+- Place each required resource once in its approved section. In every
+  `resource_placements[*].resource_slot_id`, copy the exact
+  `resource_bindings.slots[*].resource_slot_id` value (for example, a
+  `slot-...` ID). Never put a materialized resource `id`, provider asset ID,
+  filename, or source ID in that field. The slot's nested
+  `resolution.resource_id` identifies the concrete file but is not the slot
+  identity. State selector, honest alt policy, fit, focal position, responsive
+  `sizes`, loading policy, visible-ratio floor, and aspect-ratio range.
+  `element_marker` must be one literal `data-*="stable-token"` attribute on
+  the generated `LocalImage` wrapper, and `element_selector` must be that same
+  attribute as a CSS selector (`[data-*="stable-token"]`). Do not target the
+  trusted nested `img`; runtime verification finds it inside the wrapper.
+  Representative media is never personal evidence.
 - Assign every approved interaction exactly once with selector, literal
   marker, keyboard behavior, focus result, state transition, state attribute,
   and same-app navigation outcome when applicable.

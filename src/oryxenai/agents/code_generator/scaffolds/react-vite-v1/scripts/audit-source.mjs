@@ -407,6 +407,35 @@ function routeSections() {
   return result;
 }
 
+function sectionSelectorMap(meta) {
+  const result = new Map();
+  for (const item of meta?.section_selectors || []) {
+    if (
+      !item ||
+      typeof item.route_id !== "string" ||
+      typeof item.section_id !== "string" ||
+      typeof item.section_selector !== "string"
+    ) continue;
+    result.set(`${item.route_id}\u0000${item.section_id}`, item.section_selector);
+  }
+  return result;
+}
+
+function matchesSimpleSelector(node, selector) {
+  const value = String(selector || "").trim();
+  const attributes = jsxAttributes(node);
+  const id = value.match(/^#([A-Za-z_][\w-]*)$/);
+  if (id) return attributes.get("id") === id[1];
+  const attribute = value.match(/^\[\s*([A-Za-z_:][\w:.-]*)\s*=\s*(["'])(.*?)\2\s*\]$/);
+  if (attribute) return attributes.get(attribute[1]) === attribute[3];
+  const className = value.match(/^\.([A-Za-z_][\w-]*)$/);
+  if (className) {
+    const literal = attributes.get("className") ?? attributes.get("class");
+    return typeof literal === "string" && literal.split(/\s+/).includes(className[1]);
+  }
+  return undefined;
+}
+
 function routeScopedFiles(routeFile) {
   if (!routeFile) return [];
   const directory = path.dirname(routeFile);
@@ -536,6 +565,7 @@ function auditV4Routes() {
   if (meta?.pipeline_contract_version !== "code-generator-v4") return;
   const routes = readRoutes();
   const sectionsByRoute = routeSections();
+  const selectorsBySection = sectionSelectorMap(meta);
   const { contentByRoute, interactionsByRoute } = routeContractData(routes);
   if (!routes.length) {
     report(metaFile, sourceTrees.get(metaFile), "V4 source audit found no generated routes");
@@ -574,9 +604,14 @@ function auditV4Routes() {
     const sectionIds = sectionsByRoute.get(route.routeId) || [];
     for (const sectionId of sectionIds) {
       const contentAnchors = jsx.filter((node) => jsxAttributes(node).get("data-content-id") === sectionId);
-      const domIds = jsx.filter((node) => jsxAttributes(node).get("id") === sectionId);
       if (contentAnchors.length !== 1) report(route.fileName, routeSource, `section ${sectionId} needs exactly one literal data-content-id anchor`);
-      if (domIds.length !== 1) report(route.fileName, routeSource, `section ${sectionId} needs exactly one literal DOM id`);
+      const sectionSelector = selectorsBySection.get(`${route.routeId}\u0000${sectionId}`);
+      const selectorMatches = jsx
+        .map((node) => matchesSimpleSelector(node, sectionSelector))
+        .filter((match) => match !== undefined);
+      if (selectorMatches.length && selectorMatches.filter(Boolean).length !== 1) {
+        report(route.fileName, routeSource, `section ${sectionId} needs exactly one literal match for selector ${sectionSelector}`);
+      }
     }
     const sectionPositions = sectionRenderPositions(routeSource, sectionIds, files);
     if (sectionPositions.some((position) => position < 0)) {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -106,6 +107,21 @@ def validate_v4_blueprint_identities(
     blueprint: ExperienceBlueprintV4, context: dict[str, Any]
 ) -> None:
     """Require V4 region and semantic-owner IDs to match the host manifest."""
+
+    media_only_properties = {"object-fit", "object-position"}
+    for move in blueprint.distinctive_moves:
+        invalid = sorted(
+            media_only_properties.intersection(
+                property_name.casefold() for property_name in move.required_css_properties
+            )
+        )
+        if invalid:
+            raise SitePlanValidationError(
+                "PLAN_BLUEPRINT_MOVE_PROPERTY_INVALID",
+                "Distinctive moves require composition properties that apply to their exact "
+                f"source selector; media-only properties belong to resource placement: "
+                f"{move.move_id} -> {', '.join(invalid)}.",
+            )
 
     raw_manifest = context.get("blueprint_identity_manifest")
     if not isinstance(raw_manifest, list):
@@ -509,6 +525,11 @@ def _validate_v4_experience_blueprint(
                 "PLAN_ROUTE_SHELL_SECTION_ORDER",
                 "A v4 route shell must preserve the exact approved section sequence.",
             )
+        if not expected or shell.h1_owner != expected[0]:
+            raise SitePlanValidationError(
+                "PLAN_ROUTE_SHELL_H1_OWNER",
+                "A v4 route's first approved section must own its single page heading.",
+            )
     regions = {item.region_id: item for item in blueprint.regions}
     covered = {
         route_id: {item.section_id for item in blueprint.regions if item.route_id == route_id}
@@ -651,13 +672,26 @@ def _validate_v4_experience_blueprint(
             for token in ("image", "photo", "media", "illustration", "texture", "visual")
         )
     }
-    placed_slots = {item.resource_slot_id for item in blueprint.resource_placements}
-    if not required_slots.issubset(placed_slots) or any(
-        slot_id not in bindings for slot_id in placed_slots
-    ):
+    placement_counts = Counter(item.resource_slot_id for item in blueprint.resource_placements)
+    placed_slots = set(placement_counts)
+    missing_slots = sorted(required_slots - placed_slots)
+    unknown_slots = sorted(placed_slots - set(bindings))
+    duplicate_required_slots = sorted(
+        slot_id for slot_id in required_slots if placement_counts[slot_id] > 1
+    )
+    if missing_slots or unknown_slots or duplicate_required_slots:
+        details = []
+        if missing_slots:
+            details.append(f"missing required slot IDs: {', '.join(missing_slots)}")
+        if unknown_slots:
+            details.append(f"unknown slot IDs: {', '.join(unknown_slots)}")
+        if duplicate_required_slots:
+            details.append("duplicated required slot IDs: " + ", ".join(duplicate_required_slots))
         raise SitePlanValidationError(
             "PLAN_REQUIRED_VISUAL_USAGE",
-            "Every required visual binding must have exactly one v4 placement.",
+            "Every required visual binding must have exactly one v4 placement; "
+            + "; ".join(details)
+            + ".",
         )
 
 

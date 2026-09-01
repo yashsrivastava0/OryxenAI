@@ -7,6 +7,7 @@ import json
 import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from oryxenai.agents.code_generator.core import fs_safe
@@ -301,13 +302,32 @@ def repair_allowed_paths(
     diagnostics: list[Diagnostic],
     plan: SitePlan,
     projections: dict[str, Any] | None = None,
+    repo_dir: Path | None = None,
 ) -> list[str]:
     del plan
     file_paths = {
         item.file for item in diagnostics if item.file and not item.file.startswith("public/")
     }
     if file_paths:
-        return sorted(file_paths)
+        bounded_paths = set(file_paths)
+        if repo_dir is not None:
+            for path in file_paths:
+                source_path = Path(path)
+                candidates: list[Path] = []
+                if source_path.suffix in {".ts", ".tsx"}:
+                    candidates.append(source_path.with_suffix(".css"))
+                    if source_path.name in {"index.ts", "index.tsx"}:
+                        candidates.append(source_path.with_name("route.css"))
+                elif source_path.suffix == ".css":
+                    candidates.extend(
+                        [source_path.with_suffix(".tsx"), source_path.with_suffix(".ts")]
+                    )
+                bounded_paths.update(
+                    candidate.as_posix()
+                    for candidate in candidates
+                    if (repo_dir / candidate).is_file()
+                )
+        return sorted(bounded_paths)
     route_ids = {item.route_id for item in diagnostics if item.route_id}
     if route_ids:
         # Route files live at the site contract's storage key (e.g.

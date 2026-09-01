@@ -51,6 +51,7 @@ def compile_site_plan(
     design_neutral = design_neutral or isinstance(
         plan.experience_blueprint, (ExperienceBlueprintV3, ExperienceBlueprintV4)
     )
+    v4_interaction_sections = _v4_interaction_sections(plan)
     units: list[WorkUnit] = [
         WorkUnit(
             unit_id="foundation",
@@ -159,6 +160,13 @@ def compile_site_plan(
                             item.interaction_id
                             for item in plan.interactions
                             if item.route_id in {"", route.route_id}
+                            and v4_interaction_sections.get(item.interaction_id) in sections
+                        ]
+                        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+                        else [
+                            item.interaction_id
+                            for item in plan.interactions
+                            if item.route_id in {"", route.route_id}
                             and any(section in sections for section in route.section_ids)
                         ]
                         if not design_neutral
@@ -184,11 +192,20 @@ def compile_site_plan(
                     depends_on=["foundation", *batch_ids],
                     required_shared_exports=["SharedSystems"],
                     criterion_ids=criteria,
-                    interaction_ids=[
-                        item.interaction_id
-                        for item in plan.interactions
-                        if item.route_id in {"", route.route_id}
-                    ],
+                    interaction_ids=(
+                        [
+                            item.interaction_id
+                            for item in plan.interactions
+                            if item.route_id in {"", route.route_id}
+                            and item.interaction_id not in v4_interaction_sections
+                        ]
+                        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+                        else [
+                            item.interaction_id
+                            for item in plan.interactions
+                            if item.route_id in {"", route.route_id}
+                        ]
+                    ),
                     owns_route_shell=True,
                     isolated_workspace_key=f"{route_slug}-composer",
                     context_estimate=8000,
@@ -243,6 +260,43 @@ def compile_site_plan(
             "experience_blueprint": experience_blueprint,
         }
     )
+
+
+def _v4_interaction_sections(plan: SitePlan) -> dict[str, str]:
+    """Map selector-bound V4 interactions to their trigger's section owner.
+
+    V4 interactions execute on elements inside section modules, while the
+    composer owns only the route shell. The planner already supplies exact
+    section and interaction selectors, so use the trigger target's CSS
+    ancestry rather than an interaction-ID naming convention. An outcome may
+    intentionally live in another section (for example, an in-page CTA), so
+    it cannot determine source ownership. Unresolved/ambiguous target
+    assignments remain composer-owned and fail closed at the whole-route
+    audit.
+    """
+
+    blueprint = plan.experience_blueprint
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return {}
+    result: dict[str, str] = {}
+    for interaction in blueprint.interaction_assignments:
+        matches = {
+            region.section_id
+            for region in blueprint.section_regions
+            if region.route_id == interaction.route_id
+            and _selector_within(interaction.target_selector, region.section_selector)
+        }
+        if len(matches) == 1:
+            result[interaction.interaction_id] = matches.pop()
+    return result
+
+
+def _selector_within(selector: str, section_selector: str) -> bool:
+    selector = selector.strip()
+    section_selector = section_selector.strip()
+    if not selector or not section_selector or not selector.startswith(section_selector):
+        return False
+    return len(selector) == len(section_selector) or selector[len(section_selector)] in " >+~:[."
 
 
 def compile_execution_bindings(

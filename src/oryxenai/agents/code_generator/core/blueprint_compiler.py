@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from oryxenai.agents.code_generator.core.content_compiler import content_ids_by_section
@@ -37,6 +38,9 @@ def compile_blueprint_site_plan(
 ) -> SitePlan:
     """Compile route/content/criterion/resource ownership without model-authored paths."""
 
+    blueprint = canonicalize_v4_h1_owners(blueprint)
+    blueprint = _canonicalize_resource_placement_slots(blueprint, projections)
+    blueprint = canonicalize_v4_resource_placement_selectors(blueprint)
     site = projections["site/contract.json"]
     routes = [item for item in site.get("routes", []) if isinstance(item, dict)]
     public_content = [item for item in site.get("public_content", []) if isinstance(item, dict)]
@@ -258,6 +262,119 @@ def compile_blueprint_site_plan(
     )
 
 
+def _canonicalize_resource_placement_slots(
+    blueprint: ExperienceBlueprintV4,
+    projections: dict[str, dict[str, Any]],
+) -> ExperienceBlueprintV4:
+    """Resolve unique materialized-resource aliases to host-owned slot IDs.
+
+    Creative direction discusses concrete resources by resource ID, while the
+    executable placement contract is keyed by ``resource_slot_id``. Providers
+    can therefore return the right resource, route, section, and geometry with
+    the concrete resource ID in the slot field. The execution contract owns a
+    one-to-one resource-to-slot mapping, so canonicalize only unique aliases;
+    unknown or ambiguous values remain untouched for semantic validation.
+    """
+
+    execution = projections.get("execution/contract.json", {})
+    slots = execution.get("slots", []) if isinstance(execution, dict) else []
+    known_slots: set[str] = set()
+    aliases: dict[str, set[str]] = {}
+    for raw_slot in slots:
+        if not isinstance(raw_slot, dict):
+            continue
+        slot_id = str(raw_slot.get("resource_slot_id", "")).strip()
+        if not slot_id:
+            continue
+        known_slots.add(slot_id)
+        raw_resolution = raw_slot.get("resolution")
+        resolution = raw_resolution if isinstance(raw_resolution, dict) else {}
+        resource_id = str(resolution.get("resource_id", "")).strip()
+        if resource_id:
+            aliases.setdefault(resource_id, set()).add(slot_id)
+
+    changed = False
+    placements = []
+    for placement in blueprint.resource_placements:
+        value = placement.resource_slot_id
+        candidates = aliases.get(value, set()) if value not in known_slots else set()
+        if len(candidates) == 1:
+            placement = placement.model_copy(update={"resource_slot_id": next(iter(candidates))})
+            changed = True
+        placements.append(placement)
+    if not changed:
+        return blueprint
+    return blueprint.model_copy(update={"resource_placements": placements})
+
+
+def canonicalize_v4_h1_owners(blueprint: ExperienceBlueprintV4) -> ExperienceBlueprintV4:
+    """Assign each route heading to its first approved content section.
+
+    The trusted shell owns the main landmark but has no approved route copy,
+    so it cannot author the page heading.  This ownership is fully determined
+    by the approved section order and is host-canonicalized like materialized
+    resource slots instead of trusting a model echo.
+    """
+
+    changed = False
+    shells = []
+    for shell in blueprint.route_shells:
+        owner = shell.section_order[0]
+        if shell.h1_owner != owner:
+            shell = shell.model_copy(update={"h1_owner": owner})
+            changed = True
+        shells.append(shell)
+    if not changed:
+        return blueprint
+    return blueprint.model_copy(update={"route_shells": shells})
+
+
+def canonicalize_v4_resource_placement_selectors(
+    blueprint: ExperienceBlueprintV4,
+) -> ExperienceBlueprintV4:
+    """Bind each runtime resource check to its model-authored wrapper marker.
+
+    ``LocalImage`` owns the nested ``img`` and intentionally exposes no API for
+    arbitrary image attributes. The generated section owns its wrapper. A
+    stable data-marker selector lets runtime verification select that wrapper
+    and then inspect the trusted descendant image, which is the verifier's
+    existing behavior.
+    """
+
+    changed = False
+    placements = []
+    for placement in blueprint.resource_placements:
+        marker = placement.element_marker.strip()
+        match = re.fullmatch(
+            r"(?P<name>data-[A-Za-z_][\w:.-]*)\s*=\s*(?P<quote>[\"'])"
+            r"(?P<value>[^\"'<>\[\]{}]+)(?P=quote)",
+            marker,
+        )
+        if match is not None:
+            selector = f"[{match.group('name')}={match.group('quote')}"
+            selector += f"{match.group('value')}{match.group('quote')}]"
+            if placement.element_selector != selector:
+                placement = placement.model_copy(update={"element_selector": selector})
+                changed = True
+        placements.append(placement)
+    if not changed:
+        return blueprint
+    return blueprint.model_copy(update={"resource_placements": placements})
+
+
+def canonicalize_generation_plan(plan: SitePlan) -> SitePlan:
+    """Apply deterministic V4 ownership normalization at every stage boundary."""
+
+    blueprint = plan.experience_blueprint
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return plan
+    canonical = canonicalize_v4_h1_owners(blueprint)
+    canonical = canonicalize_v4_resource_placement_selectors(canonical)
+    if canonical is blueprint:
+        return plan
+    return plan.model_copy(update={"experience_blueprint": canonical})
+
+
 def _storage_key(value: str) -> str:
     normalized = value.replace("\\", "/").strip("/")
     if normalized.startswith("routes/"):
@@ -282,4 +399,9 @@ def _viewport_strategy(regions: list[Any], viewport: str) -> str:
     )
 
 
-__all__ = ["compile_blueprint_site_plan"]
+__all__ = [
+    "canonicalize_generation_plan",
+    "canonicalize_v4_h1_owners",
+    "canonicalize_v4_resource_placement_selectors",
+    "compile_blueprint_site_plan",
+]

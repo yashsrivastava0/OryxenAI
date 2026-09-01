@@ -16,16 +16,25 @@ Authority and anchor requirements:
 - Copy every admitted route id, section id, fact id, criterion id, content
   string, source marker, interaction id, and approved destination exactly.
 - Each concrete owned `.tsx` file is the independent owner of exactly one
-  assigned section. That file must contain the section id as literal text,
-  `id="<section_id>"`, and `data-content-id="<section_id>"`, plus every
-  approved content string for that section. Do not put two assigned section
-  anchors in one file, create a route-level aggregator, or leave an owned
-  section file as a helper with no section anchor.
+  assigned section. That file must contain the route-scoped section id as the
+  exact `data-content-id="<section_id>"` literal and must separately implement
+  the exact `section_selector` listed for it in the generation contract. For a
+  selector such as `#hero`, use `id="hero"`; do not turn it into
+  `id="home:hero"`. Keep the route-scoped content identity and DOM selector as
+  two distinct contract values when they differ. Include every approved
+  content value for that section. Do not put two assigned section anchors in
+  one file, create a route-level aggregator, or leave an owned section file as
+  a helper with no section anchor.
 - The first owned file is only the deterministic validation starting point; it
   is not an aggregator and does not own the other section files. Re-read every
   owned section file top to bottom and string-check the contract before
   returning. A copied-from-memory sentence, marker paraphrase, or one-character
   interaction-id change is a failed result.
+- Follow the generation contract's canonical page-heading ownership exactly.
+  The batch containing the named `h1_owner` section renders one visible `<h1>`
+  in that section file; every other section and every batch that does not own
+  it renders no `<h1>`. Do not demote the owner heading to `<h2>` or leave the
+  composer to invent route copy it does not own.
 
 Import paths are resolved from the repository root, not from the prompt's
 logical `src/...` labels. Use the `@/` alias when possible. If using relative
@@ -41,15 +50,15 @@ Do not use four `..` segments from a section file; that leaves `src/` and
 cannot resolve the trusted modules. Before returning, resolve every local
 import against the actual owned source paths.
 
-Each owned section file is an independent default-exported component and must
-carry the exact route-scoped `id="<section_id>"` and
-`data-content-id="<section_id>"` literals for its one assigned section; do not
-shorten authoritative IDs such as `home:hero` to `hero`. Do not turn one
-section file into an aggregator, import a component from itself, or re-export
-a named component from a sibling unless that sibling visibly exports that
-exact name. A named import or re-export is valid only when the target module
-contains that named export; prefer a direct default import of each section
-file when composing the batch.
+Each owned section file is an independent default-exported component. Preserve
+an authoritative route-scoped ID such as `home:hero` exactly in
+`data-content-id`, while implementing the blueprint's independent DOM selector
+exactly (for example, `#hero` becomes `id="hero"`). Do not turn one section
+file into an aggregator, import a component from itself, or re-export a named
+component from a sibling unless that sibling visibly exports that exact name.
+A named import or re-export is valid only when the target module contains that
+named export; prefer a direct default import of each section file when
+composing the batch.
 
 Ownership and shell boundary:
 
@@ -78,16 +87,38 @@ Visual and implementation contract:
   dashboard card repetition, decorative pill overload, or uniform centering.
 - Use route-scoped CSS and approved responsive composition. Layout must remain
   readable at mobile, tablet, and desktop widths. Use spacing and typography
-  from the blueprint instead of arbitrary margins or a utility framework.
+  from the blueprint instead of arbitrary margins or a utility framework. CSS
+  lengths are numeric or tokenized (`50ch`, not `fiftych`); never join a
+  spelled-out number to a CSS unit.
+- Use only custom properties that exist in the compiler-emitted token groups
+  or that the owning JSX defines literally as runtime style state. Never emit
+  `@font-face` in route CSS; local font faces and URLs are already emitted by
+  the trusted token compiler.
 - Implement only motion beats assigned to this batch. Every animated state
-  must have a static, fully visible `prefers-reduced-motion` equivalent.
+  must use the exact marker, selectors, before/after values, trigger, duration,
+  and easing listed under `EXECUTABLE MOTION BEATS`, with a static, fully
+  visible `prefers-reduced-motion` equivalent. A `viewport` trigger requires
+  actual IntersectionObserver-driven state or a CSS view timeline; a
+  stylesheet-load animation is not a viewport trigger. Essential content is
+  visible in the unguarded CSS baseline. If a viewport beat starts at opacity
+  0, guard that before-state with `[data-motion-ready="true"]` and set the
+  attribute only after confirming IntersectionObserver support.
 - Every visible link, button, and disclosure has a keyboard name, focus state,
   and at least a 36px inline and block hit area.
+- Put every assigned interaction on the actual target element identified by
+  its `target_selector`. That same JSX opening tag must carry both the exact
+  `data-interaction-id` attribute and the blueprint `literal_marker`. An
+  outcome in another section is a destination, not a reason to move ownership
+  to the route composer or mark a duplicate navigation control.
 
 Resource and content contract:
 
-- Render only admitted local resources. Images use the trusted
-  `publicResourceUrl` helper with prefix-free local references; same-site links
+- Render only admitted local resources. Planned images use the trusted
+  `LocalImage` component with the exact short `resourceId` and presentation
+  props from `PLANNED LOCAL IMAGE BINDINGS`. Omit the `sources` prop: the
+  component resolves exact responsive paths, hashes, dimensions, and formats
+  from the immutable generated manifest. Never transcribe a rendition path or
+  substitute an acquisition-ledger path containing a run id. Same-site links
   use `publicRouteUrl`; approved external URLs must exactly match the contract.
 - A required component binding is used by importing its materialized local
   module and rendering it. A slot id, filename comment, or manifest mention is
@@ -95,6 +126,14 @@ Resource and content contract:
 - Call `contentValue("<literal-approved-content-id>")` directly for every
   approved content key. Do not hide the key behind a generic alias or generated
   lookup; the source audit must be able to prove the executable literal.
+- This includes approved metadata keys such as CTA/link `kind` values. Bind
+  those values through a direct `contentValue("<literal-approved-content-id>")`
+  call to a meaningful `data-*` attribute instead of dropping them as
+  non-visible copy.
+- Implement every assigned interaction's exact navigation, state attribute,
+  state value, transition, keyboard behavior, and focus behavior from the
+  generation contract. A matching href alone is insufficient when the
+  contract requires activated state or target focus.
 - Copy the complete ordered `unit.resource_slot_ids` list exactly into the
   returned `resource_slot_ids` coverage array. Include optional package,
   recipe, and component slots even when the assigned section source does not

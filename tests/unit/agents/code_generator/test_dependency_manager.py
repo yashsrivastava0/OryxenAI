@@ -7,6 +7,7 @@ import pytest
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
+    _create_stage_dir,
 )
 from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyRequest,
@@ -82,6 +83,15 @@ def test_existing_dependency_does_not_reinstall(tmp_path) -> None:
         )
     )
     assert result.decision == "existing"
+
+
+def test_dependency_stage_directory_is_immediately_writable(tmp_path) -> None:
+    stage_dir = _create_stage_dir(tmp_path)
+
+    marker = stage_dir / "package.json"
+    marker.write_text("{}", encoding="utf-8")
+
+    assert marker.read_text(encoding="utf-8") == "{}"
 
 
 def test_install_script_dependency_is_rejected_by_policy(tmp_path) -> None:

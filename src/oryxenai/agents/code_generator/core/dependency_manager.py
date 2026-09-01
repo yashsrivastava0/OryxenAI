@@ -7,9 +7,9 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
-import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,30 @@ class DependencyPolicyError(ValueError):
         self.code = code
         self.message = message
         super().__init__(message)
+
+
+def _create_stage_dir(parent: Path) -> Path:
+    """Create a private-enough sibling stage without Windows' 0o700 ACL trap.
+
+    Python applies a restrictive Windows ACL for ``mkdtemp`` directories.
+    Under a capability-scoped workspace that ACL can exclude the capability
+    which created it, making the very next file write fail. A regular
+    ``mkdir`` inherits the already-restricted workspace ACL instead. POSIX
+    keeps the prior owner-only mode.
+    """
+
+    mode = 0o777 if os.name == "nt" else 0o700
+    for _ in range(16):
+        candidate = parent / f".dependency-stage-{secrets.token_hex(8)}"
+        try:
+            candidate.mkdir(mode=mode)
+        except FileExistsError:
+            continue
+        return candidate
+    raise DependencyPolicyError(
+        "DEPENDENCY_STAGE_UNAVAILABLE",
+        "A collision-free dependency staging directory could not be created.",
+    )
 
 
 class DependencyManager:
@@ -146,7 +170,7 @@ class DependencyManager:
         # allowed to fall back, so a failed lockfile/install attempt must not
         # leave an uninstalled package in the real manifest (or a half-updated
         # lockfile/node_modules tree) for the later source-toolchain check.
-        stage_dir = Path(tempfile.mkdtemp(prefix=".dependency-stage-", dir=repo_dir.parent))
+        stage_dir = _create_stage_dir(repo_dir.parent)
         try:
             stage_manifest = stage_dir / "package.json"
             stage_lock = stage_dir / "package-lock.json"

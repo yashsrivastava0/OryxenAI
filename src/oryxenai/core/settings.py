@@ -619,8 +619,9 @@ class CodeGeneratorGenerationConfig(BaseModel):
     max_response_bytes: int = 2 * 1024 * 1024
     max_source_bytes: int = 8 * 1024 * 1024
     max_request_rounds: int = 4
-    max_repair_rounds_per_unit: int = 2
+    max_repair_rounds_per_unit: int = 3
     max_repair_rounds_total: int = 6
+    max_integration_polish_rounds: int = Field(default=3, ge=1, le=3)
     max_route_batch_sections: int = 8
     max_concurrency: int = 1
     typecheck_timeout_seconds: float = 120.0

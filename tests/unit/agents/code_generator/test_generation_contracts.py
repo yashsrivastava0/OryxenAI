@@ -128,6 +128,79 @@ def test_source_changes_reject_remote_runtime_and_ownership_escape(tmp_path) -> 
         )
 
 
+def test_source_copy_policy_ignores_pure_jsx_child_expressions(tmp_path) -> None:
+    expression = GenerationChanges(
+        files=[
+            SourceFileChange(
+                path="src/routes/home/Disclosure.tsx",
+                operation="create",
+                complete_utf8_content=(
+                    "export function Disclosure({ open }: { open: boolean }) { "
+                    'return <button>{open ? "-" : "+"}</button>; }'
+                ),
+            )
+        ]
+    )
+
+    validated = validate_generation_changes(
+        expression,
+        owned_paths=["src/routes/home/**"],
+        repo_dir=tmp_path,
+        max_file_bytes=10000,
+        max_response_bytes=10000,
+        allowed_packages=set(),
+        public_text={"Approved portfolio copy."},
+    )
+
+    assert validated == expression.files
+
+    generic_types = expression.model_copy(deep=True)
+    generic_types.files[0].complete_utf8_content = """import { useEffect, useRef } from "react";
+export function Disclosure() {
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const section = sectionRef.current;
+    const target = section?.querySelector<HTMLElement>("[data-target]");
+    if (!section || !target || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(() => target.focus());
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+  return <section ref={sectionRef}><p>{"Approved portfolio copy."}</p></section>;
+}
+"""
+
+    validated = validate_generation_changes(
+        generic_types,
+        owned_paths=["src/routes/home/**"],
+        repo_dir=tmp_path,
+        max_file_bytes=10000,
+        max_response_bytes=10000,
+        allowed_packages={"react"},
+        public_text={"Approved portfolio copy."},
+    )
+
+    assert validated == generic_types.files
+
+    invented = expression.model_copy(deep=True)
+    invented.files[0].complete_utf8_content = (
+        "export function Disclosure() { "
+        "return <p>This invented portfolio claim is not approved.</p>; }"
+    )
+    with pytest.raises(SourceValidationError) as exc_info:
+        validate_generation_changes(
+            invented,
+            owned_paths=["src/routes/home/**"],
+            repo_dir=tmp_path,
+            max_file_bytes=10000,
+            max_response_bytes=10000,
+            allowed_packages=set(),
+            public_text={"Approved portfolio copy."},
+        )
+    assert exc_info.value.code == "SOURCE_UNGROUNDED_COPY"
+    assert "This invented portfolio claim is not approved." in exc_info.value.message
+
+
 def test_source_changes_reject_trusted_preview_shell_mutation(tmp_path) -> None:
     with pytest.raises(SourceValidationError, match="trusted toolchain"):
         validate_generation_changes(
@@ -184,14 +257,22 @@ def test_prompt_builder_injects_the_normative_generation_contract() -> None:
                     "router_file": "src/app/AppRouter.tsx",
                     "required_behaviors": ["Render Page not found for unknown paths."],
                 },
-                "assigned_resource_slot_ids": ["slot-a", "slot-b"],
+                "required_coverage": {
+                    "content_ids": ["content-a"],
+                    "criterion_ids": [],
+                    "resource_slot_ids": ["slot-a", "slot-b"],
+                    "interaction_ids": [],
+                },
             },
         },
     )
     assert "RUNTIME SHELL CONTRACT: src/app/AppRouter.tsx" in instructions
     assert "Render Page not found for unknown paths." in instructions
-    assert "SOURCE COVERAGE RESOURCE SLOT IDS" in instructions
-    assert "slot-a, slot-b" in instructions
+    assert "V4 SOURCE ENVELOPE COVERAGE" in instructions
+    assert 'content_ids = ["content-a"]' in instructions
+    assert "criterion_ids = []" in instructions
+    assert 'resource_slot_ids = ["slot-a", "slot-b"]' in instructions
+    assert "files=[] is invalid" in instructions
     assert receipt.prompt_versions["operation"] == "code_generator.integrate.v5"
 
 

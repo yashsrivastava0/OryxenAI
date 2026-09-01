@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -10,18 +12,28 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DesignTokenSystemV3,
     ExecutionBindingV2,
     ExperienceBlueprintV3,
+    GenerationCallReceipt,
+    GenerationChanges,
     GenerationProjection,
+    GenerationResult,
     GenerationWorkUnitProjection,
+    IntegrationFinding,
+    IntegrationReviewV1,
     InteractionContract,
     RoutePlan,
     RouteShellV3,
     SitePlan,
+    SourceCheckpoint,
     SourceDiagnostic,
+    SourceFileChange,
     TypedTokenGroupV3,
     WorkGraph,
     WorkUnit,
 )
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
+    CodeGeneratorGenerationOrchestrator,
+    GenerationError,
+    _consume_repair_budget,
     _operation_context,
     _reset_generation_attempt_projection,
     _scoped_repair_plan,
@@ -33,6 +45,7 @@ from oryxenai.agents.code_generator.core.ownership import (
     validate_work_ownership,
 )
 from oryxenai.agents.code_generator.core.parallel_scheduler import execute_waves
+from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
 from oryxenai.agents.code_generator.core.token_compiler import (
     TokenCompilationError,
     compile_generated_tokens,
@@ -386,7 +399,10 @@ def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path)
         route_id="home",
         route_ids=["home"],
         section_ids=["hero"],
-        owns_paths=["src/routes/home/sections/hero.tsx"],
+        owns_paths=[
+            "src/routes/home/sections/hero.tsx",
+            "src/routes/home/sections/hero.css",
+        ],
     )
     plan = SitePlan(
         plan_id="context-scope",
@@ -430,6 +446,8 @@ def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path)
         "src/routes/home/sections/hero.tsx": "candidate source"
     }
 
+    owned_css = repo / "src/routes/home/sections/hero.css"
+    owned_css.write_text("current companion styles", encoding="utf-8")
     repair_workspace = GenerationWorkspace(
         tmp_path / "repair-workspace", tmp_path / "input", tmp_path / "checkpoints"
     )
@@ -458,11 +476,801 @@ def test_route_operation_context_scopes_inventory_and_candidate_source(tmp_path)
     )
 
     assert repair_context["previous_attempt_files"] == {
-        "src/routes/home/sections/hero.tsx": "export default function Hero() { return null; }"
+        "src/routes/home/sections/hero.css": "current companion styles",
+        "src/routes/home/sections/hero.tsx": "export default function Hero() { return null; }",
     }
     assert "work_graph" not in repair_context["plan"]
     assert "section_regions" not in repair_context["plan"]
     assert "assets" not in repair_context["visual_direction"]
+
+    partial_repair_context = _operation_context(
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "criteria": [],
+                "facts": [],
+                "public_content": [],
+            },
+            "design/visual-direction.json": {},
+            "resources/ledger.json": {},
+            "execution/contract.json": {},
+        },
+        unit=unit,
+        operation="repair",
+        checkpoint=None,
+        workspace=repair_workspace,
+        role_profile="openai_luna",
+        output_ceiling=2_000_000,
+        diagnostics=[
+            SourceDiagnostic(
+                diagnostic_id="diagnostic-motion",
+                code="SOURCE_ROUTE_BATCH_MOTION_INVALID",
+                group="source_contract",
+                owner="generator",
+                phase="source_generation",
+                normalized_message="motion mismatch",
+                file="src/routes/home/sections/hero.tsx",
+                work_unit_id=unit.unit_id,
+                fingerprint="motion",
+            )
+        ],
+        repair_round=2,
+        rejected_attempt_files={"src/routes/home/sections/hero.tsx": "rejected partial correction"},
+    )
+
+    assert partial_repair_context["previous_attempt_files"] == {
+        "src/routes/home/sections/hero.css": "current companion styles",
+        "src/routes/home/sections/hero.tsx": "rejected partial correction",
+    }
+
+    foreign_diagnostic_context = _operation_context(
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "criteria": [],
+                "facts": [],
+                "public_content": [],
+            },
+            "design/visual-direction.json": {},
+            "resources/ledger.json": {},
+            "execution/contract.json": {},
+        },
+        unit=unit,
+        operation="repair",
+        checkpoint=None,
+        workspace=repair_workspace,
+        role_profile="openai_luna",
+        output_ceiling=2_000_000,
+        diagnostics=[
+            SourceDiagnostic(
+                diagnostic_id="diagnostic-foreign",
+                code="SOURCE_CSS_INVALID_LENGTH",
+                group="source_contract",
+                owner="generator",
+                phase="source_generation",
+                normalized_message="foreign batch failure",
+                file="src/routes/home/sections/unrelated.tsx",
+                work_unit_id="route-home-batch-2",
+                fingerprint="foreign",
+            )
+        ],
+        repair_round=2,
+    )
+
+    assert foreign_diagnostic_context["previous_attempt_files"] == {
+        "src/routes/home/sections/hero.css": "current companion styles",
+        "src/routes/home/sections/hero.tsx": "export default function Hero() { return null; }",
+    }
+
+    selected_work_css = repo / "src/routes/home/sections/selected-work.css"
+    selected_work_css.write_text("current selected work styles", encoding="utf-8")
+    polish_unit = unit.model_copy(
+        update={
+            "owns_paths": [
+                *unit.owns_paths,
+                "src/routes/home/sections/selected-work.css",
+            ]
+        }
+    )
+    integration_polish_context = _operation_context(
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "criteria": [],
+                "facts": [],
+                "public_content": [],
+            },
+            "design/visual-direction.json": {},
+            "resources/ledger.json": {},
+            "execution/contract.json": {},
+        },
+        unit=polish_unit,
+        operation="repair",
+        checkpoint=None,
+        workspace=repair_workspace,
+        role_profile="openai_luna",
+        output_ceiling=2_000_000,
+        diagnostics=[
+            SourceDiagnostic(
+                diagnostic_id="integration-compound-finding",
+                code="V4_TYPOGRAPHY_WEIGHT_MISMATCH",
+                group="source_contract",
+                owner="generator",
+                phase="integration_review",
+                normalized_message="Correct hero and selected-work title weights.",
+                file="src/routes/home/sections/hero.css",
+                work_unit_id=unit.unit_id,
+                fingerprint="integration-compound",
+            )
+        ],
+        repair_round=1,
+    )
+
+    assert integration_polish_context["previous_attempt_files"] == {
+        "src/routes/home/sections/hero.css": "current companion styles",
+        "src/routes/home/sections/hero.tsx": "export default function Hero() { return null; }",
+        "src/routes/home/sections/selected-work.css": "current selected work styles",
+    }
+
+    owned.unlink()
+    rejected_context = _operation_context(
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+                "criteria": [],
+                "facts": [],
+                "public_content": [],
+            },
+            "design/visual-direction.json": {},
+            "resources/ledger.json": {},
+            "execution/contract.json": {},
+        },
+        unit=unit,
+        operation="repair",
+        checkpoint=None,
+        workspace=repair_workspace,
+        role_profile="openai_luna",
+        output_ceiling=2_000_000,
+        diagnostics=[
+            SourceDiagnostic(
+                diagnostic_id="diagnostic-coverage",
+                code="SOURCE_COVERAGE_MISMATCH",
+                group="source_contract",
+                owner="generator",
+                phase="source_generation",
+                normalized_message="coverage mismatch",
+                file="src/routes/home/sections/hero.tsx",
+                work_unit_id=unit.unit_id,
+                fingerprint="coverage",
+            )
+        ],
+        repair_round=1,
+        rejected_attempt_files={
+            "src/routes/home/sections/hero.tsx": "rejected response source",
+            "src/routes/home/sections/hero.css": "rejected response styles",
+            "src/routes/home/sections/unrelated.tsx": "unrelated rejected source",
+        },
+    )
+
+    assert rejected_context["existing_files"] == ["src/routes/home/sections/hero.css"]
+    assert rejected_context["previous_attempt_files"] == {
+        "src/routes/home/sections/hero.css": "rejected response styles",
+        "src/routes/home/sections/hero.tsx": "rejected response source",
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_unit_supplies_rejected_result_source_to_repair(tmp_path, monkeypatch) -> None:
+    workspace = GenerationWorkspace(
+        tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    workspace.repo_dir.mkdir(parents=True)
+    workspace.ledger_dir.mkdir(parents=True)
+    owned_path = "src/routes/home/sections/hero.tsx"
+    unit = WorkUnit(
+        unit_id="route-home",
+        kind="route",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=[owned_path],
+    )
+    plan = SitePlan(
+        plan_id="rejected-source-repair",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stacked",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        work_graph=WorkGraph(units=[unit]),
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+            "criteria": [],
+            "facts": [],
+            "public_content": [],
+        },
+        "design/visual-direction.json": {},
+        "resources/ledger.json": {},
+        "execution/contract.json": {},
+    }
+    generated_source = "export default function Hero() { return <section />; }"
+    result = GenerationResult(
+        operation_id="route_batch:route-home",
+        based_on_context_receipt="test-context",
+        mode="changes",
+        changes=GenerationChanges(
+            files=[
+                SourceFileChange(
+                    path=owned_path,
+                    operation="create",
+                    complete_utf8_content=generated_source,
+                )
+            ]
+        ),
+    )
+    contexts: list[dict[str, object]] = []
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def model_result(**kwargs):
+        contexts.append(kwargs["context"])
+        index = len(contexts)
+        return result, GenerationCallReceipt(
+            receipt_id=f"call-{index}",
+            operation_id=str(kwargs["operation"]),
+            idempotency_key=f"key-{index}",
+            context_receipt_hash=str(kwargs["context_receipt"].context_hash),
+            result_hash=f"result-{index}",
+            profile=str(kwargs["role_profile"]),
+        )
+
+    apply_count = 0
+
+    def apply_changes(**_kwargs) -> None:
+        nonlocal apply_count
+        apply_count += 1
+        if apply_count == 1:
+            raise SourceValidationError(
+                "SOURCE_COVERAGE_MISMATCH",
+                "The v4 content coverage array does not exactly match its work unit.",
+            )
+
+    async def no_diagnostics(*_args, **_kwargs):
+        return []
+
+    async def validate_run(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(orchestrator, "_model_result", model_result)
+    monkeypatch.setattr(orchestrator, "_apply_changes", apply_changes)
+    monkeypatch.setattr(orchestrator, "_validate_run", validate_run)
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.core.generation_orchestrator.run_source_checks",
+        no_diagnostics,
+    )
+
+    checkpoint = SourceCheckpoint(
+        checkpoint_id="checkpoint-test",
+        checkpoint_hash="checkpoint-hash",
+        stored_relative_path="checkpoints/test",
+        source_manifest_hash="manifest-hash",
+        file_count=1,
+        total_bytes=len(generated_source),
+        work_unit_id=unit.unit_id,
+        accepted_at="2026-08-29T00:00:00+00:00",
+    )
+    checkpoint_store = SimpleNamespace(accept=lambda **_kwargs: checkpoint)
+    generation_config = SimpleNamespace(
+        route_profile="route-profile",
+        compose_profile="compose-profile",
+        integration_profile="integration-profile",
+        repair_profile="repair-profile",
+        max_response_bytes=2_000_000,
+        max_context_chars=170_000,
+        max_request_rounds=1,
+        max_source_bytes=2_000_000,
+        max_repair_rounds_per_unit=2,
+        max_repair_rounds_total=6,
+    )
+    projection = GenerationProjection(
+        generation_id="generation-test",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="generating_routes",
+    )
+
+    accepted = await orchestrator._run_unit(
+        sessionmaker=None,
+        run_id=uuid4(),
+        settings=SimpleNamespace(code_generator_generation=generation_config),
+        run=SimpleNamespace(run_mode="development"),
+        plan=plan,
+        projections=projections,
+        workspace=workspace,
+        checkpoint_store=checkpoint_store,
+        projection=projection,
+        unit=unit,
+        checkpoint=None,
+        allowed_packages=set(),
+        public_text=set(),
+        persist_projection=False,
+    )
+
+    assert accepted == checkpoint
+    assert len(contexts) == 2
+    assert contexts[0]["previous_attempt_files"] == {}
+    assert contexts[1]["previous_attempt_files"] == {owned_path: generated_source}
+    assert contexts[1]["operation"] == "repair"
+
+
+@pytest.mark.asyncio
+async def test_integration_polish_repairs_late_finding_through_third_rereview(
+    tmp_path, monkeypatch
+) -> None:
+    workspace = GenerationWorkspace(
+        tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    workspace.repo_dir.mkdir(parents=True)
+    workspace.ledger_dir.mkdir(parents=True)
+    owned_path = "src/routes/home/index.tsx"
+    source = workspace.repo_dir / owned_path
+    source.parent.mkdir(parents=True)
+    source.write_text("export default function Home() { return null; }", encoding="utf-8")
+    unit = WorkUnit(
+        unit_id="route-home",
+        kind="route",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=[owned_path],
+    )
+    plan = SitePlan(
+        plan_id="three-round-polish",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stacked",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        work_graph=WorkGraph(units=[unit]),
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+            "criteria": [],
+            "facts": [],
+            "public_content": [],
+        },
+        "design/visual-direction.json": {},
+        "resources/ledger.json": {},
+        "execution/contract.json": {},
+    }
+
+    def rejected_review(finding_id: str, code: str) -> IntegrationReviewV1:
+        return IntegrationReviewV1(
+            status="findings",
+            findings=[
+                IntegrationFinding(
+                    finding_id=finding_id,
+                    severity="blocking",
+                    section_id=owned_path,
+                    owner_work_unit_id=unit.unit_id,
+                    code=code,
+                    evidence="concrete source mismatch",
+                    requested_outcome="correct the owned source",
+                )
+            ],
+            distinctiveness_score=4,
+            composition_score=4,
+            typography_score=3,
+            resource_fit_score=4,
+            motion_score=4,
+        )
+
+    reviews = [
+        rejected_review("finding-first", "FIRST_DEFECT"),
+        rejected_review("finding-new", "NEW_REREVIEW_DEFECT"),
+        rejected_review("finding-late", "LATE_REREVIEW_DEFECT"),
+        IntegrationReviewV1(
+            status="accepted",
+            findings=[],
+            distinctiveness_score=4,
+            composition_score=4,
+            typography_score=4,
+            resource_fit_score=4,
+            motion_score=4,
+        ),
+    ]
+    review_rounds: list[int] = []
+    repair_units: list[str] = []
+    checkpoint_units: list[str] = []
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def integration_review(**kwargs):
+        round_number = int(kwargs["round_number"])
+        review_rounds.append(round_number)
+        return reviews[round_number]
+
+    async def model_result(**kwargs):
+        repair_units.append(str(kwargs["unit_id"]))
+        return (
+            GenerationResult(
+                operation_id=f"repair:{kwargs['unit_id']}",
+                based_on_context_receipt=str(kwargs["context_receipt"].context_hash),
+                mode="changes",
+                changes=GenerationChanges(
+                    files=[
+                        SourceFileChange(
+                            path=owned_path,
+                            operation="replace",
+                            complete_utf8_content=source.read_text(encoding="utf-8"),
+                        )
+                    ]
+                ),
+            ),
+            GenerationCallReceipt(
+                receipt_id=f"call-{len(repair_units)}",
+                operation_id="repair",
+                idempotency_key=f"repair-{len(repair_units)}",
+                context_receipt_hash=str(kwargs["context_receipt"].context_hash),
+                result_hash=f"result-{len(repair_units)}",
+                profile="repair-profile",
+            ),
+        )
+
+    async def no_diagnostics(*_args, **_kwargs):
+        return []
+
+    async def no_op(*_args, **_kwargs) -> None:
+        return None
+
+    def accept_checkpoint(**kwargs) -> SourceCheckpoint:
+        checkpoint_units.append(str(kwargs["work_unit_id"]))
+        index = len(checkpoint_units)
+        return SourceCheckpoint(
+            checkpoint_id=f"checkpoint-{index}",
+            parent_checkpoint_hash=str(kwargs["parent_hash"]),
+            checkpoint_hash=f"hash-{index}",
+            stored_relative_path=f"checkpoints/{index}",
+            source_manifest_hash=f"manifest-{index}",
+            file_count=1,
+            total_bytes=source.stat().st_size,
+            work_unit_id=str(kwargs["work_unit_id"]),
+            accepted_at="2026-08-30T00:00:00+00:00",
+        )
+
+    monkeypatch.setattr(orchestrator, "_integration_review", integration_review)
+    monkeypatch.setattr(orchestrator, "_model_result", model_result)
+    monkeypatch.setattr(orchestrator, "_apply_changes", lambda **_kwargs: None)
+    monkeypatch.setattr(orchestrator, "_validate_run", no_op)
+    monkeypatch.setattr(orchestrator, "_persist", no_op)
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.core.generation_orchestrator.run_source_checks",
+        no_diagnostics,
+    )
+    settings = SimpleNamespace(
+        code_generator_generation=SimpleNamespace(
+            repair_profile="repair-profile",
+            max_response_bytes=2_000_000,
+            max_context_chars=170_000,
+            max_source_bytes=2_000_000,
+            max_integration_polish_rounds=3,
+        )
+    )
+    projection = GenerationProjection(
+        generation_id="generation-polish",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="integrating",
+    )
+    initial_checkpoint = SourceCheckpoint(
+        checkpoint_id="checkpoint-initial",
+        checkpoint_hash="hash-initial",
+        stored_relative_path="checkpoints/initial",
+        source_manifest_hash="manifest-initial",
+        file_count=1,
+        total_bytes=source.stat().st_size,
+        work_unit_id=unit.unit_id,
+        accepted_at="2026-08-30T00:00:00+00:00",
+    )
+
+    await orchestrator._review_and_polish(
+        sessionmaker=None,
+        run_id=uuid4(),
+        settings=settings,
+        run=SimpleNamespace(),
+        plan=plan,
+        projections=projections,
+        workspace=workspace,
+        projection=projection,
+        checkpoint_store=SimpleNamespace(accept=accept_checkpoint),
+        checkpoint=initial_checkpoint,
+        allowed_packages=set(),
+        public_text=set(),
+    )
+
+    assert review_rounds == [0, 1, 2, 3]
+    assert repair_units == [
+        "route-home-integration-polish",
+        "route-home-integration-polish-2",
+        "route-home-integration-polish-3",
+    ]
+    assert checkpoint_units == repair_units
+
+
+@pytest.mark.asyncio
+async def test_integration_polish_repairs_malformed_source_before_checkpoint(
+    tmp_path, monkeypatch
+) -> None:
+    workspace = GenerationWorkspace(
+        tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    workspace.repo_dir.mkdir(parents=True)
+    workspace.ledger_dir.mkdir(parents=True)
+    owned_path = "src/routes/home/index.tsx"
+    source = workspace.repo_dir / owned_path
+    source.parent.mkdir(parents=True)
+    valid_source = "export default function Home() { return <main />; }\n"
+    malformed_source = 'import { useState } from "react";\n'
+    source.write_text(valid_source, encoding="utf-8")
+    unit = WorkUnit(
+        unit_id="route-home",
+        kind="route",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=[owned_path],
+    )
+    plan = SitePlan(
+        plan_id="source-safe-polish",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stacked",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        work_graph=WorkGraph(units=[unit]),
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+            "criteria": [],
+            "facts": [],
+            "public_content": [],
+        },
+        "design/visual-direction.json": {},
+        "resources/ledger.json": {},
+        "execution/contract.json": {},
+    }
+    finding = IntegrationFinding(
+        finding_id="finding-polish",
+        severity="blocking",
+        section_id=owned_path,
+        owner_work_unit_id=unit.unit_id,
+        code="COMPOSITION_DEFECT",
+        evidence="concrete source mismatch",
+        requested_outcome="correct the owned source",
+    )
+    reviews = [
+        IntegrationReviewV1(
+            status="findings",
+            findings=[finding],
+            distinctiveness_score=4,
+            composition_score=3,
+            typography_score=4,
+            resource_fit_score=4,
+            motion_score=4,
+        ),
+        IntegrationReviewV1(
+            status="accepted",
+            findings=[],
+            distinctiveness_score=4,
+            composition_score=4,
+            typography_score=4,
+            resource_fit_score=4,
+            motion_score=4,
+        ),
+    ]
+    contexts: list[dict[str, object]] = []
+    repair_units: list[str] = []
+    checkpoint_units: list[str] = []
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def integration_review(**kwargs):
+        return reviews[int(kwargs["round_number"])]
+
+    async def model_result(**kwargs):
+        contexts.append(dict(kwargs["context"]))
+        repair_units.append(str(kwargs["unit_id"]))
+        generated = malformed_source if len(repair_units) == 1 else valid_source
+        return (
+            GenerationResult(
+                operation_id=f"repair:{kwargs['unit_id']}",
+                based_on_context_receipt=str(kwargs["context_receipt"].context_hash),
+                mode="changes",
+                changes=GenerationChanges(
+                    files=[
+                        SourceFileChange(
+                            path=owned_path,
+                            operation="replace",
+                            complete_utf8_content=generated,
+                        )
+                    ]
+                ),
+            ),
+            GenerationCallReceipt(
+                receipt_id=f"call-{len(repair_units)}",
+                operation_id="repair",
+                idempotency_key=f"repair-{len(repair_units)}",
+                context_receipt_hash=str(kwargs["context_receipt"].context_hash),
+                result_hash=f"result-{len(repair_units)}",
+                profile="repair-profile",
+            ),
+        )
+
+    def apply_changes(**kwargs) -> None:
+        change = kwargs["changes"].files[0]
+        source.write_text(change.complete_utf8_content, encoding="utf-8")
+
+    async def source_checks(*_args, **_kwargs):
+        if source.read_text(encoding="utf-8") == malformed_source:
+            return [
+                SourceDiagnostic(
+                    diagnostic_id="diagnostic-missing-export",
+                    code="SOURCE_AST_AUDIT_FAILED",
+                    group="source_contract",
+                    owner="generator",
+                    phase="source_generation",
+                    normalized_message="The route module has no default export.",
+                    file=owned_path,
+                    work_unit_id=unit.unit_id,
+                    fingerprint="missing-export",
+                )
+            ]
+        return []
+
+    async def no_op(*_args, **_kwargs) -> None:
+        return None
+
+    def accept_checkpoint(**kwargs) -> SourceCheckpoint:
+        assert source.read_text(encoding="utf-8") == valid_source
+        checkpoint_units.append(str(kwargs["work_unit_id"]))
+        return SourceCheckpoint(
+            checkpoint_id="checkpoint-polished",
+            parent_checkpoint_hash=str(kwargs["parent_hash"]),
+            checkpoint_hash="hash-polished",
+            stored_relative_path="checkpoints/polished",
+            source_manifest_hash="manifest-polished",
+            file_count=1,
+            total_bytes=source.stat().st_size,
+            work_unit_id=str(kwargs["work_unit_id"]),
+            accepted_at="2026-08-31T00:00:00+00:00",
+        )
+
+    monkeypatch.setattr(orchestrator, "_integration_review", integration_review)
+    monkeypatch.setattr(orchestrator, "_model_result", model_result)
+    monkeypatch.setattr(orchestrator, "_apply_changes", apply_changes)
+    monkeypatch.setattr(orchestrator, "_validate_run", no_op)
+    monkeypatch.setattr(orchestrator, "_persist", no_op)
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.core.generation_orchestrator.run_source_checks",
+        source_checks,
+    )
+    settings = SimpleNamespace(
+        code_generator_generation=SimpleNamespace(
+            repair_profile="repair-profile",
+            max_response_bytes=2_000_000,
+            max_context_chars=170_000,
+            max_source_bytes=2_000_000,
+            max_integration_polish_rounds=1,
+            max_repair_rounds_per_unit=2,
+            max_repair_rounds_total=6,
+        )
+    )
+    projection = GenerationProjection(
+        generation_id="generation-source-safe-polish",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="integrating",
+    )
+    initial_checkpoint = SourceCheckpoint(
+        checkpoint_id="checkpoint-initial",
+        checkpoint_hash="hash-initial",
+        stored_relative_path="checkpoints/initial",
+        source_manifest_hash="manifest-initial",
+        file_count=1,
+        total_bytes=source.stat().st_size,
+        work_unit_id=unit.unit_id,
+        accepted_at="2026-08-31T00:00:00+00:00",
+    )
+
+    await orchestrator._review_and_polish(
+        sessionmaker=None,
+        run_id=uuid4(),
+        settings=settings,
+        run=SimpleNamespace(),
+        plan=plan,
+        projections=projections,
+        workspace=workspace,
+        projection=projection,
+        checkpoint_store=SimpleNamespace(accept=accept_checkpoint),
+        checkpoint=initial_checkpoint,
+        allowed_packages=set(),
+        public_text=set(),
+    )
+
+    assert repair_units == [
+        "route-home-integration-polish",
+        "route-home-integration-polish-source-repair-1",
+    ]
+    assert contexts[1]["previous_attempt_files"] == {owned_path: malformed_source}
+    assert checkpoint_units == ["route-home-integration-polish-source-repair-1"]
+    assert projection.repair_budget_used == 1
+
+
+def test_source_repair_budget_allows_third_round_and_reports_final_diagnostics() -> None:
+    projection = GenerationProjection(
+        generation_id="generation-budget",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="generating_routes",
+    )
+    diagnostics = [
+        SourceDiagnostic(
+            diagnostic_id="diagnostic-final",
+            code="SOURCE_IMAGE_PATH_INVALID",
+            group="source_contract",
+            owner="generator",
+            phase="source_generation",
+            normalized_message="The exact rendition path is missing.",
+            work_unit_id="route-home",
+            fingerprint="final-fingerprint",
+        )
+    ]
+    settings = SimpleNamespace(
+        code_generator_generation=SimpleNamespace(
+            max_repair_rounds_per_unit=3,
+            max_repair_rounds_total=6,
+        )
+    )
+
+    for repair_round in range(3):
+        _consume_repair_budget(
+            projection,
+            diagnostics,
+            repair_round=repair_round,
+            settings=settings,
+        )
+
+    assert projection.repair_budget_used == 3
+    with pytest.raises(GenerationError) as exc_info:
+        _consume_repair_budget(
+            projection,
+            diagnostics,
+            repair_round=3,
+            settings=settings,
+        )
+    assert exc_info.value.code == "SOURCE_REPAIR_EXHAUSTED"
+    assert "SOURCE_IMAGE_PATH_INVALID" in exc_info.value.message
+    assert "exact rendition path" in exc_info.value.message
 
 
 def test_resumed_generation_clears_rejected_attempt_diagnostics_only() -> None:

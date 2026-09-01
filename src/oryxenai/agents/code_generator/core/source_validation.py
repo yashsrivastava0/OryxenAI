@@ -14,6 +14,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SourceDiagnostic,
     SourceFileChange,
 )
+from oryxenai.agents.code_generator.core.source_lexing import (
+    static_jsx_attribute_values,
+    strip_source_comments,
+)
 
 
 class SourceValidationError(ValueError):
@@ -42,6 +46,24 @@ _FORBIDDEN_RUNTIME_RE = re.compile(r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSo
 _PLACEHOLDER_TERMS = ("lorem ipsum", "todo", "placeholder", "coming soon", "fake success")
 _LINK_ATTR_RE = re.compile(r"""\b(?:href|src)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 _APPROVED_URL_RE = re.compile(r"https?://[^\s\"'<>)\]}]+", re.IGNORECASE)
+_CSS_DECLARATION_RE = re.compile(r"(?P<property>(?:--)?[A-Za-z][\w-]*)\s*:\s*(?P<value>[^;{}]+)")
+_CSS_NUMBER_WORD = (
+    r"zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"
+    r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand"
+)
+_CSS_SPELLED_LENGTH_RE = re.compile(
+    rf"(?<![\w-])(?P<length>(?:{_CSS_NUMBER_WORD})(?:-?(?:{_CSS_NUMBER_WORD}))*"
+    r"(?:vmin|vmax|dvh|dvw|svh|svw|lvh|lvw|rem|px|em|ex|ch|vh|vw|cm|mm|in|pt|pc))\b",
+    re.IGNORECASE,
+)
+_CSS_CUSTOM_PROPERTY_DEFINITION_RE = re.compile(r"(?<![\w-])(?P<name>--[A-Za-z_][\w-]*)\s*:")
+_CSS_CUSTOM_PROPERTY_USE_RE = re.compile(r"\bvar\(\s*(?P<name>--[A-Za-z_][\w-]*)")
+_INLINE_CUSTOM_PROPERTY_DEFINITION_RE = re.compile(
+    r"(?:[\"'](?P<object>--[A-Za-z_][\w-]*)[\"']\s*:|"
+    r"\.setProperty\(\s*[\"'](?P<setter>--[A-Za-z_][\w-]*)[\"'])"
+)
+_ROUTE_FONT_FACE_RE = re.compile(r"@font-face\b", re.IGNORECASE)
 
 
 def _approved_urls(public_text: set[str]) -> set[str]:
@@ -52,6 +74,27 @@ def _approved_urls(public_text: set[str]) -> set[str]:
         for match in _APPROVED_URL_RE.finditer(entry or ""):
             urls.add(match.group(0).rstrip(".,;:"))
     return urls
+
+
+def _jsx_opening_tag_contains_literal(source: str, literal: str) -> bool:
+    """Match a literal JSX attribute on an opening tag, never in a comment."""
+
+    attribute = re.fullmatch(
+        r"\s*([A-Za-z_:][\w:.-]*)\s*=\s*([\"'])(.*?)\2\s*",
+        literal,
+        flags=re.DOTALL,
+    )
+    if attribute is None:
+        return literal in source
+    name, _, value = attribute.groups()
+    return bool(
+        re.search(
+            rf"<[A-Za-z][^<>]*\b{re.escape(name)}\s*=\s*([\"'])"
+            rf"{re.escape(value)}\1[^<>]*>",
+            source,
+            flags=re.DOTALL,
+        )
+    )
 
 
 def _strip_approved_links(text: str, public_text: set[str]) -> str:
@@ -157,6 +200,8 @@ def validate_generation_changes(
             raise SourceValidationError(
                 "SOURCE_INVALID_UTF8", "A generated file contains a null character.", file=path
             )
+        if path.endswith(".css"):
+            _validate_css_value_policy(change.complete_utf8_content, path)
         _validate_text_policy(change.complete_utf8_content, path, public_text)
         _validate_imports(change.complete_utf8_content, path, allowed_packages)
         normalized.append(change.model_copy(update={"path": path}))
@@ -170,13 +215,21 @@ def validate_repository(
     public_text: set[str],
     max_source_bytes: int,
     work_unit_id: str,
+    source_paths: list[str] | None = None,
 ) -> list[SourceDiagnostic]:
+    scoped_paths = (
+        {item.replace("\\", "/").strip("/") for item in source_paths}
+        if source_paths is not None
+        else None
+    )
     total = 0
     diagnostics: list[SourceDiagnostic] = []
     for path in sorted(repo_dir.rglob("*")):
         if not path.is_file() or any(part in {"node_modules", "dist"} for part in path.parts):
             continue
         relative = path.relative_to(repo_dir).as_posix()
+        if scoped_paths is not None and relative not in scoped_paths:
+            continue
         data = path.read_bytes()
         total += len(data)
         if total > max_source_bytes:
@@ -204,6 +257,8 @@ def validate_repository(
             )
             continue
         try:
+            if path.suffix.lower() == ".css":
+                _validate_css_value_policy(text, relative)
             trusted_non_source = (
                 relative.startswith("public/resources/")
                 or relative.startswith("public/licences/")
@@ -236,6 +291,84 @@ def validate_repository(
                 _validate_imports(text, relative, allowed_packages)
         except SourceValidationError as exc:
             diagnostics.append(_diagnostic(exc.code, exc.message, work_unit_id, relative))
+    diagnostics.extend(
+        _validate_route_css_contract(
+            repo_dir,
+            source_paths=scoped_paths,
+            work_unit_id=work_unit_id,
+        )
+    )
+    return diagnostics
+
+
+def _validate_route_css_contract(
+    repo_dir: Path,
+    *,
+    source_paths: set[str] | None,
+    work_unit_id: str,
+) -> list[SourceDiagnostic]:
+    """Reject route CSS that bypasses compiler-owned tokens or font bindings.
+
+    Definitions are collected from the complete source tree even when a
+    progressive work unit scopes validation to its own files. This lets a
+    route batch use trusted generated tokens and literal runtime custom
+    properties while still rejecting a misspelled or invented token in the
+    emitted route CSS.
+    """
+
+    source_root = repo_dir / "src"
+    if not source_root.is_dir():
+        return []
+    definitions: set[str] = set()
+    route_css: dict[str, str] = {}
+    for path in sorted(source_root.rglob("*")):
+        if not path.is_file() or path.suffix.casefold() not in {".css", ".ts", ".tsx"}:
+            continue
+        if any(part in {"node_modules", "dist"} for part in path.parts):
+            continue
+        relative = path.relative_to(repo_dir).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if path.suffix.casefold() == ".css":
+            clean = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+            definitions.update(
+                match.group("name") for match in _CSS_CUSTOM_PROPERTY_DEFINITION_RE.finditer(clean)
+            )
+            if relative.startswith("src/routes/") and (
+                source_paths is None or relative in source_paths
+            ):
+                route_css[relative] = clean
+            continue
+        clean = strip_source_comments(text)
+        for match in _INLINE_CUSTOM_PROPERTY_DEFINITION_RE.finditer(clean):
+            definitions.add(match.group("object") or match.group("setter"))
+
+    diagnostics: list[SourceDiagnostic] = []
+    for relative, css in sorted(route_css.items()):
+        if _ROUTE_FONT_FACE_RE.search(css):
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_FONT_FACE_FORBIDDEN",
+                    "Generated route CSS cannot declare @font-face; use the compiler-owned "
+                    "local font faces emitted in src/design/generated-tokens.css.",
+                    work_unit_id,
+                    relative,
+                )
+            )
+        used = {match.group("name") for match in _CSS_CUSTOM_PROPERTY_USE_RE.finditer(css)}
+        for name in sorted(used - definitions):
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_CSS_CUSTOM_PROPERTY_UNBOUND",
+                    f"Generated route CSS references undefined custom property {name}; "
+                    "use an exact compiler-emitted token or define a literal runtime "
+                    "custom property on the owning source element.",
+                    work_unit_id,
+                    relative,
+                )
+            )
     return diagnostics
 
 
@@ -311,6 +444,15 @@ def validate_route_batch_contract(
     route_id: str = "",
     section_ids: list[str] | None = None,
     source_markers: list[str] | None = None,
+    content_ids_by_section: dict[str, list[str]] | None = None,
+    section_selectors_by_section: dict[str, str] | None = None,
+    interaction_ids: list[str] | None = None,
+    interaction_markers: dict[str, str] | None = None,
+    interaction_contracts: dict[str, dict[str, Any]] | None = None,
+    image_assets_by_slot: dict[str, dict[str, Any]] | None = None,
+    distinctive_moves: list[dict[str, Any]] | None = None,
+    motion_beats: list[dict[str, Any]] | None = None,
+    h1_owner_section_id: str = "",
     work_unit_id: str,
 ) -> list[SourceDiagnostic]:
     """Validate section ownership before a split batch is checkpointed.
@@ -335,14 +477,25 @@ def validate_route_batch_contract(
     if not source_paths:
         return diagnostics
 
-    sources: dict[str, str] = {}
-    for relative in source_paths:
+    contract_paths = [
+        value
+        for value in normalized_paths
+        if Path(value).suffix.lower() in {".tsx", ".ts", ".css"} and "*" not in value
+    ]
+    contract_sources: dict[str, str] = {}
+    for relative in contract_paths:
         try:
-            sources[relative] = (repo_dir / relative).resolve().read_text(
-                encoding="utf-8"
-            )
+            contract_sources[relative] = (repo_dir / relative).resolve().read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+    for relative, source in contract_sources.items():
+        if not relative.endswith(".css"):
+            continue
+        try:
+            _validate_css_value_policy(source, relative)
+        except SourceValidationError as exc:
+            diagnostics.append(_diagnostic(exc.code, exc.message, work_unit_id, relative))
+    sources = {path: contract_sources.get(path, "") for path in source_paths}
 
     anchor_relative = source_paths[0]
     anchor_text = sources.get(anchor_relative, "")
@@ -406,23 +559,61 @@ def validate_route_batch_contract(
                     owner_relative,
                 )
             )
-        dom_id_count = len(
-            re.findall(
-                rf"(?<![\w-])id\s*=\s*[\"']{re.escape(section_id)}[\"']",
-                owner_text,
-            )
-        )
-        if dom_id_count != 1:
+        section_selector = (section_selectors_by_section or {}).get(section_id, f"#{section_id}")
+        selector_matches = _literal_selector_positions(owner_text, section_selector)
+        if selector_matches is not None and len(selector_matches) != 1:
             diagnostics.append(
                 _diagnostic(
                     "SOURCE_ROUTE_BATCH_DOM_ID_INVALID",
-                    f"The section owner must expose exactly one DOM id matching {section_id}.",
+                    "The section owner must implement its exact blueprint section selector "
+                    f"once: {section_selector}",
                     work_unit_id,
                     owner_relative,
                 )
             )
+        for content_id in (content_ids_by_section or {}).get(section_id, []):
+            if not re.search(
+                rf"\bcontentValue\s*\(\s*[\"']{re.escape(content_id)}[\"']\s*\)",
+                owner_text,
+            ):
+                diagnostics.append(
+                    _diagnostic(
+                        "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING",
+                        f"The section owner must render its approved content key through "
+                        f"a direct contentValue call: {content_id}",
+                        work_unit_id,
+                        owner_relative,
+                    )
+                )
+    combined_source = "\n".join(contract_sources.values())
+    h1_count = len(re.findall(r"<h1\b", combined_source, flags=re.IGNORECASE))
+    if h1_owner_section_id in assigned:
+        owner_paths = owners.get(h1_owner_section_id, [])
+        owner_source = sources.get(owner_paths[0], "") if len(owner_paths) == 1 else ""
+        owner_h1_count = len(re.findall(r"<h1\b", owner_source, flags=re.IGNORECASE))
+        if h1_count != 1 or owner_h1_count != 1:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_H1_OWNERSHIP_INVALID",
+                    "The canonical heading-owner section must render the route's single h1: "
+                    f"{h1_owner_section_id}; observed batch h1 count={h1_count}, "
+                    f"owner h1 count={owner_h1_count}.",
+                    work_unit_id,
+                    owner_paths[0] if len(owner_paths) == 1 else anchor_relative,
+                )
+            )
+    elif h1_owner_section_id and h1_count:
+        diagnostics.append(
+            _diagnostic(
+                "SOURCE_ROUTE_BATCH_H1_OWNERSHIP_INVALID",
+                "Only the canonical heading-owner section may render an h1: "
+                f"{h1_owner_section_id}; this batch renders {h1_count}.",
+                work_unit_id,
+                anchor_relative,
+            )
+        )
     for marker in source_markers or []:
-        if marker and marker not in text:
+        if marker and marker not in combined_source:
             diagnostics.append(
                 _diagnostic(
                     "SOURCE_ROUTE_BATCH_MARKER_MISSING",
@@ -431,7 +622,498 @@ def validate_route_batch_contract(
                     anchor_relative,
                 )
             )
+    for interaction_id in interaction_ids or []:
+        interaction = (interaction_contracts or {}).get(interaction_id, {})
+        target_selector = str(interaction.get("target_selector", ""))
+        interaction_relative = anchor_relative
+        interaction_owner_matched = False
+        for section_id, selector in (section_selectors_by_section or {}).items():
+            if not selector or selector not in target_selector:
+                continue
+            owner_paths = owners.get(section_id, [])
+            if len(owner_paths) == 1:
+                interaction_relative = owner_paths[0]
+                interaction_owner_matched = True
+                break
+        interaction_sources = (
+            {interaction_relative: sources.get(interaction_relative, "")}
+            if interaction_owner_matched
+            else sources
+        )
+        located_tags = [
+            (relative, tag)
+            for relative, source in interaction_sources.items()
+            for tag in re.findall(
+                rf"<[^>]*\bdata-interaction-id\s*=\s*[\"']"
+                rf"{re.escape(interaction_id)}[\"'][^>]*>",
+                source,
+                re.DOTALL,
+            )
+        ]
+        tags = [tag for _, tag in located_tags]
+        diagnostic_relative = located_tags[0][0] if located_tags else interaction_relative
+        if not tags:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_INTERACTION_MISSING",
+                    f"The section batch is missing its assigned literal interaction marker: "
+                    f"{interaction_id}",
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
+            continue
+        literal_marker = (interaction_markers or {}).get(interaction_id, "")
+        if literal_marker and not any(literal_marker in tag for tag in tags):
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_INTERACTION_MARKER_MISSING",
+                    "The executable interaction target must carry its exact blueprint marker "
+                    f"on the same JSX tag: {literal_marker}",
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
+        if not any(re.search(r"\b(?:href|onClick|onKeyDown|onChange)\s*=", tag) for tag in tags):
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_INTERACTION_OUTCOME_MISSING",
+                    f"The assigned interaction needs a JSX handler or navigation outcome: "
+                    f"{interaction_id}",
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
+        state_attribute = str(interaction.get("expected_state_attribute", ""))
+        state_value = str(interaction.get("expected_state_value", ""))
+        expected_navigation = str(interaction.get("expected_navigation", ""))
+        state_assignments = (
+            [
+                match.group("value")
+                for tag in tags
+                for match in re.finditer(
+                    rf"\b{re.escape(state_attribute)}\s*=\s*"
+                    r"(?P<value>\{[^{}]+\}|[\"'][^\"']*[\"'])",
+                    tag,
+                )
+            ]
+            if state_attribute
+            else []
+        )
+        if state_attribute and not state_assignments:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_INTERACTION_STATE_MISSING",
+                    f"The assigned interaction target must expose its exact state attribute: "
+                    f"{interaction_id} -> {state_attribute}={state_value}",
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
+        elif state_value and not _interaction_state_value_matches(state_assignments, state_value):
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_INTERACTION_STATE_MISSING",
+                    f"The assigned interaction must implement its expected state value: "
+                    f"{interaction_id} -> {state_attribute}={state_value}",
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
+        trigger = str(interaction.get("trigger", ""))
+        navigation_casefolded = expected_navigation.casefold()
+        no_navigation = (
+            "no navigation" in navigation_casefolded or "remain on" in navigation_casefolded
+        )
+        navigation_literals = [
+            item.rstrip(".,;)")
+            for item in re.findall(
+                r"https?://[^\s,;]+|(?:mailto|tel):[^\s,;]+|"
+                r"#[A-Za-z_][\w-]*|/(?!/)[A-Za-z0-9][^\s,;]*",
+                expected_navigation,
+            )
+        ]
+        literal_navigation = expected_navigation.startswith(
+            ("#", "/", "http://", "https://", "mailto:", "tel:")
+        )
+        navigation_invalid = False
+        if no_navigation:
+            navigation_invalid = any(re.search(r"\bhref\s*=", tag) for tag in tags)
+        elif expected_navigation and (trigger in {"navigation", "download"} or literal_navigation):
+            expected_values = navigation_literals or [expected_navigation]
+            navigation_invalid = not any(
+                expected in tag for expected in expected_values for tag in tags
+            )
+        if navigation_invalid:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_INTERACTION_NAVIGATION_MISSING",
+                    f"The assigned interaction target must use its exact navigation outcome: "
+                    f"{interaction_id} -> {expected_navigation}",
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
+
+    for slot_id, asset in (image_assets_by_slot or {}).items():
+        missing: list[str] = []
+        resource_matches = list(
+            re.finditer(
+                rf"\bresourceId\s*=\s*([\"']){re.escape(slot_id)}\1",
+                combined_source,
+            )
+        )
+        local_image_tags: list[str] = []
+        for match in resource_matches:
+            start = combined_source.rfind("<LocalImage", 0, match.start())
+            end = combined_source.find("/>", match.end())
+            if start >= 0 and end >= 0 and ">" not in combined_source[start : match.start()]:
+                local_image_tags.append(combined_source[start : end + 2])
+        if not local_image_tags:
+            missing.append(f'resourceId="{slot_id}"')
+        if isinstance(asset, dict):
+            element_marker = str(asset.get("element_marker", ""))
+            if element_marker and not _jsx_opening_tag_contains_literal(
+                combined_source, element_marker
+            ):
+                missing.append(element_marker)
+            expected_props = {
+                "sizes": str(asset.get("sizes", "100vw")),
+                "loading": str(asset.get("loading", "lazy")),
+                "fit": str(asset.get("fit", "cover")),
+                "focalPosition": str(asset.get("focal_position", "center")),
+            }
+            for tag in local_image_tags:
+                if re.search(r"\bsources\s*=", tag):
+                    missing.append("sources prop must be omitted")
+                for prop, prop_value in expected_props.items():
+                    if not re.search(
+                        rf"\b{re.escape(prop)}\s*=\s*([\"']){re.escape(prop_value)}\1",
+                        tag,
+                    ):
+                        missing.append(f'{prop}="{prop_value}"')
+                alt_policy = str(asset.get("alt_policy", "contextual_description"))
+                if alt_policy == "decorative":
+                    if not re.search(r"\balt\s*=\s*([\"'])\1", tag):
+                        missing.append('alt=""')
+                elif not re.search(r"\balt\s*=", tag) or re.search(r"\balt\s*=\s*([\"'])\1", tag):
+                    missing.append("non-empty alt")
+        if missing:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_IMAGE_BINDING_INVALID",
+                    "The planned LocalImage binding must defer immutable sources to the "
+                    f"trusted manifest and use exact presentation props for {slot_id}; "
+                    "missing or mismatched: " + ", ".join(dict.fromkeys(missing[:6])),
+                    work_unit_id,
+                    anchor_relative,
+                )
+            )
+
+    for move in distinctive_moves or []:
+        move_id = str(move.get("move_id", ""))
+        section_id = str(move.get("section_id", ""))
+        owner_paths = owners.get(section_id, [])
+        owner_relative = owner_paths[0] if len(owner_paths) == 1 else anchor_relative
+        owner_source = sources.get(owner_relative, "")
+        style_candidate = Path(owner_relative).with_suffix(".css").as_posix()
+        style_relative = style_candidate if style_candidate in contract_sources else owner_relative
+        style_source = (
+            contract_sources.get(style_relative, "")
+            if style_relative != owner_relative
+            else owner_source
+        )
+        move_missing: list[str] = []
+        runtime_marker = str(move.get("runtime_marker", ""))
+        if runtime_marker and runtime_marker not in owner_source:
+            move_missing.append(f"runtime marker {runtime_marker}")
+        source_selector = str(move.get("source_selector", ""))
+        declarations = _exact_selector_declarations(
+            style_source,
+            source_selector,
+            runtime_marker=runtime_marker,
+        )
+        missing_properties = [
+            str(item)
+            for item in move.get("required_css_properties", [])
+            if str(item).casefold() not in declarations
+        ]
+        if not declarations:
+            move_missing.append(f"exact CSS selector {source_selector}")
+        if missing_properties:
+            move_missing.append("CSS properties " + ", ".join(missing_properties))
+        if move_missing:
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID",
+                    f"The assigned distinctive move {move_id} is missing executable evidence: "
+                    + "; ".join(move_missing),
+                    work_unit_id,
+                    style_relative if declarations or missing_properties else owner_relative,
+                )
+            )
+
+    for beat in motion_beats or []:
+        motion_id = str(beat.get("motion_id", ""))
+        motion_missing: list[str] = []
+        css_repair_needed = False
+        source_repair_needed = False
+        motion_section_id = str(beat.get("section_id", ""))
+        motion_owner_paths = owners.get(motion_section_id, [])
+        motion_source_relative = (
+            motion_owner_paths[0] if len(motion_owner_paths) == 1 else anchor_relative
+        )
+        motion_style_candidate = Path(motion_source_relative).with_suffix(".css").as_posix()
+        motion_style_relative = (
+            motion_style_candidate
+            if motion_style_candidate in contract_sources
+            else motion_source_relative
+        )
+        for label, value in (
+            ("target marker", beat.get("target_marker")),
+            ("target selector", beat.get("target_selector")),
+        ):
+            literal = str(value or "")
+            if literal and literal not in combined_source:
+                motion_missing.append(f"{label} {literal}")
+                if label == "target marker":
+                    source_repair_needed = True
+                else:
+                    css_repair_needed = True
+        for expectation in beat.get("changed_properties", []):
+            if not isinstance(expectation, dict):
+                continue
+            for label in ("property_name", "before_value", "after_value"):
+                literal = str(expectation.get(label, ""))
+                if literal and literal not in combined_source:
+                    motion_missing.append(f"{label} {literal}")
+                    css_repair_needed = True
+        if "prefers-reduced-motion" not in combined_source:
+            motion_missing.append("prefers-reduced-motion final state")
+            css_repair_needed = True
+        if str(beat.get("trigger", "")) == "viewport" and not re.search(
+            r"\bIntersectionObserver\b|\banimation-timeline\s*:\s*view\s*\(|\bview-timeline\b",
+            combined_source,
+        ):
+            motion_missing.append("viewport trigger implementation")
+            source_repair_needed = True
+        opacity_starts_hidden = any(
+            isinstance(expectation, dict)
+            and str(expectation.get("property_name", "")).strip() == "opacity"
+            and str(expectation.get("before_value", "")).strip() == "0"
+            for expectation in beat.get("changed_properties", [])
+        )
+        if str(beat.get("trigger", "")) == "viewport" and opacity_starts_hidden:
+            target_selector = str(beat.get("target_selector", "")).strip()
+            target_tail = target_selector.rsplit(" ", 1)[-1]
+            if not _css_rule_contains(
+                combined_source,
+                selector_literals=[target_selector],
+                property_name="opacity",
+                property_value="1",
+            ):
+                motion_missing.append(f"default-visible {target_selector} opacity: 1")
+                css_repair_needed = True
+            if not _css_rule_contains(
+                combined_source,
+                selector_literals=['[data-motion-ready="true"]', target_tail],
+                property_name="opacity",
+                property_value="0",
+            ):
+                motion_missing.append('guarded [data-motion-ready="true"] opacity: 0')
+                css_repair_needed = True
+            if not re.search(
+                r"setAttribute\(\s*[\"']data-motion-ready[\"']\s*,\s*[\"']true[\"']\s*\)",
+                combined_source,
+            ):
+                motion_missing.append('setAttribute("data-motion-ready", "true")')
+                source_repair_needed = True
+        if motion_missing:
+            repair_paths = list(dict.fromkeys([motion_source_relative, motion_style_relative]))
+            diagnostic_relative = (
+                motion_style_relative if css_repair_needed else motion_source_relative
+            )
+            owner_hint = ""
+            if css_repair_needed and source_repair_needed and len(repair_paths) > 1:
+                owner_hint = " Repair both motion-owner files: " + ", ".join(repair_paths) + "."
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_ROUTE_BATCH_MOTION_INVALID",
+                    f"The assigned motion beat {motion_id} is missing executable evidence: "
+                    + ", ".join(motion_missing[:6])
+                    + owner_hint,
+                    work_unit_id,
+                    diagnostic_relative,
+                )
+            )
     return diagnostics
+
+
+def _exact_selector_declarations(
+    source: str,
+    selector: str,
+    *,
+    runtime_marker: str = "",
+) -> set[str]:
+    if not selector.strip():
+        return set()
+    accepted_selectors = {selector.strip()}
+    if runtime_marker.strip():
+        # The marker is already required as a literal attribute on the source
+        # element. Qualifying that exact selector with the same attribute does
+        # not weaken section/element scope; it names the same executable node.
+        accepted_selectors.add(f"{selector.strip()}[{runtime_marker.strip()}]")
+    bodies: list[str] = []
+    for match in re.finditer(r"(?P<selectors>[^{}]+)\{(?P<body>[^{}]*)\}", source, re.DOTALL):
+        selectors = [item.strip() for item in match.group("selectors").split(",")]
+        if accepted_selectors.intersection(selectors):
+            bodies.append(match.group("body"))
+    return {
+        match.group(1).casefold()
+        for body in bodies
+        for match in re.finditer(r"(?:^|;)\s*([a-z-]+)\s*:", body, re.IGNORECASE)
+    }
+
+
+def _css_rule_contains(
+    source: str,
+    *,
+    selector_literals: list[str],
+    property_name: str,
+    property_value: str,
+) -> bool:
+    declaration = re.compile(
+        rf"(?:^|;)\s*{re.escape(property_name)}\s*:\s*{re.escape(property_value)}\s*(?:;|$)",
+        re.IGNORECASE,
+    )
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", source):
+        selector, body = match.groups()
+        if all(literal in selector for literal in selector_literals) and declaration.search(body):
+            return True
+    return False
+
+
+def _interaction_state_value_matches(assignments: list[str], expected: str) -> bool:
+    """Interpret boolean state ranges without requiring their prose verbatim."""
+
+    normalized = " ".join(expected.casefold().replace("/", " or ").split())
+    if normalized in {"boolean", "true or false", "false or true"}:
+        return any(
+            assignment.startswith("{") or assignment.strip("\"'").casefold() in {"true", "false"}
+            for assignment in assignments
+        )
+    return any(expected in assignment for assignment in assignments)
+
+
+def _validate_css_value_policy(source: str, path: str) -> None:
+    """Reject a narrow class of readable-but-invalid generated CSS values.
+
+    CSS parsers and production bundlers preserve unknown declaration values,
+    so a model typo such as ``max-width: fiftych`` builds successfully and is
+    silently ignored by the browser. Restrict this check to spelled-out number
+    words joined to CSS length units; keywords, custom properties, selectors,
+    comments, and ordinary numeric lengths remain untouched.
+    """
+
+    scannable = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+    for declaration in _CSS_DECLARATION_RE.finditer(scannable):
+        property_name = declaration.group("property")
+        if property_name.startswith("--") or property_name.casefold() == "content":
+            continue
+        invalid = _CSS_SPELLED_LENGTH_RE.search(declaration.group("value"))
+        if invalid is None:
+            continue
+        raise SourceValidationError(
+            "SOURCE_CSS_INVALID_LENGTH",
+            f"CSS declaration {property_name!r} uses the invalid spelled-out length "
+            f"{invalid.group('length')!r}; use a numeric CSS length such as 50ch or "
+            "an admitted design token.",
+            file=path,
+        )
+
+
+def validate_route_composer_contract(
+    repo_dir: Path,
+    relative_paths: list[str],
+    *,
+    section_selectors_by_section: dict[str, str],
+    work_unit_id: str,
+) -> list[SourceDiagnostic]:
+    """Require the V4 composer to supply complete section navigation."""
+
+    route_paths = [
+        value.replace("\\", "/")
+        for value in relative_paths
+        if value.endswith("index.tsx") and "*" not in value
+    ]
+    if not route_paths or len(section_selectors_by_section) < 2:
+        return []
+    route_path = route_paths[0]
+    try:
+        source = (repo_dir / route_path).resolve().read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    missing: list[str] = []
+    if not re.search(r"<nav\b", source):
+        missing.append("<nav>")
+    if not re.search(r"<RouteShell\b[\s\S]*?\bnavigation\s*=", source):
+        missing.append("RouteShell navigation prop")
+    for section_id, selector in section_selectors_by_section.items():
+        if not re.fullmatch(r"#[A-Za-z_][\w-]*", selector):
+            continue
+        if not re.search(rf"\bhref\s*=\s*[\"']{re.escape(selector)}[\"']", source):
+            missing.append(f'{section_id} href="{selector}"')
+    if not missing:
+        return []
+    return [
+        _diagnostic(
+            "SOURCE_ROUTE_COMPOSER_NAVIGATION_MISSING",
+            "The route composer must pass a compact navigation landmark with every "
+            "approved literal section href; missing: " + ", ".join(missing),
+            work_unit_id,
+            route_path,
+        )
+    ]
+
+
+def _literal_selector_positions(source: str, selector: str) -> list[int] | None:
+    """Locate selectors whose JSX evidence can be proven without a CSS parser.
+
+    The runtime verifier remains authoritative for compound selectors. This
+    bounded source check handles the simple IDs, static attributes, and static
+    classes emitted by the V4 planner so a batch cannot checkpoint a known
+    selector mismatch.
+    """
+
+    value = selector.strip()
+    id_match = re.fullmatch(r"#([A-Za-z_][\w-]*)", value)
+    if id_match:
+        return [
+            position
+            for position, attribute_value in static_jsx_attribute_values(source, "id")
+            if attribute_value == id_match.group(1)
+        ]
+    attribute_match = re.fullmatch(
+        r"\[\s*([A-Za-z_:][\w:.-]*)\s*=\s*([\"'])(.*?)\2\s*\]",
+        value,
+    )
+    if attribute_match:
+        name, _, expected = attribute_match.groups()
+        return [
+            position
+            for position, attribute_value in static_jsx_attribute_values(source, name)
+            if attribute_value == expected
+        ]
+    class_match = re.fullmatch(r"\.([A-Za-z_][\w-]*)", value)
+    if class_match:
+        expected = class_match.group(1)
+        return [
+            position
+            for name in ("class", "className")
+            for position, attribute_value in static_jsx_attribute_values(source, name)
+            if expected in attribute_value.split()
+        ]
+    return None
 
 
 def _safe_path(value: str) -> str:
@@ -527,6 +1209,69 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     return False
 
 
+def _jsx_literal_children(text: str) -> list[str]:
+    """Return probable visible JSX text without treating TS generics as tags.
+
+    A raw ``>...<`` regex cannot distinguish ``useRef<HTMLElement>`` from an
+    opening JSX element and can consequently classify an entire hook body as
+    visible portfolio copy. Require a JSX-like tag start and ignore angle
+    brackets attached to an identifier, then remove balanced child
+    expressions before applying the prose policy.
+    """
+
+    values: list[str] = []
+    index = 0
+    while index < len(text):
+        start = text.find("<", index)
+        if start < 0:
+            break
+        fragment = text.startswith(("<>", "</>"), start)
+        tag = re.match(r"</?[A-Za-z][\w:.-]*(?=[\s/>])", text[start:])
+        if not fragment and tag is None:
+            index = start + 1
+            continue
+        closing = text.startswith("</", start)
+        if not closing and not fragment and start > 0 and re.match(r"[\w$.]", text[start - 1]):
+            index = start + 1
+            continue
+        end = start + 1 if fragment else _jsx_opening_tag_end(text, start)
+        if end < 0:
+            break
+        opening = text[start : end + 1]
+        if not closing and not opening[:-1].rstrip().endswith("/"):
+            next_tag = text.find("<", end + 1)
+            child = text[end + 1 : next_tag if next_tag >= 0 else len(text)]
+            visible: list[str] = []
+            brace_depth = 0
+            quote = ""
+            escaped = False
+            for character in child:
+                if brace_depth:
+                    if quote:
+                        if escaped:
+                            escaped = False
+                        elif character == "\\":
+                            escaped = True
+                        elif character == quote:
+                            quote = ""
+                    elif character in {"'", '"', "`"}:
+                        quote = character
+                    elif character == "{":
+                        brace_depth += 1
+                    elif character == "}":
+                        brace_depth -= 1
+                    continue
+                if character == "{":
+                    brace_depth = 1
+                    continue
+                visible.append(character)
+            literal = "".join(visible)
+            if literal.strip():
+                values.append(literal)
+        index = end + 1
+    return values
+
+
 def _validate_text_policy(text: str, path: str, public_text: set[str]) -> None:
     lowered = text.casefold()
     scannable = _strip_approved_links(text, public_text)
@@ -545,8 +1290,7 @@ def _validate_text_policy(text: str, path: str, public_text: set[str]) -> None:
             "SOURCE_SECRET_ACCESS", "Generated source cannot access environment secrets.", file=path
         )
     if path.startswith("src/routes/") and public_text:
-        suspicious = re.findall(r">([^<>\n]{4,})<", text)
-        for value in suspicious:
+        for value in _jsx_literal_children(text):
             clean = " ".join(value.split())
             if (
                 clean
@@ -558,7 +1302,8 @@ def _validate_text_policy(text: str, path: str, public_text: set[str]) -> None:
             ):
                 raise SourceValidationError(
                     "SOURCE_UNGROUNDED_COPY",
-                    "Route source contains copy not present in the approved public contract.",
+                    "Route source contains copy not present in the approved public contract: "
+                    f"{clean[:160]!r}",
                     file=path,
                 )
 

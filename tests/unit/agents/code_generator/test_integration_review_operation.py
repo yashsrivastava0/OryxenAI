@@ -50,6 +50,66 @@ async def test_integration_review_retries_invalid_provider_json() -> None:
     assert reviewer.calls == 2
 
 
+class _RetryingSemanticReview:
+    def __init__(self) -> None:
+        self.instructions: list[str] = []
+
+    async def generate_structured(self, **kwargs: object) -> SimpleNamespace:
+        self.instructions.append(str(kwargs["instructions"]))
+        marker = "invented-marker" if len(self.instructions) == 1 else "#hero {"
+        return SimpleNamespace(
+            parsed_output={
+                "schema_version": "quality-review-draft-v1",
+                "hierarchy_score": 4,
+                "composition_score": 4,
+                "typography_score": 4,
+                "resource_fit_score": 4,
+                "motion_score": 4,
+                "score_evidence": [
+                    {
+                        "dimension": dimension,
+                        "score": 4,
+                        "owner_work_unit_id": "route-home",
+                        "file": "src/routes/home/hero.css",
+                        "line": 1,
+                        "marker": marker,
+                        "evidence": f"Concrete {dimension} evidence.",
+                    }
+                    for dimension in (
+                        "hierarchy",
+                        "composition",
+                        "typography",
+                        "resource_fit",
+                        "motion",
+                    )
+                ],
+                "findings": [],
+                "advisory_observations": [],
+                "review_summary": "The source has concrete evidence for every score.",
+            }
+        )
+
+
+@pytest.mark.asyncio
+async def test_integration_review_retry_receives_exact_marker_correction() -> None:
+    reviewer = _RetryingSemanticReview()
+
+    review, _receipt, _result = await run_integration_review_operation(
+        reviewer,  # type: ignore[arg-type]
+        context={
+            "assembled_source": {"src/routes/home/hero.css": "#hero {\n  display: grid;\n}\n"},
+            "work_graph": {"units": [{"unit_id": "route-home", "terminal": False}]},
+        },
+        profile_name="code_generator_integration",
+        output_version="v4",
+    )
+
+    assert review.composition_score == 4
+    assert len(reviewer.instructions) == 2
+    assert "invented-marker" in reviewer.instructions[1]
+    assert "#hero {" in reviewer.instructions[1]
+
+
 def test_review_owner_canonicalization_only_accepts_known_composer_alias() -> None:
     review = IntegrationReviewV1(
         status="findings",
