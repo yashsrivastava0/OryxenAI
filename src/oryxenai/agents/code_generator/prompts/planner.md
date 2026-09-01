@@ -46,6 +46,11 @@ Grounding and exact coverage:
   composition/layout properties here; never require `object-fit` or
   `object-position` on a section/panel wrapper. Media fit and focal position
   belong to the resource placement and its rendered image.
+  `source_selector` names the exact element that receives the required CSS
+  declarations, not merely an ancestor section. For grid, asymmetric, rail,
+  or alignment moves, copy the matching `section_regions[*].region_selector`
+  into `source_selector`, put the exact `runtime_marker` on that same rendered
+  element, and use `target_selector` for the affected descendant or peer.
 - Place each required resource once in its approved section. In every
   `resource_placements[*].resource_slot_id`, copy the exact
   `resource_bindings.slots[*].resource_slot_id` value (for example, a
@@ -53,11 +58,19 @@ Grounding and exact coverage:
   filename, or source ID in that field. The slot's nested
   `resolution.resource_id` identifies the concrete file but is not the slot
   identity. State selector, honest alt policy, fit, focal position, responsive
-  `sizes`, loading policy, visible-ratio floor, and aspect-ratio range.
+  `sizes`, loading policy, visible-ratio floor, and aspect-ratio range. The
+  `sizes` value must be a browser-valid concrete policy: use numeric CSS
+  lengths such as `40rem`, `72vw`, or `100vw` (or `calc`/`min`/`max`/`clamp`
+  expressions), and never spell out a number such as `sixtyrem` or use an
+  unknown unit.
   `element_marker` must be one literal `data-*="stable-token"` attribute on
   the generated `LocalImage` wrapper, and `element_selector` must be that same
   attribute as a CSS selector (`[data-*="stable-token"]`). Do not target the
   trusted nested `img`; runtime verification finds it inside the wrapper.
+  `sizes` is CSS syntax, never prose: BAD `(max-width: sixtyrem) 100vw, 58vw`;
+  GOOD `(max-width: 60rem) 100vw, 58vw`. If uncertain, use the literal
+  `100vw` fallback. Do not spell out numbers or invent descriptive words in
+  any CSS value.
   Representative media is never personal evidence.
 - Assign every approved interaction exactly once with selector, literal
   marker, keyboard behavior, focus result, state transition, state attribute,

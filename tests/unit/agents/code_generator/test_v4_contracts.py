@@ -10,6 +10,7 @@ from oryxenai.agents.code_generator.core import final_source_validation
 from oryxenai.agents.code_generator.core.blueprint_compiler import (
     _canonicalize_resource_placement_slots,
     canonicalize_generation_plan,
+    canonicalize_v4_distinctive_move_selectors,
     canonicalize_v4_h1_owners,
     canonicalize_v4_resource_placement_selectors,
 )
@@ -28,6 +29,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationContextReceipt,
     InteractionContract,
     QualityReviewDraftV1,
+    ResourcePlacementV4,
     ResourceSearchIntentV2,
     RoutePlan,
     SitePlan,
@@ -62,7 +64,10 @@ from oryxenai.agents.code_generator.core.source_manifest import (
 )
 from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
 from oryxenai.agents.code_generator.core.token_compiler import compile_generated_tokens
-from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_typescript_source
+from oryxenai.agents.code_generator.core.typescript_ast_audit import (
+    _selector_declarations,
+    audit_typescript_source,
+)
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.shared.providers.schema_compatibility import schema_compatibility_issues
 
@@ -238,6 +243,42 @@ def test_v4_resource_selector_canonicalizes_to_generated_wrapper_marker() -> Non
     assert canonical.resource_placements[0].element_selector == '[data-resource="hero-image"]'
 
 
+def test_v4_resource_sizes_require_concrete_browser_css_lengths() -> None:
+    base = {
+        "resource_slot_id": "slot-hero-photo",
+        "route_id": "home",
+        "section_id": "hero",
+        "element_marker": 'data-resource="hero-image"',
+        "element_selector": '[data-resource="hero-image"]',
+        "alt_policy": "decorative",
+        "fit": "cover",
+        "focal_position": "center",
+        "loading": "eager",
+        "responsive_behavior": "Stack below approved hero copy.",
+        "aspect_ratio_min": 1.2,
+        "aspect_ratio_max": 1.8,
+        "minimum_visible_ratio": 0.4,
+    }
+
+    valid = ResourcePlacementV4(
+        **base,
+        sizes=" (max-width: 40rem) 100vw, calc(72vw - 2rem) ",
+    )
+    assert valid.sizes == "(max-width: 40rem) 100vw, calc(72vw - 2rem)"
+
+    with pytest.raises(ValidationError, match="numeric CSS lengths"):
+        ResourcePlacementV4(
+            **base,
+            sizes="(max-width: sixtyrem) 100vw, 58vw",
+        )
+
+    with pytest.raises(ValidationError, match="concrete CSS lengths"):
+        ResourcePlacementV4(
+            **base,
+            sizes="(max-width: 40furlong) 100vw, 58vw",
+        )
+
+
 def test_v4_page_heading_owner_canonicalizes_to_first_approved_section() -> None:
     blueprint = _blueprint()
     blueprint = blueprint.model_copy(
@@ -263,6 +304,25 @@ def test_v4_page_heading_owner_canonicalizes_to_first_approved_section() -> None
 
     assert canonical_plan.experience_blueprint.route_shells[0].h1_owner == "home:hero"
     assert plan.experience_blueprint.route_shells[0].h1_owner == "trusted_shell"
+
+
+def test_v4_distinctive_move_source_canonicalizes_to_exact_layout_region() -> None:
+    blueprint = _blueprint()
+    move = blueprint.distinctive_moves[0].model_copy(
+        update={"source_selector": blueprint.section_regions[0].section_selector}
+    )
+    blueprint = blueprint.model_copy(update={"distinctive_moves": [move]})
+
+    canonical = canonicalize_v4_distinctive_move_selectors(blueprint)
+
+    assert canonical.distinctive_moves[0].source_selector == ('[data-region-id="region:hero"]')
+    assert blueprint.distinctive_moves[0].source_selector == '[data-content-id="hero"]'
+
+    plan = SitePlan(plan_id="canonical-move-plan", routes=[], experience_blueprint=blueprint)
+    canonical_plan = canonicalize_generation_plan(plan)
+    assert canonical_plan.experience_blueprint.distinctive_moves[0].source_selector == (
+        '[data-region-id="region:hero"]'
+    )
 
 
 def test_v4_route_audit_reads_anchors_from_rendered_section_modules() -> None:
@@ -331,6 +391,17 @@ export default function HomeRoute() {
     assert not diagnostics, [
         (item.code, item.symbol, item.file, item.expected, item.observed) for item in diagnostics
     ]
+
+
+def test_v4_ast_audit_accepts_marker_qualified_move_selector() -> None:
+    declarations = _selector_declarations(
+        '[data-region="region:home:hero"][data-distinctive-move="hero-rail"] '
+        "{ display: grid; grid-template-columns: 1fr 1fr; column-gap: 1rem; }",
+        '[data-region="region:home:hero"]',
+        runtime_marker='data-distinctive-move="hero-rail"',
+    )
+
+    assert declarations == {"display", "grid-template-columns", "column-gap"}
 
 
 def test_v4_contract_meta_preserves_section_identity_selector_split() -> None:
@@ -727,6 +798,10 @@ def test_v4_generation_contract_exposes_browser_images_and_motion() -> None:
     assert 'wrapperMarker=data-resource="hero"' in instructions
     assert "IntersectionObserver-driven state" in instructions
     assert 'data-motion-target="hero-copy"' in instructions
+    assert (
+        "A rule on an ancestor or descendant such as `source child` does not satisfy"
+        in instructions
+    )
 
 
 def test_scaffold_font_fallback_precedes_generated_font_tokens() -> None:

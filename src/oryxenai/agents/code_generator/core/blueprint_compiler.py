@@ -41,6 +41,7 @@ def compile_blueprint_site_plan(
     blueprint = canonicalize_v4_h1_owners(blueprint)
     blueprint = _canonicalize_resource_placement_slots(blueprint, projections)
     blueprint = canonicalize_v4_resource_placement_selectors(blueprint)
+    blueprint = canonicalize_v4_distinctive_move_selectors(blueprint)
     site = projections["site/contract.json"]
     routes = [item for item in site.get("routes", []) if isinstance(item, dict)]
     public_content = [item for item in site.get("public_content", []) if isinstance(item, dict)]
@@ -362,6 +363,35 @@ def canonicalize_v4_resource_placement_selectors(
     return blueprint.model_copy(update={"resource_placements": placements})
 
 
+def canonicalize_v4_distinctive_move_selectors(
+    blueprint: ExperienceBlueprintV4,
+) -> ExperienceBlueprintV4:
+    """Bind section-level move sources to the executable layout region.
+
+    The section selector identifies the semantic section anchor, while the
+    region selector identifies the exact element that owns the layout
+    declarations used by runtime verification. A provider can reasonably
+    echo the former when it means "this section's layout", so normalize only
+    that exact, unambiguous alias. Custom source selectors and already
+    canonical region selectors remain provider-authored and are left alone.
+    """
+
+    regions = {
+        (item.route_id, item.section_id, item.region_id): item for item in blueprint.section_regions
+    }
+    changed = False
+    moves = []
+    for move in blueprint.distinctive_moves:
+        region = regions.get((move.route_id, move.section_id, move.region_id))
+        if region is not None and move.source_selector.strip() == region.section_selector.strip():
+            move = move.model_copy(update={"source_selector": region.region_selector})
+            changed = True
+        moves.append(move)
+    if not changed:
+        return blueprint
+    return blueprint.model_copy(update={"distinctive_moves": moves})
+
+
 def canonicalize_generation_plan(plan: SitePlan) -> SitePlan:
     """Apply deterministic V4 ownership normalization at every stage boundary."""
 
@@ -370,6 +400,7 @@ def canonicalize_generation_plan(plan: SitePlan) -> SitePlan:
         return plan
     canonical = canonicalize_v4_h1_owners(blueprint)
     canonical = canonicalize_v4_resource_placement_selectors(canonical)
+    canonical = canonicalize_v4_distinctive_move_selectors(canonical)
     if canonical is blueprint:
         return plan
     return plan.model_copy(update={"experience_blueprint": canonical})
@@ -401,6 +432,7 @@ def _viewport_strategy(regions: list[Any], viewport: str) -> str:
 
 __all__ = [
     "canonicalize_generation_plan",
+    "canonicalize_v4_distinctive_move_selectors",
     "canonicalize_v4_h1_owners",
     "canonicalize_v4_resource_placement_selectors",
     "compile_blueprint_site_plan",
