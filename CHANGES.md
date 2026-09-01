@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 01:25 +05:30 - Codex (GPT-5 / OpenAI) - [1cf313f] - bound final repairs by diagnostic group
+Final verification now reconstructs per-group repair usage from durable receipts, preserves a shared run-wide ceiling, and conservatively buckets legacy receipts. Final V4 repair calls also reject acceptance after a failed gate and require bounded changes or an honest inability result, with unit and PostgreSQL-backed regression coverage.
+
 ### 2026-09-02 01:05 +05:30 - Codex (GPT-5 / OpenAI) - [234a05d] - restore Code Generator per-role model profiles
 Restored the seven dedicated Code Generator role profile bindings in `config/app.toml`, added a settings regression check that loads the committed configuration, and recorded the routing boundary decision. Live role selection is now independently configurable while remaining provider-neutral.
 
