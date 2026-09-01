@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-01 22:31 +05:30 - Codex (GPT-5 / OpenAI) - [b780266] - native PostgreSQL alignment
+Fixed native role-alignment SQL to cast asyncpg parameters to text before PostgreSQL `format()`, making `align-db` work against the active PostgreSQL 18 cluster. Verified the shared local credential alignment and SCRAM logins for `postgres` and `oryxen` without logging the password.
+
 ### 2026-09-01 09:28 +05:30 — Codex (GPT-5 / OpenAI) — [d41eba1] — harden Code Generator generation, source evidence, repair, and polish contracts
 Live retries exposed a chain of independent failures after the accepted-mode fix: rejected candidate bytes were unavailable to later repairs; raw-text selector checks miscounted strings/comments as JSX; route interaction, resource, motion, heading, distinctive-move, and export evidence could be attributed to the wrong owner or accepted without executable source; and integration polish could checkpoint a malformed replacement before source audit. Rejected attempts are now durable repair context, source checks use shared comment/JSX lexing and canonical V4 plan identities, generated image bindings resolve through the trusted manifest/`LocalImage`, final repair receives bounded source/style pairs, and every configured owner-scoped polish round must pass source/type validation before checkpointing. Planner, generation, integration-review, repair, scaffold, Windows toolchain, and legacy no-blueprint foundation compatibility contracts were aligned with regression coverage; D-032 records the finite three-round default.
 
