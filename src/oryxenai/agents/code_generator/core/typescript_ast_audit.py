@@ -669,6 +669,13 @@ def audit_typescript_source(
                 )
             )
 
+    if blueprint_v4:
+        diagnostics.extend(
+            _audit_v4_cross_route_sameness(
+                routes=[route.model_dump(mode="json") for route in plan.routes],
+                files=clean_files,
+            )
+        )
     return _dedupe(diagnostics)
 
 
@@ -742,6 +749,63 @@ def _selector_has_reduced_motion(css: str, selector: str) -> bool:
     return False
 
 
+_V4_SECTION_STRUCTURE_RE = re.compile(
+    r"<(?:section|div|article|aside|header|footer)\b|"
+    r"className\s*=\s*[\"'][^\"']+[\"']",
+    re.IGNORECASE,
+)
+
+
+def _v4_section_structure_signature(source: str) -> tuple[str, ...]:
+    return tuple(_V4_SECTION_STRUCTURE_RE.findall(_without_comments(source)))
+
+
+def _v4_route_section_signature(
+    *, files: dict[str, str], route_prefix: str
+) -> tuple[tuple[str, ...], ...] | None:
+    section_paths = sorted(
+        path
+        for path in files
+        if path.startswith(f"{route_prefix}sections/") and path.endswith(".tsx")
+    )
+    if len(section_paths) < 3:
+        return None
+    return tuple(_v4_section_structure_signature(files[path]) for path in section_paths)
+
+
+def _audit_v4_cross_route_sameness(
+    *, routes: list[dict[str, Any]], files: dict[str, str]
+) -> list[Diagnostic]:
+    """Reject identical section-shell sequences across distinct v4 routes."""
+
+    seen: dict[tuple[tuple[str, ...], ...], tuple[str, str]] = {}
+    diagnostics: list[Diagnostic] = []
+    for route in routes:
+        route_id = str(route.get("route_id", ""))
+        route_file = _route_source_path(route, semantic=True)
+        route_prefix = f"{route_file.rsplit('/', 1)[0]}/"
+        signature = _v4_route_section_signature(files=files, route_prefix=route_prefix)
+        if signature is None:
+            continue
+        previous = seen.get(signature)
+        if previous is not None:
+            previous_route_id, previous_route_file = previous
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_CROSS_ROUTE_SAMENESS",
+                    "Two or more v4 routes use an identical structural section sequence.",
+                    file=route_file,
+                    route_id=route_id,
+                    symbol="section-shell-sequence",
+                    expected=f"distinct from route {previous_route_id}",
+                    observed=f"same structural signature as {previous_route_file}",
+                )
+            )
+        else:
+            seen[signature] = (route_id, route_file)
+    return diagnostics
+
+
 def _audit_v4_anti_slop(
     *,
     route_id: str,
@@ -750,24 +814,16 @@ def _audit_v4_anti_slop(
     files: dict[str, str],
     visual_direction: dict[str, Any],
 ) -> list[Diagnostic]:
+    signature = _v4_route_section_signature(files=files, route_prefix=route_prefix)
+    if signature is None:
+        return []
     section_sources = [
-        text
-        for path, text in files.items()
+        files[path]
+        for path in sorted(files)
         if path.startswith(f"{route_prefix}sections/") and path.endswith(".tsx")
     ]
-    if len(section_sources) < 3:
-        return []
     diagnostics: list[Diagnostic] = []
-    signatures = [
-        tuple(
-            re.findall(
-                r"<(?:section|div|article|aside|header|footer)\b|className\s*=\s*[\"'][^\"']+[\"']",
-                _without_comments(value),
-                re.IGNORECASE,
-            )
-        )
-        for value in section_sources
-    ]
+    signatures = list(signature)
     repeated = max((signatures.count(item) for item in signatures), default=0)
     if repeated >= 3:
         diagnostics.append(
