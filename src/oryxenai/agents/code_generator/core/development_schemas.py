@@ -7,7 +7,7 @@ import json
 import math
 import re
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import (
     AliasChoices,
@@ -1120,7 +1120,7 @@ class DesignTokenSystemV4(BaseModel):
             # native strict structured-output providers see a closed object,
             # while the runtime validator still permits a useful subset.
             "additionalProperties": False,
-            "properties": _SHADCN_THEME_SCHEMA_PROPERTIES,
+            "properties": cast(dict[str, Any], _SHADCN_THEME_SCHEMA_PROPERTIES),
         },
     )
     spacing: list[LengthTokenV4] = Field(min_length=1, max_length=32)
