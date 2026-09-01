@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-055 - Code Generator uses dedicated per-role model profiles
+
+- **Date & Time:** 2026-09-02 01:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The standalone Code Generator has seven distinct bounded roles, but the native app configuration routed every role through one shared profile. That hid role-level routing changes and made the configured role boundaries ineffective during live runs.
+- **Decision:** `config/app.toml` routes director, planner, resource scout, route builder, route composer, integrator, and repairer through their matching profile IDs from `config/models.toml`. The Code Generator role profiles are intentionally separate from the general pipeline routing and from D-040's default-profile decision.
+- **Rejected alternatives:** Keeping one shared profile for all roles - rejected because it prevents independent operational tuning and obscures provider receipts; hardcoding provider/model choices in agent code - rejected because model routing remains configuration-owned.
+- **Consequence:** Each live Code Generator operation records the profile selected for its role, while changing provider, model, or credential environment remains a TOML-only change.
+
 ## D-054 - Shared preview gateway is part of the default Docker stack
 
 - **Date & Time:** 2026-08-27 03:00 +05:30 — Codex (GPT-5 / OpenAI)
