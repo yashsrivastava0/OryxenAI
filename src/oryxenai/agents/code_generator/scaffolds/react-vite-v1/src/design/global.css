@@ -1,10 +1,10 @@
-@import "./tokens.css";
 @import "./fonts.css";
+@import "./tokens.css";
 @import "./motion.css";
 
 /* Functional reset and safety behavior. Portfolio-specific values and layout
    classes belong to generated route CSS, never to this scaffold. */
-:root { color-scheme: light dark; }
+:root { color-scheme: light; }
 *, *::before, *::after { box-sizing: border-box; }
 html { min-width: 320px; scroll-behavior: smooth; }
 body {

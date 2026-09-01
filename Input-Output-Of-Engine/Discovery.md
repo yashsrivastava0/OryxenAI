@@ -3,325 +3,327 @@
 ```json
 {
   "mode": "ASK_QUESTIONS",
-  "assistant_message": "Thanks, Aarav — you’ve provided a strong foundation with substantial experience across design, BIM coordination, technical documentation, and site delivery. Before I build the Discovery Brief, I’d like to clarify a few decisions that will shape the portfolio’s positioning and project storytelling.",
+  "assistant_message": "You’ve shared a strong foundation for Arjun’s product-design portfolio, including two roles, four case studies, measurable outcomes, design-system work, and public contact links. Before I build the brief, I need to confirm the portfolio’s intended positioning and what professional details are safe to publish.",
   "items": [
     {
-      "id": "primary_positioning",
-      "text": "Which opportunity should the portfolio prioritize: design-led architectural roles, technical/BIM and project-coordination roles, or a balanced combination of both?",
-      "help_text": "You can choose one direction or describe a specific role, firm type, or audience you want to attract.",
+      "id": "target_audience",
+      "text": "Who should this portfolio primarily attract next?",
+      "help_text": "Choose the audience that should shape the homepage emphasis and project order.",
       "kind": "single_select",
       "options": [
         {
-          "id": "design_led",
-          "label": "Design-led architecture and architectural design roles"
+          "id": "product_design_roles",
+          "label": "Product Designer / Senior Product Designer roles"
         },
         {
-          "id": "technical_bim",
-          "label": "Technical architecture, BIM, and project-coordination roles"
+          "id": "ux_ui_roles",
+          "label": "UI/UX Designer or UX Designer roles"
         },
         {
-          "id": "balanced",
-          "label": "Balanced design, documentation, BIM, and delivery profile"
+          "id": "freelance_consulting",
+          "label": "Freelance, contract, or design-consulting opportunities"
         }
       ],
-      "reason": "This determines which projects, capabilities, and case-study details receive the strongest emphasis.",
+      "reason": "The material supports several directions; the target audience will determine which strengths and case studies lead the experience.",
       "allow_skip": true,
       "allow_auto": false
     },
     {
-      "id": "project_media",
-      "text": "Which selected projects have presentation material available for use, such as drawings, renders, diagrams, photographs, models, or site images?",
-      "help_text": "Please mention any projects that must be excluded because of employer, client, or confidentiality restrictions.",
+      "id": "publication_permission",
+      "text": "Are NovaPay Technologies, PixelCraft Labs, and the project names, user counts, and outcome metrics approved for public portfolio use?",
+      "help_text": "You can confirm all, name specific items to keep, or say to anonymize companies/projects and omit sensitive metrics.",
       "kind": "text",
       "options": [],
-      "reason": "A project-focused architecture portfolio is most credible when each featured project can be supported by visual evidence and a clearly stated personal contribution.",
-      "allow_skip": true,
-      "allow_auto": false
-    },
-    {
-      "id": "privacy_public_details",
-      "text": "Should the public portfolio display your phone number, COA registration number, and personal social links, or should any of these be kept private?",
-      "help_text": "Your email, website, LinkedIn, Behance, Instagram, and registration details are present in the supplied material.",
-      "kind": "text",
-      "options": [],
-      "reason": "This sets the portfolio’s public privacy boundary and avoids exposing details you may prefer to share only in a CV or direct application.",
+      "reason": "Public disclosure affects which case studies, employer references, and metrics can safely appear in the portfolio.",
       "allow_skip": true,
       "allow_auto": false
     }
   ],
   "memory_update": {
-    "open_items": [
-      "Primary portfolio positioning between design-led, technical/BIM-led, and balanced presentation is not yet confirmed.",
-      "Availability and usage permission for project visuals are unknown.",
-      "Confidentiality status of employers, clients, project names, drawings, renders, photographs, and project metrics is unknown.",
-      "Public-display preference for phone number, COA registration number, and personal social links is not yet confirmed.",
-      "Supplied claims and metrics should be treated as user-provided and not independently verified."
-    ],
-    "safe_omissions": [
-      "References can remain omitted or represented only as available upon request.",
-      "Nationality, home town, notice period, and interests can be omitted unless they support the intended portfolio audience.",
-      "Sensitive contact or registration details can be omitted from the public site based on the user's privacy decision."
-    ],
-    "confirmed_details": {
-      "name": "Aarav Mehta",
+    "person": {
+      "name": "Arjun Mehta",
       "location": "Bengaluru, Karnataka, India",
-      "education": "B.Arch, School of Planning and Architecture, Bhopal, 2016–2021, CGPA 8.3/10",
-      "experience": "5+ years",
-      "profession": "Architect / Architectural Designer / BIM & Project Coordination",
-      "focus_areas": [
-        "Architectural design",
-        "Construction documentation and GFC drawings",
-        "BIM and Revit coordination",
-        "Consultant and contractor coordination",
-        "Site execution and handover",
-        "Client management",
-        "Sustainable and climate-responsive design"
+      "profession": "UI/UX Designer / Product Designer",
+      "experience_summary": "4+ years designing web and mobile products across fintech, SaaS, e-commerce, logistics, healthcare, and consumer technology"
+    },
+    "skills": {
+      "ux": [
+        "User Research",
+        "User Interviews",
+        "Personas",
+        "Journey Mapping",
+        "Information Architecture",
+        "User Flows",
+        "Wireframing",
+        "Prototyping",
+        "Usability Testing",
+        "Heuristic Evaluation"
       ],
-      "known_tools": [
-        "AutoCAD",
-        "Autodesk Revit",
-        "SketchUp",
-        "Lumion",
-        "Enscape",
-        "V-Ray",
-        "Adobe Photoshop",
-        "Adobe InDesign",
-        "Rhino 3D",
-        "Navisworks",
-        "Autodesk Construction Cloud / BIM 360"
+      "tools": [
+        "Figma",
+        "FigJam",
+        "Framer",
+        "ProtoPie",
+        "Miro",
+        "Maze",
+        "Hotjar",
+        "Mixpanel",
+        "Adobe Illustrator",
+        "Photoshop",
+        "Notion",
+        "Jira"
       ],
-      "current_role": "Senior Architect at Studio Axis Architects Pvt. Ltd., Bengaluru; April 2024–Present",
-      "registration": "Council of Architecture, India Registered Architect — CA/2021/135482",
-      "known_projects": [
-        "The Courtyard Residences — Bengaluru",
-        "Orbit Business Centre — Bengaluru",
-        "Aranya Private Villas — Jaipur",
-        "Nexa Corporate Headquarters — Noida",
-        "The Grove Residences — Gurugram",
-        "Corporate Office Campus — Bengaluru",
-        "Boutique Resort — Coorg",
-        "Mixed-Use Development — Hyderabad",
-        "Riverstone Café — New Delhi"
+      "ui_product": [
+        "Responsive Web Design",
+        "Mobile UI",
+        "Interaction Design",
+        "Visual Design",
+        "Design Systems",
+        "Design Tokens",
+        "Component Libraries",
+        "Accessibility",
+        "Data Visualization"
       ],
-      "previous_roles": [
-        "Architect at UrbanFrame Design Studio, Gurugram; July 2021–March 2024",
-        "Architectural Intern at Form & Habitat Architects, New Delhi; January 2021–June 2021"
-      ],
-      "stated_target_context": "Open to architecture firms, real estate developers, design consultancies, and BIM/design coordination roles; preferred locations include Bengaluru, Gurugram, Delhi NCR, Mumbai, Pune, Hyderabad, and Ahmedabad.",
-      "contact_channels_supplied": [
-        "aarav.mehta.arch@gmail.com",
-        "aaravmehta-architecture.com",
-        "linkedin.com/in/aaravmehta-architect",
-        "behance.net/aaravmehta-architecture",
-        "instagram.com/aarav.arch.designs",
-        "issuu.com/aaravmehta-architecture"
+      "technical_understanding": [
+        "HTML/CSS",
+        "Responsive Design",
+        "WCAG",
+        "Component-Based UI",
+        "Git/GitHub",
+        "Design-to-Development Handoff"
       ]
-    }
+    },
+    "education": [
+      {
+        "dates": "2017 – 2021",
+        "credential": "Bachelor of Design (B.Des) — Interaction Design",
+        "institution": "MIT Institute of Design, Pune"
+      }
+    ],
+    "languages": [
+      "English — Professional proficiency",
+      "Hindi — Native proficiency"
+    ],
+    "experience": [
+      {
+        "dates": "Jul 2024 – Present",
+        "title": "Senior UI/UX Designer",
+        "location": "Bengaluru, India",
+        "organization": "NovaPay Technologies",
+        "notable_evidence": [
+          "Products serving 450K+ registered users",
+          "34% reduction in onboarding completion time",
+          "17% increase in successful transaction completion",
+          "30+ user interviews and usability tests",
+          "90+ reusable design-system components",
+          "Accessibility standards and design QA",
+          "Mentorship and design critiques"
+        ]
+      },
+      {
+        "dates": "Jan 2022 – Jun 2024",
+        "title": "UI/UX Designer",
+        "location": "Gurugram, India",
+        "organization": "PixelCraft Labs",
+        "notable_evidence": [
+          "Designed 12+ web and mobile products",
+          "21% improvement in checkout completion for D2C redesign",
+          "Research, workshops, interviews, usability testing",
+          "Dashboard and component-library work",
+          "Frontend/mobile collaboration and design QA"
+        ]
+      }
+    ],
+    "open_items": [
+      "Target audience/role focus is not yet confirmed.",
+      "Public-use permission for employer names, project names, user counts, and outcome metrics is not yet confirmed.",
+      "Supplied portfolio and case-study URLs are user-provided references and have not been opened or verified.",
+      "Personal contribution should remain distinct from broader product/team scope where the source does not make ownership explicit."
+    ],
+    "certifications": [
+      "Google UX Design Professional Certificate — Google/Coursera (2022)",
+      "Accessibility for Designers — Interaction Design Foundation (2023)",
+      "Advanced Figma: Design Systems & Prototyping (2024)"
+    ],
+    "known_projects": [
+      {
+        "link": "https://arjunmehta.design/case-studies/novapay",
+        "name": "NovaPay — Payments & Onboarding Redesign",
+        "role": "Lead Product Designer",
+        "tools": [
+          "Figma",
+          "FigJam",
+          "Maze",
+          "Mixpanel"
+        ],
+        "evidence": [
+          "14 user interviews",
+          "Two usability-testing rounds",
+          "34% reduction in onboarding time",
+          "17% improvement in successful transaction completion"
+        ],
+        "platform": "Android & iOS"
+      },
+      {
+        "link": "https://arjunmehta.design/case-studies/cartly",
+        "name": "Cartly — E-commerce Checkout Redesign",
+        "role": "UI/UX Designer",
+        "evidence": [
+          "Analytics, heatmaps, and usability testing",
+          "Reduced unnecessary fields and improved validation",
+          "21% increase in checkout completion",
+          "18% reduction in checkout-related support queries"
+        ],
+        "platform": "Responsive Web"
+      },
+      {
+        "link": "https://arjunmehta.design/case-studies/fleetflow",
+        "name": "FleetFlow — Logistics Operations Platform",
+        "role": "Product Designer",
+        "evidence": [
+          "Operations-user interviews",
+          "Role-specific workflows and information architecture",
+          "Tables, filtering, tracking, exceptions, and visualizations",
+          "29% reduction in time to investigate delayed shipments"
+        ],
+        "platform": "Desktop Web"
+      },
+      {
+        "link": "https://arjunmehta.design/case-studies/medease",
+        "name": "MedEase — Healthcare Appointment Platform",
+        "role": "UX Designer",
+        "evidence": [
+          "Appointment discovery and booking experience",
+          "Information architecture, filters, availability indicators, and accessibility patterns",
+          "Prototype task-completion improvement from 68% to 91%"
+        ],
+        "platform": "Mobile + Responsive Web"
+      }
+    ],
+    "contact_channels": [
+      "phone supplied",
+      "email supplied",
+      "portfolio supplied",
+      "LinkedIn supplied",
+      "Behance supplied",
+      "Dribbble supplied",
+      "Figma profile supplied",
+      "resume link supplied"
+    ],
+    "presentation_defaults_available": [
+      "technical/editorial or clean professional tone",
+      "case-study-led structure",
+      "accessible, polished product-design visual direction"
+    ]
   }
 }
 ```
 
-# Portfolio Discovery Brief: Aarav Mehta
+# 1. Portfolio direction at a glance
 
-## 1. Portfolio direction at a glance
+- **Primary goal:** Create a portfolio for product design roles.
+- **Professional identity:** UI/UX Designer / Product Designer with 4+ years of experience designing web and mobile products.
+- **Target audience:** Hiring teams and decision-makers evaluating product design candidates.
+- **Desired visitor action:** Understand Arjun’s product-design capabilities and proceed to a case study, professional profile, or approved contact channel.
+- **Leading emphasis:** Evidence-led case studies showing research, problem framing, interaction design, measurable outcomes, design systems, accessibility, and implementation collaboration.
+- **Confidence:** Source material is rich and includes roles, projects, methods, tools, and metrics. Publication permission for personal contact details, employer/project names, user counts, and outcome metrics remains unconfirmed.
 
-- **Primary goal:** Create a professional architecture portfolio that presents Aarav Mehta as a design-led architect with credible technical, BIM, coordination, and construction-delivery capability.
-- **Primary professional identity:** Architect / Architectural Designer, with Senior Architect experience and strengths in BIM and project coordination.
-- **Target audiences:** Architecture firms, real estate developers, design consultancies, and employers hiring for BIM or design-coordination roles.
-- **Desired visitor action:** Review selected project work and professional capabilities, then make contact through an approved public channel or professional network.
-- **Recommended leading emphasis:** Lead with architectural design thinking, spatial planning, climate-responsive design, visual communication, and selected project narratives. Use documentation, Revit/BIM coordination, consultant management, and site execution as evidence of delivery depth rather than as the sole identity.
-- **Confidence:** Source material is rich, with three professional roles, multiple projects, tools, education, registration, and certifications supplied. Confidence is lower regarding project-image availability, publication permission, confidentiality, and independent verification of claims and metrics.
+# 2. User intent and definition of success
 
-## 2. User intent and definition of success
+Arjun asked to create a portfolio and selected product design roles as the target. A successful portfolio should quickly establish product-design credibility, show how Arjun works from discovery through delivery and measurement, and make the distinction between personal contribution and broader product or team outcomes clear. The supplied material does not state a job-search deadline, preferred company type, seniority target beyond the current Senior UI/UX Designer role, or whether freelancing and personal branding are also goals.
 
-The user asked to create a portfolio. The supplied material indicates a professional portfolio intended to support career opportunities with architecture firms, developers, design consultancies, and BIM/design-coordination teams. Preferred locations include Bengaluru, Gurugram, Delhi NCR, Mumbai, Pune, Hyderabad, and Ahmedabad.
+# 3. Professional identity and positioning inputs
 
-A successful portfolio should quickly establish Aarav's design-led architectural perspective, show the range and scale of work handled, explain his personal contribution within team projects, and demonstrate that he can carry ideas through documentation, coordination, site execution, snagging, and handover support. It should support both design-oriented and technically informed hiring decisions without becoming a resume pasted into a website.
+Supported identity inputs include UI/UX Designer, Product Designer, and current role as Senior UI/UX Designer. Strengths evidenced in the material include end-to-end product design, UX research and validation, complex workflow simplification, responsive web and mobile design, design systems, accessibility, analytics-informed iteration, and developer handoff. Relevant domain exposure includes fintech, SaaS, e-commerce, logistics, healthcare, and consumer technology.
 
-No deadline was supplied. No final public-contact or project-media decision was supplied.
+Recommended positioning direction: present Arjun as a product designer who turns complex workflows into clear, accessible, scalable experiences, supported by measurable outcomes and practical collaboration with product and engineering teams. This is a strategy direction, not final portfolio copy.
 
-## 3. Professional identity and positioning inputs
+# 4. Source-derived professional profile
 
-The source presents Aarav as an architect with 5+ years of experience across residential, commercial, hospitality, institutional, mixed-use, and interior work. His current designation is Senior Architect at Studio Axis Architects Pvt. Ltd. The positioning preference supplied in the answers is **design-led**.
+Arjun Mehta is based in Bengaluru, Karnataka, India. The supplied profile identifies 4+ years of experience. Experience includes Senior UI/UX Designer at NovaPay Technologies from Jul 2024 to Present and UI/UX Designer at PixelCraft Labs from Jan 2022 to Jun 2024. Education is a Bachelor of Design (B.Des) in Interaction Design from MIT Institute of Design, Pune, 2017–2021.
 
-Supported strengths include concept and schematic design, space planning, façade and climate-responsive design, construction documentation, GFC drawing production, Revit-based BIM coordination, multidisciplinary consultant coordination, client communication, site supervision, material review, and team mentoring.
+Certifications listed are Google UX Design Professional Certificate, Accessibility for Designers, and Advanced Figma: Design Systems & Prototyping. English and Hindi are listed with professional and native proficiency respectively. Public links supplied include the portfolio, LinkedIn, Behance, Dribbble, Figma profile, resume, and four case-study URLs. These links are user-provided references and have not been opened or verified.
 
-Recommended positioning direction: present design as the leading narrative, then demonstrate how technical rigor and coordination protect design intent through delivery. Do not reduce the portfolio to software proficiency or claim sole authorship of team outcomes.
+# 5. Experience and responsibility map
 
-## 4. Source-derived professional profile
+## NovaPay Technologies — Senior UI/UX Designer, Jul 2024–Present
 
-### Public-ready candidates, subject to approval
+Leads end-to-end product design for consumer payment and merchant products serving 450K+ registered users, as stated in the source. Responsibilities include onboarding and KYC redesign, payment journeys, merchant dashboards, user interviews and usability tests, design-system maintenance, accessibility standards, implementation collaboration, design QA, mentoring, and design critiques. Supported evidence includes a 34% reduction in onboarding completion time, a 17% increase in successful transaction completion, 30+ interviews and usability tests, and 90+ reusable components. Portfolio angles: fintech complexity, conversion-focused flows, research-to-outcome storytelling, scalable systems, and accessible product delivery. Confirm publication permission and precise ownership of product-level metrics.
 
-- Aarav Mehta
-- Bengaluru, Karnataka, India
-- Architect / Architectural Designer / BIM & Project Coordination
-- Senior Architect, Studio Axis Architects Pvt. Ltd., April 2024–Present
-- Architect, UrbanFrame Design Studio, July 2021–March 2024
-- Architectural Intern, Form & Habitat Architects, January 2021–June 2021
-- B.Arch, School of Planning and Architecture, Bhopal, 2016–2021; CGPA 8.3/10
-- Council of Architecture, India, Registered Architect; registration number supplied in source material
-- Autodesk Certified Professional — Revit for Architectural Design, 2023
-- BIM Fundamentals for Architects, 2022
-- Introduction to Green Buildings & Sustainable Design, 2023
-- Construction Project Management Fundamentals, 2024
-- Portfolio, LinkedIn, Behance, Instagram, and Issuu links supplied by the user
-- English, Hindi, and Gujarati language proficiency as stated
+## PixelCraft Labs — UI/UX Designer, Jan 2022–Jun 2024
 
-### Experience and capability evidence
+Designed 12+ web and mobile products across SaaS, e-commerce, logistics, healthcare, and consumer technology. Responsibilities included research, workshops, information architecture, flows, wireframes, prototypes, production UI, dashboards, component libraries, responsive specifications, engineering collaboration, design QA, and stakeholder presentations. Supported evidence includes a 21% improvement in checkout completion for a D2C redesign and delivery of 12+ products. Portfolio angles: breadth of product contexts, complex dashboards, checkout optimization, and cross-functional delivery. Clarify which work was individual, collaborative, or agency/client work before final publication.
 
-The source describes work from client brief and site analysis through concept design, design development, authority drawings, GFC documentation, consultant coordination, tender support, construction coordination, site inspections, snagging, and handover support. It also describes mentoring four junior architects and interns and introducing drawing and Revit standards.
+# 6. Project and case-study inventory
 
-### Private or not-yet-approved information
+- **NovaPay — Payments & Onboarding Redesign:** Android and iOS; Lead Product Designer. Addressed abandonment caused by lengthy verification, unclear progress, and unnecessary steps. Used funnel analysis, 14 interviews, flow mapping, prototyping, and two usability-testing rounds. Reported outcomes: 34% lower onboarding time and 17% higher successful transaction completion. Link supplied: https://arjunmehta.design/case-studies/novapay. Strong lead case study if publication is permitted.
+- **Cartly — E-commerce Checkout Redesign:** Responsive web; UI/UX Designer. Used analytics, heatmaps, and usability testing to improve fields, error handling, delivery choices, hierarchy, validation, and mobile interactions. Reported outcomes: 21% higher checkout completion and 18% fewer checkout-related support queries. Link supplied: https://arjunmehta.design/case-studies/cartly. Confirm tools, client/product naming permission, and personal ownership.
+- **FleetFlow — Logistics Operations Platform:** Desktop web; Product Designer. Designed workflows, information architecture, tables, filters, tracking, exception management, navigation, status components, and visualizations for operations users. Reported outcome: 29% less time to investigate delayed shipments. Link supplied: https://arjunmehta.design/case-studies/fleetflow. Clarify whether the metric was measured in production and the exact contribution.
+- **MedEase — Healthcare Appointment Platform:** Mobile and responsive web; UX Designer. Worked on discovery, availability comparison, consultation selection, booking, filtering, availability indicators, and accessibility patterns. Prototype task completion reportedly improved from 68% to 91%. Link supplied: https://arjunmehta.design/case-studies/medease. Clarify testing sample, prototype versus live-product status, and contribution boundaries.
+- **Nova Design System:** Cross-platform design-system work supporting consumer and merchant products. Includes tokens, components, responsive behavior, accessibility specifications, variants, documentation, and developer alignment. This may be a supporting systems story or a dedicated case study if sufficient artifacts can be shown safely.
 
-The personal phone number should be omitted by default until explicitly approved. Email display, COA registration-number display, social links, project names, employer names, project metrics, drawings, photographs, renders, and other work samples require an explicit publication or confidentiality decision. Home town, nationality, notice period, and references are safe omissions unless later requested.
+# 7. Skills and capability groups
 
-## 5. Experience and responsibility map
+- **Strongly evidenced:** User research, interviews, usability testing, information architecture, user flows, wireframing, prototyping, responsive design, mobile UI, interaction design, design systems, component libraries, accessibility, analytics-informed design, developer handoff, and design QA.
+- **Listed tools with limited project-specific context:** Framer, ProtoPie, Miro, Hotjar, Adobe Illustrator, Photoshop, Notion, Jira, Git/GitHub, and HTML/CSS.
+- **Tools directly connected to supplied case studies or role evidence:** Figma, FigJam, Maze, and Mixpanel.
+- **Capabilities to emphasize:** Complex workflow simplification, measurable product improvement, scalable systems, accessibility, and collaboration across product and engineering.
 
-### Studio Axis Architects Pvt. Ltd. — Senior Architect
-**Bengaluru, Karnataka | April 2024–Present**
+# 8. Achievements, evidence, and claims
 
-Scope includes residential, commercial, hospitality, and mixed-use developments reported as ranging from 80,000 sq. ft. to 8,50,000+ sq. ft., with combined estimated construction value exceeding ₹180 crore as supplied. Responsibilities include feasibility and site analysis, concept and design development, GFC packages, Revit/BIM management, multidisciplinary coordination, technical reviews, shop-drawing and material-submission review, RFIs, client and consultant meetings, site inspections, value engineering, tender support, documentation control, and handover support.
+Supported evidence includes 450K+ registered users served by products, 12+ products designed, 50+ research and usability sessions as stated in the highlights, 90+ reusable components, and the project-specific outcome metrics listed above. Qualitative evidence includes mentoring, design critiques, stakeholder presentations, accessibility standards, and production-oriented handoff.
 
-Leadership evidence includes mentoring four junior architects and interns, introducing Revit templates, CAD standards, drawing checklists, and file-naming systems, and reporting an approximately 30% reduction in consultant coordination conflicts through pre-GFC reviews. These claims are user-supplied and need confirmation before prominent publication.
+Metrics should be retained only after Arjun confirms they are accurate, attributable, and permitted for public use. Do not imply that Arjun alone caused organization-wide outcomes or that all 12+ products received equal ownership. Do not add awards, clients, revenue impact, launch dates, team sizes, research sample details, or unlisted technologies.
 
-Potential portfolio angle: show the relationship between design decisions, coordinated documentation, and construction-stage resolution. Personal contribution and permission to show project material remain open.
+# 9. Content priority
 
-### UrbanFrame Design Studio — Architect
-**Gurugram, Haryana | July 2021–March 2024**
+Lead with NovaPay Payments & Onboarding Redesign, followed by Cartly or FleetFlow depending on the desired balance between conversion optimization and complex operational systems. MedEase can support accessibility and research-validation breadth. The Nova Design System should support the case studies rather than replace outcome-led stories. Shorten generic process descriptions and avoid presenting every tool equally. Later content work should develop problem framing, personal contribution, decision rationale, evidence, trade-offs, and outcome measurement for two or three primary stories.
 
-Worked on 15+ architectural and interior projects, including group housing, luxury villas, corporate offices, retail, restaurants, and institutional buildings. Responsibilities included space programming, zoning, AutoCAD documentation, SketchUp and Revit modelling, visualisation, façade studies, authority drawings, FAR/FSI and parking calculations, structural and MEP coordination, detail packages, client presentations, and site-progress reporting.
+# 10. Audience and visitor journey
 
-Named work includes The Grove Residences, Nexa Corporate Headquarters, Aranya Villas, and Riverstone Café. Portfolio treatment should distinguish Aarav's contribution from the wider studio team's work.
+Visitors should first understand Arjun’s product-design scope and the kinds of problems he solves. They should then see selected outcomes, move into concise case-study previews, inspect deeper process and contribution details, and finish with approved professional links or contact action. Credibility depends on clear role attribution, real artifacts, research evidence, accessible design thinking, measurable outcomes, and implementation awareness.
 
-### Form & Habitat Architects — Architectural Intern
-**New Delhi | January 2021–June 2021**
+# 11. Design-direction signals
 
-Supported design development, drawings, SketchUp models, Lumion visualisations, precedent and material studies, climate and site analysis, presentation material, tender documentation, revisions, surveys, and site documentation under senior supervision.
+A clean, polished, accessible product-design direction is supported by the source and prior presentation defaults. The portfolio should be case-study-led, typography-led or project-led rather than a generic visual gallery. Use a restrained professional character with enough visual structure to present dashboards, flows, prototypes, and design-system artifacts. Light/dark preference, exact visual mood, reference sites, disliked patterns, and imagery availability were not supplied. Avoid generic skill walls, decorative mockups without context, and unsupported “impact” statements.
 
-## 6. Project and case-study inventory
+# 12. Interaction, motion, and responsive priorities
 
-### The Courtyard Residences — Bengaluru
-- Luxury residential development; 4.8 lakh sq. ft.; approximately ₹95 crore as supplied.
-- Role: Senior Architect / Project Coordinator.
-- Contribution: Design development, unit planning, consultant coordination, GFC package checking, conflict resolution, material and façade mock-up reviews, site inspections, and RFIs.
-- Strong story potential: daylight, cross-ventilation, privacy, circulation, coordination, and construction-stage decisions.
-- Missing: approved imagery, publication permission, project status, exact personal contribution, and confirmation of metrics.
+Use restrained or balanced motion that supports scanning and case-study exploration without distracting from evidence. Preserve accessibility and provide reduced-motion behavior in later design and implementation. Prioritize mobile readability, responsive case-study layouts, legible dense dashboard visuals, clear diagrams or timelines where they explain process, and progressive disclosure for long technical content. Exact motion tolerance and media availability remain open.
 
-### Orbit Business Centre — Bengaluru
-- Commercial office development; 3.2 lakh sq. ft.
-- Role: Project Architect.
-- Contribution: Space and core planning, life-safety and accessibility coordination, façade options, multidisciplinary coordination, Revit models, construction drawings, and statutory/fire-consultant support.
-- Strong story potential: integrating planning, services, circulation, and compliance.
-- Missing: images, publication permission, project status, and evidence of final outcome.
+# 13. Contact, CTA, and privacy
 
-### Aranya Private Villas — Jaipur
-- Residential development of 24 luxury villas.
-- Role: Architect.
-- Contribution: Villa layouts, climate/privacy/courtyard responses, working drawings, visualisations, interior coordination, detailing, and site visits.
-- Strong story potential: translating climate, privacy, landscape, and client requirements into repeated residential units.
-- Missing: media permission, exact design ownership, project status, and measurable outcome.
+The desired primary action is not explicitly confirmed; a safe recommendation is “View case studies” as the leading action, with an approved professional contact or profile link as a secondary action. Portfolio, LinkedIn, Behance, Dribbble, Figma, and resume URLs were supplied, but publication permission was skipped and links remain unverified. The personal phone number and email address should be omitted by default until explicitly approved. Confirm whether NovaPay Technologies, PixelCraft Labs, NovaPay, Cartly, FleetFlow, and MedEase may be named publicly, and whether user counts and outcome metrics may be shown.
 
-### Nexa Corporate Headquarters — Noida
-- Corporate interior; 72,000 sq. ft.
-- Role: Architect / Interior Coordination.
-- Contribution: Workplace planning, partitions, flooring, reflected ceilings, electrical and furniture drawings, joinery, vendor coordination, services integration, site inspections, and snagging before handover.
-- Strong story potential: ceiling and services coordination, vendor delivery, and handover readiness.
-- Missing: media permission, client/employer confidentiality approval, and confirmed handover evidence.
+# 14. Constraints, conflicts, and open items
 
-### Additional project references
+- Publication permission is unanswered.
+- Personal phone and email are private by default.
+- Employer, product, user-count, and metric publication approval is not confirmed.
+- Supplied URLs have not been opened or verified.
+- Personal contribution must remain distinct from team or product scope.
+- Confirm target seniority and role focus within product design.
+- Confirm preferred CTA and whether resume download is desired.
+- Confirm visual mood, light/dark preference, motion level, and portfolio references.
+- Confirm evidence details for metrics, samples, artifacts, and research methods.
 
-The source also names The Grove Residences — Gurugram, Corporate Office Campus — Bengaluru, Boutique Resort — Coorg, Mixed-Use Development — Hyderabad, and Riverstone Café — New Delhi. These may be listed as experience references only until project scope, role, contribution, imagery, and confidentiality are confirmed.
+# 15. Downstream handoff
 
-If visuals cannot be used, evidence-backed alternatives include process diagrams, anonymised plans or sections where permitted, personal thesis work, documentation excerpts with sensitive information removed, and capability-focused drawings. No substitute project or fabricated visual should be created as if it were built work.
+## Content/story stage
 
-## 7. Skills and capability groups
+Build the central story around simplifying complex product workflows through research, interaction design, measurable iteration, systems thinking, and implementation collaboration. Develop NovaPay first, then Cartly and FleetFlow or MedEase. Preserve role attribution and treat metrics as pending publication confirmation. Keep process content concise and evidence-led.
 
-### Strongly evidenced capabilities
+## Visual-design stage
 
-Architectural design development; space planning; site and context analysis; construction documentation; GFC drawings; architectural detailing; Revit-based BIM modelling and coordination; structural, MEP, façade, landscape, interior, and fire-safety coordination; consultant and contractor coordination; shop-drawing and RFI review; site supervision; material review; tender and BOQ support; client presentations; team mentoring; drawing-quality control; climate-responsive design.
+Design for product-design hiring audiences with a clean, polished, accessible, case-study-led character. Prioritize readable hierarchy, project outcomes, interface artifacts, flows, dashboards, and design-system visuals. Use restrained motion, strong mobile behavior, and no decorative or fabricated visuals. Exact mood and theme remain undecided.
 
-### Listed tools with supplied proficiency levels
+## Code-generation stage eventually preserves
 
-AutoCAD, Autodesk Revit, SketchUp, Lumion, Enscape, Adobe Photoshop, Adobe InDesign, V-Ray, Rhino 3D, Navisworks, Microsoft Excel/PowerPoint/Word, and Autodesk Construction Cloud/BIM 360.
+Use only approved public facts, approved links, and confirmed project evidence. Include approved case studies, experience, skills, education, and relevant certifications. Omit phone and email unless approved; respect employer and project confidentiality decisions. Do not invent metrics, testimonials, clients, outcomes, or visuals. Preserve accessibility and reduced-motion requirements.
 
-### Skills to emphasize because of the design-led preference
+# 16. Approval summary
 
-Conceptual thinking, spatial planning, visual communication, façade and material exploration, climate-responsive design, constructability, and the ability to carry design intent into coordinated delivery.
-
-## 8. Achievements, evidence, and claims
-
-Supported source claims include 5+ years of experience, 20+ architectural and interior projects, exposure exceeding 20 lakh sq. ft., combined project values exceeding ₹250 crore, projects ranging from 80,000 sq. ft. to 8,50,000+ sq. ft. in the current role, an approximately 30% reduction in coordination conflicts, mentoring four junior architects and interns, a 2025 internal Design Excellence Recognition, and shortlist participation in a national-level institutional architecture competition.
-
-These are supplied claims, not independently verified evidence. Before publication, confirm the relevant dates, scope, attribution, calculation basis, award wording, competition name/status, and whether figures refer to team or individual work. Avoid claiming sole responsibility for team projects or presenting project scale as personal achievement without context.
-
-## 9. Content priority
-
-Lead with a concise design-led introduction, selected project work, and a visual explanation of how Aarav moves from concept to coordinated delivery. The strongest candidate stories are The Courtyard Residences, Orbit Business Centre, and either Aranya Private Villas or Nexa Corporate Headquarters, depending on available media and the target employer.
-
-Support the stories with selected drawings, diagrams, renders, models, material studies, coordination examples, and site evidence. Shorten the long software and competency lists into meaningful capability groups. Omit or de-emphasize references, nationality, home town, notice period, and generic strengths unless they become strategically relevant.
-
-A later content stage should develop project narratives around context, design question, personal role, key decisions, coordination challenges, and evidence of delivery. It should not write unsupported outcomes.
-
-## 10. Audience and visitor journey
-
-Visitors should first understand that Aarav is a design-led architect who combines spatial and visual thinking with strong technical delivery. They should then see two or three compelling projects, understand his specific contribution, review evidence of BIM and multidisciplinary coordination, and confirm professional credentials and experience.
-
-Recommended journey: design-led introduction → featured projects → selected process and technical evidence → experience and capabilities → education and registration → professional links/contact. The primary action should be to contact Aarav or connect through an approved professional link.
-
-## 11. Design-direction signals
-
-The confirmed preference is **design-led**. The visual direction should therefore be architectural, editorial, and project-led rather than a dense resume interface. A restrained, confident presentation with strong typography, generous spacing, and visual hierarchy is recommended, while preserving enough technical structure for drawings, diagrams, and documentation.
-
-The portfolio should avoid generic corporate templates, excessive software-logo grids, unsupported “award-winning” language, and decorative imagery unrelated to Aarav's work. Exact light/dark preference, imagery style, references, and disliked examples were not supplied. Design decisions must adapt to the actual quality and permissions of available project media.
-
-## 12. Interaction, motion, and responsive priorities
-
-Use restrained motion that supports project discovery rather than competing with architectural work. The experience should allow quick scanning of project type, scale, role, and contribution, with deeper exploration available for case studies. Diagrams, timelines, plans, sections, material boards, and process sequences may be useful if supplied and publishable.
-
-Mobile readability is important for drawings, captions, navigation, and contact actions. Avoid making technical drawings dependent on hover interactions. Preserve accessible contrast, readable type, keyboard navigation, alt text for meaningful images, and a reduced-motion option. Long technical content should be progressively structured rather than presented as uninterrupted bullet lists.
-
-## 13. Contact, CTA, and privacy
-
-Recommended primary CTA: **View selected work** followed by **Get in touch** or **Discuss an opportunity**. The final wording remains a presentation suggestion, not a confirmed user decision.
-
-The supplied email, portfolio, LinkedIn, Behance, Instagram, and Issuu URLs may be considered candidate public links, but the user skipped the public-details privacy question. Confirm which links should appear. Omit the personal phone number by default. Treat the COA registration number as optional until public-display approval is given.
-
-Do not publish employer, client, project, drawing, render, photograph, metric, or business information when confidential or when permission is unknown. Generalize project or organization names if requested. No confidentiality permission has been granted on the user's behalf.
-
-## 14. Constraints, conflicts, and open items
-
-- Project media availability and usage permission are unknown.
-- Confidentiality status of employers, clients, project names, drawings, renders, photographs, and metrics is unknown.
-- Public-display permission for email, phone, COA registration number, and social links is unresolved; phone should be omitted by default.
-- User-supplied metrics and claims require confirmation before prominent publication.
-- Individual contribution versus team contribution needs clarification for each featured project.
-- Project status and completed outcomes are not consistently supplied.
-- The source contains multiple project-scale and value claims whose scope and calculation basis should be reconciled.
-- Exact visual references, light/dark preference, motion level, content density, and deadline are unknown.
-- References, nationality, home town, notice period, and generic interests are safe omissions unless later approved.
-- No additional projects, outcomes, testimonials, or credentials may be invented.
-
-## 15. Downstream handoff
-
-### Content/story stage
-
-Build the central story around a design-led architect who connects spatial intent, climate and context, visual communication, technical documentation, BIM coordination, and construction delivery. Develop The Courtyard Residences and Orbit Business Centre first, then choose Aranya Private Villas or Nexa Corporate Headquarters based on evidence and permissions. Treat all metrics, awards, competition claims, and project outcomes as user-supplied pending confirmation. Recommended content density is moderate: concise overview, three strong case studies, selected process evidence, and a focused experience/capability record.
-
-### Visual-design stage
-
-Design for architecture employers, developers, consultancies, and BIM/design-coordination recruiters. Use an editorial, restrained, project-led character with clear hierarchy and space for plans, sections, diagrams, renders, material studies, and site documentation. Do not assume imagery exists or is publishable. Prioritize mobile readability, drawing legibility, accessible contrast, and restrained motion. Avoid generic portfolio grids and excessive software badges.
-
-### Code-generation stage
-
-Preserve only approved public facts, approved links, approved project media, confirmed roles and dates, and confirmed claims. Required content should include the design-led introduction, selected project stories, capabilities, experience, education/registration where approved, and contact action. Omit the phone number by default and respect confidentiality decisions. Never invent metrics, outcomes, project images, testimonials, or contribution claims. Implement accessible responsive behavior and reduced-motion support. Discovery does not produce code.
-
-## 16. Approval summary
-
-Confirmed: the goal is to create a portfolio; the preferred positioning is design-led; Aarav Mehta is an architect based in Bengaluru; the supplied professional history, project inventory, tools, education, registration, certifications, and links are available as source material.
-
-Safely omitted or held back: personal phone number, unapproved private details, references, and any project media or confidential information whose publication status is unknown. Metrics and claims remain flagged for confirmation rather than being treated as independently verified.
-
-This brief is ready for user approval, with the listed privacy, media, attribution, and evidence items remaining open. **Next means: approve this exact brief so Discovery can stop and the brief can be handed to later content, visual-design, and code-generation stages.**
+Confirmed: portfolio creation goal; product design roles as audience; Arjun Mehta’s supplied experience, projects, skills, education, certifications, languages, and links; case-study-led emphasis; accessible and polished product-design direction. Safely omitted: personal phone and email as public contact methods, unverified links as verified evidence, and any unsupported claims. The brief is ready for review and approval. **Next** means approving this exact brief so Discovery stops and the approved handoff can move to later content, visual-design, and code-generation work.
 
 ---
 
@@ -329,207 +331,177 @@ This brief is ready for user approval, with the listed privacy, media, attributi
 
 ```json
 {
-  "name": "Aarav Mehta",
-  "current_title": "Senior Architect",
+  "name": "Arjun Mehta",
+  "current_title": "Senior UI/UX Designer",
   "location": "Bengaluru, Karnataka, India",
   "links": [
     {
-      "label": "Architecture Portfolio",
-      "url": "aaravmehta-architecture.com/portfolio"
+      "label": "Portfolio",
+      "url": "https://arjunmehta.design"
     },
     {
       "label": "LinkedIn",
-      "url": "linkedin.com/in/aaravmehta-architect"
+      "url": "https://linkedin.com/in/arjunmehta-design"
     },
     {
       "label": "Behance",
-      "url": "behance.net/aaravmehta-architecture"
+      "url": "https://behance.net/arjunmehta"
     },
     {
-      "label": "Instagram",
-      "url": "instagram.com/aarav.arch.designs"
+      "label": "Dribbble",
+      "url": "https://dribbble.com/arjunmehta"
     },
     {
-      "label": "Issuu Portfolio",
-      "url": "issuu.com/aaravmehta-architecture"
+      "label": "Figma",
+      "url": "https://figma.com/@arjunmehta"
+    },
+    {
+      "label": "Resume",
+      "url": "https://arjunmehta.design/resume"
+    },
+    {
+      "label": "NovaPay case study",
+      "url": "https://arjunmehta.design/case-studies/novapay"
+    },
+    {
+      "label": "Cartly case study",
+      "url": "https://arjunmehta.design/case-studies/cartly"
+    },
+    {
+      "label": "FleetFlow case study",
+      "url": "https://arjunmehta.design/case-studies/fleetflow"
+    },
+    {
+      "label": "MedEase case study",
+      "url": "https://arjunmehta.design/case-studies/medease"
     }
   ],
   "experience": [
     {
-      "organization": "Studio Axis Architects Pvt. Ltd.",
-      "role": "Senior Architect",
-      "dates": "April 2024 – Present",
+      "organization": "NovaPay Technologies",
+      "role": "Senior UI/UX Designer",
+      "dates": "Jul 2024 – Present",
       "highlights": [
-        "Architectural design and coordination for residential, commercial, hospitality, and mixed-use developments.",
-        "Concept design, design development, GFC documentation, BIM coordination, consultant coordination, site inspections, RFIs, material review, and handover support.",
-        "Mentored 4 junior architects and architectural interns."
+        "Leads end-to-end product design for consumer payment and merchant products serving 450K+ registered users.",
+        "Redesigned onboarding and KYC, reducing completion time by 34%.",
+        "Simplified the core payment journey, contributing to a 17% increase in successful transaction completion.",
+        "Conducted 30+ user interviews and usability tests.",
+        "Built and maintained a Figma design system with 90+ reusable components.",
+        "Established accessibility standards and collaborated through implementation and design QA.",
+        "Mentors junior designers and facilitates design critiques."
       ]
     },
     {
-      "organization": "UrbanFrame Design Studio",
-      "role": "Architect",
-      "dates": "July 2021 – March 2024",
+      "organization": "PixelCraft Labs",
+      "role": "UI/UX Designer",
+      "dates": "Jan 2022 – Jun 2024",
       "highlights": [
-        "Worked on architectural and interior projects including group housing, villas, offices, retail, restaurants, and institutional buildings.",
-        "Prepared drawings, 3D models, visualizations, authority submissions, coordination mark-ups, detail packages, and site-progress reports."
-      ]
-    },
-    {
-      "organization": "Form & Habitat Architects",
-      "role": "Architectural Intern",
-      "dates": "January 2021 – June 2021",
-      "highlights": [
-        "Supported design development, drawings, models, visualizations, site surveys, material research, presentations, and tender documentation."
+        "Designed 12+ web and mobile products across SaaS, e-commerce, logistics, healthcare, and consumer technology.",
+        "Created information architecture, user flows, wireframes, prototypes, and production-ready UI.",
+        "Redesigned a D2C checkout journey, improving checkout completion by 21%.",
+        "Conducted competitor research, workshops, interviews, and usability testing.",
+        "Designed dashboards and reusable component libraries.",
+        "Collaborated with frontend and mobile engineers on implementation and design QA."
       ]
     }
   ],
   "education": [
     {
-      "institution": "School of Planning and Architecture, Bhopal",
-      "credential": "Bachelor of Architecture (B.Arch); CGPA: 8.3/10",
-      "dates": "2016 – 2021"
-    },
-    {
-      "institution": "Autodesk",
-      "credential": "Autodesk Certified Professional — Revit for Architectural Design",
-      "dates": "2023"
-    },
-    {
-      "institution": "Autodesk Learning / Professional Training",
-      "credential": "BIM Fundamentals for Architects",
-      "dates": "2022"
-    },
-    {
-      "institution": "GRIHA Council",
-      "credential": "Introduction to Green Buildings & Sustainable Design",
-      "dates": "2023"
-    },
-    {
-      "institution": "",
-      "credential": "Construction Project Management Fundamentals",
-      "dates": "2024"
+      "institution": "MIT Institute of Design, Pune",
+      "credential": "Bachelor of Design (B.Des) — Interaction Design",
+      "dates": "2017 – 2021"
     }
   ],
   "projects": [
     {
-      "name": "The Courtyard Residences",
-      "summary": "Luxury residential development in Bengaluru; 4.8 lakh sq. ft.; approximately ₹95 crore as supplied.",
-      "contribution": "Senior Architect / Project Coordinator; design development, unit planning, consultant coordination, GFC packages, conflict resolution, material reviews, site inspections, and RFIs.",
+      "name": "NovaPay — Payments & Onboarding Redesign",
+      "summary": "Payments and onboarding redesign for Android and iOS, addressing verification friction, unclear progress, and unnecessary interaction steps.",
+      "contribution": "Lead Product Designer; analysed funnel data, interviewed users, mapped flows, prototyped, and conducted usability testing.",
       "tech": [
-        "Autodesk Revit",
-        "BIM coordination"
+        "Figma",
+        "FigJam",
+        "Maze",
+        "Mixpanel"
       ],
-      "link": ""
+      "link": "https://arjunmehta.design/case-studies/novapay"
     },
     {
-      "name": "Orbit Business Centre",
-      "summary": "Commercial office development in Bengaluru; 3.2 lakh sq. ft.",
-      "contribution": "Project Architect; space and core planning, life-safety and accessibility coordination, façade options, multidisciplinary coordination, Revit models, and construction drawings.",
+      "name": "Cartly — E-commerce Checkout Redesign",
+      "summary": "Responsive web checkout redesign using analytics, heatmaps, and usability testing to improve fields, validation, delivery choices, and mobile interactions.",
+      "contribution": "UI/UX Designer; redesigned the checkout experience and its interaction patterns.",
+      "tech": [],
+      "link": "https://arjunmehta.design/case-studies/cartly"
+    },
+    {
+      "name": "FleetFlow — Logistics Operations Platform",
+      "summary": "Desktop logistics operations dashboard for shipments, drivers, routes, delivery exceptions, and performance.",
+      "contribution": "Product Designer; interviewed operations users and designed workflows, information architecture, tables, filters, tracking, and exception management.",
+      "tech": [],
+      "link": "https://arjunmehta.design/case-studies/fleetflow"
+    },
+    {
+      "name": "MedEase — Healthcare Appointment Platform",
+      "summary": "Mobile and responsive web appointment experience covering doctor discovery, availability, consultation types, booking, and visit management.",
+      "contribution": "UX Designer; redesigned information architecture, filters, availability indicators, booking flow, and accessibility patterns.",
+      "tech": [],
+      "link": "https://arjunmehta.design/case-studies/medease"
+    },
+    {
+      "name": "Nova Design System",
+      "summary": "Cross-platform design system supporting consumer and merchant products with tokens, components, responsive behavior, accessibility specifications, and documentation.",
+      "contribution": "Designed and maintained the system and aligned Figma components, naming, states, and tokens with production component architecture.",
       "tech": [
-        "Autodesk Revit"
+        "Figma"
       ],
-      "link": ""
-    },
-    {
-      "name": "Aranya Private Villas",
-      "summary": "Residential development comprising 24 luxury villas in Jaipur.",
-      "contribution": "Architect; villa layouts, climate and privacy responses, working drawings, visualizations, interior coordination, detailing, and site visits.",
-      "tech": [
-        "SketchUp",
-        "Lumion"
-      ],
-      "link": ""
-    },
-    {
-      "name": "Nexa Corporate Headquarters",
-      "summary": "Corporate interior project in Noida; 72,000 sq. ft.",
-      "contribution": "Architect / Interior Coordination; workplace planning, detailed drawings, services coordination, vendor coordination, site inspections, and snagging.",
-      "tech": [],
-      "link": ""
-    },
-    {
-      "name": "The Grove Residences",
-      "summary": "Residential development in Gurugram; 2.4 lakh sq. ft.",
-      "contribution": "",
-      "tech": [],
-      "link": ""
-    },
-    {
-      "name": "Riverstone Café",
-      "summary": "Hospitality interior and façade renovation in New Delhi.",
-      "contribution": "",
-      "tech": [],
       "link": ""
     }
   ],
   "skills": [
-    "Architectural design",
-    "Concept design",
-    "Schematic design",
-    "Design development",
-    "Space planning",
-    "Site planning",
-    "Façade design",
-    "Residential design",
-    "Commercial architecture",
-    "Hospitality design",
-    "Interior architecture",
-    "Master planning",
-    "Working drawings",
-    "GFC drawings",
-    "Construction documentation",
-    "Architectural detailing",
-    "BIM modelling",
-    "Revit Architecture",
-    "BIM coordination",
-    "Clash resolution",
-    "CAD-to-BIM",
-    "Revit families",
-    "Model quality control",
-    "Consultant management",
-    "Vendor coordination",
-    "Contractor coordination",
-    "Site supervision",
-    "RFIs",
-    "Shop drawing review",
-    "Material approval",
-    "Tender documentation",
-    "BOQ support",
-    "Snagging",
-    "Project handover",
-    "AutoCAD",
-    "Autodesk Revit",
-    "SketchUp",
-    "Lumion",
-    "Enscape",
-    "Adobe Photoshop",
-    "Adobe InDesign",
-    "V-Ray",
-    "Rhino 3D",
-    "Navisworks",
-    "Microsoft Excel",
-    "Microsoft PowerPoint",
-    "Microsoft Word",
-    "Autodesk Construction Cloud",
-    "BIM 360",
-    "NBC",
-    "FAR/FSI",
+    "User Research",
+    "User Interviews",
+    "Personas",
+    "Journey Mapping",
+    "Information Architecture",
+    "User Flows",
+    "Wireframing",
+    "Prototyping",
+    "Usability Testing",
+    "Heuristic Evaluation",
+    "Responsive Web Design",
+    "Mobile UI",
+    "Interaction Design",
+    "Visual Design",
+    "Design Systems",
+    "Design Tokens",
+    "Component Libraries",
     "Accessibility",
-    "Fire and life safety",
-    "Climate-responsive design"
+    "Data Visualization",
+    "Figma",
+    "FigJam",
+    "Framer",
+    "ProtoPie",
+    "Miro",
+    "Maze",
+    "Hotjar",
+    "Mixpanel",
+    "Adobe Illustrator",
+    "Photoshop",
+    "Notion",
+    "Jira",
+    "HTML/CSS",
+    "Responsive Design",
+    "WCAG",
+    "Component-Based UI",
+    "Git/GitHub",
+    "Design-to-Development Handoff"
   ],
   "spoken_languages": [
-    "English",
-    "Hindi",
-    "Gujarati"
+    "English — Professional proficiency",
+    "Hindi — Native proficiency"
   ],
   "private_omitted": [
     "Personal phone number",
-    "Home town: Ahmedabad, Gujarat",
-    "Nationality: Indian",
-    "Notice period: 30 days",
-    "COA registration number pending explicit public-display approval",
-    "Email and social links pending explicit public-display approval"
+    "Personal email address"
   ]
 }
 ```

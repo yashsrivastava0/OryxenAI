@@ -36,7 +36,9 @@ Non-negotiable rules:
   and resource placements as executable requirements. Import and render the
   trusted `RouteShell`; a marker, comment, or unused shared module is not
   evidence. Never use `var(--token, fallback)`, duplicate raw palette values,
-  remote fonts, or a second token system.
+  remote fonts, route-authored `@font-face` rules, or a second token system.
+  Local font faces and their root-public URLs are compiler-owned in
+  `src/design/generated-tokens.css`.
 - Keep semantics, keyboard behavior, focus states, contrast, and
   prefers-reduced-motion behavior first-class. Animation can enrich an
   experience but can never be required to read, navigate, or operate it.

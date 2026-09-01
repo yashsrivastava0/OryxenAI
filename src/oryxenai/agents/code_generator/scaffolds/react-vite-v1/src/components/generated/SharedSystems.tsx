@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { publicResourceUrl, publicSectionUrl } from "../../app/ResourceUrl";
+import { RESOURCE_MANIFEST } from "../../generated/resource-manifest";
 
 export type RouteShellProps = {
   routeId: string;
@@ -56,6 +57,11 @@ export type LocalImageSource = {
   format?: string;
 };
 
+type ManifestImageAsset = {
+  resource_id: string;
+  sources: readonly LocalImageSource[];
+};
+
 export function LocalImage({
   resourceId,
   sources,
@@ -66,14 +72,16 @@ export function LocalImage({
   focalPosition = "center",
 }: {
   resourceId: string;
-  sources: readonly LocalImageSource[];
+  sources?: readonly LocalImageSource[];
   alt: string;
   sizes?: string;
   loading?: "lazy" | "eager";
   fit?: CSSProperties["objectFit"];
   focalPosition?: string;
 }) {
-  const ordered = [...sources]
+  const manifestAssets = RESOURCE_MANIFEST.image_assets as readonly ManifestImageAsset[];
+  const manifestAsset = manifestAssets.find((asset) => asset.resource_id === resourceId);
+  const ordered = [...(sources ?? manifestAsset?.sources ?? [])]
     .filter((source) => source.path && source.width > 0 && source.height > 0)
     .sort((left, right) => left.width - right.width);
   const largest = ordered.at(-1);
@@ -96,7 +104,7 @@ export function LocalImage({
       .map((source) => `${publicResourceUrl(source.path)} ${source.width}w`)
       .join(", ");
   return (
-    <picture>
+    <picture style={{ display: "block", inlineSize: "100%", blockSize: "100%" }}>
       {[...grouped.entries()]
         .filter(([format]) => format && format !== fallbackFormat)
         .map(([format, items]) => (
@@ -117,7 +125,13 @@ export function LocalImage({
         loading={loading}
         decoding="async"
         alt={alt}
-        style={{ objectFit: fit, objectPosition: focalPosition }}
+        style={{
+          display: "block",
+          inlineSize: "100%",
+          blockSize: "100%",
+          objectFit: fit,
+          objectPosition: focalPosition,
+        }}
       />
     </picture>
   );

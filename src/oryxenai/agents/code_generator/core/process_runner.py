@@ -11,6 +11,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 class ProcessRunnerError(ValueError):
@@ -135,7 +136,7 @@ async def run_command(
         # New process group so taskkill /T can target the tree; no window so
         # worker-driven npm/node runs never flash consoles.
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-    kwargs: dict[str, object] = {
+    kwargs: dict[str, Any] = {
         "cwd": str(cwd),
         "env": _safe_environment(environment),
         "stdin": asyncio.subprocess.DEVNULL,
@@ -147,7 +148,7 @@ async def run_command(
     else:
         kwargs["start_new_session"] = True
     try:
-        process = await asyncio.create_subprocess_exec(*command, **kwargs)  # type: ignore[arg-type]
+        process = await asyncio.create_subprocess_exec(*command, **kwargs)
     except OSError as exc:
         if windows_batch_command and creationflags & subprocess.CREATE_NEW_PROCESS_GROUP:
             # A worker hosted by another process group can reject the group
@@ -158,9 +159,7 @@ async def run_command(
             fallback_kwargs = dict(kwargs)
             fallback_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             try:
-                process = await asyncio.create_subprocess_exec(  # type: ignore[arg-type]
-                    *command, **fallback_kwargs
-                )
+                process = await asyncio.create_subprocess_exec(*command, **fallback_kwargs)
             except OSError:
                 try:
                     return await asyncio.to_thread(

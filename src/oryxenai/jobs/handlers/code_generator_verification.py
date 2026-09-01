@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from oryxenai.agents.code_generator.core.blueprint_compiler import canonicalize_generation_plan
 from oryxenai.agents.code_generator.core.build_runner import run_clean_build
 from oryxenai.agents.code_generator.core.candidate_identity import build_candidate_identity
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
@@ -246,7 +247,7 @@ async def _execute(
         reference = _reference(run)
         adapter = DevelopmentInputAdapter(settings)
         input_receipt, projections = adapter.admit(reference)
-        plan = SitePlan.model_validate(run.plan)
+        plan = canonicalize_generation_plan(SitePlan.model_validate(run.plan))
         validate_site_plan(
             plan,
             projections,
@@ -1366,8 +1367,8 @@ async def _attempt_repair(
         total_used=projection.repair_rounds,
         # This call site only ever repairs unit_id="final"; seeding
         # per_unit_used["final"] to the same value as total_used made the
-        # two counters increase in lockstep, so max_per_unit (2) always
-        # bound before max_repair_rounds_total (6) could ever be reached —
+        # two counters increase in lockstep, so the per-unit ceiling always
+        # bound before the independently configured total could ever be reached —
         # the configured total was unreachable dead configuration. Starting
         # this counter at 0 lets it track actual final-stage repair rounds
         # independently, so max_repair_rounds_total governs as its name
@@ -1403,7 +1404,12 @@ async def _attempt_repair(
             plan=plan,
             projections=projections,
             diagnostics=diagnostics,
-            allowed_paths=repair_allowed_paths(diagnostics, plan, projections),
+            allowed_paths=repair_allowed_paths(
+                diagnostics,
+                plan,
+                projections,
+                repo_dir=workspace.repo_dir,
+            ),
             public_text=public_text,
             allowed_packages=allowed_packages,
             strategy=strategy,

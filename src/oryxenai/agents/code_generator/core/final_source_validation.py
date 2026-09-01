@@ -14,6 +14,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
 )
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+from oryxenai.agents.code_generator.core.source_lexing import strip_source_comments
 from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
     validate_repository,
@@ -23,15 +24,23 @@ from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_types
 _IMPORT_RE = re.compile(
     r"(?:import\s+(?:[^;]*?\s+from\s+)?|export\s+[^;]*?\s+from\s+|import\s*\()\s*[\"']([^\"']+)[\"']"
 )
-_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\r\n]*|<!--[\s\S]*?-->", re.DOTALL)
 _COMPONENT_IMPORT_RE = re.compile(
     r"import\s+(?P<bindings>[\s\S]*?)\s+from\s+[\"'](?P<module>[^\"']+)[\"']"
 )
 _HEADING_TEXT_RE = re.compile(r"<h[1-6]\b[^>]*>([^<]*)</h[1-6]>", re.DOTALL)
 
 
-def _diag(code: str, message: str, *, file: str = "", route_id: str = "") -> Diagnostic:
-    fingerprint = hashlib.sha256(f"{code}:{file}:{route_id}:{message}".encode()).hexdigest()[:24]
+def _diag(
+    code: str,
+    message: str,
+    *,
+    file: str = "",
+    route_id: str = "",
+    symbol: str = "",
+) -> Diagnostic:
+    fingerprint = hashlib.sha256(
+        f"{code}:{file}:{route_id}:{symbol}:{message}".encode()
+    ).hexdigest()[:24]
     return Diagnostic(
         diagnostic_id=f"diagnostic-{fingerprint}",
         group="source_contract",
@@ -40,6 +49,7 @@ def _diag(code: str, message: str, *, file: str = "", route_id: str = "") -> Dia
         route_id=route_id,
         normalized_message=message,
         file=file,
+        symbol=symbol,
         fingerprint=fingerprint,
     )
 
@@ -89,7 +99,7 @@ def _resolve_local(repo_dir: Path, source: Path, imported: str) -> bool:
 def _without_comments(value: str) -> str:
     """Return source suitable for binding checks, excluding marker comments."""
 
-    return _COMMENT_RE.sub(" ", value)
+    return strip_source_comments(value)
 
 
 def _local_binding_tokens(local_paths: list[str]) -> set[str]:
@@ -174,6 +184,20 @@ def _slot_is_bound(
         )
     if resolution_type != "local_materialized":
         return True
+    resource_slot_id = str(slot.get("resource_slot_id", ""))
+    if resource_slot_id and category in {
+        "editorial_photo",
+        "image",
+        "media",
+        "photograph",
+        "photo",
+    }:
+        local_image_binding = re.compile(
+            rf"<LocalImage\b[^>]*\bresourceId\s*=\s*[\"']{re.escape(resource_slot_id)}[\"']",
+            re.DOTALL,
+        )
+        if any(local_image_binding.search(text) for text in source_files.values()):
+            return True
     tokens = _local_binding_tokens([str(item) for item in slot.get("local_paths", []) if str(item)])
     if not tokens:
         return False
@@ -318,6 +342,7 @@ def validate_final_source(
                                 "An approved content key is not referenced by executable route source.",
                                 file=route_file,
                                 route_id=route_id,
+                                symbol=content_id,
                             )
                         )
             if isinstance(section_content, dict):
@@ -384,6 +409,7 @@ def validate_final_source(
         # required visual floor is concrete local material or a package import.
         binding_slot = {
             "category": str(slot.get("category", "")),
+            "resource_slot_id": str(slot.get("resource_slot_id", "")),
             "resolution_type": resolution_type,
             "local_paths": local_paths,
             "package_name": (
@@ -404,6 +430,7 @@ def validate_final_source(
                     "A required execution slot has no executable source binding; comments and manifests do not count.",
                     file="src/generated/resource-manifest.ts",
                     route_id=str(slot.get("route_id", "")),
+                    symbol=str(slot.get("resource_slot_id", "")),
                 )
             )
     for path, text in files.items():
@@ -419,16 +446,17 @@ def validate_final_source(
                         file=path,
                     )
                 )
-    visual = projections.get("design/visual-direction.json", {})
-    for required_text in _strings(visual.get("global", {}).get("must_preserve", [])):
-        if required_text and required_text not in combined:
-            diagnostics.append(
-                _diag(
-                    "SOURCE_VISUAL_CONTRACT_MISSING",
-                    "An approved preservation requirement is absent from source.",
-                    file="src/generated/content-manifest.ts",
+    if not blueprint_v4:
+        visual = projections.get("design/visual-direction.json", {})
+        for required_text in _strings(visual.get("global", {}).get("must_preserve", [])):
+            if required_text and required_text not in combined:
+                diagnostics.append(
+                    _diag(
+                        "SOURCE_VISUAL_CONTRACT_MISSING",
+                        "An approved preservation requirement is absent from source.",
+                        file="src/generated/content-manifest.ts",
+                    )
                 )
-            )
     route_source_by_id: dict[str, str] = {}
     for route in routes:
         if not isinstance(route, dict):

@@ -25,6 +25,40 @@ def digest(value: object) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
+def _contract_meta(plan: Any) -> dict[str, Any]:
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return {"pipeline_contract_version": "code-generator-v3"}
+    return {
+        "pipeline_contract_version": "code-generator-v4",
+        # The route-scoped content identity and the browser-facing selector
+        # are deliberately separate in V4. Keep the compiler-supplied
+        # selector in trusted source metadata so the Node source audit checks
+        # the same contract as the Python validators instead of reconstructing
+        # an invalid DOM id from section_id.
+        "section_selectors": [
+            {
+                "route_id": region.route_id,
+                "section_id": region.section_id,
+                "section_selector": region.section_selector,
+            }
+            for region in blueprint.section_regions
+        ],
+    }
+
+
+def _public_runtime_data(
+    *, site: dict[str, Any], visual: dict[str, Any], target: dict[str, Any], plan: Any
+) -> dict[str, Any]:
+    """Return browser-source data without elevating V4 design guidance to content authority."""
+
+    value: dict[str, Any] = {"site": site, "target": target}
+    if not isinstance(getattr(plan, "experience_blueprint", None), ExperienceBlueprintV4):
+        # Retain the legacy source shape for V3 checkpoint compatibility.
+        value["visual_direction"] = visual
+    return value
+
+
 def materialize_trusted_manifests(
     workspace: GenerationWorkspace,
     projections: dict[str, dict[str, Any]],
@@ -71,11 +105,7 @@ def materialize_trusted_manifests(
             }
         )
 
-    public_data = {
-        "site": site,
-        "visual_direction": visual,
-        "target": target,
-    }
+    public_data = _public_runtime_data(site=site, visual=visual, target=target, plan=plan)
     content_manifest = {
         "routes": site.get("routes", []),
         "public_content": site.get("public_content", []),
@@ -123,13 +153,7 @@ def materialize_trusted_manifests(
     _write_ts(
         workspace.repo_dir / "src/generated/contract-meta.ts",
         "CONTRACT_META",
-        {
-            "pipeline_contract_version": (
-                "code-generator-v4"
-                if isinstance(getattr(plan, "experience_blueprint", None), ExperienceBlueprintV4)
-                else "code-generator-v3"
-            )
-        },
+        _contract_meta(plan),
     )
     _write_route_registry(workspace, route_entries)
 
@@ -151,7 +175,16 @@ def materialize_trusted_manifests(
     manifest_hash = digest(manifest)
     manifest_path = workspace.ledger_dir / "source-manifest.json"
     workspace.write_json(manifest_path, {"files": manifest, "manifest_hash": manifest_hash})
-    return {"files": manifest, "manifest_hash": manifest_hash, "resource_paths": copied_resources}
+    return {
+        "files": manifest,
+        "manifest_hash": manifest_hash,
+        "resource_paths": copied_resources,
+        # Keep the exact browser-facing rendition contract available to the
+        # generation orchestrator. Acquisition ledger paths point at durable
+        # material storage, not at the generated site's public tree; models
+        # must receive these materialized paths instead.
+        "image_assets": image_assets,
+    }
 
 
 def _materialize_image_assets(
