@@ -5,12 +5,13 @@ eligible Build Preparation pack and produces one verified portfolio preview.
 The pack projections, runtime configuration, Pydantic contracts, and receipts
 are authoritative; this document explains how those boundaries fit together.
 
-> **Current-contract note (D-034, D-041).** The live implementation accepts
-> the current V4 planning/realization contracts and pack-v3 compatibility
-> projections, then uses deterministic host compilation and verified preview
-> promotion. The v2 filename is historical; consult the checked-in schemas,
-> settings, and `src/oryxenai/agents/code_generator/` services for the current
-> executable contract.
+> **Current-contract banner (D-034, D-041).** This v2 filename is historical.
+> The live implementation runs the V4 planning/realization contract and
+> accepts both the default `build-preparation-pack-v3` and the delegated
+> `build-preparation-pack-v4` handoffs. It uses deterministic host compilation
+> and verified preview promotion; consult the checked-in schemas, settings,
+> and `src/oryxenai/agents/code_generator/` services for the current executable
+> contract.
 
 ## Outcomes and invariants
 
@@ -54,7 +55,8 @@ invent an About, Projects, or Contact page.
 Build Preparation local mirrors are diagnostic conveniences. Production reads
 the session's `ArtifactReference`, checks object metadata, downloads the bytes
 inside the planning worker, verifies size and SHA-256, stores one immutable
-workspace copy, and runs the same pack-v3 admission used by local development.
+workspace copy, and runs the same pack-v3/pack-v4 admission used by local
+development.
 
 ## Explicit session API
 
@@ -90,7 +92,7 @@ and does not expose tools to models.
 explicit start
   -> fixed no-context preflight
   -> code_generator.plan
-       -> verified artifact download and pack-v3 admission
+       -> verified artifact download and pack-v3/pack-v4 admission
        -> creative director: exactly two grounded concepts + recommendation
        -> planner: selected concept + ExperienceBlueprintV2
        -> host compiler: execution bindings + disjoint WorkGraph
@@ -233,7 +235,7 @@ atomically.
 Normal tests use injected model clients, artifact stores, adapters, and browser
 verifiers. Live model/provider execution remains opt-in because a real pack can
 contain private portfolio-derived context. The selected development pack can
-be verified offline through exact SHA-256 pack-v3 admission without sending it
+be verified offline through exact SHA-256 pack-v3/pack-v4 admission without sending it
 to a provider.
 
 Use repository commands and configuration as the current source of truth for

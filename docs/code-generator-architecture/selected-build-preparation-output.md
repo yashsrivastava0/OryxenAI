@@ -1,156 +1,125 @@
-# Selected Build Preparation output for Code Generator
+# Canonical Build Preparation fixture for Code Generator
 
-Status: selected on 2026-08-18 after live provider acceptance.
-
-This is the Build Preparation pack to use while working on the Code Generator
-agent. Select it by its immutable identity and SHA-256, not by whichever local
-folder happens to sort first.
+This document points at the privacy-safe fixture used by the Code Generator
+runbook. The checked-in projections and ZIP are authoritative; this pointer
+must not be treated as a substitute for immutable artifact admission.
 
 ## Selection
 
-Selected pack:
+Canonical local fixture:
 
 ```text
-run_id:       64801150-cb6d-4052-ae1e-2a30ab55fb20
+runbook path:  prebuild-output/build-preparation/15-36-25-08-8acdcb12/
+run_id:       8acdcb12-11f5-4f05-8013-726575efaba9
 pack_version: build-preparation-pack-v3
-pack_sha256:  087fb5793e901d129ba91e6c5beabb9f97fa062598c2da6b25ebdd36e960f1d4
-scope_hash:   b511ab603400c48a8d0bae4e998ec3f6a01322b77b3bf0dbba0fc70c5e5bf62f
-expires_at:   2026-08-21T18:00:26.335827+00:00
-zip_size:     1,214,932 bytes
-manifest:     45 files
+pack_sha256:  8fef409f337596c94941fdf3d05f7aea291b2bbad404c0c2637e638a718e7de0
+scope_hash:   5324e4fc1af38622a0f00faff326079d0f6f14cfc01dbfb374ed1e5acde3df11
+expires_at:   2026-08-28T10:06:34.576853+00:00
+zip_size:     1,129,071 bytes
+manifest:     39 files
 ```
 
-Development mirror paths:
+The ZIP and extracted context are available at:
 
 ```text
-output/live-build-preparation/build-preparation/23-30-18-08-64801150/
-output/live-build-preparation/build-preparation/23-30-18-08-64801150/build-pack.zip
-output/live-build-preparation/build-preparation/23-30-18-08-64801150/build-context/
+prebuild-output/build-preparation/15-36-25-08-8acdcb12/build-pack.zip
+prebuild-output/build-preparation/15-36-25-08-8acdcb12/build-context/
 ```
 
-The local directory is only a debug mirror. In the production session flow,
-the same immutable ZIP is read from the R2 object reference recorded by Build
-Preparation. The R2 object key, version/ETag, size, expiry, and SHA-256 belong
-to the artifact/state handoff; they are not inferred from this folder name.
-Code Generator must download the R2 object, verify the recorded SHA-256, and
-then apply the same pack-v3 admission and extraction rules used by the
-development mirror.
+This captured artifact is now expired and must be regenerated before a live
+Code Generator run. The path is a deterministic development reference, not a
+license to select whichever folder is newest. In the production session flow,
+Code Generator reads the immutable object reference recorded by Build
+Preparation, verifies object metadata and SHA-256, and applies the same pack
+admission rules. The current configuration is the source of truth for accepted
+pack versions, including the V4 delegated-pack contract.
 
-## Why this is the selected output
+## Handoff status at capture
 
-This is the newest live-accepted pack and the only eligible pack currently
-available in the local mirror:
+The captured `handoff-report.json` recorded:
 
-- `handoff_eligible: true`
-- `code_generator_eligible: true`
-- zero execution gaps and zero unresolved visual roles;
-- six semantic image needs, all six materialized locally;
-- three semantic component needs, all three materialized locally;
-- one local Space Grotesk font family with four weights;
-- no total-enrichment or partial-enrichment failure;
-- 13 provider calls, with three handled rate-limit events;
-- complete provenance, license, checksum, route, target, and execution
-  projections; and
-- ZIP creation, artifact verification/read-back, and local Code Generator
-  admission all passed.
+- `handoff_eligible: true` and `code_generator_eligible: true`;
+- one approved public route;
+- five of five targeted image roles materialized locally;
+- two component sources materialized from the four-role target;
+- one local Space Grotesk family with four weights;
+- one unresolved optional image role (`home:about-connect`), which must remain
+  unillustrated unless upstream direction is revised; and
+- no blocking execution gap in the report's top-level status.
 
-The other available pack,
-`output/live-build-preparation/build-preparation/21-09-18-08-8fb44e9e`, is
-not a candidate: its handoff is ineligible and it contains two execution gaps.
-Do not use it for Code Generator work.
+Eligibility is time-sensitive. A current run must still pass expiry, object,
+approval, hash, scope, and execution checks at admission.
 
 ## Approved public route
 
-The selected input contains one approved public route:
+The canonical input contains one approved public route:
 
 ```text
 route_id: route:home
 path:     /
-storage:  routes/route-home-6c743f5342c5
+storage:  routes/home-4ea140588150
 ```
 
-Its six approved sections, in order, are:
+Its approved sections, in order, are:
 
-1. `home:hero` — professional positioning and entry point;
-2. `home:capabilities` — backend, data, delivery, and product-surface
-   capabilities;
-3. `home:experience` — two neutral engineering experience entries;
-4. `home:selected-work` — three technical project stories;
-5. `home:education` — concise academic context; and
-6. `home:connect` — LinkedIn primary CTA and GitHub secondary CTA.
+1. `home:hero` — positioning and the primary portfolio action;
+2. `home:selected-work` — payments, commerce, logistics, and healthcare work;
+3. `home:approach` — the research-to-systems design process;
+4. `home:experience` — two concise professional entries;
+5. `home:design-systems` — systems, craft, tools, and implementation awareness;
+6. `home:about-connect` — concise personal context, education, and approved links.
 
 The single route is the approved public scope for this input, not a generic
-portfolio rule. Code Generator must cover this route and these semantic
-sections, but it may choose the visual composition, number of internal scenes,
-responsive grouping, interaction surfaces, and component usage. A different
-public screen or route count requires new upstream Content Architect and Visual
-Design Director approval.
+portfolio rule. Code Generator may choose the visual composition, internal
+scenes, responsive grouping, and interaction surfaces, but it may not invent a
+second public route, stronger claims, or unavailable evidence.
 
-The five route acceptance criteria are:
-
-- all six sections appear in the approved narrative order;
-- the page remains readable, moderate-density, and text-led;
-- visuals remain abstract and representative rather than personal/project
-  evidence;
-- LinkedIn is the primary CTA and GitHub is secondary; and
-- experience and selected work are the strongest proof regions without
-  fabricated evidence.
+The route contract requires a text-led, moderate-density presentation; clear
+emphasis on selected work and the research-to-systems narrative; the supplied
+LinkedIn URL; and neutral, non-evidentiary treatment of decorative imagery.
+It forbids fabricated metrics, screenshots, testimonials, awards, client
+details, team or timeline claims, and a phone contact method.
 
 ## Prepared visual resources
 
-Every row below is an executable local binding, not a remote URL that the
-generated portfolio may fetch at runtime. The `import_path`, local path, hash,
-license, placement, and fallback are authoritative in
-`build-context/execution/contract.json`.
+Every binding below is local or a declared target-package dependency. Generated
+sites must not fetch these resources from providers at runtime. The exact
+placement, fallback, import path, license, and hash come from
+`build-context/execution/contract.json`, `resources/projection.json`, and the
+manifest.
 
 ### Images
 
-| Placement | Resource ID | Provider and asset | Local path | Final dimensions | SHA-256 |
-| --- | --- | --- | --- | ---: | --- |
-| hero | `resource-pexels-2e7ed5a84d64c39aa5b1` | Pexels `1779825` | `resources/images/resource-pexels-2e7ed5a84d64c39aa5b1.jpg` | 1880×1057 | `e624ea9669e2dbdc63400ffd29a79ec4363eec56b2bb9d85cf42607850c26100` |
-| capabilities | `resource-pexels-3879c71bff387f9a8b6d` | Pexels `17483871` | `resources/images/resource-pexels-3879c71bff387f9a8b6d.jpg` | 1587×1058 | `dabdb6a75f5dcb3651c0d7bd3f3fed6a2f7308537e7c56da47f9e102f2405d1c` |
-| experience | `resource-pexels-eb0ef4e1d18b83ef1b59` | Pexels `34037163` | `resources/images/resource-pexels-eb0ef4e1d18b83ef1b59.jpg` | 1820×1300 | `fba941fbbb2137ffef5a24592159e3d42d1806ba7df75a7108b9ca1e387388e4` |
-| selected work | `resource-pexels-1dbd872cafbdcf865721` | Pexels `17483874` | `resources/images/resource-pexels-1dbd872cafbdcf865721.jpg` | 1410×1058 | `cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f` |
-| education | `resource-pexels-62a7789afb3913928548` | Pexels `846793` | `resources/images/resource-pexels-62a7789afb3913928548.jpg` | 1880×1258 | `a6bfdeed41742eb6f26680b594679a2abb89e2bf5e57d91ab5f73ecf324cd27f` |
-| connect | `resource-pixabay-db432b0dffb02efa44c1` | Pixabay `4814456` | `resources/images/resource-pixabay-db432b0dffb02efa44c1.jpg` | 1280×720 | `6e5e2cffc47907c51bf909d58a9e57eac996607453c19aa4cf169b8a7efc0426` |
-
-All six are local, pixel-inspected, attributed, licensed, and configured to
-render statically with a decorative/secondary treatment. They must not be
-described as the user's projects, workplaces, architecture, or evidence.
-
-### Components
-
-| Role and placement | Resource ID | Provider asset | Local source / import directory | Exports | Dependencies |
-| --- | --- | --- | --- | --- | --- |
-| capability grouping, `home:capabilities` | `resource-smoothui-12bad50f4b2ec4eb393d` | SmoothUI `basic-accordion` | `resources/components/smoothui/resource-smoothui-12bad50f4b2ec4eb393d/source/index.tsx` / `.../source` | `AccordionItem`, `BasicAccordion`, `BasicAccordionProps` | `motion`, `lucide-react` |
-| experience timeline, `home:experience` | `resource-magicui-cd5375353fbb1f2fc3a5` | Magic UI `spinning-text` | `resources/components/magicui/resource-magicui-cd5375353fbb1f2fc3a5/source/registry/magicui/spinning-text.tsx` / `.../source` | `SpinningText` | `motion` |
-| selected-work detail, `home:selected-work` | `resource-smoothui-065b3f87b5de8eb4df49` | SmoothUI `expandable-cards` | `resources/components/smoothui/resource-smoothui-065b3f87b5de8eb4df49/source/index.tsx` / `.../source` | `Card`, `ExpandableCards`, `ExpandableCardsProps` | `motion`, `lucide-react` |
-
-Component source hashes are, in the same order:
+The five materialized image bindings are:
 
 ```text
-ef0f685060fde49a375f6c28dc672d563a568c09ac7982d714cdae87eead135c
-55726f972d09705b0cd10e8739e74afe8d11b7164537554f99905267e456dafa
-9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede
+resource-pixabay-d85095d80f5f23be1e95
+resource-pixabay-2bf5c084e29d1ae09db4
+resource-pexels-ee43d84747dcbbaf047e
+resource-pexels-042df95aaefc38bf9ad3
+resource-pexels-69c4f6fcbe2a01753e39
 ```
 
-The Magic UI source is valid local material, but its name is not a semantic
-timeline implementation. The declared fallback is the preferred flow:
-render a static, ordered experience timeline with headings, dates, visible
-structure, keyboard access, and reduced-motion safety. Do not force spinning
-text into the experience section merely because that source is available.
+They live under `resources/images/` in the pack. They are decorative and
+representative only; they must not be described as the user's projects,
+workplaces, architecture, or evidence. The unresolved `home:about-connect`
+image role has no local binding and should be implemented without an image.
 
-### Font and package binding
+### Components and font
 
-- Fontsource `space-grotesk`, resource ID
-  `resource-fontsource-b69f66a0c66ec46921e7`, is local under
-  `resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/` with weights
-  400, 500, 600, and 700. It is licensed under OFL-1.1.
-- The icon slot is a target-package binding for `lucide-react` with
-  `ArrowUpRight`, `Menu`, and `X` exports. It is not a local component folder.
-- Six typed local recipes cover the approved typography, composition, diagram,
-  and static visual fallbacks. Recipes are not substitutes for the six images
-  or three component roles.
+- `resource-smoothui-d7a42b9814bfe7c97f23` is the local SmoothUI
+  expandable-cards source under
+  `resources/components/smoothui/.../source/index.tsx`.
+- `resource-magicui-0bcd9511bdad151cae2f` is the local Magic UI animated-beam
+  source under `resources/components/magicui/.../source/registry/animated-beam.tsx`.
+  Its name is not a semantic experience-timeline contract; use the declared
+  accessible static fallback when the experience section needs chronology.
+- `resource-fontsource-b69f66a0c66ec46921e7` is the local Space Grotesk family
+  under `resources/fonts/`, with weights 400, 500, 600, and 700, licensed under
+  OFL-1.1.
+- The target package supplies the approved `lucide-react` icon dependency and
+  the starter React/Vite/Tailwind target. Code Generator must generate the
+  final lockfile from the chosen dependency subset.
 
 ## Pack files Code Generator must use
 
@@ -171,26 +140,28 @@ The authoritative read order is:
    `checksums.json` — admission and integrity evidence; and
 8. `routes/` and `resources/` — local content and source bytes.
 
-`overview.md` is a detailed human/model briefing for orientation. It does not
-override these projections and is not a reason to invent routes, components,
-facts, dependencies, or remote runtime assets.
+`overview.md` is a human/model briefing for orientation. It does not override
+these projections and is not a reason to invent routes, components, facts,
+dependencies, or remote runtime assets.
 
 ## Projection hashes
 
-The selected handoff report records these hashes. A consumer should verify
-them after reading the ZIP and bind subsequent planning, generation, and
-preview receipts to the admitted pack identity:
+These are the SHA-256 values of the canonical extracted projections and ZIP.
+Consumers should recompute them and bind planning, generation, and preview
+receipts to the admitted pack identity:
 
 ```text
-site:      3f4111f9de315c152a22eb2e5ea4dd8ce7bfd81b663da134d63168290c04d7b9
-visual:    8d82bdaa52508c5c8906567cd72a1859aafc7ddc7f84a2b508ab77cb0885ab54
-approvals: 73b89880a8cc03a75730e1b400ff4c8596e9e67c42d6d205628f0ee089ef014f
-targets:   0856cf30a71a4c3e3d819ef49b90024c1a2451ad266a9c6eb48373d34b94c2c4
-resources: bd7d6b5a27c1d9665f635c737b1a8ef918b03ef6469e25fa671fb1c8b9c8793d
-ledger:    1c25615062d0a508d1c68ca27f7ea1bbf09db697671c66b76aafb4e2bc6b516b
-execution: 0870b2b296936dcc2b2d9549c36ee717fc46fbc64b9c7da76e4e53f032118b54
-recipes:   7edf66170a28060ba2f6482b5dfec5ed0424f607d2764ab2904d5fd8ce54dbf8
+zip:        8fef409f337596c94941fdf3d05f7aea291b2bbad404c0c2637e638a718e7de0
+manifest:   9997d39155c4a3fb093232496bd57b0e885327f46999c02a6fba95ef816b6136
+site:       5e850f2886d3dff9e7d86df7c81046e1ce369fa4c96e11be2876aa73d94b6694
+visual:     6a476843a121107f8e9174a047cdf28559a50e6b6cc60a8ed1b533e260132e4d
+approvals:  e0c927a321efc3f4fc4e5217ff49a7358e63f76dfe504e88936550dea97c7c26
+targets:    aadbcfdb71f6f8ddb61ad7b5793ab101318994e6a69e846aaf7cce40bbe1f186
+resources:  752f1a4b6cca7178000cb8984e90a2fbb2d0b6163c86be94214010c490adf622
+ledger:     cbb39c543fe92fa9281afe050c9baa855ec720738bed0563882117c4edacb221
+execution:  2e756a7c19f6359d4b5ba997fe2ca06a46fe081c3f93c23abd85e218dab5ae2b
+recipes:    8395e9f0c43839c75b3d362596ef94fe352bccc527e3b5df5d1bfc74ea5006c9
 ```
 
-This document is a selection pointer and working context. The ZIP and its
-hash-covered projections remain the authoritative handoff.
+The ZIP and its hash-covered projections remain authoritative over this
+selection pointer.
