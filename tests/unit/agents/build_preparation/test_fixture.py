@@ -45,7 +45,7 @@ async def test_fixture_returns_routes_needs_and_complete_events(tmp_path: Path) 
     assert result["events"][-1]["event_id"] == "phase_3_complete"
     assert result["stage"] == "phase_3"
     assert result["materialization"]["manifest_path"] == "resources/manifest.json"
-    assert result["materialization"]["resource_plan_path"] == "resources/plan.json"
+    assert result["materialization"]["resource_plan_path"] == "resources/ledger.json"
     assert result["handoff_report"]["handoff_eligible"] is False
     assert any(
         issue["code"] == "OFFLINE_DIAGNOSTIC_ONLY" for issue in result["handoff_report"]["issues"]
