@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 03:10 +05:30 - Codex (GPT-5 / OpenAI) - [d971764] - fix stale references and doc drift
+Repointed the selected Build Preparation document at the canonical privacy-safe fixture, reconciled its route/resource/hash facts, and marked its expiry. Added an explicit V4/pack-v4 contract banner to the v2 architecture document; the live-preview path was already corrected to the implemented `/preview/{host}/{path}` gateway.
+
 ### 2026-09-02 02:50 +05:30 - Codex (GPT-5 / OpenAI) - [08633e6] - remove overloaded accepted-mode prompt branch
 Replaced operation-name inference with explicit accepted-result authority; model-bound generation and repair prompts now fail closed by default while an explicit opt-in remains available for a true existing-content review. Bumped the affected prompt contract versions and verified prompt/schema regressions.
 
@@ -180,28 +183,12 @@ expired mid-investigation (`expires_at` 2026-08-28T10:06:34Z). This is
 honestly an open investigation, not a claimed fix - flagged for the
 next session/agent to pick up with fresh live budget and a fresh pack.
 
-### 2026-08-28 15:21 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [c354841] - reject result:"accepted" at the schema level for fresh generation
-The prose fix (5a89eb0) held for zero live attempts: with
-`strict_schema=True` the provider enforces the JSON schema's own enum
-directly, so a model sampling under constrained decoding can still
-choose "accepted" regardless of surrounding instructions - two
-consecutive live retries proved this (a different unit failed each
-time). `GenerationResult`/`SourceGenerationEnvelopeV2`'s existing
-`@model_validator(mode="after")` hooks now accept a `ValidationInfo`
-and reject `mode`/`result="accepted"` when `_model_result` marks the
-operation `forbid_accepted_result=True` (route_batch/route_compose;
-integrate/repair still legitimately allow it) via
-`model_validate(..., context=...)`. A live occurrence now raises a
-real `ValidationError` that the existing 2-attempt schema-correction
-retry loop catches and feeds back to the model explicitly, instead of
-silently reaching `GENERATION_CHANGES_MISSING` with no path to
-recovery.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [c354841] - Schema-context validation rejects accepted results when a generation call is marked forbidden, allowing the bounded correction retry to surface the precise issue.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [5a89eb0] - Fresh-generation prompts stopped listing accepted as a valid result; integration/repair retained prior-content semantics and regression coverage.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [510d8d1] - Documented accepted-result semantics and corrected the integration prompt's empty-change contract while fresh-generation operations reject acceptance.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - Font bindings now preserve per-file weights and token compilation avoids double prefixes; prompts document the group-prefix convention.
@@ -346,5 +333,5 @@ recovery.
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 120
+- Compacted milestone bullets: 121
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
