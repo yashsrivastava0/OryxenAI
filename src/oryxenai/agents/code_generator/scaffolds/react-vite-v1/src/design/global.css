@@ -1,6 +1,7 @@
 @import "./fonts.css";
 @import "./tokens.css";
 @import "./motion.css";
+@import "tailwindcss";
 
 /* Functional reset and safety behavior. Portfolio-specific values and layout
    classes belong to generated route CSS, never to this scaffold. */
