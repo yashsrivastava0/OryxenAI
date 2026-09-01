@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [97cdada] - detect cross-route structural sameness
+Extended the V4 source anti-slop audit to compare deterministic section-shell signatures across routes, with a stable diagnostic for identical multi-section sequences. The existing route-local checks remain intact and small routes are left below the same three-section evidence threshold.
+
 ### 2026-09-02 02:30 +05:30 - Codex (GPT-5 / OpenAI) - [dfce00f] - impose distinctive move strength floor
 Added host-owned minimum deviation and range-spread checks to V4 distinctive moves so weak near-neutral geometry fails during planning. Sticky narrative rails retain their discrete 1.0 contract, while existing authored asymmetric ranges remain valid.
 
@@ -207,26 +210,13 @@ review existing content) keep all four. Regression tests cover both
 the `mode` (GenerationResult) and `result_tag`
 (SourceGenerationEnvelopeV2, the actual live path) wording.
 
-### 2026-08-28 13:00 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [510d8d1] - explain result:"accepted" semantics and diagnose its misuse
-Two fresh confirmation runs both hit `GENERATION_CHANGES_MISSING`
-deterministically during route-batch generation. Adding the actual
-`result` mode to the error (instead of the generic "did not include
-changes" message) revealed the model was returning `result:"accepted"`
-for a route batch that had never been generated before - a schema
-value neither `route_batch.md` nor `route_compose.md` ever explained.
-Also found `integrate.md` telling the model to return `files: []` for
-"nothing to change", which `SourceGenerationEnvelopeV2`'s own
-validator rejects; `"accepted"` is the schema's actual mechanism for
-that case, just never named correctly in the prompt. Confirmed the
-route-batch/compose fix and this correction don't conflict: the
-integration unit kind returns through its own early branch before ever
-reaching the dispatch code this touches.
 
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [510d8d1] - Documented accepted-result semantics and corrected the integration prompt's empty-change contract while fresh-generation operations reject acceptance.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - Font bindings now preserve per-file weights and token compilation avoids double prefixes; prompts document the group-prefix convention.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - Quality-review rejection is persisted with its real diagnostics instead of being discarded during repair failure.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [eef4c7d] - Test overlay now points at reachable PostgreSQL and marks the previously skipped integration files; it also documented a separate legacy foundation-profile regression.
@@ -369,5 +359,5 @@ reaching the dispatch code this touches.
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 118
+- Compacted milestone bullets: 119
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
