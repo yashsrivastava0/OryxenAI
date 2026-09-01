@@ -177,6 +177,36 @@ def test_v4_contracts_are_closed_and_provider_compatible() -> None:
     assert schema_compatibility_issues(ExperienceBlueprintV4) == []
 
 
+def test_v4_distinctive_move_rejects_weak_neutral_ratio_range() -> None:
+    payload = _blueprint().model_dump(mode="python")
+    payload["distinctive_moves"][0].update(minimum_ratio=0.95, maximum_ratio=1.05)
+
+    with pytest.raises(ValidationError, match="deviate from neutral"):
+        ExperienceBlueprintV4.model_validate(payload)
+
+
+def test_v4_distinctive_move_rejects_narrow_ratio_range() -> None:
+    payload = _blueprint().model_dump(mode="python")
+    payload["distinctive_moves"][0].update(minimum_ratio=0.4, maximum_ratio=0.45)
+
+    with pytest.raises(ValidationError, match="spread of at least"):
+        ExperienceBlueprintV4.model_validate(payload)
+
+
+def test_v4_sticky_move_allows_discrete_neutral_ratio() -> None:
+    payload = _blueprint().model_dump(mode="python")
+    payload["distinctive_moves"][0].update(
+        relationship="sticky_within_section",
+        minimum_ratio=1,
+        maximum_ratio=1,
+        required_css_properties=["position"],
+    )
+
+    parsed = ExperienceBlueprintV4.model_validate(payload)
+
+    assert parsed.distinctive_moves[0].relationship == "sticky_within_section"
+
+
 def test_v4_materialized_resource_ids_canonicalize_to_unique_execution_slots() -> None:
     payload = _blueprint().model_dump(mode="python")
     payload["resource_placements"] = [
