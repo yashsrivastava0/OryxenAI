@@ -26,6 +26,10 @@ from oryxenai.agents.build_preparation.packager import (
     restore_verified_bundle,
     verify_bundle_bytes,
 )
+from oryxenai.agents.build_preparation.validators import (
+    BuildPreparationValidationError,
+    validate_content_visual_identity_consistency,
+)
 from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
     InputReceipt,
@@ -763,6 +767,17 @@ class DevelopmentInputAdapter:
             for item in site.get("facts", [])
             if isinstance(item, dict) and str(item.get("fact_id", ""))
         }
+        try:
+            validate_content_visual_identity_consistency(
+                {"facts": site.get("facts", [])},
+                {"global": visual.get("global", {})},
+            )
+        except BuildPreparationValidationError as exc:
+            raise DevelopmentInputError(
+                exc.code,
+                exc.message,
+                details={str(key): str(value) for key, value in exc.details.items()},
+            ) from exc
         criteria = site.get("criteria", [])
         if not isinstance(criteria, list) or any(
             not isinstance(item, dict) or str(item.get("route_id", "")) not in set(route_ids)
