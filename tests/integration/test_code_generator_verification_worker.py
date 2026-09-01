@@ -14,6 +14,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     QualityReviewDraftV1,
     QualityReviewReceiptV2,
     QualityScoreEvidenceV1,
+    RepairReceipt,
     SitePlan,
     VerificationProfile,
     VerificationProjection,
@@ -29,6 +30,7 @@ from oryxenai.jobs.handlers.code_generator_verification import (
     CodeGeneratorVerificationHandler,
     VerificationFailure,
     _attempt_repair,
+    _reconstruct_repair_unit_counts,
 )
 from oryxenai.storage.preview import MemoryPreviewStorage
 
@@ -524,3 +526,83 @@ async def test_attempt_repair_persists_rejected_quality_review(
     assert refreshed.generation_projection["quality_review"]["resource_fit_score"] == 2
     # The rejected repair must never be promoted to the run's accepted checkpoint.
     assert refreshed.source_checkpoint == original_source_checkpoint
+
+
+async def test_attempt_repair_stops_repeated_diagnostic_group_at_ceiling(
+    db_session, test_engine
+) -> None:
+    """A repeated final-verification gate stops at its own third attempt."""
+    settings = get_settings()
+    settings.code_generator_generation.max_repair_rounds_total = 6
+    settings.code_generator_generation.max_repair_rounds_per_unit = 3
+
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference={"kind": "repair-budget-test"}, idempotency_key=None
+    )
+    await db_session.commit()
+
+    identity = CandidateIdentity(
+        input_receipt_hash="input",
+        site_plan_hash="plan",
+        work_graph_hash="graph",
+        source_checkpoint_hash="checkpoint",
+        source_manifest_hash="manifest",
+        scaffold_toolchain_profile_hash="toolchain",
+        verification_profile_hash="verification",
+    )
+    repair_receipts = [
+        RepairReceipt(
+            generation_id="generation",
+            diagnostic_fingerprints=[f"dom-runtime-{index}"],
+            repair_unit_id="dom_runtime",
+            strategy_summary="bounded-correction",
+            based_on_checkpoint="checkpoint",
+            context_receipt=f"context-{index}",
+            corrected_checkpoint=f"corrected-{index}",
+            accepted_at="2026-09-02T00:00:00Z",
+        )
+        for index in range(3)
+    ]
+    projection = VerificationProjection(
+        generation_id="generation",
+        candidate_identity=identity,
+        verification_profile=VerificationProfile(profile_id="verification"),
+        phase="repairing",
+        status="repairing",
+        repair_rounds=3,
+        repair_receipts=repair_receipts,
+    )
+    diagnostic = Diagnostic(
+        diagnostic_id="dom-runtime-current",
+        group="dom_runtime",
+        code="RUNTIME_TOUCH_TARGET_TOO_SMALL",
+        phase="runtime",
+        normalized_message="The current interactive target is too small.",
+        fingerprint="dom-runtime-current",
+    )
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    attempted = await _attempt_repair(
+        sessionmaker=sessionmaker,
+        run_id=run.id,
+        settings=settings,
+        workspace=None,
+        checkpoint_store=None,
+        checkpoint=None,
+        identity=identity,
+        plan=None,
+        projections={},
+        projection=projection,
+        diagnostics=[diagnostic],
+        public_text=set(),
+        allowed_packages=set(),
+        model_factory=lambda _profile: pytest.fail("repair model must not run after the ceiling"),
+    )
+
+    assert attempted is False
+    assert projection.active_gate == "dom_runtime"
+    assert projection.repair_rounds == 3
+    assert _reconstruct_repair_unit_counts(projection.repair_receipts) == {"dom_runtime": 3}

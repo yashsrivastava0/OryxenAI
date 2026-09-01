@@ -32,6 +32,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Rejected alternatives:** Keeping one shared profile for all roles - rejected because it prevents independent operational tuning and obscures provider receipts; hardcoding provider/model choices in agent code - rejected because model routing remains configuration-owned.
 - **Consequence:** Each live Code Generator operation records the profile selected for its role, while changing provider, model, or credential environment remains a TOML-only change.
 
+## D-056 - Final verification repair budgets are per diagnostic group
+
+- **Date & Time:** 2026-09-02 01:15 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Final verification can surface independent source, build, and runtime gates in one run. Counting all receipts in one synthetic `final` unit made the configured per-unit ceiling either too restrictive or disconnected from the diagnostic gate being repaired.
+- **Decision:** Reconstruct repair usage by the first diagnostic's group and apply the configured per-unit ceiling independently to each group, while preserving one shared total ceiling and fingerprint recurrence policy. Receipts without the new unit field are conservatively counted in the legacy `final` bucket. A failed final-repair model call must return a bounded source change or an honest cannot-complete result; it may not claim acceptance.
+- **Rejected alternatives:** Raising the single global per-unit limit - rejected because it hides repeated failures; removing the per-unit ceiling - rejected because it permits unbounded work on one gate; inferring legacy groups from fingerprints - rejected because old receipts do not carry a trustworthy gate identity.
+- **Consequence:** Independent gates can each use their bounded repair allowance without exceeding the run-wide cap, and persisted receipt history remains backward-compatible and fail-closed.
+
 ## D-054 - Shared preview gateway is part of the default Docker stack
 
 - **Date & Time:** 2026-08-27 03:00 +05:30 — Codex (GPT-5 / OpenAI)

@@ -27,7 +27,7 @@ _VERSIONS = {
     "route_compose": "code_generator.route_compose.v6",
     "integrate": "code_generator.integrate.v5",
     "integration_review": "code_generator.integration_review.v1",
-    "repair": "code_generator.repair.v6",
+    "repair": "code_generator.repair.v7",
 }
 _FILES = {
     "director": "director.md",
@@ -84,7 +84,9 @@ def build_instructions(
     # live to make the model choose it anyway even after prompt-level
     # guidance said not to. Excluding it from the listed choices for
     # generation-only operations is the fix that actually held.
-    accepted_valid = operation in {"integrate", "repair"}
+    accepted_valid = operation in {"integrate", "repair"} and not context.get(
+        "forbid_accepted_result"
+    )
     mode_choices = (
         "changes/requests/accepted/cannot_complete"
         if accepted_valid
@@ -98,10 +100,17 @@ def build_instructions(
             "field that does not match your mode MUST be null."
         )
         if not accepted_valid:
-            task += (
-                " This unit has not been generated before, so mode=accepted is never a valid "
-                "choice here."
-            )
+            if operation == "repair" and context.get("forbid_accepted_result"):
+                task += (
+                    " This is a failed final-verification candidate, so mode=accepted is "
+                    "forbidden; return mode=changes with a bounded correction or "
+                    "mode=cannot_complete with the precise gap."
+                )
+            else:
+                task += (
+                    " This unit has not been generated before, so mode=accepted is never a "
+                    "valid choice here."
+                )
     elif output_model.__name__ == "SourceGenerationEnvelopeV2":
         task += (
             f"\nSet result_tag to exactly one of {mode_choices}. "
@@ -111,10 +120,17 @@ def build_instructions(
             "use empty arrays when a result kind does not need that payload."
         )
         if not accepted_valid:
-            task += (
-                " This unit has not been generated before, so result_tag=accepted is never a "
-                "valid choice here."
-            )
+            if operation == "repair" and context.get("forbid_accepted_result"):
+                task += (
+                    " This is a failed final-verification candidate, so result_tag=accepted "
+                    "is forbidden; return result=changes with a bounded correction or "
+                    "result=cannot_complete with the precise gap."
+                )
+            else:
+                task += (
+                    " This unit has not been generated before, so result_tag=accepted is never "
+                    "a valid choice here."
+                )
     context_hash = _hash(context)
     schema_hash = hashlib.sha256(schema.encode("utf-8")).hexdigest()
     operation_version = _VERSIONS[operation]

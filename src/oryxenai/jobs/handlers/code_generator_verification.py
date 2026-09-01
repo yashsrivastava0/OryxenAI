@@ -27,6 +27,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationProjection,
     PendingPromotion,
     QualityReviewReceiptV2,
+    RepairReceipt,
     SafeIssue,
     SitePlan,
     TerminalFailureReport,
@@ -70,6 +71,16 @@ from oryxenai.storage.artifacts import is_expired
 from oryxenai.storage.preview import create_preview_storage
 
 logger = get_logger("oryxenai.jobs.code_generator_verification")
+
+
+def _reconstruct_repair_unit_counts(receipts: list[RepairReceipt]) -> dict[str, int]:
+    """Rebuild per-gate repair usage, conservatively handling legacy receipts."""
+
+    counts: dict[str, int] = {}
+    for receipt in receipts:
+        unit_id = receipt.repair_unit_id or "final"
+        counts[unit_id] = counts.get(unit_id, 0) + 1
+    return counts
 
 
 class CodeGeneratorVerificationHandler:
@@ -1373,19 +1384,20 @@ async def _attempt_repair(
         # this counter at 0 lets it track actual final-stage repair rounds
         # independently, so max_repair_rounds_total governs as its name
         # promises.
-        per_unit_used={"final": 0},
+        per_unit_used=_reconstruct_repair_unit_counts(projection.repair_receipts),
     )
     for receipt in projection.repair_receipts:
         for fingerprint in receipt.diagnostic_fingerprints:
             budget.fingerprint_counts[fingerprint] = (
                 budget.fingerprint_counts.get(fingerprint, 0) + 1
             )
-    if not budget.can_attempt(diagnostics, unit_id="final"):
+    projection.active_gate = diagnostics[0].group if diagnostics else ""
+    repair_unit_id = projection.active_gate or "final"
+    if not budget.can_attempt(diagnostics, unit_id=repair_unit_id):
         return False
-    strategy = budget.consume(diagnostics, unit_id="final")
+    strategy = budget.consume(diagnostics, unit_id=repair_unit_id)
     projection.status = "repairing"
     projection.phase = "repairing"
-    projection.active_gate = diagnostics[0].group if diagnostics else ""
     await _persist_projection(
         sessionmaker,
         run_id,

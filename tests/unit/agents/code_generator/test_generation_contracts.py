@@ -353,7 +353,21 @@ def test_repair_prompt_treats_unlisted_quality_findings_as_binding() -> None:
     assert "requested_outcome" in instructions
     assert "JSX/HTML source order is authoritative" in instructions
     assert "`order` rule alone does not repair" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.repair.v6"
+    assert receipt.prompt_versions["operation"] == "code_generator.repair.v7"
+
+
+def test_final_repair_prompt_forbids_acceptance_after_a_failed_gate() -> None:
+    _system, instructions, _receipt = build_instructions(
+        "repair",
+        {
+            "context_receipt_hash": "context",
+            "forbid_accepted_result": True,
+        },
+        output_model=SourceGenerationEnvelopeV2,
+    )
+
+    assert "result_tag to exactly one of changes/requests/cannot_complete" in instructions
+    assert "result_tag=accepted is forbidden" in instructions
 
 
 def test_v4_planner_prompt_requires_concrete_responsive_sizes() -> None:

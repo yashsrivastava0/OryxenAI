@@ -2856,6 +2856,10 @@ class RepairReceipt(BaseModel):
     schema_version: Literal["code-generator-repair-receipt-v1"] = "code-generator-repair-receipt-v1"
     generation_id: str
     diagnostic_fingerprints: list[str]
+    # Empty means a legacy receipt created before repair budgets were grouped
+    # by diagnostic gate. Consumers conservatively place those receipts in
+    # the shared fallback bucket.
+    repair_unit_id: str = ""
     strategy_summary: str
     based_on_checkpoint: str
     context_receipt: str
