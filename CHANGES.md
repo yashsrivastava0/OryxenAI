@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 01:35 +05:30 - Codex (GPT-5 / OpenAI) - [b760acb] - wire Tailwind v4 into the Vite scaffold
+Added the locked Tailwind v4 engine, Vite plugin, CSS entry import, and supported-package catalogue entries to the React/Vite generation scaffold. Verified clean install, production build, TypeScript check, source audit, and emitted Tailwind preflight/utilities.
+
 ### 2026-09-02 01:25 +05:30 - Codex (GPT-5 / OpenAI) - [1cf313f] - bound final repairs by diagnostic group
 Final verification now reconstructs per-group repair usage from durable receipts, preserves a shared run-wide ceiling, and conservatively buckets legacy receipts. Final V4 repair calls also reject acceptance after a failed gate and require bounded changes or an honest inability result, with unit and PostgreSQL-backed regression coverage.
 
