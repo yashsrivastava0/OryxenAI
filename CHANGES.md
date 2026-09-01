@@ -11,6 +11,11 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-01 09:28 +05:30 — Codex (GPT-5 / OpenAI) — [d41eba1] — harden Code Generator generation, source evidence, repair, and polish contracts
+Live retries exposed a chain of independent failures after the accepted-mode fix: rejected candidate bytes were unavailable to later repairs; raw-text selector checks miscounted strings/comments as JSX; route interaction, resource, motion, heading, distinctive-move, and export evidence could be attributed to the wrong owner or accepted without executable source; and integration polish could checkpoint a malformed replacement before source audit. Rejected attempts are now durable repair context, source checks use shared comment/JSX lexing and canonical V4 plan identities, generated image bindings resolve through the trusted manifest/`LocalImage`, final repair receives bounded source/style pairs, and every configured owner-scoped polish round must pass source/type validation before checkpointing. Planner, generation, integration-review, repair, scaffold, Windows toolchain, and legacy no-blueprint foundation compatibility contracts were aligned with regression coverage; D-032 records the finite three-round default.
+
+The Code Generator unit suite, Ruff, and Mypy pass. A repository-wide run exposed only the previously documented legacy foundation-profile regression; both failing PostgreSQL tests pass after the compatibility fix. Live runs advanced through route generation, integration, and a successful build, but the newest run still ended `needs_attention` before preview promotion, so this is not a claim that the requested two accepted portfolios were achieved. The shared commit also contains pre-existing engine-input, `PLAN.MD`, and architecture-document changes that entered the index concurrently; this entry makes no Code Generator ownership claim for those files.
+
 ### 2026-08-28 19:30 +05:30 - Codex (GPT-5 / OpenAI) - [26d1a61] - integrate Build Preparation into the four-stage pipeline
 Connected the main native workflow as Discovery → Content Architect → Visual Design Director → Build Preparation. A shared DB projection integrator now gives Build Preparation the approved public Content Architect handoff and approved Visual Design Director handoff, strips private content notes, normalizes visual inputs, and stamps one source reference used by both the API and worker. The session route now requires both approvals and exposes verified ZIP download with stale/expiry/object checks.
 
@@ -436,8 +441,8 @@ checkpoint into subsequent owner repairs and retries.
 
 ---
 
-## Summary (as of last compaction — 2026-08-28)
+## Summary (as of last compaction — 2026-09-01)
 
-- Recent detailed entries retained: 19
+- Recent detailed entries retained: 20
 - Compacted milestone bullets: 109
-- Last updated: 2026-08-28 — Codex (GPT-5 / OpenAI)
+- Last updated: 2026-09-01 — Codex (GPT-5 / OpenAI)
