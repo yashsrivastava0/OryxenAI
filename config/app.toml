@@ -309,6 +309,16 @@ version_pin = "3.0.0"
 transitive = []
 licence = "MIT"
 
+[code_generator_dependencies.supported_packages.tailwindcss]
+version_pin = "4.3.3"
+transitive = []
+licence = "MIT"
+
+[code_generator_dependencies.supported_packages."@tailwindcss/vite"]
+version_pin = "4.3.3"
+transitive = []
+licence = "MIT"
+
 [code_generator_verification]
 # Standalone Phase 4 final build, DOM verification, and promoted preview.
 enabled = true
