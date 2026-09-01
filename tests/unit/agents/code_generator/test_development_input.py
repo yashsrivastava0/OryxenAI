@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import io
 import json
 import zipfile
@@ -59,6 +60,37 @@ def test_rich_privacy_safe_fixture_admits_advanced_section_contract(tmp_path) ->
         "process",
         "contact",
     ]
+
+
+def test_compiled_projection_rejects_visual_identity_mismatch(tmp_path) -> None:
+    adapter = _adapter(tmp_path)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    _, admitted = adapter.admit(reference)
+    projections = copy.deepcopy(admitted)
+    projections["site/contract.json"]["facts"] = [
+        {"fact_id": "owner", "statement": "Arjun Mehta is a designer."}
+    ]
+    projections["design/visual-direction.json"]["global"] = {
+        "must_preserve": ["Aarav Mehta"],
+        "visual_language": {"anti_patterns": ["Avoid presenting Aarav as the owner of outcomes."]},
+    }
+    with zipfile.ZipFile(io.BytesIO(adapter.read(reference))) as archive:
+        package_paths = set(archive.namelist())
+        route_resource_maps = {
+            str(route["route_id"]): json.loads(
+                archive.read(str(route["files"]["resources"])).decode("utf-8")
+            )
+            for route in projections["site/contract.json"]["routes"]
+        }
+
+    with pytest.raises(DevelopmentInputError) as caught:
+        adapter._validate_projections(
+            projections,
+            package_paths=package_paths,
+            route_resource_maps=route_resource_maps,
+        )
+
+    assert caught.value.code == "PACK_VISUAL_IDENTITY_MISMATCH"
 
 
 def test_v1_pack_is_rejected_without_adaptation(tmp_path) -> None:
