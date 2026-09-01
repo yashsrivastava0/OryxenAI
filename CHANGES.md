@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 02:50 +05:30 - Codex (GPT-5 / OpenAI) - [08633e6] - remove overloaded accepted-mode prompt branch
+Replaced operation-name inference with explicit accepted-result authority; model-bound generation and repair prompts now fail closed by default while an explicit opt-in remains available for a true existing-content review. Bumped the affected prompt contract versions and verified prompt/schema regressions.
+
 ### 2026-09-02 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [97cdada] - detect cross-route structural sameness
 Extended the V4 source anti-slop audit to compare deterministic section-shell signatures across routes, with a stable diagnostic for identical multi-section sequences. The existing route-local checks remain intact and small routes are left below the same three-section evidence threshold.
 
@@ -194,28 +197,12 @@ retry loop catches and feeds back to the model explicitly, instead of
 silently reaching `GENERATION_CHANGES_MISSING` with no path to
 recovery.
 
-### 2026-08-28 13:08 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [5a89eb0] - stop unconditionally offering result:accepted to fresh-generation calls
-The prior fix's prose guidance in route_batch.md/route_compose.md did
-not hold on a live retry: the model chose `result=accepted` for a
-different unit (batch-1 instead of batch-2) despite it. The real cause
-sat one layer deeper - `build_instructions()` unconditionally appended
-"Set mode/result_tag to exactly one of changes/requests/accepted/
-cannot_complete" to every operation's task text regardless of whether
-that operation's context ever shows prior accepted content, and that
-line, sitting closer to the generated output than the earlier prose,
-evidently won out. It is now operation-aware: route_batch/route_compose
-list only changes/requests/cannot_complete with an explicit "never a
-valid choice here" line; integrate/repair (which do legitimately
-review existing content) keep all four. Regression tests cover both
-the `mode` (GenerationResult) and `result_tag`
-(SourceGenerationEnvelopeV2, the actual live path) wording.
-
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [5a89eb0] - Fresh-generation prompts stopped listing accepted as a valid result; integration/repair retained prior-content semantics and regression coverage.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [510d8d1] - Documented accepted-result semantics and corrected the integration prompt's empty-change contract while fresh-generation operations reject acceptance.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - Font bindings now preserve per-file weights and token compilation avoids double prefixes; prompts document the group-prefix convention.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - Quality-review rejection is persisted with its real diagnostics instead of being discarded during repair failure.
@@ -359,5 +346,5 @@ the `mode` (GenerationResult) and `result_tag`
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 119
+- Compacted milestone bullets: 120
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
