@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 03:45 +05:30 - Codex (GPT-5 / OpenAI) - [e8c6b55] - retire the legacy resource-plan filename
+Moved compatibility-only diagnostic materializations and their regression fixtures onto canonical `resources/ledger.json`; retained their legacy schema semantics while ensuring active code, docs, and tests no longer emit or reference the retired filename.
+
 ### 2026-09-02 03:25 +05:30 - Codex (GPT-5 / OpenAI) - [749022f] - type the closed token schema metadata
 Added the explicit JSON-schema metadata type boundary required by mypy for the fixed shadcn token-slot properties. Behavior and provider-compatible schema output are unchanged; the complete source type check is now clean.
 
@@ -151,25 +154,12 @@ live run then hit `GENERATION_CONTEXT_LIMIT` on real, richer 6-section
 content even after existing per-unit scoping; see the paired commit
 for that fix's own detail.
 
-### 2026-08-28 17:15 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [664d88e] - explain token name format in the planner prompt
-The only eligible Build Preparation pack expired, so switched to
-Code Generator's own fixture-based `/runs` entry point (bypasses
-Discovery/CA/VDD/Build Preparation entirely, same real live pipeline
-otherwise) to keep testing. Two fresh fixture runs
-(`privacy-safe-v3-rich`, then plain `privacy-safe-v3`) both failed
-`PLANNER_OUTPUT_INVALID` on "token names must be lowercase semantic
-identifiers" - the schema requires `^[a-z][a-z0-9-]*$` for color/
-spacing/size/radius/motion token names, but `planner.md` never stated
-that rule, so a natural choice like a bare numeric spacing scale
-("1", "7") fails validation. Same pattern as this session's earlier
-token_compiler.py/route_batch.md fixes. Retrying to see if this
-resolves planning.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [664d88e] - Planner prompt now states the lowercase semantic token-name grammar required by the V4 schema, preventing avoidable `PLANNER_OUTPUT_INVALID` results from numeric-only token names.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a4a345] - Added a diagnostic backstop for any accepted-result envelope that bypasses its forbidden validation context, preserving a loud failure instead of silently accepting bad source.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [c354841] - Schema-context validation rejects accepted results when a generation call is marked forbidden, allowing the bounded correction retry to surface the precise issue.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [5a89eb0] - Fresh-generation prompts stopped listing accepted as a valid result; integration/repair retained prior-content semantics and regression coverage.
@@ -316,5 +306,5 @@ resolves planning.
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 122
+- Compacted milestone bullets: 123
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
