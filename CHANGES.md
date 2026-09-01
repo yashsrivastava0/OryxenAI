@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 02:30 +05:30 - Codex (GPT-5 / OpenAI) - [dfce00f] - impose distinctive move strength floor
+Added host-owned minimum deviation and range-spread checks to V4 distinctive moves so weak near-neutral geometry fails during planning. Sticky narrative rails retain their discrete 1.0 contract, while existing authored asymmetric ranges remain valid.
+
 ### 2026-09-02 02:20 +05:30 - Codex (GPT-5 / OpenAI) - [c0c1f67] - guard visual identity at Code Generator admission
 Added the belt-and-suspenders admission check over compiled `site/contract.json` facts and `design/visual-direction.json` global direction. Contradictory packs now fail before planning with the same stable `PACK_VISUAL_IDENTITY_MISMATCH` code, including packs already present in the local mirror.
 
@@ -219,31 +222,12 @@ route-batch/compose fix and this correction don't conflict: the
 integration unit kind returns through its own early branch before ever
 reaching the dispatch code this touches.
 
-### 2026-08-28 13:05 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - assign per-file font weights and stop double-prefixing tokens
-Resuming run `73268104` with the prior fix now persisting the real
-rejection reason (instead of discarding it) replaced an earlier
-circumstantial "content got stripped" hypothesis with ground truth:
-the review confirmed content/copy/imagery were fine and flagged 4
-concrete technical defects instead. Two were real, previously-invisible
-compiler bugs: `_font_weight_for_path`'s regex required a `-`/`_` left
-boundary that a `/` path separator never satisfied (materialized font
-files are named `{weight}-{style}.ext` inside a resource directory),
-so every file in a multi-weight binding silently collapsed to the same
-weight - confirmed directly from the live run's `generated-tokens.css`
-(8 `@font-face` blocks, all `font-weight: 400`, for four distinct
-400/500/600/700 files). `_compile_v4_tokens` also unconditionally
-double-prefixed a blueprint token already named e.g. `space-5` into
-`--space-space-5`. Both fixed; `route_batch.md`/`route_compose.md`/
-`repair_source.md` now also spell out the exact group-prefix
-convention, since 3 of the review's 5 undefined token references were
-the model omitting a prefix outright. Regression tests cover both
-compiler fixes.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [86824a7] - Font bindings now preserve per-file weights and token compilation avoids double prefixes; prompts document the group-prefix convention.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [8f50f4b] - Quality-review rejection is persisted with its real diagnostics instead of being discarded during repair failure.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [eef4c7d] - Test overlay now points at reachable PostgreSQL and marks the previously skipped integration files; it also documented a separate legacy foundation-profile regression.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit now honors planner-owned paths and section ownership, while invalid repair responses stay out of the cache.
@@ -385,5 +369,5 @@ compiler fixes.
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 117
+- Compacted milestone bullets: 118
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
