@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 02:01 +05:30 - Codex (GPT-5 / OpenAI) - [5f4be9a] - bridge compiler tokens into shadcn Tailwind slots
+Added the fixed shadcn semantic-slot contract, color-token cross-reference validation, deterministic CSS aliases, and the static Tailwind v4 theme bridge. Updated the creative/planning prompts and verified provider schema compatibility plus focused unit coverage; token values remain portfolio-authored and compiler-emitted.
+
 ### 2026-09-02 01:35 +05:30 - Codex (GPT-5 / OpenAI) - [b760acb] - wire Tailwind v4 into the Vite scaffold
 Added the locked Tailwind v4 engine, Vite plugin, CSS entry import, and supported-package catalogue entries to the React/Vite generation scaffold. Verified clean install, production build, TypeScript check, source audit, and emitted Tailwind preflight/utilities.
 
@@ -268,64 +271,17 @@ not affect real V4 runs (which always take the deterministic-foundation
 branch), only this one legacy-shaped test fixture - left unfixed here,
 flagged for a follow-up pass.
 
-### 2026-08-28 09:53 +05:30 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit and bounded repair caching
-The live tenth frontend run exposed two core contract defects: the V4 source
-audit re-derived an already planner-owned route directory and required section
-anchors in the composer even though rendered section modules own them, while a
-rejected final-repair response was cached and replayed on retry. The audit now
-uses the planner-selected route path, checks anchors and headings across the
-composed route modules, accepts the documented `@/` shell import, and the
-repair cache is written only after all validation gates pass. Route-composer and
-repair prompts now state the V4 ownership boundary explicitly.
-
-### 2026-08-28 09:45 +05:30 - Codex (GPT-5 / OpenAI) - [65801b7] - preserve planner route storage keys in source audit
-The first verification attempt after the quality-binding fix reached the
-source contract and revealed that the v4 validator semantic-hashed an already
-collision-safe planner `storage_key` a second time. It therefore searched for
-an invented route directory and reported the trusted RouteShell as unused.
-Source auditing now reuses an existing planner storage key verbatim and only
-semanticizes a raw route ID when no storage key exists; focused path-regression
-tests cover both cases.
-
-### 2026-08-28 09:34 +05:30 - Codex (GPT-5 / OpenAI) - [17fd5e3] - expose source-ready verification retry
-The frontend kept the Build and verify control disabled whenever a
-verification job identifier existed, including after that job had terminated
-and the run had returned to `source_ready`. The guard now relies on the
-durable source-ready status, which is the only state where the explicit
-verification action can be queued, so a failed verification can be retried
-from the standalone UI without starting another portfolio generation.
-
-### 2026-08-28 09:28 +05:30 - Codex (GPT-5 / OpenAI) - [f20f5c5] - clear terminal verification jobs for same-run retry
-The first corrected verification retry exposed a second lifecycle bug: the
-terminal verification job identifier remained on the run after failure, so
-the frontend disabled Build and verify even after source generation produced a
-fresh accepted checkpoint. Terminal verification now clears its completed job
-identifier, and starting source generation clears any prior verification
-projection/job binding so the explicit retry action can be used safely.
-
-### 2026-08-28 09:20 +05:30 - Codex (GPT-5 / OpenAI) - [5e3ea5c] - rebind quality after deterministic source normalization
-The live tenth frontend run passed its v4 quality review, then verification
-deterministically normalized the host-owned generated token file and changed
-the source manifest. The verification handler persisted the new checkpoint
-but kept the in-memory quality receipt bound to the pre-normalization hash,
-causing a false `QUALITY_SOURCE_STALE` stop. Host-only normalization now
-rebinds the existing receipt through the schema validator, persists the
-updated generation projection, and reloads it before final verification. A
-focused regression test covers the source rebind and receipt-hash recompute.
-
-### 2026-08-28 07:48 +05:30 - Codex (GPT-5 / OpenAI) - [a63162d] - persist integration polish checkpoints
-The live run showed that accepted owner-scoped polish changes were applied to
-the workspace but discarded when an unresolved final quality review caused a
-frontend Resume to restore the older checkpoint. The integration polish loop
-now accepts and persists a new source checkpoint after every successful owner
-repair, updates the projection's resumable checkpoint, and carries that
-checkpoint into subsequent owner repairs and retries.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit now honors planner-owned paths and section ownership, while invalid repair responses stay out of the cache.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [65801b7] - Source audit preserves planner route storage keys instead of deriving a second path identity.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [17fd5e3] - Standalone UI exposes verification retry after a failed job returns the run to source-ready.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [f20f5c5] - Terminal verification and new source generation clear stale job bindings so same-run retry remains available.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [5e3ea5c] - Host-only source normalization rebinds quality receipts to the updated checkpoint hash before verification.
+- 2026-08-28 - Codex (GPT-5 / OpenAI) - [a63162d] - Successful owner-scoped integration polish is persisted as the resumable source checkpoint.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [4c8f361] - Stated the v4 repair envelope invariant explicitly (exact signatures, coverage arrays) so valid corrections stop being rejected for missing transport metadata.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [1b447a4] - Preserved the v4 schema discriminator through repair-context compaction so returned coverage is interpreted through the correct envelope.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [f72ab5e] - Trimmed repair context to route/contract/diagnostic essentials to fix a GENERATION_CONTEXT_LIMIT failure from supplying complete owned files.
@@ -456,8 +412,8 @@ checkpoint into subsequent owner repairs and retries.
 
 ---
 
-## Summary (as of last compaction — 2026-09-01)
+## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 109
-- Last updated: 2026-09-01 — Codex (GPT-5 / OpenAI)
+- Compacted milestone bullets: 115
+- Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
