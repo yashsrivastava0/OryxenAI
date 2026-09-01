@@ -3,6 +3,23 @@
 @import "./motion.css";
 @import "tailwindcss";
 
+/* Tailwind's fixed semantic vocabulary. Generated tokens provide the aliases. */
+@theme inline {
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-card: var(--color-card);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-secondary: var(--color-secondary);
+  --color-muted: var(--color-muted);
+  --color-muted-foreground: var(--color-muted-foreground);
+  --color-accent: var(--color-accent);
+  --color-destructive: var(--color-destructive);
+  --color-border: var(--color-border);
+  --color-input: var(--color-input);
+  --color-ring: var(--color-ring);
+}
+
 /* Functional reset and safety behavior. Portfolio-specific values and layout
    classes belong to generated route CSS, never to this scaffold. */
 :root { color-scheme: light; }

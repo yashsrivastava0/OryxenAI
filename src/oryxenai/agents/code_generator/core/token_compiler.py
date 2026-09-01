@@ -114,17 +114,19 @@ def _compile_v4_tokens(
         ":root {",
     ]
 
-    def emit(name: str, value: str) -> None:
+    def emit(name: str, value: str, *, allow_reference: bool = False) -> None:
         normalized = name.strip().replace("_", "-")
         if not _SAFE_NAME.fullmatch(normalized):
             raise TokenCompilationError(f"unsafe token name: {name}")
         rendered = value.strip()
         if (
             not rendered
-            or "var(" in rendered.casefold()
+            or ("var(" in rendered.casefold() and not allow_reference)
             or ("," in rendered and "cubic-bezier" not in rendered)
         ):
             raise TokenCompilationError(f"token {name} has a fallback or composite value")
+        if allow_reference and not re.fullmatch(r"var\(--[a-z0-9_-]+\)", rendered):
+            raise TokenCompilationError(f"token {name} has an unsafe alias reference")
         if any(character in rendered for character in ("{", "}", ";", "\n", "\r")):
             raise TokenCompilationError(f"token {name} contains unsafe CSS")
         lines.append(f"  --{normalized}: {rendered};")
@@ -140,6 +142,25 @@ def _compile_v4_tokens(
 
     for color_token in sorted(blueprint.tokens.colors, key=lambda item: item.name):
         emit(group_name("color", color_token.name), color_token.value)
+    color_names = {item.name for item in blueprint.tokens.colors}
+    invalid_bindings = {
+        slot: color_name
+        for slot, color_name in blueprint.tokens.shadcn_theme_bindings.items()
+        if color_name not in color_names
+    }
+    if invalid_bindings:
+        raise TokenCompilationError(
+            "shadcn theme bindings must reference approved color token names: "
+            + ", ".join(
+                f"{slot}={color_name}" for slot, color_name in sorted(invalid_bindings.items())
+            )
+        )
+    for slot, color_name in sorted(blueprint.tokens.shadcn_theme_bindings.items()):
+        emit(
+            group_name("color", slot),
+            f"var(--{group_name('color', color_name)})",
+            allow_reference=True,
+        )
     for group, values in (
         ("space", blueprint.tokens.spacing),
         ("size", blueprint.tokens.sizes),
