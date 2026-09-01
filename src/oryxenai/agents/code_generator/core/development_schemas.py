@@ -1253,6 +1253,9 @@ class SectionRegionV4(BaseModel):
 class DistinctiveMoveV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    _MIN_DEVIATION_FROM_NEUTRAL = 0.15
+    _MIN_RATIO_SPREAD = 0.15
+
     move_id: str
     route_id: str
     section_id: str
@@ -1303,6 +1306,21 @@ class DistinctiveMoveV4(BaseModel):
             raise ValueError("distinctive moves require non-empty CSS property names")
         if self.minimum_ratio > self.maximum_ratio:
             raise ValueError("distinctive move ratio minimum must not exceed its maximum")
+        if self.relationship != "sticky_within_section":
+            deviation_from_neutral = max(
+                abs(self.minimum_ratio - 1.0), abs(self.maximum_ratio - 1.0)
+            )
+            ratio_spread = self.maximum_ratio - self.minimum_ratio
+            if deviation_from_neutral < self._MIN_DEVIATION_FROM_NEUTRAL:
+                raise ValueError(
+                    "distinctive move ratio must deviate from neutral 1.0 by at least "
+                    f"{self._MIN_DEVIATION_FROM_NEUTRAL:g}"
+                )
+            if ratio_spread < self._MIN_RATIO_SPREAD:
+                raise ValueError(
+                    "distinctive move ratio range must have a spread of at least "
+                    f"{self._MIN_RATIO_SPREAD:g}"
+                )
         self.viewports = list(dict.fromkeys(self.viewports))
         return self
 
