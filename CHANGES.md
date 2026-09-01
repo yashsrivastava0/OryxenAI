@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 02:15 +05:30 - Codex (GPT-5 / OpenAI) - [a622d7d] - reject visual direction identity mismatches
+Added a conservative repeated proper-name consistency check at the Build Preparation boundary, using approved Content Architect facts as the identity authority. The check hard-fails contradictory visual direction while preserving the existing projection shape and does not reject a single incidental capitalized phrase.
+
 ### 2026-09-02 02:01 +05:30 - Codex (GPT-5 / OpenAI) - [5f4be9a] - bridge compiler tokens into shadcn Tailwind slots
 Added the fixed shadcn semantic-slot contract, color-token cross-reference validation, deterministic CSS aliases, and the static Tailwind v4 theme bridge. Updated the creative/planning prompts and verified provider schema compatibility plus focused unit coverage; token values remain portfolio-authored and compiler-emitted.
 
@@ -248,34 +251,12 @@ persisted (without promoting its source to `source_checkpoint`), and
 the raised message is built from the review's real scores/findings
 instead of a static string. A regression test covers both.
 
-### 2026-08-28 11:58 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [eef4c7d] - repoint the test overlay at the reachable Postgres and mark integration tests
-Verifying the fix above required running the integration suite, which
-was silently skipping every test in this area with "PostgreSQL
-unavailable": `config/app.test.toml` inherited the base config's port
-5544, which has no listener on this machine, while the real
-`oryxenai_test` database already lives on 5432 alongside the native
-app database. Separately, three integration test files
-(`test_auth_foundation.py`, `test_code_generator_development_worker.py`,
-`test_code_generator_generation_worker.py`) never got the
-`pytestmark = pytest.mark.integration` convention the rest of
-`tests/integration/` uses, so even with a reachable database neither
-the autouse overlay fixture nor `scripts/test.ps1 -Suite integration`'s
-marker filter would ever select them - these files' tests have likely
-never actually run in this environment. Fixing this also surfaced a
-genuine, pre-existing, *separate* regression: `test_code_generator_
-generation_worker.py`'s two tests now fail with `KeyError: 'foundation'`
-in `generation_orchestrator.py::_profile_for`, because commit `78ee3ea`
-removed the (confirmed-dead) foundation model profile without updating
-the fallback for a plan with no `experience_blueprint` set. This does
-not affect real V4 runs (which always take the deterministic-foundation
-branch), only this one legacy-shaped test fixture - left unfixed here,
-flagged for a follow-up pass.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [eef4c7d] - Test overlay now points at reachable PostgreSQL and marks the previously skipped integration files; it also documented a separate legacy foundation-profile regression.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [5dc23b2] - V4 route composition audit now honors planner-owned paths and section ownership, while invalid repair responses stay out of the cache.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [65801b7] - Source audit preserves planner route storage keys instead of deriving a second path identity.
 - 2026-08-28 - Codex (GPT-5 / OpenAI) - [17fd5e3] - Standalone UI exposes verification retry after a failed job returns the run to source-ready.
@@ -415,5 +396,5 @@ flagged for a follow-up pass.
 ## Summary (as of last compaction — 2026-09-02)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 115
+- Compacted milestone bullets: 116
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
