@@ -1591,10 +1591,10 @@ async def materialize_build_context(
             }
         )
     files.append(_write(root, "provenance/licenses.json", _json_bytes(licenses), "text"))
-    # Direct utility callers without an approved VDD projection retain the
-    # historical diagnostic plan name.  Production materialization writes the
-    # v3 ledger and is the only form Code Generator can admit.
-    resource_plan_path = "resources/plan.json" if compatibility_mode else "resources/ledger.json"
+    # Every materialization uses the canonical ledger path. Direct utility
+    # callers without an approved VDD projection retain their compatibility-
+    # only schema shape, but never emit the retired plan filename.
+    resource_plan_path = "resources/ledger.json"
     ledger = _resource_plan(
         needs=needs,
         selections=effective_selections,

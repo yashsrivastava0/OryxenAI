@@ -45,15 +45,16 @@ limits remain enforced.
 Build Preparation records the policy, actual local material counts, provider
 calls/rate-limit events, and every missing role in the handoff summary.
 
-For historical diagnostic trees only, `resources/plan.json` records every selected and unselected need, its routes
-and scenes, fallback, adaptation guidance, and whether Code Generator may fetch
-one equivalent during Code Generation. Such a fetch must replace—not duplicate—
-the recorded fallback and is never permitted at portfolio runtime. In current
-pack-v3 output, known image/component roles do not receive a later-fetch escape
-hatch: they remain local material or an explicit execution gap. The target
-ships a dependency ceiling and starter `package.json`, not a synthetic lockfile;
-Code Generator generates the real lockfile after choosing its final dependency
-subset.
+Historical diagnostic trees use the canonical `resources/ledger.json` path with
+their compatibility-only schema to record every selected and unselected need,
+its routes and scenes, fallback, adaptation guidance, and whether Code
+Generator may fetch one equivalent during Code Generation. Such a fetch must
+replace—not duplicate—the recorded fallback and is never permitted at
+portfolio runtime. In current pack-v3 output, known image/component roles do
+not receive a later-fetch escape hatch: they remain local material or an
+explicit execution gap. The target ships a dependency ceiling and starter
+`package.json`, not a synthetic lockfile; Code Generator generates the real
+lockfile after choosing its final dependency subset.
 
 Pack-v3 instead writes `execution/contract.json` as the only implementation
 inventory for Code Generator, plus `resources/ledger.json` and hash-covered
