@@ -273,7 +273,7 @@ def test_prompt_builder_injects_the_normative_generation_contract() -> None:
     assert "criterion_ids = []" in instructions
     assert 'resource_slot_ids = ["slot-a", "slot-b"]' in instructions
     assert "files=[] is invalid" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.integrate.v5"
+    assert receipt.prompt_versions["operation"] == "code_generator.integrate.v6"
 
 
 def test_prompt_builder_excludes_accepted_mode_for_first_time_generation() -> None:
@@ -294,7 +294,15 @@ def test_prompt_builder_excludes_accepted_mode_for_first_time_generation() -> No
         _system, instructions, _receipt = build_instructions(
             operation, {"context_receipt_hash": "context"}
         )
-        assert "changes/requests/accepted/cannot_complete" in instructions
+        assert "changes/requests/cannot_complete" in instructions
+        assert "accepted" not in instructions.split("Set mode to exactly one of")[-1].split(";")[0]
+
+        _system, allowed_instructions, _receipt = build_instructions(
+            operation,
+            {"context_receipt_hash": "context"},
+            allow_accepted_result=True,
+        )
+        assert "changes/requests/accepted/cannot_complete" in allowed_instructions
 
     # The actual live failure was on the V4 wire envelope (result_tag), not
     # the legacy GenerationResult (mode) path - cover it explicitly.
@@ -353,7 +361,7 @@ def test_repair_prompt_treats_unlisted_quality_findings_as_binding() -> None:
     assert "requested_outcome" in instructions
     assert "JSX/HTML source order is authoritative" in instructions
     assert "`order` rule alone does not repair" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.repair.v7"
+    assert receipt.prompt_versions["operation"] == "code_generator.repair.v8"
 
 
 def test_final_repair_prompt_forbids_acceptance_after_a_failed_gate() -> None:
