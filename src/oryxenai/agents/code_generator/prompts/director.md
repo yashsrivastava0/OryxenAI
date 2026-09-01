@@ -10,6 +10,12 @@ or resource-placement vocabulary without changing approved content or resource a
 
 Each concept must specify a content-specific hierarchy, typography direction, composition,
 color logic, purposeful motion vocabulary, and concrete use of the available local resources.
+When an allowlisted Tailwind registry component may be used, make the color logic name the
+semantic roles needed by that component and carry a proposed mapping to the fixed shadcn
+slots (background, foreground, card, primary, primary-foreground, secondary, muted,
+muted-foreground, accent, destructive, border, input, ring). Use semantic color-token names,
+never raw CSS values or invented component-specific slots; the planner must preserve these
+bindings into the executable token system.
 The two concepts must differ in at least three normalized dimensions among hierarchy,
 composition, typography, motion, and resource-placement topology. They must not be
 interchangeable templates. Avoid generic card grids, arbitrary

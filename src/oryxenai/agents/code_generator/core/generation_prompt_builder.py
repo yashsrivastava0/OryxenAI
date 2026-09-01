@@ -19,8 +19,8 @@ from oryxenai.agents.code_generator.core.generation_contract import (
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _VERSIONS = {
-    "director": "code_generator.director.v2",
-    "planner_v4": "code_generator.planner.v11",
+    "director": "code_generator.director.v3",
+    "planner_v4": "code_generator.planner.v12",
     "planner_legacy": "code_generator.planner.v7",
     "foundation": "code_generator.foundation_compat.v1",
     "route_batch": "code_generator.route_batch.v8",

@@ -1063,6 +1063,39 @@ class ShadowTokenV4(BaseModel):
     color_token: str
 
 
+ShadcnThemeSlotV4 = Literal[
+    "background",
+    "foreground",
+    "card",
+    "primary",
+    "primary-foreground",
+    "secondary",
+    "muted",
+    "muted-foreground",
+    "accent",
+    "destructive",
+    "border",
+    "input",
+    "ring",
+]
+SHADCN_THEME_SLOTS: tuple[str, ...] = (
+    "background",
+    "foreground",
+    "card",
+    "primary",
+    "primary-foreground",
+    "secondary",
+    "muted",
+    "muted-foreground",
+    "accent",
+    "destructive",
+    "border",
+    "input",
+    "ring",
+)
+_SHADCN_THEME_SCHEMA_PROPERTIES = {slot: {"type": "string"} for slot in SHADCN_THEME_SLOTS}
+
+
 class ContainerTokenV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1075,6 +1108,21 @@ class DesignTokenSystemV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     colors: list[NamedColorTokenV4] = Field(min_length=1, max_length=32)
+    shadcn_theme_bindings: dict[ShadcnThemeSlotV4, str] = Field(
+        default_factory=dict,
+        description=(
+            "Optional fixed shadcn semantic slots. Every supplied value must be the exact "
+            "name of a color token in this system."
+        ),
+        json_schema_extra={
+            # Pydantic represents a dict[Literal[...], str] as a map with a
+            # propertyNames enum. Add the finite property set as well so
+            # native strict structured-output providers see a closed object,
+            # while the runtime validator still permits a useful subset.
+            "additionalProperties": False,
+            "properties": _SHADCN_THEME_SCHEMA_PROPERTIES,
+        },
+    )
     spacing: list[LengthTokenV4] = Field(min_length=1, max_length=32)
     sizes: list[LengthTokenV4] = Field(default_factory=list, max_length=32)
     radii: list[LengthTokenV4] = Field(default_factory=list, max_length=16)
@@ -1109,6 +1157,17 @@ class DesignTokenSystemV4(BaseModel):
             if len(names) != len(set(names)):
                 raise ValueError("token names must be unique within each group")
         color_names = {item.name for item in self.colors}
+        normalized_shadcn_bindings = {
+            slot: value.strip() for slot, value in self.shadcn_theme_bindings.items()
+        }
+        invalid_shadcn_values = {
+            value
+            for value in normalized_shadcn_bindings.values()
+            if not value or value not in color_names
+        }
+        if invalid_shadcn_values:
+            raise ValueError("shadcn_theme_bindings must reference an approved color token name")
+        self.shadcn_theme_bindings = normalized_shadcn_bindings
         bound_color_names = {item.color_token for item in self.borders} | {
             item.color_token for item in self.shadows
         }
