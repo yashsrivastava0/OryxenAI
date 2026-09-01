@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [aecfe40] - v4 selector and responsive image-size contracts
+Normalized provider-echoed V4 distinctive-move sources to the exact executable layout region, allowed marker-qualified CSS evidence in the AST audit, and rejected non-browser-valid image `sizes` policies before source generation. The live baseline now clears the corresponding source-generation contracts.
+
 ### 2026-09-01 22:31 +05:30 - Codex (GPT-5 / OpenAI) - [b780266] - native PostgreSQL alignment
 Fixed native role-alignment SQL to cast asyncpg parameters to text before PostgreSQL `format()`, making `align-db` work against the active PostgreSQL 18 cluster. Verified the shared local credential alignment and SCRAM logins for `postgres` and `oryxen` without logging the password.
 
