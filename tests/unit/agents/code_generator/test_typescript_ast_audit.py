@@ -3,6 +3,7 @@ from __future__ import annotations
 from oryxenai.agents.code_generator.core.source_lexing import strip_source_comments
 from oryxenai.agents.code_generator.core.typescript_ast_audit import (
     _audit_v4_anti_slop,
+    _audit_v4_cross_route_sameness,
     _route_source_path,
     _selector_declarations,
     _selector_has_reduced_motion,
@@ -100,3 +101,25 @@ def test_blanket_reveal_audit_counts_affected_sections_not_declarations() -> Non
         visual_direction={},
     )
     assert "SOURCE_BLANKET_REVEAL_MOTION" in {item.code for item in diagnostics}
+
+
+def test_cross_route_audit_rejects_identical_section_sequences() -> None:
+    routes = [
+        {"route_id": "home", "storage_key": "home"},
+        {"route_id": "work", "storage_key": "work"},
+    ]
+    files = {
+        f"src/routes/{route}/sections/section-{index}.tsx": (
+            f"export const Section{index} = () => "
+            '<section className="same-shell"><div className="same-content" /></section>;'
+        )
+        for route in ("home", "work")
+        for index in range(3)
+    }
+
+    diagnostics = _audit_v4_cross_route_sameness(routes=routes, files=files)
+
+    matches = [item for item in diagnostics if item.code == "SOURCE_CROSS_ROUTE_SAMENESS"]
+    assert len(matches) == 1
+    assert matches[0].route_id == "work"
+    assert matches[0].expected == "distinct from route home"
