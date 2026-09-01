@@ -377,7 +377,9 @@ def test_v4_planner_prompt_requires_concrete_responsive_sizes() -> None:
     assert "never spell out a number" in instructions
     assert "copy the matching `section_regions[*].region_selector`" in instructions
     assert "BAD `(max-width: sixtyrem) 100vw, 58vw`" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.planner.v11"
+    assert "shadcn_theme_bindings" in instructions
+    assert "primary-foreground" in instructions
+    assert receipt.prompt_versions["operation"] == "code_generator.planner.v12"
 
 
 def test_generation_result_rejects_accepted_mode_for_first_time_generation() -> None:

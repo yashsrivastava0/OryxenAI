@@ -436,6 +436,28 @@ def test_v4_typography_roles_require_explicit_role_values() -> None:
         DesignTokenSystemV4.model_validate(token_data)
 
 
+def test_v4_shadcn_theme_bindings_use_fixed_slots_and_approved_colors() -> None:
+    token_data = _blueprint().tokens.model_dump(mode="python")
+    token_data["shadcn_theme_bindings"] = {
+        "background": "paper",
+        "foreground": "ink",
+        "primary": "ink",
+        "primary-foreground": "paper",
+    }
+
+    tokens = DesignTokenSystemV4.model_validate(token_data)
+
+    assert tokens.shadcn_theme_bindings == token_data["shadcn_theme_bindings"]
+    with pytest.raises(ValidationError):
+        DesignTokenSystemV4.model_validate(
+            {**token_data, "shadcn_theme_bindings": {"brand-slot": "ink"}}
+        )
+    with pytest.raises(ValidationError, match="approved color token"):
+        DesignTokenSystemV4.model_validate(
+            {**token_data, "shadcn_theme_bindings": {"primary": "missing"}}
+        )
+
+
 def test_v4_blueprint_must_echo_host_identity_manifest() -> None:
     blueprint = _blueprint()
     context = {
@@ -812,6 +834,23 @@ def test_scaffold_font_fallback_precedes_generated_font_tokens() -> None:
     assert global_css.index('@import "./fonts.css";') < global_css.index('@import "./tokens.css";')
     assert ":root { color-scheme: light; }" in global_css
     assert "color-scheme: light dark" not in global_css
+    assert "@theme inline" in global_css
+    for slot in (
+        "background",
+        "foreground",
+        "card",
+        "primary",
+        "primary-foreground",
+        "secondary",
+        "muted",
+        "muted-foreground",
+        "accent",
+        "destructive",
+        "border",
+        "input",
+        "ring",
+    ):
+        assert f"--color-{slot}: var(--color-{slot});" in global_css
 
 
 def test_scaffold_local_image_resolves_immutable_sources_from_manifest() -> None:
@@ -1378,7 +1417,20 @@ def test_v4_rejects_non_distinct_creative_concepts() -> None:
 
 
 def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
-    blueprint = _blueprint()
+    blueprint = _blueprint().model_copy(
+        update={
+            "tokens": _blueprint().tokens.model_copy(
+                update={
+                    "shadcn_theme_bindings": {
+                        "background": "paper",
+                        "foreground": "ink",
+                        "primary": "ink",
+                        "primary-foreground": "paper",
+                    }
+                }
+            )
+        }
+    )
     css = compile_generated_tokens(
         blueprint,
         [
@@ -1396,6 +1448,9 @@ def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
     )
     assert "--font-body" in css
     assert "--font-display" in css
+    assert "--color-background: var(--color-paper);" in css
+    assert "--color-primary: var(--color-ink);" in css
+    assert "--color-primary-foreground: var(--color-paper);" in css
     assert "font-weight: 400" in css
     assert 'format("woff2")' in css
     assert "var(--token," not in css

@@ -24,7 +24,15 @@ Grounding and exact coverage:
   two approved local font roles. Echo their family, weights, style, and
   WOFF/WOFF2 files exactly. Define fluid type steps, line height, tracking,
   semantic colors, typed lengths, borders, shadows, spacing, radii,
-  containers, and motion tokens without fallback expressions. Every token
+  containers, and motion tokens without fallback expressions. When a
+  Tailwind/shadcn registry component is part of the approved resource set,
+  emit `shadcn_theme_bindings` for its fixed semantic vocabulary: the only
+  permitted keys are `background`, `foreground`, `card`, `primary`,
+  `primary-foreground`, `secondary`, `muted`, `muted-foreground`, `accent`,
+  `destructive`, `border`, `input`, and `ring`. Each value must copy an exact
+  `colors[*].name`; never put a CSS value, a provider name, or an invented
+  component slot in this mapping. If no approved component needs a slot, the
+  mapping may omit that slot. Every token
   `name` (color, spacing, size, radius, motion) must start with a lowercase
   letter, followed only by lowercase letters, digits, or hyphens - a bare
   number like `"1"` or `"7"` is rejected. Use a semantic or letter-prefixed
