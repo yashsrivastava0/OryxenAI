@@ -25,9 +25,9 @@ _VERSIONS = {
     "foundation": "code_generator.foundation_compat.v1",
     "route_batch": "code_generator.route_batch.v8",
     "route_compose": "code_generator.route_compose.v6",
-    "integrate": "code_generator.integrate.v5",
+    "integrate": "code_generator.integrate.v6",
     "integration_review": "code_generator.integration_review.v1",
-    "repair": "code_generator.repair.v7",
+    "repair": "code_generator.repair.v8",
 }
 _FILES = {
     "director": "director.md",
@@ -47,6 +47,7 @@ def build_instructions(
     context: dict[str, Any],
     *,
     output_model: type[BaseModel] = GenerationResult,
+    allow_accepted_result: bool = False,
 ) -> tuple[str, str, GenerationContextReceipt]:
     if operation not in _FILES:
         raise ValueError(f"Unknown Code Generator operation: {operation}")
@@ -74,19 +75,13 @@ def build_instructions(
         + "Return exactly one JSON object. The transport enforces the declared output schema; "
         "do not include prose, Markdown, or reasoning outside that object."
     )
-    # "accepted" only has a real meaning for an operation that reviews
-    # already-generated content (integrate, repair): it means "the existing
-    # source already satisfies the contract, nothing to change." For a
-    # first-time generation operation (route_batch, route_compose,
-    # foundation, director) there is no prior content for this unit to
-    # accept, yet listing "accepted" as an equally valid, unqualified choice
-    # here - appearing last, closest to the actual output - was observed
-    # live to make the model choose it anyway even after prompt-level
-    # guidance said not to. Excluding it from the listed choices for
-    # generation-only operations is the fix that actually held.
-    accepted_valid = operation in {"integrate", "repair"} and not context.get(
-        "forbid_accepted_result"
-    )
+    # Do not infer accepted-result authority from the operation label. The
+    # same label can be reused by a retry whose current source is not
+    # acceptable, and _model_result validates every such response with
+    # forbid_accepted_result=True. A caller that truly reviews an existing
+    # source must opt in explicitly; fresh generation and repair calls stay
+    # fail-closed by default.
+    accepted_valid = bool(allow_accepted_result) and not bool(context.get("forbid_accepted_result"))
     mode_choices = (
         "changes/requests/accepted/cannot_complete"
         if accepted_valid
@@ -100,7 +95,7 @@ def build_instructions(
             "field that does not match your mode MUST be null."
         )
         if not accepted_valid:
-            if operation == "repair" and context.get("forbid_accepted_result"):
+            if context.get("forbid_accepted_result"):
                 task += (
                     " This is a failed final-verification candidate, so mode=accepted is "
                     "forbidden; return mode=changes with a bounded correction or "
@@ -120,7 +115,7 @@ def build_instructions(
             "use empty arrays when a result kind does not need that payload."
         )
         if not accepted_valid:
-            if operation == "repair" and context.get("forbid_accepted_result"):
+            if context.get("forbid_accepted_result"):
                 task += (
                     " This is a failed final-verification candidate, so result_tag=accepted "
                     "is forbidden; return result=changes with a bounded correction or "
