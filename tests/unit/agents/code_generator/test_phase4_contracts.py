@@ -9,6 +9,7 @@ from oryxenai.agents.code_generator.core.artifact_manifest import build_manifest
 from oryxenai.agents.code_generator.core.development_schemas import (
     CandidateIdentity,
     Diagnostic,
+    RepairReceipt,
     VerificationProfile,
     WorkUnit,
 )
@@ -19,7 +20,10 @@ from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
-from oryxenai.jobs.handlers.code_generator_verification import _export_call_ledger
+from oryxenai.jobs.handlers.code_generator_verification import (
+    _export_call_ledger,
+    _reconstruct_repair_unit_counts,
+)
 
 
 def test_candidate_identity_is_canonical_and_stable() -> None:
@@ -124,6 +128,50 @@ def test_repair_budget_detects_recurrence() -> None:
     assert budget.consume([diagnostic]) == "bounded-correction"
     assert budget.consume([diagnostic]) == "bounded-simplification"
     assert not budget.can_attempt([diagnostic])
+
+
+def test_repair_budget_scopes_three_attempt_ceiling_per_diagnostic_group() -> None:
+    diagnostics = {
+        group: Diagnostic(
+            diagnostic_id=f"{group}-diagnostic",
+            group=group,
+            code="RUNTIME_GATE_FAILED",
+            phase="runtime",
+            normalized_message=f"{group} requires repair",
+            fingerprint=f"{group}-fingerprint",
+        )
+        for group in ("dom_runtime", "source_contract")
+    }
+    budget = RepairBudget(max_total=6, max_per_unit=3)
+
+    for _ in range(3):
+        assert budget.consume([diagnostics["dom_runtime"]], unit_id="dom_runtime")
+    assert budget.can_attempt([diagnostics["source_contract"]], unit_id="source_contract")
+    for _ in range(3):
+        assert budget.consume([diagnostics["source_contract"]], unit_id="source_contract")
+
+    assert budget.total_used == 6
+    assert not budget.can_attempt([diagnostics["dom_runtime"]], unit_id="dom_runtime")
+    assert not budget.can_attempt([diagnostics["source_contract"]], unit_id="source_contract")
+    assert not budget.can_attempt([diagnostics["dom_runtime"]], unit_id="another-group")
+
+
+def test_repair_unit_counts_keep_legacy_receipts_in_conservative_bucket() -> None:
+    def receipt(*, repair_unit_id: str = "") -> RepairReceipt:
+        return RepairReceipt(
+            generation_id="generation",
+            diagnostic_fingerprints=["fingerprint"],
+            repair_unit_id=repair_unit_id,
+            strategy_summary="bounded-correction",
+            based_on_checkpoint="checkpoint",
+            context_receipt="context",
+            corrected_checkpoint="corrected",
+            accepted_at="2026-09-02T00:00:00Z",
+        )
+
+    assert _reconstruct_repair_unit_counts(
+        [receipt(), receipt(repair_unit_id="runtime"), receipt(repair_unit_id="runtime")]
+    ) == {"final": 1, "runtime": 2}
 
 
 def test_verification_profile_hash_is_receipt_bound() -> None:
