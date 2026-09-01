@@ -41,6 +41,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Rejected alternatives:** Raising the single global per-unit limit - rejected because it hides repeated failures; removing the per-unit ceiling - rejected because it permits unbounded work on one gate; inferring legacy groups from fingerprints - rejected because old receipts do not carry a trustworthy gate identity.
 - **Consequence:** Independent gates can each use their bounded repair allowance without exceeding the run-wide cap, and persisted receipt history remains backward-compatible and fail-closed.
 
+## D-057 - Compiler-owned bridge for fixed shadcn semantic slots
+
+- **Date & Time:** 2026-09-02 02:01 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Allowlisted Tailwind registry components use fixed shadcn semantic classes, but the compiler emitted only portfolio-specific color variables; without a bridge, those components resolve to unbound or default colors.
+- **Decision:** Keep `shadcn_theme_bindings` as an optional finite literal-key mapping from shadcn slots to the model's exact `colors[].name` values. Emit deterministic `--color-<slot>` aliases and expose only the fixed slots through the checked-in Tailwind v4 `@theme inline` bridge. Provider-facing JSON schema is closed and unknown slots or values fail local validation with the existing single corrective retry.
+- **Rejected alternatives:** Hardcoding a palette or values - rejected because it would reverse D-034; keeping provider cssVars as untrusted authority - rejected because it would bypass compiler ownership; arbitrary object maps - rejected because they would fail provider schema/preflight; making every slot mandatory - rejected for portfolios with no component need.
+- **Consequence:** Existing component registries remain usable with portfolio-specific colors, token values stay model/compiler-driven, and invalid references fail closed before generation.
+
 ## D-054 - Shared preview gateway is part of the default Docker stack
 
 - **Date & Time:** 2026-08-27 03:00 +05:30 — Codex (GPT-5 / OpenAI)
