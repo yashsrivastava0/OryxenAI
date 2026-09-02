@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-03 02:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [1c175c6] - fetch bytes for deferred_materialized slots in Code Generator
+
+Added `_build_deferred_requests` in `code_generator.py`: translates each `deferred_materialized` execution slot into a `ResourceRequest` paired with a fully-specified `ResourceCandidate` built directly from Build Preparation's pinned decision — no query to guess, no candidates to rank. `_execute_acquisition`'s main loop now skips `search()`/policy filtering/selection entirely for a request with a pinned candidate and calls `adapter.materialize()` directly, reusing the same adapters already live and tested for gap-slots. New `tests/unit/jobs/handlers/` directory (matches the project's own unit-test convention for pure, DB-free logic) covers request shape, category mapping, dependency metadata, and slot filtering. 920 unit tests, 12 code_generator integration tests, 1 worker test pass; mypy clean across all 216 source files. This completes the Track 1 core mechanism from D-060 — Build Preparation decides, Code Generator fetches.
+
 ### 2026-09-03 02:05 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [a476452] - defer image/font/component bytes to Code Generator
 
 `_materialize_image_candidate`, the Fontsource block, and `_materialize_component_candidate` now emit `disposition="deferred_materialized"` and skip persisting bytes/source text into the pack, instead of writing them plus a redundant sidecar JSON their own prior comment already said the planner never reads — all the real download/inspect/dedupe/policy verification work is unchanged. Updated every disposition-aware handoff-eligibility and reporting check (`quality.py`, `fixture_runs.py`) to recognize the new value so a deferred decision counts as resolved. Dropped `_materialize_component_candidate`'s now-unused `root`/`files` parameters. 104 Build Preparation unit tests pass (3 updated for the new behavior); 917 unit tests and related API tests pass repo-wide.
