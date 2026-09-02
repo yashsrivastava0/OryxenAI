@@ -65,6 +65,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     RequestBasis,
     RequestOrigin,
     ResourceBinding,
+    ResourceCandidate,
     ResourceFallback,
     ResourceLedger,
     ResourcePlacement,
@@ -831,7 +832,7 @@ async def _execute_acquisition(
         input_receipt, projections = input_adapter.admit(reference)
         plan = SitePlan.model_validate(run.plan)
         plan_hash = str((run.planner_receipt or {}).get("plan_hash", ""))
-        requests = _build_initial_requests(
+        requests, pinned_candidates = _build_initial_requests(
             plan, projections, input_receipt.admitted_identity, plan_hash
         )
         existing_resource_receipts: list[ResourceReceipt] = []
@@ -922,52 +923,59 @@ async def _execute_acquisition(
                 raise AcquisitionValidationError(
                     "CATEGORY_UNSUPPORTED", f"No trusted adapter exists for {request.category}."
                 )
+            pinned_candidate = pinned_candidates.get(request.request_id)
             try:
                 await _validate_worker_payload(sessionmaker, payload)
-                candidates = await adapter.search(request, settings=settings)
-                filtered = filter_candidates_by_policy(candidates, request)
-                if not filtered:
-                    if request.requiredness == "required" and request.fallback.kind == "none":
-                        rejected = _rejected_receipt(
-                            request, "No policy-approved candidate exists."
-                        )
-                        resource_receipts.append(rejected)
-                        partial_resource_ledger = ResourceLedger(
-                            based_on_input_and_plan={
-                                "input_receipt_hash": input_receipt.admitted_identity,
-                                "site_plan_hash": plan_hash,
-                            },
-                            requests=requests,
-                            receipts=resource_receipts,
-                            active_bindings=bindings,
-                        )
-                        raise AcquisitionValidationError(
-                            "REQ_FALLBACK_BLOCKED",
-                            "The required resource has no honest fallback.",
-                        )
-                    receipt = _fallback_receipt(request, "No policy-approved candidate exists.")
-                    resource_receipts.append(receipt)
-                    bindings.append(_binding_for(request, receipt))
-                    continue
-                if selector is not None:
-                    selected_id, _ = select_candidate(
-                        request,
-                        filtered,
-                        prefer_model=True,
-                        model_callable=selector,
-                    )
-                elif scout is not None:
-                    selected_id, _ = await select_candidate_with_scout(
-                        scout,
-                        request,
-                        filtered,
-                        profile_name=str(
-                            settings.code_generator_acquisition.resource_scout_profile
-                        ),
-                    )
+                if pinned_candidate is not None:
+                    # Build Preparation already searched, ranked, and picked
+                    # exactly this one candidate (D-060) -- there is nothing
+                    # left to search for or select among.
+                    candidate = pinned_candidate
                 else:
-                    selected_id, _ = select_candidate(request, filtered)
-                candidate = next(item for item in filtered if item.candidate_id == selected_id)
+                    candidates = await adapter.search(request, settings=settings)
+                    filtered = filter_candidates_by_policy(candidates, request)
+                    if not filtered:
+                        if request.requiredness == "required" and request.fallback.kind == "none":
+                            rejected = _rejected_receipt(
+                                request, "No policy-approved candidate exists."
+                            )
+                            resource_receipts.append(rejected)
+                            partial_resource_ledger = ResourceLedger(
+                                based_on_input_and_plan={
+                                    "input_receipt_hash": input_receipt.admitted_identity,
+                                    "site_plan_hash": plan_hash,
+                                },
+                                requests=requests,
+                                receipts=resource_receipts,
+                                active_bindings=bindings,
+                            )
+                            raise AcquisitionValidationError(
+                                "REQ_FALLBACK_BLOCKED",
+                                "The required resource has no honest fallback.",
+                            )
+                        receipt = _fallback_receipt(request, "No policy-approved candidate exists.")
+                        resource_receipts.append(receipt)
+                        bindings.append(_binding_for(request, receipt))
+                        continue
+                    if selector is not None:
+                        selected_id, _ = select_candidate(
+                            request,
+                            filtered,
+                            prefer_model=True,
+                            model_callable=selector,
+                        )
+                    elif scout is not None:
+                        selected_id, _ = await select_candidate_with_scout(
+                            scout,
+                            request,
+                            filtered,
+                            profile_name=str(
+                                settings.code_generator_acquisition.resource_scout_profile
+                            ),
+                        )
+                    else:
+                        selected_id, _ = select_candidate(request, filtered)
+                    candidate = next(item for item in filtered if item.candidate_id == selected_id)
                 await _validate_worker_payload(sessionmaker, payload)
                 materialized = await adapter.materialize(
                     candidate,
@@ -1325,7 +1333,7 @@ def _execution_binding_hash(slot_id: str, package_name: str) -> str:
 
 def _build_initial_requests(
     plan: SitePlan, projections: dict[str, dict[str, Any]], input_hash: str, plan_hash: str
-) -> list[ResourceRequest]:
+) -> tuple[list[ResourceRequest], dict[str, ResourceCandidate]]:
     resources = projections.get("resources/projection.json", {}).get("resources", [])
     needs = projections.get("resources/projection.json", {}).get("resource_needs", [])
     visual_projection = projections.get("design/visual-direction.json", {})
@@ -1345,9 +1353,13 @@ def _build_initial_requests(
     # does NOT already resolve (D-018); re-acquiring resolved slots would
     # both duplicate bindings and risk stock substitutions for evidence.
     resolved_slot_ids = _execution_resolved_slot_ids(projections)
-    requests: list[ResourceRequest] = _build_delegated_requests(
+    deferred_requests, pinned_candidates = _build_deferred_requests(
         plan, projections, input_hash, plan_hash
     )
+    requests: list[ResourceRequest] = [
+        *_build_delegated_requests(plan, projections, input_hash, plan_hash),
+        *deferred_requests,
+    ]
     for slot in plan.resource_slots:
         if slot.slot_id in resolved_slot_ids:
             continue
@@ -1431,7 +1443,7 @@ def _build_initial_requests(
             affected_work_unit_ids=[work_unit_id],
         )
         requests.append(request)
-    return requests
+    return requests, pinned_candidates
 
 
 def _build_delegated_requests(
@@ -1513,6 +1525,132 @@ def _build_delegated_requests(
             )
         )
     return requests
+
+
+def _deferred_category(raw_category: str) -> str:
+    return {
+        "photo": "image",
+        "editorial_photo": "image",
+        "visual_component": "component_source",
+        "component": "component_source",
+        "typography_system": "font",
+    }.get(raw_category.casefold(), raw_category.casefold())
+
+
+def _build_deferred_requests(
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    input_hash: str,
+    plan_hash: str,
+) -> tuple[list[ResourceRequest], dict[str, ResourceCandidate]]:
+    """Translate deferred_materialized slots into a fetch of the one already-decided candidate.
+
+    Unlike ``_build_delegated_requests``, Build Preparation already picked
+    exactly one real candidate here (search, rank, license/policy check all
+    already happened) -- there is no selection left for Code Generator to
+    perform. Each request pairs with a fully-specified ``ResourceCandidate``
+    built directly from the pinned resolution fields, so the acquisition
+    loop can call the adapter's ``materialize`` directly and skip
+    ``search``/candidate selection entirely (D-060).
+    """
+
+    execution = projections.get("execution/contract.json", {})
+    requests: list[ResourceRequest] = []
+    candidates: dict[str, ResourceCandidate] = {}
+    for slot in execution.get("slots", []) if isinstance(execution, dict) else []:
+        if not isinstance(slot, dict):
+            continue
+        resolution = slot.get("resolution")
+        if (
+            not isinstance(resolution, dict)
+            or resolution.get("resolution_type") != "deferred_materialized"
+        ):
+            continue
+        category = _deferred_category(str(slot.get("category", "")))
+        if category not in {"image", "font", "component_source"}:
+            continue
+        route_id = str(slot.get("route_id", ""))
+        section_ids = [str(value) for value in slot.get("section_ids", []) if str(value)]
+        unit_id = next(
+            (
+                unit.unit_id
+                for unit in plan.work_graph.units
+                if unit.kind in {"route", "route_batch"} and unit.route_id == route_id
+            ),
+            "foundation",
+        )
+        slot_id = str(slot.get("resource_slot_id", ""))
+        purpose = str(slot.get("rationale", "") or slot.get("component_placement", ""))
+        required = bool(slot.get("required"))
+        provider = str(resolution.get("provider", ""))
+        fallback_kind = _fallback_for(category, required)
+        request_id = f"deferred-{slot_id}"
+        dependency_names = [
+            str(value)
+            for value in (
+                *resolution.get("dependencies", []),
+                *resolution.get("registry_dependencies", []),
+            )
+            if str(value)
+        ]
+        requests.append(
+            ResourceRequest(
+                request_id=request_id,
+                based_on=RequestBasis(input_receipt_hash=input_hash, site_plan_hash=plan_hash),
+                origin=RequestOrigin(work_unit_id=unit_id, origin_kind="initial_gap"),
+                category=category,  # type: ignore[arg-type]
+                placement=ResourcePlacement(
+                    route_id=route_id,
+                    section_id=section_ids[0] if section_ids else "",
+                    purpose=purpose,
+                ),
+                why_existing_is_insufficient=(
+                    "Build Preparation already selected and verified this exact resource; "
+                    "its bytes were deliberately not persisted into the pack."
+                ),
+                query=ResourceQuery(positive_terms=list(re_split_words(purpose))),
+                technical_constraints=ResourceTechnicalConstraints(
+                    max_bytes=_max_bytes_for(category),
+                    required_exports=[
+                        str(value) for value in resolution.get("expected_exports", []) if str(value)
+                    ],
+                ),
+                source_constraints=ResourceSourceConstraints(
+                    allowed_source_kinds=[provider] if provider else [],
+                    upstream_source_policy="pinned_after_build_preparation_decision",
+                ),
+                requiredness="required" if required else "preferred",
+                fallback=ResourceFallback.model_validate(
+                    {
+                        "kind": fallback_kind,
+                        "implementation": (
+                            str(resolution.get("fallback_behavior", "")).strip()
+                            or str(slot.get("rationale", "")).strip()
+                            or _fallback_text(category)
+                        ),
+                    }
+                ),
+                affected_work_unit_ids=[unit_id],
+            )
+        )
+        candidate_id = str(
+            resolution.get("provider_asset_id")
+            or resolution.get("resource_id")
+            or slot_id
+        )
+        candidates[request_id] = ResourceCandidate(
+            candidate_id=candidate_id,
+            provider_key=provider,
+            provider_resource_id=str(resolution.get("provider_asset_id", "")),
+            category=category,
+            title=purpose,
+            description=purpose,
+            canonical_source=str(resolution.get("source_reference", "")),
+            licence=str(resolution.get("license", "")),
+            attribution=str(resolution.get("license_reference", "")),
+            dependency_metadata={name: [] for name in dependency_names},
+        )
+    return requests, candidates
 
 
 def _infer_category(purpose: str, need: dict[str, Any]) -> str:
