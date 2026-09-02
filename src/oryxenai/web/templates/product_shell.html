@@ -17,5 +17,9 @@
 {% endblock %}
 {% block footer %}{% endblock %}
 {% block scripts %}
+{% if pipeline_mode == "detached" %}
+<script type="module" src="{{ request.scope.get('root_path', '') }}/static/pipeline-bootstrap.mjs?v={{ pipeline_bootstrap_version }}"></script>
+{% else %}
 <script type="module" src="{{ request.scope.get('root_path', '') }}/static/app-auth-bootstrap.mjs?v={{ app_auth_bootstrap_version }}"></script>
+{% endif %}
 {% endblock %}
