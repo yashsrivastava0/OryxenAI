@@ -33,7 +33,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     TerminalFailureReport,
     VerificationProjection,
 )
-from oryxenai.agents.code_generator.core.final_repair import FinalRepairer, repair_allowed_paths
+from oryxenai.agents.code_generator.core.final_repair import (
+    FinalRepairer,
+    FinalRepairError,
+    repair_allowed_paths,
+)
 from oryxenai.agents.code_generator.core.final_source_validation import validate_final_source
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
     CodeGeneratorGenerationOrchestrator,
@@ -1395,45 +1399,63 @@ async def _attempt_repair(
     repair_unit_id = projection.active_gate or "final"
     if not budget.can_attempt(diagnostics, unit_id=repair_unit_id):
         return False
-    strategy = budget.consume(diagnostics, unit_id=repair_unit_id)
-    projection.status = "repairing"
-    projection.phase = "repairing"
-    await _persist_projection(
-        sessionmaker,
-        run_id,
-        projection,
-        DevelopmentRunStatus.REPAIRING.value,
-        event=("repairing", "A bounded generator-owned verification repair is running."),
-    )
-    try:
-        await _validate_run_fence(sessionmaker, run_id)
-        corrected, receipt = await FinalRepairer(model_factory=model_factory).repair(
-            settings=settings,
-            workspace=workspace,
-            checkpoint_store=checkpoint_store,
-            checkpoint=checkpoint,
-            identity=identity,
-            plan=plan,
-            projections=projections,
-            diagnostics=diagnostics,
-            allowed_paths=repair_allowed_paths(
-                diagnostics,
-                plan,
-                projections,
-                repo_dir=workspace.repo_dir,
-            ),
-            public_text=public_text,
-            allowed_packages=allowed_packages,
-            strategy=strategy,
-            round_number=budget.total_used,
-        )
-    except Exception:
-        logger.error(
-            "final repair attempt failed run_id=%s",
+    while True:
+        strategy = budget.consume(diagnostics, unit_id=repair_unit_id)
+        projection.status = "repairing"
+        projection.phase = "repairing"
+        await _persist_projection(
+            sessionmaker,
             run_id,
-            exc_info=True,
+            projection,
+            DevelopmentRunStatus.REPAIRING.value,
+            event=("repairing", "A bounded generator-owned verification repair is running."),
         )
-        return False
+        try:
+            await _validate_run_fence(sessionmaker, run_id)
+            corrected, receipt = await FinalRepairer(model_factory=model_factory).repair(
+                settings=settings,
+                workspace=workspace,
+                checkpoint_store=checkpoint_store,
+                checkpoint=checkpoint,
+                identity=identity,
+                plan=plan,
+                projections=projections,
+                diagnostics=diagnostics,
+                allowed_paths=repair_allowed_paths(
+                    diagnostics,
+                    plan,
+                    projections,
+                    repo_dir=workspace.repo_dir,
+                ),
+                public_text=public_text,
+                allowed_packages=allowed_packages,
+                strategy=strategy,
+                round_number=budget.total_used,
+            )
+            break
+        except FinalRepairError:
+            # The model honestly reported it could not produce a bounded
+            # correction this round (repair_source.md's cannot_complete
+            # escape hatch, or a context-binding mismatch). That is a used
+            # round, not an infrastructure failure — the budget exists to
+            # give a different round/strategy value another chance, so
+            # only give up once the budget itself is exhausted.
+            logger.warning(
+                "final repair round produced no usable correction run_id=%s round=%s",
+                run_id,
+                budget.total_used,
+                exc_info=True,
+            )
+            if not budget.can_attempt(diagnostics, unit_id=repair_unit_id):
+                return False
+            continue
+        except Exception:
+            logger.error(
+                "final repair attempt failed run_id=%s",
+                run_id,
+                exc_info=True,
+            )
+            return False
     projection.repair_rounds = budget.total_used
     projection.repair_receipts.append(receipt)
     projection.diagnostics = []
