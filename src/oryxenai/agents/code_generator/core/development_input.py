@@ -808,17 +808,22 @@ class DevelopmentInputAdapter:
             resource.get("kind") in {"photo", "component"}
             and (
                 resource.get("provider") == "generated-local"
-                or (resource.get("kind") == "photo" and resource.get("disposition") != "local_file")
+                or (
+                    resource.get("kind") == "photo"
+                    and resource.get("disposition")
+                    not in {"local_file", "deferred_materialized"}
+                )
                 or (
                     resource.get("kind") == "component"
-                    and resource.get("disposition") != "adaptable_source"
+                    and resource.get("disposition")
+                    not in {"adaptable_source", "deferred_materialized"}
                 )
             )
             for resource in resources
         ):
             raise DevelopmentInputError(
                 "PACK_RESOURCE_NOT_REAL",
-                "A visual resource is not a real locally materialized provider resource.",
+                "A visual resource is not a real locally materialized or pinned provider resource.",
             )
         self._validate_execution_contract(
             execution=execution,
@@ -942,6 +947,20 @@ class DevelopmentInputAdapter:
                     raise DevelopmentInputError(
                         "PACK_EXECUTION_LOCAL_PATH_INVALID",
                         "A local execution binding is absent from the admitted archive.",
+                    )
+            elif resolution_type == "deferred_materialized":
+                if (
+                    not str(resolution.get("provider", "") or "")
+                    or not (
+                        str(resolution.get("provider_asset_id", "") or "")
+                        or str(resolution.get("source_reference", "") or "")
+                    )
+                    or not isinstance(resolution.get("local_paths"), list)
+                    or not resolution["local_paths"]
+                ):
+                    raise DevelopmentInputError(
+                        "PACK_DEFERRED_REFERENCE_INVALID",
+                        "A deferred slot must carry a pinned provider reference and an intended path.",
                     )
             elif resolution_type == "target_package_binding":
                 if (

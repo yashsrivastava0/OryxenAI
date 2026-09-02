@@ -321,6 +321,27 @@ def validate_execution_contract_shape(
                     "BUILD_PACK_V3_EXECUTION_LOCAL_PATH_INVALID",
                     "A local binding is missing from the package.",
                 )
+        elif kind == "deferred_materialized":
+            # Build Preparation already verified and chose exactly one real
+            # candidate (downloaded, pixel/text inspected, deduplicated) but
+            # deliberately does not persist its bytes into this pack. The
+            # slot must still carry a stable, already-chosen provider
+            # reference and the deterministic path Code Generator's own
+            # acquisition phase will fetch it into -- but that path is not
+            # expected to exist in the package yet.
+            if (
+                not str(resolution.get("provider", "") or "")
+                or not (
+                    str(resolution.get("provider_asset_id", "") or "")
+                    or str(resolution.get("source_reference", "") or "")
+                )
+                or not isinstance(resolution.get("local_paths"), list)
+                or not resolution["local_paths"]
+            ):
+                raise PackContractError(
+                    "BUILD_PACK_V3_DEFERRED_REFERENCE_INVALID",
+                    "A deferred slot must carry a pinned provider reference and an intended path.",
+                )
         elif kind == "target_package_binding":
             package = str(resolution.get("package_name", ""))
             if (
