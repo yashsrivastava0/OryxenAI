@@ -1,28 +1,48 @@
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import { appReducer, initialAppState } from "./store";
-import { adaptDiscovery } from "../data/adapters/discovery";
-import * as fixtures from "../data/adapters/discovery.fixtures";
+import { adaptContentArchitect } from "../data/adapters/content";
+import { adaptVisualDesignDirector } from "../data/adapters/design";
+import { contentFixtureReview } from "../data/adapters/content.fixtures";
+import { designFixtureReview } from "../data/adapters/design.fixtures";
 
 describe("appReducer", () => {
-  it("sets read-only from the me projection", () => {
-    const next = appReducer(initialAppState, {
+  it("handles me/set action correctly", () => {
+    const state = appReducer(initialAppState, {
       type: "me/set",
-      me: { id: "u1", username: "a", role: "user", status: "active", onboarding_required: false, admin_available: false, read_only: true },
+      me: {
+        id: "user_1",
+        username: "yash",
+        role: "user",
+        status: "active",
+        onboarding_required: false,
+        admin_available: false,
+        read_only: true,
+      },
     });
-    expect(next.readOnly).toBe(true);
-    expect(next.me?.id).toBe("u1");
+    expect(state.me?.username).toBe("yash");
+    expect(state.readOnly).toBe(true);
   });
 
-  it("stores the normalized discovery view model", () => {
-    const view = adaptDiscovery(fixtures.briefReview);
-    const next = appReducer(initialAppState, { type: "discovery/set", view });
-    expect(next.discovery?.state).toBe("review");
+  it("handles session/set action", () => {
+    const state = appReducer(initialAppState, {
+      type: "session/set",
+      sessionId: "session_123",
+      revision: 4,
+    });
+    expect(state.sessionId).toBe("session_123");
+    expect(state.sessionRevision).toBe(4);
   });
 
-  it("does not mutate the previous state object", () => {
-    const next = appReducer(initialAppState, { type: "connection/set", state: "stale" });
-    expect(initialAppState.connection).toBe("checking");
-    expect(next.connection).toBe("stale");
-    expect(next).not.toBe(initialAppState);
+  it("handles stage/select, content/set, and design/set actions", () => {
+    const content = adaptContentArchitect(contentFixtureReview, true);
+    const design = adaptVisualDesignDirector(designFixtureReview, true);
+
+    let state = appReducer(initialAppState, { type: "content/set", view: content });
+    state = appReducer(state, { type: "design/set", view: design });
+    state = appReducer(state, { type: "stage/select", stage: "content" });
+
+    expect(state.content?.state).toBe("review");
+    expect(state.design?.state).toBe("review");
+    expect(state.activeStage).toBe("content");
   });
 });

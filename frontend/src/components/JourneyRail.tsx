@@ -11,6 +11,7 @@ export interface JourneyStageVM {
 
 interface JourneyRailProps {
   journey: JourneyStageVM[];
+  selectedStageId: JourneyStageId;
   onSelect: (stage: JourneyStageId) => void;
 }
 
@@ -26,26 +27,42 @@ function railState(state: StageState): RailState {
 
 // Completed and current stages are selectable; a locked future stage is
 // descriptive, never a fake disabled button (docs/Frontend/01 §5, 05 §8.2).
-export function JourneyRail({ journey, onSelect }: JourneyRailProps) {
+export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailProps) {
   return (
-    <ol className="journey-rail" aria-label="Portfolio journey">
-      {journey.map((stage) => {
-        const state = railState(stage.state);
-        const ordinal = String(stage.ordinal).padStart(2, "0");
-        return (
-          <li key={stage.id} data-state={state}>
-            {stage.isSelectable ? (
-              <button type="button" onClick={() => onSelect(stage.id)}>
-                <span className="journey-ordinal">{ordinal}</span> {stage.label}
-              </button>
-            ) : (
-              <span>
-                <span className="journey-ordinal">{ordinal}</span> {stage.label}
-              </span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
+    <nav className="journey-nav" aria-label="Portfolio journey">
+      <ol className="journey-rail">
+        {journey.map((stage) => {
+          const state = railState(stage.state);
+          const isSelected = stage.id === selectedStageId;
+          const ordinal = String(stage.ordinal).padStart(2, "0");
+          return (
+            <li
+              key={stage.id}
+              data-state={state}
+              data-selected={isSelected ? "true" : "false"}
+              className={`journey-step ${isSelected ? "selected" : ""}`}
+            >
+              {stage.isSelectable ? (
+                <button
+                  type="button"
+                  className={`journey-button ${isSelected ? "active" : ""}`}
+                  aria-current={isSelected ? "step" : undefined}
+                  onClick={() => onSelect(stage.id)}
+                >
+                  <span className="journey-ordinal">{ordinal}</span>
+                  <span className="journey-label">{stage.label}</span>
+                  {state === "complete" && <span className="journey-check" aria-hidden="true">✓</span>}
+                </button>
+              ) : (
+                <span className="journey-locked-label">
+                  <span className="journey-ordinal">{ordinal}</span>
+                  <span className="journey-label">{stage.label}</span>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
