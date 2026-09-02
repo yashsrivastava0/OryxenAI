@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 14:00 +05:30 - Codex (GPT-5 / OpenAI) - [280982e] - expand frontend research and implementation blueprint
+Added two focused frontend documents preserving repository/competitor/platform evidence and defining exact route, API, adapter, component, recovery, accessibility, performance, test, and rollout contracts. Locked the proposed Editorial Swiss / Living Draft theme and lightweight image/motion strategy, corrected idempotency guidance to match the public API, and left all backend and current frontend code unchanged.
+
 ### 2026-09-02 13:17 +05:30 - Codex (GPT-5 / OpenAI) - [ae17373] - frontend research and product experience direction
 Added a four-document frontend research package covering the authenticated journey, stage-aware information architecture, status and edge-case mapping, verified Preview UX, lightweight visual system, performance budgets, and a future Preact/Vite integration boundary. The work is documentation-only and leaves the backend, existing frontend, Build Preparation, and Code Generator unchanged pending review.
 
