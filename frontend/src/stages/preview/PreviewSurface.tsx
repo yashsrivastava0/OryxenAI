@@ -237,7 +237,7 @@ export function usePreviewController(
   };
 }
 
-function computeFrameUrl(stableBaseUrl: string | undefined, activeRoute: string): string {
+export function computeFrameUrl(stableBaseUrl: string | undefined, activeRoute: string): string {
   if (!stableBaseUrl) return "";
   try {
     const baseWithSlash = stableBaseUrl.endsWith("/") ? stableBaseUrl : `${stableBaseUrl}/`;
