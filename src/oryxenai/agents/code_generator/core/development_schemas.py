@@ -946,6 +946,35 @@ class LengthTokenV4(BaseModel):
         return value
 
 
+class SignedLengthTokenV4(BaseModel):
+    """A length token whose value may legitimately be negative.
+
+    CSS box-shadow offset-x/offset-y (direction) and spread-radius (shrink
+    the shadow shape) are valid when negative; only blur-radius is not.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    value: float
+    unit: Literal["px", "rem", "em", "%", "vw", "vh", "vmin", "vmax", "ch", "ex", "fr"]
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        normalized = value.strip().replace("_", "-")
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
+            raise ValueError("length token names must be lowercase semantic identifiers")
+        return normalized
+
+    @field_validator("value")
+    @classmethod
+    def _finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("length token values must be finite")
+        return value
+
+
 class BorderTokenV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1056,10 +1085,10 @@ class ShadowTokenV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    offset_x: LengthTokenV4
-    offset_y: LengthTokenV4
+    offset_x: SignedLengthTokenV4
+    offset_y: SignedLengthTokenV4
     blur: LengthTokenV4
-    spread: LengthTokenV4
+    spread: SignedLengthTokenV4
     color_token: str
 
 

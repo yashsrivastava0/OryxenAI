@@ -488,6 +488,35 @@ def test_v4_shadcn_theme_bindings_use_fixed_slots_and_approved_colors() -> None:
         )
 
 
+def _shadow(*, offset_x: float, offset_y: float, blur: float, spread: float) -> dict:
+    return {
+        "name": "elevated",
+        "offset_x": {"name": "shadow-x", "value": offset_x, "unit": "px"},
+        "offset_y": {"name": "shadow-y", "value": offset_y, "unit": "px"},
+        "blur": {"name": "shadow-blur", "value": blur, "unit": "px"},
+        "spread": {"name": "shadow-spread", "value": spread, "unit": "px"},
+        "color_token": "ink",
+    }
+
+
+def test_v4_shadow_tokens_allow_negative_offset_and_spread_but_not_blur() -> None:
+    """CSS box-shadow offset-x/offset-y (direction) and spread-radius (shrink
+    the shadow shape) are valid when negative; only blur-radius is not."""
+    token_data = _blueprint().tokens.model_dump(mode="python")
+
+    tokens = DesignTokenSystemV4.model_validate(
+        {**token_data, "shadows": [_shadow(offset_x=-2, offset_y=-4, blur=8, spread=-1)]}
+    )
+    assert tokens.shadows[0].offset_x.value == -2
+    assert tokens.shadows[0].offset_y.value == -4
+    assert tokens.shadows[0].spread.value == -1
+
+    with pytest.raises(ValidationError, match="non-negative"):
+        DesignTokenSystemV4.model_validate(
+            {**token_data, "shadows": [_shadow(offset_x=0, offset_y=2, blur=-1, spread=0)]}
+        )
+
+
 def test_v4_blueprint_must_echo_host_identity_manifest() -> None:
     blueprint = _blueprint()
     context = {
