@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 22:30 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [47a57b0] - implement Frontend Phase 2 app shell, discovery, content, and design
+Implemented Phase 2 studio capabilities: portfolio start/resume, multi-stage JourneyRail navigation with live stage status, cross-tab invalidation via BroadcastChannel, tab-visibility polling coordination, interactive Discovery conversation surface (handling text, single_select, multi_select, boolean question types, and draft preservation), pure Content Architect adapter with route plan/content pack review, pure Visual Design Director adapter with visual language/page direction review, bounded safe Preact Markdown renderer with section headings index, revision composers, explicit handoff panels between stages with zero auto-chaining, honest attention/recovery panels, and Editorial Swiss design system styling. Verified with 54 unit and component Vitest tests, 47 node auth tests, 4 FastAPI web route tests, typecheck, and Vite production bundle measurements (4.81 kB JS / 3.73 kB CSS gzip). Recorded D-059 for single root .env configuration.
+
 ### 2026-09-02 21:39 +05:30 - Codex (GPT-5 / OpenAI) - [efca5de] - record live Code Generator issue campaign
 Documented the ten permitted live Code Generator starts against the eligible Build Preparation pack, including each terminal failure, all observed planner/source/runtime/integration diagnostics, environment and observability limitations, and the two historical blockers. Neither historical blocker recurred in the ten-run sample; no source code or model/repair ceilings were changed.
 

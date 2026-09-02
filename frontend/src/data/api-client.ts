@@ -130,6 +130,68 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/discovery/approve`,
         jsonInit("POST", {}),
       ),
+
+    getContentArchitect: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/content-architect`,
+      ),
+
+    startContentArchitect: (
+      sessionId: string,
+      body: { preferences?: Record<string, unknown>; model_profile?: string } = {},
+      idempotencyKey?: string,
+    ) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/content-architect/start`,
+        jsonInit("POST", body, idempotencyKey),
+      ),
+
+    reviseContentArchitect: (sessionId: string, revisionRequest: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/content-architect/revise`,
+        jsonInit("POST", { revision_request: revisionRequest }),
+      ),
+
+    approveContentArchitect: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/content-architect/approve`,
+        jsonInit("POST", {}),
+      ),
+
+    getVisualDesignDirector: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director`,
+      ),
+
+    startVisualDesignDirector: (
+      sessionId: string,
+      body: { preferences?: Record<string, unknown>; model_profile?: string } = {},
+      idempotencyKey?: string,
+    ) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/start`,
+        jsonInit("POST", body, idempotencyKey),
+      ),
+
+    reviseVisualDesignDirector: (sessionId: string, revisionRequest: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/revise`,
+        jsonInit("POST", { revision_request: revisionRequest }),
+      ),
+
+    approveVisualDesignDirector: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/approve`,
+        jsonInit("POST", {}),
+      ),
   };
 }
 

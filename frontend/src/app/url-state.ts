@@ -2,13 +2,6 @@
 // 1; docs/Frontend/05 §3.2). Pure parse/serialize so it's unit-testable
 // without a DOM; AppShell.tsx owns calling history.pushState/replaceState
 // with the result.
-//
-// Note: docs/Frontend/01 §3's example table uses `stage=discovery` (the
-// backend's own name) in one place, while docs/Frontend/05 §2.3/§3.2 types
-// `JourneyStageId` as the shortened product name `discover`. This module
-// follows 05's typed contract, which is what Phase 2+ builds the journey
-// rail and stage routing against — treat 01's table as the one with the
-// naming inconsistency.
 
 export type JourneyStageId = "discover" | "content" | "design" | "prepare" | "generate" | "preview";
 export type ViewId = "start" | "work" | "artifact" | "progress" | "preview";
@@ -44,32 +37,36 @@ export function parseAppUrlState(search: string): AppUrlState {
   let stage = includesValue(STAGE_VALUES, stageRaw) ? stageRaw : null;
   let view = includesValue(VIEW_VALUES, viewRaw) ? viewRaw : null;
 
-  // stage and view are mutually exclusive; view=preview wins if both appear.
-  if (view === "preview") {
-    stage = null;
-  } else if (stage && view) {
-    view = null;
+  // If view is preview, stage is normalized to preview
+  if (view === "preview" || stage === "preview") {
+    stage = "preview";
+    view = "preview";
   }
 
   const viewport = includesValue(VIEWPORT_VALUES, viewportRaw) ? viewportRaw : null;
   // Structural safety only here — whether `route` actually matches a
-  // promoted route belongs to the Preview adapter, which this module has no
-  // knowledge of.
-  const route = routeRaw && routeRaw.startsWith("/") && !routeRaw.includes("..") && !routeRaw.includes("\\") ? routeRaw : null;
+  // promoted route belongs to the Preview adapter.
+  const route =
+    routeRaw && routeRaw.startsWith("/") && !routeRaw.includes("..") && !routeRaw.includes("\\")
+      ? routeRaw
+      : null;
 
   return { stage, view, route, viewport };
 }
 
 export function serializeAppUrlState(state: Partial<AppUrlState>): string {
   const params = new URLSearchParams();
-  if (state.view === "preview") {
-    params.set("view", "preview");
-    if (state.route) params.set("route", state.route);
-    if (state.viewport) params.set("viewport", state.viewport);
-  } else if (state.stage) {
+  if (state.stage) {
     params.set("stage", state.stage);
-  } else if (state.view) {
+  }
+  if (state.view) {
     params.set("view", state.view);
+  }
+  if (state.route) {
+    params.set("route", state.route);
+  }
+  if (state.viewport) {
+    params.set("viewport", state.viewport);
   }
   const qs = params.toString();
   return qs ? `?${qs}` : "";
