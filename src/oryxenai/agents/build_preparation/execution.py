@@ -87,7 +87,19 @@ def _local_paths(resource: dict[str, Any]) -> list[str]:
     for entry in resource.get("source_files", []) or []:
         if isinstance(entry, dict) and str(entry.get("local_path", "") or ""):
             values.append(str(entry["local_path"]))
-    return sorted(set(values))
+    unique = set(values)
+    # local_directory is a container path, not a file -- when a more specific
+    # file path under it is also present (fonts and components both list
+    # both), the bare directory is redundant noise, not a second real
+    # reference. Drop it so callers that need genuine file paths (e.g.
+    # TypographyBindingV4.local_files must end in .woff/.woff2) never see a
+    # container path sorted ahead of the real files it holds.
+    leaves = {
+        value
+        for value in unique
+        if not any(other != value and other.startswith(value.rstrip("/") + "/") for other in unique)
+    }
+    return sorted(leaves)
 
 
 def _criteria_by_route(site: dict[str, Any]) -> dict[str, list[str]]:
@@ -227,6 +239,13 @@ def compile_execution_contract(
                 provider=str(resource.get("provider", "") or ""),
                 provider_asset_id=str(resource.get("provider_asset_id", "") or ""),
                 source_reference=str(resource.get("source_reference", "") or ""),
+                direct_source_url=str(resource.get("direct_fetch_url", "") or ""),
+                direct_source_urls={
+                    str(key): str(value)
+                    for key, value in resource.get("direct_fetch_urls", {}).items()
+                }
+                if isinstance(resource.get("direct_fetch_urls"), dict)
+                else {},
                 license=str(resource.get("license", "") or ""),
                 license_reference=str(resource.get("license_reference", "") or ""),
                 source_hashes=[
