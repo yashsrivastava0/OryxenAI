@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from uuid import uuid4
@@ -339,11 +340,14 @@ async def test_offline_phase2_runs_all_deterministic_stages_and_materializes() -
         assert result.output["events"][-1]["event_id"] == "phase_3_complete"
         assert result.output["materialization"]["files"]
         assert result.output["package"]["archive_sha256"]
-        assert result.output["materialization"]["analysis_path"] == "handoff-analysis.json"
-        assert result.output["materialization"]["analysis_hash"]
-        assert (
+        # run_analysis is still fully available inside handoff-report.json;
+        # it is no longer re-serialized a second time as a separate file.
+        report_path = Path(result.output["materialization"]["root_path"]) / "handoff-report.json"
+        report = json.loads(report_path.read_text())
+        assert isinstance(report["run_analysis"], dict) and report["run_analysis"]
+        assert not (
             Path(result.output["materialization"]["root_path"]) / "handoff-analysis.json"
-        ).is_file()
+        ).exists()
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
