@@ -2,9 +2,13 @@ import { describe, it, expect } from "vitest";
 import { DiscoveryStage } from "./discovery/DiscoveryStage";
 import { ContentStage } from "./content/ContentStage";
 import { DesignStage } from "./design/DesignStage";
+import { PreparationStage } from "./preparation/PreparationStage";
+import { GenerationStage } from "./generation/GenerationStage";
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
+import { adaptBuildPreparation } from "../data/adapters/preparation";
+import { adaptCodeGenerator } from "../data/adapters/generation";
 import {
   notStarted as discoveryFixtureNotStarted,
   questionsReady as discoveryFixtureQuestionsReady,
@@ -21,6 +25,18 @@ import {
   designFixtureReview,
   designFixtureApproved,
 } from "../data/adapters/design.fixtures";
+import {
+  preparationFixtureNotStarted,
+  preparationFixtureRunningStage2,
+  preparationFixtureReadyEligible,
+  preparationFixtureNeedsAttention,
+} from "../data/adapters/preparation.fixtures";
+import {
+  generationFixtureNotStarted,
+  generationFixtureGenerating,
+  generationFixtureReadyWithPreview,
+  generationFixtureNeedsAttentionRetryable,
+} from "../data/adapters/generation.fixtures";
 
 function getClassName(vnode: any): string | undefined {
   return vnode?.props?.className ?? vnode?.props?.class;
@@ -202,6 +218,139 @@ describe("Stage Component VNodes", () => {
         onContinueToPrepare: () => {},
       });
       expect(getClassName(vnode)).toBe("design-stage-view");
+    });
+  });
+
+  describe("PreparationStage", () => {
+    it("renders locked panel when Design is not approved", () => {
+      const view = adaptBuildPreparation(preparationFixtureNotStarted, false);
+      const vnode = PreparationStage({
+        view,
+        canMutate: true,
+        onStart: async () => {},
+        onRegenerate: async () => {},
+        onContinueToGeneration: () => {},
+      });
+      expect(getClassName(vnode)).toBe("stage-locked-panel");
+    });
+
+    it("renders available start panel when Design is approved", () => {
+      const view = adaptBuildPreparation(preparationFixtureNotStarted, true);
+      const vnode = PreparationStage({
+        view,
+        canMutate: true,
+        onStart: async () => {},
+        onRegenerate: async () => {},
+        onContinueToGeneration: () => {},
+      });
+      expect(getClassName(vnode)).toBe("stage-available-panel");
+    });
+
+    it("renders progress surface when working", () => {
+      const view = adaptBuildPreparation(preparationFixtureRunningStage2, true);
+      const vnode = PreparationStage({
+        view,
+        canMutate: true,
+        onStart: async () => {},
+        onRegenerate: async () => {},
+        onContinueToGeneration: () => {},
+      });
+      expect(vnode).toBeDefined();
+      expect(vnode.props.stageLabel).toContain("Prepare");
+      expect(vnode.props.currentMilestone).toBe("Resolving portfolio materials");
+    });
+
+    it("renders complete summary and handoff to Generation when ready and eligible", () => {
+      const view = adaptBuildPreparation(preparationFixtureReadyEligible, true);
+      const vnode = PreparationStage({
+        view,
+        canMutate: true,
+        onStart: async () => {},
+        onRegenerate: async () => {},
+        onContinueToGeneration: () => {},
+      });
+      expect(getClassName(vnode)).toBe("preparation-stage-view");
+    });
+
+    it("renders attention panel when needs_attention", () => {
+      const view = adaptBuildPreparation(preparationFixtureNeedsAttention, true);
+      const vnode = PreparationStage({
+        view,
+        canMutate: true,
+        onStart: async () => {},
+        onRegenerate: async () => {},
+        onContinueToGeneration: () => {},
+      });
+      expect(getClassName(vnode)).toBe("preparation-stage-view");
+    });
+  });
+
+  describe("GenerationStage", () => {
+    it("renders locked panel when Preparation is not ready", () => {
+      const view = adaptCodeGenerator(generationFixtureNotStarted, false, false);
+      const vnode = GenerationStage({
+        view,
+        canMutate: true,
+        readOnly: false,
+        onStart: async () => {},
+        onRetry: async () => {},
+        onOpenPreview: () => {},
+      });
+      expect(getClassName(vnode)).toBe("stage-locked-panel");
+    });
+
+    it("renders available start panel when Preparation is ready", () => {
+      const view = adaptCodeGenerator(generationFixtureNotStarted, true, false);
+      const vnode = GenerationStage({
+        view,
+        canMutate: true,
+        readOnly: false,
+        onStart: async () => {},
+        onRetry: async () => {},
+        onOpenPreview: () => {},
+      });
+      expect(getClassName(vnode)).toBe("stage-available-panel");
+    });
+
+    it("renders progress surface when working", () => {
+      const view = adaptCodeGenerator(generationFixtureGenerating, true, false);
+      const vnode = GenerationStage({
+        view,
+        canMutate: true,
+        readOnly: false,
+        onStart: async () => {},
+        onRetry: async () => {},
+        onOpenPreview: () => {},
+      });
+      expect(vnode).toBeDefined();
+      expect(vnode.props.stageLabel).toContain("Generate");
+      expect(vnode.props.currentMilestone).toBe("Building portfolio routes");
+    });
+
+    it("renders complete summary and Open Preview action when ready with preview", () => {
+      const view = adaptCodeGenerator(generationFixtureReadyWithPreview, true, false);
+      const vnode = GenerationStage({
+        view,
+        canMutate: true,
+        readOnly: false,
+        onStart: async () => {},
+        onRetry: async () => {},
+        onOpenPreview: () => {},
+      });
+      expect(getClassName(vnode)).toBe("generation-stage-view");
+    });
+
+    it("renders attention panel when needs_attention", () => {
+      const view = adaptCodeGenerator(generationFixtureNeedsAttentionRetryable, true, false);
+      const vnode = GenerationStage({
+        view,
+        canMutate: true,
+        readOnly: false,
+        onStart: async () => {},
+        onRetry: async () => {},
+        onOpenPreview: () => {},
+      });
+      expect(getClassName(vnode)).toBe("generation-stage-view");
     });
   });
 });

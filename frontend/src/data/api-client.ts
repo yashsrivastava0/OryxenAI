@@ -192,6 +192,59 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/approve`,
         jsonInit("POST", {}),
       ),
+
+    getBuildPreparation: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation`,
+      ),
+
+    startBuildPreparation: (
+      sessionId: string,
+      body: { model_profile?: string } = {},
+    ) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/start`,
+        jsonInit("POST", body),
+      ),
+
+    regenerateBuildPreparation: (
+      sessionId: string,
+      body: { model_profile?: string } = {},
+    ) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/regenerate`,
+        jsonInit("POST", body),
+      ),
+
+    getCodeGenerator: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator`,
+      ),
+
+    startCodeGenerator: (sessionId: string, idempotencyKey: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/start`,
+        jsonInit("POST", {}, idempotencyKey),
+      ),
+
+    regenerateCodeGenerator: (sessionId: string, idempotencyKey: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/regenerate`,
+        jsonInit("POST", {}, idempotencyKey),
+      ),
+
+    retryCodeGenerator: (sessionId: string, idempotencyKey: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/retry`,
+        jsonInit("POST", {}, idempotencyKey),
+      ),
   };
 }
 

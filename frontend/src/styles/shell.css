@@ -940,6 +940,185 @@ button {
   font: var(--type-small);
 }
 
+/* ── ProgressSurface ───────────────────────────────────────────────────── */
+
+.progress-surface {
+  max-width: 760px;
+  margin: var(--space-8) auto;
+  padding: var(--space-8);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-frame);
+  text-align: left;
+}
+
+.progress-header {
+  margin-bottom: var(--space-6);
+}
+
+.progress-title {
+  font: var(--type-h2);
+  margin: 0 0 var(--space-3);
+}
+
+.progress-active-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: color-mix(in srgb, var(--signal) 10%, var(--paper));
+  border: 1px solid var(--signal);
+  border-radius: var(--radius-pill);
+  color: var(--signal);
+  font: var(--type-label);
+  font-weight: 600;
+}
+
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+  animation: progress-pulse 2s infinite ease-in-out;
+}
+
+@keyframes progress-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
+.progress-milestones {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progress-milestone-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  font: var(--type-body);
+}
+
+.progress-milestone-item[data-state="complete"] {
+  color: var(--ink);
+}
+
+.progress-milestone-item[data-state="complete"] .progress-milestone-indicator {
+  color: var(--positive);
+}
+
+.progress-milestone-item[data-state="current"] {
+  background: var(--canvas);
+  font-weight: 600;
+  color: var(--ink);
+  border-left: 3px solid var(--signal);
+}
+
+.progress-milestone-item[data-state="quiet"] {
+  color: var(--graphite);
+  opacity: 0.65;
+}
+
+.progress-milestone-indicator {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.current-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+
+.quiet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rule);
+}
+
+.progress-elapsed {
+  font: var(--type-small);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--graphite);
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.progress-leave-note {
+  font: var(--type-small);
+  color: var(--graphite);
+  margin: var(--space-2) 0 0;
+}
+
+.progress-secondary-summary {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+  font: var(--type-small);
+  color: var(--graphite);
+}
+
+/* ── Preparation & Generation Stages ────────────────────────────────────── */
+
+.preparation-stage-view,
+.generation-stage-view {
+  max-width: 760px;
+  margin: var(--space-6) auto;
+}
+
+.preparation-complete-summary,
+.generation-complete-summary {
+  padding: var(--space-8);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-frame);
+  margin-bottom: var(--space-6);
+  text-align: center;
+}
+
+.stage-warnings-box {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--attention) 8%, var(--paper));
+  border-left: 3px solid var(--attention);
+  text-align: left;
+  font: var(--type-small);
+}
+
+.stage-warnings-box ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+.generation-promoted-meta {
+  font: var(--type-small);
+  color: var(--graphite);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.preview-stage-container {
+  max-width: 1080px;
+  margin: var(--space-6) auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
