@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 16:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [eaa7390] - allow negative shadow offset and spread tokens
+A fresh live run against the same real pack hard-failed at planning (no repair budget applies there) with `tokens.shadows.0.spread.value: length token values must be finite and non-negative`. `ShadowTokenV4`'s offset_x/offset_y/spread shared `LengthTokenV4`'s non-negative constraint, which is correct only for blur-radius -- offset direction and negative spread (shrinking the shadow shape) are both valid CSS the model had no way to express. Added `SignedLengthTokenV4` (finite-only) for offset_x/offset_y/spread; blur keeps the strict non-negative type. `token_compiler.py` accesses these duck-typed, so no compiler change was needed. Added a unit test covering both the newly-allowed and still-rejected cases.
+
 ### 2026-09-02 16:05 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [7292f2c] - persist true repair-round count when a round is consumed but fails
 Re-ran the [d3cc095] fix live against the same run: the worker log confirmed 3 real repair attempts (all honest cannot_complete) before correctly stopping at the per-group ceiling, but the persisted `repair_rounds` still read 0 -- it was only ever set after a *successful* round, so the terminal report understated what actually happened. `repair_rounds` is now updated to `budget.total_used` on every consumed round, including failed ones. Corrected D-058's consequence line to match reality and added a regression test for the all-rounds-fail case.
 
