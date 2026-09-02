@@ -1,8 +1,5 @@
 # OryxenAI Architecture — Discovery Phase
 
-output/build-preparation/00-06-26-08-9df0cecb/   
-    build-pack.zip.
-Srivastava/Desktop/01_Projects/OryxenAI/output/build-preparation/10-29-26-08-0e6dc7a6"
 > This document explains **why** the current Discovery implementation is designed
 > the way it is. It does not describe excluded downstream product stages.
 > For **current implementation status** (what's actually built today), see
@@ -148,11 +145,14 @@ worker container.
 - **State schema:** The `agents.<key>.{latestRunId, output}` namespacing may
   gain additional fields (e.g. `status`, `timestamp`) as real agents produce
   richer artifacts.
-- **Frontend:** The testing harness will be replaced by the real product
-  frontend (likely React/Next.js) when the portfolio-generation runtime is
-  implemented.
+- **Frontend:** The testing harness is being replaced by the real product
+  frontend. See `docs/Frontend/` for the researched direction (Preact +
+  TypeScript + Vite for the authenticated `/app` studio; Next.js was
+  considered and rejected because it would introduce a second application
+  server beside FastAPI).
 - **Configuration:** Non-secret settings may move from `config/app.toml` to
   command-line flags or a separate deployment_overlay mechanism if deployment
   requirements demand it. `.env` will remain secrets-only.
-- **Authentication:** Not present in the scaffold; future auth will add user
-  ownership to `portfolio_sessions` and authorization checks to the API.
+- **Authentication:** Implemented through Phase 4 (Google-only via Supabase,
+  local `app_users` ownership/roles, admin lifecycle). See `docs/Auth/` for
+  the authoritative spec and `AGENTS.md` for current status.

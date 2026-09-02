@@ -307,6 +307,7 @@ Authoritative behavior remains in the auth controller and route contract.
 | Auth network failure | Keep the auth shell, offer retry, and avoid a redirect loop |
 | First protected 401 | Refresh once and retry the exact request |
 | Second 401 or failed refresh | Stop polling, clear private UI/storage hints, sign out locally, replace to sign-in |
+| Provider/model transiently unavailable while on `/app` (`AUTH_PROVIDER_UNAVAILABLE`, `MODEL_PROVIDER_CREDIT_EXHAUSTED`) | Keep the user signed in; show a safe inline message; never force a full sign-out — corrects a bug in the current implementation where this path falls through to sign-out instead of the safe message the auth-shell controller already shows for the same codes (see `06` §3.2) |
 | Provider not approved | Show access-not-approved and account-switch/sign-out actions |
 | Capacity reached | Show account-unavailable; do not suggest repeated registration attempts |
 | Username taken | Keep input, focus inline error, permit another value |
@@ -411,6 +412,15 @@ filesystem paths.
 - If the viewport cannot fit, scale the frame visually while preserving the logical
   dimensions and show the scale value to assist debugging only when useful.
 - On mobile product UI, default to fit and emphasize opening the preview directly.
+- Reserve the frame's box with CSS `width`/`height` or `aspect-ratio` matching the
+  selected profile before the iframe's `load` event fires; never let the frame pop
+  into a different size once content arrives (protects the CLS budget in `03` §9).
+- Implement the "scale while preserving logical dimensions" rule as a fixed-size
+  wrapper (`overflow: hidden` at the profile's true pixel size) with
+  `transform: scale(available / device)` and `transform-origin: top left` on the
+  iframe itself. Never change the iframe's actual `width`/`height` to a value
+  outside the four profiles — that would show the generated site a viewport
+  combination the backend's `runtime_verifier.py` never checked.
 
 ## 9. Loading and perceived performance
 

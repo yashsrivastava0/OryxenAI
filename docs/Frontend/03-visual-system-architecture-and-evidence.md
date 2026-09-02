@@ -232,8 +232,12 @@ the whole application with a loading screen.
 
 Keep the Preview toolbar and frame size stable. Overlay “Opening verified Preview”
 inside the frame boundary until the cross-origin load event or an explicit timeout.
-On failure, replace the overlay with reconnect/refresh actions without discarding the
-active receipt.
+After two seconds without that load event, change only the overlay copy to
+acknowledge a possible cold preview-gateway service, mirroring the auth loader's
+cold-start acknowledgment above — the preview gateway is a separate hosted service
+on the confirmed Render free-tier target (§9) and can sleep independently of the
+API. On failure, replace the overlay with reconnect/refresh actions without
+discarding the active receipt.
 
 ## 6. Frontend stack decision
 
@@ -418,7 +422,11 @@ weight and weaken the meaning of Preview.
 ## 9. Performance budget
 
 The budgets are release gates for the future product frontend, measured on production
-assets rather than source files.
+assets rather than source files. They assume the confirmed hosting target: Render
+free-tier web services plus the existing Cloudflare R2 artifact storage (see
+`docs/code-generator-architecture/free-host-deployment.md` and
+[06](06-cross-model-review-and-decisions.md) §5 for the resolved conflict with a
+dormant AWS contingency); revisit them if that target changes.
 
 | Metric | Budget |
 | --- | --- |
