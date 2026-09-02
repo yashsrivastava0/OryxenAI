@@ -11,88 +11,52 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 22:47 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [f9e8eef] - implement Frontend Phase 3 build preparation and code generator integration
+Implemented full Phase 3 product frontend integration: volatile Build Preparation adapter mapping runtime substages to four semantic user milestones ("Checking approved plan", "Resolving portfolio materials", "Compiling build context", "Packaging and verifying handoff"), staleness detection and handoff eligibility; durable Code Generator session adapter mapping six lifecycle milestones (queue, plan, acquire, generate, verify, promote), active preview preservation, and server-fenced retry rules; pure functional PreparationStage and GenerationStage surfaces; reusable ProgressSurface with honest milestone checklist, neutral elapsed timer, and leave-safe reassurance (no fake percentages, ETAs, or token streams); session-scoped idempotency key management; full AppShell polling coordination for active preparation/generation durable jobs; and unified styles. Verified with 92 Vitest tests, FastAPI web route tests, and clean production Vite bundle (11.62 kB JS / 20.08 kB CSS).
+
 ### 2026-09-02 22:30 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [47a57b0] - implement Frontend Phase 2 app shell, discovery, content, and design
-Implemented Phase 2 studio capabilities: portfolio start/resume, multi-stage JourneyRail navigation with live stage status, cross-tab invalidation via BroadcastChannel, tab-visibility polling coordination, interactive Discovery conversation surface (handling text, single_select, multi_select, boolean question types, and draft preservation), pure Content Architect adapter with route plan/content pack review, pure Visual Design Director adapter with visual language/page direction review, bounded safe Preact Markdown renderer with section headings index, revision composers, explicit handoff panels between stages with zero auto-chaining, honest attention/recovery panels, and Editorial Swiss design system styling. Verified with 54 unit and component Vitest tests, 47 node auth tests, 4 FastAPI web route tests, typecheck, and Vite production bundle measurements (4.81 kB JS / 3.73 kB CSS gzip). Recorded D-059 for single root .env configuration.
+Implements Phase 2 studio capabilities: portfolio start/resume, multi-stage JourneyRail navigation with live stage status, cross-tab invalidation via BroadcastChannel, tab-visibility polling coordination, interactive Discovery conversation surface (handling text, single_select, multi_select, boolean question types, and draft preservation), pure Content Architect adapter with route plan/content pack review, pure Visual Design Director adapter with visual language/page direction review, bounded safe Preact Markdown renderer with section headings index, revision composers, explicit handoff panels between stages with zero auto-chaining, honest attention/recovery panels, and Editorial Swiss design system styling. Verified with 54 unit and component Vitest tests, 47 node auth tests, 4 FastAPI web route tests, typecheck, and Vite production bundle measurements (4.81 kB JS / 3.73 kB CSS gzip). Recorded D-059 for single root .env configuration.
 
 ### 2026-09-02 21:39 +05:30 - Codex (GPT-5 / OpenAI) - [efca5de] - record live Code Generator issue campaign
 Documented the ten permitted live Code Generator starts against the eligible Build Preparation pack, including each terminal failure, all observed planner/source/runtime/integration diagnostics, environment and observability limitations, and the two historical blockers. Neither historical blocker recurred in the ten-run sample; no source code or model/repair ceilings were changed.
 
 ### 2026-09-02 16:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [20f72e2] - retry within budget on rejected source validation too
-A third fresh live run (after the shadow-token and font-face fixes) got cleanly through planning, generation, and integration, then hit `SOURCE_CONTRACT_FAILED` with `repair_rounds` still 0. The worker log showed `final_repair.py`'s unwrapped `validate_generation_changes()` call raising `SourceValidationError` ("duplicate paths"), which the earlier `FinalRepairError`-only fix didn't cover. Both exceptions represent the same class of problem -- a rejected model response, not an infrastructure crash -- so `SourceValidationError` is now caught in the same retry loop. Updated D-058 and added a regression test mirroring the existing one with this exception type.
+A third fresh live run got cleanly through planning, generation, and integration, then hit `SOURCE_CONTRACT_FAILED` with `repair_rounds` still 0. `final_repair.py` now catches `SourceValidationError` in the same retry loop. Updated D-058 and added a regression test.
 
 ### 2026-09-02 16:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [3099e1c] - deduplicate font-face rules shared across typography roles
-A second fresh live run (after the shadow-token fix) got through planning and route generation, then hit a blocking integration finding: identical `@font-face` blocks duplicated in `generated-tokens.css`. `_compile_v4_tokens` iterates `typography_roles` and re-matches bindings per role, so body and display sharing one `approved_font_slot` (a common, valid choice) compiled the same binding's font files twice. This is compiler-owned output the model can never edit, so all 3 repair rounds were structurally unable to resolve it. Now tracks emitted `(family, style, weight, public_path)` tuples and skips repeats. Regression test confirmed reproducing the exact duplication without the fix before verifying the fix resolves it.
+A second fresh live run hit duplicate `@font-face` blocks in `generated-tokens.css`. Now tracks emitted tuples and skips repeats. Regression test added.
 
 ### 2026-09-02 16:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [eaa7390] - allow negative shadow offset and spread tokens
-A fresh live run against the same real pack hard-failed at planning (no repair budget applies there) with `tokens.shadows.0.spread.value: length token values must be finite and non-negative`. `ShadowTokenV4`'s offset_x/offset_y/spread shared `LengthTokenV4`'s non-negative constraint, which is correct only for blur-radius -- offset direction and negative spread (shrinking the shadow shape) are both valid CSS the model had no way to express. Added `SignedLengthTokenV4` (finite-only) for offset_x/offset_y/spread; blur keeps the strict non-negative type. `token_compiler.py` accesses these duck-typed, so no compiler change was needed. Added a unit test covering both the newly-allowed and still-rejected cases.
+Added `SignedLengthTokenV4` (finite-only) for offset_x/offset_y/spread; blur keeps strict non-negative type. Unit test added.
 
 ### 2026-09-02 16:05 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [7292f2c] - persist true repair-round count when a round is consumed but fails
-Re-ran the [d3cc095] fix live against the same run: the worker log confirmed 3 real repair attempts (all honest cannot_complete) before correctly stopping at the per-group ceiling, but the persisted `repair_rounds` still read 0 -- it was only ever set after a *successful* round, so the terminal report understated what actually happened. `repair_rounds` is now updated to `budget.total_used` on every consumed round, including failed ones. Corrected D-058's consequence line to match reality and added a regression test for the all-rounds-fail case.
+Persisted `repair_rounds` updated to `budget.total_used` on every consumed round including failed ones.
 
 ### 2026-09-02 15:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [d3cc095] - retry final repair within budget after cannot_complete
-A live baseline run against a real Build Preparation pack hit dom_runtime findings where the repair model honestly returned cannot_complete on round 1; `_attempt_repair` caught that `FinalRepairError` the same as an infrastructure crash and reported `DOM_RUNTIME_FAILED` immediately with `repair_rounds` still at 0, never giving D-056's per-group budget a second try. `_attempt_repair` now loops on `FinalRepairError` specifically until `RepairBudget.can_attempt` says the budget is exhausted; other exception types still abort immediately. Added a regression test (round 1 cannot_complete, round 2 succeeds) and recorded D-058. Verified against the full code-generator/build-preparation unit and integration suite (only two pre-existing, unrelated failures remain: `test_session_service.py`'s creative-direction variant-receipt assertions, and cross-file test-order pollution between `test_materializer.py`/`test_component_retrieval.py`/`test_providers.py` — both confirmed present without any of this session's changes and flagged, not fixed, as out of scope here).
+`_attempt_repair` now loops on `FinalRepairError` until `RepairBudget.can_attempt` is exhausted. Recorded D-058.
 
 ### 2026-09-02 15:41 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [082d179] - add SPA fallback redirects to the react-vite-v1 scaffold
-Added a static `public/_redirects` file so every generated build serves `index.html` for any deep-linked or refreshed route on Netlify/Cloudflare Pages, matching what the project's own preview gateway already does server-side. Confirmed by reading `AppRouter.tsx` (real `history.pushState` client-side routing) and by an actual scaffold build showing `dist/_redirects` with the expected content.
+Added static `public/_redirects` file so every generated build serves `index.html` for deep-linked or refreshed routes on Netlify/Cloudflare Pages.
 
 ### 2026-09-02 15:33 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [375aae3] - thread image alt-text and placement into usage_contract
-Extended the materialized-image `usage_contract` with `alt_text`, `focal_point`, `placement`, and `decorative`, reusing values the acquisition step already computed for the sidecar metadata file. Code Generator's planner reads only `usage_contract`, so this per-image intent previously never reached the model laying out the page. Found via direct code reading while investigating generic-looking image usage; verified with the existing materializer unit suite (14 passed).
+Extended materialized-image `usage_contract` with `alt_text`, `focal_point`, `placement`, and `decorative`. Verified with 14 unit tests.
 
 ### 2026-09-02 14:00 +05:30 - Codex (GPT-5 / OpenAI) - [280982e] - expand frontend research and implementation blueprint
-Added two focused frontend documents preserving repository/competitor/platform evidence and defining exact route, API, adapter, component, recovery, accessibility, performance, test, and rollout contracts. Locked the proposed Editorial Swiss / Living Draft theme and lightweight image/motion strategy, corrected idempotency guidance to match the public API, and left all backend and current frontend code unchanged.
+Added two focused frontend documents preserving evidence and defining exact route, API, adapter, component, recovery, accessibility, performance, test, and rollout contracts.
 
 ### 2026-09-02 13:17 +05:30 - Codex (GPT-5 / OpenAI) - [ae17373] - frontend research and product experience direction
-Added a four-document frontend research package covering the authenticated journey, stage-aware information architecture, status and edge-case mapping, verified Preview UX, lightweight visual system, performance budgets, and a future Preact/Vite integration boundary. The work is documentation-only and leaves the backend, existing frontend, Build Preparation, and Code Generator unchanged pending review.
-
-### 2026-09-02 03:45 +05:30 - Codex (GPT-5 / OpenAI) - [e8c6b55] - retire the legacy resource-plan filename
-Moved compatibility-only diagnostic materializations and their regression fixtures onto canonical `resources/ledger.json`; retained their legacy schema semantics while ensuring active code, docs, and tests no longer emit or reference the retired filename.
-
-### 2026-09-02 03:25 +05:30 - Codex (GPT-5 / OpenAI) - [749022f] - type the closed token schema metadata
-Added the explicit JSON-schema metadata type boundary required by mypy for the fixed shadcn token-slot properties. Behavior and provider-compatible schema output are unchanged; the complete source type check is now clean.
-
-### 2026-09-02 03:10 +05:30 - Codex (GPT-5 / OpenAI) - [d971764] - fix stale references and doc drift
-Repointed the selected Build Preparation document at the canonical privacy-safe fixture, reconciled its route/resource/hash facts, and marked its expiry. Added an explicit V4/pack-v4 contract banner to the v2 architecture document; the live-preview path was already corrected to the implemented `/preview/{host}/{path}` gateway.
-
-### 2026-09-02 02:50 +05:30 - Codex (GPT-5 / OpenAI) - [08633e6] - remove overloaded accepted-mode prompt branch
-Replaced operation-name inference with explicit accepted-result authority; model-bound generation and repair prompts now fail closed by default while an explicit opt-in remains available for a true existing-content review. Bumped the affected prompt contract versions and verified prompt/schema regressions.
-
-### 2026-09-02 02:40 +05:30 - Codex (GPT-5 / OpenAI) - [97cdada] - detect cross-route structural sameness
-Extended the V4 source anti-slop audit to compare deterministic section-shell signatures across routes, with a stable diagnostic for identical multi-section sequences. The existing route-local checks remain intact and small routes are left below the same three-section evidence threshold.
-
-### 2026-09-02 02:30 +05:30 - Codex (GPT-5 / OpenAI) - [dfce00f] - impose distinctive move strength floor
-Added host-owned minimum deviation and range-spread checks to V4 distinctive moves so weak near-neutral geometry fails during planning. Sticky narrative rails retain their discrete 1.0 contract, while existing authored asymmetric ranges remain valid.
-
-### 2026-09-02 02:20 +05:30 - Codex (GPT-5 / OpenAI) - [c0c1f67] - guard visual identity at Code Generator admission
-Added the belt-and-suspenders admission check over compiled `site/contract.json` facts and `design/visual-direction.json` global direction. Contradictory packs now fail before planning with the same stable `PACK_VISUAL_IDENTITY_MISMATCH` code, including packs already present in the local mirror.
-
-### 2026-09-02 02:15 +05:30 - Codex (GPT-5 / OpenAI) - [a622d7d] - reject visual direction identity mismatches
-Added a conservative repeated proper-name consistency check at the Build Preparation boundary, using approved Content Architect facts as the identity authority. The check hard-fails contradictory visual direction while preserving the existing projection shape and does not reject a single incidental capitalized phrase.
-
-### 2026-09-02 02:01 +05:30 - Codex (GPT-5 / OpenAI) - [5f4be9a] - bridge compiler tokens into shadcn Tailwind slots
-Added the fixed shadcn semantic-slot contract, color-token cross-reference validation, deterministic CSS aliases, and the static Tailwind v4 theme bridge. Updated the creative/planning prompts and verified provider schema compatibility plus focused unit coverage; token values remain portfolio-authored and compiler-emitted.
-
-### 2026-09-02 01:35 +05:30 - Codex (GPT-5 / OpenAI) - [b760acb] - wire Tailwind v4 into the Vite scaffold
-Added the locked Tailwind v4 engine, Vite plugin, CSS entry import, and supported-package catalogue entries to the React/Vite generation scaffold. Verified clean install, production build, TypeScript check, source audit, and emitted Tailwind preflight/utilities.
-
-### 2026-09-01 09:28 +05:30 — Codex (GPT-5 / OpenAI) — [d41eba1] — harden Code Generator generation, source evidence, repair, and polish contracts
-Live retries exposed a chain of independent failures after the accepted-mode fix: rejected candidate bytes were unavailable to later repairs; raw-text selector checks miscounted strings/comments as JSX; route interaction, resource, motion, heading, distinctive-move, and export evidence could be attributed to the wrong owner or accepted without executable source; and integration polish could checkpoint a malformed replacement before source audit. Rejected attempts are now durable repair context, source checks use shared comment/JSX lexing and canonical V4 plan identities, generated image bindings resolve through the trusted manifest/`LocalImage`, final repair receives bounded source/style pairs, and every configured owner-scoped polish round must pass source/type validation before checkpointing. Planner, generation, integration-review, repair, scaffold, Windows toolchain, and legacy no-blueprint foundation compatibility contracts were aligned with regression coverage; D-032 records the finite three-round default.
-
-The Code Generator unit suite, Ruff, and Mypy pass. A repository-wide run exposed only the previously documented legacy foundation-profile regression; both failing PostgreSQL tests pass after the compatibility fix. Live runs advanced through route generation, integration, and a successful build, but the newest run still ended `needs_attention` before preview promotion, so this is not a claim that the requested two accepted portfolios were achieved. The shared commit also contains pre-existing engine-input, `PLAN.MD`, and architecture-document changes that entered the index concurrently; this entry makes no Code Generator ownership claim for those files.
-
-### 2026-08-28 19:30 +05:30 - Codex (GPT-5 / OpenAI) - [26d1a61] - integrate Build Preparation into the four-stage pipeline
-Connected the main native workflow as Discovery → Content Architect → Visual Design Director → Build Preparation. A shared DB projection integrator now gives Build Preparation the approved public Content Architect handoff and approved Visual Design Director handoff, strips private content notes, normalizes visual inputs, and stamps one source reference used by both the API and worker. The session route now requires both approvals and exposes verified ZIP download with stale/expiry/object checks.
-
-The main UI now presents the four-stage gate rail, package source hashes, package metrics/findings, download and regeneration actions, and detached/no-auth messaging; the diagnostic fixture remains explicitly standalone. Native model routing selects the configured Luna profile for the four pipeline stages while Code Generator routes remain separate. Focused unit, API, integration, static, and browser checks pass. A synthetic live UI run reached the configured Luna provider but was rejected for unavailable provider credit; no mock response was substituted.
+Added a four-document frontend research package covering authenticated journey, information architecture, status and edge-case mapping, Preview UX, visual system, and performance budgets.
 
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-02 - Codex (GPT-5 / OpenAI) - [e8c6b55, 749022f, d971764, 08633e6, 97cdada, dfce00f, c0c1f67, a622d7d, 5f4be9a, b760acb] - Hardened Code Generator V4 admission, distinctive move floors, structural sameness detection, shadcn Tailwind v4 theme bridge, and retired legacy resource filenames.
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [1cf313f] - Final verification repair usage is bounded by diagnostic group with a shared run-wide ceiling and fail-closed V4 repair responses.
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [234a05d] - Restored dedicated Code Generator role profile bindings while keeping routing provider-neutral and configuration-owned.
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [aecfe40] - Aligned V4 selector evidence and responsive image-size contracts with executable source validation.
-- 2026-09-01 - Codex (GPT-5 / OpenAI) - [b780266] - Fixed native PostgreSQL role-alignment formatting and verified local SCRAM credentials without logging secrets.
+- 2026-09-01 - Codex (GPT-5 / OpenAI) - [d41eba1, b780266] - Hardened Code Generator generation, source evidence, repair, and polish contracts; fixed native PostgreSQL role alignment.
 
 ### 2026-08
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - Live runs confirmed the accepted-mode fix and exposed a separate rejected-candidate persistence gap for later diagnosis.
