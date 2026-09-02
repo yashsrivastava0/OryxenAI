@@ -129,8 +129,28 @@ def test_deferred_slot_becomes_a_pinned_request_with_no_search_needed() -> None:
     assert candidate.provider_key == "pexels"
     assert candidate.provider_resource_id == "1"
     assert candidate.category == "image"
+    # No direct_source_url in this fixture -- falls back to source_reference.
     assert candidate.canonical_source == "https://www.pexels.com/photo/1"
     assert candidate.licence == "Pexels License"
+
+
+def test_image_candidate_prefers_the_direct_fetch_url_over_the_page_url() -> None:
+    plan = _plan()
+    slot = _deferred_slot(
+        resolution={
+            **_deferred_slot()["resolution"],
+            "direct_source_url": "https://images.pexels.com/photos/1/pexels-photo-1.jpeg",
+        }
+    )
+    projections = _execution_projection(slot)
+
+    _, candidates = _build_deferred_requests(plan, projections, "input-hash", "plan-hash")
+
+    candidate = candidates["deferred-slot-hero-image"]
+    # ImageAdapter's materialize() fetches canonical_source directly -- it
+    # must never receive the human-readable Pexels page URL, which 404s as
+    # an image download and isn't on the approved image-host allowlist.
+    assert candidate.canonical_source == "https://images.pexels.com/photos/1/pexels-photo-1.jpeg"
 
 
 def test_component_category_maps_and_dependencies_become_metadata() -> None:
@@ -164,6 +184,57 @@ def test_component_category_maps_and_dependencies_become_metadata() -> None:
     candidate = candidates["deferred-slot-project-card"]
     assert candidate.category == "component_source"
     assert candidate.dependency_metadata == {"motion": []}
+    # ComponentSourceAdapter.materialize() only performs the registry-aware
+    # fetch (parsing files[].content out of the item JSON) when this exact
+    # metadata shape is present; otherwise it falls back to treating the
+    # raw registry response bytes as if they were the component source,
+    # which fails safety inspection on the registry JSON's own $schema URL.
+    retrieval_candidate = candidate.technical_metadata["retrieval_candidate"]
+    assert retrieval_candidate["provider"] == "magicui"
+    assert retrieval_candidate["name"] == "magic-card"
+    assert retrieval_candidate["item_url"] == "https://magicui.design/r/magic-card.json"
+    assert retrieval_candidate["dependencies"] == ["motion"]
+    # canonical_source stays the registry item URL for components -- the
+    # registry-aware fetch path resolves it itself; only image/font
+    # categories use canonical_source as a direct-download URL.
+    assert candidate.canonical_source == "https://magicui.design/r/magic-card.json"
+
+
+def test_font_candidate_carries_per_weight_direct_urls() -> None:
+    plan = _plan()
+    slot = _deferred_slot(
+        resource_slot_id="slot-font",
+        category="font",
+        resolution={
+            "resolution_type": "deferred_materialized",
+            "resource_id": "resource-fontsource-1",
+            "provider": "fontsource",
+            "provider_asset_id": "space-grotesk",
+            "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk",
+            "license": "OFL-1.1",
+            "local_paths": [
+                "resources/fonts/resource-fontsource-1/400-normal.woff2",
+                "resources/fonts/resource-fontsource-1/700-normal.woff2",
+            ],
+            "direct_source_urls": {
+                "400-normal": "https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/400-normal.woff2",
+                "700-normal": "https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/700-normal.woff2",
+            },
+        },
+    )
+    projections = _execution_projection(slot)
+
+    _, candidates = _build_deferred_requests(plan, projections, "input-hash", "plan-hash")
+
+    candidate = candidates["deferred-slot-font"]
+    # FontAdapter.materialize() only fetches the real per-weight CDN files
+    # when this exact key is present; otherwise it falls back to treating
+    # the Fontsource metadata-API response as if it were font bytes, which
+    # fails the WOFF/WOFF2 magic-byte check.
+    assert candidate.technical_metadata["font_urls"] == {
+        "400-normal": "https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/400-normal.woff2",
+        "700-normal": "https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/700-normal.woff2",
+    }
 
 
 def test_non_deferred_and_unsupported_category_slots_are_skipped() -> None:

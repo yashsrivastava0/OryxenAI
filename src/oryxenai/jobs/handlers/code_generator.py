@@ -1634,10 +1634,42 @@ def _build_deferred_requests(
             )
         )
         candidate_id = str(
-            resolution.get("provider_asset_id")
-            or resolution.get("resource_id")
-            or slot_id
+            resolution.get("provider_asset_id") or resolution.get("resource_id") or slot_id
         )
+        source_reference = str(resolution.get("source_reference", ""))
+        # canonical_source/technical_metadata must carry whatever each
+        # adapter's materialize() actually reads to fetch bytes -- not the
+        # human-readable source_reference, which several adapters only use
+        # for attribution. Every adapter falls back to a raw GET on
+        # canonical_source when its category-specific metadata is absent,
+        # so an unrecognized category still gets a best-effort direct URL.
+        technical_metadata: dict[str, Any] = {}
+        canonical_source = str(resolution.get("direct_source_url", "")) or source_reference
+        if category == "font":
+            technical_metadata = {"font_urls": dict(resolution.get("direct_source_urls", {}) or {})}
+        elif category == "component_source":
+            canonical_source = source_reference
+            technical_metadata = {
+                "retrieval_candidate": {
+                    "candidate_id": candidate_id,
+                    "provider": provider,
+                    "name": str(resolution.get("provider_asset_id", "")),
+                    "title": purpose,
+                    "description": purpose,
+                    "tags": [],
+                    "item_url": source_reference,
+                    "source_version": str(resolution.get("release_pin", "")),
+                    "license": str(resolution.get("license", "")),
+                    "license_reference": str(resolution.get("license_reference", "")),
+                    "dependencies": dependency_names,
+                    "registry_dependencies": [
+                        str(value)
+                        for value in resolution.get("registry_dependencies", [])
+                        if str(value)
+                    ],
+                    "technical_metadata": {},
+                }
+            }
         candidates[request_id] = ResourceCandidate(
             candidate_id=candidate_id,
             provider_key=provider,
@@ -1645,7 +1677,8 @@ def _build_deferred_requests(
             category=category,
             title=purpose,
             description=purpose,
-            canonical_source=str(resolution.get("source_reference", "")),
+            technical_metadata=technical_metadata,
+            canonical_source=canonical_source,
             licence=str(resolution.get("license", "")),
             attribution=str(resolution.get("license_reference", "")),
             dependency_metadata={name: [] for name in dependency_names},
