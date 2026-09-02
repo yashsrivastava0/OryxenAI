@@ -1,0 +1,1458 @@
+{
+  "execution_gaps": [],
+  "handoff_eligible": true,
+  "handoff_summary": {
+    "assumption_hash": "e1fe0f1abd0e825251a32969f790a5a682428adcdc61237931afecb832df9e10",
+    "cache_hits": 0,
+    "code_generator_eligible": true,
+    "component_materialized": 0,
+    "component_target": 4,
+    "deferred_optional_roles": [],
+    "execution_gaps": 0,
+    "font_materialized": 1,
+    "image_materialized": 2,
+    "image_target": 5,
+    "partial_enrichment_failure": false,
+    "provider_calls": 3,
+    "rate_limit_events": 0,
+    "role_statuses": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-8ddb2642882a99ba1687",
+            "final_height": 1057,
+            "final_width": 1880,
+            "need_id": "need-6c7010157537a7aa0002",
+            "optimized_byte_size": 187803,
+            "provider": "pexels",
+            "raw_byte_size": 143044,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-6c7010157537a7aa0002",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-hero"
+        ],
+        "section_ids": [
+          "hero"
+        ],
+        "selected_provider": "pexels",
+        "selected_resource_id": "resource-pexels-8ddb2642882a99ba1687"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pixabay-126722c5f476dee3f3f3",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "minimum_height": 700,
+            "minimum_width": 1200,
+            "need_id": "need-746a46615a9f25057c3f",
+            "optimized_byte_size": 480227,
+            "pixel_height": 853,
+            "pixel_width": 1137,
+            "provider": "pixabay",
+            "raw_byte_size": 682211,
+            "rejection_code": "final_dimensions_below_minimum",
+            "rejection_reason": "image dimensions are below the configured minimum",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 2,
+            "candidate_id": "resource-pexels-1e344f446440cacb5c63",
+            "final_height": 1253,
+            "final_width": 1670,
+            "need_id": "need-746a46615a9f25057c3f",
+            "optimized_byte_size": 433255,
+            "provider": "pexels",
+            "raw_byte_size": 373382,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-746a46615a9f25057c3f",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-project"
+        ],
+        "section_ids": [
+          "project"
+        ],
+        "selected_provider": "pexels",
+        "selected_resource_id": "resource-pexels-1e344f446440cacb5c63"
+      }
+    ],
+    "semantic_component_need_count": 0,
+    "semantic_image_need_count": 2,
+    "total_enrichment_failure": false,
+    "unresolved_visual_roles": [],
+    "visual_input_mode": "merged_vdd_assumptions"
+  },
+  "issues": [],
+  "materialized_resource_ids": [
+    "resource-fontsource-b69f66a0c66ec46921e7",
+    "resource-pexels-1e344f446440cacb5c63",
+    "resource-pexels-8ddb2642882a99ba1687"
+  ],
+  "model_review": {
+    "recommended_next_actions": [
+      "Use only the materialized local resource bindings and approved home route roles during implementation.",
+      "Verify both image files, source hashes, attribution requirements, and local paths before runtime packaging.",
+      "Implement the approved decorative-image accessibility behavior and complete static equivalents under reduced motion.",
+      "Visually review image crops, contrast, and responsive placement in the rendered hero and project sections.",
+      "Confirm local font loading for the declared weights and verify the system fallback behavior."
+    ],
+    "role_findings": [
+      {
+        "finding": "Coherent local Pexels selection for a decorative editorial hero atmosphere. Dimensions exceed the configured minimum. Preserve empty alt text, approved cover treatment, responsive stacking, and static reduced-motion equivalence.",
+        "need_id": "need-6c7010157537a7aa0002",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "section_ids": [
+          "hero"
+        ]
+      },
+      {
+        "finding": "Coherent local Pexels selection for decorative craft-and-process atmosphere. The rejected Pixabay candidate is not selected. Keep the image within the typed role and local-source, attribution, and accessibility contract.",
+        "need_id": "need-746a46615a9f25057c3f",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "section_ids": [
+          "project"
+        ]
+      },
+      {
+        "finding": "Coherent local Fontsource Space Grotesk resource with declared Latin coverage and provenance. Vendor and serve weights 400, 500, 600, and 700 with a resilient system fallback and no runtime font-network requests.",
+        "need_id": "need-016331262cb7124422e4",
+        "role": "font",
+        "route_ids": [
+          "home"
+        ]
+      }
+    ],
+    "stage": "stage_5",
+    "status": "ready",
+    "summary": "The two selected editorial photos and the locally materialized Space Grotesk font are coherent with the approved home route roles. Deterministic admission reports no issues, no execution gaps, and code-generator eligibility is true.",
+    "warnings": [
+      "Visual crop, contrast, and final composition should receive human review because provider metadata alone cannot confirm rendered quality.",
+      "The rejected Pixabay project candidate was below minimum dimensions; the selected Pexels replacement meets the configured dimensions."
+    ]
+  },
+  "pack_version": "build-preparation-pack-v3",
+  "projection_hashes": {
+    "approvals": "49297f45df6131c777686b09b6c930d35bf394fde47d06e82640ef733b6823ba",
+    "execution": "d54ef6628391067d34a9adeb8d422d4240abab54c5d9ab56fc2bb74a001200d1",
+    "ledger": "c6c0822aa69c7ed9fb52bb71deeb14d722c95adb392d7cca8c08f6968ba62ca2",
+    "recipes": "2ee46c1727f5678f0e99f101b7e275a845a424b516ad4128715549979f3fafb5",
+    "resources": "844cf14cb5dc305cd362d301307ddbb49182b10ad00463fbf6105c1eeea14b3f",
+    "site": "26d2bc31a316a10e62c5956fbed2ca5b40666a07d40617223072c6463ed83340",
+    "targets": "0856cf30a71a4c3e3d819ef49b90024c1a2451ad266a9c6eb48373d34b94c2c4",
+    "visual": "6509a8bdf2ee8ea7fbbeb39cdaffe97c3e75471dc55f90de6a223332f8274d4d"
+  },
+  "qualifications": [
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-6653013de31230e09efa",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-a243eefb2cf5d56827ba",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-049f7fd18d3742517d85",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-1459ba417dfe4ea32805",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-99183d3d66840bbf9944",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-c10600222bb91f18e1d0",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-8ddb2642882a99ba1687",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "IMAGE_POLICY_REJECTED"
+      ],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "rejected",
+      "quality_score": 70,
+      "reasons": [
+        "The candidate may depict prohibited evidence-like or portrait content."
+      ],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-af953a13942b4a2b0ef3",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-61e60e2f9273007baa50",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-1af300faa93fd51b8eb8",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-01de2c792d0b4c9c5512",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6c7010157537a7aa0002",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-8d762c75ca6b020c075d",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-126722c5f476dee3f3f3",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-9c88bc534df431593cfb",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-ba79a997b44891ca6a8c",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-2d1f2992e74e3ee75dbb",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "IMAGE_POLICY_REJECTED"
+      ],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "rejected",
+      "quality_score": 70,
+      "reasons": [
+        "The candidate may depict prohibited evidence-like or portrait content."
+      ],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-de54e7412ada6375700e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-1e344f446440cacb5c63",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-e24bc3090a3178d9bb18",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-890414601358cef9d591",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-8016162613a1d949857d",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-8238e154e5e7a68eb08e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-746a46615a9f25057c3f",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-30fa5be45cdffee6f5c4",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-016331262cb7124422e4",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 70,
+      "resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-016331262cb7124422e4",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 70,
+      "resource_id": "resource-fontsource-da750beb94b4dd69681c",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-016331262cb7124422e4",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 70,
+      "resource_id": "resource-fontsource-e09fe88ac3c9b179cd93",
+      "technical_status": "approved"
+    }
+  ],
+  "readiness": {
+    "delegated_acquisition": 0,
+    "execution_gap": 0,
+    "local_materialized": 3,
+    "local_recipe": 3,
+    "slot_count": 7,
+    "target_package_binding": 1
+  },
+  "required_need_ids": [
+    "need-6c7010157537a7aa0002",
+    "need-746a46615a9f25057c3f",
+    "need-016331262cb7124422e4"
+  ],
+  "run_analysis": {
+    "candidate_qualifications": [
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-6653013de31230e09efa",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-a243eefb2cf5d56827ba",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-049f7fd18d3742517d85",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-1459ba417dfe4ea32805",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-99183d3d66840bbf9944",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-c10600222bb91f18e1d0",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-8ddb2642882a99ba1687",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "IMAGE_POLICY_REJECTED"
+        ],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "rejected",
+        "quality_score": 70,
+        "reasons": [
+          "The candidate may depict prohibited evidence-like or portrait content."
+        ],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-af953a13942b4a2b0ef3",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-61e60e2f9273007baa50",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-1af300faa93fd51b8eb8",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-01de2c792d0b4c9c5512",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6c7010157537a7aa0002",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-8d762c75ca6b020c075d",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-126722c5f476dee3f3f3",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-9c88bc534df431593cfb",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-ba79a997b44891ca6a8c",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-2d1f2992e74e3ee75dbb",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "IMAGE_POLICY_REJECTED"
+        ],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "rejected",
+        "quality_score": 70,
+        "reasons": [
+          "The candidate may depict prohibited evidence-like or portrait content."
+        ],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-de54e7412ada6375700e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-1e344f446440cacb5c63",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-e24bc3090a3178d9bb18",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-890414601358cef9d591",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-8016162613a1d949857d",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-8238e154e5e7a68eb08e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-746a46615a9f25057c3f",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-30fa5be45cdffee6f5c4",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-016331262cb7124422e4",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 70,
+        "resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-016331262cb7124422e4",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 70,
+        "resource_id": "resource-fontsource-da750beb94b4dd69681c",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-016331262cb7124422e4",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 70,
+        "resource_id": "resource-fontsource-e09fe88ac3c9b179cd93",
+        "technical_status": "approved"
+      }
+    ],
+    "code_generator_eligible": true,
+    "derived_roles": [
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-6c7010157537a7aa0002",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-hero"
+        ],
+        "section_ids": [
+          "hero"
+        ]
+      },
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-746a46615a9f25057c3f",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-project"
+        ],
+        "section_ids": [
+          "project"
+        ]
+      },
+      {
+        "category": "font",
+        "component_intent": null,
+        "need_id": "need-016331262cb7124422e4",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [],
+        "section_ids": []
+      }
+    ],
+    "input": {
+      "approval_verified": true,
+      "assumption_hash": "e1fe0f1abd0e825251a32969f790a5a682428adcdc61237931afecb832df9e10",
+      "assumptions": [
+        "Editorial imagery is decorative and non-evidentiary.",
+        "No portrait, screenshot, dashboard, logo, or project proof is allowed.",
+        "Component roles are derived from approved route sections and interaction needs.",
+        "All visual resources must be local, attributed, and usable without runtime provider calls.",
+        "Reduced motion receives a complete static equivalent."
+      ],
+      "content_hash": "privacy-safe-synthetic-content-v1",
+      "scope_hash": "f69aa981dbf57297163a9baeab0256d04de36611a2f9c52736aa740efb28686c",
+      "visual_direction_hash": "948f9a630a821be823dca1127db001a3420ed49b60eb2cfbe41875fe5bd57748",
+      "visual_input_mode": "merged_vdd_assumptions"
+    },
+    "materialized_resources": [
+      {
+        "attribution_url": "https://www.pexels.com/photo/pottery-and-craft-supplies-on-shelves-in-soft-light-38805779/",
+        "content_hash": "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved text-led/static hero composition without stock substitution if local materialization, provenance, license, hash, or source validation fails.",
+        "final_height": 1057,
+        "final_width": 1880,
+        "id": "resource-pexels-8ddb2642882a99ba1687",
+        "import_path": "./resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_path": "resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-8ddb2642882a99ba1687",
+            "final_height": 1057,
+            "final_width": 1880,
+            "need_id": "need-6c7010157537a7aa0002",
+            "optimized_byte_size": 187803,
+            "provider": "pexels",
+            "raw_byte_size": 143044,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-6c7010157537a7aa0002",
+        "optimized_byte_size": 187803,
+        "perceptual_hash": "c64f63635b1b1b9c",
+        "pixel_height": 1057,
+        "pixel_width": 1880,
+        "placement": "hero",
+        "provider": "pexels",
+        "provider_asset_id": "38805779",
+        "provider_receipt": {
+          "attempt": 1,
+          "cache_state": "miss",
+          "candidate_count": 6,
+          "configured_key": true,
+          "http_status": 200,
+          "provider": "pexels",
+          "query": "creative workspace editorial atmosphere abstract material",
+          "retry_delay": 0.0
+        },
+        "raw_byte_size": 143044,
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433"
+        ],
+        "source_reference": "https://www.pexels.com/photo/pottery-and-craft-supplies-on-shelves-in-soft-light-38805779/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+          "local_path": "resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+          "sha256": "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433",
+          "source_hashes": [
+            "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433"
+          ]
+        },
+        "why_selected": "The studio-shelf photograph provides a quiet, non-evidentiary editorial atmosphere with landscape dimensions above the minimum and no visible person, interface, logo, dashboard, or project proof. It supports the restrained evidence visual language while remaining decorative for the hero."
+      },
+      {
+        "attribution_url": "https://www.pexels.com/photo/artisan-crafting-with-mesh-and-wire-materials-33299402/",
+        "content_hash": "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved text-led/static selected-work composition without stock substitution if local materialization, provenance, license, hash, or source validation fails.",
+        "final_height": 1253,
+        "final_width": 1670,
+        "id": "resource-pexels-1e344f446440cacb5c63",
+        "import_path": "./resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_path": "resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pixabay-126722c5f476dee3f3f3",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "minimum_height": 700,
+            "minimum_width": 1200,
+            "need_id": "need-746a46615a9f25057c3f",
+            "optimized_byte_size": 480227,
+            "pixel_height": 853,
+            "pixel_width": 1137,
+            "provider": "pixabay",
+            "raw_byte_size": 682211,
+            "rejection_code": "final_dimensions_below_minimum",
+            "rejection_reason": "image dimensions are below the configured minimum",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 2,
+            "candidate_id": "resource-pexels-1e344f446440cacb5c63",
+            "final_height": 1253,
+            "final_width": 1670,
+            "need_id": "need-746a46615a9f25057c3f",
+            "optimized_byte_size": 433255,
+            "provider": "pexels",
+            "raw_byte_size": 373382,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-746a46615a9f25057c3f",
+        "optimized_byte_size": 433255,
+        "perceptual_hash": "3c3e1c343149c2a6",
+        "pixel_height": 1253,
+        "pixel_width": 1670,
+        "placement": "selected-work",
+        "provider": "pexels",
+        "provider_asset_id": "33299402",
+        "provider_receipt": {
+          "attempt": 1,
+          "cache_state": "miss",
+          "candidate_count": 6,
+          "configured_key": true,
+          "http_status": 200,
+          "provider": "pexels",
+          "query": "creative work process project materials detail",
+          "retry_delay": 0.0
+        },
+        "raw_byte_size": 373382,
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e"
+        ],
+        "source_reference": "https://www.pexels.com/photo/artisan-crafting-with-mesh-and-wire-materials-33299402/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+          "local_path": "resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+          "sha256": "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e",
+          "source_hashes": [
+            "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e"
+          ]
+        },
+        "why_selected": "Highest-quality policy-compliant provider candidate selected for the approved semantic role."
+      },
+      {
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the typed local system font recipe with the declared weights.",
+        "font_family": "Space Grotesk",
+        "font_weights": [
+          "400",
+          "500",
+          "600",
+          "700"
+        ],
+        "id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "import_path": "",
+        "kind": "font",
+        "license": "OFL-1.1",
+        "license_reference": "https://scripts.sil.org/OFL",
+        "local_directory": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7",
+        "need_id": "need-016331262cb7124422e4",
+        "placement": "",
+        "provider": "fontsource",
+        "provider_asset_id": "space-grotesk",
+        "provider_receipt": {
+          "attempt": 1,
+          "cache_state": "not_cached",
+          "candidate_count": 3,
+          "configured_key": true,
+          "http_status": 200,
+          "kind": "font",
+          "provider": "fontsource",
+          "query": "space grotesk technical sans latin 400",
+          "retry_delay": 0.0
+        },
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "source_files": [
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/400-normal.woff2",
+            "sha256": "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+            "variant": "400-normal"
+          },
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/500-normal.woff2",
+            "sha256": "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+            "variant": "500-normal"
+          },
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/600-normal.woff2",
+            "sha256": "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+            "variant": "600-normal"
+          },
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/700-normal.woff2",
+            "sha256": "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55",
+            "variant": "700-normal"
+          }
+        ],
+        "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk",
+        "source_version": "v22",
+        "usage_contract": {
+          "alt_or_decorative_treatment": "preserve semantic labels and keyboard/focus behavior",
+          "attribution": {
+            "attribution_url": "",
+            "license": "OFL-1.1",
+            "license_reference": "https://scripts.sil.org/OFL",
+            "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk"
+          },
+          "dependencies": [],
+          "expected_exports": [],
+          "fallback": "Use the typed local system font recipe with the declared weights.",
+          "placement": "",
+          "provider_receipt": {
+            "provider_receipt": {
+              "attempt": 1,
+              "cache_state": "not_cached",
+              "candidate_count": 3,
+              "configured_key": true,
+              "http_status": 200,
+              "kind": "font",
+              "provider": "fontsource",
+              "query": "space grotesk technical sans latin 400",
+              "retry_delay": 0.0
+            }
+          },
+          "reduced_motion_behavior": "static equivalent",
+          "registry_dependencies": [],
+          "responsive_behavior": "",
+          "route_ids": [
+            "home"
+          ],
+          "scene_ids": [],
+          "section_ids": [],
+          "source_version": "v22"
+        },
+        "why_selected": "Space Grotesk exactly matches the approved display typography direction, provides the declared Fontsource local Latin resource, and has OFL-1.1 provenance with no listed dependencies."
+      }
+    ],
+    "model_call_receipts": [
+      {
+        "finish_reason": "stop",
+        "input_packet_bytes": 18090,
+        "input_packet_hash": "8762148d7a56e8546df63ac2342ed709ba7eea9ea1f609675e57067163b7bd7e",
+        "latency_ms": 10459.569399998145,
+        "model": "gpt-5.6-luna",
+        "operation": "compose_resource_queries",
+        "prompt_modules": {
+          "compose_resource_queries.md": "50705a1512ed992d",
+          "schema": "08ae8662e048be1d",
+          "system.md": "d1c86cba742d8f6f"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EJMRoJWqiljJY1ARRl3ypruJZo6nR",
+        "usage": {
+          "completion_tokens": 941,
+          "prompt_tokens": 10476,
+          "total_tokens": 11417
+        }
+      },
+      {
+        "finish_reason": "stop",
+        "input_packet_bytes": 37241,
+        "input_packet_hash": "3f5ef61320152e492bf1d7404878fe23cb3aeefd88d5185dea6909858f5e74d0",
+        "latency_ms": 12932.32960000023,
+        "model": "gpt-5.6-luna",
+        "operation": "select_resources",
+        "prompt_modules": {
+          "schema": "01cf93659acf4d0a",
+          "select_resources.md": "96f268cd0bc1eeb9",
+          "system.md": "d1c86cba742d8f6f"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EJMS3HhVLxbdrJzNBco5xMu0BVaNi",
+        "usage": {
+          "completion_tokens": 1211,
+          "prompt_tokens": 19510,
+          "total_tokens": 20721
+        }
+      },
+      {
+        "finish_reason": "stop",
+        "input_packet_bytes": 26838,
+        "input_packet_hash": "eb97f31f235c3900d4928953558f390f6ebf1272b892ee8f6ed53377e6d84fb7",
+        "latency_ms": 19956.496900002094,
+        "model": "gpt-5.6-luna",
+        "operation": "write_build_context",
+        "prompt_modules": {
+          "schema": "573fad095b511614",
+          "system.md": "d1c86cba742d8f6f",
+          "write_build_context.md": "e36d505bbcf6c24d"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EJMSGg4ZXyipLb1q4lyoBNBMw67GI",
+        "usage": {
+          "completion_tokens": 1859,
+          "prompt_tokens": 15225,
+          "total_tokens": 17084
+        }
+      },
+      {
+        "finish_reason": "stop",
+        "input_packet_bytes": 7755,
+        "input_packet_hash": "e1ea9dfacaa4c04bd3ed395abf407d42e4dddd01374d9a3132b3caa71e9dbab3",
+        "latency_ms": 7900.431100002606,
+        "model": "gpt-5.6-luna",
+        "operation": "review_handoff_quality",
+        "prompt_modules": {
+          "review_handoff_quality.md": "fcf77611faf904a4",
+          "schema": "37132cbacc426d34",
+          "system.md": "d1c86cba742d8f6f"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EJMSfUczxYKC54o1vB0BLVXfcLGBb",
+        "usage": {
+          "completion_tokens": 613,
+          "prompt_tokens": 5637,
+          "total_tokens": 6250
+        }
+      }
+    ],
+    "provider_attempts": [
+      {
+        "attempt": 1,
+        "http_status": 200,
+        "provider": "pexels",
+        "rate_limit_event": false,
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "miss",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": 200,
+        "provider": "pexels",
+        "query": "creative workspace editorial atmosphere abstract material",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "http_status": 200,
+        "provider": "pixabay",
+        "rate_limit_event": false,
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "miss",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": 200,
+        "provider": "pixabay",
+        "query": "creative workspace editorial atmosphere abstract material",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "http_status": 200,
+        "provider": "pexels",
+        "rate_limit_event": false,
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "miss",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": 200,
+        "provider": "pexels",
+        "query": "creative work process project materials detail",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "http_status": 200,
+        "provider": "pixabay",
+        "rate_limit_event": false,
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "miss",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": 200,
+        "provider": "pixabay",
+        "query": "creative work process project materials detail",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 3,
+        "configured_key": true,
+        "http_status": 200,
+        "kind": "font",
+        "provider": "fontsource",
+        "query": "space grotesk technical sans latin 400",
+        "retry_delay": 0.0
+      }
+    ],
+    "queries": [
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "16:9",
+        "category": "editorial_photo",
+        "colors": [],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-6c7010157537a7aa0002",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial"
+        ],
+        "orientation": "landscape",
+        "placement": "hero",
+        "provider_terms": [
+          "creative professional workspace",
+          "editorial atmosphere",
+          "abstract material"
+        ],
+        "purpose": "Decorative editorial opening atmosphere for the approved professional practice.",
+        "query": "creative workspace editorial atmosphere abstract material",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "quiet, distinctive, high-contrast",
+        "subject": "creative professional workspace editorial opening atmosphere abstract material",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "4:3",
+        "category": "editorial_photo",
+        "colors": [],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-746a46615a9f25057c3f",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial"
+        ],
+        "orientation": "landscape",
+        "placement": "selected-work",
+        "provider_terms": [
+          "creative work process",
+          "project materials detail",
+          "portfolio craft"
+        ],
+        "purpose": "Decorative craft-and-process atmosphere for selected work.",
+        "query": "creative work process project materials detail",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "precise, tactile, considered",
+        "subject": "creative work process project materials detail portfolio craft atmosphere",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "fontsource"
+        ],
+        "aspect_ratio": "",
+        "category": "font",
+        "colors": [],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the typed local system font recipe with the declared weights.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "font",
+        "minimum_height": 0,
+        "minimum_width": 0,
+        "need_id": "need-016331262cb7124422e4",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial"
+        ],
+        "orientation": "",
+        "placement": "",
+        "provider_terms": [
+          "Space Grotesk",
+          "technical sans",
+          "Latin glyph coverage"
+        ],
+        "purpose": "Distinctive display and body font family for the approved visual language, vendored locally.",
+        "query": "space grotesk technical sans latin 400",
+        "reduced_motion_behavior": "No motion behavior required.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Use the locally vendored font without runtime network requests.",
+        "style_mood": "editorial technical",
+        "subject": "space grotesk manrope technical sans distinctive display body font family for the approved language vendored locally with latin glyph coverage privacy-safe systems portfolio introduce grounded engineering work positioning evidence queueguard fact-queueguard support public section restrained accessible hero assumed-image home stack",
+        "theme_colors": []
+      }
+    ],
+    "recommended_next_action": "Proceed to Code Generator admission.",
+    "retryability": {
+      "explicit_regeneration_required": false,
+      "provider_failures_retryable": false
+    },
+    "role_failures": [],
+    "schema_version": "build-preparation-run-analysis-v1",
+    "selections": [
+      {
+        "adaptation_notes": "Materialize locally before runtime, preserve decorative empty alt text, use cover treatment at the approved 16:9 ratio, stack below essential hero copy on narrow screens, and provide the complete static equivalent under reduced motion.",
+        "alternate_resource_ids": [
+          "resource-pixabay-6653013de31230e09efa",
+          "resource-pixabay-99183d3d66840bbf9944",
+          "resource-pexels-1af300faa93fd51b8eb8",
+          "resource-pexels-61e60e2f9273007baa50",
+          "resource-pexels-8d762c75ca6b020c075d",
+          "resource-pixabay-049f7fd18d3742517d85",
+          "resource-pixabay-a243eefb2cf5d56827ba",
+          "resource-pexels-01de2c792d0b4c9c5512",
+          "resource-pixabay-1459ba417dfe4ea32805",
+          "resource-pixabay-c10600222bb91f18e1d0"
+        ],
+        "fallback": "Use the approved text-led/static hero composition without stock substitution if local materialization, provenance, license, hash, or source validation fails.",
+        "need_id": "need-6c7010157537a7aa0002",
+        "selected_resource_id": "resource-pexels-8ddb2642882a99ba1687",
+        "why_selected": "The studio-shelf photograph provides a quiet, non-evidentiary editorial atmosphere with landscape dimensions above the minimum and no visible person, interface, logo, dashboard, or project proof. It supports the restrained evidence visual language while remaining decorative for the hero."
+      },
+      {
+        "adaptation_notes": "Use only within the typed role, local-source, attribution, and accessibility contract.",
+        "alternate_resource_ids": [
+          "resource-pixabay-126722c5f476dee3f3f3",
+          "resource-pexels-30fa5be45cdffee6f5c4",
+          "resource-pixabay-890414601358cef9d591",
+          "resource-pixabay-9c88bc534df431593cfb",
+          "resource-pexels-8016162613a1d949857d",
+          "resource-pexels-8238e154e5e7a68eb08e",
+          "resource-pixabay-ba79a997b44891ca6a8c",
+          "resource-pexels-e24bc3090a3178d9bb18",
+          "resource-pixabay-2d1f2992e74e3ee75dbb"
+        ],
+        "fallback": "Use the approved text-led/static selected-work composition without stock substitution if local materialization, provenance, license, hash, or source validation fails.",
+        "need_id": "need-746a46615a9f25057c3f",
+        "selected_resource_id": "resource-pexels-1e344f446440cacb5c63",
+        "why_selected": "Highest-quality policy-compliant provider candidate selected for the approved semantic role."
+      },
+      {
+        "adaptation_notes": "Vendor the Latin files locally, serve the declared 400, 500, 600, and 700 weights, retain a resilient system fallback stack, and avoid runtime font-network requests.",
+        "alternate_resource_ids": [
+          "resource-fontsource-da750beb94b4dd69681c",
+          "resource-fontsource-e09fe88ac3c9b179cd93"
+        ],
+        "fallback": "Use the typed local system font recipe with the declared weights.",
+        "need_id": "need-016331262cb7124422e4",
+        "selected_resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "why_selected": "Space Grotesk exactly matches the approved display typography direction, provides the declared Fontsource local Latin resource, and has OFL-1.1 provenance with no listed dependencies."
+      }
+    ]
+  },
+  "schema_version": "build-preparation-handoff-v3",
+  "selected_resource_ids": [
+    "resource-fontsource-b69f66a0c66ec46921e7",
+    "resource-pexels-1e344f446440cacb5c63",
+    "resource-pexels-8ddb2642882a99ba1687"
+  ],
+  "status": "ready_for_handoff",
+  "summary": "Approved upstream references, public route content, and required resources passed deterministic handoff admission.",
+  "upstream_approval_verified": true
+}

@@ -1,0 +1,39 @@
+{
+  "need_ids": [
+    "need-6762252e6a3882a90e81",
+    "need-fa7a4ed01cbb30e8e804",
+    "need-370d3623ce51caf447ea",
+    "need-fd6e2b249b3a903d3e91",
+    "need-bce03b1ac08d10023e32",
+    "need-f9ae06b4a28476457215",
+    "need-2f3627a0c08cd8221eaf",
+    "need-2e7b2acd20833afd0720",
+    "need-016331262cb7124422e4"
+  ],
+  "resource_ids": [
+    "resource-fontsource-b69f66a0c66ec46921e7",
+    "resource-magicui-0bcd9511bdad151cae2f",
+    "resource-pexels-042df95aaefc38bf9ad3",
+    "resource-pexels-69c4f6fcbe2a01753e39",
+    "resource-pexels-ee43d84747dcbbaf047e",
+    "resource-pixabay-2bf5c084e29d1ae09db4",
+    "resource-pixabay-d85095d80f5f23be1e95",
+    "resource-smoothui-d7a42b9814bfe7c97f23"
+  ],
+  "route_id": "home",
+  "slot_ids": [
+    "slot-1e2a37dddc2abf44723e",
+    "slot-29cf9482dd26114324d0",
+    "slot-2a7d7dc4c3e4afff181c",
+    "slot-49a1168eaf1783a40744",
+    "slot-4e914fb6c0c0df0c4ef7",
+    "slot-6eb6871a53564e3da2dc",
+    "slot-85bd4531e82ee63eff1a",
+    "slot-a3f1b925dfe2eb2af059",
+    "slot-a7ef054440a10baf77ed",
+    "slot-abf48c82a3ef77ddba4e",
+    "slot-e0bbb97837ae92a5d99b",
+    "slot-ed6b414376ba84c86a9c",
+    "slot-fa09c3c4a6256f2edce6"
+  ]
+}

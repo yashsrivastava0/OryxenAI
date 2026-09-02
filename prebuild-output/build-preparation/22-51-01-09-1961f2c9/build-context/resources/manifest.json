@@ -1,0 +1,424 @@
+{
+  "files": [
+    {
+      "kind": "text",
+      "relative_path": "overview.md",
+      "sha256": "59d0b1de265ea62fd37a988d352fb09bac8355d9cb8168f362a3d1a741b66d6c",
+      "size_bytes": 8494
+    },
+    {
+      "kind": "text",
+      "relative_path": "target/target-contract.json",
+      "sha256": "ffee965b5e5d701194960cdbdc64c16df581390cdc215dd22187da282b450d08",
+      "size_bytes": 1503
+    },
+    {
+      "kind": "text",
+      "relative_path": "target/package.json",
+      "sha256": "eb34683a0503164d9aedf2066e0b97751bc940464b4bd5f90affdcdfb2623d60",
+      "size_bytes": 597
+    },
+    {
+      "kind": "text",
+      "relative_path": "site/contract.json",
+      "sha256": "6c939cb780e83ea2d0e39420b5d1154ced381070f67cf227e9156f33c5d5390e",
+      "size_bytes": 1801
+    },
+    {
+      "kind": "text",
+      "relative_path": "design/visual-direction.json",
+      "sha256": "cffc94bdc68ffa0dbcb4360456369cc87ce5201bc97f5ebcf89176be7ea9c5ec",
+      "size_bytes": 6826
+    },
+    {
+      "kind": "text",
+      "relative_path": "provenance/approvals.json",
+      "sha256": "48746e8709ccec54e203b852418db810dfe20a4fa83c185ad400e8e5bf16ce32",
+      "size_bytes": 403
+    },
+    {
+      "kind": "text",
+      "relative_path": "provenance/targets.json",
+      "sha256": "aadbcfdb71f6f8ddb61ad7b5793ab101318994e6a69e846aaf7cce40bbe1f186",
+      "size_bytes": 1729
+    },
+    {
+      "kind": "text",
+      "relative_path": "routes/home-4ea140588150/brief.md",
+      "sha256": "6ab3bd45f9c630618cf4ec2cc11be0e12353e955cbea9946df0443de34686889",
+      "size_bytes": 242
+    },
+    {
+      "kind": "text",
+      "relative_path": "routes/home-4ea140588150/data.json",
+      "sha256": "66159d4947b7f734d74c4a4f4456e5f98c7a936da51042283288f4f4f721b9d0",
+      "size_bytes": 571
+    },
+    {
+      "kind": "text",
+      "relative_path": "routes/home-4ea140588150/resources.json",
+      "sha256": "5e67c671aa4088c3f3a51fafc8145a74ba7e7d871d007cc83e77e5d4ceb9bc53",
+      "size_bytes": 305
+    },
+    {
+      "kind": "image",
+      "relative_path": "resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+      "sha256": "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433",
+      "size_bytes": 187803
+    },
+    {
+      "kind": "metadata",
+      "relative_path": "resources/images/resource-pexels-8ddb2642882a99ba1687.json",
+      "sha256": "b10ab198fe30553cfbcf98a02402d8b4b2fcd47c69b7ecf1be1670f8c670ff5d",
+      "size_bytes": 1121
+    },
+    {
+      "kind": "image",
+      "relative_path": "resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+      "sha256": "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e",
+      "size_bytes": 433255
+    },
+    {
+      "kind": "metadata",
+      "relative_path": "resources/images/resource-pexels-1e344f446440cacb5c63.json",
+      "sha256": "703cb8783fbdabc24a1188c0499233a9025f38037fb3fd445934e3cfa1108a3a",
+      "size_bytes": 1085
+    },
+    {
+      "kind": "font",
+      "relative_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/400-normal.woff2",
+      "sha256": "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+      "size_bytes": 13388
+    },
+    {
+      "kind": "font",
+      "relative_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/500-normal.woff2",
+      "sha256": "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+      "size_bytes": 13312
+    },
+    {
+      "kind": "font",
+      "relative_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/600-normal.woff2",
+      "sha256": "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+      "size_bytes": 13284
+    },
+    {
+      "kind": "font",
+      "relative_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/700-normal.woff2",
+      "sha256": "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55",
+      "size_bytes": 12840
+    },
+    {
+      "kind": "metadata",
+      "relative_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/font.json",
+      "sha256": "ada7631409b9bbe5ea6c460a80a37cb27b8ec1db696989530664bf777fdbb043",
+      "size_bytes": 1147
+    },
+    {
+      "kind": "text",
+      "relative_path": "provenance/licenses.json",
+      "sha256": "347d89ba8af4be9a7cd045779baa8d3f112da2c568b506b0de78d898268627ba",
+      "size_bytes": 889
+    },
+    {
+      "kind": "text",
+      "relative_path": "resources/recipes/recipe-3fbf27373a538cd25d20.json",
+      "sha256": "628911f6dd00dcd263c6b1ea3c2fbbbeee1ce78b68a5f20a6ead7f382160e616",
+      "size_bytes": 545
+    },
+    {
+      "kind": "text",
+      "relative_path": "resources/recipes/recipe-491b8949b8248394c373.json",
+      "sha256": "9c91f4ea99c10a62027698544d7ef4a2dc6ff337a6b4c25b8837a7985b63240a",
+      "size_bytes": 530
+    },
+    {
+      "kind": "text",
+      "relative_path": "resources/recipes/recipe-8984dbd464b2afb45c9a.json",
+      "sha256": "e3fd442b5d4f1d6ade71315c68dbe2c1ba09d291af3938537bad178df458ee35",
+      "size_bytes": 534
+    },
+    {
+      "kind": "text",
+      "relative_path": "resources/recipes/manifest.json",
+      "sha256": "8395e9f0c43839c75b3d362596ef94fe352bccc527e3b5df5d1bfc74ea5006c9",
+      "size_bytes": 1957
+    },
+    {
+      "kind": "text",
+      "relative_path": "routes/home-4ea140588150/resources.json",
+      "sha256": "18ac62a82c50093de67ede3beae2ba50129fa59b2b20546cd91ce08fa47a47b6",
+      "size_bytes": 555
+    },
+    {
+      "kind": "text",
+      "relative_path": "resources/ledger.json",
+      "sha256": "c0e54651839657049e775a83d659a0b05d459381f9c0d20748e157c528480ef8",
+      "size_bytes": 17962
+    },
+    {
+      "kind": "text",
+      "relative_path": "resources/projection.json",
+      "sha256": "e8e89a0d6e07d71afb571beced43f0317f59cc0a2ad64adea280a3eacd6e0f79",
+      "size_bytes": 15603
+    },
+    {
+      "kind": "text",
+      "relative_path": "execution/contract.json",
+      "sha256": "76e0f7731ffbc7a3d761a17892d1e3234d53ce57a1b7edb21067d72f264fa9ab",
+      "size_bytes": 14898
+    }
+  ],
+  "pack_version": "build-preparation-pack-v3",
+  "phase": "pack-v3",
+  "plan_path": "resources/ledger.json",
+  "resources": [
+    {
+      "attribution_url": "https://www.pexels.com/photo/pottery-and-craft-supplies-on-shelves-in-soft-light-38805779/",
+      "content_hash": "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433",
+      "dependencies": [],
+      "disposition": "local_file",
+      "fallback": "Use the approved text-led/static hero composition without stock substitution if local materialization, provenance, license, hash, or source validation fails.",
+      "final_height": 1057,
+      "final_width": 1880,
+      "id": "resource-pexels-8ddb2642882a99ba1687",
+      "import_path": "./resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+      "inspection_level": "pixel_inspected",
+      "kind": "photo",
+      "license": "Pexels license",
+      "license_reference": "https://www.pexels.com/legal-pages/license/",
+      "local_path": "resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+      "materialization_attempts": [
+        {
+          "attempt": 1,
+          "candidate_id": "resource-pexels-8ddb2642882a99ba1687",
+          "final_height": 1057,
+          "final_width": 1880,
+          "need_id": "need-6c7010157537a7aa0002",
+          "optimized_byte_size": 187803,
+          "provider": "pexels",
+          "raw_byte_size": 143044,
+          "response_content_type": "image/*",
+          "status": "materialized"
+        }
+      ],
+      "need_id": "need-6c7010157537a7aa0002",
+      "optimized_byte_size": 187803,
+      "perceptual_hash": "c64f63635b1b1b9c",
+      "pixel_height": 1057,
+      "pixel_width": 1880,
+      "placement": "hero",
+      "provider": "pexels",
+      "provider_asset_id": "38805779",
+      "provider_receipt": {
+        "attempt": 1,
+        "cache_state": "miss",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": 200,
+        "provider": "pexels",
+        "query": "creative workspace editorial atmosphere abstract material",
+        "retry_delay": 0.0
+      },
+      "raw_byte_size": 143044,
+      "registry_dependencies": [],
+      "required_for_handoff": true,
+      "response_content_type": "image/*",
+      "source_hashes": [
+        "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433"
+      ],
+      "source_reference": "https://www.pexels.com/photo/pottery-and-craft-supplies-on-shelves-in-soft-light-38805779/",
+      "source_version": "",
+      "usage_contract": {
+        "import_path": "./resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+        "local_path": "resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+        "sha256": "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433",
+        "source_hashes": [
+          "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433"
+        ]
+      },
+      "why_selected": "The studio-shelf photograph provides a quiet, non-evidentiary editorial atmosphere with landscape dimensions above the minimum and no visible person, interface, logo, dashboard, or project proof. It supports the restrained evidence visual language while remaining decorative for the hero."
+    },
+    {
+      "attribution_url": "https://www.pexels.com/photo/artisan-crafting-with-mesh-and-wire-materials-33299402/",
+      "content_hash": "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e",
+      "dependencies": [],
+      "disposition": "local_file",
+      "fallback": "Use the approved text-led/static selected-work composition without stock substitution if local materialization, provenance, license, hash, or source validation fails.",
+      "final_height": 1253,
+      "final_width": 1670,
+      "id": "resource-pexels-1e344f446440cacb5c63",
+      "import_path": "./resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+      "inspection_level": "pixel_inspected",
+      "kind": "photo",
+      "license": "Pexels license",
+      "license_reference": "https://www.pexels.com/legal-pages/license/",
+      "local_path": "resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+      "materialization_attempts": [
+        {
+          "attempt": 1,
+          "candidate_id": "resource-pixabay-126722c5f476dee3f3f3",
+          "configured_optimized_limit": 8388608,
+          "configured_raw_limit": 25165824,
+          "minimum_height": 700,
+          "minimum_width": 1200,
+          "need_id": "need-746a46615a9f25057c3f",
+          "optimized_byte_size": 480227,
+          "pixel_height": 853,
+          "pixel_width": 1137,
+          "provider": "pixabay",
+          "raw_byte_size": 682211,
+          "rejection_code": "final_dimensions_below_minimum",
+          "rejection_reason": "image dimensions are below the configured minimum",
+          "response_content_type": "image/*",
+          "status": "rejected"
+        },
+        {
+          "attempt": 2,
+          "candidate_id": "resource-pexels-1e344f446440cacb5c63",
+          "final_height": 1253,
+          "final_width": 1670,
+          "need_id": "need-746a46615a9f25057c3f",
+          "optimized_byte_size": 433255,
+          "provider": "pexels",
+          "raw_byte_size": 373382,
+          "response_content_type": "image/*",
+          "status": "materialized"
+        }
+      ],
+      "need_id": "need-746a46615a9f25057c3f",
+      "optimized_byte_size": 433255,
+      "perceptual_hash": "3c3e1c343149c2a6",
+      "pixel_height": 1253,
+      "pixel_width": 1670,
+      "placement": "selected-work",
+      "provider": "pexels",
+      "provider_asset_id": "33299402",
+      "provider_receipt": {
+        "attempt": 1,
+        "cache_state": "miss",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": 200,
+        "provider": "pexels",
+        "query": "creative work process project materials detail",
+        "retry_delay": 0.0
+      },
+      "raw_byte_size": 373382,
+      "registry_dependencies": [],
+      "required_for_handoff": true,
+      "response_content_type": "image/*",
+      "source_hashes": [
+        "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e"
+      ],
+      "source_reference": "https://www.pexels.com/photo/artisan-crafting-with-mesh-and-wire-materials-33299402/",
+      "source_version": "",
+      "usage_contract": {
+        "import_path": "./resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+        "local_path": "resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+        "sha256": "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e",
+        "source_hashes": [
+          "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e"
+        ]
+      },
+      "why_selected": "Highest-quality policy-compliant provider candidate selected for the approved semantic role."
+    },
+    {
+      "dependencies": [],
+      "disposition": "local_file",
+      "fallback": "Use the typed local system font recipe with the declared weights.",
+      "font_family": "Space Grotesk",
+      "font_weights": [
+        "400",
+        "500",
+        "600",
+        "700"
+      ],
+      "id": "resource-fontsource-b69f66a0c66ec46921e7",
+      "import_path": "",
+      "kind": "font",
+      "license": "OFL-1.1",
+      "license_reference": "https://scripts.sil.org/OFL",
+      "local_directory": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7",
+      "need_id": "need-016331262cb7124422e4",
+      "placement": "",
+      "provider": "fontsource",
+      "provider_asset_id": "space-grotesk",
+      "provider_receipt": {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 3,
+        "configured_key": true,
+        "http_status": 200,
+        "kind": "font",
+        "provider": "fontsource",
+        "query": "space grotesk technical sans latin 400",
+        "retry_delay": 0.0
+      },
+      "registry_dependencies": [],
+      "required_for_handoff": true,
+      "source_files": [
+        {
+          "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/400-normal.woff2",
+          "sha256": "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+          "variant": "400-normal"
+        },
+        {
+          "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/500-normal.woff2",
+          "sha256": "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+          "variant": "500-normal"
+        },
+        {
+          "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/600-normal.woff2",
+          "sha256": "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+          "variant": "600-normal"
+        },
+        {
+          "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/700-normal.woff2",
+          "sha256": "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55",
+          "variant": "700-normal"
+        }
+      ],
+      "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk",
+      "source_version": "v22",
+      "usage_contract": {
+        "alt_or_decorative_treatment": "preserve semantic labels and keyboard/focus behavior",
+        "attribution": {
+          "attribution_url": "",
+          "license": "OFL-1.1",
+          "license_reference": "https://scripts.sil.org/OFL",
+          "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk"
+        },
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback": "Use the typed local system font recipe with the declared weights.",
+        "placement": "",
+        "provider_receipt": {
+          "provider_receipt": {
+            "attempt": 1,
+            "cache_state": "not_cached",
+            "candidate_count": 3,
+            "configured_key": true,
+            "http_status": 200,
+            "kind": "font",
+            "provider": "fontsource",
+            "query": "space grotesk technical sans latin 400",
+            "retry_delay": 0.0
+          }
+        },
+        "reduced_motion_behavior": "static equivalent",
+        "registry_dependencies": [],
+        "responsive_behavior": "",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [],
+        "section_ids": [],
+        "source_version": "v22"
+      },
+      "why_selected": "Space Grotesk exactly matches the approved display typography direction, provides the declared Fontsource local Latin resource, and has OFL-1.1 provenance with no listed dependencies."
+    }
+  ],
+  "run_id": "1961f2c9-f951-4fdc-b106-681ef673b827",
+  "warnings": []
+}
