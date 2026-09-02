@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 15:33 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [375aae3] - thread image alt-text and placement into usage_contract
+Extended the materialized-image `usage_contract` with `alt_text`, `focal_point`, `placement`, and `decorative`, reusing values the acquisition step already computed for the sidecar metadata file. Code Generator's planner reads only `usage_contract`, so this per-image intent previously never reached the model laying out the page. Found via direct code reading while investigating generic-looking image usage; verified with the existing materializer unit suite (14 passed).
+
 ### 2026-09-02 14:00 +05:30 - Codex (GPT-5 / OpenAI) - [280982e] - expand frontend research and implementation blueprint
 Added two focused frontend documents preserving repository/competitor/platform evidence and defining exact route, API, adapter, component, recovery, accessibility, performance, test, and rollout contracts. Locked the proposed Editorial Swiss / Living Draft theme and lightweight image/motion strategy, corrected idempotency guidance to match the public API, and left all backend and current frontend code unchanged.
 
