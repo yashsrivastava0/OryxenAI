@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 15:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [d3cc095] - retry final repair within budget after cannot_complete
+A live baseline run against a real Build Preparation pack hit dom_runtime findings where the repair model honestly returned cannot_complete on round 1; `_attempt_repair` caught that `FinalRepairError` the same as an infrastructure crash and reported `DOM_RUNTIME_FAILED` immediately with `repair_rounds` still at 0, never giving D-056's per-group budget a second try. `_attempt_repair` now loops on `FinalRepairError` specifically until `RepairBudget.can_attempt` says the budget is exhausted; other exception types still abort immediately. Added a regression test (round 1 cannot_complete, round 2 succeeds) and recorded D-058. Verified against the full code-generator/build-preparation unit and integration suite (only two pre-existing, unrelated failures remain: `test_session_service.py`'s creative-direction variant-receipt assertions, and cross-file test-order pollution between `test_materializer.py`/`test_component_retrieval.py`/`test_providers.py` — both confirmed present without any of this session's changes and flagged, not fixed, as out of scope here).
+
 ### 2026-09-02 15:41 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [082d179] - add SPA fallback redirects to the react-vite-v1 scaffold
 Added a static `public/_redirects` file so every generated build serves `index.html` for any deep-linked or refreshed route on Netlify/Cloudflare Pages, matching what the project's own preview gateway already does server-side. Confirmed by reading `AppRouter.tsx` (real `history.pushState` client-side routing) and by an actual scaffold build showing `dist/_redirects` with the expected content.
 
