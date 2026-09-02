@@ -14,6 +14,7 @@ import { ConnectionBanner } from "../components/ConnectionBanner";
 import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { LivingDraftMark } from "../components/LivingDraftMark";
 import { StartSurface } from "../components/StartSurface";
+import { ArchitecturalCanvas } from "../components/ArchitecturalCanvas";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { ContentStage } from "../stages/content/ContentStage";
@@ -698,16 +699,31 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
   return (
     <AppStoreContext.Provider value={{ state, dispatch }}>
+      <ArchitecturalCanvas />
       <div className="app-shell">
         <header className="app-topbar">
           <div className="app-brand">
             <LivingDraftMark active={state.connection === "checking"} />
-            <span>OryxenAI</span>
+            <div className="app-brand-info">
+              <span className="brand-name">OryxenAI</span>
+              <span className="brand-atelier-tag">STUDIO ATELIER</span>
+            </div>
+          </div>
+          <div className="app-topbar-center">
+            {state.sessionId ? (
+              <span className="session-telemetry-badge">
+                PORTFOLIO [{state.sessionId.slice(0, 8)}] · {activeStage.toUpperCase()}
+              </span>
+            ) : (
+              <span className="session-telemetry-badge">
+                SYSTEM ONLINE · DRAFTING BOARD
+              </span>
+            )}
           </div>
           <div className="app-account-menu">
-            <span>{me.username ?? "there"}</span>
+            <span className="user-badge">{me.username ?? "developer"}</span>
             {state.readOnly && <span className="read-only-tag">Read-only</span>}
-            {me.role === "admin" ? <a href="/admin">Admin</a> : null}
+            {me.role === "admin" ? <a href="/admin" className="admin-link-pill">Admin</a> : null}
           </div>
         </header>
 
