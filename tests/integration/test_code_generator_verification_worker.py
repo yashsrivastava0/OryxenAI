@@ -528,6 +528,123 @@ async def test_attempt_repair_persists_rejected_quality_review(
     assert refreshed.source_checkpoint == original_source_checkpoint
 
 
+async def test_attempt_repair_retries_within_budget_after_cannot_complete(
+    db_session, test_engine, tmp_path, monkeypatch
+) -> None:
+    """Regression test: a model-reported cannot_complete (FinalRepairError) on
+    round 1 must consume one budgeted round and try again, not abandon the
+    whole repair budget on the first failed attempt."""
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_generation.max_repair_rounds_total = 6
+    settings.code_generator_generation.max_repair_rounds_per_unit = 3
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    plan = _plan()
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={"status": "repairing", "plan": plan.model_dump(mode="json")},
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    identity = CandidateIdentity(
+        input_receipt_hash="irh",
+        site_plan_hash="sph",
+        work_graph_hash="wgh",
+        source_checkpoint_hash=checkpoint.checkpoint_hash,
+        source_manifest_hash="smh",
+        scaffold_toolchain_profile_hash="stph",
+        verification_profile_hash="vph",
+    )
+    projection = VerificationProjection(
+        generation_id=f"generation-{run.id}",
+        candidate_identity=identity,
+        verification_profile=VerificationProfile(profile_id="test-profile"),
+        phase="repairing",
+        status="repairing",
+    )
+    diagnostics = [
+        Diagnostic(
+            diagnostic_id="diag-1",
+            group="dom_runtime",
+            code="RUNTIME_TOUCH_TARGET_TOO_SMALL",
+            phase="dom_runtime",
+            normalized_message="Interactive control a is smaller than the configured touch target.",
+            fingerprint="fingerprint-touch-target",
+        )
+    ]
+
+    from oryxenai.agents.code_generator.core.development_schemas import RepairReceipt
+    from oryxenai.agents.code_generator.core.final_repair import FinalRepairer, FinalRepairError
+
+    call_count = {"value": 0}
+
+    async def flaky_repair(self, **kwargs):
+        call_count["value"] += 1
+        if call_count["value"] == 1:
+            raise FinalRepairError(
+                "REPAIR_NO_SOURCE_CHANGE",
+                "The repair operation did not return a bounded source correction.",
+            )
+        receipt = RepairReceipt(
+            generation_id=f"generation-{run.id}",
+            diagnostic_fingerprints=["fingerprint-touch-target"],
+            repair_unit_id="dom_runtime",
+            strategy_summary=kwargs["strategy"],
+            based_on_checkpoint=checkpoint.checkpoint_hash,
+            context_receipt="context-receipt-hash",
+            corrected_checkpoint=checkpoint.checkpoint_hash,
+            accepted_at="2026-09-02T00:00:00Z",
+        )
+        return checkpoint, receipt
+
+    monkeypatch.setattr(FinalRepairer, "repair", flaky_repair)
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    attempted = await _attempt_repair(
+        sessionmaker=sessionmaker,
+        run_id=run.id,
+        settings=settings,
+        workspace=workspace,
+        checkpoint_store=CheckpointStore(workspace, generation_id=str(run.id)),
+        checkpoint=checkpoint,
+        identity=identity,
+        plan=plan,
+        projections=projections,
+        projection=projection,
+        diagnostics=diagnostics,
+        public_text=set(),
+        allowed_packages=set(),
+        model_factory=None,
+    )
+
+    assert attempted is True
+    assert call_count["value"] == 2
+    assert projection.repair_rounds == 2
+    assert projection.repair_receipts[-1].strategy_summary == "bounded-simplification"
+
+
 async def test_attempt_repair_stops_repeated_diagnostic_group_at_ceiling(
     db_session, test_engine
 ) -> None:
