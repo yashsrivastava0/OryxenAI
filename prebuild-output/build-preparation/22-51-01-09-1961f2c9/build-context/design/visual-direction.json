@@ -1,0 +1,176 @@
+{
+  "assets": [
+    {
+      "alt_text_intent": "Decorative atmosphere; empty alt text unless the final composition gives it semantic meaning.",
+      "aspect_ratio_need": "16:9",
+      "asset_id": "assumed-image:home:hero:0",
+      "asset_type": "editorial_photo",
+      "attribution_requirement": "Record provider, contributor, license, source URL, and SHA-256 in the pack.",
+      "color_relationship": "charcoal, mineral, cobalt accent",
+      "composition_role": "hero",
+      "content_ref": "hero",
+      "decorative_vs_informative": "decorative",
+      "desktop_treatment": "Decorative local image supporting the section hierarchy.",
+      "fallback_strategy": "Use the approved text-led/static composition without stock substitution.",
+      "fit_intent": "cover",
+      "importance": "important",
+      "minimum_height": 700,
+      "minimum_width": 1200,
+      "mobile_treatment": "Stack below essential copy and crop without hiding content.",
+      "mood": "quiet, distinctive, high-contrast",
+      "negative_concepts": [
+        "portrait",
+        "face",
+        "screenshot",
+        "dashboard",
+        "logo",
+        "project proof",
+        "employer imagery",
+        "private media",
+        "testimonial"
+      ],
+      "orientation": "landscape",
+      "provider_terms": [
+        "creative professional workspace",
+        "editorial opening atmosphere",
+        "abstract material"
+      ],
+      "purpose": "Editorial opening atmosphere for the approved professional practice; no person or product interface.",
+      "quality_requirement": "HTTPS provider, decodable pixels, non-flat, locally materialized",
+      "scene_id": "home-scene-hero",
+      "section_id": "hero",
+      "source_policy": "optional_external_acquisition",
+      "source_status": "needs_acquisition",
+      "subject": "creative professional workspace editorial opening atmosphere abstract material",
+      "visual_treatment": "editorial, non-evidentiary, no interface or proof content"
+    },
+    {
+      "alt_text_intent": "Decorative atmosphere; empty alt text unless the final composition gives it semantic meaning.",
+      "aspect_ratio_need": "4:3",
+      "asset_id": "assumed-image:home:project:1",
+      "asset_type": "editorial_photo",
+      "attribution_requirement": "Record provider, contributor, license, source URL, and SHA-256 in the pack.",
+      "color_relationship": "charcoal, mineral, cobalt accent",
+      "composition_role": "selected-work",
+      "content_ref": "project",
+      "decorative_vs_informative": "decorative",
+      "desktop_treatment": "Decorative local image supporting the section hierarchy.",
+      "fallback_strategy": "Use the approved text-led/static composition without stock substitution.",
+      "fit_intent": "cover",
+      "importance": "important",
+      "minimum_height": 700,
+      "minimum_width": 1200,
+      "mobile_treatment": "Stack below essential copy and crop without hiding content.",
+      "mood": "precise, tactile, considered",
+      "negative_concepts": [
+        "portrait",
+        "face",
+        "screenshot",
+        "dashboard",
+        "logo",
+        "project proof",
+        "employer imagery",
+        "private media",
+        "testimonial"
+      ],
+      "orientation": "landscape",
+      "provider_terms": [
+        "creative work process",
+        "project materials detail",
+        "portfolio craft atmosphere"
+      ],
+      "purpose": "Decorative craft-and-process atmosphere for selected work; no dashboard or screenshot.",
+      "quality_requirement": "HTTPS provider, decodable pixels, non-flat, locally materialized",
+      "scene_id": "home-scene-project",
+      "section_id": "project",
+      "source_policy": "optional_external_acquisition",
+      "source_status": "needs_acquisition",
+      "subject": "creative work process project materials detail portfolio craft atmosphere",
+      "visual_treatment": "editorial, non-evidentiary, no interface or proof content"
+    }
+  ],
+  "global": {
+    "accessibility_and_performance": {
+      "reduced_motion": "static equivalent is complete",
+      "responsive": "stack dense compositions on narrow screens",
+      "touch": "essential content remains visible without hover"
+    },
+    "compiler_handoff": {},
+    "interaction_system": {},
+    "motion_system": {
+      "behavior": "brief low-amplitude structural emphasis",
+      "reduced_motion": "complete static state with no sequencing or parallax"
+    },
+    "must_not_fabricate": {},
+    "must_preserve": {},
+    "navigation_direction": {},
+    "resource_policy": {
+      "auto_derived_visual_resources": true,
+      "component_target_count": 4,
+      "image_target_count": 5
+    },
+    "shared_visual_systems": {},
+    "visual_language": {
+      "layout": "asymmetric text-led sections with structured reading edges",
+      "palette": [
+        "charcoal",
+        "mineral",
+        "cobalt accent"
+      ],
+      "spacing": "generous opening space with denser evidence chapters",
+      "style": "distinctive editorial portfolio",
+      "typography": {
+        "body": "Inter",
+        "display": "Space Grotesk"
+      }
+    }
+  },
+  "pack_version": "build-preparation-pack-v3",
+  "resources": [],
+  "routes": [
+    {
+      "acceptance_criteria": [],
+      "asset_ids": [
+        "assumed-image:home:hero:0",
+        "assumed-image:home:project:1"
+      ],
+      "direction": {
+        "responsive_summary": "Stack the approved content on narrow screens."
+      },
+      "path": "/",
+      "resource_ids": [],
+      "route_id": "home",
+      "scenes": [
+        {
+          "asset_requirements": [
+            "assumed-image:home:hero:0"
+          ],
+          "content_refs": [
+            "hero"
+          ],
+          "narrative_goal": "Support the approved public section with a restrained, accessible composition.",
+          "reduced_motion_behavior": "Render the complete static state without sequencing or movement.",
+          "resource_candidates": [],
+          "responsive_behavior": "Stack on narrow screens and preserve all essential content in document flow.",
+          "route_id": "home",
+          "scene_id": "home-scene-hero"
+        },
+        {
+          "asset_requirements": [
+            "assumed-image:home:project:1"
+          ],
+          "content_refs": [
+            "project"
+          ],
+          "narrative_goal": "Support the approved public section with a restrained, accessible composition.",
+          "reduced_motion_behavior": "Render the complete static state without sequencing or movement.",
+          "resource_candidates": [],
+          "responsive_behavior": "Stack on narrow screens and preserve all essential content in document flow.",
+          "route_id": "home",
+          "scene_id": "home-scene-project"
+        }
+      ]
+    }
+  ],
+  "schema_version": "build-preparation-contract-v3"
+}

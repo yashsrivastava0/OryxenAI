@@ -1,0 +1,181 @@
+{
+  "expires_at": "2026-09-04T17:21:27.165192+00:00",
+  "files": [
+    {
+      "path": "design/visual-direction.json",
+      "sha256": "cffc94bdc68ffa0dbcb4360456369cc87ce5201bc97f5ebcf89176be7ea9c5ec",
+      "size_bytes": 6826
+    },
+    {
+      "path": "execution/contract.json",
+      "sha256": "76e0f7731ffbc7a3d761a17892d1e3234d53ce57a1b7edb21067d72f264fa9ab",
+      "size_bytes": 14898
+    },
+    {
+      "path": "handoff-analysis.json",
+      "sha256": "6640542a3ad740e64a61ea93507083e27cf5f339ede9941d2d19f098f6f8b11b",
+      "size_bytes": 33860
+    },
+    {
+      "path": "handoff-report.json",
+      "sha256": "28d5818a5e4c47c0e8af427bd39212665ab3492e27921f3d417a1f6ffea23c98",
+      "size_bytes": 51873
+    },
+    {
+      "path": "overview.md",
+      "sha256": "59d0b1de265ea62fd37a988d352fb09bac8355d9cb8168f362a3d1a741b66d6c",
+      "size_bytes": 8494
+    },
+    {
+      "path": "provenance/approvals.json",
+      "sha256": "48746e8709ccec54e203b852418db810dfe20a4fa83c185ad400e8e5bf16ce32",
+      "size_bytes": 403
+    },
+    {
+      "path": "provenance/checksums.json",
+      "sha256": "74278bed3899dab2ff8144536ca63e7137d5c8c68554d6c196899fd2cb002ade",
+      "size_bytes": 3507
+    },
+    {
+      "path": "provenance/licenses.json",
+      "sha256": "347d89ba8af4be9a7cd045779baa8d3f112da2c568b506b0de78d898268627ba",
+      "size_bytes": 889
+    },
+    {
+      "path": "provenance/targets.json",
+      "sha256": "aadbcfdb71f6f8ddb61ad7b5793ab101318994e6a69e846aaf7cce40bbe1f186",
+      "size_bytes": 1729
+    },
+    {
+      "path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/400-normal.woff2",
+      "sha256": "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+      "size_bytes": 13388
+    },
+    {
+      "path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/500-normal.woff2",
+      "sha256": "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+      "size_bytes": 13312
+    },
+    {
+      "path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/600-normal.woff2",
+      "sha256": "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+      "size_bytes": 13284
+    },
+    {
+      "path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/700-normal.woff2",
+      "sha256": "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55",
+      "size_bytes": 12840
+    },
+    {
+      "path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/font.json",
+      "sha256": "ada7631409b9bbe5ea6c460a80a37cb27b8ec1db696989530664bf777fdbb043",
+      "size_bytes": 1147
+    },
+    {
+      "path": "resources/images/resource-pexels-1e344f446440cacb5c63.jpg",
+      "sha256": "fbb6c4475e26a8bba5b30eb048b4258cd5b9170aa8f37dece7bf4540c604566e",
+      "size_bytes": 433255
+    },
+    {
+      "path": "resources/images/resource-pexels-1e344f446440cacb5c63.json",
+      "sha256": "703cb8783fbdabc24a1188c0499233a9025f38037fb3fd445934e3cfa1108a3a",
+      "size_bytes": 1085
+    },
+    {
+      "path": "resources/images/resource-pexels-8ddb2642882a99ba1687.jpg",
+      "sha256": "b1ce82043e529a30c94cc1f92e87cf1bf9fc161345d10ff849061677b4b88433",
+      "size_bytes": 187803
+    },
+    {
+      "path": "resources/images/resource-pexels-8ddb2642882a99ba1687.json",
+      "sha256": "b10ab198fe30553cfbcf98a02402d8b4b2fcd47c69b7ecf1be1670f8c670ff5d",
+      "size_bytes": 1121
+    },
+    {
+      "path": "resources/ledger.json",
+      "sha256": "c0e54651839657049e775a83d659a0b05d459381f9c0d20748e157c528480ef8",
+      "size_bytes": 17962
+    },
+    {
+      "path": "resources/manifest.json",
+      "sha256": "d792bc5a74dc557958aa9b54ebf709f62ad9516c31477058b80c087b3f154c67",
+      "size_bytes": 16513
+    },
+    {
+      "path": "resources/projection.json",
+      "sha256": "e8e89a0d6e07d71afb571beced43f0317f59cc0a2ad64adea280a3eacd6e0f79",
+      "size_bytes": 15603
+    },
+    {
+      "path": "resources/recipes/manifest.json",
+      "sha256": "8395e9f0c43839c75b3d362596ef94fe352bccc527e3b5df5d1bfc74ea5006c9",
+      "size_bytes": 1957
+    },
+    {
+      "path": "resources/recipes/recipe-3fbf27373a538cd25d20.json",
+      "sha256": "628911f6dd00dcd263c6b1ea3c2fbbbeee1ce78b68a5f20a6ead7f382160e616",
+      "size_bytes": 545
+    },
+    {
+      "path": "resources/recipes/recipe-491b8949b8248394c373.json",
+      "sha256": "9c91f4ea99c10a62027698544d7ef4a2dc6ff337a6b4c25b8837a7985b63240a",
+      "size_bytes": 530
+    },
+    {
+      "path": "resources/recipes/recipe-8984dbd464b2afb45c9a.json",
+      "sha256": "e3fd442b5d4f1d6ade71315c68dbe2c1ba09d291af3938537bad178df458ee35",
+      "size_bytes": 534
+    },
+    {
+      "path": "routes/home-4ea140588150/brief.md",
+      "sha256": "6ab3bd45f9c630618cf4ec2cc11be0e12353e955cbea9946df0443de34686889",
+      "size_bytes": 242
+    },
+    {
+      "path": "routes/home-4ea140588150/data.json",
+      "sha256": "66159d4947b7f734d74c4a4f4456e5f98c7a936da51042283288f4f4f721b9d0",
+      "size_bytes": 571
+    },
+    {
+      "path": "routes/home-4ea140588150/resources.json",
+      "sha256": "18ac62a82c50093de67ede3beae2ba50129fa59b2b20546cd91ce08fa47a47b6",
+      "size_bytes": 555
+    },
+    {
+      "path": "site/contract.json",
+      "sha256": "6c939cb780e83ea2d0e39420b5d1154ced381070f67cf227e9156f33c5d5390e",
+      "size_bytes": 1801
+    },
+    {
+      "path": "target/package.json",
+      "sha256": "eb34683a0503164d9aedf2066e0b97751bc940464b4bd5f90affdcdfb2623d60",
+      "size_bytes": 597
+    },
+    {
+      "path": "target/target-contract.json",
+      "sha256": "ffee965b5e5d701194960cdbdc64c16df581390cdc215dd22187da282b450d08",
+      "size_bytes": 1503
+    }
+  ],
+  "pack_version": "build-preparation-pack-v3",
+  "run_id": "1961f2c9-f951-4fdc-b106-681ef673b827",
+  "scope_hash": "f69aa981dbf57297163a9baeab0256d04de36611a2f9c52736aa740efb28686c",
+  "source_ref": {
+    "assumption_hash": "e1fe0f1abd0e825251a32969f790a5a682428adcdc61237931afecb832df9e10",
+    "assumptions": [
+      "Editorial imagery is decorative and non-evidentiary.",
+      "No portrait, screenshot, dashboard, logo, or project proof is allowed.",
+      "Component roles are derived from approved route sections and interaction needs.",
+      "All visual resources must be local, attributed, and usable without runtime provider calls.",
+      "Reduced motion receives a complete static equivalent."
+    ],
+    "content_architect_content_hash": "privacy-safe-synthetic-content-v1",
+    "content_architect_session_revision": 0,
+    "input_projection_hash": "2eda2e264c61e8c1319972f4460026436623be2425c48235807e37693cf46462",
+    "producer_provenance_hash": "692ab8b6fa5dd470b03386ae3f0206d95a78961f801f4aff18791214e13901df",
+    "snapshotted_at": "2026-09-01T17:20:23.875168+00:00",
+    "visual_design_director_direction_hash": "948f9a630a821be823dca1127db001a3420ed49b60eb2cfbe41875fe5bd57748",
+    "visual_design_director_session_revision": 0,
+    "visual_input_mode": "merged_vdd_assumptions"
+  }
+}

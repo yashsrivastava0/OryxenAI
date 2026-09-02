@@ -1,0 +1,56 @@
+{
+  "allowed_dependencies": [
+    "@radix-ui/react-accordion",
+    "@radix-ui/react-dialog",
+    "@radix-ui/react-dropdown-menu",
+    "@radix-ui/react-navigation-menu",
+    "@radix-ui/react-separator",
+    "@radix-ui/react-slot",
+    "@radix-ui/react-tabs",
+    "@radix-ui/react-tooltip",
+    "@radix-ui/react-visually-hidden",
+    "@tailwindcss/vite",
+    "@vitejs/plugin-react",
+    "class-variance-authority",
+    "clsx",
+    "lucide-react",
+    "motion",
+    "react",
+    "react-dom",
+    "tailwind-merge",
+    "tailwindcss",
+    "tw-animate-css",
+    "typescript",
+    "vite"
+  ],
+  "bundler": "vite",
+  "dependency_resolution": {
+    "allowed_dependency_set_is_ceiling": true,
+    "code_generator_must_generate_lockfile": true,
+    "installation_phase": "code_generation_build_only",
+    "lockfile_included": false,
+    "merge_selected_resource_dependencies": true,
+    "package_manifest_is_starter": true,
+    "runtime_installation_allowed": false
+  },
+  "forbidden_runtime_capabilities": [
+    "server-runtime",
+    "remote-fonts",
+    "remote-runtime-assets",
+    "package-installation",
+    "secret-environment-access"
+  ],
+  "framework": "react",
+  "language": "typescript",
+  "runtime": "static-client",
+  "styling": "tailwind",
+  "target_id": "react-vite-v1",
+  "visual_resource_policy": {
+    "component_maximum": 6,
+    "component_target_count": 4,
+    "generated_visuals_allowed": false,
+    "image_maximum": 6,
+    "image_target_count": 5,
+    "require_real_local_material": true
+  }
+}

@@ -1,0 +1,5215 @@
+{
+  "execution_gaps": [],
+  "handoff_eligible": true,
+  "handoff_summary": {
+    "assumption_hash": "fc1bc5a3314d634b3bfb98359c15ec4dc98f5f5ab086dd63b930f820d3d84148",
+    "cache_hits": 11,
+    "code_generator_eligible": true,
+    "component_materialized": 2,
+    "component_target": 4,
+    "deferred_optional_roles": [
+      "need-f9ae06b4a28476457215"
+    ],
+    "execution_gaps": 1,
+    "font_materialized": 1,
+    "image_materialized": 5,
+    "image_target": 5,
+    "partial_enrichment_failure": true,
+    "provider_calls": 9,
+    "rate_limit_events": 2,
+    "role_statuses": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pixabay-d85095d80f5f23be1e95",
+            "final_height": 720,
+            "final_width": 1280,
+            "need_id": "need-6762252e6a3882a90e81",
+            "optimized_byte_size": 162147,
+            "provider": "pixabay",
+            "raw_byte_size": 239896,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-6762252e6a3882a90e81",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:hero"
+        ],
+        "section_ids": [
+          "home:hero"
+        ],
+        "selected_provider": "pixabay",
+        "selected_resource_id": "resource-pixabay-d85095d80f5f23be1e95"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pixabay-2bf5c084e29d1ae09db4",
+            "final_height": 853,
+            "final_width": 1280,
+            "need_id": "need-fa7a4ed01cbb30e8e804",
+            "optimized_byte_size": 153085,
+            "provider": "pixabay",
+            "raw_byte_size": 176189,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:experience"
+        ],
+        "section_ids": [
+          "home:experience"
+        ],
+        "selected_provider": "pixabay",
+        "selected_resource_id": "resource-pixabay-2bf5c084e29d1ae09db4"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-ee43d84747dcbbaf047e",
+            "final_height": 1058,
+            "final_width": 1410,
+            "need_id": "need-370d3623ce51caf447ea",
+            "optimized_byte_size": 215614,
+            "provider": "pexels",
+            "raw_byte_size": 2481489,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-370d3623ce51caf447ea",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:approach"
+        ],
+        "section_ids": [
+          "home:approach"
+        ],
+        "selected_provider": "pexels",
+        "selected_resource_id": "resource-pexels-ee43d84747dcbbaf047e"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-50a37c58f60863c47869",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "content_hash": "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f",
+            "existing_local_path": "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+            "need_id": "need-fd6e2b249b3a903d3e91",
+            "provider": "pexels",
+            "rejection_reason": "duplicate_local_content_hash",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 2,
+            "candidate_id": "resource-pexels-042df95aaefc38bf9ad3",
+            "final_height": 1058,
+            "final_width": 1410,
+            "need_id": "need-fd6e2b249b3a903d3e91",
+            "optimized_byte_size": 131428,
+            "provider": "pexels",
+            "raw_byte_size": 1487024,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:design-systems"
+        ],
+        "section_ids": [
+          "home:design-systems"
+        ],
+        "selected_provider": "pexels",
+        "selected_resource_id": "resource-pexels-042df95aaefc38bf9ad3"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-5b499fef9eeb34b769ae",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "content_hash": "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f",
+            "existing_local_path": "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+            "need_id": "need-bce03b1ac08d10023e32",
+            "provider": "pexels",
+            "rejection_reason": "duplicate_local_content_hash",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 2,
+            "candidate_id": "resource-pexels-cbd927d1bbd599e2cfba",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "content_hash": "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f",
+            "existing_local_path": "resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+            "need_id": "need-bce03b1ac08d10023e32",
+            "provider": "pexels",
+            "rejection_reason": "duplicate_local_content_hash",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 3,
+            "candidate_id": "resource-pexels-69c4f6fcbe2a01753e39",
+            "final_height": 991,
+            "final_width": 1321,
+            "need_id": "need-bce03b1ac08d10023e32",
+            "optimized_byte_size": 313439,
+            "provider": "pexels",
+            "raw_byte_size": 324903,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "final_classification": "local_file",
+        "need_id": "need-bce03b1ac08d10023e32",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:selected-work"
+        ],
+        "section_ids": [
+          "home:selected-work"
+        ],
+        "selected_provider": "pexels",
+        "selected_resource_id": "resource-pexels-69c4f6fcbe2a01753e39"
+      },
+      {
+        "attempts": [],
+        "final_classification": "unresolved",
+        "need_id": "need-f9ae06b4a28476457215",
+        "role": "image",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:about-connect"
+        ],
+        "section_ids": [
+          "home:about-connect"
+        ],
+        "selected_provider": "",
+        "selected_resource_id": ""
+      },
+      {
+        "attempts": [],
+        "final_classification": "adaptable_source",
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "role": "component",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:selected-work"
+        ],
+        "section_ids": [
+          "home:selected-work"
+        ],
+        "selected_provider": "smoothui",
+        "selected_resource_id": "resource-smoothui-d7a42b9814bfe7c97f23"
+      },
+      {
+        "attempts": [],
+        "final_classification": "adaptable_source",
+        "need_id": "need-2e7b2acd20833afd0720",
+        "role": "component",
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:experience"
+        ],
+        "section_ids": [
+          "home:experience"
+        ],
+        "selected_provider": "magicui",
+        "selected_resource_id": "resource-magicui-0bcd9511bdad151cae2f"
+      }
+    ],
+    "semantic_component_need_count": 2,
+    "semantic_image_need_count": 6,
+    "total_enrichment_failure": false,
+    "unresolved_visual_roles": [
+      "need-f9ae06b4a28476457215"
+    ],
+    "visual_input_mode": "merged_vdd_assumptions"
+  },
+  "issues": [
+    {
+      "blocking": false,
+      "code": "IMAGE_ROLE_UNRESOLVED",
+      "message": "Known image role 'assumed-image:home:home:about-connect:5' did not materialize as local validated material.",
+      "need_id": "need-f9ae06b4a28476457215",
+      "next_action": "Retry the bounded provider/source attempts and inspect the materialization receipt, or explicitly remove the role upstream before rerunning."
+    },
+    {
+      "blocking": false,
+      "code": "VDD_EXECUTION_GAP",
+      "message": "Execution slot 'slot-49a1168eaf1783a40744' is blocked by upstream direction.",
+      "need_id": "",
+      "next_action": "Revise and explicitly re-approve Visual Design Director output."
+    }
+  ],
+  "materialized_resource_ids": [
+    "resource-fontsource-b69f66a0c66ec46921e7",
+    "resource-magicui-0bcd9511bdad151cae2f",
+    "resource-pexels-042df95aaefc38bf9ad3",
+    "resource-pexels-69c4f6fcbe2a01753e39",
+    "resource-pexels-ee43d84747dcbbaf047e",
+    "resource-pixabay-2bf5c084e29d1ae09db4",
+    "resource-pixabay-d85095d80f5f23be1e95",
+    "resource-smoothui-d7a42b9814bfe7c97f23"
+  ],
+  "model_review": {
+    "recommended_next_actions": [
+      "Proceed to Code Generator using only the authoritative selected local bindings and approved home route.",
+      "Keep the about-connect image role unresolved and implement that section without an image.",
+      "Implement experience as a semantic accessible static timeline/list; do not use the AnimatedBeam source as chronological evidence.",
+      "Run responsive, keyboard, touch, contrast, and reduced-motion checks before visual approval.",
+      "Confirm local attribution records remain attached to every materialized image, component, and font.",
+      "Complete human review of URL verification, publication permissions, pending claims, and visual repetition before restoring any omitted content."
+    ],
+    "role_findings": [
+      {
+        "finding": "Coherent with the hero's decorative, technical, non-evidentiary intent. Local Pixabay material is validated at 1280x720 with provenance and SHA-256.",
+        "need_id": "need-6762252e6a3882a90e81",
+        "next_action": "Bind only the materialized local file, keep it decorative with empty alt text, and verify text contrast after cropping.",
+        "role": "image",
+        "section_id": "home:hero",
+        "trust_boundary": "No hard failure recorded."
+      },
+      {
+        "finding": "Coherent as an optional operational atmosphere and locally materialized. It should not be presented as evidence of Arjun's experience.",
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "next_action": "Use only as decorative support; preserve the approved experience entries in normal document flow.",
+        "role": "image",
+        "section_id": "home:experience",
+        "trust_boundary": "No hard failure recorded."
+      },
+      {
+        "finding": "Strong semantic match for the approved data-flow and systems narrative. Local Pexels material is validated with provenance and hash.",
+        "need_id": "need-370d3623ce51caf447ea",
+        "next_action": "Keep it decorative and do not label it as a diagram, product artifact, or proof.",
+        "role": "image",
+        "section_id": "home:approach",
+        "trust_boundary": "No hard failure recorded."
+      },
+      {
+        "finding": "Coherent with the systems and scalable-pattern narrative. Duplicate-content rejection was handled before a distinct local file was materialized.",
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "next_action": "Review visual repetition with the approach section and preserve the non-evidentiary treatment.",
+        "role": "image",
+        "section_id": "home:design-systems",
+        "trust_boundary": "No hard failure recorded."
+      },
+      {
+        "finding": "Coherent as decorative data-flow atmosphere for generalized project summaries. Local Pexels material is validated.",
+        "need_id": "need-bce03b1ac08d10023e32",
+        "next_action": "Do not associate the image with a named project or imply screenshots, interfaces, or project proof.",
+        "role": "image",
+        "section_id": "home:selected-work",
+        "trust_boundary": "No hard failure recorded."
+      },
+      {
+        "finding": "Unresolved optional image role; the approved fallback is text-led composition without an image.",
+        "need_id": "need-f9ae06b4a28476457215",
+        "next_action": "Keep the section text-led unless a later bounded acquisition produces validated provider bytes and provenance.",
+        "role": "image",
+        "section_id": "home:about-connect",
+        "trust_boundary": "Execution gap remains; no local resource binding exists."
+      },
+      {
+        "finding": "Materialized SmoothUI source is coherent with optional selected-work detail exploration and has local source, hash, provenance, and allowed dependencies.",
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "next_action": "Use only approved generalized project content; validate keyboard focus, touch access, responsive stacking, and reduced-motion behavior.",
+        "role": "component",
+        "section_id": "home:selected-work",
+        "trust_boundary": "No hard failure recorded."
+      },
+      {
+        "finding": "The materialized AnimatedBeam source is not a genuine chronological timeline. The approved static semantic list remains the coherent implementation path.",
+        "need_id": "need-2e7b2acd20833afd0720",
+        "next_action": "Do not present AnimatedBeam as the experience timeline; retain both approved roles in a semantic accessible list and treat the component binding as unused unless adapted without adding unsupported behavior.",
+        "role": "component",
+        "section_id": "home:experience",
+        "trust_boundary": "No admission failure recorded because the component role is optional, but the selected source is semantically mismatched."
+      },
+      {
+        "finding": "Space Grotesk matches the approved visual direction and all declared local weights are materialized with hashes.",
+        "need_id": "need-016331262cb7124422e4",
+        "next_action": "Use the local 400, 500, 600, and 700 files with no runtime font fetch; verify typography on narrow screens.",
+        "role": "font",
+        "trust_boundary": "No hard failure recorded."
+      }
+    ],
+    "stage": "stage_5",
+    "status": "ready",
+    "summary": "The deterministic report remains eligible for handoff. The selected local resources map to the approved single home route and section topology: five image roles and the font are locally materialized with provenance, hashes, and usable bindings; two optional component sources are materialized. Remaining gaps are non-blocking but require careful implementation and review.",
+    "warnings": [
+      "Hard boundary: do not publish pending metrics, screenshots, named case-study URLs, unverified links, or the omitted phone number.",
+      "Hard boundary: no runtime provider calls; retain only validated local resource bindings.",
+      "Hard boundary: the unresolved about-connect image must remain unresolved; do not replace it with stock, generated, or placeholder content.",
+      "Subjective quality: the approach and design-systems sections reuse closely related abstract imagery, which may feel repetitive.",
+      "Subjective quality: the selected-work image has vivid warm tones that may need contrast and color treatment review against the charcoal, mineral, and cobalt palette.",
+      "Subjective quality: the experience pipe image is a restrained metaphor but is not evidence of the listed work.",
+      "Provider rate-limit events affected cultui only; no selected resource depends on cultui."
+    ]
+  },
+  "pack_version": "build-preparation-pack-v3",
+  "projection_hashes": {
+    "approvals": "554f497ab58fee62b96764391e9fd525a6b953ad16cca8afceb3f31e8f0f7a12",
+    "execution": "6602cde9549b83236dc150e860d7fafd52ad63d48d033f6cdee85b232a389c2b",
+    "ledger": "2a38d301b20ef680ea42e5834b288c4070d902c66c0bcd7afee1fc476c884080",
+    "recipes": "2ee46c1727f5678f0e99f101b7e275a845a424b516ad4128715549979f3fafb5",
+    "resources": "f8479997d118bf118f0e7f044f352d7b2801d1cb884f4668957a38f9a2c2c0e3",
+    "site": "2212238912766634f3b3056c23a151dd037efbcc4c8c1150fe45bd7a50cd9828",
+    "targets": "0856cf30a71a4c3e3d819ef49b90024c1a2451ad266a9c6eb48373d34b94c2c4",
+    "visual": "8645c890081a78f1c01e57a0eab947edbdca5d53544936cb287bfb9cfe66ff3a"
+  },
+  "qualifications": [
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-d85095d80f5f23be1e95",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-66ce5553f9b67786dc64",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-70e6ab46f6493cb42218",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-c2fa077969af093c94df",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-1ba6ec7fb78a93c0875f",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-a4a38fe65e9313334f66",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-f3c24356b3f0379d486e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-b926027a2736966af303",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-d1cd62ebf9eaf03ae9f1",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-6a8cc839eb8472d3267b",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-693a5e3ff10a664138fc",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-6762252e6a3882a90e81",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-9dac8625d1660d69f82b",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-2bf5c084e29d1ae09db4",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-fb6b98eaf27373149b17",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pixabay-2672298bc71e3d223757",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pixabay-c7247f7e63a1fd4c53d9",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-280efd2a3309edd93968",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-3725a926126276cd9e81",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-aabff32b5b79823339fc",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-181dfe4d8850968cd8a4",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-03abe2d87be631fee32f",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-33e333d9d0ed5507f54c",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-944d166e482a65c6dd70",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fa7a4ed01cbb30e8e804",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-882e1d3646f4d7c05b87",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-92b8c34d2cdc2f212b9b",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-b2acb304142f2478b65d",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-1e4c9838c154ea50d8fc",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-a86c1bca005acbbaf2a7",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-31a678a08f5cd2f5bcc3",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-17217933b95748a0f53b",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-ee43d84747dcbbaf047e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-79799c924540b468dcb6",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-b3def49bb4bf24ba7bda",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-83de2bc90993984ac04b",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-12c4424695382abca6f5",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-370d3623ce51caf447ea",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-ef0a7d998d599c17275d",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-743900f6265ad5fe038e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-d54c294bc8deb81694c0",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-29788f3caf29fbdfd32b",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-bcf661e3d1f9622a2701",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-f46c8449b4edf5aa4e1c",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-9c2122be49dabfcc5bab",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-50a37c58f60863c47869",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-042df95aaefc38bf9ad3",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-239d1b29de4ca4e1acf8",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-3b890844fbc54e09e7d1",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-0b7f6abbe2734ac5a32e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-fd6e2b249b3a903d3e91",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-28ccbad8f04b591a29c2",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-af77c85dcee78088f8f9",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-d327c58df62266e96e90",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-3c3bc6e618f881851806",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-ca9762bcdcb0b3182b0e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-0f80f6af7aec1a1814d9",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pixabay-dcd802a460287b4f22cc",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-5b499fef9eeb34b769ae",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-cbd927d1bbd599e2cfba",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-69c4f6fcbe2a01753e39",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-6c45f588c6e93db62866",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-ed3dddadbe229b8f0bfe",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-bce03b1ac08d10023e32",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-0ab50ddcf54dfcdebbc8",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-f9ae06b4a28476457215",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-536bffd7eff1362fc845",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-f9ae06b4a28476457215",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-a7bda8c73e45d2ffdff9",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-f9ae06b4a28476457215",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 100,
+      "resource_id": "resource-pexels-3e8cae4a13b4d0834e49",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-f9ae06b4a28476457215",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-6deb071eae75822927d9",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-f9ae06b4a28476457215",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 85,
+      "resource_id": "resource-pexels-15a18616c084781f418e",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-f9ae06b4a28476457215",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 95,
+      "resource_id": "resource-pexels-a08dda446564f00fc173",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_DEPENDENCY_NOT_ALLOWED"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate requires dependencies outside the target contract."
+      ],
+      "relevance_score": 90,
+      "resource_id": "resource-shadcn-290b2e986140a037d3e2",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-5efee2838a4b4b1e0a6b",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-d72d26be46dc1714379f",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-4e8e6998af6753903a66",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-45f71c6ea69b3046729f",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 100,
+      "resource_id": "resource-magicui-2a58c84713a3c2b94542",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 90,
+      "resource_id": "resource-magicui-ff9a279e8ddde4ff5535",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-magicui-cab56926d2764fedef1d",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_POLICY_REJECTED",
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "rejected",
+      "quality_score": 70,
+      "reasons": [
+        "The candidate metadata contains a prohibited concept for this role.",
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-magicui-4e3af8ce3672bb488c85",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 90,
+      "resource_id": "resource-magicui-76cb37206680d3211db2",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 90,
+      "resource_id": "resource-smoothui-d7a42b9814bfe7c97f23",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-2856b9efc3ea62bf80c1",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-17d40651966db78a2e7b",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-smoothui-76bfde91baaf54687657",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2f3627a0c08cd8221eaf",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-smoothui-4c17b7b0430593810823",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-916e855a4fc7a8f07486",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-ae21794eec5779ac9f7d",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_PLACEHOLDER",
+        "COMPONENT_DEPENDENCY_NOT_ALLOWED"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate contains only empty or placeholder source.",
+        "The registry candidate requires dependencies outside the target contract."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-13e0ff003acaf4bda4f5",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_DEPENDENCY_NOT_ALLOWED"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate requires dependencies outside the target contract."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-shadcn-f0031d13f75cb9958356",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_POLICY_REJECTED",
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "rejected",
+      "quality_score": 70,
+      "reasons": [
+        "The candidate metadata contains a prohibited concept for this role.",
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-shadcn-6371bbae021c5d88e7af",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 90,
+      "resource_id": "resource-magicui-0bcd9511bdad151cae2f",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 90,
+      "resource_id": "resource-magicui-82356d468318e978a007",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-magicui-58b9d81b5dea4a4b69eb",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 80,
+      "resource_id": "resource-magicui-45e21127a12c6044f9f2",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-magicui-bc1bf6d45775819b746b",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-4a0021ba85524b146c23",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-2aa4957c4e9e9cfe2d53",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-047c0f4f139c1c857768",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-daaad78187378818d3a7",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": false,
+      "issue_codes": [
+        "COMPONENT_NOT_RELEVANT",
+        "COMPONENT_SOURCE_MISSING"
+      ],
+      "need_id": "need-2e7b2acd20833afd0720",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [
+        "The registry component does not match the requested interaction or layout intent.",
+        "The registry candidate has no source files to materialize."
+      ],
+      "relevance_score": 0,
+      "resource_id": "resource-smoothui-63b6ab46e0d60d49998a",
+      "technical_status": "rejected"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-016331262cb7124422e4",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 70,
+      "resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-016331262cb7124422e4",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 70,
+      "resource_id": "resource-fontsource-e62a8c9d9e453c3c47db",
+      "technical_status": "approved"
+    },
+    {
+      "eligible": true,
+      "issue_codes": [],
+      "need_id": "need-016331262cb7124422e4",
+      "policy_status": "approved",
+      "quality_score": 70,
+      "reasons": [],
+      "relevance_score": 70,
+      "resource_id": "resource-fontsource-c66d3fd486fe9b35b266",
+      "technical_status": "approved"
+    }
+  ],
+  "readiness": {
+    "delegated_acquisition": 0,
+    "execution_gap": 1,
+    "local_materialized": 8,
+    "local_recipe": 3,
+    "slot_count": 13,
+    "target_package_binding": 1
+  },
+  "required_need_ids": [
+    "need-6762252e6a3882a90e81",
+    "need-fa7a4ed01cbb30e8e804",
+    "need-370d3623ce51caf447ea",
+    "need-fd6e2b249b3a903d3e91",
+    "need-bce03b1ac08d10023e32",
+    "need-f9ae06b4a28476457215",
+    "need-2f3627a0c08cd8221eaf",
+    "need-2e7b2acd20833afd0720",
+    "need-016331262cb7124422e4"
+  ],
+  "run_analysis": {
+    "candidate_qualifications": [
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-d85095d80f5f23be1e95",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-66ce5553f9b67786dc64",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-70e6ab46f6493cb42218",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-c2fa077969af093c94df",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-1ba6ec7fb78a93c0875f",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-a4a38fe65e9313334f66",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-f3c24356b3f0379d486e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-b926027a2736966af303",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-d1cd62ebf9eaf03ae9f1",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-6a8cc839eb8472d3267b",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-693a5e3ff10a664138fc",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-6762252e6a3882a90e81",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-9dac8625d1660d69f82b",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-2bf5c084e29d1ae09db4",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-fb6b98eaf27373149b17",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pixabay-2672298bc71e3d223757",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pixabay-c7247f7e63a1fd4c53d9",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-280efd2a3309edd93968",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-3725a926126276cd9e81",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-aabff32b5b79823339fc",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-181dfe4d8850968cd8a4",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-03abe2d87be631fee32f",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-33e333d9d0ed5507f54c",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-944d166e482a65c6dd70",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-882e1d3646f4d7c05b87",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-92b8c34d2cdc2f212b9b",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-b2acb304142f2478b65d",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-1e4c9838c154ea50d8fc",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-a86c1bca005acbbaf2a7",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-31a678a08f5cd2f5bcc3",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-17217933b95748a0f53b",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-ee43d84747dcbbaf047e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-79799c924540b468dcb6",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-b3def49bb4bf24ba7bda",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-83de2bc90993984ac04b",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-12c4424695382abca6f5",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-370d3623ce51caf447ea",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-ef0a7d998d599c17275d",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-743900f6265ad5fe038e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-d54c294bc8deb81694c0",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-29788f3caf29fbdfd32b",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-bcf661e3d1f9622a2701",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-f46c8449b4edf5aa4e1c",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-9c2122be49dabfcc5bab",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-50a37c58f60863c47869",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-042df95aaefc38bf9ad3",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-239d1b29de4ca4e1acf8",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-3b890844fbc54e09e7d1",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-0b7f6abbe2734ac5a32e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-28ccbad8f04b591a29c2",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-af77c85dcee78088f8f9",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-d327c58df62266e96e90",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-3c3bc6e618f881851806",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-ca9762bcdcb0b3182b0e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-0f80f6af7aec1a1814d9",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pixabay-dcd802a460287b4f22cc",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-5b499fef9eeb34b769ae",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-cbd927d1bbd599e2cfba",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-69c4f6fcbe2a01753e39",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-6c45f588c6e93db62866",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-ed3dddadbe229b8f0bfe",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-0ab50ddcf54dfcdebbc8",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-f9ae06b4a28476457215",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-536bffd7eff1362fc845",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-f9ae06b4a28476457215",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-a7bda8c73e45d2ffdff9",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-f9ae06b4a28476457215",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 100,
+        "resource_id": "resource-pexels-3e8cae4a13b4d0834e49",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-f9ae06b4a28476457215",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-6deb071eae75822927d9",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-f9ae06b4a28476457215",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 85,
+        "resource_id": "resource-pexels-15a18616c084781f418e",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-f9ae06b4a28476457215",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 95,
+        "resource_id": "resource-pexels-a08dda446564f00fc173",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_DEPENDENCY_NOT_ALLOWED"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate requires dependencies outside the target contract."
+        ],
+        "relevance_score": 90,
+        "resource_id": "resource-shadcn-290b2e986140a037d3e2",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-5efee2838a4b4b1e0a6b",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-d72d26be46dc1714379f",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-4e8e6998af6753903a66",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-45f71c6ea69b3046729f",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 100,
+        "resource_id": "resource-magicui-2a58c84713a3c2b94542",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 90,
+        "resource_id": "resource-magicui-ff9a279e8ddde4ff5535",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-magicui-cab56926d2764fedef1d",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_POLICY_REJECTED",
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "rejected",
+        "quality_score": 70,
+        "reasons": [
+          "The candidate metadata contains a prohibited concept for this role.",
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-magicui-4e3af8ce3672bb488c85",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 90,
+        "resource_id": "resource-magicui-76cb37206680d3211db2",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 90,
+        "resource_id": "resource-smoothui-d7a42b9814bfe7c97f23",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-2856b9efc3ea62bf80c1",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-17d40651966db78a2e7b",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-smoothui-76bfde91baaf54687657",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-smoothui-4c17b7b0430593810823",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-916e855a4fc7a8f07486",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-ae21794eec5779ac9f7d",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_PLACEHOLDER",
+          "COMPONENT_DEPENDENCY_NOT_ALLOWED"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate contains only empty or placeholder source.",
+          "The registry candidate requires dependencies outside the target contract."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-13e0ff003acaf4bda4f5",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_DEPENDENCY_NOT_ALLOWED"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate requires dependencies outside the target contract."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-shadcn-f0031d13f75cb9958356",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_POLICY_REJECTED",
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "rejected",
+        "quality_score": 70,
+        "reasons": [
+          "The candidate metadata contains a prohibited concept for this role.",
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-shadcn-6371bbae021c5d88e7af",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 90,
+        "resource_id": "resource-magicui-0bcd9511bdad151cae2f",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 90,
+        "resource_id": "resource-magicui-82356d468318e978a007",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-magicui-58b9d81b5dea4a4b69eb",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 80,
+        "resource_id": "resource-magicui-45e21127a12c6044f9f2",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-magicui-bc1bf6d45775819b746b",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-4a0021ba85524b146c23",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-2aa4957c4e9e9cfe2d53",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-047c0f4f139c1c857768",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-daaad78187378818d3a7",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": false,
+        "issue_codes": [
+          "COMPONENT_NOT_RELEVANT",
+          "COMPONENT_SOURCE_MISSING"
+        ],
+        "need_id": "need-2e7b2acd20833afd0720",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [
+          "The registry component does not match the requested interaction or layout intent.",
+          "The registry candidate has no source files to materialize."
+        ],
+        "relevance_score": 0,
+        "resource_id": "resource-smoothui-63b6ab46e0d60d49998a",
+        "technical_status": "rejected"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-016331262cb7124422e4",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 70,
+        "resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-016331262cb7124422e4",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 70,
+        "resource_id": "resource-fontsource-e62a8c9d9e453c3c47db",
+        "technical_status": "approved"
+      },
+      {
+        "eligible": true,
+        "issue_codes": [],
+        "need_id": "need-016331262cb7124422e4",
+        "policy_status": "approved",
+        "quality_score": 70,
+        "reasons": [],
+        "relevance_score": 70,
+        "resource_id": "resource-fontsource-c66d3fd486fe9b35b266",
+        "technical_status": "approved"
+      }
+    ],
+    "code_generator_eligible": true,
+    "derived_roles": [
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-6762252e6a3882a90e81",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:hero"
+        ],
+        "section_ids": [
+          "home:hero"
+        ]
+      },
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "required": false,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:experience"
+        ],
+        "section_ids": [
+          "home:experience"
+        ]
+      },
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-370d3623ce51caf447ea",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:approach"
+        ],
+        "section_ids": [
+          "home:approach"
+        ]
+      },
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:design-systems"
+        ],
+        "section_ids": [
+          "home:design-systems"
+        ]
+      },
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-bce03b1ac08d10023e32",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:selected-work"
+        ],
+        "section_ids": [
+          "home:selected-work"
+        ]
+      },
+      {
+        "category": "editorial_photo",
+        "component_intent": null,
+        "need_id": "need-f9ae06b4a28476457215",
+        "required": false,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:about-connect"
+        ],
+        "section_ids": [
+          "home:about-connect"
+        ]
+      },
+      {
+        "category": "visual_component",
+        "component_intent": {
+          "expected_exports": [],
+          "fallback_type": "semantic_local",
+          "interaction_class": "detail-exploration",
+          "interaction_outcome": "Let visitors explore approved work details.",
+          "negative_concepts": [
+            "dashboard",
+            "screenshot",
+            "invented project detail"
+          ],
+          "placement": "home / home:selected-work",
+          "prohibitions": [
+            "Do not add an interaction to a section that does not contain the approved items."
+          ],
+          "provider_terms": [
+            "project detail",
+            "expandable cards",
+            "dialog",
+            "drawer",
+            "tabs",
+            "case study"
+          ],
+          "purpose": "Let visitors explore approved work details.",
+          "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+          "required": false,
+          "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+          "role_id": "selected-work-detail",
+          "route_id": "home",
+          "scene_id": "home-scene-home:selected-work",
+          "section_id": "home:selected-work"
+        },
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "required": false,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:selected-work"
+        ],
+        "section_ids": [
+          "home:selected-work"
+        ]
+      },
+      {
+        "category": "visual_component",
+        "component_intent": {
+          "expected_exports": [],
+          "fallback_type": "semantic_local",
+          "interaction_class": "progression",
+          "interaction_outcome": "Show chronological experience progression.",
+          "negative_concepts": [
+            "dashboard",
+            "screenshot",
+            "invented project detail"
+          ],
+          "placement": "home / home:experience",
+          "prohibitions": [
+            "Do not add an interaction to a section that does not contain the approved items."
+          ],
+          "provider_terms": [
+            "timeline",
+            "stepper",
+            "progression",
+            "milestones",
+            "chronology"
+          ],
+          "purpose": "Show chronological experience progression.",
+          "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+          "required": false,
+          "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+          "role_id": "experience-timeline",
+          "route_id": "home",
+          "scene_id": "home-scene-home:experience",
+          "section_id": "home:experience"
+        },
+        "need_id": "need-2e7b2acd20833afd0720",
+        "required": false,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [
+          "home-scene-home:experience"
+        ],
+        "section_ids": [
+          "home:experience"
+        ]
+      },
+      {
+        "category": "font",
+        "component_intent": null,
+        "need_id": "need-016331262cb7124422e4",
+        "required": true,
+        "route_ids": [
+          "home"
+        ],
+        "scene_ids": [],
+        "section_ids": []
+      }
+    ],
+    "input": {
+      "approval_verified": true,
+      "assumption_hash": "fc1bc5a3314d634b3bfb98359c15ec4dc98f5f5ab086dd63b930f820d3d84148",
+      "assumptions": [
+        "Editorial imagery is decorative and non-evidentiary.",
+        "No portrait, screenshot, dashboard, logo, or project proof is allowed.",
+        "Component roles are derived from approved route sections and interaction needs.",
+        "All visual resources must be local, attributed, and usable without runtime provider calls.",
+        "Reduced motion receives a complete static equivalent."
+      ],
+      "content_hash": "e51436bedcaf41a4f583aa4630519eb1485bf52cdc7f034d9c76b0f0df7d2530",
+      "scope_hash": "5324e4fc1af38622a0f00faff326079d0f6f14cfc01dbfb374ed1e5acde3df11",
+      "visual_direction_hash": "d0a712ff2a766f039be5d3e83bf704fbdc2c90cbc6be9dcf2fc7f944128335e8",
+      "visual_input_mode": "merged_vdd_assumptions"
+    },
+    "materialized_resources": [
+      {
+        "attribution_url": "https://pixabay.com/photos/copper-metal-modern-design-1081825/",
+        "content_hash": "d45bf53a95c4b478dabdc908041ab0cb3e3b6b5573c74c1ee1dd632a26b2b313",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved text-led/static hero composition without stock substitution.",
+        "final_height": 720,
+        "final_width": 1280,
+        "id": "resource-pixabay-d85095d80f5f23be1e95",
+        "import_path": "./resources/images/resource-pixabay-d85095d80f5f23be1e95.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pixabay Content License",
+        "license_reference": "https://pixabay.com/service/license-summary/",
+        "local_path": "resources/images/resource-pixabay-d85095d80f5f23be1e95.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pixabay-d85095d80f5f23be1e95",
+            "final_height": 720,
+            "final_width": 1280,
+            "need_id": "need-6762252e6a3882a90e81",
+            "optimized_byte_size": 162147,
+            "provider": "pixabay",
+            "raw_byte_size": 239896,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-6762252e6a3882a90e81",
+        "optimized_byte_size": 162147,
+        "pixel_height": 720,
+        "pixel_width": 1280,
+        "placement": "hero",
+        "provider": "pixabay",
+        "provider_asset_id": "1081825",
+        "provider_receipt": {},
+        "raw_byte_size": 239896,
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "d45bf53a95c4b478dabdc908041ab0cb3e3b6b5573c74c1ee1dd632a26b2b313"
+        ],
+        "source_reference": "https://pixabay.com/photos/copper-metal-modern-design-1081825/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pixabay-d85095d80f5f23be1e95.jpg",
+          "local_path": "resources/images/resource-pixabay-d85095d80f5f23be1e95.jpg",
+          "sha256": "d45bf53a95c4b478dabdc908041ab0cb3e3b6b5573c74c1ee1dd632a26b2b313",
+          "source_hashes": [
+            "d45bf53a95c4b478dabdc908041ab0cb3e3b6b5573c74c1ee1dd632a26b2b313"
+          ]
+        },
+        "why_selected": "Landscape copper architectural structure is the closest supplied match for a quiet, technical, non-evidentiary opening atmosphere and supports the charcoal, mineral, and cobalt visual language without showing a person, interface, dashboard, or project proof."
+      },
+      {
+        "attribution_url": "https://pixabay.com/photos/pipe-plumbing-connection-pipeline-406906/",
+        "content_hash": "fccbb1fec8ff4254116fc7571f1071932fd15c6d1ac43e780f316516d7d388cc",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved text-led/static experience composition without stock substitution.",
+        "final_height": 853,
+        "final_width": 1280,
+        "id": "resource-pixabay-2bf5c084e29d1ae09db4",
+        "import_path": "./resources/images/resource-pixabay-2bf5c084e29d1ae09db4.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pixabay Content License",
+        "license_reference": "https://pixabay.com/service/license-summary/",
+        "local_path": "resources/images/resource-pixabay-2bf5c084e29d1ae09db4.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pixabay-2bf5c084e29d1ae09db4",
+            "final_height": 853,
+            "final_width": 1280,
+            "need_id": "need-fa7a4ed01cbb30e8e804",
+            "optimized_byte_size": 153085,
+            "provider": "pixabay",
+            "raw_byte_size": 176189,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "optimized_byte_size": 153085,
+        "pixel_height": 853,
+        "pixel_width": 1280,
+        "placement": "experience",
+        "provider": "pixabay",
+        "provider_asset_id": "406906",
+        "provider_receipt": {},
+        "raw_byte_size": 176189,
+        "registry_dependencies": [],
+        "required_for_handoff": false,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "fccbb1fec8ff4254116fc7571f1071932fd15c6d1ac43e780f316516d7d388cc"
+        ],
+        "source_reference": "https://pixabay.com/photos/pipe-plumbing-connection-pipeline-406906/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pixabay-2bf5c084e29d1ae09db4.jpg",
+          "local_path": "resources/images/resource-pixabay-2bf5c084e29d1ae09db4.jpg",
+          "sha256": "fccbb1fec8ff4254116fc7571f1071932fd15c6d1ac43e780f316516d7d388cc",
+          "source_hashes": [
+            "fccbb1fec8ff4254116fc7571f1071932fd15c6d1ac43e780f316516d7d388cc"
+          ]
+        },
+        "why_selected": "The connected pipe and pipeline structure provides a restrained visual metaphor for delivery systems and operational continuity, matching the experience section better than the people, sports, or overtly environmental alternatives."
+      },
+      {
+        "attribution_url": "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-by-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-pr-17483874/",
+        "content_hash": "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved text-led/static approach section without stock substitution.",
+        "final_height": 1058,
+        "final_width": 1410,
+        "id": "resource-pexels-ee43d84747dcbbaf047e",
+        "import_path": "./resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_path": "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-ee43d84747dcbbaf047e",
+            "final_height": 1058,
+            "final_width": 1410,
+            "need_id": "need-370d3623ce51caf447ea",
+            "optimized_byte_size": 215614,
+            "provider": "pexels",
+            "raw_byte_size": 2481489,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-370d3623ce51caf447ea",
+        "optimized_byte_size": 215614,
+        "pixel_height": 1058,
+        "pixel_width": 1410,
+        "placement": "selected-work",
+        "provider": "pexels",
+        "provider_asset_id": "17483874",
+        "provider_receipt": {},
+        "raw_byte_size": 2481489,
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f"
+        ],
+        "source_reference": "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-by-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-pr-17483874/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+          "local_path": "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+          "sha256": "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f",
+          "source_hashes": [
+            "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f"
+          ]
+        },
+        "why_selected": "The abstract neural-network visualization directly matches the typed data-flow and systems-architecture intent, while remaining decorative and free of dashboards, screenshots, logos, and project proof."
+      },
+      {
+        "attribution_url": "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-proje-17483870/",
+        "content_hash": "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved text-led/static design-systems composition without stock substitution.",
+        "final_height": 1058,
+        "final_width": 1410,
+        "id": "resource-pexels-042df95aaefc38bf9ad3",
+        "import_path": "./resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_path": "resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-50a37c58f60863c47869",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "content_hash": "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f",
+            "existing_local_path": "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+            "need_id": "need-fd6e2b249b3a903d3e91",
+            "provider": "pexels",
+            "rejection_reason": "duplicate_local_content_hash",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 2,
+            "candidate_id": "resource-pexels-042df95aaefc38bf9ad3",
+            "final_height": 1058,
+            "final_width": 1410,
+            "need_id": "need-fd6e2b249b3a903d3e91",
+            "optimized_byte_size": 131428,
+            "provider": "pexels",
+            "raw_byte_size": 1487024,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "optimized_byte_size": 131428,
+        "pixel_height": 1058,
+        "pixel_width": 1410,
+        "placement": "selected-work",
+        "provider": "pexels",
+        "provider_asset_id": "17483870",
+        "provider_receipt": {},
+        "raw_byte_size": 1487024,
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f"
+        ],
+        "source_reference": "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-proje-17483870/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+          "local_path": "resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+          "sha256": "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f",
+          "source_hashes": [
+            "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f"
+          ]
+        },
+        "why_selected": "This supplied abstract data-flow visualization is semantically aligned with the design-system section's systems, tokens, components, and scalable-pattern narrative without implying unavailable interface evidence."
+      },
+      {
+        "attribution_url": "https://www.pexels.com/photo/dynamic-abstract-digital-light-burst-30547579/",
+        "content_hash": "fd47bb1019e2b93aa490b9be1ae0835907583519e1c53d2d7d7e381f7b5c274b",
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the approved semantic selected-work section without stock substitution.",
+        "final_height": 991,
+        "final_width": 1321,
+        "id": "resource-pexels-69c4f6fcbe2a01753e39",
+        "import_path": "./resources/images/resource-pexels-69c4f6fcbe2a01753e39.jpg",
+        "inspection_level": "pixel_inspected",
+        "kind": "photo",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_path": "resources/images/resource-pexels-69c4f6fcbe2a01753e39.jpg",
+        "materialization_attempts": [
+          {
+            "attempt": 1,
+            "candidate_id": "resource-pexels-5b499fef9eeb34b769ae",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "content_hash": "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f",
+            "existing_local_path": "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+            "need_id": "need-bce03b1ac08d10023e32",
+            "provider": "pexels",
+            "rejection_reason": "duplicate_local_content_hash",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 2,
+            "candidate_id": "resource-pexels-cbd927d1bbd599e2cfba",
+            "configured_optimized_limit": 8388608,
+            "configured_raw_limit": 25165824,
+            "content_hash": "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f",
+            "existing_local_path": "resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+            "need_id": "need-bce03b1ac08d10023e32",
+            "provider": "pexels",
+            "rejection_reason": "duplicate_local_content_hash",
+            "response_content_type": "image/*",
+            "status": "rejected"
+          },
+          {
+            "attempt": 3,
+            "candidate_id": "resource-pexels-69c4f6fcbe2a01753e39",
+            "final_height": 991,
+            "final_width": 1321,
+            "need_id": "need-bce03b1ac08d10023e32",
+            "optimized_byte_size": 313439,
+            "provider": "pexels",
+            "raw_byte_size": 324903,
+            "response_content_type": "image/*",
+            "status": "materialized"
+          }
+        ],
+        "need_id": "need-bce03b1ac08d10023e32",
+        "optimized_byte_size": 313439,
+        "pixel_height": 991,
+        "pixel_width": 1321,
+        "placement": "selected-work",
+        "provider": "pexels",
+        "provider_asset_id": "30547579",
+        "provider_receipt": {},
+        "raw_byte_size": 324903,
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "response_content_type": "image/*",
+        "source_hashes": [
+          "fd47bb1019e2b93aa490b9be1ae0835907583519e1c53d2d7d7e381f7b5c274b"
+        ],
+        "source_reference": "https://www.pexels.com/photo/dynamic-abstract-digital-light-burst-30547579/",
+        "source_version": "",
+        "usage_contract": {
+          "import_path": "./resources/images/resource-pexels-69c4f6fcbe2a01753e39.jpg",
+          "local_path": "resources/images/resource-pexels-69c4f6fcbe2a01753e39.jpg",
+          "sha256": "fd47bb1019e2b93aa490b9be1ae0835907583519e1c53d2d7d7e381f7b5c274b",
+          "source_hashes": [
+            "fd47bb1019e2b93aa490b9be1ae0835907583519e1c53d2d7d7e381f7b5c274b"
+          ]
+        },
+        "why_selected": "The abstract neural-network image best fits the selected-work section's data-flow atmosphere and supports the approved transactional, operational, and appointment-workflow range without fabricating project visuals."
+      },
+      {
+        "dependencies": [
+          "motion",
+          "lucide-react"
+        ],
+        "dependencies_allowed": true,
+        "disposition": "adaptable_source",
+        "expected_exports": [
+          "Card",
+          "ExpandableCards",
+          "ExpandableCardsProps"
+        ],
+        "exports": [
+          "Card",
+          "ExpandableCards",
+          "ExpandableCardsProps"
+        ],
+        "fallback": "Use the approved semantic selected-work section structure without a registry component.",
+        "id": "resource-smoothui-d7a42b9814bfe7c97f23",
+        "import_path": "./resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source",
+        "kind": "component",
+        "license": "MIT",
+        "license_reference": "https://github.com/educlopez/smoothui/blob/main/LICENSE",
+        "local_directory": "resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source",
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "placement": "home / home:selected-work",
+        "provider": "smoothui",
+        "provider_asset_id": "expandable-cards",
+        "provider_receipt": {
+          "attempt": 1,
+          "cache_state": "not_cached",
+          "candidate_count": 1,
+          "provider": "smoothui",
+          "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments"
+        },
+        "registry_dependencies": [],
+        "release_pin": "registry-v1",
+        "required_for_handoff": false,
+        "source_files": [
+          {
+            "local_path": "resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source/index.tsx",
+            "original_path": "index.tsx",
+            "sha256": "9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede"
+          }
+        ],
+        "source_hashes": [
+          "9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede"
+        ],
+        "source_reference": "https://smoothui.dev/r/expandable-cards.json",
+        "source_version": "registry-v1",
+        "usage_contract": {
+          "alt_or_decorative_treatment": "preserve semantic labels and keyboard/focus behavior",
+          "attribution": {
+            "attribution_url": "",
+            "license": "MIT",
+            "license_reference": "https://github.com/educlopez/smoothui/blob/main/LICENSE",
+            "source_reference": "https://smoothui.dev/r/expandable-cards.json"
+          },
+          "dependencies": [
+            "motion",
+            "lucide-react"
+          ],
+          "expected_exports": [
+            "Card",
+            "ExpandableCards",
+            "ExpandableCardsProps"
+          ],
+          "export_name": "Card",
+          "fallback": "Use the approved semantic selected-work section structure without a registry component.",
+          "import_path": "./resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source",
+          "local_directory": "resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source",
+          "local_paths": [
+            "resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source/index.tsx"
+          ],
+          "placement": "home / home:selected-work",
+          "provider_receipt": {
+            "candidate_id": "component-smoothui-56b5f5c746c12d4ef344",
+            "dependencies": [],
+            "description": "A ExpandableCards component for SmoothUI.",
+            "expected_exports": [],
+            "interaction_class": "detail-exploration",
+            "interaction_outcome": "Let visitors explore approved work details.",
+            "item_url": "https://smoothui.dev/r/expandable-cards.json",
+            "license": "MIT",
+            "license_reference": "https://github.com/educlopez/smoothui/blob/main/LICENSE",
+            "name": "expandable-cards",
+            "placement": "home / home:selected-work",
+            "provider": "smoothui",
+            "provider_attempts": [],
+            "provider_receipt": {
+              "attempt": 1,
+              "cache_state": "not_cached",
+              "candidate_count": 1,
+              "provider": "smoothui",
+              "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments"
+            },
+            "provider_terms": [
+              "project detail",
+              "expandable cards",
+              "dialog",
+              "drawer",
+              "tabs",
+              "case study",
+              "home / home:selected-work",
+              "technical",
+              "editorial",
+              "charcoal",
+              "mineral",
+              "cobalt",
+              "accent",
+              "arjun",
+              "mehta",
+              "senior",
+              "designer",
+              "present",
+              "focused",
+              "professional",
+              "narrative",
+              "selected",
+              "project",
+              "work"
+            ],
+            "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments",
+            "registry_dependencies": [],
+            "source_version": "registry-v1",
+            "tags": [],
+            "technical_metadata": {
+              "animation_type": "",
+              "complexity": "",
+              "use_cases": []
+            },
+            "title": "ExpandableCards"
+          },
+          "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+          "registry_dependencies": [],
+          "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+          "route_ids": [
+            "home"
+          ],
+          "scene_ids": [
+            "home-scene-home:selected-work"
+          ],
+          "section_ids": [
+            "home:selected-work"
+          ],
+          "sha256": [
+            "9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede"
+          ],
+          "source_hashes": [
+            "9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede"
+          ],
+          "source_version": "registry-v1"
+        },
+        "why_selected": "The shadcn drawer-dialog is the strongest supplied semantic match for optional detail exploration of approved work, with MIT provenance and a source reference, and it can contain generalized text without requiring project imagery."
+      },
+      {
+        "dependencies": [
+          "motion"
+        ],
+        "dependencies_allowed": true,
+        "disposition": "adaptable_source",
+        "expected_exports": [
+          "AnimatedBeam",
+          "AnimatedBeamProps"
+        ],
+        "exports": [
+          "AnimatedBeam",
+          "AnimatedBeamProps"
+        ],
+        "fallback": "Implement the approved experience entries as a semantic, accessible static timeline/list using native document structure and CSS only.",
+        "id": "resource-magicui-0bcd9511bdad151cae2f",
+        "import_path": "./resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source",
+        "kind": "component",
+        "license": "MIT",
+        "license_reference": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+        "local_directory": "resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source",
+        "need_id": "need-2e7b2acd20833afd0720",
+        "placement": "home / home:experience",
+        "provider": "magicui",
+        "provider_asset_id": "animated-beam",
+        "provider_receipt": {
+          "attempt": 1,
+          "cache_state": "not_cached",
+          "candidate_count": 1,
+          "provider": "magicui",
+          "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment"
+        },
+        "registry_dependencies": [],
+        "release_pin": "registry-v1",
+        "required_for_handoff": false,
+        "source_files": [
+          {
+            "local_path": "resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source/registry/magicui/animated-beam.tsx",
+            "original_path": "registry/magicui/animated-beam.tsx",
+            "sha256": "6afa2ee1d01694a428eb8517d48deebe5c6b532dc0ee871800bb9d92aae43e79"
+          }
+        ],
+        "source_hashes": [
+          "6afa2ee1d01694a428eb8517d48deebe5c6b532dc0ee871800bb9d92aae43e79"
+        ],
+        "source_reference": "https://magicui.design/r/animated-beam.json",
+        "source_version": "registry-v1",
+        "usage_contract": {
+          "alt_or_decorative_treatment": "preserve semantic labels and keyboard/focus behavior",
+          "attribution": {
+            "attribution_url": "",
+            "license": "MIT",
+            "license_reference": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+            "source_reference": "https://magicui.design/r/animated-beam.json"
+          },
+          "dependencies": [
+            "motion"
+          ],
+          "expected_exports": [
+            "AnimatedBeam",
+            "AnimatedBeamProps"
+          ],
+          "export_name": "AnimatedBeam",
+          "fallback": "Implement the approved experience entries as a semantic, accessible static timeline/list using native document structure and CSS only.",
+          "import_path": "./resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source",
+          "local_directory": "resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source",
+          "local_paths": [
+            "resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source/registry/magicui/animated-beam.tsx"
+          ],
+          "placement": "home / home:experience",
+          "provider_receipt": {
+            "candidate_id": "component-magicui-4258d3e3a24452cd43f9",
+            "dependencies": [],
+            "description": "An animated beam of light which travels along a path. Useful for showcasing the integration features of a website.",
+            "expected_exports": [],
+            "interaction_class": "progression",
+            "interaction_outcome": "Show chronological experience progression.",
+            "item_url": "https://magicui.design/r/animated-beam.json",
+            "license": "MIT",
+            "license_reference": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+            "name": "animated-beam",
+            "placement": "home / home:experience",
+            "provider": "magicui",
+            "provider_attempts": [],
+            "provider_receipt": {
+              "attempt": 1,
+              "cache_state": "not_cached",
+              "candidate_count": 1,
+              "provider": "magicui",
+              "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment"
+            },
+            "provider_terms": [
+              "timeline",
+              "stepper",
+              "progression",
+              "milestones",
+              "chronology",
+              "home / home:experience",
+              "technical",
+              "editorial",
+              "charcoal",
+              "mineral",
+              "cobalt",
+              "accent",
+              "arjun",
+              "mehta",
+              "senior",
+              "designer",
+              "present",
+              "focused",
+              "professional",
+              "narrative",
+              "selected",
+              "project",
+              "work",
+              "design"
+            ],
+            "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment",
+            "registry_dependencies": [],
+            "source_version": "registry-v1",
+            "tags": [],
+            "technical_metadata": {
+              "type": "registry:ui"
+            },
+            "title": "Animated Beam"
+          },
+          "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+          "registry_dependencies": [],
+          "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+          "route_ids": [
+            "home"
+          ],
+          "scene_ids": [
+            "home-scene-home:experience"
+          ],
+          "section_ids": [
+            "home:experience"
+          ],
+          "sha256": [
+            "6afa2ee1d01694a428eb8517d48deebe5c6b532dc0ee871800bb9d92aae43e79"
+          ],
+          "source_hashes": [
+            "6afa2ee1d01694a428eb8517d48deebe5c6b532dc0ee871800bb9d92aae43e79"
+          ],
+          "source_version": "registry-v1"
+        },
+        "why_selected": "None of the supplied candidates is a genuine chronological timeline or progression component; the available login, menu, dashboard, beam, and bento resources are semantically incompatible with the experience section."
+      },
+      {
+        "dependencies": [],
+        "disposition": "local_file",
+        "fallback": "Use the typed local system font recipe with declared weights.",
+        "font_family": "Space Grotesk",
+        "font_weights": [
+          "400",
+          "500",
+          "600",
+          "700"
+        ],
+        "id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "import_path": "",
+        "kind": "font",
+        "license": "OFL-1.1",
+        "license_reference": "https://scripts.sil.org/OFL",
+        "local_directory": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7",
+        "need_id": "need-016331262cb7124422e4",
+        "placement": "",
+        "provider": "fontsource",
+        "provider_asset_id": "space-grotesk",
+        "provider_receipt": {
+          "attempt": 1,
+          "cache_state": "not_cached",
+          "candidate_count": 3,
+          "configured_key": true,
+          "http_status": 200,
+          "kind": "font",
+          "provider": "fontsource",
+          "query": "space grotesk local latin font weights 400 500 600 700 manrope technical sans distinctive display body family for the approved language vendored locally with glyph coverage editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability",
+          "retry_delay": 0.0
+        },
+        "registry_dependencies": [],
+        "required_for_handoff": true,
+        "source_files": [
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/400-normal.woff2",
+            "sha256": "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+            "variant": "400-normal"
+          },
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/500-normal.woff2",
+            "sha256": "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+            "variant": "500-normal"
+          },
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/600-normal.woff2",
+            "sha256": "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+            "variant": "600-normal"
+          },
+          {
+            "local_path": "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/700-normal.woff2",
+            "sha256": "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55",
+            "variant": "700-normal"
+          }
+        ],
+        "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk",
+        "source_version": "v22",
+        "usage_contract": {
+          "alt_or_decorative_treatment": "preserve semantic labels and keyboard/focus behavior",
+          "attribution": {
+            "attribution_url": "",
+            "license": "OFL-1.1",
+            "license_reference": "https://scripts.sil.org/OFL",
+            "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk"
+          },
+          "dependencies": [],
+          "expected_exports": [],
+          "fallback": "Use the typed local system font recipe with declared weights.",
+          "placement": "",
+          "provider_receipt": {
+            "provider_receipt": {
+              "attempt": 1,
+              "cache_state": "not_cached",
+              "candidate_count": 3,
+              "configured_key": true,
+              "http_status": 200,
+              "kind": "font",
+              "provider": "fontsource",
+              "query": "space grotesk local latin font weights 400 500 600 700 manrope technical sans distinctive display body family for the approved language vendored locally with glyph coverage editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability",
+              "retry_delay": 0.0
+            }
+          },
+          "reduced_motion_behavior": "static equivalent",
+          "registry_dependencies": [],
+          "responsive_behavior": "",
+          "route_ids": [
+            "home"
+          ],
+          "scene_ids": [],
+          "section_ids": [],
+          "source_version": "v22"
+        },
+        "why_selected": "Space Grotesk exactly matches the approved display typography projection, supplies the declared Latin weights 400–700, and has Fontsource provenance with a successful metadata receipt."
+      }
+    ],
+    "model_call_receipts": [
+      {
+        "finish_reason": "stop",
+        "input_packet_hash": "4f01c42c557b48bba44d291ace80c5687155e93b1c1c169c08f6c38cd4e8e4c9",
+        "latency_ms": 24011.01010000275,
+        "model": "gpt-5.6-luna",
+        "operation": "compose_resource_queries",
+        "prompt_modules": {
+          "compose_resource_queries.md": "0ed950e53958d873",
+          "schema": "08ae8662e048be1d",
+          "system.md": "d1c86cba742d8f6f"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EGiIlqMVlcIGRXFYwHi1YDIj1l5JA",
+        "usage": {
+          "completion_tokens": 2729,
+          "prompt_tokens": 55635,
+          "total_tokens": 58364
+        }
+      },
+      {
+        "finish_reason": "stop",
+        "input_packet_hash": "8758ecb04c5da34a8b08f3cd461994a96bf65dc17599e90b771b999fa09832a7",
+        "latency_ms": 28415.63759998826,
+        "model": "gpt-5.6-luna",
+        "operation": "select_resources",
+        "prompt_modules": {
+          "schema": "01cf93659acf4d0a",
+          "select_resources.md": "96f268cd0bc1eeb9",
+          "system.md": "d1c86cba742d8f6f"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EGiJFDhZUSR4SY3U7iV3IYtUyMOT9",
+        "usage": {
+          "completion_tokens": 2754,
+          "prompt_tokens": 337531,
+          "total_tokens": 340285
+        }
+      },
+      {
+        "finish_reason": "stop",
+        "input_packet_hash": "71bb033e086994bedc47343bb6f0d7270b0f2165581efc28309240a92c3fb89b",
+        "latency_ms": 46657.99169999082,
+        "model": "gpt-5.6-luna",
+        "operation": "write_build_context",
+        "prompt_modules": {
+          "schema": "573fad095b511614",
+          "system.md": "d1c86cba742d8f6f",
+          "write_build_context.md": "e36d505bbcf6c24d"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EGiJnPz4yIZ7SveWdi6aZPhKVRPj4",
+        "usage": {
+          "completion_tokens": 4466,
+          "prompt_tokens": 357324,
+          "total_tokens": 361790
+        }
+      },
+      {
+        "finish_reason": "stop",
+        "input_packet_hash": "28baa7752a88f7c352b9f2f0cf88fb663d472a8e8951eaef8352c7aee2e04b1b",
+        "latency_ms": 30088.505499996245,
+        "model": "gpt-5.6-luna",
+        "operation": "review_handoff_quality",
+        "prompt_modules": {
+          "review_handoff_quality.md": "355ac3dcf7b03004",
+          "schema": "37132cbacc426d34",
+          "system.md": "d1c86cba742d8f6f"
+        },
+        "provider": "gpt-5.6-luna",
+        "response_id": "chatcmpl-EGiKjXB0IkPLcxYss7fTUXzB3PmgU",
+        "usage": {
+          "completion_tokens": 1874,
+          "prompt_tokens": 577600,
+          "total_tokens": 579474
+        }
+      }
+    ],
+    "provider_attempts": [
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pexels",
+        "query": "abstract backend platform engineering systems architecture",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pixabay",
+        "query": "abstract backend platform engineering systems architecture",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pexels",
+        "query": "abstract infrastructure delivery deployment pipeline observability",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pixabay",
+        "query": "abstract infrastructure delivery deployment pipeline observability",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pexels",
+        "query": "abstract data flow service architecture queues",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pixabay",
+        "query": "abstract data flow service architecture queues",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pexels",
+        "query": "abstract data flow service architecture queues",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pixabay",
+        "query": "abstract data flow service architecture queues",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pexels",
+        "query": "abstract data flow service architecture queues",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pixabay",
+        "query": "abstract data flow service architecture queues",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 0,
+        "cache_state": "hit",
+        "candidate_count": 6,
+        "configured_key": true,
+        "http_status": null,
+        "provider": "pexels",
+        "query": "abstract software engineering infrastructure technical material",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 5,
+        "http_status": 200,
+        "kind": "component",
+        "provider": "shadcn",
+        "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments project detail expandable cards dialog drawer tabs case study home / home:selected-work technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work"
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 5,
+        "http_status": 200,
+        "kind": "component",
+        "provider": "magicui",
+        "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments project detail expandable cards dialog drawer tabs case study home / home:selected-work technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work"
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 5,
+        "http_status": 200,
+        "kind": "component",
+        "provider": "smoothui",
+        "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments project detail expandable cards dialog drawer tabs case study home / home:selected-work technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work"
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 0,
+        "error_code": "RATE_LIMITED",
+        "http_status": 429,
+        "kind": "component",
+        "provider": "cultui",
+        "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments project detail expandable cards dialog drawer tabs case study home / home:selected-work technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work",
+        "rate_limit_event": true,
+        "rejection_reason": "cultui rate limit reached; no alternate transport was attempted.",
+        "retry_delay": 1.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 5,
+        "http_status": 200,
+        "kind": "component",
+        "provider": "shadcn",
+        "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment timeline stepper progression milestones chronology home / home:experience technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design"
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 5,
+        "http_status": 200,
+        "kind": "component",
+        "provider": "magicui",
+        "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment timeline stepper progression milestones chronology home / home:experience technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design"
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 5,
+        "http_status": 200,
+        "kind": "component",
+        "provider": "smoothui",
+        "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment timeline stepper progression milestones chronology home / home:experience technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design"
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 0,
+        "error_code": "RATE_LIMITED",
+        "http_status": 429,
+        "kind": "component",
+        "provider": "cultui",
+        "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment timeline stepper progression milestones chronology home / home:experience technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design",
+        "rate_limit_event": true,
+        "rejection_reason": "cultui rate limit reached; no alternate transport was attempted.",
+        "retry_delay": 1.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_count": 3,
+        "configured_key": true,
+        "http_status": 200,
+        "kind": "font",
+        "provider": "fontsource",
+        "query": "space grotesk local latin font weights 400 500 600 700 manrope technical sans distinctive display body family for the approved language vendored locally with glyph coverage editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability",
+        "retry_delay": 0.0
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_id": "resource-shadcn-290b2e986140a037d3e2",
+        "http_status": 200,
+        "license": "MIT",
+        "provider": "shadcn",
+        "query": [
+          "home",
+          "selected-work",
+          "detail",
+          "exploration",
+          "project",
+          "expandable",
+          "cards",
+          "dialog",
+          "drawer",
+          "tabs",
+          "case",
+          "study",
+          "let",
+          "visitors",
+          "explore",
+          "approved",
+          "work",
+          "details",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "design",
+          "approach",
+          "systems",
+          "capability",
+          "and",
+          "safe",
+          "contact",
+          "path",
+          "one",
+          "page",
+          "show",
+          "the",
+          "range",
+          "product",
+          "problems",
+          "/",
+          "home:selected-work",
+          "has",
+          "contributed",
+          "without",
+          "implying",
+          "full",
+          "case-study",
+          "depth",
+          "payments",
+          "project detail",
+          "expandable cards",
+          "case study",
+          "home / home:selected-work"
+        ],
+        "rejection_reason": "The registry candidate requires dependencies outside the target contract.",
+        "retry_delay": 0.0,
+        "source_fetch_status": "rejected",
+        "source_file_count": 3
+      },
+      {
+        "attempt": 2,
+        "cache_state": "not_cached",
+        "candidate_id": "resource-smoothui-d7a42b9814bfe7c97f23",
+        "http_status": 200,
+        "license": "MIT",
+        "provider": "smoothui",
+        "query": [
+          "home",
+          "selected-work",
+          "detail",
+          "exploration",
+          "project",
+          "expandable",
+          "cards",
+          "dialog",
+          "drawer",
+          "tabs",
+          "case",
+          "study",
+          "let",
+          "visitors",
+          "explore",
+          "approved",
+          "work",
+          "details",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "design",
+          "approach",
+          "systems",
+          "capability",
+          "and",
+          "safe",
+          "contact",
+          "path",
+          "one",
+          "page",
+          "show",
+          "the",
+          "range",
+          "product",
+          "problems",
+          "/",
+          "home:selected-work",
+          "has",
+          "contributed",
+          "without",
+          "implying",
+          "full",
+          "case-study",
+          "depth",
+          "payments",
+          "project detail",
+          "expandable cards",
+          "case study",
+          "home / home:selected-work"
+        ],
+        "rejection_reason": "",
+        "retry_delay": 0.0,
+        "source_fetch_status": "accepted",
+        "source_file_count": 1
+      },
+      {
+        "attempt": 1,
+        "cache_state": "not_cached",
+        "candidate_id": "resource-shadcn-13e0ff003acaf4bda4f5",
+        "http_status": 200,
+        "license": "MIT",
+        "provider": "shadcn",
+        "query": [
+          "home",
+          "experience",
+          "progression",
+          "timeline",
+          "stepper",
+          "milestones",
+          "chronology",
+          "accessible",
+          "show",
+          "chronological",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "project",
+          "work",
+          "design",
+          "approach",
+          "systems",
+          "capability",
+          "and",
+          "safe",
+          "contact",
+          "path",
+          "one",
+          "page",
+          "provide",
+          "concise",
+          "context",
+          "connect",
+          "the",
+          "portfolio",
+          "real",
+          "product",
+          "lead",
+          "/",
+          "home:experience",
+          "end-to-end",
+          "for",
+          "consumer",
+          "payment",
+          "home / home:experience"
+        ],
+        "rejection_reason": "The registry candidate contains only empty or placeholder source.; The registry candidate requires dependencies outside the target contract.",
+        "retry_delay": 0.0,
+        "source_fetch_status": "rejected",
+        "source_file_count": 1
+      },
+      {
+        "attempt": 2,
+        "cache_state": "not_cached",
+        "candidate_id": "resource-shadcn-f0031d13f75cb9958356",
+        "http_status": 200,
+        "license": "MIT",
+        "provider": "shadcn",
+        "query": [
+          "home",
+          "experience",
+          "progression",
+          "timeline",
+          "stepper",
+          "milestones",
+          "chronology",
+          "accessible",
+          "show",
+          "chronological",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "project",
+          "work",
+          "design",
+          "approach",
+          "systems",
+          "capability",
+          "and",
+          "safe",
+          "contact",
+          "path",
+          "one",
+          "page",
+          "provide",
+          "concise",
+          "context",
+          "connect",
+          "the",
+          "portfolio",
+          "real",
+          "product",
+          "lead",
+          "/",
+          "home:experience",
+          "end-to-end",
+          "for",
+          "consumer",
+          "payment",
+          "home / home:experience"
+        ],
+        "rejection_reason": "The registry candidate requires dependencies outside the target contract.",
+        "retry_delay": 0.0,
+        "source_fetch_status": "rejected",
+        "source_file_count": 2
+      },
+      {
+        "attempt": 3,
+        "cache_state": "not_cached",
+        "candidate_id": "resource-magicui-0bcd9511bdad151cae2f",
+        "http_status": 200,
+        "license": "MIT",
+        "provider": "magicui",
+        "query": [
+          "home",
+          "experience",
+          "progression",
+          "timeline",
+          "stepper",
+          "milestones",
+          "chronology",
+          "accessible",
+          "show",
+          "chronological",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "project",
+          "work",
+          "design",
+          "approach",
+          "systems",
+          "capability",
+          "and",
+          "safe",
+          "contact",
+          "path",
+          "one",
+          "page",
+          "provide",
+          "concise",
+          "context",
+          "connect",
+          "the",
+          "portfolio",
+          "real",
+          "product",
+          "lead",
+          "/",
+          "home:experience",
+          "end-to-end",
+          "for",
+          "consumer",
+          "payment",
+          "home / home:experience"
+        ],
+        "rejection_reason": "",
+        "retry_delay": 0.0,
+        "source_fetch_status": "accepted",
+        "source_file_count": 1
+      }
+    ],
+    "queries": [
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "16:9",
+        "category": "editorial_photo",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-6762252e6a3882a90e81",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "landscape",
+        "placement": "home / home:hero",
+        "provider_terms": [
+          "abstract architecture",
+          "backend systems",
+          "technical editorial",
+          "infrastructure",
+          "data flow"
+        ],
+        "purpose": "Editorial opening atmosphere for the hero section; decorative and non-evidentiary.",
+        "query": "abstract backend platform engineering systems architecture editorial atmosphere quiet technical high contrast interface people high-contrast photo hero opening for and person product charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach capability safe contact path",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "quiet, technical, high-contrast",
+        "subject": "backend platform engineering editorial systems atmosphere abstract architecture",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "3:2",
+        "category": "editorial_photo",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": false,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "landscape",
+        "placement": "home / home:experience",
+        "provider_terms": [
+          "infrastructure",
+          "deployment pipeline",
+          "delivery systems",
+          "observability",
+          "technical editorial"
+        ],
+        "purpose": "Editorial infrastructure and delivery atmosphere supporting the experience section.",
+        "query": "abstract infrastructure delivery deployment pipeline observability editorial atmosphere calm operational interface people abstraction mood photo experience and supporting timeline technical charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability safe contact path one",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": false,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "calm, operational, editorial",
+        "subject": "infrastructure delivery deployment pipeline abstraction observability mood",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "4:3",
+        "category": "editorial_photo",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-370d3623ce51caf447ea",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "landscape",
+        "placement": "home / home:approach",
+        "provider_terms": [
+          "data flow",
+          "service architecture",
+          "queues",
+          "caching",
+          "delivery systems",
+          "technical abstraction"
+        ],
+        "purpose": "Decorative data-flow atmosphere for the approach section; no dashboard or screenshot.",
+        "query": "abstract data flow service architecture queues caching delivery editorial atmosphere dense precise technical interface people abstraction photo selected-work decorative data-flow for selected work dashboard screenshot charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative project design approach systems capability and",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "dense, precise, technical",
+        "subject": "data flow abstraction service architecture queues caching delivery",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "4:3",
+        "category": "editorial_photo",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "landscape",
+        "placement": "home / home:design-systems",
+        "provider_terms": [
+          "data flow",
+          "service architecture",
+          "queues",
+          "caching",
+          "delivery systems",
+          "technical abstraction"
+        ],
+        "purpose": "Decorative data-flow atmosphere for the design-systems section; no dashboard or screenshot.",
+        "query": "abstract data flow service architecture queues caching delivery editorial atmosphere dense precise technical interface people abstraction photo selected-work decorative data-flow for selected work dashboard screenshot charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative project design approach systems capability and",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "dense, precise, technical",
+        "subject": "data flow abstraction service architecture queues caching delivery",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "4:3",
+        "category": "editorial_photo",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-bce03b1ac08d10023e32",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "landscape",
+        "placement": "home / home:selected-work",
+        "provider_terms": [
+          "data flow",
+          "service architecture",
+          "queues",
+          "caching",
+          "delivery systems",
+          "technical abstraction"
+        ],
+        "purpose": "Decorative data-flow atmosphere for the selected-work section; no dashboard or screenshot.",
+        "query": "abstract data flow service architecture queues caching delivery editorial atmosphere dense precise technical interface people abstraction photo selected-work decorative data-flow for selected work dashboard screenshot charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative project design approach systems capability and",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "dense, precise, technical",
+        "subject": "data flow abstraction service architecture queues caching delivery",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "pexels",
+          "pixabay"
+        ],
+        "aspect_ratio": "3:2",
+        "category": "editorial_photo",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved text-led/static composition without stock substitution.",
+        "icon_name": "",
+        "important": false,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "photo",
+        "minimum_height": 700,
+        "minimum_width": 1200,
+        "need_id": "need-f9ae06b4a28476457215",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "landscape",
+        "placement": "home / home:about-connect",
+        "provider_terms": [
+          "software engineering",
+          "technical texture",
+          "abstract infrastructure",
+          "signal texture",
+          "editorial material study"
+        ],
+        "purpose": "Quiet technical-editorial texture for the about and connection section.",
+        "query": "abstract software engineering infrastructure technical material editorial texture quiet spacious reflective interface people signal study photo education technical-editorial for supporting context without personal imagery charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "required_for_handoff": false,
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "style_mood": "quiet, spacious, reflective",
+        "subject": "software engineering editorial texture abstract infrastructure signal technical material study",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "shadcn",
+          "magicui",
+          "smoothui",
+          "cultui"
+        ],
+        "aspect_ratio": "",
+        "category": "detail-exploration",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved semantic section structure without a registry component.",
+        "icon_name": "",
+        "important": false,
+        "interaction_class": "detail-exploration",
+        "interaction_outcome": "Let visitors explore approved work details.",
+        "kind": "component",
+        "minimum_height": 0,
+        "minimum_width": 0,
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "negative_concepts": [
+          "dashboard",
+          "screenshot",
+          "invented project detail",
+          "portrait",
+          "face",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial"
+        ],
+        "orientation": "",
+        "placement": "home / home:selected-work",
+        "provider_terms": [
+          "project detail",
+          "expandable cards",
+          "dialog",
+          "drawer",
+          "tabs",
+          "case study",
+          "home / home:selected-work",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "project",
+          "work"
+        ],
+        "purpose": "Let visitors explore approved work details in home:selected-work.",
+        "query": "home selected-work detail exploration project expandable cards dialog drawer tabs case study let visitors explore approved work details technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected design approach systems capability and safe contact path one page show the range product problems project detail expandable cards case study home / home:selected-work has contributed without implying full case-study depth payments",
+        "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+        "required_for_handoff": false,
+        "responsive_behavior": "Stack controls and keep every approved item reachable without hover; preserve keyboard access.",
+        "style_mood": "technical editorial",
+        "subject": "Approved selected-work project summaries",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "shadcn",
+          "magicui",
+          "smoothui",
+          "cultui"
+        ],
+        "aspect_ratio": "",
+        "category": "progression",
+        "colors": [
+          "charcoal",
+          "mineral",
+          "cobalt"
+        ],
+        "editors_choice": false,
+        "expected_exports": [],
+        "fallback": "Use the approved semantic section structure without a registry component.",
+        "icon_name": "",
+        "important": false,
+        "interaction_class": "progression",
+        "interaction_outcome": "Show chronological experience progression.",
+        "kind": "component",
+        "minimum_height": 0,
+        "minimum_width": 0,
+        "need_id": "need-2e7b2acd20833afd0720",
+        "negative_concepts": [
+          "dashboard",
+          "screenshot",
+          "invented project detail",
+          "portrait",
+          "face",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial"
+        ],
+        "orientation": "",
+        "placement": "home / home:experience",
+        "provider_terms": [
+          "timeline",
+          "stepper",
+          "progression",
+          "milestones",
+          "chronology",
+          "home / home:experience",
+          "technical",
+          "editorial",
+          "charcoal",
+          "mineral",
+          "cobalt",
+          "accent",
+          "arjun",
+          "mehta",
+          "senior",
+          "designer",
+          "present",
+          "focused",
+          "professional",
+          "narrative",
+          "selected",
+          "project",
+          "work",
+          "design"
+        ],
+        "purpose": "Show chronological experience progression in home:experience.",
+        "query": "home experience progression timeline stepper milestones chronology accessible show chronological technical editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability and safe contact path one page provide concise context connect the portfolio real product lead home / home:experience end-to-end for consumer payment",
+        "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+        "required_for_handoff": false,
+        "responsive_behavior": "Stack controls and keep every approved item reachable without hover; preserve keyboard access.",
+        "style_mood": "technical editorial",
+        "subject": "Two approved experience entries",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      },
+      {
+        "allowed_providers": [
+          "fontsource"
+        ],
+        "aspect_ratio": "",
+        "category": "editorial_technical",
+        "colors": [],
+        "editors_choice": false,
+        "expected_exports": [
+          "400",
+          "500",
+          "600",
+          "700"
+        ],
+        "fallback": "Use the typed local system font recipe with the declared weights.",
+        "icon_name": "",
+        "important": true,
+        "interaction_class": "",
+        "interaction_outcome": "",
+        "kind": "font",
+        "minimum_height": 0,
+        "minimum_width": 0,
+        "need_id": "need-016331262cb7124422e4",
+        "negative_concepts": [
+          "portrait",
+          "face",
+          "screenshot",
+          "dashboard",
+          "logo",
+          "project proof",
+          "employer imagery",
+          "private media",
+          "testimonial",
+          "invented project detail"
+        ],
+        "orientation": "",
+        "placement": "home / all sections",
+        "provider_terms": [
+          "Space Grotesk",
+          "technical sans",
+          "Latin font",
+          "variable font"
+        ],
+        "purpose": "Provide the approved technical-editorial display and body typography with local Latin coverage.",
+        "query": "space grotesk local latin font weights 400 500 600 700 manrope technical sans distinctive display body family for the approved language vendored locally with glyph coverage editorial charcoal mineral cobalt accent arjun mehta senior designer present focused professional narrative selected project work design approach systems capability",
+        "reduced_motion_behavior": "Typography remains unchanged in the static reduced-motion state.",
+        "required_for_handoff": true,
+        "responsive_behavior": "Maintain readable typography across responsive layouts.",
+        "style_mood": "technical editorial",
+        "subject": "Space Grotesk",
+        "theme_colors": [
+          "charcoal",
+          "mineral",
+          "cobalt accent"
+        ]
+      }
+    ],
+    "recommended_next_action": "Review provider/source diagnostics and regenerate.",
+    "retryability": {
+      "explicit_regeneration_required": true,
+      "provider_failures_retryable": true
+    },
+    "role_failures": [
+      {
+        "blocking": false,
+        "code": "IMAGE_ROLE_UNRESOLVED",
+        "message": "Known image role 'assumed-image:home:home:about-connect:5' did not materialize as local validated material.",
+        "need_id": "need-f9ae06b4a28476457215",
+        "next_action": "Retry the bounded provider/source attempts and inspect the materialization receipt, or explicitly remove the role upstream before rerunning."
+      },
+      {
+        "blocking": false,
+        "code": "VDD_EXECUTION_GAP",
+        "message": "Execution slot 'slot-49a1168eaf1783a40744' is blocked by upstream direction.",
+        "need_id": "",
+        "next_action": "Revise and explicitly re-approve Visual Design Director output."
+      }
+    ],
+    "schema_version": "build-preparation-run-analysis-v1",
+    "selections": [
+      {
+        "adaptation_notes": "Use as decorative imagery with empty alt text; crop responsively below essential copy, preserve contrast, and keep the reduced-motion state fully static.",
+        "alternate_resource_ids": [
+          "resource-pixabay-c2fa077969af093c94df",
+          "resource-pixabay-70e6ab46f6493cb42218",
+          "resource-pixabay-66ce5553f9b67786dc64",
+          "resource-pixabay-1ba6ec7fb78a93c0875f",
+          "resource-pixabay-a4a38fe65e9313334f66",
+          "resource-pexels-693a5e3ff10a664138fc",
+          "resource-pexels-6a8cc839eb8472d3267b",
+          "resource-pexels-b926027a2736966af303",
+          "resource-pexels-9dac8625d1660d69f82b",
+          "resource-pexels-d1cd62ebf9eaf03ae9f1",
+          "resource-pexels-f3c24356b3f0379d486e"
+        ],
+        "fallback": "Use the approved text-led/static hero composition without stock substitution.",
+        "need_id": "need-6762252e6a3882a90e81",
+        "selected_resource_id": "resource-pixabay-d85095d80f5f23be1e95",
+        "why_selected": "Landscape copper architectural structure is the closest supplied match for a quiet, technical, non-evidentiary opening atmosphere and supports the charcoal, mineral, and cobalt visual language without showing a person, interface, dashboard, or project proof."
+      },
+      {
+        "adaptation_notes": "Keep decorative and non-evidentiary; use a muted treatment aligned to charcoal and mineral tones, with no semantic claims about infrastructure work.",
+        "alternate_resource_ids": [
+          "resource-pixabay-2672298bc71e3d223757",
+          "resource-pexels-03abe2d87be631fee32f",
+          "resource-pexels-33e333d9d0ed5507f54c",
+          "resource-pexels-944d166e482a65c6dd70",
+          "resource-pexels-882e1d3646f4d7c05b87",
+          "resource-pixabay-280efd2a3309edd93968",
+          "resource-pixabay-3725a926126276cd9e81",
+          "resource-pexels-181dfe4d8850968cd8a4",
+          "resource-pexels-aabff32b5b79823339fc",
+          "resource-pixabay-fb6b98eaf27373149b17",
+          "resource-pixabay-c7247f7e63a1fd4c53d9"
+        ],
+        "fallback": "Use the approved text-led/static experience composition without stock substitution.",
+        "need_id": "need-fa7a4ed01cbb30e8e804",
+        "selected_resource_id": "resource-pixabay-2bf5c084e29d1ae09db4",
+        "why_selected": "The connected pipe and pipeline structure provides a restrained visual metaphor for delivery systems and operational continuity, matching the experience section better than the people, sports, or overtly environmental alternatives."
+      },
+      {
+        "adaptation_notes": "Use as a quiet background or side image only; do not describe it as a diagram or product artifact. Keep all four process steps visible and provide a complete static reduced-motion state.",
+        "alternate_resource_ids": [
+          "resource-pexels-79799c924540b468dcb6",
+          "resource-pexels-83de2bc90993984ac04b",
+          "resource-pexels-b3def49bb4bf24ba7bda",
+          "resource-pexels-12c4424695382abca6f5",
+          "resource-pexels-ef0a7d998d599c17275d",
+          "resource-pixabay-92b8c34d2cdc2f212b9b",
+          "resource-pixabay-b2acb304142f2478b65d",
+          "resource-pixabay-a86c1bca005acbbaf2a7",
+          "resource-pixabay-31a678a08f5cd2f5bcc3",
+          "resource-pixabay-17217933b95748a0f53b",
+          "resource-pixabay-1e4c9838c154ea50d8fc"
+        ],
+        "fallback": "Use the approved text-led/static approach section without stock substitution.",
+        "need_id": "need-370d3623ce51caf447ea",
+        "selected_resource_id": "resource-pexels-ee43d84747dcbbaf047e",
+        "why_selected": "The abstract neural-network visualization directly matches the typed data-flow and systems-architecture intent, while remaining decorative and free of dashboards, screenshots, logos, and project proof."
+      },
+      {
+        "adaptation_notes": "Reuse the same abstract visual vocabulary as the approach section for site-wide coherence; keep it decorative, avoid artifact claims, and preserve the complete static mobile state.",
+        "alternate_resource_ids": [
+          "resource-pexels-50a37c58f60863c47869",
+          "resource-pexels-3b890844fbc54e09e7d1",
+          "resource-pexels-239d1b29de4ca4e1acf8",
+          "resource-pexels-0b7f6abbe2734ac5a32e",
+          "resource-pexels-28ccbad8f04b591a29c2",
+          "resource-pixabay-743900f6265ad5fe038e",
+          "resource-pixabay-d54c294bc8deb81694c0",
+          "resource-pixabay-29788f3caf29fbdfd32b",
+          "resource-pixabay-bcf661e3d1f9622a2701",
+          "resource-pixabay-9c2122be49dabfcc5bab",
+          "resource-pixabay-f46c8449b4edf5aa4e1c"
+        ],
+        "fallback": "Use the approved text-led/static design-systems composition without stock substitution.",
+        "need_id": "need-fd6e2b249b3a903d3e91",
+        "selected_resource_id": "resource-pexels-042df95aaefc38bf9ad3",
+        "why_selected": "This supplied abstract data-flow visualization is semantically aligned with the design-system section's systems, tokens, components, and scalable-pattern narrative without implying unavailable interface evidence."
+      },
+      {
+        "adaptation_notes": "Treat as decorative only; keep project descriptions text-led and generalized, avoid associating the image with any named project, and ensure every approved item remains reachable without hover.",
+        "alternate_resource_ids": [
+          "resource-pexels-5b499fef9eeb34b769ae",
+          "resource-pexels-cbd927d1bbd599e2cfba",
+          "resource-pexels-6c45f588c6e93db62866",
+          "resource-pexels-ed3dddadbe229b8f0bfe",
+          "resource-pexels-0ab50ddcf54dfcdebbc8",
+          "resource-pixabay-0f80f6af7aec1a1814d9",
+          "resource-pixabay-3c3bc6e618f881851806",
+          "resource-pixabay-af77c85dcee78088f8f9",
+          "resource-pixabay-ca9762bcdcb0b3182b0e",
+          "resource-pixabay-d327c58df62266e96e90",
+          "resource-pixabay-dcd802a460287b4f22cc"
+        ],
+        "fallback": "Use the approved semantic selected-work section without stock substitution.",
+        "need_id": "need-bce03b1ac08d10023e32",
+        "selected_resource_id": "resource-pexels-69c4f6fcbe2a01753e39",
+        "why_selected": "The abstract neural-network image best fits the selected-work section's data-flow atmosphere and supports the approved transactional, operational, and appointment-workflow range without fabricating project visuals."
+      },
+      {
+        "adaptation_notes": "Do not substitute stock imagery or fabricate a local asset; keep the LinkedIn action, education, and language content accessible in normal document flow.",
+        "alternate_resource_ids": [
+          "resource-pexels-a7bda8c73e45d2ffdff9",
+          "resource-pexels-536bffd7eff1362fc845",
+          "resource-pexels-3e8cae4a13b4d0834e49",
+          "resource-pexels-6deb071eae75822927d9",
+          "resource-pexels-15a18616c084781f418e",
+          "resource-pexels-a08dda446564f00fc173"
+        ],
+        "fallback": "Use the approved text-led/static about and connection composition with no image.",
+        "need_id": "need-f9ae06b4a28476457215",
+        "selected_resource_id": null,
+        "why_selected": "None of the supplied candidates is a sufficiently suitable quiet, personal-imagery-free supporting texture: the abstract options depict code screens, while the remaining options show people or unrelated infrastructure."
+      },
+      {
+        "adaptation_notes": "Only include approved project summaries; preserve keyboard focus management, responsive stacking, direct touch access, and a complete reduced-motion static state. Validate registry source and dependencies before use.",
+        "alternate_resource_ids": [
+          "resource-shadcn-290b2e986140a037d3e2",
+          "resource-smoothui-4c17b7b0430593810823",
+          "resource-shadcn-4e8e6998af6753903a66",
+          "resource-shadcn-45f71c6ea69b3046729f",
+          "resource-magicui-2a58c84713a3c2b94542",
+          "resource-magicui-76cb37206680d3211db2",
+          "resource-magicui-ff9a279e8ddde4ff5535",
+          "resource-magicui-cab56926d2764fedef1d",
+          "resource-shadcn-5efee2838a4b4b1e0a6b",
+          "resource-shadcn-d72d26be46dc1714379f",
+          "resource-smoothui-76bfde91baaf54687657",
+          "resource-magicui-4e3af8ce3672bb488c85",
+          "resource-smoothui-17d40651966db78a2e7b",
+          "resource-smoothui-2856b9efc3ea62bf80c1"
+        ],
+        "fallback": "Use the approved semantic selected-work section structure without a registry component.",
+        "need_id": "need-2f3627a0c08cd8221eaf",
+        "selected_resource_id": "resource-smoothui-d7a42b9814bfe7c97f23",
+        "why_selected": "The shadcn drawer-dialog is the strongest supplied semantic match for optional detail exploration of approved work, with MIT provenance and a source reference, and it can contain generalized text without requiring project imagery."
+      },
+      {
+        "adaptation_notes": "Keep both supplied roles, organizations, dates, and summaries visible; stack on narrow screens, avoid hover dependence, and provide the complete static reduced-motion state.",
+        "alternate_resource_ids": [
+          "resource-shadcn-13e0ff003acaf4bda4f5",
+          "resource-shadcn-f0031d13f75cb9958356",
+          "resource-magicui-82356d468318e978a007",
+          "resource-smoothui-4a0021ba85524b146c23",
+          "resource-magicui-45e21127a12c6044f9f2",
+          "resource-shadcn-916e855a4fc7a8f07486",
+          "resource-shadcn-ae21794eec5779ac9f7d",
+          "resource-magicui-58b9d81b5dea4a4b69eb",
+          "resource-magicui-bc1bf6d45775819b746b",
+          "resource-shadcn-6371bbae021c5d88e7af",
+          "resource-smoothui-047c0f4f139c1c857768",
+          "resource-smoothui-2aa4957c4e9e9cfe2d53",
+          "resource-smoothui-63b6ab46e0d60d49998a",
+          "resource-smoothui-daaad78187378818d3a7"
+        ],
+        "fallback": "Implement the approved experience entries as a semantic, accessible static timeline/list using native document structure and CSS only.",
+        "need_id": "need-2e7b2acd20833afd0720",
+        "selected_resource_id": "resource-magicui-0bcd9511bdad151cae2f",
+        "why_selected": "None of the supplied candidates is a genuine chronological timeline or progression component; the available login, menu, dashboard, beam, and bento resources are semantically incompatible with the experience section."
+      },
+      {
+        "adaptation_notes": "Vendor the selected font files locally before build; use Space Grotesk for display and pair with the approved local/system body treatment as needed without runtime network assets.",
+        "alternate_resource_ids": [
+          "resource-fontsource-e62a8c9d9e453c3c47db",
+          "resource-fontsource-c66d3fd486fe9b35b266"
+        ],
+        "fallback": "Use the typed local system font recipe with declared weights.",
+        "need_id": "need-016331262cb7124422e4",
+        "selected_resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "why_selected": "Space Grotesk exactly matches the approved display typography projection, supplies the declared Latin weights 400–700, and has Fontsource provenance with a successful metadata receipt."
+      }
+    ]
+  },
+  "schema_version": "build-preparation-handoff-v3",
+  "selected_resource_ids": [
+    "resource-fontsource-b69f66a0c66ec46921e7",
+    "resource-magicui-0bcd9511bdad151cae2f",
+    "resource-pexels-042df95aaefc38bf9ad3",
+    "resource-pexels-69c4f6fcbe2a01753e39",
+    "resource-pexels-ee43d84747dcbbaf047e",
+    "resource-pixabay-2bf5c084e29d1ae09db4",
+    "resource-pixabay-d85095d80f5f23be1e95",
+    "resource-smoothui-d7a42b9814bfe7c97f23"
+  ],
+  "status": "ready_for_handoff",
+  "summary": "Approved upstream references, public route content, and required resources passed deterministic handoff admission.",
+  "upstream_approval_verified": true
+}

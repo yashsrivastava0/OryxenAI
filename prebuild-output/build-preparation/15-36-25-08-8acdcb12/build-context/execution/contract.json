@@ -1,0 +1,760 @@
+{
+  "execution_gaps": [
+    {
+      "code": "VDD_EXECUTION_GAP",
+      "message": "Known visual role 'assumed-image:home:home:about-connect:5' has no verified local image or component source.",
+      "next_action": "Run live approved resource providers and materialize the real image/component, or revise Visual Design Director to remove the requirement explicitly.",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:about-connect"
+      ],
+      "slot_id": "slot-49a1168eaf1783a40744"
+    }
+  ],
+  "pack_version": "build-preparation-pack-v3",
+  "policy": {
+    "allowed_resolution_types": [
+      "local_materialized",
+      "target_package_binding",
+      "local_recipe",
+      "delegated_acquisition",
+      "execution_gap"
+    ],
+    "delegated_acquisition": {
+      "allowed_categories": [
+        "image",
+        "font",
+        "component_source"
+      ],
+      "allowed_providers": [
+        "pexels",
+        "pixabay",
+        "fontsource",
+        "shadcn",
+        "magicui",
+        "smoothui",
+        "cultui"
+      ],
+      "candidate_limit": 8,
+      "enabled": false,
+      "llm_may_invent_candidates": false,
+      "max_attempts": 3,
+      "selection": "closed_set_only"
+    },
+    "emergent_code_generator_acquisition_requires_receipt": true,
+    "known_resource_requirements_prepared_upstream": true,
+    "runtime_network_fetch_allowed": false,
+    "visual_resource_policy": {
+      "generated_local_visuals_forbidden": true,
+      "recipes_cannot_resolve_images_or_components": true,
+      "visual_slots_require_real_local_material": true
+    }
+  },
+  "schema_version": "build-preparation-contract-v3",
+  "slots": [
+    {
+      "category": "icon",
+      "component_placement": "navigation and non-evidentiary UI affordances",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Use only bounded UI affordances; icons do not imply portfolio facts.",
+      "required": false,
+      "resolution": {
+        "accessibility_treatment": "icons are aria-hidden beside text; icon-only controls need an accessible name",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [
+          "ArrowUpRight",
+          "Menu",
+          "X"
+        ],
+        "fallback_behavior": "",
+        "fallback_disposition": "use text labels when an icon is not needed",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "",
+        "license": "",
+        "license_reference": "",
+        "local_paths": [],
+        "package_name": "lucide-react",
+        "provider": "",
+        "provider_asset_id": "",
+        "recipe_id": "",
+        "reduced_motion_behavior": "",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "target_package_binding",
+        "resource_id": "",
+        "responsive_behavior": "",
+        "source_expectations": [
+          "target/package.json"
+        ],
+        "source_hashes": [],
+        "source_reference": ""
+      },
+      "resource_slot_id": "slot-1e2a37dddc2abf44723e",
+      "route_id": "home",
+      "scene_ids": [],
+      "section_ids": [
+        "home:hero",
+        "home:selected-work",
+        "home:approach",
+        "home:experience",
+        "home:design-systems",
+        "home:about-connect"
+      ],
+      "source_ids": []
+    },
+    {
+      "category": "font",
+      "component_placement": "A distinctive display/body font family for the approved visual language, vendored locally with Latin glyph coverage.",
+      "criterion_ids": [],
+      "provenance": "vdd_explicit",
+      "rationale": "A distinctive display/body font family for the approved visual language, vendored locally with Latin glyph coverage.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "preserve semantic labels and focus treatment in the approved route",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "Use the typed local system font recipe with declared weights.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "Space Grotesk",
+        "font_weights": [
+          "400",
+          "500",
+          "600",
+          "700"
+        ],
+        "import_path": "./resources/fonts/resource-fontsource-b69f66a0c66ec46921e7",
+        "license": "OFL-1.1",
+        "license_reference": "https://scripts.sil.org/OFL",
+        "local_paths": [
+          "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7",
+          "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/400-normal.woff2",
+          "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/500-normal.woff2",
+          "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/600-normal.woff2",
+          "resources/fonts/resource-fontsource-b69f66a0c66ec46921e7/700-normal.woff2"
+        ],
+        "package_name": "",
+        "provider": "fontsource",
+        "provider_asset_id": "space-grotesk",
+        "recipe_id": "",
+        "reduced_motion_behavior": "static equivalent",
+        "registry_dependencies": [],
+        "release_pin": "v22",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-fontsource-b69f66a0c66ec46921e7",
+        "responsive_behavior": "",
+        "source_expectations": [
+          "https://api.fontsource.org/v1/fonts/space-grotesk",
+          "https://scripts.sil.org/OFL",
+          "sha256:65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+          "sha256:1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+          "sha256:685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+          "sha256:35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55"
+        ],
+        "source_hashes": [
+          "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+          "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+          "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+          "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55"
+        ],
+        "source_reference": "https://api.fontsource.org/v1/fonts/space-grotesk"
+      },
+      "resource_slot_id": "slot-29cf9482dd26114324d0",
+      "route_id": "home",
+      "scene_ids": [],
+      "section_ids": [
+        "home:about-connect",
+        "home:approach",
+        "home:design-systems",
+        "home:experience",
+        "home:hero",
+        "home:selected-work"
+      ],
+      "source_ids": [
+        "typography-font"
+      ]
+    },
+    {
+      "category": "editorial_photo",
+      "component_placement": "experience",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Editorial infrastructure and delivery atmosphere supporting an experience timeline.",
+      "required": false,
+      "resolution": {
+        "accessibility_treatment": "decorative media uses empty alt text; meaningful media needs supplied alt text",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "Use the approved text-led/static experience composition without stock substitution.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/images/resource-pixabay-2bf5c084e29d1ae09db4.jpg",
+        "license": "Pixabay Content License",
+        "license_reference": "https://pixabay.com/service/license-summary/",
+        "local_paths": [
+          "resources/images/resource-pixabay-2bf5c084e29d1ae09db4.jpg"
+        ],
+        "package_name": "",
+        "provider": "pixabay",
+        "provider_asset_id": "406906",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-pixabay-2bf5c084e29d1ae09db4",
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "source_expectations": [
+          "https://pixabay.com/photos/pipe-plumbing-connection-pipeline-406906/",
+          "https://pixabay.com/service/license-summary/"
+        ],
+        "source_hashes": [
+          "fccbb1fec8ff4254116fc7571f1071932fd15c6d1ac43e780f316516d7d388cc"
+        ],
+        "source_reference": "https://pixabay.com/photos/pipe-plumbing-connection-pipeline-406906/"
+      },
+      "resource_slot_id": "slot-2a7d7dc4c3e4afff181c",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:experience"
+      ],
+      "section_ids": [
+        "home:experience"
+      ],
+      "source_ids": [
+        "assumed-image:home:home:experience:1"
+      ]
+    },
+    {
+      "category": "editorial_photo",
+      "component_placement": "education",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Quiet technical-editorial texture for supporting context, without personal imagery.",
+      "required": false,
+      "resolution": {
+        "accessibility_treatment": "not applicable while blocked",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "",
+        "fallback_disposition": "blocked_pending_real_visual_resource",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "",
+        "license": "",
+        "license_reference": "",
+        "local_paths": [],
+        "package_name": "",
+        "provider": "",
+        "provider_asset_id": "",
+        "recipe_id": "",
+        "reduced_motion_behavior": "",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "execution_gap",
+        "resource_id": "",
+        "responsive_behavior": "",
+        "source_expectations": [],
+        "source_hashes": [],
+        "source_reference": ""
+      },
+      "resource_slot_id": "slot-49a1168eaf1783a40744",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:about-connect"
+      ],
+      "section_ids": [
+        "home:about-connect"
+      ],
+      "source_ids": [
+        "assumed-image:home:home:about-connect:5"
+      ]
+    },
+    {
+      "category": "editorial_photo",
+      "component_placement": "selected-work",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Decorative data-flow atmosphere for selected technical work; no dashboard or screenshot.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "decorative media uses empty alt text; meaningful media needs supplied alt text",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "Use the approved text-led/static design-systems composition without stock substitution.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_paths": [
+          "resources/images/resource-pexels-042df95aaefc38bf9ad3.jpg"
+        ],
+        "package_name": "",
+        "provider": "pexels",
+        "provider_asset_id": "17483870",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-pexels-042df95aaefc38bf9ad3",
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "source_expectations": [
+          "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-proje-17483870/",
+          "https://www.pexels.com/legal-pages/license/"
+        ],
+        "source_hashes": [
+          "b676a3e8539094902fa654274e227c82143faacac6c2b283bad99025713cd24f"
+        ],
+        "source_reference": "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-proje-17483870/"
+      },
+      "resource_slot_id": "slot-4e914fb6c0c0df0c4ef7",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:design-systems"
+      ],
+      "section_ids": [
+        "home:design-systems"
+      ],
+      "source_ids": [
+        "assumed-image:home:home:design-systems:3"
+      ]
+    },
+    {
+      "category": "diagram",
+      "component_placement": "systems or selected-work scene",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Use a CSS-only labelled flow without project-specific claims.",
+      "required": false,
+      "resolution": {
+        "accessibility_treatment": "provide equivalent text labels; decorative connectors are hidden from assistive technology",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "",
+        "fallback_disposition": "static_css_flow",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "",
+        "license": "",
+        "license_reference": "",
+        "local_paths": [],
+        "package_name": "",
+        "provider": "",
+        "provider_asset_id": "",
+        "recipe_id": "recipe-8984dbd464b2afb45c9a",
+        "reduced_motion_behavior": "",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_recipe",
+        "resource_id": "",
+        "responsive_behavior": "",
+        "source_expectations": [],
+        "source_hashes": [],
+        "source_reference": ""
+      },
+      "resource_slot_id": "slot-6eb6871a53564e3da2dc",
+      "route_id": "home",
+      "scene_ids": [],
+      "section_ids": [
+        "home:hero",
+        "home:selected-work",
+        "home:approach",
+        "home:experience",
+        "home:design-systems",
+        "home:about-connect"
+      ],
+      "source_ids": []
+    },
+    {
+      "category": "editorial_photo",
+      "component_placement": "hero",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Editorial opening atmosphere for backend and platform engineering; no person or product interface.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "decorative media uses empty alt text; meaningful media needs supplied alt text",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "Use the approved text-led/static hero composition without stock substitution.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/images/resource-pixabay-d85095d80f5f23be1e95.jpg",
+        "license": "Pixabay Content License",
+        "license_reference": "https://pixabay.com/service/license-summary/",
+        "local_paths": [
+          "resources/images/resource-pixabay-d85095d80f5f23be1e95.jpg"
+        ],
+        "package_name": "",
+        "provider": "pixabay",
+        "provider_asset_id": "1081825",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-pixabay-d85095d80f5f23be1e95",
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "source_expectations": [
+          "https://pixabay.com/photos/copper-metal-modern-design-1081825/",
+          "https://pixabay.com/service/license-summary/"
+        ],
+        "source_hashes": [
+          "d45bf53a95c4b478dabdc908041ab0cb3e3b6b5573c74c1ee1dd632a26b2b313"
+        ],
+        "source_reference": "https://pixabay.com/photos/copper-metal-modern-design-1081825/"
+      },
+      "resource_slot_id": "slot-85bd4531e82ee63eff1a",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:hero"
+      ],
+      "section_ids": [
+        "home:hero"
+      ],
+      "source_ids": [
+        "assumed-image:home:home:hero:0"
+      ]
+    },
+    {
+      "category": "editorial_photo",
+      "component_placement": "selected-work",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Decorative data-flow atmosphere for selected technical work; no dashboard or screenshot.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "decorative media uses empty alt text; meaningful media needs supplied alt text",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "Use the approved text-led/static approach section without stock substitution.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_paths": [
+          "resources/images/resource-pexels-ee43d84747dcbbaf047e.jpg"
+        ],
+        "package_name": "",
+        "provider": "pexels",
+        "provider_asset_id": "17483874",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-pexels-ee43d84747dcbbaf047e",
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "source_expectations": [
+          "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-by-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-pr-17483874/",
+          "https://www.pexels.com/legal-pages/license/"
+        ],
+        "source_hashes": [
+          "cb54ca51e26e1df240822e6f3583abc95229bbf431a3fe28b55026b9ac9d935f"
+        ],
+        "source_reference": "https://www.pexels.com/photo/an-artist-s-illustration-of-artificial-intelligence-ai-this-image-was-inspired-by-neural-networks-used-in-deep-learning-it-was-created-by-novoto-studio-as-part-of-the-visualising-ai-pr-17483874/"
+      },
+      "resource_slot_id": "slot-a3f1b925dfe2eb2af059",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:approach"
+      ],
+      "section_ids": [
+        "home:approach"
+      ],
+      "source_ids": [
+        "assumed-image:home:home:approach:2"
+      ]
+    },
+    {
+      "category": "visual_component",
+      "component_placement": "home / home:experience",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Show chronological experience progression.",
+      "required": false,
+      "resolution": {
+        "accessibility_treatment": "preserve semantic labels and focus treatment in the approved route",
+        "delegation_policy": {},
+        "dependencies": [
+          "motion"
+        ],
+        "expected_exports": [
+          "AnimatedBeam",
+          "AnimatedBeamProps"
+        ],
+        "fallback_behavior": "Implement the approved experience entries as a semantic, accessible static timeline/list using native document structure and CSS only.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source",
+        "license": "MIT",
+        "license_reference": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+        "local_paths": [
+          "resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source",
+          "resources/components/magicui/resource-magicui-0bcd9511bdad151cae2f/source/registry/magicui/animated-beam.tsx"
+        ],
+        "package_name": "",
+        "provider": "magicui",
+        "provider_asset_id": "animated-beam",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+        "registry_dependencies": [],
+        "release_pin": "registry-v1",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-magicui-0bcd9511bdad151cae2f",
+        "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+        "source_expectations": [
+          "https://magicui.design/r/animated-beam.json",
+          "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+          "sha256:6afa2ee1d01694a428eb8517d48deebe5c6b532dc0ee871800bb9d92aae43e79"
+        ],
+        "source_hashes": [
+          "6afa2ee1d01694a428eb8517d48deebe5c6b532dc0ee871800bb9d92aae43e79"
+        ],
+        "source_reference": "https://magicui.design/r/animated-beam.json"
+      },
+      "resource_slot_id": "slot-a7ef054440a10baf77ed",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:experience"
+      ],
+      "section_ids": [
+        "home:experience"
+      ],
+      "source_ids": [
+        "assumed-component:home:home:experience:experience-timeline"
+      ]
+    },
+    {
+      "category": "typography_system",
+      "component_placement": "site foundation",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Configured system typography fallback with display, body, and utility weights.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "static equivalent under reduced motion",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "",
+        "fallback_disposition": "configured_system_stack",
+        "font_family": "system-ui, sans-serif",
+        "font_weights": [
+          "400",
+          "500",
+          "600",
+          "700"
+        ],
+        "import_path": "",
+        "license": "",
+        "license_reference": "",
+        "local_paths": [],
+        "package_name": "",
+        "provider": "",
+        "provider_asset_id": "",
+        "recipe_id": "recipe-491b8949b8248394c373",
+        "reduced_motion_behavior": "",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_recipe",
+        "resource_id": "",
+        "responsive_behavior": "",
+        "source_expectations": [],
+        "source_hashes": [],
+        "source_reference": ""
+      },
+      "resource_slot_id": "slot-abf48c82a3ef77ddba4e",
+      "route_id": "home",
+      "scene_ids": [],
+      "section_ids": [
+        "home:hero",
+        "home:selected-work",
+        "home:approach",
+        "home:experience",
+        "home:design-systems",
+        "home:about-connect"
+      ],
+      "source_ids": []
+    },
+    {
+      "category": "editorial_photo",
+      "component_placement": "selected-work",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Decorative data-flow atmosphere for selected technical work; no dashboard or screenshot.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "decorative media uses empty alt text; meaningful media needs supplied alt text",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "Use the approved semantic selected-work section without stock substitution.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/images/resource-pexels-69c4f6fcbe2a01753e39.jpg",
+        "license": "Pexels license",
+        "license_reference": "https://www.pexels.com/legal-pages/license/",
+        "local_paths": [
+          "resources/images/resource-pexels-69c4f6fcbe2a01753e39.jpg"
+        ],
+        "package_name": "",
+        "provider": "pexels",
+        "provider_asset_id": "30547579",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Render the complete image treatment statically.",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-pexels-69c4f6fcbe2a01753e39",
+        "responsive_behavior": "Stack below essential copy and crop without hiding content.",
+        "source_expectations": [
+          "https://www.pexels.com/photo/dynamic-abstract-digital-light-burst-30547579/",
+          "https://www.pexels.com/legal-pages/license/"
+        ],
+        "source_hashes": [
+          "fd47bb1019e2b93aa490b9be1ae0835907583519e1c53d2d7d7e381f7b5c274b"
+        ],
+        "source_reference": "https://www.pexels.com/photo/dynamic-abstract-digital-light-burst-30547579/"
+      },
+      "resource_slot_id": "slot-e0bbb97837ae92a5d99b",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:selected-work"
+      ],
+      "section_ids": [
+        "home:selected-work"
+      ],
+      "source_ids": [
+        "assumed-image:home:home:selected-work:4"
+      ]
+    },
+    {
+      "category": "visual_component",
+      "component_placement": "home / home:selected-work",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Let visitors explore approved work details.",
+      "required": false,
+      "resolution": {
+        "accessibility_treatment": "preserve semantic labels and focus treatment in the approved route",
+        "delegation_policy": {},
+        "dependencies": [
+          "motion",
+          "lucide-react"
+        ],
+        "expected_exports": [
+          "Card",
+          "ExpandableCards",
+          "ExpandableCardsProps"
+        ],
+        "fallback_behavior": "Use the approved semantic selected-work section structure without a registry component.",
+        "fallback_disposition": "typed_local_recipe_when_local_material_fails",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "./resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source",
+        "license": "MIT",
+        "license_reference": "https://github.com/educlopez/smoothui/blob/main/LICENSE",
+        "local_paths": [
+          "resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source",
+          "resources/components/smoothui/resource-smoothui-d7a42b9814bfe7c97f23/source/index.tsx"
+        ],
+        "package_name": "",
+        "provider": "smoothui",
+        "provider_asset_id": "expandable-cards",
+        "recipe_id": "",
+        "reduced_motion_behavior": "Keep the full interaction available without sequencing or animation.",
+        "registry_dependencies": [],
+        "release_pin": "registry-v1",
+        "resolution_type": "local_materialized",
+        "resource_id": "resource-smoothui-d7a42b9814bfe7c97f23",
+        "responsive_behavior": "Stack controls and keep every approved item reachable without hover.",
+        "source_expectations": [
+          "https://smoothui.dev/r/expandable-cards.json",
+          "https://github.com/educlopez/smoothui/blob/main/LICENSE",
+          "sha256:9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede"
+        ],
+        "source_hashes": [
+          "9d46b5ae4c2ec8fb5d1f7010b41e0ad084642f7a24b551c3982140d1d22deede"
+        ],
+        "source_reference": "https://smoothui.dev/r/expandable-cards.json"
+      },
+      "resource_slot_id": "slot-ed6b414376ba84c86a9c",
+      "route_id": "home",
+      "scene_ids": [
+        "home-scene-home:selected-work"
+      ],
+      "section_ids": [
+        "home:selected-work"
+      ],
+      "source_ids": [
+        "assumed-component:home:home:selected-work:selected-work-detail"
+      ]
+    },
+    {
+      "category": "typographic_composition",
+      "component_placement": "hero scene",
+      "criterion_ids": [],
+      "provenance": "build_preparation_derived",
+      "rationale": "Text-led hero composition using approved public copy only; no personal or project imagery.",
+      "required": true,
+      "resolution": {
+        "accessibility_treatment": "static equivalent under reduced motion",
+        "delegation_policy": {},
+        "dependencies": [],
+        "expected_exports": [],
+        "fallback_behavior": "",
+        "fallback_disposition": "configured_system_stack",
+        "font_family": "",
+        "font_weights": [],
+        "import_path": "",
+        "license": "",
+        "license_reference": "",
+        "local_paths": [],
+        "package_name": "",
+        "provider": "",
+        "provider_asset_id": "",
+        "recipe_id": "recipe-3fbf27373a538cd25d20",
+        "reduced_motion_behavior": "",
+        "registry_dependencies": [],
+        "release_pin": "",
+        "resolution_type": "local_recipe",
+        "resource_id": "",
+        "responsive_behavior": "",
+        "source_expectations": [],
+        "source_hashes": [],
+        "source_reference": ""
+      },
+      "resource_slot_id": "slot-fa09c3c4a6256f2edce6",
+      "route_id": "home",
+      "scene_ids": [],
+      "section_ids": [
+        "home:hero",
+        "home:selected-work",
+        "home:approach",
+        "home:experience",
+        "home:design-systems",
+        "home:about-connect"
+      ],
+      "source_ids": []
+    }
+  ]
+}
