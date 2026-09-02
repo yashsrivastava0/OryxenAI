@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-059 - Single root .env configuration and pure adapter normalization for Frontend Phase 2
+
+- **Date & Time:** 2026-09-02 22:30 +05:30 - Antigravity (Gemini 2.5 Pro / Google)
+- **Status:** decided-implemented
+- **Context:** The frontend studio needs client-side environment settings and seamless stage progression across Discovery, Content Architect, and Visual Design Director without complex multi-file environment maintenance or secret exposure.
+- **Decision:** Keep exactly one root `.env` file for the repository (secrets-only, git-ignored), while FastAPI dynamically serves public client runtime settings through `<script id="oryxen-public-runtime-config">` and client requests use same-origin relative endpoints (`/api/v1/...`). Stage representations for Discovery, Content Architect, and Visual Design Director are normalized through pure, defensive TypeScript adapters into a shared 7-state vocabulary (`locked`, `available`, `working`, `input`, `review`, `attention`, `complete`) with zero automatic progression or chaining between stages.
+- **Rejected alternatives:** Separate `frontend/.env` and `backend/.env` files - rejected due to duplicate maintenance, drift risk, and danger of baking private secrets into client bundles; auto-chaining stage progression on approval - rejected because user review and explicit continuation are core product invariants.
+- **Consequence:** Zero secrets exist in client builds, public config remains single-source and dynamically controlled by FastAPI, and cross-tab stage state stays synchronized via BroadcastChannel without drift.
+
 ## D-058 - A cannot-complete repair result consumes one budgeted round, not the whole budget
 
 - **Date & Time:** 2026-09-02 15:30 +05:30 - Claude Code (Sonnet 5 / Anthropic)

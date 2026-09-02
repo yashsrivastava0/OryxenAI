@@ -9,8 +9,8 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from oryxenai.main import create_app
 import oryxenai.web.routes as web_routes
+from oryxenai.main import create_app
 
 
 @pytest.fixture
@@ -26,12 +26,18 @@ async def test_app_serves_preact_shell_when_enabled_and_built(client, monkeypatc
     monkeypatch.setattr(
         web_routes,
         "_resolve_product_entry",
-        lambda: {"script": "/static/product/assets/main-test.js", "styles": ["/static/product/assets/main-test.css"]},
+        lambda: {
+            "script": "/static/product/assets/main-test.js",
+            "styles": ["/static/product/assets/main-test.css"],
+        },
     )
     resp = await c.get("/app")
     assert resp.status_code == 200
     assert 'id="product-root"' in resp.text
-    assert 'meta name="oryxenai-product-entry" content="/static/product/assets/main-test.js"' in resp.text
+    assert (
+        'meta name="oryxenai-product-entry" content="/static/product/assets/main-test.js"'
+        in resp.text
+    )
     assert 'id="chat-card"' not in resp.text
 
 
