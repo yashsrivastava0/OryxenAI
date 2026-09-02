@@ -66,6 +66,10 @@ scratch_benchmark.json
 scratch/
 output/
 
+# Generated Preact/Vite product bundle (frontend/, docs/Frontend/05 §16) —
+# built by CI/container packaging, never hand-edited or committed.
+src/oryxenai/web/static/product/
+
 # Local Build Preparation debug-mirror output (disposable by design -- see
 # AGENTS.md). Two specific packs are checked in as verified Code Generator
 # test fixtures; everything else here (other packs, codegen-admission/,

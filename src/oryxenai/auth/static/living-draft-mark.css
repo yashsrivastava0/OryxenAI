@@ -1,0 +1,55 @@
+/*
+ * Styling for the Living Draft mark (living-draft-mark.mjs). Requires
+ * tokens.css to be loaded first for the color/motion custom properties.
+ */
+
+.dlm {
+  overflow: visible;
+  color: var(--graphite);
+}
+
+.dlm-rule {
+  stroke: var(--rule);
+}
+
+.dlm-point {
+  fill: var(--rule);
+}
+
+.dlm-frame {
+  stroke: var(--graphite);
+}
+
+.dlm-frame-dot {
+  fill: var(--graphite);
+}
+
+.dlm-sweep {
+  stroke: var(--signal);
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+
+/* The stroke sweeps forward only while a wait is genuinely active. Steady
+   state (no .dlm-active) shows the completed static geometry — the sweep
+   fully drawn, matching the "resolves into a browser frame" spec. */
+.dlm:not(.dlm-active) .dlm-sweep {
+  stroke-dashoffset: 0;
+}
+
+.dlm-active .dlm-sweep {
+  animation: dlm-sweep-cycle var(--motion-wait-cycle, 1200ms) ease-in-out infinite;
+}
+
+@keyframes dlm-sweep-cycle {
+  0% { stroke-dashoffset: 100; }
+  50% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -100; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dlm-active .dlm-sweep {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

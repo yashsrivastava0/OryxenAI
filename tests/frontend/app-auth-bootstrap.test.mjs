@@ -122,6 +122,44 @@ test("workspace bootstrap failure preserves a valid auth session and avoids a re
   assert.deepEqual(page.replacements, []);
 });
 
+test("a transient provider outage keeps the session instead of signing out", async () => {
+  const page = location("/app");
+  const auth = sessionAuth();
+  let signOutCalls = 0;
+  auth.signOut = async () => { signOutCalls += 1; };
+  const result = await bootProductShell({
+    auth,
+    config,
+    location: page,
+    storage: { removeItem() {} },
+    fetchImpl: async () => response(503, { error: { code: "AUTH_PROVIDER_UNAVAILABLE", message: "down" } }),
+    loadWorkspace: async () => { throw new Error("workspace must not load"); },
+  });
+
+  assert.equal(result.kind, "provider_unavailable");
+  assert.equal(signOutCalls, 0);
+  assert.deepEqual(page.replacements, []);
+});
+
+test("exhausted generation credit keeps the session instead of signing out", async () => {
+  const page = location("/app");
+  const auth = sessionAuth();
+  let signOutCalls = 0;
+  auth.signOut = async () => { signOutCalls += 1; };
+  const result = await bootProductShell({
+    auth,
+    config,
+    location: page,
+    storage: { removeItem() {} },
+    fetchImpl: async () => response(503, { error: { code: "MODEL_PROVIDER_CREDIT_EXHAUSTED", message: "no credit" } }),
+    loadWorkspace: async () => { throw new Error("workspace must not load"); },
+  });
+
+  assert.equal(result.kind, "provider_credit_exhausted");
+  assert.equal(signOutCalls, 0);
+  assert.deepEqual(page.replacements, []);
+});
+
 test("normal users cannot initialize a developer shell", async () => {
   const page = location("/dev");
   const auth = sessionAuth();
