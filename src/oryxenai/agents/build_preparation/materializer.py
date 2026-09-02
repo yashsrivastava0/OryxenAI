@@ -1199,7 +1199,7 @@ async def materialize_build_context(
                 if need
                 else "static equivalent",
                 "fallback": selection.fallback or (need.fallback if need else ""),
-                "provider_receipt": dict(candidate.retrieval_metadata),
+                "provider_receipt": dict(candidate.retrieval_metadata.get("provider_receipt", {})),
             },
         }
         if candidate.kind == "photo" and candidate.provider in {
@@ -1336,7 +1336,9 @@ async def materialize_build_context(
                             "dependencies": list(resolved_candidate.dependencies),
                             "registry_dependencies": list(resolved_candidate.registry_dependencies),
                             "source_version": resolved_candidate.source_version,
-                            "provider_receipt": dict(resolved_candidate.retrieval_metadata),
+                            "provider_receipt": dict(
+                                resolved_candidate.retrieval_metadata.get("provider_receipt", {})
+                            ),
                         }
                     )
                     effective_selections = [
@@ -1507,7 +1509,9 @@ async def materialize_build_context(
                             "dependencies": list(resolved_component.dependencies),
                             "registry_dependencies": list(resolved_component.registry_dependencies),
                             "source_version": resolved_component.source_version,
-                            "provider_receipt": dict(resolved_component.retrieval_metadata),
+                            "provider_receipt": dict(
+                                resolved_component.retrieval_metadata.get("provider_receipt", {})
+                            ),
                         }
                     )
                     effective_selections = [
@@ -1751,25 +1755,18 @@ def materialize_handoff_report(
     materialization: MaterializationResult,
     report: dict[str, Any],
 ) -> MaterializationResult:
-    """Write the Code Generator admission decision into the staged tree."""
+    """Write the Code Generator admission decision into the staged tree.
+
+    ``report["run_analysis"]`` is not written out a second time -- it was
+    previously re-serialized verbatim as a separate handoff-analysis.json
+    file, a confirmed byte-for-byte duplicate that no documented consumer
+    ever read.
+    """
     relative = "handoff-report.json"
     item = _write(root, relative, _json_bytes(report), "metadata")
-    analysis = report.get("run_analysis")
-    analysis_item: MaterializedFile | None = None
-    analysis_hash = ""
-    if isinstance(analysis, dict):
-        analysis_bytes = _json_bytes(analysis)
-        analysis_hash = _hash_bytes(analysis_bytes)
-        analysis_item = _write(root, "handoff-analysis.json", analysis_bytes, "metadata")
     return materialization.model_copy(
         update={
-            "files": [
-                *materialization.files,
-                item,
-                *([analysis_item] if analysis_item is not None else []),
-            ],
+            "files": [*materialization.files, item],
             "handoff_report_path": relative,
-            "analysis_path": "handoff-analysis.json" if analysis_item is not None else "",
-            "analysis_hash": analysis_hash,
         }
     )

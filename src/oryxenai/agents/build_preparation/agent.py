@@ -1297,12 +1297,14 @@ class BuildPreparationAgent(Agent):
                 "queries": [query.model_dump(mode="json") for query in query_plan.queries],
                 "model_call_receipts": stages_meta,
                 "provider_attempts": list(getattr(lookup, "provider_receipts", [])),
-                "candidate_qualifications": [
-                    item.model_dump(mode="json") for item in qualifications
-                ],
+                # candidate_qualifications, materialized_resources, role_failures,
+                # and code_generator_eligible are deliberately NOT repeated here --
+                # they are byte-identical to handoff_report.qualifications,
+                # resources/manifest.json's resources (also materialization.resources),
+                # handoff_report.issues, and handoff_report.handoff_eligible
+                # respectively. This dict is for genuinely new diagnostic detail
+                # only (confirmed no consumer reads these nested duplicates).
                 "selections": [item.model_dump(mode="json") for item in selection_plan.selections],
-                "materialized_resources": materialization.resources,
-                "role_failures": [issue.model_dump(mode="json") for issue in handoff_report.issues],
                 "retryability": {
                     "provider_failures_retryable": any(
                         str(item.get("error_code", "")).upper()
@@ -1316,7 +1318,6 @@ class BuildPreparationAgent(Agent):
                     if handoff_report.issues
                     else "Proceed to Code Generator admission."
                 ),
-                "code_generator_eligible": handoff_report.handoff_eligible,
             }
             handoff_report = handoff_report.model_copy(update={"run_analysis": run_analysis})
             materialization = materialize_handoff_report(
