@@ -4,6 +4,9 @@ import { createApiClient, type AuthorizedFetch, type MeProjection } from "../dat
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
+import { adaptBuildPreparation } from "../data/adapters/preparation";
+import { adaptCodeGenerator } from "../data/adapters/generation";
+import { getOrCreateIdempotencyKey, clearIdempotencyKey } from "../data/idempotency";
 import { PollCoordinator } from "../data/polling";
 import { createInvalidationChannel, type InvalidationChannel } from "../data/invalidation";
 import { JourneyRail, type JourneyStageVM } from "../components/JourneyRail";
@@ -14,6 +17,8 @@ import { StartSurface } from "../components/StartSurface";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { ContentStage } from "../stages/content/ContentStage";
 import { DesignStage } from "../stages/design/DesignStage";
+import { PreparationStage } from "../stages/preparation/PreparationStage";
+import { GenerationStage } from "../stages/generation/GenerationStage";
 import { PreviewFrameShell } from "../preview/PreviewFrameShell";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
 import type { AnsweredTurn } from "../components/ConversationSurface";
@@ -102,11 +107,25 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       const designView = adaptVisualDesignDirector(designData.visual_design_director, isContentApproved);
       dispatch({ type: "design/set", view: designView });
 
+      const isDesignApproved = designView.state === "complete";
+
+      // Fetch Build Preparation state
+      const prepData = await api.getBuildPreparation(state.sessionId);
+      const prepView = adaptBuildPreparation(prepData.build_preparation, isDesignApproved);
+      dispatch({ type: "preparation/set", view: prepView });
+
+      const isPrepComplete = prepView.state === "complete";
+
+      // Fetch Code Generator state
+      const genData = await api.getCodeGenerator(state.sessionId);
+      const genView = adaptCodeGenerator(genData.code_generator, isPrepComplete, Boolean(state.readOnly));
+      dispatch({ type: "generation/set", view: genView });
+
       dispatch({ type: "connection/set", state: "confirmed" });
     } catch {
       dispatch({ type: "connection/set", state: "stale" });
     }
-  }, [api, state.sessionId]);
+  }, [api, state.sessionId, state.readOnly]);
 
   // Initial load on session change
   useEffect(() => {
@@ -191,12 +210,65 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       poller.unsubscribe("visual_design_director");
     }
 
+    // Build Preparation Polling
+    if (state.preparation?.state === "working") {
+      poller.subscribe("build_preparation", async () => {
+        try {
+          const res = await api.getBuildPreparation(sessionId);
+          const view = adaptBuildPreparation(res.build_preparation, state.design?.state === "complete");
+          dispatch({ type: "preparation/set", view });
+          dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
+          if (view.state === "complete") {
+            dispatch({ type: "announce", message: "Build handoff package verified and ready for generation." });
+          } else if (view.state === "attention") {
+            dispatch({ type: "announce", message: "Build preparation needs attention." });
+          }
+        } catch {
+          dispatch({ type: "connection/set", state: "stale" });
+        }
+      });
+    } else {
+      poller.unsubscribe("build_preparation");
+    }
+
+    // Code Generator Polling
+    if (state.generation?.state === "working") {
+      poller.subscribe("code_generator", async () => {
+        try {
+          const res = await api.getCodeGenerator(sessionId);
+          const view = adaptCodeGenerator(res.code_generator, state.preparation?.state === "complete", Boolean(state.readOnly));
+          dispatch({ type: "generation/set", view });
+          dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
+          if (view.state === "complete") {
+            dispatch({ type: "announce", message: "Portfolio generation complete. Verified Preview ready." });
+          } else if (view.state === "attention") {
+            dispatch({ type: "announce", message: "Generation needs attention." });
+          }
+        } catch {
+          dispatch({ type: "connection/set", state: "stale" });
+        }
+      });
+    } else {
+      poller.unsubscribe("code_generator");
+    }
+
     return () => {
       poller.unsubscribe("discovery");
       poller.unsubscribe("content_architect");
       poller.unsubscribe("visual_design_director");
+      poller.unsubscribe("build_preparation");
+      poller.unsubscribe("code_generator");
     };
-  }, [state.sessionId, state.discovery?.state, state.content?.state, state.design?.state, api]);
+  }, [
+    state.sessionId,
+    state.discovery?.state,
+    state.content?.state,
+    state.design?.state,
+    state.preparation?.state,
+    state.generation?.state,
+    state.readOnly,
+    api,
+  ]);
 
   // Compute 6-stage journey status
   const journey = useMemo<JourneyStageVM[]>(() => {
@@ -206,6 +278,10 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     const isContentApproved = state.content?.state === "complete";
     const designState = state.design?.state ?? (isContentApproved ? "available" : "locked");
     const isDesignApproved = state.design?.state === "complete";
+    const isPrepComplete = state.preparation?.state === "complete";
+    const prepState = state.preparation?.state ?? (isDesignApproved ? "available" : "locked");
+    const genState = state.generation?.state ?? (isPrepComplete ? "available" : "locked");
+    const hasPreview = Boolean(state.generation?.hasUsablePreview);
 
     return [
       {
@@ -233,25 +309,25 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         id: "prepare",
         ordinal: 4,
         label: "Prepare",
-        state: isDesignApproved ? "available" : "locked",
-        isSelectable: isDesignApproved,
+        state: prepState,
+        isSelectable: prepState !== "locked",
       },
       {
         id: "generate",
         ordinal: 5,
         label: "Generate",
-        state: "locked",
-        isSelectable: false,
+        state: genState,
+        isSelectable: genState !== "locked",
       },
       {
         id: "preview",
         ordinal: 6,
         label: "Preview",
-        state: "locked",
-        isSelectable: false,
+        state: hasPreview ? "complete" : "locked",
+        isSelectable: hasPreview,
       },
     ];
-  }, [state.sessionId, state.discovery, state.content, state.design]);
+  }, [state.sessionId, state.discovery, state.content, state.design, state.preparation, state.generation]);
 
   // Navigate to stage and synchronize address bar
   const handleSelectStage = (stage: JourneyStageId) => {
@@ -414,6 +490,60 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     refetchCurrentSession();
   };
 
+  // Start Build Preparation
+  const handleStartPreparation = async () => {
+    if (!state.sessionId) return;
+    const res = await api.startBuildPreparation(state.sessionId);
+    const view = adaptBuildPreparation(res.build_preparation, true);
+    dispatch({ type: "preparation/set", view });
+    dispatch({ type: "announce", message: "Build preparation started." });
+    notifyMutation(state.sessionId);
+  };
+
+  // Regenerate Build Preparation
+  const handleRegeneratePreparation = async () => {
+    if (!state.sessionId) return;
+    const res = await api.regenerateBuildPreparation(state.sessionId);
+    const view = adaptBuildPreparation(res.build_preparation, true);
+    dispatch({ type: "preparation/set", view });
+    dispatch({ type: "announce", message: "Build preparation restarted." });
+    notifyMutation(state.sessionId);
+  };
+
+  // Start Code Generator
+  const handleStartGeneration = async () => {
+    if (!state.sessionId) return;
+    const key = getOrCreateIdempotencyKey(state.sessionId, "start");
+    try {
+      const res = await api.startCodeGenerator(state.sessionId, key);
+      clearIdempotencyKey(state.sessionId, "start");
+      const view = adaptCodeGenerator(res.code_generator, true, state.readOnly);
+      dispatch({ type: "generation/set", view });
+      dispatch({ type: "announce", message: "Portfolio generation started." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    }
+  };
+
+  // Retry Code Generator
+  const handleRetryGeneration = async () => {
+    if (!state.sessionId) return;
+    const key = getOrCreateIdempotencyKey(state.sessionId, "retry");
+    try {
+      const res = await api.retryCodeGenerator(state.sessionId, key);
+      clearIdempotencyKey(state.sessionId, "retry");
+      const view = adaptCodeGenerator(res.code_generator, true, state.readOnly);
+      dispatch({ type: "generation/set", view });
+      dispatch({ type: "announce", message: "Generation retry started." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    }
+  };
+
   return (
     <AppStoreContext.Provider value={{ state, dispatch }}>
       <div className="app-shell">
@@ -484,22 +614,28 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           ) : null}
 
           {state.sessionId && activeStage === "prepare" ? (
-            <div className="phase-future-panel">
-              <p className="eyebrow">Stage 04 / Build Preparation</p>
-              <h2>Build Preparation Hand-off Ready</h2>
-              <p className="stage-desc">
-                Content Plan and Visual Direction are both approved. Build Preparation will assemble verified packages in Phase 3.
-              </p>
-            </div>
+            <PreparationStage
+              view={state.preparation}
+              canMutate={!state.readOnly}
+              onStart={handleStartPreparation}
+              onRegenerate={handleRegeneratePreparation}
+              onContinueToGeneration={() => handleSelectStage("generate")}
+            />
           ) : null}
 
-          {state.sessionId && (activeStage === "generate" || activeStage === "preview") ? (
-            <div className="phase-future-panel">
-              <p className="eyebrow">Stage 05 & 06 / Generation & Preview</p>
-              <h2>Verified Code Generation & Isolated Preview</h2>
-              <p className="stage-desc">
-                Generation and verified isolated preview frame arrive in Phases 3 and 4.
-              </p>
+          {state.sessionId && activeStage === "generate" ? (
+            <GenerationStage
+              view={state.generation}
+              canMutate={!state.readOnly}
+              readOnly={state.readOnly}
+              onStart={handleStartGeneration}
+              onRetry={handleRetryGeneration}
+              onOpenPreview={() => handleSelectStage("preview")}
+            />
+          ) : null}
+
+          {state.sessionId && activeStage === "preview" ? (
+            <div className="preview-stage-container">
               <PreviewFrameShell />
             </div>
           ) : null}
