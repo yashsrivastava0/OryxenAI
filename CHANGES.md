@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 16:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [20f72e2] - retry within budget on rejected source validation too
+A third fresh live run (after the shadow-token and font-face fixes) got cleanly through planning, generation, and integration, then hit `SOURCE_CONTRACT_FAILED` with `repair_rounds` still 0. The worker log showed `final_repair.py`'s unwrapped `validate_generation_changes()` call raising `SourceValidationError` ("duplicate paths"), which the earlier `FinalRepairError`-only fix didn't cover. Both exceptions represent the same class of problem -- a rejected model response, not an infrastructure crash -- so `SourceValidationError` is now caught in the same retry loop. Updated D-058 and added a regression test mirroring the existing one with this exception type.
+
 ### 2026-09-02 16:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [3099e1c] - deduplicate font-face rules shared across typography roles
 A second fresh live run (after the shadow-token fix) got through planning and route generation, then hit a blocking integration finding: identical `@font-face` blocks duplicated in `generated-tokens.css`. `_compile_v4_tokens` iterates `typography_roles` and re-matches bindings per role, so body and display sharing one `approved_font_slot` (a common, valid choice) compiled the same binding's font files twice. This is compiler-owned output the model can never edit, so all 3 repair rounds were structurally unable to resolve it. Now tracks emitted `(family, style, weight, public_path)` tuples and skips repeats. Regression test confirmed reproducing the exact duplication without the fix before verifying the fix resolves it.
 
