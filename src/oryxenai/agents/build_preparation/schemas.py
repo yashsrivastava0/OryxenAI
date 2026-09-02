@@ -480,8 +480,6 @@ class MaterializationResult(BaseModel):
     execution_gaps: list[ExecutionGap] = Field(default_factory=list)
     execution_contract_path: str = ""
     resource_ledger_path: str = ""
-    analysis_path: str = ""
-    analysis_hash: str = ""
     effective_selections: list[ResourceSelection] = Field(default_factory=list)
     resource_attempts: list[dict[str, Any]] = Field(default_factory=list)
 
