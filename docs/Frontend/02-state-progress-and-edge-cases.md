@@ -256,12 +256,17 @@ non-modal connection banner is more useful and less noisy.
 
 - Disable the initiating control immediately and label it with the specific pending
   action.
-- Generate a unique idempotency key for each logical start/revise/approve/retry
-  action.
-- Keep an unacknowledged key in `sessionStorage` until the request receives a durable
-  response, so a local render does not accidentally generate a second logical action.
-- A user explicitly starting a new action gets a new key. Reissuing the same uncertain
-  request reuses its key.
+- Generate and retain a unique idempotency key only for mutation endpoints whose
+  public contract accepts it (currently the production Code Generator start,
+  regenerate, and retry endpoints).
+- Keep an unacknowledged supported key in `sessionStorage` until reconciliation
+  confirms the action, so a local render does not accidentally generate a second
+  logical action. A user explicitly starting a new logical action gets a new key;
+  reissuing the same uncertain supported request reuses its key.
+- For mutations without a public idempotency-header contract, prevent duplicate
+  submission in the client and GET canonical state after an ambiguous network
+  outcome before offering another submission. Do not imply that an ignored header
+  provides safety.
 - Never infer success solely from HTTP acceptance; refetch durable state.
 - Do not allow double approval, double retry, or simultaneous stage starts.
 

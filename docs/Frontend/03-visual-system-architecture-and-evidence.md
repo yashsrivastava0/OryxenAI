@@ -2,7 +2,7 @@
 
 ## 1. Design premise
 
-### The Living Draft
+### Editorial Swiss - The Living Draft
 
 OryxenAI turns raw experience into a structured, designed, verified portfolio. The
 interface should feel like a draft becoming deliberate and finished, not like a
@@ -24,6 +24,13 @@ This premise was selected over a neon “AI control room” because OryxenAI’s
 material is the user’s story and resulting portfolio, not system telemetry. It was
 selected over a neutral enterprise dashboard because ordered transformation is the
 product’s defining interaction.
+
+Editorial is the primary identity; Swiss design supplies the grid, typographic
+hierarchy, and ordered information; minimalism limits weight and distraction; and a
+restrained futuristic influence appears only in state-linked motion and the Preview
+frame. The complete candidate-style evaluation, including rejected and ambiguous
+directions, lives in
+[the research evidence document](04-research-evidence-and-pattern-analysis.md).
 
 ## 2. Foundation tokens
 
