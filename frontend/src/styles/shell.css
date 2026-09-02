@@ -1114,9 +1114,273 @@ button {
   margin: var(--space-2) 0 var(--space-4);
 }
 
+/* ── PreviewSurface (§8.10) ────────────────────────────────────────────── */
+
 .preview-stage-container {
-  max-width: 1080px;
+  max-width: 1200px;
   margin: var(--space-6) auto;
+  padding: 0 var(--space-4);
+  width: 100%;
+}
+
+.preview-surface {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+/* Toolbar */
+.preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper);
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-btn);
+}
+
+.preview-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.preview-route-select {
+  padding: var(--space-2) var(--space-3);
+  font: var(--type-small);
+  font-family: var(--font-mono, monospace);
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  max-width: 260px;
+}
+
+.preview-route-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.preview-viewport-controls {
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  padding: 2px;
+  border-radius: var(--radius-btn);
+  border: var(--border-width) solid var(--rule);
+}
+
+.preview-viewport-btn {
+  padding: var(--space-1) var(--space-3);
+  font: var(--type-small);
+  color: var(--graphite);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-btn) - 2px);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.preview-viewport-btn[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--paper);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.preview-viewport-btn:hover:not([aria-pressed="true"]) {
+  color: var(--ink);
+}
+
+.preview-viewport-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.preview-scale-pill {
+  font: var(--type-small);
+  font-family: var(--font-mono, monospace);
+  color: var(--graphite);
+  padding: 0 var(--space-2);
+  user-select: none;
+}
+
+.preview-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.preview-retained-badge {
+  font: var(--type-small);
+  font-family: var(--font-mono, monospace);
+  padding: 2px var(--space-2);
+  background: color-mix(in srgb, var(--graphite) 12%, transparent);
+  color: var(--graphite);
+  border-radius: var(--radius-btn);
+  border: var(--border-width) solid var(--rule);
+}
+
+.preview-refresh-btn,
+.preview-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font: var(--type-small);
+  color: var(--graphite);
+  background: var(--paper);
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-btn);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.preview-refresh-btn:hover,
+.preview-open-link:hover {
+  color: var(--ink);
+  border-color: var(--graphite);
+}
+
+.preview-refresh-btn:focus-visible,
+.preview-open-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Frame Boundary and Box Reservation */
+.preview-frame-boundary {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-frame);
+  padding: var(--space-4);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.preview-frame-wrapper {
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  position: relative;
+}
+
+.preview-frame-overlay {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--paper) 95%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  z-index: 10;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.preview-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--rule);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: preview-spin 0.8s linear infinite;
+}
+
+@keyframes preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.preview-overlay-text {
+  font: var(--type-body);
+  color: var(--graphite);
+  max-width: 440px;
+}
+
+.preview-frame-recovery {
+  position: absolute;
+  inset: 0;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: var(--space-6);
+}
+
+.preview-timeout-card {
+  max-width: 460px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.preview-timeout-card h3 {
+  font: var(--type-h3);
+  color: var(--ink);
+  margin: 0;
+}
+
+.preview-timeout-card p {
+  font: var(--type-body);
+  color: var(--graphite);
+  margin: 0;
+}
+
+.preview-recovery-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* Empty Card */
+.preview-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  background: var(--paper);
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-card);
+  gap: var(--space-3);
+}
+
+.preview-empty-icon {
+  color: var(--graphite);
+  margin-bottom: var(--space-2);
+}
+
+.preview-empty-title {
+  font: var(--type-h2);
+  color: var(--ink);
+  margin: 0;
+}
+
+.preview-empty-desc {
+  font: var(--type-body);
+  color: var(--graphite);
+  max-width: 500px;
+  margin: 0 0 var(--space-4);
+}
+
+.preview-error-card {
+  border-color: color-mix(in srgb, #d9534f 40%, var(--rule));
 }
 
 @media (prefers-reduced-motion: reduce) {
