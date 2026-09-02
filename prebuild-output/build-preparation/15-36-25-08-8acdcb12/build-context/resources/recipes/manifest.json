@@ -1,0 +1,60 @@
+{
+  "pack_version": "build-preparation-pack-v3",
+  "recipes": [
+    {
+      "allowed_labels": [
+        "text-led-hero"
+      ],
+      "category": "typography_system",
+      "description": "Text-led hero composition using approved public copy only; no personal or project imagery.",
+      "forbidden_concepts": [
+        "personal portrait",
+        "project screenshot",
+        "dashboard",
+        "invented metric",
+        "invented client or outcome"
+      ],
+      "local_path": "resources/recipes/recipe-3fbf27373a538cd25d20.json",
+      "recipe_id": "recipe-3fbf27373a538cd25d20",
+      "reduced_motion_state": "static",
+      "slot_id": "slot-fa09c3c4a6256f2edce6"
+    },
+    {
+      "allowed_labels": [
+        "typography"
+      ],
+      "category": "typography_system",
+      "description": "Configured system typography fallback with display, body, and utility weights.",
+      "forbidden_concepts": [
+        "personal portrait",
+        "project screenshot",
+        "dashboard",
+        "invented metric",
+        "invented client or outcome"
+      ],
+      "local_path": "resources/recipes/recipe-491b8949b8248394c373.json",
+      "recipe_id": "recipe-491b8949b8248394c373",
+      "reduced_motion_state": "static",
+      "slot_id": "slot-abf48c82a3ef77ddba4e"
+    },
+    {
+      "allowed_labels": [
+        "representative-diagram"
+      ],
+      "category": "representative_svg_diagram",
+      "description": "Use a CSS-only labelled flow without project-specific claims.",
+      "forbidden_concepts": [
+        "personal portrait",
+        "project screenshot",
+        "dashboard",
+        "invented metric",
+        "invented client or outcome"
+      ],
+      "local_path": "resources/recipes/recipe-8984dbd464b2afb45c9a.json",
+      "recipe_id": "recipe-8984dbd464b2afb45c9a",
+      "reduced_motion_state": "static",
+      "slot_id": "slot-6eb6871a53564e3da2dc"
+    }
+  ],
+  "schema_version": "build-preparation-recipe-manifest-v1"
+}
