@@ -86,4 +86,20 @@ describe("appReducer", () => {
     expect(state.generation?.state).toBe("working");
     expect(state.generation?.supportReference).toBe("trace_123");
   });
+
+  it("handles preview/set action", () => {
+    const preview = {
+      state: "ready" as const,
+      stableOrigin: "https://preview.oryxenai.local",
+      stableBaseUrl: "https://preview.oryxenai.local/p/run_1/",
+      currentUrl: "https://preview.oryxenai.local/p/run_1/",
+      routes: [{ id: "/", path: "/", label: "Home" }],
+      selectedPath: "/",
+      isPreviousVerifiedResult: false,
+    };
+
+    const state = appReducer(initialAppState, { type: "preview/set", view: preview });
+    expect(state.preview?.state).toBe("ready");
+    expect(state.preview?.stableOrigin).toBe("https://preview.oryxenai.local");
+  });
 });
