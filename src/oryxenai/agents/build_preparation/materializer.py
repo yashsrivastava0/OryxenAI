@@ -645,6 +645,7 @@ async def _materialize_image_candidate(
         "provider": candidate.provider,
         "provider_asset_id": candidate.provider_asset_id,
         "source_reference": candidate.source_reference,
+        "direct_fetch_url": candidate.image_url,
         "license": candidate.license,
         "license_reference": candidate.license_reference,
         "source_version": candidate.source_version,
@@ -1407,6 +1408,7 @@ async def materialize_build_context(
                         "font_weights": candidate.font_weights,
                         "local_directory": font_root,
                         "source_files": font_source_entries,
+                        "direct_fetch_urls": dict(candidate.font_urls),
                         "disposition": "deferred_materialized",
                     }
                 )

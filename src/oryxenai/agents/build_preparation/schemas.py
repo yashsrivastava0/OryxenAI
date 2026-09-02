@@ -316,6 +316,13 @@ class ResolvedResource(BaseModel):
     provider: str = ""
     provider_asset_id: str = ""
     source_reference: str = ""
+    # source_reference is the human-readable page/registry URL used for
+    # attribution. deferred_materialized slots additionally need the exact
+    # machine-fetchable URL(s) Build Preparation's own download already used
+    # to verify this candidate, so Code Generator can re-fetch the identical
+    # bytes rather than guess a provider-specific URL shape itself.
+    direct_source_url: str = ""
+    direct_source_urls: dict[str, str] = Field(default_factory=dict)
     license: str = ""
     license_reference: str = ""
     source_hashes: list[str] = Field(default_factory=list)
