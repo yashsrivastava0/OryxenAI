@@ -45,4 +45,45 @@ describe("appReducer", () => {
     expect(state.design?.state).toBe("review");
     expect(state.activeStage).toBe("content");
   });
+
+  it("handles preparation/set and generation/set actions", () => {
+    const prep = {
+      state: "working" as const,
+      statusText: "Packaging and verifying handoff",
+      currentMilestone: "Packaging and verifying handoff",
+      milestones: [],
+      routeCount: 2,
+      warnings: [],
+      stale: false,
+      staleReasons: [],
+      handoffEligible: false,
+      safeError: null,
+      elapsedSeconds: 15,
+      raw: {},
+    };
+
+    const gen = {
+      state: "working" as const,
+      statusText: "Building portfolio routes",
+      currentMilestone: "Building portfolio routes",
+      milestones: [],
+      activePreview: null,
+      hasUsablePreview: false,
+      safeError: null,
+      stale: false,
+      retryEligible: false,
+      elapsedSeconds: 30,
+      supportReference: "trace_123",
+      issues: [],
+      raw: {},
+    };
+
+    let state = appReducer(initialAppState, { type: "preparation/set", view: prep });
+    state = appReducer(state, { type: "generation/set", view: gen });
+
+    expect(state.preparation?.state).toBe("working");
+    expect(state.preparation?.statusText).toBe("Packaging and verifying handoff");
+    expect(state.generation?.state).toBe("working");
+    expect(state.generation?.supportReference).toBe("trace_123");
+  });
 });
