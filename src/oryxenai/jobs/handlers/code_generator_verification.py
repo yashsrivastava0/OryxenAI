@@ -1446,6 +1446,11 @@ async def _attempt_repair(
                 budget.total_used,
                 exc_info=True,
             )
+            # Persisted even on exhaustion: a failed round still consumed
+            # budget, and the terminal report must show the true attempt
+            # count rather than whatever the last *successful* round left
+            # behind (0, if every round this call made failed).
+            projection.repair_rounds = budget.total_used
             if not budget.can_attempt(diagnostics, unit_id=repair_unit_id):
                 return False
             continue
