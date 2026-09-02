@@ -22,6 +22,26 @@ result obvious.
 | [Product experience and information architecture](01-product-experience-and-information-architecture.md) | What does the user see and where do they go? |
 | [State, progress, and edge cases](02-state-progress-and-edge-cases.md) | How does every durable state become honest UI behavior? |
 | [Visual system, architecture, and evidence](03-visual-system-architecture-and-evidence.md) | How should it look, remain light, and be built later? |
+| [Research evidence and pattern analysis](04-research-evidence-and-pattern-analysis.md) | What repository, competitor, visual-style, web-platform, accessibility, and hosting evidence supports the direction? |
+| [Implementation blueprint and acceptance matrix](05-implementation-blueprint-and-acceptance-matrix.md) | What exact routes, endpoints, adapters, components, failures, tests, and rollout gates should implementation follow? |
+
+### Coverage map
+
+| Concern | Primary document | Supporting detail |
+| --- | --- | --- |
+| Auth, onboarding, entry, and return flow | 01 | 02 edge cases; 05 route/API/test contract |
+| Home and product mental model | README, 01 | 04 repository synthesis |
+| Agent sequence and explicit handoffs | 01 | 02 state maps; 05 adapters/actions |
+| Discovery conversation and brief | 01 | 02 edge cases; 05 endpoint/component contract |
+| Content and Design artifact review | 01 | 02 state maps; 05 artifact/revision contract |
+| Build Preparation progress | 02 | 04 evidence; 05 compatibility adapter |
+| Production Code Generator integration | 02 | 04 evidence; 05 production endpoint/adapter contract |
+| Preview behavior and security | 01, 02 | 03 architecture; 05 validation/acceptance |
+| Visual identity, theme, imagery, and motion | 03 | 04 style comparison and asset strategy |
+| Performance and low-cost hosting | 03 | 04 platform findings; 05 measurable gates |
+| Accessibility and responsive behavior | 02, 03 | 05 implementation acceptance |
+| Errors, recovery, refresh, and multi-tab behavior | 02 | 05 choreography and tests |
+| Implementation sequence and completion criteria | 03 | 05 rollout stop gates and full matrix |
 
 The documents distinguish five evidence labels:
 
@@ -176,11 +196,18 @@ Chat is used only where the backend supports conversational input. Build
 Preparation and Code Generator are run/progress interfaces, not empty chat boxes
 waiting for unsupported follow-up prompts.
 
-## Visual premise: The Living Draft
+## Visual premise: Editorial Swiss - The Living Draft
 
 The interface should feel like an editorial draft becoming a finished portfolio:
 warm paper, precise dark type, restrained technical annotations, and a single blue
 handoff line that advances only when durable state advances.
+
+Editorial is the identity, Swiss design supplies the grid and typographic discipline,
+and minimalism is the restraint rule. A restrained futuristic quality appears only
+in exact state transitions and the verified Preview frame. Maximalist, Y2K, pixel,
+clay, glassmorphism, cyberpunk, and raster-collage treatments are not used in the
+core product because they compete with artifact readability, trust, or performance.
+Ambiguous style labels are not silently interpreted.
 
 The signature is the **living draft line**. It connects the journey milestones and
 briefly sweeps forward after a confirmed state transition. The same geometry can
@@ -216,6 +243,9 @@ The detailed palette, typography, spacing, motion, and component rules live in t
    the primary interface is proven and measured.
 7. Use a self-hosted display-font subset, inline SVG icons, and CSS motion. No
    remote font, illustration, icon, or animation runtime is required.
+8. Ship no required raster art in the authenticated product shell. Use one small
+   code-native construction-line SVG, editorial composition, and the generated
+   portfolio itself as the primary visual material.
 
 These recommendations are not yet architecture decisions. Record an ADR only after
 the direction is reviewed and implementation is authorized.
