@@ -78,9 +78,13 @@ D-018 requires Build Preparation to provide:
   contract;
 - `design/visual-direction.json`, the complete approved non-reasoning visual
   contract;
-- `execution/contract.json`, the exact slot inventory with a local file,
-  approved package binding, typed local recipe, or explicit execution gap for
-  every known need;
+- `execution/contract.json`, the exact slot inventory with a local file, a
+  pinned-but-deferred provider reference (D-060 -- Build Preparation already
+  decided which exact resource, verified it by fully fetching and inspecting
+  it, and deliberately did not persist the bytes; Code Generator's own
+  acquisition phase fetches that same decided resource at generation time),
+  an approved package binding, a typed local recipe, or an explicit execution
+  gap for every known need;
 - `resources/ledger.json`, recipe manifests, locally admitted resources, and
   provenance/licence records;
 - target, provenance, licence, and handoff reports; and
@@ -90,11 +94,15 @@ Code Generator rejects a stale, corrupt, unsafe, contradictory, incomplete, or
 unsupported pack before a model call. It does not reconstruct authoritative
 facts or routes from prose.
 
-Known resource requirements are prepared upstream. Code Generator receives the
+Known resource requirements are decided upstream. Code Generator receives the
 fixed v3 bindings rather than vague fallback prose or the provider catalogue.
-Required visual slots must be concrete local media, importable local component
-source, or an admitted package binding; a recipe or comment marker cannot
-satisfy a required visual slot.
+Required visual slots must be concrete local media, a pinned deferred
+provider reference, importable local component source, or an admitted
+package binding; a recipe or comment marker cannot satisfy a required visual
+slot. A deferred reference is not a discovery -- Build Preparation already
+made the decision and verified it; Code Generator's acquisition phase
+performs a direct fetch of that exact resource, with no search or candidate
+selection involved (D-060).
 Only an unexpected need discovered during source generation can invoke D-015's
 separate receipt-bound acquisition path.
 

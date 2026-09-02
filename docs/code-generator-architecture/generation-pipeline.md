@@ -62,25 +62,34 @@ supported v3 semantic schema. A representative layout is:
 ```text
 manifest.json
 handoff-report.json
+overview.md
 site/
   contract.json
-  routes/
-    <route-storage-key>/
-      brief.md
-      data.json
+routes/
+  <route-storage-key>/
+    brief.md
+    data.json
+    resources.json
 design/
   visual-direction.json
+execution/
+  contract.json
 resources/
-  plan.json
+  ledger.json
   manifest.json
-  images/...
+  projection.json
+  recipes/...
+  images/... (only for local_materialized resources -- see D-060)
   components/...
-  icons/...
+  fonts/...
 provenance/
   approvals.json
-  sources.json
+  targets.json
+  licenses.json
+  checksums.json
 target/
   target-contract.json
+  package.json
 ```
 
 The exact pack schema, target schema, and supported versions live in code and
