@@ -366,6 +366,17 @@ export async function resolveAuthenticatedContext({
         return { kind: "account_unavailable", error };
       }
       if (error.code === "ONBOARDING_REQUIRED") return { kind: "onboarding", error };
+      // A transient provider/credit condition is not an invalid session. The
+      // caller keeps the existing session and shows a safe message instead of
+      // signing the user out — matching what the auth-shell controller
+      // (auth-controller.mjs) already does for these same two codes. See
+      // docs/Frontend/06-cross-model-review-and-decisions.md §3.2.
+      if (error.code === "AUTH_PROVIDER_UNAVAILABLE") {
+        return { kind: "provider_unavailable", error };
+      }
+      if (error.code === "MODEL_PROVIDER_CREDIT_EXHAUSTED") {
+        return { kind: "provider_credit_exhausted", error };
+      }
     }
     await onAuthFailure();
     return { kind: "auth_failure", error };

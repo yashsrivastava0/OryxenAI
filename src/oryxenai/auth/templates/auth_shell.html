@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f5ef">
+  <meta name="theme-color" content="#f3f0e8">
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -17,6 +17,8 @@
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
   <title>{{ app_name }} · Access</title>
+  <link rel="stylesheet" href="/auth-static/tokens.css?v={{ tokens_css_version }}">
+  <link rel="stylesheet" href="/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
   <link rel="stylesheet" href="/auth-static/auth.css?v={{ auth_css_version }}">
 </head>
 <body data-page="{{ page }}">
@@ -29,6 +31,7 @@
 
     <section id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
       <p class="eyebrow">Secure access</p>
+      <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
       <h2 id="progress-title">Restoring your session.</h2>
       <p id="progress-detail" class="muted" aria-live="polite">Checking this browser safely.</p>
       <ol class="progress-steps" aria-label="Authentication progress">

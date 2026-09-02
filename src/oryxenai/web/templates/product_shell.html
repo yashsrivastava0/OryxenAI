@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ app_name }} · Studio{% endblock %}
+{% block base_stylesheet %}
+<link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/tokens.css?v={{ tokens_css_version }}">
+<link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
+{% endblock %}
+{% block head %}
+<meta name="theme-color" content="#f3f0e8">
+<meta name="oryxenai-product-entry" content="{{ product_entry.script }}">
+{% for href in product_entry.styles %}
+<link rel="stylesheet" href="{{ href }}">
+{% endfor %}
+{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+<div id="product-root" aria-live="polite"></div>
+{% endblock %}
+{% block footer %}{% endblock %}
+{% block scripts %}
+<script type="module" src="{{ request.scope.get('root_path', '') }}/static/app-auth-bootstrap.mjs?v={{ app_auth_bootstrap_version }}"></script>
+{% endblock %}
