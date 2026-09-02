@@ -10,6 +10,7 @@ import type { ContentViewModel } from "../data/adapters/content";
 import type { DesignViewModel } from "../data/adapters/design";
 import type { PreparationViewModel } from "../data/adapters/preparation";
 import type { GenerationViewModel } from "../data/adapters/generation";
+import type { PreviewVM } from "../data/adapters/preview";
 import type { JourneyStageId } from "./url-state";
 
 export type ConnectionState = "confirmed" | "checking" | "stale" | "offline";
@@ -25,6 +26,7 @@ export interface AppState {
   design: DesignViewModel | null;
   preparation: PreparationViewModel | null;
   generation: GenerationViewModel | null;
+  preview: PreviewVM | null;
   connection: ConnectionState;
   announcement: string | null;
 }
@@ -38,6 +40,7 @@ export type AppAction =
   | { type: "design/set"; view: DesignViewModel }
   | { type: "preparation/set"; view: PreparationViewModel }
   | { type: "generation/set"; view: GenerationViewModel }
+  | { type: "preview/set"; view: PreviewVM }
   | { type: "connection/set"; state: ConnectionState }
   | { type: "announce"; message: string };
 
@@ -52,6 +55,7 @@ export const initialAppState: AppState = {
   design: null,
   preparation: null,
   generation: null,
+  preview: null,
   connection: "checking",
   announcement: null,
 };
@@ -74,6 +78,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, preparation: action.view };
     case "generation/set":
       return { ...state, generation: action.view };
+    case "preview/set":
+      return { ...state, preview: action.view };
     case "connection/set":
       return { ...state, connection: action.state };
     case "announce":

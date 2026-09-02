@@ -4,11 +4,13 @@ import { ContentStage } from "./content/ContentStage";
 import { DesignStage } from "./design/DesignStage";
 import { PreparationStage } from "./preparation/PreparationStage";
 import { GenerationStage } from "./generation/GenerationStage";
+import { PreviewSurface } from "./preview/PreviewSurface";
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
 import { adaptBuildPreparation } from "../data/adapters/preparation";
 import { adaptCodeGenerator } from "../data/adapters/generation";
+import { adaptPreview } from "../data/adapters/preview";
 import {
   notStarted as discoveryFixtureNotStarted,
   questionsReady as discoveryFixtureQuestionsReady,
@@ -37,6 +39,12 @@ import {
   generationFixtureReadyWithPreview,
   generationFixtureNeedsAttentionRetryable,
 } from "../data/adapters/generation.fixtures";
+import {
+  previewFixtureAbsent,
+  previewFixtureReady,
+  previewFixtureWorkingWithPrevious,
+  previewFixtureInvalidScheme,
+} from "../data/adapters/preview.fixtures";
 
 function getClassName(vnode: any): string | undefined {
   return vnode?.props?.className ?? vnode?.props?.class;
@@ -351,6 +359,51 @@ describe("Stage Component VNodes", () => {
         onOpenPreview: () => {},
       });
       expect(getClassName(vnode)).toBe("generation-stage-view");
+    });
+  });
+
+  describe("PreviewSurface", () => {
+    it("renders absent empty state when preview is not available", () => {
+      const view = adaptPreview(previewFixtureAbsent);
+      const vnode = PreviewSurface({
+        view,
+        readOnly: false,
+        onNavigateStage: () => {},
+      });
+      expect(vnode).toBeDefined();
+      expect(getClassName(vnode)).toContain("preview-surface-absent");
+    });
+
+    it("renders preview toolbar and frame structure when preview is ready", () => {
+      const view = adaptPreview(previewFixtureReady);
+      const vnode = PreviewSurface({
+        view,
+        readOnly: false,
+        viewport: "desktop",
+        selectedRoute: "/",
+      });
+      expect(vnode).toBeDefined();
+      expect(getClassName(vnode)).toBe("preview-surface");
+    });
+
+    it("renders previous verified result when working on a new attempt", () => {
+      const view = adaptPreview(previewFixtureWorkingWithPrevious);
+      expect(view.isPreviousVerifiedResult).toBe(true);
+      const vnode = PreviewSurface({
+        view,
+        readOnly: false,
+      });
+      expect(getClassName(vnode)).toBe("preview-surface");
+    });
+
+    it("renders error state when preview receipt has invalid scheme", () => {
+      const view = adaptPreview(previewFixtureInvalidScheme);
+      const vnode = PreviewSurface({
+        view,
+        readOnly: false,
+      });
+      expect(vnode).toBeDefined();
+      expect(getClassName(vnode)).toContain("preview-surface-unavailable");
     });
   });
 });

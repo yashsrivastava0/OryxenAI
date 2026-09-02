@@ -124,9 +124,19 @@ export function adaptCodeGenerator(
   let activePreview: ActivePreviewInfo | null = null;
   let hasUsablePreview = false;
   if (isRecord(raw.active_preview)) {
-    const origin = typeof raw.active_preview.origin === "string" ? raw.active_preview.origin : undefined;
-    const baseUrl = typeof raw.active_preview.base_url === "string" ? raw.active_preview.base_url : undefined;
-    const path = typeof raw.active_preview.path === "string" ? raw.active_preview.path : "";
+    let origin = typeof raw.active_preview.origin === "string" ? raw.active_preview.origin : undefined;
+    let baseUrl = typeof raw.active_preview.base_url === "string" ? raw.active_preview.base_url : undefined;
+    let path = typeof raw.active_preview.path === "string" ? raw.active_preview.path : "";
+    if (typeof raw.active_preview.url === "string" && raw.active_preview.url) {
+      try {
+        const parsed = new URL(raw.active_preview.url);
+        origin = origin ?? parsed.origin;
+        baseUrl = baseUrl ?? raw.active_preview.url;
+        path = path || parsed.pathname;
+      } catch {
+        // Handled safely
+      }
+    }
     const routePaths = Array.isArray(raw.active_preview.route_paths)
       ? raw.active_preview.route_paths.filter((p): p is string => typeof p === "string")
       : [];

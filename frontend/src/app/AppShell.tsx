@@ -19,7 +19,8 @@ import { ContentStage } from "../stages/content/ContentStage";
 import { DesignStage } from "../stages/design/DesignStage";
 import { PreparationStage } from "../stages/preparation/PreparationStage";
 import { GenerationStage } from "../stages/generation/GenerationStage";
-import { PreviewFrameShell } from "../preview/PreviewFrameShell";
+import { ConnectedPreviewSurface } from "../stages/preview/PreviewSurface";
+import { adaptPreview } from "../data/adapters/preview";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
 import type { AnsweredTurn } from "../components/ConversationSurface";
 
@@ -120,12 +121,24 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       const genData = await api.getCodeGenerator(state.sessionId);
       const genView = adaptCodeGenerator(genData.code_generator, isPrepComplete, Boolean(state.readOnly));
       dispatch({ type: "generation/set", view: genView });
+      const previewV = adaptPreview(genView);
+      dispatch({ type: "preview/set", view: previewV });
+
+      if (!initialUrl.stage) {
+        if (state.readOnly && genView.hasUsablePreview) {
+          setActiveStage("preview");
+          dispatch({ type: "stage/select", stage: "preview" });
+        } else if (genView.hasUsablePreview && genView.state === "complete" && isPrepComplete) {
+          setActiveStage("preview");
+          dispatch({ type: "stage/select", stage: "preview" });
+        }
+      }
 
       dispatch({ type: "connection/set", state: "confirmed" });
     } catch {
       dispatch({ type: "connection/set", state: "stale" });
     }
-  }, [api, state.sessionId, state.readOnly]);
+  }, [api, state.sessionId, state.readOnly, initialUrl.stage]);
 
   // Initial load on session change
   useEffect(() => {
@@ -238,6 +251,8 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           const res = await api.getCodeGenerator(sessionId);
           const view = adaptCodeGenerator(res.code_generator, state.preparation?.state === "complete", Boolean(state.readOnly));
           dispatch({ type: "generation/set", view });
+          const previewV = adaptPreview(view);
+          dispatch({ type: "preview/set", view: previewV });
           dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
           if (view.state === "complete") {
             dispatch({ type: "announce", message: "Portfolio generation complete. Verified Preview ready." });
@@ -333,7 +348,10 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const handleSelectStage = (stage: JourneyStageId) => {
     setActiveStage(stage);
     dispatch({ type: "stage/select", stage });
-    const query = serializeAppUrlState({ stage, view: stage === "discover" ? "work" : "artifact" });
+    const query = serializeAppUrlState({
+      stage,
+      view: stage === "discover" ? "work" : stage === "preview" ? "preview" : "artifact",
+    });
     window.history.pushState({}, "", `${window.location.pathname}${query}`);
   };
 
@@ -636,7 +654,21 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
           {state.sessionId && activeStage === "preview" ? (
             <div className="preview-stage-container">
-              <PreviewFrameShell />
+              <ConnectedPreviewSurface
+                view={state.preview ?? adaptPreview(state.generation)}
+                readOnly={state.readOnly}
+                onNavigateStage={handleSelectStage}
+                initialViewport={initialUrl.viewport ?? undefined}
+                initialRoute={initialUrl.route ?? undefined}
+                onRouteSelected={(route) => {
+                  const query = serializeAppUrlState({ stage: "preview", view: "preview", route });
+                  window.history.replaceState({}, "", `${window.location.pathname}${query}`);
+                }}
+                onViewportChanged={(viewport) => {
+                  const query = serializeAppUrlState({ stage: "preview", view: "preview", viewport });
+                  window.history.replaceState({}, "", `${window.location.pathname}${query}`);
+                }}
+              />
             </div>
           ) : null}
         </main>
