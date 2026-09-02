@@ -54,6 +54,10 @@ export async function bootDetachedProductShell({
   fetchImpl = globalThis.fetch,
   globalRef = globalThis,
   loadWorkspace = async () => {
+    const entry = globalRef?.document
+      ?.querySelector?.('meta[name="oryxenai-product-entry"]')
+      ?.content;
+    if (entry) return import(entry);
     await import("/static/app.js");
     return globalRef?.OryxenAIApp;
   },
@@ -65,13 +69,23 @@ export async function bootDetachedProductShell({
     showError(globalRef.document, "The workspace could not be initialized. Refresh to try again.");
     return { kind: "workspace_error" };
   }
+  const defaultMe = {
+    id: "detached-user",
+    username: "developer",
+    role: "admin",
+    status: "active",
+    onboarding_required: false,
+    admin_available: true,
+    read_only: false,
+    portfolio_session_id: null,
+  };
   appController.boot({
     authorizedFetch: createDetachedFetch(fetchImpl),
     storage,
     pipelineMode: "detached",
     developer: false,
-    role: "developer",
-    me: null,
+    role: "admin",
+    me: defaultMe,
     serverSessionId: null,
     readOnly: false,
   });
@@ -83,7 +97,8 @@ export async function bootDetachedProductShell({
 }
 
 if (typeof document !== "undefined") {
-  bootDetachedProductShell().catch(() => {
+  bootDetachedProductShell().catch((err) => {
+    console.error("bootDetachedProductShell error:", err);
     showError(document, "The development pipeline could not be initialized. Refresh to try again.");
   });
 }

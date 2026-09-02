@@ -17,6 +17,7 @@ export default defineConfig({
       // No index.html: the entry is loaded programmatically by
       // app-auth-bootstrap.mjs after auth resolves, not served by Vite.
       input: "src/main.tsx",
+      preserveEntrySignatures: "exports-only",
     },
   },
   test: {
