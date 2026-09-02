@@ -4,6 +4,16 @@ This document points at the privacy-safe fixture used by the Code Generator
 runbook. The checked-in projections and ZIP are authoritative; this pointer
 must not be treated as a substitute for immutable artifact admission.
 
+**This specific checked-in pack predates D-060** and was materialized before
+Build Preparation deferred image/font/component bytes to Code Generator's
+own acquisition phase -- its image/component resolutions below are genuinely
+`local_materialized` (real bytes already in the ZIP), not
+`deferred_materialized`. A pack generated after D-060 expresses the same
+kind of decision (one exact provider + candidate, already verified) but
+without embedding the bytes; see `README.md`'s "Build Preparation pack v3"
+section for the current contract. The facts below remain an accurate
+description of this exact fixture's real, checked-in content.
+
 ## Selection
 
 Canonical local fixture:
