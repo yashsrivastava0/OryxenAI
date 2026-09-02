@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-058 - A cannot-complete repair result consumes one budgeted round, not the whole budget
+
+- **Date & Time:** 2026-09-02 15:30 +05:30 - Claude Code (Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** D-056 already requires a failed final-repair model call to return either a bounded source change or an honest cannot-complete result. A live baseline run hit a `RUNTIME_TOUCH_TARGET_TOO_SMALL`/`RUNTIME_REGION_WIDTH_RATIO` dom_runtime rejection where the repair model correctly returned cannot-complete on its first try; the host treated that `FinalRepairError` identically to an infrastructure crash and reported `DOM_RUNTIME_FAILED` immediately, with `repair_rounds` still at 0 — the per-group/total budget from D-056 never got a chance to try a second round with a different strategy hint.
+- **Decision:** In `_attempt_repair` (`code_generator_verification.py`), a `FinalRepairError` from `FinalRepairer.repair()` (an honest cannot-complete or context-mismatch result) is caught separately from other exceptions. It does not return `False` immediately; it re-checks `RepairBudget.can_attempt` and, while the budget still allows another round, calls the repair model again (which now sees a `bounded-simplification` strategy hint via the same fingerprint-recurrence logic already in `repair_policy.py`). Only once the budget itself is exhausted does the function give up and report terminal failure. Any other exception type still aborts immediately, unchanged.
+- **Rejected alternatives:** Treating any repair exception as immediately terminal (the pre-existing behavior) - rejected because it made `max_repair_rounds_per_unit`/`max_repair_rounds_total` unreachable whenever the very first attempt was an honest cannot-complete, defeating the point of a multi-round budget; retrying on every exception type including infra/provider errors - rejected because a broken provider call within one job invocation is unlikely to self-heal and would waste the budget on non-content failures.
+- **Consequence:** A model's honest single-round cannot-complete no longer prematurely ends a run that still has repair budget left; `repair_rounds`/`repair_receipts` now accurately reflect every attempted round, including failed ones, so `needs_attention`/`terminal_failure` only fires once the configured budget is genuinely spent.
+
 ## D-055 - Code Generator uses dedicated per-role model profiles
 
 - **Date & Time:** 2026-09-02 01:00 +05:30 - Codex (GPT-5 / OpenAI)
