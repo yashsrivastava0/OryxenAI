@@ -1204,13 +1204,14 @@ def build_handoff_report(
     image_materialized_count = sum(
         1
         for need_id in image_need_ids
-        if materialized_disposition(materialized_by_need.get(need_id, {})) == "local_file"
+        if materialized_disposition(materialized_by_need.get(need_id, {}))
+        in {"local_file", "deferred_materialized"}
     )
     component_materialized_count = sum(
         1
         for need_id in component_need_ids
         if materialized_disposition(materialized_by_need.get(need_id, {}))
-        in {"adaptable_source", "local_file"}
+        in {"adaptable_source", "local_file", "deferred_materialized"}
     )
     visual_role_count = len(image_need_ids) + len(component_need_ids)
     unresolved_visual_roles = sorted(
@@ -1219,7 +1220,7 @@ def build_handoff_report(
             for need in needs
             if need.category.casefold() in visual_categories
             and materialized_disposition(materialized_by_need.get(need.need_id, {}))
-            not in {"local_file", "adaptable_source"}
+            not in {"local_file", "adaptable_source", "deferred_materialized"}
         ]
     )
     total_enrichment_failure = bool(
@@ -1284,7 +1285,7 @@ def build_handoff_report(
             for entry in materialization.resources
             if isinstance(entry, dict)
             and entry.get("kind") == "font"
-            and entry.get("disposition") == "local_file"
+            and entry.get("disposition") in {"local_file", "deferred_materialized"}
         ),
         "provider_calls": int(provider_calls),
         "cache_hits": int(cache_hits),
