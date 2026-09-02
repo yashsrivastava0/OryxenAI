@@ -1,7 +1,11 @@
 # OryxenAI frontend research
 
-> Status: proposed product and frontend direction for review. This package does not
-> change an API, agent, database schema, preview invariant, or deployed interface.
+> Status: reviewed and accepted (2026-09-02). See
+> [06-cross-model-review-log](06-cross-model-review-and-decisions.md) for the review
+> record, two implementation-safety corrections, and the resolved deployment
+> target. A formal `DECISIONS.md` ADR is still pending explicit owner sign-off.
+> This package does not change an API, agent, database schema, preview invariant,
+> or deployed interface.
 
 ## Recommendation in one sentence
 
@@ -73,7 +77,7 @@ authoritative sources are:
 - `src/oryxenai/auth/schemas.py`
 - `src/oryxenai/auth/entitlements.py`
 - `src/oryxenai/api/routes/sessions.py`
-- `docs/Auth/03-user-flow-and-route-contract.md`
+- `docs/Auth/01-user-flows-and-route-contract.md`
 
 Therefore the authenticated entry experience should answer “start or continue my
 portfolio,” not “which project or conversation do I want?” A grid of fake projects,
@@ -153,7 +157,10 @@ Authoritative sources:
 - `src/oryxenai/auth/web.py`
 - `src/oryxenai/auth/static/auth-controller.mjs`
 - `src/oryxenai/auth/static/auth-runtime.mjs`
-- `docs/Auth/03-user-flow-and-route-contract.md`
+- `docs/Auth/01-user-flows-and-route-contract.md`
+- `docs/Frontend/06-cross-model-review-and-decisions.md` §3 — a migration-safety
+  checklist and one corrected bug in the current implementation, found by reading
+  the auth controller and runtime side by side.
 
 ## Chosen product model
 
@@ -247,8 +254,15 @@ The detailed palette, typography, spacing, motion, and component rules live in t
    code-native construction-line SVG, editorial composition, and the generated
    portfolio itself as the primary visual material.
 
-These recommendations are not yet architecture decisions. Record an ADR only after
-the direction is reviewed and implementation is authorized.
+9. Target Render-style free web hosting plus the existing Cloudflare R2 artifact
+   storage for the deployed product, per
+   `docs/code-generator-architecture/free-host-deployment.md`. Treat the early AWS
+   contingency in `docs/Auth/04-deployment-and-operations.md` as superseded
+   unless explicitly revisited.
+
+These recommendations were reviewed on 2026-09-02 (see
+[06-cross-model-review-log](06-cross-model-review-and-decisions.md)). Record the formal
+ADR in `DECISIONS.md` once the owner gives explicit sign-off.
 
 ## Explicit non-goals
 
@@ -270,17 +284,26 @@ Developer harnesses may continue exposing development detail at their existing
 protected or detached routes. They are evidence about backend behavior, not the
 normal-user product design.
 
-## Review questions for the next phase
+## Review resolutions
 
-Review should confirm the product direction, not reopen already established backend
-invariants:
+These were reviewed on 2026-09-02 (full reasoning in
+[06-cross-model-review-log](06-cross-model-review-and-decisions.md) §1):
 
 - Does the portfolio studio feel appropriate for a nontechnical creator?
-- Is the warm editorial direction right for the OryxenAI brand?
-- Is a light-first release acceptable without a dark theme?
+  **Accepted.**
+- Is the warm editorial direction right for the OryxenAI brand? **Accepted** —
+  the one item that stays a taste call the owner keeps final say on, since there
+  is no prior OryxenAI brand to compare against.
+- Is a light-first release acceptable without a dark theme? **Accepted.**
 - Are Content and Design artifacts understandable enough for meaningful approval?
+  **Provisionally accepted** — confirm once Phase 2's stop gate (05 §19) runs
+  against real agent output, not a fixture.
 - Is the distinction between Preview and future publishing unmistakable?
+  **Accepted.**
 - Are the proposed bundle budgets strict enough for the intended hosting profile?
+  **Accepted**, now that the hosting target is confirmed as Render + Cloudflare R2
+  (see decision 9 above).
 
-Once these are accepted, implementation can proceed incrementally without changing
-the agent or preview architecture.
+Implementation may proceed per 05's phased sequence without changing the agent or
+preview architecture, with the two safety corrections in 06 folded into Phase 1
+(auth continuity) and Phase 4 (Preview) of that sequence.

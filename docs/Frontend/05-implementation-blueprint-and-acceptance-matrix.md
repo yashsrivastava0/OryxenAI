@@ -1,8 +1,66 @@
 # Frontend implementation blueprint and acceptance matrix
 
-> Status: implementation-ready proposal. This document describes how to build the
-> researched frontend after review. It does not authorize backend, database, agent,
-> entitlement, or Preview protocol changes.
+> Status: implementation-ready; reviewed 2026-09-02 (see
+> [06-cross-model-review-and-decisions](06-cross-model-review-and-decisions.md)).
+> This document describes how to build the researched frontend after review. It
+> does not authorize backend, database, agent, entitlement, or Preview protocol
+> changes.
+
+## 0. How to implement this document
+
+This file is the complete, self-contained implementation guide. Build it in the
+five phases in §19, in order — do not start a phase before the previous one's
+stop gate passes, and do not skip ahead because a later phase looks easier.
+Sections §1-§18 are reference material each phase draws on; §19 is the only
+section that tells you what to do and when.
+
+**Non-negotiables, true in every phase:**
+
+- No client router, no state library, no data-fetching library, no component
+  kit, no animation library, no CSS-in-JS (§6, runtime dependency list).
+- No stage ever auto-starts the next one. Every transition needs an explicit
+  user action.
+- Preview only ever shows an active, promoted, verified build — never an
+  unpromoted candidate (§8, §8.10).
+- The three auth invariants in Phase 1 (§19) must hold at the end of every
+  phase, not just Phase 1: the `body.auth-pending` hide rule has a home, one
+  controller decides routing, and the redirect allowlist stays exactly `/app`
+  and `/admin`.
+- Normal users never see developer vocabulary: no percentages/ETAs, no raw
+  logs, no provider/storage names, no model picker (§9).
+
+**Design tokens** (full detail in `03-visual-system-architecture-and-evidence.md`
+§2 if anything below is ambiguous — but this table is enough to start building):
+
+| Token | Value | Role |
+| --- | --- | --- |
+| `--canvas` | `#F3F0E8` | Warm application background |
+| `--paper` | `#FCFBF7` | Reading and artifact surface |
+| `--ink` | `#171A19` | Primary text and strong controls |
+| `--graphite` | `#626660` | Secondary text and technical labels |
+| `--rule` | `#D3CFC4` | Dividers, inactive journey, field boundaries |
+| `--signal` | `#3157E7` | Current stage, focus, links, primary action — the only decorative accent |
+| `--positive` | `#287356` | Confirmed approval, verification, completion |
+| `--attention` | `#A9601E` | User action or recoverable warning |
+| `--critical` | `#B33F3A` | Terminal/destructive error |
+| `--preview-frame` | `#202422` | Neutral theater around generated portfolios |
+
+Type: one self-hosted `Newsreader` serif for display/thesis/artifact-title
+moments only; `system-ui` sans-serif for everything else (navigation, controls,
+body copy); `ui-monospace` only for trace IDs, durations, and route paths.
+Base spacing unit 4px (4, 8, 12, 16, 24, 32, 48, 64, 96). Never invent a color,
+font, or spacing value outside this set — that is what makes the result look
+generic instead of deliberate.
+
+**If you need more context than this file gives you**, the rest of the package
+in this same folder, one line each: `README.md` explains why (the product
+premise, in one paragraph); `01-product-experience-and-information-architecture.md`
+covers screens and user journeys in prose; `02-state-progress-and-edge-cases.md`
+has the full backend-status-to-UI-state tables and edge-case behavior; `03` has
+the complete visual system and component-language rules; `04` is background
+research, skip it unless you want the reasoning behind a specific choice; `06`
+is a short log of what changed in review and why — read it if a section here
+references it by name.
 
 ## 1. Outcome and boundaries
 
@@ -739,9 +797,15 @@ Frame behavior:
 - toolbar remains stable while the frame opens;
 - load timeout produces a Preview-specific recovery without changing generation
   status;
-- viewport buttons change only product-frame width, not generated CSS; and
+- viewport buttons change only product-frame width, not generated CSS;
 - a previous verified frame remains visible while a new promoted URL is being
-  confirmed.
+  confirmed;
+- the frame's box (CSS `width`/`height` or `aspect-ratio` matching the selected
+  profile) is reserved before the iframe's `load` event, so layout never shifts
+  once content arrives; and
+- when the profile does not fit the available space, scale visually via a
+  fixed-size wrapper (`overflow: hidden`) plus `transform: scale()` on the
+  iframe — never by resizing the iframe outside the four verified profiles.
 
 There is no edit, inspect, screenshot, publish, share, history, device chrome,
 address-bar imitation, arbitrary URL entry, or source toggle.
@@ -1170,11 +1234,23 @@ source if the chosen runner supports it, while all Python tests continue under t
 repository's existing `tests/` policy.
 
 The FastAPI/Jinja shell should reference the generated Vite manifest or a small
-deterministic asset mapping. Production serves compiled static assets from the
-existing application boundary. It does not run a Node frontend server.
+deterministic asset mapping. Use Vite's `manifest: true` build output
+(`dist/.vite/manifest.json`) and a small Python helper that resolves entry names to
+hashed filenames at render time, rather than hand-maintaining asset paths in Jinja
+templates. Production serves compiled static assets from the existing application
+boundary. It does not run a Node frontend server.
 
 Authentication keeps its current small ES-module controller and consumes the shared
 compiled tokens/mark rather than mounting Preact on every auth page.
+
+**Deployment target:** confirmed as Render free-tier web services plus the existing
+Cloudflare R2 artifact storage, per
+`docs/code-generator-architecture/free-host-deployment.md` (see
+[06](06-cross-model-review-and-decisions.md) §5 for the resolved conflict with an
+early AWS contingency in `docs/Auth/04-deployment-and-operations.md`). The
+compiled `src/oryxenai/web/static/product/` output ships inside the same backend
+Docker image already described there; no separate static-hosting deployment is
+introduced.
 
 ## 17. Verification strategy
 
@@ -1305,63 +1381,96 @@ accessibility tests.
 
 ## 19. Implementation sequence and stop gates
 
-### Phase 0: coded visual and contract spike
+Five phases, each ending in a working, deployable state. Do not start a phase
+before the previous one's stop gate passes. No phase auto-chains a backend stage
+or weakens the verified-Preview boundary — that invariant never changes,
+regardless of which phase is in progress.
 
-- Implement tokens, type subset candidate, living mark, one artifact specimen, one
-  progress specimen, and one Preview frame shell.
+### Phase 1: foundation, visual system, and auth continuity
+
+Coded spike first, then the build/auth work it unblocks:
+
+- Implement tokens, type subset candidate, living mark, one artifact specimen,
+  one progress specimen, and one Preview frame shell.
 - Implement adapter fixtures for current stage payloads.
-- Measure production bundle and font output.
-
-Stop gate: approve visual thesis, readability, bundle feasibility, and adapter
-boundaries before migrating behavior.
-
-### Phase 1: foundation and auth continuity
-
+- Measure production bundle and font output against §14's budgets.
 - Add Vite/Preact build for `/app` only.
 - Add API client, error normalization, store, URL codec, polling coordinator, and
   shared tokens.
 - Restyle auth pages with shared tokens/mark without changing auth logic.
 
-Stop gate: existing auth route/security tests plus new redirect/failure acceptance.
+Two fixes that belong in this phase and nowhere later, because everything
+downstream depends on auth staying correct:
 
-### Phase 2: shell and Discovery parity
+- Fix the `resolveAuthenticatedContext()` error-code gap:
+  `AUTH_PROVIDER_UNAVAILABLE` and `MODEL_PROVIDER_CREDIT_EXHAUSTED` currently
+  fall through to a full local sign-out in the path that gates `/app`
+  (`src/oryxenai/auth/static/auth-runtime.mjs` around
+  `resolveAuthenticatedContext`), instead of the safe in-place message
+  `routeController()` already shows for the same codes on the auth pages
+  (`src/oryxenai/auth/static/auth-controller.mjs`). This is a real bug in the
+  current implementation, not a redesign concern — see
+  [06](06-cross-model-review-and-decisions.md) §3.2 for the full trace.
+- Point `src/oryxenai/web/static/app-auth-bootstrap.mjs`'s `loadWorkspace` at the
+  new Preact bundle's entry output instead of its current hardcoded
+  `import("/static/app.js")`. This one line is workspace-loader wiring, not auth
+  logic, and is in scope for this phase. Branch it on `isDeveloperPage`: `/dev`
+  keeps loading the legacy bundle until Phase 5 cutover, `/app` loads the new
+  one. The Preact entry must export the same `{ boot, stop, restart }` shape
+  `bootProductShell()` already calls, so `bootProductShell()` itself needs no
+  behavioral changes — see [06](06-cross-model-review-and-decisions.md) §3.3.
+- Carry the structural
+  `body.auth-pending > :not(#auth-bootstrap-progress) { visibility: hidden; }`
+  rule (currently in `src/oryxenai/web/static/app.css`) into the new stylesheet
+  layer (§15.1) before `app.css` is ever retired. This is what makes private
+  content structurally unable to paint before auth resolves; it must always have
+  a home, never a gap during the transition.
+
+Stop gate: visual thesis/readability/bundle feasibility approved; adapter
+boundaries in place; existing auth route/security tests plus new
+redirect/failure acceptance pass, including the corrected
+provider/credit-unavailable behavior above.
+
+### Phase 2: app shell, Discovery, Content, and Design
 
 - Build app shell, journey, start/resume, connection behavior, and cross-tab
   invalidation.
 - Port Discovery start/questions/brief/revise/approve behavior.
-
-Stop gate: refresh-safe Discovery parity and accessibility pass.
-
-### Phase 3: artifact stages
-
 - Add Content and Design artifact adapters/surfaces.
-- Add revision, approval, and explicit handoffs.
+- Add revision, approval, and explicit handoffs between Discovery, Content, and
+  Design.
 
-Stop gate: realistic long-artifact review on desktop/mobile.
+Stop gate: refresh-safe Discovery parity, accessibility pass, and a realistic
+long-artifact review on desktop and mobile.
 
-### Phase 4: preparation and production generation
+### Phase 3: Build Preparation and Code Generator integration
 
 - Add volatile Build Preparation adapter and progress/attention states.
 - Add only production Code Generator session endpoints.
-- Keep development harness unchanged.
+- Keep the development harness unchanged.
 
 Stop gate: state/entitlement/error matrix and long-running session test.
 
-### Phase 5: verified Preview
+### Phase 4: verified Preview
 
 - Add active receipt validation, frame lifecycle, route/viewport/refresh/new-tab
   toolbar, exact-origin messaging, and previous-result preservation.
+- Add the container-sizing hardening in §8.10: reserve the frame's box before
+  load, and letterbox via a fixed-size wrapper plus `transform: scale()` rather
+  than resizing the iframe outside the four verified profiles.
 
-Stop gate: security, direct-route, iframe, failure, and responsive acceptance.
+Stop gate: security, direct-route, iframe, failure, container-sizing/CLS, and
+responsive acceptance.
 
-### Phase 6: hardening and cutover
+### Phase 5: hardening and cutover
 
 - Complete performance, accessibility, visual regression, and multi-tab testing.
 - Verify compiled static asset packaging and low-cost deployment behavior.
 - Remove only superseded normal-product assets after parity is proven.
 
-Stop gate: all acceptance rows pass or each exception has an explicit recorded
-decision. Do not remove developer fixtures/harnesses as incidental cleanup.
+Stop gate: all acceptance rows in §18 pass or each exception has an explicit
+recorded decision. Do not remove developer fixtures/harnesses as incidental
+cleanup.
 
 ## 20. Definition of implementation complete
 
