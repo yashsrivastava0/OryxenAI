@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 16:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [3099e1c] - deduplicate font-face rules shared across typography roles
+A second fresh live run (after the shadow-token fix) got through planning and route generation, then hit a blocking integration finding: identical `@font-face` blocks duplicated in `generated-tokens.css`. `_compile_v4_tokens` iterates `typography_roles` and re-matches bindings per role, so body and display sharing one `approved_font_slot` (a common, valid choice) compiled the same binding's font files twice. This is compiler-owned output the model can never edit, so all 3 repair rounds were structurally unable to resolve it. Now tracks emitted `(family, style, weight, public_path)` tuples and skips repeats. Regression test confirmed reproducing the exact duplication without the fix before verifying the fix resolves it.
+
 ### 2026-09-02 16:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [eaa7390] - allow negative shadow offset and spread tokens
 A fresh live run against the same real pack hard-failed at planning (no repair budget applies there) with `tokens.shadows.0.spread.value: length token values must be finite and non-negative`. `ShadowTokenV4`'s offset_x/offset_y/spread shared `LengthTokenV4`'s non-negative constraint, which is correct only for blur-radius -- offset direction and negative spread (shrinking the shadow shape) are both valid CSS the model had no way to express. Added `SignedLengthTokenV4` (finite-only) for offset_x/offset_y/spread; blur keeps the strict non-negative type. `token_compiler.py` accesses these duck-typed, so no compiler change was needed. Added a unit test covering both the newly-allowed and still-rejected cases.
 
