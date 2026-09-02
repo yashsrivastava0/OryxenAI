@@ -645,6 +645,125 @@ async def test_attempt_repair_retries_within_budget_after_cannot_complete(
     assert projection.repair_receipts[-1].strategy_summary == "bounded-simplification"
 
 
+async def test_attempt_repair_retries_within_budget_after_rejected_source_validation(
+    db_session, test_engine, tmp_path, monkeypatch
+) -> None:
+    """Regression test: a live run hit final_repair.py's unwrapped
+    validate_generation_changes call raising SourceValidationError
+    (duplicate paths in the model's response) on round 1. That is the same
+    class of rejected-response problem as FinalRepairError and must be
+    retried within budget the same way, not treated as an infrastructure
+    crash."""
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_generation.max_repair_rounds_total = 6
+    settings.code_generator_generation.max_repair_rounds_per_unit = 3
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    plan = _plan()
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={"status": "repairing", "plan": plan.model_dump(mode="json")},
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    identity = CandidateIdentity(
+        input_receipt_hash="irh",
+        site_plan_hash="sph",
+        work_graph_hash="wgh",
+        source_checkpoint_hash=checkpoint.checkpoint_hash,
+        source_manifest_hash="smh",
+        scaffold_toolchain_profile_hash="stph",
+        verification_profile_hash="vph",
+    )
+    projection = VerificationProjection(
+        generation_id=f"generation-{run.id}",
+        candidate_identity=identity,
+        verification_profile=VerificationProfile(profile_id="test-profile"),
+        phase="repairing",
+        status="repairing",
+    )
+    diagnostics = [
+        Diagnostic(
+            diagnostic_id="diag-1",
+            group="source_contract",
+            code="SOURCE_MOTION_BEAT_UNIMPLEMENTED",
+            phase="source_contract",
+            normalized_message="Every v4 motion beat needs a target marker and executable source behavior.",
+            fingerprint="fingerprint-motion-beat",
+        )
+    ]
+
+    from oryxenai.agents.code_generator.core.development_schemas import RepairReceipt
+    from oryxenai.agents.code_generator.core.final_repair import FinalRepairer
+    from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
+
+    call_count = {"value": 0}
+
+    async def flaky_repair(self, **kwargs):
+        call_count["value"] += 1
+        if call_count["value"] == 1:
+            raise SourceValidationError(
+                "SOURCE_DUPLICATE_PATH", "The generation response contains duplicate paths."
+            )
+        receipt = RepairReceipt(
+            generation_id=f"generation-{run.id}",
+            diagnostic_fingerprints=["fingerprint-motion-beat"],
+            repair_unit_id="source_contract",
+            strategy_summary=kwargs["strategy"],
+            based_on_checkpoint=checkpoint.checkpoint_hash,
+            context_receipt="context-receipt-hash",
+            corrected_checkpoint=checkpoint.checkpoint_hash,
+            accepted_at="2026-09-02T00:00:00Z",
+        )
+        return checkpoint, receipt
+
+    monkeypatch.setattr(FinalRepairer, "repair", flaky_repair)
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    attempted = await _attempt_repair(
+        sessionmaker=sessionmaker,
+        run_id=run.id,
+        settings=settings,
+        workspace=workspace,
+        checkpoint_store=CheckpointStore(workspace, generation_id=str(run.id)),
+        checkpoint=checkpoint,
+        identity=identity,
+        plan=plan,
+        projections=projections,
+        projection=projection,
+        diagnostics=diagnostics,
+        public_text=set(),
+        allowed_packages=set(),
+        model_factory=None,
+    )
+
+    assert attempted is True
+    assert call_count["value"] == 2
+    assert projection.repair_rounds == 2
+
+
 async def test_attempt_repair_reports_true_round_count_when_budget_exhausts_on_cannot_complete(
     db_session, test_engine, tmp_path, monkeypatch
 ) -> None:

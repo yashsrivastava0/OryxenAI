@@ -52,6 +52,7 @@ from oryxenai.agents.code_generator.core.quality_review import (
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 from oryxenai.agents.code_generator.core.runtime_verifier import RuntimeVerifier
 from oryxenai.agents.code_generator.core.source_manifest import digest
+from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
 from oryxenai.agents.code_generator.core.token_compiler import (
     compile_generated_tokens,
     write_generated_tokens,
@@ -1433,13 +1434,15 @@ async def _attempt_repair(
                 round_number=budget.total_used,
             )
             break
-        except FinalRepairError:
+        except (FinalRepairError, SourceValidationError):
             # The model honestly reported it could not produce a bounded
             # correction this round (repair_source.md's cannot_complete
-            # escape hatch, or a context-binding mismatch). That is a used
-            # round, not an infrastructure failure — the budget exists to
-            # give a different round/strategy value another chance, so
-            # only give up once the budget itself is exhausted.
+            # escape hatch, a context-binding mismatch), or its response
+            # failed host-side content validation (e.g. duplicate paths in
+            # the returned file list). Both are a rejected model response,
+            # not an infrastructure failure — the budget exists to give a
+            # different round/strategy value another chance, so only give
+            # up once the budget itself is exhausted.
             logger.warning(
                 "final repair round produced no usable correction run_id=%s round=%s",
                 run_id,
