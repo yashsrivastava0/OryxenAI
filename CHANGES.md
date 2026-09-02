@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 21:39 +05:30 - Codex (GPT-5 / OpenAI) - [efca5de] - record live Code Generator issue campaign
+Documented the ten permitted live Code Generator starts against the eligible Build Preparation pack, including each terminal failure, all observed planner/source/runtime/integration diagnostics, environment and observability limitations, and the two historical blockers. Neither historical blocker recurred in the ten-run sample; no source code or model/repair ceilings were changed.
+
 ### 2026-09-02 16:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [20f72e2] - retry within budget on rejected source validation too
 A third fresh live run (after the shadow-token and font-face fixes) got cleanly through planning, generation, and integration, then hit `SOURCE_CONTRACT_FAILED` with `repair_rounds` still 0. The worker log showed `final_repair.py`'s unwrapped `validate_generation_changes()` call raising `SourceValidationError` ("duplicate paths"), which the earlier `FinalRepairError`-only fix didn't cover. Both exceptions represent the same class of problem -- a rejected model response, not an infrastructure crash -- so `SourceValidationError` is now caught in the same retry loop. Updated D-058 and added a regression test mirroring the existing one with this exception type.
 
