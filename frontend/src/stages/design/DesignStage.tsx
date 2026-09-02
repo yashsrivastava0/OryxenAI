@@ -11,6 +11,7 @@ export interface DesignStageProps {
   onApprove: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
   onContinueToPrepare: () => void;
+  inFlight?: boolean;
 }
 
 export function DesignStage({
@@ -20,6 +21,7 @@ export function DesignStage({
   onApprove,
   onRevise,
   onContinueToPrepare,
+  inFlight = false,
 }: DesignStageProps) {
   if (!view || view.state === "locked") {
     return (
@@ -44,10 +46,10 @@ export function DesignStage({
         <button
           type="button"
           className="btn-primary"
-          disabled={!canMutate}
+          disabled={!canMutate || inFlight}
           onClick={onStart}
         >
-          Start Visual Design Director
+          {inFlight ? "Starting Visual Design Director..." : "Start Visual Design Director"}
         </button>
       </div>
     );

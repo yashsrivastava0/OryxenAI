@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
 import { LivingDraftMark } from "./LivingDraftMark";
+import { safeSessionStorage } from "../data/safe-storage";
 
 export interface AnsweredTurn {
   questionId: string;
@@ -40,7 +41,7 @@ export function ConversationSurface({
   // Restore draft when current question changes
   useEffect(() => {
     if (draftKey) {
-      const saved = sessionStorage.getItem(draftKey);
+      const saved = safeSessionStorage.getItem(draftKey);
       if (saved) setTextAnswer(saved);
       else setTextAnswer("");
       setSelectedOptions([]);
@@ -51,12 +52,12 @@ export function ConversationSurface({
   const handleTextChange = (value: string) => {
     setTextAnswer(value);
     if (draftKey) {
-      sessionStorage.setItem(draftKey, value);
+      safeSessionStorage.setItem(draftKey, value);
     }
   };
 
   const handleClearDraft = () => {
-    if (draftKey) sessionStorage.removeItem(draftKey);
+    if (draftKey) safeSessionStorage.removeItem(draftKey);
     setTextAnswer("");
     setSelectedOptions([]);
   };

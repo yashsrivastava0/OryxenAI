@@ -1383,6 +1383,309 @@ button {
   border-color: color-mix(in srgb, #d9534f 40%, var(--rule));
 }
 
+/* ── ErrorBoundary Component (docs/Frontend/05 §18, §19 Phase 5) ──────── */
+
+.stage-error-boundary-panel {
+  max-width: 680px;
+  margin: var(--space-8) auto;
+  padding: var(--space-4);
+  width: 100%;
+}
+
+.error-boundary-card {
+  padding: var(--space-8) var(--space-6);
+  background: var(--paper);
+  border: var(--border-width) solid var(--rule);
+  border-left: 4px solid var(--critical);
+  border-radius: var(--radius-frame);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.error-boundary-icon {
+  font-size: 1.75rem;
+  color: var(--critical);
+}
+
+.error-boundary-title {
+  font: var(--type-h2);
+  color: var(--ink);
+  margin: 0;
+}
+
+.error-boundary-message {
+  font: var(--type-body);
+  color: var(--graphite);
+  max-width: 480px;
+  margin: 0;
+}
+
+.error-boundary-detail {
+  font: var(--type-small);
+  font-family: var(--font-mono, monospace);
+  color: var(--graphite);
+  background: var(--canvas);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  margin: var(--space-2) 0 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.error-boundary-actions {
+  margin-top: var(--space-3);
+}
+
+/* ── Enhanced SafeMarkdown (Code Blocks & Blockquotes) ────────────────── */
+
+.markdown-content blockquote {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--signal);
+  background: color-mix(in srgb, var(--signal) 4%, var(--paper));
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  color: var(--ink);
+  font-style: normal;
+}
+
+.markdown-content blockquote p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.markdown-content pre {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--ink) 5%, var(--canvas));
+  border: var(--border-width) solid var(--rule);
+  border-radius: var(--radius-control);
+  overflow-x: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+/* ── Focus Management & High Contrast Outlines ────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* ── Responsive Layout Specifications (docs/Frontend/05 §12) ─────────── */
+
+/* Laptop (900px - 1279px) */
+@media (max-width: 1279px) {
+  .app-work-surface {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .artifact-layout {
+    gap: var(--space-6);
+  }
+
+  .artifact-toc {
+    width: 220px;
+  }
+}
+
+/* Tablet (600px - 899px) */
+@media (max-width: 899px) {
+  .app-topbar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .app-work-surface {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .journey-rail {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--space-2);
+  }
+
+  .journey-button {
+    white-space: nowrap;
+  }
+
+  .artifact-layout {
+    flex-direction: column;
+  }
+
+  .artifact-toc {
+    width: 100%;
+    position: static;
+    border-bottom: var(--border-width) solid var(--rule);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+
+  .preview-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .preview-toolbar-group,
+  .preview-viewport-controls,
+  .preview-toolbar-actions {
+    justify-content: center;
+  }
+
+  .preview-route-select {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+/* Mobile (< 600px) */
+@media (max-width: 599px) {
+  .app-topbar {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .app-work-surface {
+    padding: var(--space-3) var(--space-2);
+    min-height: calc(100dvh - 60px);
+  }
+
+  .start-surface,
+  .stage-locked-panel,
+  .stage-available-panel,
+  .stage-working-panel,
+  .progress-surface,
+  .preparation-complete-summary,
+  .generation-complete-summary,
+  .attention-panel {
+    padding: var(--space-4);
+    margin: var(--space-4) auto;
+  }
+
+  .journey-nav {
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+  }
+
+  .journey-button,
+  .journey-locked-label {
+    padding: var(--space-2);
+    font-size: 0.8125rem;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-choice {
+    min-height: 44px; /* WCAG touch target floor */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preview-stage-container {
+    padding: 0;
+    margin: var(--space-2) auto;
+  }
+
+  .preview-frame-boundary {
+    padding: var(--space-2);
+  }
+
+  .preview-viewport-controls {
+    display: flex;
+    width: 100%;
+  }
+
+  .preview-viewport-btn {
+    flex: 1;
+    text-align: center;
+    padding: var(--space-2) var(--space-1);
+    min-height: 40px;
+  }
+
+  .preview-toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .preview-refresh-btn,
+  .preview-open-link {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
+/* ── Forced Colors Mode (High Contrast - docs/Frontend/05 §13) ───────── */
+@media (forced-colors: active) {
+  .journey-button.active {
+    border: 2px solid Highlight;
+    forced-color-adjust: none;
+  }
+
+  .btn-primary {
+    border: 2px solid ButtonText;
+  }
+
+  :focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .preview-viewport-btn[aria-pressed="true"] {
+    border: 2px solid Highlight;
+  }
+
+  .living-draft-mark path {
+    stroke: CanvasText;
+  }
+}
+
+/* ── Print Stylesheet (docs/Frontend/05 §15.1) ───────────────────────── */
+@media print {
+  .app-topbar,
+  .journey-nav,
+  .connection-banner,
+  .artifact-actions,
+  .handoff-panel,
+  .preview-toolbar,
+  .status-announcer {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .artifact-surface {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .artifact-layout {
+    display: block !important;
+  }
+
+  .artifact-toc {
+    display: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

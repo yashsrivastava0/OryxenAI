@@ -142,6 +142,58 @@ export function SafeMarkdown({ content, className = "markdown-content" }: SafeMa
       continue;
     }
 
+    // Fenced Code Block
+    const codeBlockMatch = /^```(\w*)$/.exec(line.trim());
+    if (codeBlockMatch) {
+      flushParagraph();
+      const lang = codeBlockMatch[1] || "";
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length) {
+        const nextLine = lines[i];
+        if (nextLine === undefined) break;
+        if (/^```$/.test(nextLine.trim())) {
+          i++;
+          break;
+        }
+        codeLines.push(nextLine);
+        i++;
+      }
+      elements.push(
+        <pre key={`code-${elements.length}`} className={lang ? `language-${lang}` : undefined}>
+          <code>{codeLines.join("\n")}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    // Blockquote
+    const quoteMatch = /^>\s?(.*)$/.exec(line);
+    if (quoteMatch) {
+      flushParagraph();
+      const quoteLines: string[] = [quoteMatch[1] ?? ""];
+      i++;
+      while (i < lines.length) {
+        const nextLine = lines[i];
+        if (nextLine === undefined) break;
+        const nextQuote = /^>\s?(.*)$/.exec(nextLine);
+        if (nextQuote) {
+          quoteLines.push(nextQuote[1] ?? "");
+          i++;
+        } else {
+          break;
+        }
+      }
+      elements.push(
+        <blockquote key={`quote-${elements.length}`}>
+          {quoteLines.map((qLine, qIdx) => (
+            <p key={qIdx}>{renderInline(qLine)}</p>
+          ))}
+        </blockquote>,
+      );
+      continue;
+    }
+
     // Horizontal Rule
     if (/^---+$/.test(line.trim())) {
       flushParagraph();

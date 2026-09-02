@@ -11,6 +11,7 @@ export interface ContentStageProps {
   onApprove: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
   onContinueToDesign: () => void;
+  inFlight?: boolean;
 }
 
 export function ContentStage({
@@ -20,6 +21,7 @@ export function ContentStage({
   onApprove,
   onRevise,
   onContinueToDesign,
+  inFlight = false,
 }: ContentStageProps) {
   if (!view || view.state === "locked") {
     return (
@@ -44,10 +46,10 @@ export function ContentStage({
         <button
           type="button"
           className="btn-primary"
-          disabled={!canMutate}
+          disabled={!canMutate || inFlight}
           onClick={onStart}
         >
-          Start Content Architect
+          {inFlight ? "Starting Content Architect..." : "Start Content Architect"}
         </button>
       </div>
     );

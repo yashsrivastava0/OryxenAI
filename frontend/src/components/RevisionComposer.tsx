@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "preact/hooks";
+import { safeSessionStorage } from "../data/safe-storage";
 
 export interface RevisionComposerProps {
   artifactName: string; // e.g. "brief", "content plan", "visual direction"
@@ -20,14 +21,14 @@ export function RevisionComposer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem(draftKey);
+    const saved = safeSessionStorage.getItem(draftKey);
     if (saved) setRequestText(saved);
     if (textareaRef.current) textareaRef.current.focus();
   }, [draftKey]);
 
   const handleChange = (value: string) => {
     setRequestText(value);
-    sessionStorage.setItem(draftKey, value);
+    safeSessionStorage.setItem(draftKey, value);
     if (error) setError(null);
   };
 
@@ -44,7 +45,7 @@ export function RevisionComposer({
     setError(null);
     try {
       await onSubmit(text);
-      sessionStorage.removeItem(draftKey);
+      safeSessionStorage.removeItem(draftKey);
       setRequestText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Revision request failed. Please try again.");
@@ -54,6 +55,11 @@ export function RevisionComposer({
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
       handleSubmit();
