@@ -1517,6 +1517,53 @@ def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
     assert css.count("--type-display-min:") == 1
 
 
+def test_v4_token_compiler_deduplicates_font_faces_shared_across_roles() -> None:
+    """Regression test: body and display commonly share one
+    approved_font_slot/family. Each role's iteration independently re-matched
+    the same binding, emitting every one of its @font-face rules a second
+    time -- a duplicate the integration reviewer flags as blocking, but which
+    no repair round could ever fix since this file is compiler-owned, never
+    model-authored."""
+    token_data = _blueprint().tokens.model_dump(mode="python")
+    token_data["typography_roles"].append(
+        {
+            "role": "display",
+            "approved_font_slot": "font:body",
+            "family": "Local Sans",
+            "weights": [700],
+            "local_files": ["resources/fonts/local/700-bold.woff2"],
+            "body_min_rem": 2,
+            "body_max_rem": 3,
+            "heading_ratio": 1.25,
+            "body_line_height": 1.05,
+        }
+    )
+    blueprint = _blueprint().model_copy(
+        update={"tokens": DesignTokenSystemV4.model_validate(token_data)}
+    )
+    css = compile_generated_tokens(
+        blueprint,
+        [
+            ExecutionBindingV2(
+                resource_slot_id="font:body",
+                route_id="",
+                category="font",
+                purpose="approved font",
+                resolution_type="local_materialized",
+                local_paths=[
+                    "resources/fonts/local/400-normal.woff2",
+                    "resources/fonts/local/700-bold.woff2",
+                ],
+                font_family="Local Sans",
+                font_weights=["400", "700"],
+            )
+        ],
+    )
+    assert css.count("@font-face {") == 2
+    assert css.count("font-weight: 400;") == 1
+    assert css.count("font-weight: 700;") == 1
+
+
 def test_v4_token_compiler_assigns_distinct_weights_per_font_file() -> None:
     """Regression test for the 2026-08-28 bug: every file in a multi-weight
     binding collapsed to the same font-weight, because the weight-extraction

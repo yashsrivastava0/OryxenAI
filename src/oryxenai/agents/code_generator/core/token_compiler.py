@@ -223,6 +223,7 @@ def _compile_v4_tokens(
         emitted_type_names.add(step.name)
     lines.extend(["}", ""])
 
+    emitted_font_faces: set[tuple[str, str, int, str]] = set()
     for typography in blueprint.tokens.typography_roles:
         matching = [
             item
@@ -246,6 +247,15 @@ def _compile_v4_tokens(
                     else normalized_path.removeprefix("public/")
                 )
                 weight = _font_weight_for_path(normalized_path, binding, typography.weights)
+                # Two typography roles (e.g. body and display) commonly share
+                # one approved_font_slot/family. Each role's iteration
+                # independently re-matches the same binding, which would
+                # otherwise emit that binding's @font-face rules once per
+                # role instead of once per actual font file.
+                face_key = (family, typography.style, weight, public_path)
+                if face_key in emitted_font_faces:
+                    continue
+                emitted_font_faces.add(face_key)
                 lines.extend(
                     [
                         "@font-face {",
