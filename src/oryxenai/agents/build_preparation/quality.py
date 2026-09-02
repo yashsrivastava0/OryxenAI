@@ -1002,7 +1002,7 @@ def build_handoff_report(
                 # v4 explicitly transfers this role only after the configured
                 # upstream attempts; Code Generator owns the bounded follow-up.
                 continue
-            usable_dispositions = {"local_file", "adaptable_source"}
+            usable_dispositions = {"local_file", "adaptable_source", "deferred_materialized"}
             disposition = materialized_disposition(materialized_by_need.get(need.need_id, {}))
             if not selected_ids.get(need.need_id) or disposition not in usable_dispositions:
                 role_label = "image" if is_image_role else "component"
