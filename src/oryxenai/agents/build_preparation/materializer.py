@@ -666,6 +666,14 @@ async def _materialize_image_candidate(
             "import_path": f"./{image_path}",
             "sha256": content_hash,
             "source_hashes": [content_hash],
+            # Code Generator's planner reads usage_contract, not the
+            # resources/images/{id}.json sidecar above — without these, the
+            # alt-text/placement intent acquisition already gathered never
+            # reached the model laying out the page.
+            "alt_text": candidate.title,
+            "focal_point": need.details.get("focal_point", "") if need else "",
+            "placement": need.details.get("placement", "") if need else "",
+            "decorative": True,
         },
     }
 
