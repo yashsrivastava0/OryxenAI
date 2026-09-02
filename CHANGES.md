@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 13:17 +05:30 - Codex (GPT-5 / OpenAI) - [ae17373] - frontend research and product experience direction
+Added a four-document frontend research package covering the authenticated journey, stage-aware information architecture, status and edge-case mapping, verified Preview UX, lightweight visual system, performance budgets, and a future Preact/Vite integration boundary. The work is documentation-only and leaves the backend, existing frontend, Build Preparation, and Code Generator unchanged pending review.
+
 ### 2026-09-02 03:45 +05:30 - Codex (GPT-5 / OpenAI) - [e8c6b55] - retire the legacy resource-plan filename
 Moved compatibility-only diagnostic materializations and their regression fixtures onto canonical `resources/ledger.json`; retained their legacy schema semantics while ensuring active code, docs, and tests no longer emit or reference the retired filename.
 
@@ -63,102 +66,15 @@ Connected the main native workflow as Discovery → Content Architect → Visual
 
 The main UI now presents the four-stage gate rail, package source hashes, package metrics/findings, download and regeneration actions, and detached/no-auth messaging; the diagnostic fixture remains explicitly standalone. Native model routing selects the configured Luna profile for the four pipeline stages while Code Generator routes remain separate. Focused unit, API, integration, static, and browser checks pass. A synthetic live UI run reached the configured Luna provider but was rejected for unavailable provider credit; no mock response was substituted.
 
-### 2026-08-28 18:28 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - accepted-mode fix (557201b) confirmed live; new, separate bug found (not yet fixed)
-Confirmed via three separate live runs on the fresh real pack: zero
-`GENERATION_UNIT_ACCEPTED_WITHOUT_CHANGES` occurrences after 557201b,
-across runs that previously hit it reliably. The model now correctly
-uses `mode="changes"` or honestly declines with `mode="cannot_complete"`
-instead of falsely claiming "accepted". This was the session's actual
-blocking bug and it is fixed.
-
-A new, separate bug surfaced once that one was out of the way: a
-route-batch unit's first call correctly returns `mode="changes"` with
-real files, but if that response is later rejected by a downstream
-check, the retry's `cannot_complete` response cites `safe_reason:
-"existing_files is empty and no rejected or current source bodies
-were supplied"` - and on disk, no `candidate-<unit>/` directory exists
-at all for that run, confirming the rejected attempt's content was
-never persisted anywhere `_operation_context`'s `previous_attempt_files`
-logic could read it back from on the retry. Not yet diagnosed further
-(no code change) - this needs the same kind of focused, evidence-first
-investigation as the accepted-mode bug got, not a rushed guess. Left
-for a fresh investigation pass rather than continuing under time
-pressure on top of an already very long debugging session.
-
-### 2026-08-28 18:05 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - root cause found: forbid accepted mode unconditionally in _model_result
-Traced the retry evidence from the previous entry to its exact cause.
-`_run_unit`'s main dispatch loop reassigns its local `operation`
-variable to `"repair"` after ANY validation failure
-(`SourceValidationError`, `run_source_checks` diagnostics, route-batch
-contract diagnostics) purely to select the repair prompt for the
-retry - a different, mid-generation meaning of the string "repair"
-than `FinalRepairer`'s standalone post-generation operation (a
-separate function that never routes through `_model_result` at all).
-The prior fix's allowlist (`operation not in {"integrate", "repair"}`)
-treated both as the same thing, so a mid-generation diagnostic-retry
-was allowed to answer "accepted" instead of fixing the diagnostic -
-exactly what happened: route-batch-1's first call correctly returned
-real changes, hit a validation diagnostic, retried with `operation`
-now "repair", and answered "accepted" on the retry, which the
-allowlist let straight through. `_model_result` has exactly two
-callers and both already treat "accepted" as unconditionally invalid
-on their own terms regardless of operation, so `validation_context`
-now forbids it unconditionally rather than trying to enumerate which
-operation names are safe.
-
-### 2026-08-28 17:56 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - new evidence on the accepted-mode bug: it is a retry, not a first-time call (root cause still open)
-On the fresh real pack (post context-ceiling fix), planning and
-acquisition succeeded and route-batch-1 got a genuine, correct
-`mode="changes"` response on its first model call (confirmed: cache
-file `ae66e576...json`, real file content). ~13 seconds later a SECOND
-call for the exact same unit produced `mode="accepted"` (cache file
-`23dd3d5e...json`), and that is the one the run failed on with
-`GENERATION_UNIT_ACCEPTED_WITHOUT_CHANGES`. This means the earlier
-"first-time generation never has anything to accept" framing behind
-the three prior fix attempts (5a89eb0, c354841, 2a4a345) is incomplete:
-this specific failing call was a retry of a unit that DOES already
-have prior content in its context (most likely triggered by a
-SourceValidationError on the first response, which feeds the rejected
-attempt back into context for a repair-round retry) - not a truly
-first-time call with nothing to accept. The retry still passes
-`operation="route_batch"`, which the existing validator still gates
-via `forbid_accepted_result=True`, so it is not yet clear why the
-validator did not block it even under this corrected understanding;
-isolated testing continues to prove both validators correctly reject
-this exact payload/context shape outside the worker process. No code
-change from this entry - flagging the corrected mental model for
-whoever continues, since the earlier "blanket-forbid for route_batch"
-premise itself may need to become context-aware (checkpoint/prior
-content aware) rather than purely operation-name-based, once the
-non-firing mystery is actually resolved.
-
-### 2026-08-28 17:46 +05:30 - Claude Code (Claude Sonnet 5 / Anthropic) - [d36c053] - raise the generation context ceiling for rich real content; produced a fresh eligible Build Preparation pack
-The original expired pack was replaced by regenerating one live: the
-default VDD fixture file (`Input-Output-Of-Engine/Visual Design
-Director output.md`) turned out to have been overwritten with an
-incomplete mid-build snapshot at some point this session, so restored
-the last committed complete version (`git show 5ca0b85:...`) and paired
-it with the current real, approved Content Architect output via
-Build Preparation's detached fixture endpoint. That run also revealed
-`build_preparation`'s configured Anthropic profile has an exhausted
-credit balance (a billing issue, not a code bug - flagged for the user
-separately) - routed around it with an explicit `model_profile=
-"openai_luna"` override, which worked. The resulting pack materialized
-correctly but the fixture endpoint's default output directory doesn't
-match where Code Generator's own pack discovery scans
-(`build_preparation.fixture_output_dir` vs `code_generator_development.
-build_preparation_mirror_root` are two different config keys pointing
-at two different directories) - copied the pack across rather than
-chasing that config split under time pressure. The resulting fresh
-live run then hit `GENERATION_CONTEXT_LIMIT` on real, richer 6-section
-content even after existing per-unit scoping; see the paired commit
-for that fix's own detail.
-
 ---
 
 ## Compacted history
 
 ### 2026-08
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - Live runs confirmed the accepted-mode fix and exposed a separate rejected-candidate persistence gap for later diagnosis.
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - Root-caused retry-time accepted results to an overloaded repair operation and forbade accepted mode throughout the shared model-result boundary.
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [no code change] - Established that the accepted-mode failure occurred on a diagnostic retry with prior content rather than on the first generation call.
+- 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [d36c053] - Regenerated an eligible Build Preparation pack, raised the rich-content generation context ceiling, and recorded remaining fixture-path/provider constraints.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [664d88e] - Planner prompt now states the lowercase semantic token-name grammar required by the V4 schema, preventing avoidable `PLANNER_OUTPUT_INVALID` results from numeric-only token names.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [2a4a345] - Added a diagnostic backstop for any accepted-result envelope that bypasses its forbidden validation context, preserving a loud failure instead of silently accepting bad source.
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [c354841] - Schema-context validation rejects accepted results when a generation call is marked forbidden, allowing the bounded correction retry to surface the precise issue.
@@ -305,6 +221,6 @@ for that fix's own detail.
 
 ## Summary (as of last compaction — 2026-09-02)
 
-- Recent detailed entries retained: 20
-- Compacted milestone bullets: 123
+- Recent detailed entries retained: 17
+- Compacted milestone bullets: 127
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
