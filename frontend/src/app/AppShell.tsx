@@ -14,6 +14,7 @@ import { ConnectionBanner } from "../components/ConnectionBanner";
 import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { LivingDraftMark } from "../components/LivingDraftMark";
 import { StartSurface } from "../components/StartSurface";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { ContentStage } from "../stages/content/ContentStage";
 import { DesignStage } from "../stages/design/DesignStage";
@@ -35,6 +36,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const initialUrl = parseAppUrlState(typeof window !== "undefined" ? window.location.search : "");
   const [activeStage, setActiveStage] = useState<JourneyStageId>(initialUrl.stage ?? "discover");
   const [discoveryHistory, setDiscoveryHistory] = useState<AnsweredTurn[]>([]);
+  const [mutatingStage, setMutatingStage] = useState<string | null>(null);
 
   const [state, dispatch] = useReducer(appReducer, {
     ...initialAppState,
@@ -80,61 +82,115 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Fetch / restore session projections
+  // Fetch / restore session projections concurrently (docs/Frontend/05 §18, §19 Phase 5)
   const refetchCurrentSession = useCallback(async () => {
     if (!state.sessionId) return;
     dispatch({ type: "connection/set", state: "checking" });
+    const sessionId = state.sessionId;
+
     try {
-      // Coarse session projection
-      const sessionData = await api.getSession(state.sessionId);
-      dispatch({ type: "session/set", sessionId: sessionData.id, revision: sessionData.revision });
+      const [
+        sessionRes,
+        discoveryRes,
+        contentRes,
+        designRes,
+        prepRes,
+        genRes,
+      ] = await Promise.allSettled([
+        api.getSession(sessionId),
+        api.getDiscovery(sessionId),
+        api.getContentArchitect(sessionId),
+        api.getVisualDesignDirector(sessionId),
+        api.getBuildPreparation(sessionId),
+        api.getCodeGenerator(sessionId),
+      ]);
 
-      // Fetch Discovery state
-      const discoveryData = await api.getDiscovery(state.sessionId);
-      const discoveryView = adaptDiscovery(discoveryData.discovery);
-      dispatch({ type: "discovery/set", view: discoveryView });
+      if (sessionRes.status === "fulfilled") {
+        const sData = sessionRes.value;
+        dispatch({ type: "session/set", sessionId: sData.id, revision: sData.revision });
+      }
 
-      const isDiscoveryApproved = discoveryView.state === "complete";
+      let isDiscoveryApproved = false;
+      if (discoveryRes.status === "fulfilled") {
+        const dView = adaptDiscovery(discoveryRes.value.discovery);
+        dispatch({ type: "discovery/set", view: dView });
+        isDiscoveryApproved = dView.state === "complete";
+      }
 
-      // Fetch Content Architect state
-      const contentData = await api.getContentArchitect(state.sessionId);
-      const contentView = adaptContentArchitect(contentData.content_architect, isDiscoveryApproved);
-      dispatch({ type: "content/set", view: contentView });
+      let isContentApproved = false;
+      if (contentRes.status === "fulfilled") {
+        const cView = adaptContentArchitect(contentRes.value.content_architect, isDiscoveryApproved);
+        dispatch({ type: "content/set", view: cView });
+        isContentApproved = cView.state === "complete";
+      }
 
-      const isContentApproved = contentView.state === "complete";
+      let isDesignApproved = false;
+      if (designRes.status === "fulfilled") {
+        const deView = adaptVisualDesignDirector(designRes.value.visual_design_director, isContentApproved);
+        dispatch({ type: "design/set", view: deView });
+        isDesignApproved = deView.state === "complete";
+      }
 
-      // Fetch Visual Design Director state
-      const designData = await api.getVisualDesignDirector(state.sessionId);
-      const designView = adaptVisualDesignDirector(designData.visual_design_director, isContentApproved);
-      dispatch({ type: "design/set", view: designView });
+      let isPrepComplete = false;
+      if (prepRes.status === "fulfilled") {
+        const pView = adaptBuildPreparation(prepRes.value.build_preparation, isDesignApproved);
+        dispatch({ type: "preparation/set", view: pView });
+        isPrepComplete = pView.state === "complete";
+      }
 
-      const isDesignApproved = designView.state === "complete";
+      let genViewResult = null;
+      if (genRes.status === "fulfilled") {
+        const gView = adaptCodeGenerator(genRes.value.code_generator, isPrepComplete, Boolean(state.readOnly));
+        dispatch({ type: "generation/set", view: gView });
+        const previewV = adaptPreview(gView);
+        dispatch({ type: "preview/set", view: previewV });
+        genViewResult = gView;
 
-      // Fetch Build Preparation state
-      const prepData = await api.getBuildPreparation(state.sessionId);
-      const prepView = adaptBuildPreparation(prepData.build_preparation, isDesignApproved);
-      dispatch({ type: "preparation/set", view: prepView });
-
-      const isPrepComplete = prepView.state === "complete";
-
-      // Fetch Code Generator state
-      const genData = await api.getCodeGenerator(state.sessionId);
-      const genView = adaptCodeGenerator(genData.code_generator, isPrepComplete, Boolean(state.readOnly));
-      dispatch({ type: "generation/set", view: genView });
-      const previewV = adaptPreview(genView);
-      dispatch({ type: "preview/set", view: previewV });
-
-      if (!initialUrl.stage) {
-        if (state.readOnly && genView.hasUsablePreview) {
-          setActiveStage("preview");
-          dispatch({ type: "stage/select", stage: "preview" });
-        } else if (genView.hasUsablePreview && genView.state === "complete" && isPrepComplete) {
-          setActiveStage("preview");
-          dispatch({ type: "stage/select", stage: "preview" });
+        if (!initialUrl.stage) {
+          if (state.readOnly && gView.hasUsablePreview) {
+            setActiveStage("preview");
+            dispatch({ type: "stage/select", stage: "preview" });
+          } else if (gView.hasUsablePreview && gView.state === "complete" && isPrepComplete) {
+            setActiveStage("preview");
+            dispatch({ type: "stage/select", stage: "preview" });
+          }
         }
       }
 
-      dispatch({ type: "connection/set", state: "confirmed" });
+      // Normalize locked URL stage (docs/Frontend/05 §3.2 rule 3, §18)
+      const requested = initialUrl.stage;
+      if (requested) {
+        let isLocked = false;
+        if (requested === "content" && !isDiscoveryApproved) isLocked = true;
+        else if (requested === "design" && !isContentApproved) isLocked = true;
+        else if (requested === "prepare" && !isDesignApproved) isLocked = true;
+        else if (requested === "generate" && !isPrepComplete) isLocked = true;
+        else if (requested === "preview" && !genViewResult?.hasUsablePreview) isLocked = true;
+
+        if (isLocked) {
+          let fallbackStage: JourneyStageId = "discover";
+          if (!isDiscoveryApproved) fallbackStage = "discover";
+          else if (!isContentApproved) fallbackStage = "content";
+          else if (!isDesignApproved) fallbackStage = "design";
+          else if (!isPrepComplete) fallbackStage = "prepare";
+          else if (!genViewResult?.hasUsablePreview) fallbackStage = "generate";
+          else fallbackStage = "preview";
+
+          setActiveStage(fallbackStage);
+          dispatch({ type: "stage/select", stage: fallbackStage });
+          const query = serializeAppUrlState({ stage: fallbackStage });
+          window.history.replaceState({}, "", `${window.location.pathname}${query}`);
+          dispatch({
+            type: "announce",
+            message: `The ${requested} stage is currently locked. Showing ${fallbackStage}.`,
+          });
+        }
+      }
+
+      const anyFulfilled = [sessionRes, discoveryRes, contentRes, designRes, prepRes, genRes].some(
+        (r) => r.status === "fulfilled",
+      );
+      dispatch({ type: "connection/set", state: anyFulfilled ? "confirmed" : "stale" });
     } catch {
       dispatch({ type: "connection/set", state: "stale" });
     }
@@ -176,6 +232,8 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
           if (view.state === "review") {
             dispatch({ type: "announce", message: "Portfolio brief is ready for review." });
+          } else if (view.state === "complete") {
+            refetchCurrentSession();
           }
         } catch {
           dispatch({ type: "connection/set", state: "stale" });
@@ -195,6 +253,8 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
           if (view.state === "review") {
             dispatch({ type: "announce", message: "Content plan is ready for review." });
+          } else if (view.state === "complete") {
+            refetchCurrentSession();
           }
         } catch {
           dispatch({ type: "connection/set", state: "stale" });
@@ -214,6 +274,8 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
           if (view.state === "review") {
             dispatch({ type: "announce", message: "Visual direction is ready for review." });
+          } else if (view.state === "complete") {
+            refetchCurrentSession();
           }
         } catch {
           dispatch({ type: "connection/set", state: "stale" });
@@ -233,6 +295,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
           if (view.state === "complete") {
             dispatch({ type: "announce", message: "Build handoff package verified and ready for generation." });
+            refetchCurrentSession();
           } else if (view.state === "attention") {
             dispatch({ type: "announce", message: "Build preparation needs attention." });
           }
@@ -256,6 +319,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           dispatch({ type: "session/set", sessionId: res.session_id, revision: res.session_revision });
           if (view.state === "complete") {
             dispatch({ type: "announce", message: "Portfolio generation complete. Verified Preview ready." });
+            refetchCurrentSession();
           } else if (view.state === "attention") {
             dispatch({ type: "announce", message: "Generation needs attention." });
           }
@@ -448,89 +512,154 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
   // Start Content Architect
   const handleStartContent = async () => {
-    if (!state.sessionId) return;
-    const res = await api.startContentArchitect(state.sessionId, { preferences: {} });
-    const view = adaptContentArchitect(res.content_architect, true);
-    dispatch({ type: "content/set", view });
-    dispatch({ type: "announce", message: "Content Architect started." });
-    notifyMutation(state.sessionId);
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("content");
+    try {
+      const res = await api.startContentArchitect(state.sessionId, { preferences: {} });
+      const view = adaptContentArchitect(res.content_architect, true);
+      dispatch({ type: "content/set", view });
+      dispatch({ type: "announce", message: "Content Architect started." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Revise Content
   const handleReviseContent = async (revisionRequest: string) => {
-    if (!state.sessionId) return;
-    const res = await api.reviseContentArchitect(state.sessionId, revisionRequest);
-    const view = adaptContentArchitect(res.content_architect, true);
-    dispatch({ type: "content/set", view });
-    dispatch({ type: "announce", message: "Content revision requested." });
-    notifyMutation(state.sessionId);
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("content");
+    try {
+      const res = await api.reviseContentArchitect(state.sessionId, revisionRequest);
+      const view = adaptContentArchitect(res.content_architect, true);
+      dispatch({ type: "content/set", view });
+      dispatch({ type: "announce", message: "Content revision requested." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Approve Content
   const handleApproveContent = async () => {
-    if (!state.sessionId) return;
-    const res = await api.approveContentArchitect(state.sessionId);
-    const view = adaptContentArchitect(res.content_architect, true);
-    dispatch({ type: "content/set", view });
-    dispatch({ type: "announce", message: "Content plan approved." });
-    notifyMutation(state.sessionId);
-    refetchCurrentSession();
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("content");
+    try {
+      const res = await api.approveContentArchitect(state.sessionId);
+      const view = adaptContentArchitect(res.content_architect, true);
+      dispatch({ type: "content/set", view });
+      dispatch({ type: "announce", message: "Content plan approved." });
+      notifyMutation(state.sessionId);
+      await refetchCurrentSession();
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Start Visual Design Director
   const handleStartDesign = async () => {
-    if (!state.sessionId) return;
-    const res = await api.startVisualDesignDirector(state.sessionId, { preferences: {} });
-    const view = adaptVisualDesignDirector(res.visual_design_director, true);
-    dispatch({ type: "design/set", view });
-    dispatch({ type: "announce", message: "Visual Design Director started." });
-    notifyMutation(state.sessionId);
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("design");
+    try {
+      const res = await api.startVisualDesignDirector(state.sessionId, { preferences: {} });
+      const view = adaptVisualDesignDirector(res.visual_design_director, true);
+      dispatch({ type: "design/set", view });
+      dispatch({ type: "announce", message: "Visual Design Director started." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Revise Design
   const handleReviseDesign = async (revisionRequest: string) => {
-    if (!state.sessionId) return;
-    const res = await api.reviseVisualDesignDirector(state.sessionId, revisionRequest);
-    const view = adaptVisualDesignDirector(res.visual_design_director, true);
-    dispatch({ type: "design/set", view });
-    dispatch({ type: "announce", message: "Visual direction revision requested." });
-    notifyMutation(state.sessionId);
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("design");
+    try {
+      const res = await api.reviseVisualDesignDirector(state.sessionId, revisionRequest);
+      const view = adaptVisualDesignDirector(res.visual_design_director, true);
+      dispatch({ type: "design/set", view });
+      dispatch({ type: "announce", message: "Visual direction revision requested." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Approve Design
   const handleApproveDesign = async () => {
-    if (!state.sessionId) return;
-    const res = await api.approveVisualDesignDirector(state.sessionId);
-    const view = adaptVisualDesignDirector(res.visual_design_director, true);
-    dispatch({ type: "design/set", view });
-    dispatch({ type: "announce", message: "Visual direction approved." });
-    notifyMutation(state.sessionId);
-    refetchCurrentSession();
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("design");
+    try {
+      const res = await api.approveVisualDesignDirector(state.sessionId);
+      const view = adaptVisualDesignDirector(res.visual_design_director, true);
+      dispatch({ type: "design/set", view });
+      dispatch({ type: "announce", message: "Visual direction approved." });
+      notifyMutation(state.sessionId);
+      await refetchCurrentSession();
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Start Build Preparation
   const handleStartPreparation = async () => {
-    if (!state.sessionId) return;
-    const res = await api.startBuildPreparation(state.sessionId);
-    const view = adaptBuildPreparation(res.build_preparation, true);
-    dispatch({ type: "preparation/set", view });
-    dispatch({ type: "announce", message: "Build preparation started." });
-    notifyMutation(state.sessionId);
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("prepare");
+    try {
+      const res = await api.startBuildPreparation(state.sessionId);
+      const view = adaptBuildPreparation(res.build_preparation, true);
+      dispatch({ type: "preparation/set", view });
+      dispatch({ type: "announce", message: "Build preparation started." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Regenerate Build Preparation
   const handleRegeneratePreparation = async () => {
-    if (!state.sessionId) return;
-    const res = await api.regenerateBuildPreparation(state.sessionId);
-    const view = adaptBuildPreparation(res.build_preparation, true);
-    dispatch({ type: "preparation/set", view });
-    dispatch({ type: "announce", message: "Build preparation restarted." });
-    notifyMutation(state.sessionId);
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("prepare");
+    try {
+      const res = await api.regenerateBuildPreparation(state.sessionId);
+      const view = adaptBuildPreparation(res.build_preparation, true);
+      dispatch({ type: "preparation/set", view });
+      dispatch({ type: "announce", message: "Build preparation restarted." });
+      notifyMutation(state.sessionId);
+    } catch (err) {
+      refetchCurrentSession();
+      throw err;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   // Start Code Generator
   const handleStartGeneration = async () => {
-    if (!state.sessionId) return;
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("generate");
     const key = getOrCreateIdempotencyKey(state.sessionId, "start");
     try {
       const res = await api.startCodeGenerator(state.sessionId, key);
@@ -542,12 +671,15 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     } catch (err) {
       refetchCurrentSession();
       throw err;
+    } finally {
+      setMutatingStage(null);
     }
   };
 
   // Retry Code Generator
   const handleRetryGeneration = async () => {
-    if (!state.sessionId) return;
+    if (!state.sessionId || mutatingStage) return;
+    setMutatingStage("generate");
     const key = getOrCreateIdempotencyKey(state.sessionId, "retry");
     try {
       const res = await api.retryCodeGenerator(state.sessionId, key);
@@ -559,6 +691,8 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     } catch (err) {
       refetchCurrentSession();
       throw err;
+    } finally {
+      setMutatingStage(null);
     }
   };
 
@@ -580,97 +714,103 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         <ConnectionBanner state={state.connection} />
 
         <main className="app-work-surface">
-          {/* Journey Rail is visible once a portfolio exists */}
-          {state.sessionId ? (
-            <JourneyRail
-              journey={journey}
-              selectedStageId={activeStage}
-              onSelect={handleSelectStage}
-            />
-          ) : null}
-
-          {/* First-time visitor without a session */}
-          {!state.sessionId ? (
-            <StartSurface onStart={handleStartPortfolio} disabled={state.readOnly} />
-          ) : null}
-
-          {/* Active Stage Render */}
-          {state.sessionId && activeStage === "discover" ? (
-            <DiscoveryStage
-              view={state.discovery}
-              history={discoveryHistory}
-              canMutate={!state.readOnly}
-              onStartDiscovery={handleStartPortfolio}
-              onSubmitAnswer={handleSubmitDiscoveryAnswer}
-              onGenerateBriefNow={handleGenerateBriefNow}
-              onApproveBrief={handleApproveBrief}
-              onReviseBrief={handleReviseBrief}
-              onContinueToContent={() => handleSelectStage("content")}
-            />
-          ) : null}
-
-          {state.sessionId && activeStage === "content" ? (
-            <ContentStage
-              view={state.content}
-              canMutate={!state.readOnly}
-              onStart={handleStartContent}
-              onApprove={handleApproveContent}
-              onRevise={handleReviseContent}
-              onContinueToDesign={() => handleSelectStage("design")}
-            />
-          ) : null}
-
-          {state.sessionId && activeStage === "design" ? (
-            <DesignStage
-              view={state.design}
-              canMutate={!state.readOnly}
-              onStart={handleStartDesign}
-              onApprove={handleApproveDesign}
-              onRevise={handleReviseDesign}
-              onContinueToPrepare={() => handleSelectStage("prepare")}
-            />
-          ) : null}
-
-          {state.sessionId && activeStage === "prepare" ? (
-            <PreparationStage
-              view={state.preparation}
-              canMutate={!state.readOnly}
-              onStart={handleStartPreparation}
-              onRegenerate={handleRegeneratePreparation}
-              onContinueToGeneration={() => handleSelectStage("generate")}
-            />
-          ) : null}
-
-          {state.sessionId && activeStage === "generate" ? (
-            <GenerationStage
-              view={state.generation}
-              canMutate={!state.readOnly}
-              readOnly={state.readOnly}
-              onStart={handleStartGeneration}
-              onRetry={handleRetryGeneration}
-              onOpenPreview={() => handleSelectStage("preview")}
-            />
-          ) : null}
-
-          {state.sessionId && activeStage === "preview" ? (
-            <div className="preview-stage-container">
-              <ConnectedPreviewSurface
-                view={state.preview ?? adaptPreview(state.generation)}
-                readOnly={state.readOnly}
-                onNavigateStage={handleSelectStage}
-                initialViewport={initialUrl.viewport ?? undefined}
-                initialRoute={initialUrl.route ?? undefined}
-                onRouteSelected={(route) => {
-                  const query = serializeAppUrlState({ stage: "preview", view: "preview", route });
-                  window.history.replaceState({}, "", `${window.location.pathname}${query}`);
-                }}
-                onViewportChanged={(viewport) => {
-                  const query = serializeAppUrlState({ stage: "preview", view: "preview", viewport });
-                  window.history.replaceState({}, "", `${window.location.pathname}${query}`);
-                }}
+          <ErrorBoundary fallbackTitle="Unable to display stage" onReset={refetchCurrentSession}>
+            {/* Journey Rail is visible once a portfolio exists */}
+            {state.sessionId ? (
+              <JourneyRail
+                journey={journey}
+                selectedStageId={activeStage}
+                onSelect={handleSelectStage}
               />
-            </div>
-          ) : null}
+            ) : null}
+
+            {/* First-time visitor without a session */}
+            {!state.sessionId ? (
+              <StartSurface onStart={handleStartPortfolio} disabled={state.readOnly} />
+            ) : null}
+
+            {/* Active Stage Render */}
+            {state.sessionId && activeStage === "discover" ? (
+              <DiscoveryStage
+                view={state.discovery}
+                history={discoveryHistory}
+                canMutate={!state.readOnly}
+                onStartDiscovery={handleStartPortfolio}
+                onSubmitAnswer={handleSubmitDiscoveryAnswer}
+                onGenerateBriefNow={handleGenerateBriefNow}
+                onApproveBrief={handleApproveBrief}
+                onReviseBrief={handleReviseBrief}
+                onContinueToContent={() => handleSelectStage("content")}
+              />
+            ) : null}
+
+            {state.sessionId && activeStage === "content" ? (
+              <ContentStage
+                view={state.content}
+                canMutate={!state.readOnly}
+                inFlight={mutatingStage === "content"}
+                onStart={handleStartContent}
+                onApprove={handleApproveContent}
+                onRevise={handleReviseContent}
+                onContinueToDesign={() => handleSelectStage("design")}
+              />
+            ) : null}
+
+            {state.sessionId && activeStage === "design" ? (
+              <DesignStage
+                view={state.design}
+                canMutate={!state.readOnly}
+                inFlight={mutatingStage === "design"}
+                onStart={handleStartDesign}
+                onApprove={handleApproveDesign}
+                onRevise={handleReviseDesign}
+                onContinueToPrepare={() => handleSelectStage("prepare")}
+              />
+            ) : null}
+
+            {state.sessionId && activeStage === "prepare" ? (
+              <PreparationStage
+                view={state.preparation}
+                canMutate={!state.readOnly}
+                inFlight={mutatingStage === "prepare"}
+                onStart={handleStartPreparation}
+                onRegenerate={handleRegeneratePreparation}
+                onContinueToGeneration={() => handleSelectStage("generate")}
+              />
+            ) : null}
+
+            {state.sessionId && activeStage === "generate" ? (
+              <GenerationStage
+                view={state.generation}
+                canMutate={!state.readOnly}
+                readOnly={state.readOnly}
+                inFlight={mutatingStage === "generate"}
+                onStart={handleStartGeneration}
+                onRetry={handleRetryGeneration}
+                onOpenPreview={() => handleSelectStage("preview")}
+              />
+            ) : null}
+
+            {state.sessionId && activeStage === "preview" ? (
+              <div className="preview-stage-container">
+                <ConnectedPreviewSurface
+                  view={state.preview ?? adaptPreview(state.generation)}
+                  readOnly={state.readOnly}
+                  onNavigateStage={handleSelectStage}
+                  initialViewport={initialUrl.viewport ?? undefined}
+                  initialRoute={initialUrl.route ?? undefined}
+                  onRouteSelected={(route) => {
+                    const query = serializeAppUrlState({ stage: "preview", view: "preview", route });
+                    window.history.replaceState({}, "", `${window.location.pathname}${query}`);
+                  }}
+                  onViewportChanged={(viewport) => {
+                    const query = serializeAppUrlState({ stage: "preview", view: "preview", viewport });
+                    window.history.replaceState({}, "", `${window.location.pathname}${query}`);
+                  }}
+                />
+              </div>
+            ) : null}
+          </ErrorBoundary>
         </main>
 
         <StatusAnnouncer message={state.announcement} />

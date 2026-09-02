@@ -80,10 +80,9 @@ class AppConfig(BaseModel):
     port: int = 8000
     log_level: str = "INFO"
     enable_dev_ui: bool = True
-    # /app serves the legacy pipeline UI (app.js) until the Preact studio
-    # (docs/Frontend/05) reaches parity across all five stages. /dev is
-    # unaffected either way. See docs/Frontend/05 §19 Phase 1.
-    enable_product_preact_shell: bool = False
+    # /app serves the Preact studio (docs/Frontend/05) as the canonical
+    # normal product UI across all stages. /dev is unaffected either way.
+    enable_product_preact_shell: bool = True
 
     @field_validator("log_level", mode="before")
     @classmethod

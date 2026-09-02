@@ -36,4 +36,24 @@ This is a paragraph with **bold**, *italic*, and \`code\` tokens.
     expect(vnode).toBeDefined();
     expect(extractHeadings("")).toEqual([]);
   });
+
+  it("renders fenced code blocks and blockquotes securely", () => {
+    const md = `
+> Strategic positioning statement.
+> Second line of quotation.
+
+\`\`\`typescript
+const greeting = "Hello world";
+console.log(greeting);
+\`\`\`
+`;
+    const vnode = SafeMarkdown({ content: md });
+    expect(vnode).toBeDefined();
+    const allChildren = (Array.isArray(vnode.props.children) ? vnode.props.children.flat(2) : []).filter(Boolean) as Array<{ type: string; props: Record<string, unknown> }>;
+    const blockquote = allChildren.find((c) => c && c.type === "blockquote");
+    expect(blockquote).toBeDefined();
+    const pre = allChildren.find((c) => c && c.type === "pre");
+    expect(pre).toBeDefined();
+    expect(pre?.props.className).toBe("language-typescript");
+  });
 });
