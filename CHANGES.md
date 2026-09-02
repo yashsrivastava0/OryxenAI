@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-02 15:41 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [082d179] - add SPA fallback redirects to the react-vite-v1 scaffold
+Added a static `public/_redirects` file so every generated build serves `index.html` for any deep-linked or refreshed route on Netlify/Cloudflare Pages, matching what the project's own preview gateway already does server-side. Confirmed by reading `AppRouter.tsx` (real `history.pushState` client-side routing) and by an actual scaffold build showing `dist/_redirects` with the expected content.
+
 ### 2026-09-02 15:33 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [375aae3] - thread image alt-text and placement into usage_contract
 Extended the materialized-image `usage_contract` with `alt_text`, `focal_point`, `placement`, and `decorative`, reusing values the acquisition step already computed for the sidecar metadata file. Code Generator's planner reads only `usage_contract`, so this per-image intent previously never reached the model laying out the page. Found via direct code reading while investigating generic-looking image usage; verified with the existing materializer unit suite (14 passed).
 
