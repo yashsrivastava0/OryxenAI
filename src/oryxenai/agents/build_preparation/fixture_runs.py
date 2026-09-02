@@ -231,7 +231,7 @@ def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
         for item in resources
         if isinstance(item, dict)
         and item.get("kind") == "photo"
-        and item.get("disposition") == "local_file"
+        and item.get("disposition") in {"local_file", "deferred_materialized"}
         and item.get("provider") != "generated-local"
     )
     real_components = sum(
@@ -239,7 +239,7 @@ def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
         for item in resources
         if isinstance(item, dict)
         and item.get("kind") == "component"
-        and item.get("disposition") == "adaptable_source"
+        and item.get("disposition") in {"adaptable_source", "deferred_materialized"}
         and item.get("provider") != "generated-local"
     )
     return {

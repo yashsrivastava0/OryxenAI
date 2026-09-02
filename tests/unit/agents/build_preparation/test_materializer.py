@@ -82,7 +82,7 @@ def test_component_source_paths_must_be_safe_relative_paths(path: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> None:
+async def test_materializer_inspects_pexels_bytes_but_defers_local_write() -> None:
     output_dir = _output_dir()
     try:
         settings = Settings()
@@ -139,9 +139,18 @@ async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> Non
         root = output_dir / "build-preparation" / "run-1" / "build-context"
         assert result.root_path == str(root)
         assert (root / "overview.md").is_file()
-        assert any(item.kind == "image" for item in result.files)
-        metadata = json.loads((root / f"resources/images/{candidate.resource_id}.json").read_text())
-        assert metadata["inspection_level"] == "pixel_inspected"
+        # The candidate is downloaded and pixel-inspected exactly as before,
+        # but its bytes are deliberately not persisted into the pack -- Code
+        # Generator's own acquisition phase fetches them at generation time.
+        assert not any(item.kind == "image" for item in result.files)
+        assert not (root / f"resources/images/{candidate.resource_id}.jpg").exists()
+        manifest = json.loads((root / "resources/manifest.json").read_text())
+        materialized = next(
+            item for item in manifest["resources"] if item["id"] == candidate.resource_id
+        )
+        assert materialized["inspection_level"] == "pixel_inspected"
+        assert materialized["disposition"] == "deferred_materialized"
+        assert materialized["local_path"] == f"resources/images/{candidate.resource_id}.jpg"
         assert (root / "resources/manifest.json").is_file()
         assert (root / "resources/ledger.json").is_file()
         assert not (root / "target/package-lock.json").exists()
@@ -151,7 +160,7 @@ async def test_materializer_inspects_pexels_bytes_and_writes_local_tree() -> Non
         route_resources = json.loads((root / "routes/home/resources.json").read_text())
         assert route_resources["need_ids"] == [need.need_id]
         plan = json.loads((root / "resources/ledger.json").read_text())
-        assert plan["needs"][0]["disposition"] == "local_file"
+        assert plan["needs"][0]["disposition"] == "deferred_materialized"
         assert plan["needs"][0]["later_fetch"]["allowed"] is False
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
@@ -632,15 +641,22 @@ async def test_materializer_preserves_component_source_paths_and_license_provena
         )
 
         root = Path(result.root_path)
+        # The real source text is validated (safe paths, meaningful content,
+        # policy) exactly as before, but deliberately not persisted -- Code
+        # Generator's own acquisition phase fetches the same already-decided
+        # registry component into this intended path at generation time.
         expected = (
             root
             / "resources/components/magicui/resource-magicui-card/source/registry/magicui/magic-card.tsx"
         )
-        assert expected.is_file()
+        assert not expected.exists()
         manifest = json.loads((root / "resources/manifest.json").read_text())
         resource = manifest["resources"][0]
-        assert resource["disposition"] == "adaptable_source"
+        assert resource["disposition"] == "deferred_materialized"
         assert resource["source_files"][0]["original_path"] == ("registry/magicui/magic-card.tsx")
+        assert resource["source_files"][0]["local_path"] == str(expected.relative_to(root)).replace(
+            "\\", "/"
+        )
         assert resource["license_reference"].endswith("LICENSE.md")
         assert resource["expected_exports"] == ["MagicCard"]
         assert resource["usage_contract"]["local_paths"]
@@ -732,7 +748,7 @@ async def test_materializer_rejects_demo_component_source_and_uses_role_fit_alte
             "component source contains placeholder or demo content; "
             "selected-work source is a video demo rather than detail exploration"
         )
-        assert result.resources[0]["disposition"] == "adaptable_source"
+        assert result.resources[0]["disposition"] == "deferred_materialized"
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
 
