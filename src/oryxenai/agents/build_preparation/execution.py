@@ -186,9 +186,25 @@ def compile_execution_contract(
             "component": "component_source",
             "typography_system": "font",
         }.get(need_category, need_category)
-        if disposition in {"local_file", "adaptable_source"} and _local_paths(resource):
+        if disposition in {
+            "local_file",
+            "adaptable_source",
+            "deferred_materialized",
+        } and _local_paths(resource):
+            # Build Preparation already verified and chose exactly one real
+            # candidate either way. "deferred_materialized" means it did the
+            # full download/inspection pass and then deliberately discarded
+            # the bytes instead of persisting them into this pack -- the
+            # provider/asset reference below is what Code Generator's own
+            # acquisition phase fetches at generation time. Nothing here
+            # re-opens selection; every field is the same already-decided
+            # value regardless of which of the two dispositions this is.
             resolution = ResolvedResource(
-                resolution_type="local_materialized",
+                resolution_type=(
+                    "deferred_materialized"
+                    if disposition == "deferred_materialized"
+                    else "local_materialized"
+                ),
                 resource_id=str(resource.get("id", "") or ""),
                 local_paths=_local_paths(resource),
                 fallback_disposition="typed_local_recipe_when_local_material_fails",
@@ -531,6 +547,15 @@ def compile_execution_contract(
     slots.sort(key=lambda value: value.resource_slot_id)
     recipes.sort(key=lambda value: value.recipe_id)
     gaps.sort(key=lambda value: value.slot_id)
+    # Deferred slots are already-decided (provider + candidate pinned) but
+    # still need Code Generator's own acquisition phase to fetch bytes; a
+    # delegated slot always did. Neither is "everything already resolved
+    # upstream with nothing left to fetch," so this must reflect the real
+    # slot mix rather than a fixed constant.
+    downstream_fetch_expected = any(
+        slot.resolution.resolution_type in {"deferred_materialized", "delegated_acquisition"}
+        for slot in slots
+    )
     contract = {
         "schema_version": schema_version,
         "pack_version": pack_version,
@@ -538,17 +563,18 @@ def compile_execution_contract(
         "execution_gaps": [gap.model_dump(mode="json") for gap in gaps],
         "policy": {
             "known_resource_requirements_prepared_upstream": True,
-            "runtime_network_fetch_allowed": False,
+            "runtime_network_fetch_allowed": downstream_fetch_expected,
             "emergent_code_generator_acquisition_requires_receipt": True,
             "allowed_resolution_types": [
                 "local_materialized",
+                "deferred_materialized",
                 "target_package_binding",
                 "local_recipe",
                 "delegated_acquisition",
                 "execution_gap",
             ],
             "visual_resource_policy": {
-                "visual_slots_require_real_local_material": True,
+                "visual_slots_require_real_material": True,
                 "generated_local_visuals_forbidden": True,
                 "recipes_cannot_resolve_images_or_components": True,
             },

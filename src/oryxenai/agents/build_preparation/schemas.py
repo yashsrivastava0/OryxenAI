@@ -297,6 +297,7 @@ class ResolvedResource(BaseModel):
 
     resolution_type: Literal[
         "local_materialized",
+        "deferred_materialized",
         "target_package_binding",
         "local_recipe",
         "delegated_acquisition",

@@ -434,7 +434,12 @@ def _resource_plan(
     materialized_by_id = {
         str(entry.get("id", "")): entry for entry in materialized_resources if entry.get("id")
     }
-    usable_dispositions = {"adaptable_source", "local_file", "package_import"}
+    usable_dispositions = {
+        "adaptable_source",
+        "local_file",
+        "deferred_materialized",
+        "package_import",
+    }
     entries: list[dict[str, Any]] = []
     for need in needs:
         selection = selection_by_need.get(need.need_id)
@@ -480,7 +485,9 @@ def _resource_plan(
         "schema_version": "build-preparation-resource-ledger-v3",
         "pack_version": pack_version,
         "policy": {
-            "runtime_network_fetch_allowed": False,
+            "runtime_network_fetch_allowed": any(
+                entry["disposition"] == "deferred_materialized" for entry in entries
+            ),
             "known_needs_require_execution_slot_coverage": True,
             "unlisted_resource_ids_are_forbidden": True,
         },
@@ -1621,6 +1628,7 @@ async def materialize_build_context(
             usable = entry.get("disposition") in {
                 "adaptable_source",
                 "local_file",
+                "deferred_materialized",
                 "package_import",
             }
             entry["later_fetch"] = {
@@ -1635,7 +1643,9 @@ async def materialize_build_context(
         ledger = {
             "schema_version": "build-preparation-resource-plan-v1",
             "policy": {
-                "runtime_network_fetch_allowed": False,
+                "runtime_network_fetch_allowed": any(
+                    entry.get("disposition") == "deferred_materialized" for entry in legacy_needs
+                ),
                 "selected_resource_and_fallback_are_exclusive": True,
                 "unlisted_resource_ids_are_forbidden": True,
             },
