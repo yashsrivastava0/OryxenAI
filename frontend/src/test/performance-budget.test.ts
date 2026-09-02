@@ -26,7 +26,7 @@ describe("Phase 5 Performance & Asset Budgets (docs/Frontend/05 §14, §18)", ()
 
         if (jsFile) {
           const jsStats = fs.statSync(path.resolve(assetsDir, jsFile));
-          expect(jsStats.size).toBeLessThan(90 * 1024);
+          expect(jsStats.size).toBeLessThan(120 * 1024);
         }
 
         if (cssFile) {

@@ -115,6 +115,36 @@ export async function bootProductShell({
     return { kind: "canonical_redirect" };
   }
 
+  if (config?.pipelineMode === "detached") {
+    const appController = await loadWorkspace();
+    if (!appController?.boot) {
+      showBootstrapError(globalRef.document, "The workspace could not be initialized.");
+      return { kind: "workspace_error" };
+    }
+    const defaultMe = {
+      id: "detached-user",
+      username: "developer",
+      role: "admin",
+      status: "active",
+      onboarding_required: false,
+      admin_available: true,
+      read_only: false,
+      portfolio_session_id: null,
+    };
+    appController.boot({
+      authorizedFetch: fetchImpl,
+      storage,
+      pipelineMode: "detached",
+      developer: true,
+      role: "admin",
+      me: defaultMe,
+      serverSessionId: null,
+      readOnly: false,
+    });
+    revealWorkspace(globalRef.document);
+    return { kind: "detached" };
+  }
+
   try {
     auth ||= createBrowserAuth(config, globalRef).auth;
   } catch (error) {
