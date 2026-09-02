@@ -1,0 +1,88 @@
+/*
+ * Editorial Swiss / Living Draft design tokens — the ONE canonical source for
+ * OryxenAI's visual identity. Plain CSS custom properties, no build step, so
+ * it can be linked directly by the auth pages (zero-build ES modules) and
+ * imported by the Preact product bundle (frontend/src/main.tsx) without two
+ * copies drifting apart. Change the product's look by editing this file only.
+ *
+ * Full rationale and the complete token/type/spacing rules:
+ * docs/Frontend/03-visual-system-architecture-and-evidence.md §2.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Foundation colors */
+  --canvas: #f3f0e8;
+  --paper: #fcfbf7;
+  --ink: #171a19;
+  --graphite: #626660;
+  --rule: #d3cfc4;
+  --signal: #3157e7; /* the only decorative accent */
+
+  /* Semantic state colors — always paired with an icon and text, never the
+     sole signal. */
+  --positive: #287356;
+  --attention: #a9601e;
+  --critical: #b33f3a;
+  --preview-frame: #202422;
+
+  /* Typography. Newsreader is the intended self-hosted display face (see the
+     doc above); no @font-face is declared here yet because the licensed
+     WOFF2 file has not been sourced and checked in — that is a deliberate,
+     explicit gap, not an oversight. --font-display falls back to a system
+     serif stack until the real font file lands, so nothing renders broken. */
+  --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --type-display: 400 clamp(2.4rem, 6vw, 5.5rem) / 0.94 var(--font-display);
+  --type-h1: 400 clamp(2rem, 4vw, 3.4rem) / 1.02 var(--font-display);
+  --type-h2: 600 1.5rem / 1.15 var(--font-body);
+  --type-body-lg: 400 1.125rem / 1.55 var(--font-body);
+  --type-body: 400 1rem / 1.55 var(--font-body);
+  --type-small: 400 0.875rem / 1.4 var(--font-body);
+  --type-label: 700 0.75rem / 1.2 var(--font-body);
+  --type-label-tracking: 0.08em;
+
+  /* Spacing: base unit 4px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Shape */
+  --radius-field: 4px;
+  --radius-control: 8px;
+  --radius-sheet: 12px;
+  --radius-frame: 18px; /* main artifact/Preview boundary only */
+  --border-width: 1px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Controls */
+  --control-height: 44px;
+  --control-height-compact: 36px;
+
+  /* Motion durations — see docs/Frontend/03 §4 for which event uses which. */
+  --motion-response: 120ms;
+  --motion-open: 180ms;
+  --motion-surface-change: 260ms;
+  --motion-handoff-sweep: 420ms;
+  --motion-wait-cycle: 1200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-response: 1ms;
+    --motion-open: 1ms;
+    --motion-surface-change: 1ms;
+    --motion-handoff-sweep: 1ms;
+    --motion-wait-cycle: 1ms;
+  }
+}

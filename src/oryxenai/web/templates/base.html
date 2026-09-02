@@ -19,7 +19,9 @@
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
   {% endif %}
   <title>{% block title %}{{ app_name }} - Portfolio Pipeline{% endblock %}</title>
+  {% block base_stylesheet %}
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/app.css?v={{ app_css_version }}">
+  {% endblock %}
   {% block head %}{% endblock %}
 </head>
 <body class="{% if pipeline_mode != "detached" %}auth-pending{% endif %}">
@@ -29,18 +31,22 @@
     <span>Verifying this browser session before loading portfolio data.</span>
   </div>
   {% endif %}
+  {% block header %}
   <header>
     <h1>{{ app_name }}</h1>
     <p class="subtitle">A four-stage workspace for turning intent into a verified build package.</p>
   </header>
+  {% endblock %}
 
   <main>
     {% block content %}{% endblock %}
   </main>
 
+  {% block footer %}
   <footer>
     <p>{{ app_name }} · Discovery → Content Architect → Visual Design Director → Build Preparation. Code Generation is a later stage.</p>
   </footer>
+  {% endblock %}
 
   {% if pipeline_mode != "detached" %}
   <script src="{{ request.scope.get('root_path', '') }}/auth-static/auth-client.js?v={{ auth_client_version }}"></script>

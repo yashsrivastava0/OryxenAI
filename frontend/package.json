@@ -1,0 +1,22 @@
+{
+  "name": "oryxenai-product-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Preact/TypeScript source for the authenticated /app portfolio studio. Builds into src/oryxenai/web/static/product/, which FastAPI serves — this package never runs its own server in production. See docs/Frontend/05-implementation-blueprint-and-acceptance-matrix.md.",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "2.10.6",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}

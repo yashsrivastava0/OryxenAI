@@ -58,6 +58,8 @@ def create_auth_web_router() -> APIRouter:
                 "app_name": settings.app.name,
                 "page": page,
                 "auth_config": settings.auth_public_config,
+                "tokens_css_version": _asset_version("tokens.css"),
+                "living_draft_mark_css_version": _asset_version("living-draft-mark.css"),
                 "auth_css_version": _asset_version("auth.css"),
                 "auth_client_version": _asset_version("auth-client.js"),
                 "auth_controller_version": _asset_version("auth-controller.mjs"),

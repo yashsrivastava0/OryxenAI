@@ -80,6 +80,10 @@ class AppConfig(BaseModel):
     port: int = 8000
     log_level: str = "INFO"
     enable_dev_ui: bool = True
+    # /app serves the legacy pipeline UI (app.js) until the Preact studio
+    # (docs/Frontend/05) reaches parity across all five stages. /dev is
+    # unaffected either way. See docs/Frontend/05 §19 Phase 1.
+    enable_product_preact_shell: bool = False
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -95,7 +99,7 @@ class AppConfig(BaseModel):
             return int(v)
         return v
 
-    @field_validator("enable_dev_ui", mode="before")
+    @field_validator("enable_dev_ui", "enable_product_preact_shell", mode="before")
     @classmethod
     def _coerce_bool(cls, v: Any) -> Any:
         if isinstance(v, str):
@@ -1118,6 +1122,10 @@ class Settings(BaseSettings):
     @property
     def is_dev_ui_enabled(self) -> bool:
         return self.app.enable_dev_ui
+
+    @property
+    def is_product_preact_shell_enabled(self) -> bool:
+        return self.app.enable_product_preact_shell
 
     @property
     def normalized_admin_bootstrap_emails(self) -> tuple[str, ...]:

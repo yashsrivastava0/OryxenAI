@@ -75,6 +75,15 @@ export async function bootProductShell({
   config = readAuthConfig(globalThis.document),
   globalRef = globalThis,
   loadWorkspace = async () => {
+    // /product_shell.html renders this meta tag only when the Preact bundle
+    // (frontend/, docs/Frontend/05) is enabled and has actually been built;
+    // /dev and a not-yet-built /app both fall back to the legacy bundle,
+    // which still exports the same window.OryxenAIApp = {boot, stop, restart}
+    // shape the caller below expects either way.
+    const entry = globalRef?.document
+      ?.querySelector?.('meta[name="oryxenai-product-entry"]')
+      ?.content;
+    if (entry) return import(entry);
     await import("/static/app.js");
     return globalRef?.OryxenAIApp;
   },
@@ -137,6 +146,20 @@ export async function bootProductShell({
   }
   if (context.kind === "account_unavailable") {
     replace(location, unavailable);
+    return context;
+  }
+  if (context.kind === "provider_unavailable" || context.kind === "provider_credit_exhausted") {
+    // Transient provider/credit conditions are not an invalid session. Stay
+    // on the current page, keep the session, and show a safe message instead
+    // of signing the user out (the bug this corrects: see
+    // docs/Frontend/06-cross-model-review-and-decisions.md §3.2).
+    showBootstrapError(
+      globalRef.document,
+      context.kind === "provider_credit_exhausted"
+        ? "Generation is temporarily unavailable. Retry this same run later."
+        : "Authentication is temporarily unavailable. Please try again shortly.",
+    );
+    revealWorkspace(globalRef.document);
     return context;
   }
   if (context.kind !== "authenticated") {
