@@ -313,17 +313,20 @@ class ComponentMaterializationError(Exception):
 
 def _materialize_component_candidate(
     *,
-    root: Path,
     resource_id: str,
     candidate: FetchedResource,
     need: ResourceNeed | None,
-    files: list[MaterializedFile],
 ) -> dict[str, Any]:
-    """Validate, extract, and write one closed-set component candidate.
+    """Validate one closed-set component candidate's already-fetched source text.
 
     Mirrors ``_materialize_image_candidate``'s attempt/raise contract so the
     caller can retry across ``selection.alternate_resource_ids`` the same way
-    images already do, instead of a component getting exactly one shot.
+    images already do, instead of a component getting exactly one shot. The
+    provider search step already returned the real source text in
+    ``candidate.source_files``; every safety/policy check below runs against
+    that real text, but it is deliberately not persisted into this pack --
+    Code Generator's own acquisition phase re-fetches the same already-
+    decided registry component at generation time.
     """
 
     if not dependencies_allowed(candidate.dependencies):
@@ -363,13 +366,14 @@ def _materialize_component_candidate(
                 "source_violations": source_violations,
             },
         )
-    component_source_entries: list[dict[str, Any]] = []
-    for source_path, relative, content in resolved_sources:
-        item = _write(root, relative, content.encode("utf-8"), "text")
-        files.append(item)
-        component_source_entries.append(
-            {"original_path": source_path, "local_path": relative, "sha256": item.sha256}
-        )
+    component_source_entries: list[dict[str, Any]] = [
+        {
+            "original_path": source_path,
+            "local_path": relative,
+            "sha256": _hash_bytes(content.encode("utf-8")),
+        }
+        for source_path, relative, content in resolved_sources
+    ]
     source_hashes = [str(item.get("sha256", "")) for item in component_source_entries]
     explicit_exports = [
         str(item)
@@ -385,7 +389,7 @@ def _materialize_component_candidate(
         "dependencies_allowed": True,
         "local_directory": f"{component_root}/source",
         "source_files": component_source_entries,
-        "disposition": "adaptable_source",
+        "disposition": "deferred_materialized",
         "release_pin": candidate.source_version,
         "expected_exports": export_names,
         "exports": export_names,
@@ -507,7 +511,14 @@ async def _materialize_image_candidate(
     image_by_hash: dict[str, str],
     image_by_perceptual_hash: dict[int, str],
 ) -> dict[str, Any]:
-    """Download, inspect, optimize, and write one closed-set image candidate."""
+    """Download, inspect, optimize, and verify one closed-set image candidate.
+
+    The bytes are fetched and fully validated here (pixel/dimension checks,
+    cross-candidate perceptual-hash dedupe) exactly as before -- but are
+    deliberately not persisted into this pack. Code Generator's own
+    acquisition adapters fetch the same already-decided provider asset at
+    generation time, into the intended path returned below.
+    """
 
     if download_image is None:
         raise ValueError(
@@ -613,39 +624,15 @@ async def _materialize_image_candidate(
                     "existing_local_path": existing_path,
                 },
             )
+    # image_path is the deterministic path Code Generator's own acquisition
+    # phase will fetch this exact provider asset into -- tracked in the
+    # cross-candidate dedupe maps the same as a real local write would be,
+    # even though no bytes are persisted into this pack.
     image_path = image_by_hash.get(content_hash, "")
     if not image_path:
         image_path = f"resources/images/{resource_id}.jpg"
-        files.append(_write(root, image_path, image_bytes, "image"))
         image_by_hash[content_hash] = image_path
         image_by_perceptual_hash[perceptual_hash] = image_path
-    metadata = {
-        "resource_id": resource_id,
-        "alt_text": candidate.title,
-        "focal_point": need.details.get("focal_point", "") if need else "",
-        "source": candidate.source_reference,
-        "photographer": candidate.photographer,
-        "photographer_url": candidate.photographer_url,
-        "attribution_url": candidate.attribution_url,
-        "license": candidate.license,
-        "license_reference": candidate.license_reference,
-        "placement": need.details.get("placement", "") if need else "",
-        "decorative": True,
-        "pixel_width": pixel_width,
-        "pixel_height": pixel_height,
-        "original_width": image_info["original_width"],
-        "original_height": image_info["original_height"],
-        "content_hash": content_hash,
-        "perceptual_hash": f"{perceptual_hash:016x}",
-        "inspection_level": "pixel_inspected",
-        "local_path": image_path,
-        "response_content_type": candidate.mime_type,
-        "raw_byte_size": len(raw_bytes),
-        "optimized_byte_size": len(image_bytes),
-    }
-    files.append(
-        _write(root, f"resources/images/{resource_id}.json", _json_bytes(metadata), "metadata")
-    )
     return {
         "local_path": image_path,
         "import_path": f"./{image_path}",
@@ -662,7 +649,7 @@ async def _materialize_image_candidate(
         "license_reference": candidate.license_reference,
         "source_version": candidate.source_version,
         "source_hashes": [content_hash],
-        "disposition": "local_file",
+        "disposition": "deferred_materialized",
         "content_hash": content_hash,
         "perceptual_hash": f"{perceptual_hash:016x}",
         "response_content_type": candidate.mime_type,
@@ -673,10 +660,6 @@ async def _materialize_image_candidate(
             "import_path": f"./{image_path}",
             "sha256": content_hash,
             "source_hashes": [content_hash],
-            # Code Generator's planner reads usage_contract, not the
-            # resources/images/{id}.json sidecar above — without these, the
-            # alt-text/placement intent acquisition already gathered never
-            # reached the model laying out the page.
             "alt_text": candidate.title,
             "focal_point": need.details.get("focal_point", "") if need else "",
             "placement": need.details.get("placement", "") if need else "",
@@ -1398,45 +1381,31 @@ async def materialize_build_context(
                 font_downloader = download_font_files or (
                     lambda item: download_font(item, settings)
                 )
+                # Fontsource is fully fetched and hashed here, exactly as
+                # before, to verify the decision is real -- but the bytes are
+                # deliberately not persisted. Code Generator's own
+                # acquisition phase fetches the same already-decided family/
+                # weights at generation time, into this intended path.
                 font_files = await font_downloader(candidate)
                 font_root = f"resources/fonts/{resource_id}"
-                font_source_entries: list[dict[str, Any]] = []
-                for variant, font_bytes in sorted(font_files.items()):
-                    extension = str(
-                        getattr(settings.resource_providers, "fontsource_format", "woff2")
-                    )
-                    font_path = f"{font_root}/{_safe_name(variant)}.{extension}"
-                    item = _write(root, font_path, font_bytes, "font")
-                    font_source_entries.append(
-                        {"variant": variant, "local_path": font_path, "sha256": item.sha256}
-                    )
-                    files.append(item)
+                extension = str(getattr(settings.resource_providers, "fontsource_format", "woff2"))
+                font_source_entries: list[dict[str, Any]] = [
+                    {
+                        "variant": variant,
+                        "local_path": f"{font_root}/{_safe_name(variant)}.{extension}",
+                        "sha256": _hash_bytes(font_bytes),
+                    }
+                    for variant, font_bytes in sorted(font_files.items())
+                ]
                 if not font_source_entries:
                     raise ValueError("Fontsource returned no font files")
-                files.append(
-                    _write(
-                        root,
-                        f"{font_root}/font.json",
-                        _json_bytes(
-                            {
-                                "resource_id": resource_id,
-                                "family": candidate.font_family,
-                                "weights": candidate.font_weights,
-                                "license": candidate.license,
-                                "license_reference": candidate.license_reference,
-                                "files": font_source_entries,
-                            }
-                        ),
-                        "metadata",
-                    )
-                )
                 base_entry.update(
                     {
                         "font_family": candidate.font_family,
                         "font_weights": candidate.font_weights,
                         "local_directory": font_root,
                         "source_files": font_source_entries,
-                        "disposition": "local_file",
+                        "disposition": "deferred_materialized",
                     }
                 )
             except Exception as exc:
@@ -1472,11 +1441,9 @@ async def materialize_build_context(
                     continue
                 try:
                     updates = _materialize_component_candidate(
-                        root=root,
                         resource_id=attempt_candidate.resource_id,
                         candidate=attempt_candidate,
                         need=need,
-                        files=files,
                     )
                 except ComponentMaterializationError as exc:
                     rejection_details = dict(exc.details)
