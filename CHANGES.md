@@ -71,18 +71,6 @@ Added the fixed shadcn semantic-slot contract, color-token cross-reference valid
 ### 2026-09-02 01:35 +05:30 - Codex (GPT-5 / OpenAI) - [b760acb] - wire Tailwind v4 into the Vite scaffold
 Added the locked Tailwind v4 engine, Vite plugin, CSS entry import, and supported-package catalogue entries to the React/Vite generation scaffold. Verified clean install, production build, TypeScript check, source audit, and emitted Tailwind preflight/utilities.
 
-### 2026-09-02 01:25 +05:30 - Codex (GPT-5 / OpenAI) - [1cf313f] - bound final repairs by diagnostic group
-Final verification now reconstructs per-group repair usage from durable receipts, preserves a shared run-wide ceiling, and conservatively buckets legacy receipts. Final V4 repair calls also reject acceptance after a failed gate and require bounded changes or an honest inability result, with unit and PostgreSQL-backed regression coverage.
-
-### 2026-09-02 01:05 +05:30 - Codex (GPT-5 / OpenAI) - [234a05d] - restore Code Generator per-role model profiles
-Restored the seven dedicated Code Generator role profile bindings in `config/app.toml`, added a settings regression check that loads the committed configuration, and recorded the routing boundary decision. Live role selection is now independently configurable while remaining provider-neutral.
-
-### 2026-09-02 00:45 +05:30 - Codex (GPT-5 / OpenAI) - [aecfe40] - v4 selector and responsive image-size contracts
-Normalized provider-echoed V4 distinctive-move sources to the exact executable layout region, allowed marker-qualified CSS evidence in the AST audit, and rejected non-browser-valid image `sizes` policies before source generation. The live baseline now clears the corresponding source-generation contracts.
-
-### 2026-09-01 22:31 +05:30 - Codex (GPT-5 / OpenAI) - [b780266] - native PostgreSQL alignment
-Fixed native role-alignment SQL to cast asyncpg parameters to text before PostgreSQL `format()`, making `align-db` work against the active PostgreSQL 18 cluster. Verified the shared local credential alignment and SCRAM logins for `postgres` and `oryxen` without logging the password.
-
 ### 2026-09-01 09:28 +05:30 — Codex (GPT-5 / OpenAI) — [d41eba1] — harden Code Generator generation, source evidence, repair, and polish contracts
 Live retries exposed a chain of independent failures after the accepted-mode fix: rejected candidate bytes were unavailable to later repairs; raw-text selector checks miscounted strings/comments as JSX; route interaction, resource, motion, heading, distinctive-move, and export evidence could be attributed to the wrong owner or accepted without executable source; and integration polish could checkpoint a malformed replacement before source audit. Rejected attempts are now durable repair context, source checks use shared comment/JSX lexing and canonical V4 plan identities, generated image bindings resolve through the trusted manifest/`LocalImage`, final repair receives bounded source/style pairs, and every configured owner-scoped polish round must pass source/type validation before checkpointing. Planner, generation, integration-review, repair, scaffold, Windows toolchain, and legacy no-blueprint foundation compatibility contracts were aligned with regression coverage; D-032 records the finite three-round default.
 
@@ -96,6 +84,12 @@ The main UI now presents the four-stage gate rail, package source hashes, packag
 ---
 
 ## Compacted history
+
+### 2026-09
+- 2026-09-02 - Codex (GPT-5 / OpenAI) - [1cf313f] - Final verification repair usage is bounded by diagnostic group with a shared run-wide ceiling and fail-closed V4 repair responses.
+- 2026-09-02 - Codex (GPT-5 / OpenAI) - [234a05d] - Restored dedicated Code Generator role profile bindings while keeping routing provider-neutral and configuration-owned.
+- 2026-09-02 - Codex (GPT-5 / OpenAI) - [aecfe40] - Aligned V4 selector evidence and responsive image-size contracts with executable source validation.
+- 2026-09-01 - Codex (GPT-5 / OpenAI) - [b780266] - Fixed native PostgreSQL role-alignment formatting and verified local SCRAM credentials without logging secrets.
 
 ### 2026-08
 - 2026-08-28 - Claude Code (Claude Sonnet 5 / Anthropic) - [557201b] - Live runs confirmed the accepted-mode fix and exposed a separate rejected-candidate persistence gap for later diagnosis.
@@ -248,6 +242,6 @@ The main UI now presents the four-stage gate rail, package source hashes, packag
 
 ## Summary (as of last compaction — 2026-09-02)
 
-- Recent detailed entries retained: 17
-- Compacted milestone bullets: 127
+- Recent detailed entries retained: 22
+- Compacted milestone bullets: 134
 - Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
