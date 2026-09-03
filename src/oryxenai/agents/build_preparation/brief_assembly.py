@@ -43,12 +43,24 @@ def build_content_brief(
         or "Portfolio"
     )
     story = content_architect.get("site_story_strategy") or {}
+    allowed_destinations: list[str] = []
+    for route in routes:
+        if route.route_id and route.route_id not in allowed_destinations:
+            allowed_destinations.append(route.route_id)
+        for section_id in route.section_ids:
+            if section_id and section_id not in allowed_destinations:
+                allowed_destinations.append(section_id)
+
     index_payload = {
         "kind": "content_index",
         "run_id": run_id,
         "content_architect_content_hash": str(
             (content_architect.get("approved") or {}).get("content_hash", "")
         ),
+        "navigation_contract": {
+            "closed": True,
+            "allowed_destinations": allowed_destinations,
+        },
         "routes": [
             {
                 "route_id": route.route_id,
@@ -85,6 +97,15 @@ def build_content_brief(
             if value:
                 lines.append(f"- **{label}:** {value}")
         lines.append("")
+
+    lines.append("## Navigation contract")
+    lines.append("")
+    lines.append(
+        "The navigation_contract above is the complete, closed set of valid "
+        "navigation destinations. Do not add, infer, or invent any additional "
+        "page, route, or navigation item beyond it."
+    )
+    lines.append("")
 
     packs_by_route = {
         str(pack.get("route_id", "")): pack
@@ -179,8 +200,10 @@ def build_visual_brief(
                 "role_id": entry.role_id,
                 "category": entry.category,
                 "route_ids": entry.route_ids,
+                "purpose": entry.purpose,
                 "status": entry.status,
                 "primary_candidate_index": entry.primary_candidate_index,
+                "guidance": entry.guidance,
                 "candidates": [candidate.model_dump(mode="json") for candidate in entry.candidates],
             }
             for entry in resource_index
@@ -190,7 +213,9 @@ def build_visual_brief(
                 "need_id": entry.need_id,
                 "role_id": entry.role_id,
                 "route_ids": entry.route_ids,
+                "purpose": entry.purpose,
                 "primary_suggestion_index": entry.primary_suggestion_index,
+                "guidance": entry.guidance,
                 "suggestions": [item.model_dump(mode="json") for item in entry.suggestions],
             }
             for entry in component_index

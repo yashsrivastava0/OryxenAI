@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-04 01:35 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [1627f5d] - complete evidence-based Build Preparation brief fixes and diagnostic harness optimizations
+
+Resolved four live-observed defects and prompt bloat in Build Preparation briefs and shared image retrieval:
+(1) Added `purpose` and `guidance` to `resources` and `components` in `build_visual_brief()`'s machine-readable `build-preparation-visual-index` JSON block, exposing role intent and model crop/treatment notes programmatically rather than only in prose reference tables.
+(2) Deduplicated Pixabay comma-separated tags case-insensitively while preserving first-seen order in `_clean_pixabay_tags()`, stripping noisy repeated tags from candidate `title` and `description` across both live API and cached lookups.
+(3) Fixed duplicated route prefixes in auto-derived role IDs in `normalize_visual_input()`, changing `assumed-image:{route_id}:{section_id}:{ordinal}` and `assumed-component:{route_id}:{section_id}:{role_id}` to `assumed-image:{section_id}:{ordinal}` and `assumed-component:{section_id}:{role_id}`.
+(4) Added explicit `navigation_contract` (`{"closed": true, "allowed_destinations": [...]}`) to `build_content_brief()`'s JSON index and an unambiguous closed-scope assertion sentence in the prose body to prevent downstream route/destination invention.
+(5) Optimized model prompt packet in `_compose_visual_brief()` by stripping raw URLs, licenses, attribution, and extra registry metadata from candidate objects sent to `openai_luna` while leaving full metadata intact on brief assembly.
+(6) Optimized `/build-preparation-fixture` developer harness with run-state button locks preventing race-condition double-clicks, direct "Copy Markdown" buttons for each brief, and 2-second timeout clipboard feedback.
+Verified with 58 passing unit and API tests, clean ruff/mypy checks, and a live end-to-end browser execution against `openai_luna` on port 8001.
+
 ### 2026-09-04 00:45 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [a8ad4e7] - prune hallucination-prone AI skills and retain stack-respectful core
 
 Audited and pruned `.agents/skills/` to eliminate framework and tool hallucinations across parallel coding agents (Claude Code, Codex). Deleted 11 conflicting skills that falsely mandated Tailwind CSS, Next.js Server Components, Framer Motion, GSAP, iPhone mobile mockups, Google Stitch, or pre-code image generation (`brandkit`, `design-taste-frontend`, `design-taste-frontend-v1`, `gpt-taste`, `high-end-visual-design`, `image-to-code`, `imagegen-frontend-mobile`, `imagegen-frontend-web`, `industrial-brutalist-ui`, `minimalist-ui`, `stitch-design-taste`). Preserved the three stack-respectful, universally safe skills: `no-ai-slop` (pure copywriting and anti-buzzword filter), `full-output-enforcement` (prevents LLM code truncation and placeholder shortcuts), and `redesign-existing-projects` (framework-agnostic audit methodology). Synchronized `skills-lock.json` and verified with 134 passing Vitest tests.

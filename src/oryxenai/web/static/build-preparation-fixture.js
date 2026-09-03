@@ -79,9 +79,9 @@
   }
   function renderLocal(record) {
     var result = record.local_result || {};
-    localFolder = result.result_folder || "";
+    localFolder = result.result_folder_absolute || result.result_folder || "";
     if (!localFolder) { localResult.textContent = "Creating timestamped local result folder…"; localActions.hidden = true; return; }
-    localResult.textContent = result.result_folder + (result.content_brief_available ? " · both briefs ready." : " · preparing briefs.");
+    localResult.textContent = localFolder + (result.content_brief_available ? " · both briefs ready." : " · preparing briefs.");
     localActions.hidden = false;
     var details = record.details_url || "/dev/build-preparation-fixture/progress";
     document.getElementById("view-details").href = details;
@@ -109,13 +109,51 @@
     body.appendChild(element("p", "Content brief: " + (value.content_brief_length || 0) + " chars · Visual brief: " + (value.visual_brief_length || 0) + " chars", "mono"));
     document.getElementById("summary-details").href = record.details_url || "/dev/build-preparation-fixture/progress";
   }
+  function copyWithFeedback(button, text, defaultLabel) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function () {
+      var original = defaultLabel || button.textContent;
+      button.textContent = "Copied!";
+      window.setTimeout(function () {
+        button.textContent = original;
+      }, 2000);
+    }).catch(function () {
+      button.textContent = "Copy failed";
+      window.setTimeout(function () {
+        button.textContent = defaultLabel || "Copy";
+      }, 2000);
+    });
+  }
   function render(record) {
     current = record;
     var tone = record.status === "ready" ? "ok" : record.status === "needs_attention" || record.status === "failed" ? "warn" : "running";
     setStatus(record.status, tone);
     status.textContent = record.status === "running" ? "Running " + (record.current_stage || "Build Preparation") + "…" : record.status === "ready" ? "Both Markdown briefs composed." : record.status === "needs_attention" ? "Run completed; review the issue card." : "Run failed; review the issue card.";
-    setStages(record); setEvents(record.events); renderLocal(record); renderIssue(record.issue); renderSummary(record);
+    if (record.status === "running") {
+      runButton.disabled = true;
+      runButton.textContent = "Running diagnostic build…";
+    } else {
+      runButton.disabled = false;
+      runButton.textContent = "Run diagnostic build";
+    }
+    setStages(record); setEvents(record.events); renderLocal(record); renderIssue(record.issue); renderSummary(record); renderOutput(record);
     renderPreflight(record.storage || {});
+  }
+  function renderOutput(record) {
+    var section = document.getElementById("output");
+    var local = record.local_result || {};
+    var result = record.result || {};
+    if (!local.content_brief_available && !local.visual_brief_available) { section.hidden = true; return; }
+    section.hidden = false;
+    document.getElementById("output-location").textContent = local.result_folder_absolute || local.result_folder || "";
+    document.getElementById("output-content-brief").textContent = result.content_brief_markdown || "(not yet produced)";
+    document.getElementById("output-visual-brief").textContent = result.visual_brief_markdown || "(not yet produced)";
+    var contentDownload = document.getElementById("output-content-download");
+    contentDownload.href = record.content_brief_download_url || "#";
+    contentDownload.hidden = !record.content_brief_download_url;
+    var visualDownload = document.getElementById("output-visual-download");
+    visualDownload.href = record.visual_brief_download_url || "#";
+    visualDownload.hidden = !record.visual_brief_download_url;
   }
   async function poll() {
     if (!current || !current.run_id) return;
@@ -144,11 +182,37 @@
   file.addEventListener("change", function () { readFile(file.files && file.files[0], input, "VDD JSON"); });
   contentFile.addEventListener("change", function () { readFile(contentFile.files && contentFile.files[0], contentInput, "Content Architect JSON"); });
   document.getElementById("use-default").addEventListener("click", function () { input.value = ""; file.value = ""; contentInput.value = ""; contentFile.value = ""; status.textContent = "Auto-picking the attached Content Architect and Visual Design Director outputs."; });
-  document.getElementById("copy-path").addEventListener("click", async function () { if (!localFolder) return; await navigator.clipboard.writeText(localFolder); this.textContent = "Copied"; });
-  document.getElementById("copy-issue").addEventListener("click", async function () { if (!current || !current.issue) return; await navigator.clipboard.writeText(JSON.stringify({run_id: current.run_id, issue: current.issue, local_result: current.local_result}, null, 2)); this.textContent = "Copied"; });
+  var copyPathBtn = document.getElementById("copy-path");
+  if (copyPathBtn) {
+    copyPathBtn.addEventListener("click", function () { copyWithFeedback(this, localFolder, "Copy folder path"); });
+  }
+  var copyIssueBtn = document.getElementById("copy-issue");
+  if (copyIssueBtn) {
+    copyIssueBtn.addEventListener("click", function () {
+      if (!current || !current.issue) return;
+      copyWithFeedback(this, JSON.stringify({run_id: current.run_id, issue: current.issue, local_result: current.local_result}, null, 2), "Copy issue report");
+    });
+  }
+  var copyContentBriefBtn = document.getElementById("copy-content-brief");
+  if (copyContentBriefBtn) {
+    copyContentBriefBtn.addEventListener("click", function () {
+      var el = document.getElementById("output-content-brief");
+      copyWithFeedback(this, el ? el.textContent : "", "Copy Markdown");
+    });
+  }
+  var copyVisualBriefBtn = document.getElementById("copy-visual-brief");
+  if (copyVisualBriefBtn) {
+    copyVisualBriefBtn.addEventListener("click", function () {
+      var el = document.getElementById("output-visual-brief");
+      copyWithFeedback(this, el ? el.textContent : "", "Copy Markdown");
+    });
+  }
   runButton.addEventListener("click", async function () {
     if (pollTimer) { window.clearTimeout(pollTimer); pollTimer = null; }
-    runButton.disabled = true; issueCard.hidden = true; status.textContent = "Starting Build Preparation…";
+    runButton.disabled = true;
+    runButton.textContent = "Starting build…";
+    issueCard.hidden = true;
+    status.textContent = "Starting Build Preparation…";
     var body = { live_model: document.getElementById("live-model").checked, live_providers: document.getElementById("live-providers").checked };
     if (input.value.trim()) body.output_json = input.value.trim();
     if (contentInput.value.trim()) body.content_architect_json = contentInput.value.trim();
@@ -156,11 +220,14 @@
       var response = await window.OryxenAIProtectedFetch("/api/v1/build-preparation/fixture/runs", { method: "POST", headers: {"Accept":"application/json", "Content-Type":"application/json"}, body: JSON.stringify(body) });
       var data = await response.json();
       if (!response.ok) throw new Error(apiError(data));
-      render(data); poll();
+      render(data);
+      poll();
     } catch (error) {
       status.textContent = error.message || "Could not start Build Preparation.";
       setStatus("Start failed", "warn");
-    } finally { runButton.disabled = false; }
+      runButton.disabled = false;
+      runButton.textContent = "Run diagnostic build";
+    }
   });
   preflight();
 }());

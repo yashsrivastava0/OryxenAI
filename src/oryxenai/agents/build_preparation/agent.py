@@ -30,7 +30,9 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationSourceRef,
     ComponentBriefEntry,
     ComponentGuidance,
+    ComponentSuggestion,
     ResourceBriefEntry,
+    ResourceCandidateLink,
     ResourceGuidance,
     Stage0Result,
     StageEvent,
@@ -94,6 +96,31 @@ def _apply_component_guidance(
         if picked is not None:
             entry.primary_suggestion_index = picked.primary_suggestion_index
             entry.guidance = picked.note
+
+
+def _trim_resource_candidate_for_model(
+    index: int, candidate: ResourceCandidateLink
+) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "index": index,
+        "provider": candidate.provider,
+        "title": candidate.title,
+    }
+    if candidate.width > 0:
+        item["width"] = candidate.width
+    if candidate.height > 0:
+        item["height"] = candidate.height
+    return item
+
+
+def _trim_component_suggestion_for_model(index: int, item: ComponentSuggestion) -> dict[str, Any]:
+    return {
+        "index": index,
+        "provider": item.provider,
+        "name": item.name,
+        "title": item.title,
+        "description": item.description,
+    }
 
 
 def _offline_visual_brief(
@@ -308,7 +335,7 @@ class BuildPreparationAgent(Agent):
                     "purpose": entry.purpose,
                     "route_ids": entry.route_ids,
                     "candidates": [
-                        {"index": index, **candidate.model_dump(mode="json")}
+                        _trim_resource_candidate_for_model(index, candidate)
                         for index, candidate in enumerate(entry.candidates)
                     ],
                 }
@@ -321,7 +348,7 @@ class BuildPreparationAgent(Agent):
                     "purpose": entry.purpose,
                     "route_ids": entry.route_ids,
                     "suggestions": [
-                        {"index": index, **item.model_dump(mode="json")}
+                        _trim_component_suggestion_for_model(index, item)
                         for index, item in enumerate(entry.suggestions)
                     ],
                 }

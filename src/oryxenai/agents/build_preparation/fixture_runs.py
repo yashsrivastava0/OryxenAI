@@ -164,6 +164,7 @@ class FixtureRunRecord:
         return {
             "status": "ready" if self.content_brief_path.is_file() else "pending",
             "result_folder": _relative(self.result_root),
+            "result_folder_absolute": str(self.result_root.resolve()),
             "content_brief_path": _relative(self.content_brief_path),
             "visual_brief_path": _relative(self.visual_brief_path),
             "content_brief_available": self.content_brief_path.is_file(),

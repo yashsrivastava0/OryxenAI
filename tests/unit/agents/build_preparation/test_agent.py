@@ -48,7 +48,11 @@ async def test_offline_run_produces_both_briefs_with_zero_model_calls() -> None:
     assert result.output["model_calls"] == 0
     assert result.output["routes"][0]["route_id"] == "home"
     assert result.output["content_brief_markdown"].startswith("# Content & Narrative Brief")
+    assert '"navigation_contract": {' in result.output["content_brief_markdown"]
+    assert "The navigation_contract above is the complete, closed set" in result.output["content_brief_markdown"]
     assert "authority" in result.output["visual_brief_markdown"].lower()
+    assert '"purpose":' in result.output["visual_brief_markdown"]
+    assert '"guidance":' in result.output["visual_brief_markdown"]
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from oryxenai.agents.shared.image_retrieval import (
     ImageDownloadError,
     ImageSearchCache,
     ImageSearchIntent,
+    _clean_pixabay_tags,
     prepare_image_bytes,
     search_images,
 )
@@ -268,3 +269,9 @@ def test_image_cache_never_returns_an_empty_entry(tmp_path) -> None:
     cache = ImageSearchCache(tmp_path)
     cache.put("pexels", "empty", {}, [])
     assert cache.get("pexels", "empty", {}) is None
+
+
+def test_pixabay_tags_are_deduplicated_preserving_order() -> None:
+    raw = "graphic designer, graphic designer, Graphic Designer, designer, UI designer, designer"
+    cleaned = _clean_pixabay_tags(raw)
+    assert cleaned == "graphic designer, designer, UI designer"
