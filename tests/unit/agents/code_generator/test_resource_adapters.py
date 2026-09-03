@@ -56,6 +56,42 @@ async def test_offline_image_search_and_materialization_are_content_addressed(tm
 
 
 @pytest.mark.asyncio
+async def test_deferred_image_candidate_writes_one_file_not_a_rendition_set(tmp_path) -> None:
+    """A deferred_materialized image (D-060) is already a decided, verified
+    candidate -- ImageAdapter must fetch and optimize the one file, not
+    pre-generate a full responsive rendition set on top of the local
+    rendition generation _materialize_image_assets already performs from a
+    single file, which pushed a real 6-photo run past the total generated-
+    source size ceiling.
+    """
+    registry = OfflineResourceProviderRegistry()
+    candidate = ResourceCandidate(
+        candidate_id="301703",
+        provider_key="pexels",
+        provider_resource_id="301703",
+        category="image",
+        title="Editorial photo",
+        canonical_source="https://images.pexels.com/photos/301703/pexels-photo-301703.jpeg",
+        licence="Pexels License",
+        attribution="Photo by a Pexels contributor",
+        vendoring_policy="download and vendor",
+        technical_metadata={"single_rendition_only": True},
+    )
+    registry.register(candidate, _png())
+    settings = Settings()
+    request = _request()
+    adapter = ImageAdapter(registry)
+
+    materialized = await adapter.materialize(
+        candidate, request, storage_root=tmp_path / "materials", settings=settings
+    )
+
+    assert not isinstance(materialized, list)
+    assert (tmp_path / "materials" / materialized.local_path).is_file()
+    assert len(list((tmp_path / "materials" / "image").glob("*"))) == 1
+
+
+@pytest.mark.asyncio
 async def test_offline_component_source_search_is_separate_from_build_preparation(tmp_path) -> None:
     registry = OfflineResourceProviderRegistry()
     registry.register(

@@ -277,6 +277,17 @@ class _BaseAdapter:
                 raise ResourceProviderError(
                     str(exc), provider=candidate.provider_key, retryable=False
                 ) from exc
+            if candidate.technical_metadata.get("single_rendition_only"):
+                # Build Preparation already decided and verified exactly this
+                # one image (D-060); the responsive variants downstream needs
+                # are generated locally from this single optimized file, the
+                # same as a pack-embedded image always has been. Pre-
+                # generating 8 provider-side width/format renditions here as
+                # well would be pure duplication -- confirmed live to push a
+                # 6-photo run past the total generated-source size ceiling.
+                return self._write_single_file(
+                    candidate, data, request=request, storage_root=storage_root, settings=settings
+                )
             return _materialize_image_renditions(
                 data,
                 candidate=candidate,
@@ -285,6 +296,19 @@ class _BaseAdapter:
                 storage_root=storage_root,
                 settings=settings,
             )
+        return self._write_single_file(
+            candidate, data, request=request, storage_root=storage_root, settings=settings
+        )
+
+    def _write_single_file(
+        self,
+        candidate: ResourceCandidate,
+        data: bytes,
+        *,
+        request: ResourceRequest,
+        storage_root: Path,
+        settings: Any,
+    ) -> LocalMaterialFile:
         max_bytes = request.technical_constraints.max_bytes or _category_limit(
             self.category, settings
         )
