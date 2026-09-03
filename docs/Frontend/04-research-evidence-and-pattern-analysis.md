@@ -807,7 +807,7 @@ stated gate:
 - `AGENTS.md`
 - `DECISIONS.md`
 - `docs/frontend-behavior-spec.md`
-- `docs/Auth/03-user-flow-and-route-contract.md`
+- `docs/Auth/01-user-flows-and-route-contract.md`
 - `docs/code-generator-architecture/v2-production-architecture.md`
 - `docs/code-generator-architecture/live-preview-and-deployment.md`
 - `src/oryxenai/auth/`
