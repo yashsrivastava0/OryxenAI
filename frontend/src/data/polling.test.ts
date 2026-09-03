@@ -93,4 +93,28 @@ describe("PollCoordinator", () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(calls).toBe(1);
   });
+
+  it("does not throw Illegal invocation when setTimeout requires specific this context", async () => {
+    const strictWindow = {};
+    function strictSetTimeout(this: any, fn: any, ms?: any) {
+      if (this !== strictWindow && this !== undefined && this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      return setTimeout(fn, ms);
+    }
+    const coordinator = new PollCoordinator({
+      intervalMs: 1000,
+      documentRef: null,
+      setTimeoutFn: strictSetTimeout as any,
+    });
+    let calls = 0;
+    expect(() => {
+      coordinator.subscribe("resource", async () => {
+        calls += 1;
+      });
+    }).not.toThrow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(1);
+    coordinator.teardown();
+  });
 });

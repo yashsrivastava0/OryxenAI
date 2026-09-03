@@ -86,7 +86,7 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
             Direct your experience into a verified portfolio.
           </h1>
           <p className="start-hero-thesis">
-            Transform notes, code, and project milestones into a production-grade site through an approved 5-stage pipeline.
+            Autonomous 5-stage pipeline from career notes to verified, responsive production code.
           </p>
         </header>
 
@@ -108,12 +108,20 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
                 <textarea
                   id="intake-notes"
                   className="start-textarea"
-                  rows={7}
+                  rows={4}
                   placeholder="Paste your bio, resume bullets, GitHub links, recent projects, or what you want people to know about your work..."
                   value={intakeText}
                   onInput={(e) => {
                     setIntakeText((e.target as HTMLTextAreaElement).value);
                     if (error) setError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                      e.preventDefault();
+                      if (!inFlight && !disabled && intakeText.trim()) {
+                        handleSubmit(e as unknown as Event);
+                      }
+                    }
                   }}
                   disabled={inFlight || disabled}
                 />
@@ -140,10 +148,13 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
                 <div className="start-actions-left">
                   <span className="start-trust-badge">
                     <span className="trust-lock-icon" aria-hidden="true">🔒</span>
-                    Private & verified. Nothing is published without your review.
+                    Private workspace. Nothing is built or published without your approval.
                   </span>
                 </div>
                 <div className="start-actions-right">
+                  <span className="keyboard-hint" aria-hidden="true">
+                    <kbd>Ctrl</kbd> + <kbd>↵</kbd>
+                  </span>
                   {intakeText.trim().length > 0 && (
                     <button
                       type="button"
@@ -165,13 +176,15 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
                     {inFlight ? (
                       <>
                         <span className="btn-spinner" aria-hidden="true" />
-                        <span>Initializing Discovery...</span>
+                        <span>Starting Discovery...</span>
                       </>
                     ) : (
                       <>
                         <span>Start Discovery</span>
                         <span className="btn-icon-wrapper" aria-hidden="true">
-                          <span className="btn-arrow">→</span>
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                            <path fillRule="evenodd" d="M1 8a.75.75 0 0 1 .75-.75h11.19L9.47 3.78a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06L12.94 8.75H1.75A.75.75 0 0 1 1 8Z" clipRule="evenodd" />
+                          </svg>
                         </span>
                       </>
                     )}
