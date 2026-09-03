@@ -282,6 +282,7 @@ async def _execute(
             # Receipt local_paths are relative to the configured materials
             # root (already prefixed with the run id).
             _resolve_config_path(settings.code_generator_acquisition.materials_root),
+            projections["execution/contract.json"],
         )
         workspace.synchronize_dependency_manifest(
             _resolve_config_path(settings.code_generator_dependencies.workspaces_root)
