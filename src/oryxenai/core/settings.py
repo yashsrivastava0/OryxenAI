@@ -622,7 +622,8 @@ class CodeGeneratorGenerationConfig(BaseModel):
     repair_profile: str = "code_generator_repairer"
     max_file_bytes: int = 256 * 1024
     max_response_bytes: int = 2 * 1024 * 1024
-    max_source_bytes: int = 8 * 1024 * 1024
+    # See config/app.toml for why this covers real responsive-image output.
+    max_source_bytes: int = 32 * 1024 * 1024
     max_request_rounds: int = 4
     max_repair_rounds_per_unit: int = 3
     max_repair_rounds_total: int = 6
