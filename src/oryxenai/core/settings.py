@@ -486,7 +486,9 @@ class BuildPreparationConfig(BaseModel):
     """Build Preparation limits and lifecycle policy."""
 
     max_routes: int = 12
-    bundle_ttl_days: int = 3
+    # D-060: packs are compact references, not embedded resource bytes, so a
+    # pack does not expire in practice. See config/app.toml for the rationale.
+    bundle_ttl_days: int = 36500
     minimum_reuse_hours: int = 24
     max_bundle_bytes: int = 64 * 1024 * 1024
     network_timeout_seconds: float = 15.0

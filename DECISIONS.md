@@ -23,6 +23,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-061 - Build Preparation packs do not expire in practice (partial revision of D-009)
+
+- **Date & Time:** 2026-09-03 11:35 +05:30 - Claude Code (Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** D-009's 3-day TTL existed to bound storage cost/cleanup for packs that embedded real image/font/component bytes (up to ~1.7MB observed). D-060 made packs compact provider/candidate references instead (a real pack measured 68KB after D-060, down from 1.1MB) -- the original storage-cost rationale for a short TTL is now largely moot. The 3-day TTL had also repeatedly forced re-generating a pack mid-session purely to keep testing, real friction with no remaining benefit.
+- **Decision:** `bundle_ttl_days` (`config/app.toml`, `BuildPreparationConfig`) raised from 3 to 36500 (100 years) -- a deliberately large but not-infinite horizon, so a genuinely corrupted expiry marker remains theoretically distinguishable from a normal one. All existing expiry enforcement (`PACK_EXPIRED` at admission, `BUILD_PREPARATION_ARTIFACT_EXPIRED` at download, the packs-listing `expired`/`eligible` computation) is unchanged code -- only the configured horizon moved, matching the project's own config-driven-policy discipline (AGENTS.md) rather than special-casing "no expiry" as a new code path.
+- **Rejected alternatives:** Removing the `expires_at` field/checks entirely -- rejected because `ArtifactReference.expires_at` is shared storage infrastructure other agents may also rely on, and the enforcement logic itself is sound (a real safety net), only the specific horizon for Build Preparation was wrong now. Making expiry conditional on pack size/shape -- rejected as needless complexity when a single config value already achieves the goal.
+- **Consequence:** A Build Preparation pack generated today remains admissible for the practical lifetime of this project. R2/S3 bucket-level lifecycle policies, if configured outside this codebase, are unaffected by this change and would need a separate, infrastructure-side update if they also enforce a shorter deletion horizon.
+
 ## D-060 - Build Preparation decides resources upstream; Code Generator materializes bytes downstream (partial revision of D-018)
 
 - **Date & Time:** 2026-09-03 01:45 +05:30 - Claude Code (Sonnet 5 / Anthropic)
