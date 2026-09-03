@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f3f0e8">
+  <meta name="theme-color" content="#090d16">
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -16,139 +16,157 @@
   <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
-  <title>{{ app_name }} · Access</title>
+  <title>{{ app_name }} · Studio Access</title>
   <link rel="stylesheet" href="/auth-static/tokens.css?v={{ tokens_css_version }}">
   <link rel="stylesheet" href="/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
   <link rel="stylesheet" href="/auth-static/auth.css?v={{ auth_css_version }}">
 </head>
 <body data-page="{{ page }}">
+  <div class="auth-ambient-mesh" aria-hidden="true"></div>
+
   <main id="auth-root" class="auth-shell" tabindex="-1">
     <header class="brand-block">
-      <p class="eyebrow">{{ app_name }}</p>
-      <h1>Make your work easy to remember.</h1>
-      <p class="lede">A focused workspace for turning your real experience into a portfolio.</p>
+      <div class="auth-brand-badge">
+        <span class="auth-beacon-dot" aria-hidden="true"></span>
+        <span class="eyebrow">{{ app_name }} STUDIO</span>
+      </div>
+      <h1>Direct your portfolio from intent to production.</h1>
+      <p class="lede">A verified multi-stage pipeline that turns your engineering experience into a deployable portfolio.</p>
     </header>
 
-    <section id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
-      <p class="eyebrow">Secure access</p>
-      <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
-      <h2 id="progress-title">Restoring your session.</h2>
-      <p id="progress-detail" class="muted" aria-live="polite">Checking this browser safely.</p>
-      <ol class="progress-steps" aria-label="Authentication progress">
-        <li data-progress-step="restore">Restoring your session</li>
-        <li data-progress-step="google">Completing Google sign-in</li>
-        <li data-progress-step="verify">Verifying OryxenAI access</li>
-        <li data-progress-step="workspace">Preparing your workspace</li>
-      </ol>
-    </section>
+    <div class="auth-card-outer">
+      <div class="auth-card-core">
+        <section id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
+          <p class="panel-eyebrow">SECURE ACCESS</p>
+          <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
+          <h2 id="progress-title">Restoring your session</h2>
+          <p id="progress-detail" class="muted" aria-live="polite">Checking browser credentials safely.</p>
+          <ol class="progress-steps" aria-label="Authentication progress">
+            <li data-progress-step="restore">Restoring your session</li>
+            <li data-progress-step="google">Completing Google sign-in</li>
+            <li data-progress-step="verify">Verifying OryxenAI access</li>
+            <li data-progress-step="workspace">Preparing your workspace</li>
+          </ol>
+        </section>
 
-    <section id="sign-in-panel" class="panel" hidden aria-labelledby="sign-in-title">
-      <p class="eyebrow">Google-only access</p>
-      <h2 id="sign-in-title">Continue with Google</h2>
-      <p id="sign-in-guidance" class="muted">Use your Google account. No password is stored by OryxenAI.</p>
-      <button id="google-sign-in" class="primary-button" type="button">Continue with Google</button>
-      <p id="sign-in-error" class="error-text" role="alert" hidden></p>
-      <p class="fine-print">Your session is managed by Supabase and refreshed by its browser client.</p>
-    </section>
+        <section id="sign-in-panel" class="panel" hidden aria-labelledby="sign-in-title">
+          <p class="panel-eyebrow">VERIFIED IDENTITY</p>
+          <h2 id="sign-in-title">Sign in to your studio</h2>
+          <p id="sign-in-guidance" class="muted">Continue with your Google account. No passwords stored by OryxenAI.</p>
+          <button id="google-sign-in" class="primary-button google-auth-btn" type="button">
+            <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+              <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+              <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+          <p id="sign-in-error" class="error-text" role="alert" hidden></p>
+          <p class="fine-print">Encrypted browser session managed securely by Supabase.</p>
+        </section>
 
-    <section id="access-panel" class="panel" hidden aria-labelledby="access-title">
-      <p class="eyebrow">Access review</p>
-      <h2 id="access-title">This account cannot join right now.</h2>
-      <p id="access-detail" class="muted">Normal-user capacity may be full, or this deployment may be using a restricted access list.</p>
-      <button class="secondary-button" data-action="logout" type="button">Sign out</button>
-    </section>
+        <section id="access-panel" class="panel" hidden aria-labelledby="access-title">
+          <p class="panel-eyebrow">ACCESS REVIEW</p>
+          <h2 id="access-title">Account pending admission</h2>
+          <p id="access-detail" class="muted">Capacity is currently full, or this deployment uses a restricted admission list.</p>
+          <button class="secondary-button" data-action="logout" type="button">Sign out</button>
+        </section>
 
-    <section id="unavailable-panel" class="panel" hidden aria-labelledby="unavailable-title">
-      <p class="eyebrow">Account unavailable</p>
-      <h2 id="unavailable-title">Your workspace is temporarily unavailable.</h2>
-      <p class="muted">Access has been disabled locally. Sign out and contact the workspace administrator if this is unexpected.</p>
-      <button class="secondary-button" data-action="logout" type="button">Sign out</button>
-    </section>
+        <section id="unavailable-panel" class="panel" hidden aria-labelledby="unavailable-title">
+          <p class="panel-eyebrow">UNAVAILABLE</p>
+          <h2 id="unavailable-title">Workspace temporarily unavailable</h2>
+          <p class="muted">Access is paused locally. Sign out or reach out to the workspace administrator.</p>
+          <button class="secondary-button" data-action="logout" type="button">Sign out</button>
+        </section>
 
-    <section id="onboarding-panel" class="panel" hidden aria-labelledby="onboarding-title">
-      <p class="eyebrow">One-time setup</p>
-      <h2 id="onboarding-title">Choose your username.</h2>
-      <p class="muted">Use 3–30 lowercase letters, numbers, underscores, or hyphens. It starts and ends with a letter or number.</p>
-      <form id="username-form" novalidate>
-        <label for="username">Username</label>
-        <div class="input-row">
-          <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" required>
-          <button class="primary-button" type="submit">Claim username</button>
-        </div>
-        <p id="username-error" class="error-text" role="alert" hidden></p>
-      </form>
-      <button class="text-button" data-action="logout" type="button">Sign out</button>
-    </section>
+        <section id="onboarding-panel" class="panel" hidden aria-labelledby="onboarding-title">
+          <p class="panel-eyebrow">SETUP</p>
+          <h2 id="onboarding-title">Choose your handle</h2>
+          <p class="muted">Use 3–30 lowercase letters, numbers, underscores, or hyphens.</p>
+          <form id="username-form" novalidate>
+            <label for="username">Username</label>
+            <div class="input-row">
+              <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" placeholder="e.g. alex-dev" required>
+              <button class="primary-button" type="submit">Claim handle</button>
+            </div>
+            <p id="username-error" class="error-text" role="alert" hidden></p>
+          </form>
+          <button class="text-button" data-action="logout" type="button">Sign out</button>
+        </section>
 
-    <section id="app-panel" class="panel" hidden aria-labelledby="app-title">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Workspace ready</p>
-          <h2 id="app-title">Welcome, <span data-user="username">there</span>.</h2>
-        </div>
-        <span class="status-pill" data-user="status">active</span>
-      </div>
-      <dl class="safe-details">
-        <div><dt>Username</dt><dd data-user="username">—</dd></div>
-        <div><dt>Role</dt><dd data-user="role">—</dd></div>
-        <div><dt>Status</dt><dd data-user="status">—</dd></div>
-      </dl>
-      <p class="muted">The authenticated workspace shell is ready. Portfolio actions remain subject to the server's current authorization state.</p>
-      <div class="button-row">
-        <a id="admin-link" class="secondary-button" href="/admin" hidden>Open admin shell</a>
-        <button class="text-button" data-action="logout" type="button">Sign out</button>
-      </div>
-    </section>
-
-    <section id="admin-panel" class="panel" hidden aria-labelledby="admin-title">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Administrator</p>
-      <h2 id="admin-title">Workspace administration</h2>
-        </div>
-        <span class="status-pill">admin</span>
-      </div>
-      <p class="muted" id="admin-live" aria-live="polite">Loading the safe administrator view.</p>
-      <dl class="safe-details">
-        <div><dt>Username</dt><dd data-user="username">—</dd></div>
-        <div><dt>Role</dt><dd data-user="role">—</dd></div>
-        <div><dt>Status</dt><dd data-user="status">—</dd></div>
-      </dl>
-      <div class="admin-toolbar button-row">
-        <a class="secondary-button" href="/app">Workspace</a>
-        <button class="secondary-button" id="admin-refresh" type="button">Refresh</button>
-        <button class="text-button" data-action="logout" type="button">Sign out</button>
-      </div>
-      <div class="admin-tabs" role="tablist" aria-label="Administrator data">
-        <button class="secondary-button" type="button" role="tab" aria-selected="true" data-admin-tab="users">Users</button>
-        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="projects">Projects</button>
-        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="legacy">Legacy</button>
-        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="deleted">Deleted identities</button>
-        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="operations">Operations</button>
-        <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="audit">Audit</button>
-      </div>
-      <div id="admin-summary" class="admin-summary" aria-label="Summary"></div>
-      <div id="admin-content" class="admin-content" aria-live="polite"></div>
-      <div class="button-row">
-        <button class="secondary-button" id="admin-load-more" type="button" hidden>Load more</button>
-      </div>
-      <dialog id="admin-confirm-dialog" aria-labelledby="admin-confirm-title">
-        <form method="dialog" id="admin-confirm-form">
-          <h3 id="admin-confirm-title">Confirm administrator action</h3>
-          <p id="admin-confirm-copy" class="muted"></p>
-          <label for="admin-confirm-input">Type the displayed target exactly</label>
-          <input id="admin-confirm-input" autocomplete="off" required>
-          <label for="admin-reason">Reason (optional)</label>
-          <input id="admin-reason" maxlength="500" autocomplete="off">
-          <div class="button-row">
-            <button class="secondary-button" value="cancel" type="submit">Cancel</button>
-            <button class="primary-button" id="admin-confirm-submit" value="confirm" type="submit">Confirm</button>
+        <section id="app-panel" class="panel" hidden aria-labelledby="app-title">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-eyebrow">STUDIO READY</p>
+              <h2 id="app-title">Welcome, <span data-user="username">there</span></h2>
+            </div>
+            <span class="status-pill" data-user="status">active</span>
           </div>
-        </form>
-      </dialog>
-    </section>
+          <dl class="safe-details">
+            <div><dt>Username</dt><dd data-user="username">—</dd></div>
+            <div><dt>Role</dt><dd data-user="role">—</dd></div>
+            <div><dt>Status</dt><dd data-user="status">—</dd></div>
+          </dl>
+          <p class="muted">Your authenticated workspace is ready. Entering studio atelier.</p>
+          <div class="button-row">
+            <a class="primary-button" href="/app">Enter Studio →</a>
+            <a id="admin-link" class="secondary-button" href="/admin" hidden>Open admin shell</a>
+            <button class="text-button" data-action="logout" type="button">Sign out</button>
+          </div>
+        </section>
 
-    <p id="global-error" class="error-text" role="alert" hidden></p>
+        <section id="admin-panel" class="panel" hidden aria-labelledby="admin-title">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-eyebrow">ADMINISTRATION</p>
+              <h2 id="admin-title">Workspace administration</h2>
+            </div>
+            <span class="status-pill">admin</span>
+          </div>
+          <p class="muted" id="admin-live" aria-live="polite">Loading administrator metrics.</p>
+          <dl class="safe-details">
+            <div><dt>Username</dt><dd data-user="username">—</dd></div>
+            <div><dt>Role</dt><dd data-user="role">—</dd></div>
+            <div><dt>Status</dt><dd data-user="status">—</dd></div>
+          </dl>
+          <div class="admin-toolbar button-row">
+            <a class="secondary-button" href="/app">Workspace</a>
+            <button class="secondary-button" id="admin-refresh" type="button">Refresh</button>
+            <button class="text-button" data-action="logout" type="button">Sign out</button>
+          </div>
+          <div class="admin-tabs" role="tablist" aria-label="Administrator data">
+            <button class="secondary-button" type="button" role="tab" aria-selected="true" data-admin-tab="users">Users</button>
+            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="projects">Projects</button>
+            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="legacy">Legacy</button>
+            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="deleted">Deleted</button>
+            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="operations">Operations</button>
+            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="audit">Audit</button>
+          </div>
+          <div id="admin-summary" class="admin-summary" aria-label="Summary"></div>
+          <div id="admin-content" class="admin-content" aria-live="polite"></div>
+          <div class="button-row">
+            <button class="secondary-button" id="admin-load-more" type="button" hidden>Load more</button>
+          </div>
+          <dialog id="admin-confirm-dialog" aria-labelledby="admin-confirm-title">
+            <form method="dialog" id="admin-confirm-form">
+              <h3 id="admin-confirm-title">Confirm administrator action</h3>
+              <p id="admin-confirm-copy" class="muted"></p>
+              <label for="admin-confirm-input">Type target confirmation</label>
+              <input id="admin-confirm-input" autocomplete="off" required>
+              <label for="admin-reason">Reason (optional)</label>
+              <input id="admin-reason" maxlength="500" autocomplete="off">
+              <div class="button-row">
+                <button class="secondary-button" value="cancel" type="submit">Cancel</button>
+                <button class="primary-button" id="admin-confirm-submit" value="confirm" type="submit">Confirm</button>
+              </div>
+            </form>
+          </dialog>
+        </section>
+
+        <p id="global-error" class="error-text" role="alert" hidden></p>
+      </div>
+    </div>
   </main>
 
   <script src="/auth-static/auth-client.js?v={{ auth_client_version }}"></script>

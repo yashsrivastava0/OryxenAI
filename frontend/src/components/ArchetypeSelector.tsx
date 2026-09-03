@@ -2,6 +2,7 @@ export interface Archetype {
   id: string;
   code: string;
   title: string;
+  shortLabel: string;
   tagline: string;
   draftText: string;
 }
@@ -11,65 +12,69 @@ export const ARCHETYPES: Archetype[] = [
     id: "systems-architect",
     code: "SYS-01",
     title: "Systems Architect",
-    tagline: "High-scale distributed systems, low-latency infrastructure & resilience engineering.",
-    draftText: `I am a Senior Systems Architect with 7+ years designing distributed backends, streaming pipelines, and fault-tolerant infrastructure.
+    shortLabel: "Systems",
+    tagline: "High-scale distributed backends, low-latency streaming & infrastructure.",
+    draftText: `Senior Systems Architect specializing in distributed backends, real-time data pipelines, and high-availability infrastructure.
 
 Key highlights & milestones:
 - Designed an event-driven telemetry ingest engine processing 250k events/sec on Rust and Kafka with sub-20ms p99 latency.
 - Migrated an enterprise monolith to decoupled Go microservices, reducing incident MTTR by 65%.
 - Authored open-source storage indexing engines and zero-allocation networking libraries.
 
-Target portfolio direction: High-rigor, technical, editorial precision with system architecture deep-dives and verifiable performance metrics.`,
+Target portfolio direction: Technical depth with system architecture diagrams, failure-mode analyses, and verifiable performance metrics.`,
   },
   {
     id: "creative-technologist",
     code: "CRT-02",
     title: "Creative Technologist",
-    tagline: "Kinetic UI, WebGL shaders, tactile design systems & experimental interaction.",
-    draftText: `I am a Creative Technologist & Interaction Designer bridging software engineering and visual aesthetics.
+    shortLabel: "Creative",
+    tagline: "Kinetic UI, WebGL shaders, tactile design systems & dynamic interaction.",
+    draftText: `Creative Technologist and Interaction Designer bridging engineering precision with visual aesthetics.
 
 Key highlights & milestones:
-- Created bespoke WebGL & Three.js interactive graphics recognized across design and web communities.
-- Architected fluid component systems with custom physics curves, fluid micro-interactions, and 60fps rendering.
+- Built WebGL & Three.js interactive graphics recognized across design and frontend developer communities.
+- Architected fluid component systems with custom spring physics, tactile micro-interactions, and 60fps rendering.
 - Researched kinetic typography and physical simulation engines compiled to WebAssembly.
 
-Target portfolio direction: Visually commanding, tactile, Swiss editorial typography with dark mode nuances and interactive case studies.`,
+Target portfolio direction: Visually commanding, tactile typography with dark mode nuances, fluid motion, and interactive case studies.`,
   },
   {
     id: "product-lead",
     code: "PRD-03",
-    title: "Founding Product Lead",
-    tagline: "0-to-1 product strategy, technical execution, and user momentum.",
-    draftText: `I am a Founding Product Engineer & Technical Lead taking ambitious software from zero to 1.
+    title: "Founding Product Engineer",
+    shortLabel: "Product",
+    tagline: "0-to-1 product strategy, full-stack delivery, and user growth.",
+    draftText: `Founding Product Engineer and Technical Lead building products from concept to scale.
 
 Key highlights & milestones:
 - Shipped the core platform for a seed-stage developer startup, growing to 40,000 active developers in under 12 months.
 - Led end-to-end delivery: React/TypeScript frontend, resilient async job queues, and multi-tenant PostgreSQL.
-- Drove user research, customer discovery, and weekly release velocity.
+- Drove user research, customer discovery, and weekly release cadence.
 
-Target portfolio direction: Narrative-driven, founder-level clarity focusing on product architecture, UX decisions, and quantifiable outcomes.`,
+Target portfolio direction: Product-focused clarity detailing architectural decisions, UX trade-offs, and measurable outcomes.`,
   },
   {
     id: "research-scientist",
     code: "RES-04",
     title: "Research Engineer",
-    tagline: "Machine learning foundations, agentic architectures & algorithmic rigor.",
-    draftText: `I am an Applied AI Researcher and ML Engineer working on generative models, agentic workflows, and inference optimization.
+    shortLabel: "AI / ML",
+    tagline: "Generative models, agentic workflows & inference optimization.",
+    draftText: `Applied AI Researcher and ML Engineer working on foundation models, agentic execution, and inference optimization.
 
 Key highlights & milestones:
-- Published papers at top tier conferences on sparse attention and speculative decoding algorithms.
+- Published papers at top conferences on sparse attention and speculative decoding algorithms.
 - Optimized production LLM serving stacks with custom CUDA kernels and quantization, reducing latency by 4x.
-- Built rigorous evaluation suites and reproducibility harnesses for multi-agent reasoning benchmarks.
+- Built evaluation suites and reproducibility harnesses for multi-agent reasoning benchmarks.
 
-Target portfolio direction: Clean, academic-grade clarity with research abstracts, interactive benchmarks, and live code artifacts.`,
+Target portfolio direction: Clean, rigorous presentation with research abstracts, interactive benchmarks, and live code artifacts.`,
   },
 ];
 
 export const QUICK_STARTERS = [
-  "Senior Full-Stack Engineer (React, TypeScript, Python FastAPI)",
-  "Staff Design Engineer focusing on accessible design systems",
-  "DevOps / SRE Architect with Kubernetes & Terraform experience",
-  "Data Engineer building modern real-time streaming warehouses",
+  "Full-Stack Engineer (React, TypeScript, Python FastAPI)",
+  "Staff Design Engineer focusing on design systems",
+  "DevOps / SRE Architect (Kubernetes & Terraform)",
+  "Data Engineer building real-time warehouses",
 ];
 
 export interface ArchetypeSelectorProps {
@@ -86,44 +91,41 @@ export function ArchetypeSelector({
   disabled = false,
 }: ArchetypeSelectorProps) {
   return (
-    <div className="archetype-section">
-      <div className="archetype-section-header">
-        <span className="technical-badge">SELECT ARCHETYPE</span>
-        <span className="archetype-hint">Choose a starting persona to pre-populate authentic narrative notes:</span>
+    <div className="archetype-control-bar" aria-label="Role archetypes">
+      <div className="archetype-chips-header">
+        <span className="archetype-chips-title">Start with a role template or paste your own notes:</span>
       </div>
 
-      <div className="archetype-grid" role="radiogroup" aria-label="Portfolio archetypes">
+      <div className="archetype-chips-row" role="radiogroup" aria-label="Role template chips">
         {ARCHETYPES.map((arch) => {
           const isSelected = selectedId === arch.id;
           return (
             <button
               key={arch.id}
               type="button"
-              className={`archetype-card ${isSelected ? "archetype-card-active" : ""}`}
+              className={`archetype-chip ${isSelected ? "archetype-chip-active" : ""}`}
               onClick={() => onSelectArchetype(arch)}
               disabled={disabled}
               role="radio"
               aria-checked={isSelected}
+              title={arch.tagline}
             >
-              <div className="archetype-card-top">
-                <span className="archetype-code">{arch.code}</span>
-                {isSelected && <span className="archetype-active-indicator" aria-hidden="true">SELECTED</span>}
-              </div>
-              <h3 className="archetype-title">{arch.title}</h3>
-              <p className="archetype-tagline">{arch.tagline}</p>
+              <span className="archetype-chip-code">{arch.code}</span>
+              <span className="archetype-chip-name">{arch.title}</span>
+              {isSelected && <span className="archetype-chip-dot" aria-hidden="true" />}
             </button>
           );
         })}
       </div>
 
-      <div className="quick-starters-tray">
-        <span className="quick-starters-label">Quick prompts:</span>
-        <div className="quick-starters-list">
+      <div className="quick-focus-row">
+        <span className="quick-focus-label">Quick focus:</span>
+        <div className="quick-focus-pills">
           {QUICK_STARTERS.map((prompt, idx) => (
             <button
               key={idx}
               type="button"
-              className="quick-starter-pill"
+              className="quick-focus-pill"
               onClick={() => onSelectQuickStarter(prompt)}
               disabled={disabled}
             >

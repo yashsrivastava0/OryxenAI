@@ -13,13 +13,6 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning, architect.";
-    if (hour < 18) return "Good afternoon, architect.";
-    return "Good evening, architect.";
-  }, []);
-
   const { wordCount, charCount, densityLabel, densityPercent } = useMemo(() => {
     const trimmed = intakeText.trim();
     const chars = trimmed.length;
@@ -32,13 +25,13 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
       label = "Awaiting intake notes";
       pct = 0;
     } else if (words < 25) {
-      label = "Preliminary notes · Add milestones for richer discovery";
-      pct = Math.min(100, Math.round((words / 80) * 100));
+      label = "Preliminary notes · Add key projects for richer discovery";
+      pct = Math.min(100, Math.round((words / 70) * 100));
     } else if (words < 70) {
-      label = "Solid narrative foundation · Ready for Discovery";
-      pct = Math.min(100, Math.round((words / 80) * 100));
+      label = "Solid foundation · Ready for Discovery";
+      pct = Math.min(100, Math.round((words / 70) * 100));
     } else {
-      label = "High narrative density · Full atelier depth";
+      label = "Detailed notes · Ready for full-fidelity Discovery";
       pct = 100;
     }
 
@@ -65,7 +58,7 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
     if (inFlight || disabled) return;
     const text = intakeText.trim();
     if (!text) {
-      setError("Please provide a short summary, background, or select an archetype to begin.");
+      setError("Please paste notes, project bullets, or select a role template to begin.");
       return;
     }
     setError(null);
@@ -81,113 +74,116 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
 
   return (
     <div className="atelier-start-wrapper">
-      <section className="start-surface" aria-labelledby="start-heading">
+      {/* ── Above-the-Fold Hero Section with Integrated Command Center ───────── */}
+      <section className="start-hero-section" aria-labelledby="start-heading">
         <header className="start-hero-header">
-          <div className="hero-status-beacon">
+          <div className="hero-status-beacon" aria-label="System status">
             <span className="beacon-dot" aria-hidden="true" />
-            <span className="beacon-text">ATELIER ACTIVE · SYSTEM READY</span>
+            <span className="beacon-text">STUDIO ATELIER · READY</span>
           </div>
 
-          <p className="start-greeting">{greeting}</p>
           <h1 id="start-heading" className="start-hero-title">
-            Let's find the story your portfolio should tell.
+            Direct your experience into a verified portfolio.
           </h1>
           <p className="start-hero-thesis">
-            Transform raw experience into a deliberate, verified portfolio. Our specialized pipeline guides you
-            through <strong>Discovery</strong>, <strong>Content Architecture</strong>, <strong>Visual Direction</strong>, <strong>Build Packaging</strong>, and <strong>Code Generation</strong> with zero automated slop.
+            Transform notes, code, and project milestones into a production-grade site through an approved 5-stage pipeline.
           </p>
         </header>
 
-        <ArchetypeSelector
-          selectedId={selectedArchetypeId}
-          onSelectArchetype={handleSelectArchetype}
-          onSelectQuickStarter={handleSelectQuickStarter}
-          disabled={inFlight || disabled}
-        />
-
-        <form onSubmit={handleSubmit} className="start-form">
-          <div className="start-form-header">
-            <label htmlFor="intake-notes" className="start-label">
-              Narrative Intake & Background Notes
-            </label>
-            <span className="start-label-hint">Paste rough notes, project briefs, or select an archetype above</span>
-          </div>
-
-          <div className="textarea-tactile-container">
-            <textarea
-              id="intake-notes"
-              className="start-textarea"
-              rows={8}
-              placeholder="Paste anything you have: a bio, rough resume bullets, recent projects, or what you want people to know about your work..."
-              value={intakeText}
-              onInput={(e) => {
-                setIntakeText((e.target as HTMLTextAreaElement).value);
-                if (error) setError(null);
-              }}
+        {/* ── Primary Command Center Input (Double-Bezel Architecture) ──────── */}
+        <div className="command-center-outer">
+          <div className="command-center-core">
+            <ArchetypeSelector
+              selectedId={selectedArchetypeId}
+              onSelectArchetype={handleSelectArchetype}
+              onSelectQuickStarter={handleSelectQuickStarter}
               disabled={inFlight || disabled}
             />
 
-            <div className="narrative-telemetry-bar">
-              <div className="telemetry-metrics">
-                <span className="telemetry-counter">
-                  <strong>{wordCount}</strong> words · <strong>{charCount}</strong> chars
-                </span>
-                <span className="telemetry-status">{densityLabel}</span>
-              </div>
-              <div className="telemetry-progress-track" aria-hidden="true">
-                <div
-                  className="telemetry-progress-fill"
-                  style={{ width: `${densityPercent}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {error && <p className="start-error" role="alert">{error}</p>}
-
-          <div className="start-actions-row">
-            <div className="start-actions-left">
-              <p className="start-trust-note">
-                <span className="trust-lock-icon" aria-hidden="true">🔒</span>
-                Private & verified. Nothing is published without your explicit review and stage approval.
-              </p>
-            </div>
-            <div className="start-actions-right">
-              {intakeText.trim().length > 0 && (
-                <button
-                  type="button"
-                  className="btn-text-secondary"
-                  onClick={() => {
-                    setIntakeText("");
-                    setSelectedArchetypeId(null);
+            <form onSubmit={handleSubmit} className="start-form" novalidate>
+              <div className="textarea-tactile-container">
+                <label htmlFor="intake-notes" className="visually-hidden">
+                  Portfolio intake notes
+                </label>
+                <textarea
+                  id="intake-notes"
+                  className="start-textarea"
+                  rows={7}
+                  placeholder="Paste your bio, resume bullets, GitHub links, recent projects, or what you want people to know about your work..."
+                  value={intakeText}
+                  onInput={(e) => {
+                    setIntakeText((e.target as HTMLTextAreaElement).value);
+                    if (error) setError(null);
                   }}
                   disabled={inFlight || disabled}
-                >
-                  Clear notes
-                </button>
-              )}
-              <button
-                type="submit"
-                className="btn-primary start-submit-btn"
-                disabled={inFlight || disabled || !intakeText.trim()}
-              >
-                {inFlight ? (
-                  <>
-                    <span className="btn-spinner" aria-hidden="true" />
-                    <span>Initializing Atelier...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Start my portfolio</span>
-                    <span className="btn-arrow" aria-hidden="true">→</span>
-                  </>
-                )}
-              </button>
-            </div>
+                />
+
+                <div className="narrative-telemetry-bar">
+                  <div className="telemetry-metrics">
+                    <span className="telemetry-counter">
+                      <strong>{wordCount}</strong> words · <strong>{charCount}</strong> chars
+                    </span>
+                    <span className="telemetry-status">{densityLabel}</span>
+                  </div>
+                  <div className="telemetry-progress-track" aria-hidden="true">
+                    <div
+                      className="telemetry-progress-fill"
+                      style={{ width: `${densityPercent}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {error && <p className="start-error" role="alert">{error}</p>}
+
+              <div className="start-actions-row">
+                <div className="start-actions-left">
+                  <span className="start-trust-badge">
+                    <span className="trust-lock-icon" aria-hidden="true">🔒</span>
+                    Private & verified. Nothing is published without your review.
+                  </span>
+                </div>
+                <div className="start-actions-right">
+                  {intakeText.trim().length > 0 && (
+                    <button
+                      type="button"
+                      className="btn-text-secondary"
+                      onClick={() => {
+                        setIntakeText("");
+                        setSelectedArchetypeId(null);
+                      }}
+                      disabled={inFlight || disabled}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn-primary start-submit-btn"
+                    disabled={inFlight || disabled || !intakeText.trim()}
+                  >
+                    {inFlight ? (
+                      <>
+                        <span className="btn-spinner" aria-hidden="true" />
+                        <span>Initializing Discovery...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Start Discovery</span>
+                        <span className="btn-icon-wrapper" aria-hidden="true">
+                          <span className="btn-arrow">→</span>
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       </section>
 
+      {/* ── Below the Fold: Progressive Pipeline Showcase ───────────────────── */}
       <PipelineStagePreview />
     </div>
   );
