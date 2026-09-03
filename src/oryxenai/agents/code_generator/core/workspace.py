@@ -32,6 +32,60 @@ TRUSTED_SHELL_FILES = (
 )
 
 
+def _intended_pack_paths_by_candidate(
+    execution_contract: dict[str, Any] | None,
+) -> dict[tuple[str, str], list[str]]:
+    """Map (provider, candidate id) to the plan-time intended pack paths.
+
+    Only deferred_materialized slots need this -- their resolution's
+    provider/provider_asset_id (or resource_id, when no asset id exists) is
+    exactly the (provider_key, selected_candidate_id) a matching
+    ResourceReceipt carries, since both were built from the same execution
+    slot.
+    """
+
+    if not isinstance(execution_contract, dict):
+        return {}
+    mapping: dict[tuple[str, str], list[str]] = {}
+    for slot in execution_contract.get("slots", []):
+        if not isinstance(slot, dict):
+            continue
+        resolution = slot.get("resolution")
+        if not isinstance(resolution, dict) or resolution.get("resolution_type") != (
+            "deferred_materialized"
+        ):
+            continue
+        provider = str(resolution.get("provider", ""))
+        candidate_id = str(
+            resolution.get("provider_asset_id") or resolution.get("resource_id") or ""
+        )
+        paths = [str(value) for value in resolution.get("local_paths", []) if str(value)]
+        if provider and candidate_id and paths:
+            mapping[(provider, candidate_id)] = paths
+    return mapping
+
+
+def _matching_intended_path(source: Path, intended_paths: list[str]) -> str | None:
+    """Pick the intended path this one materialized file corresponds to.
+
+    Adapters name multi-file resources (e.g. one font file per weight) so the
+    materialized filename ends with the same meaningful suffix the intended
+    path's own filename carries (FontAdapter writes "{sha256}-{variant}.
+    {suffix}" for a variant like "400-normal.woff2"; ComponentSourceAdapter
+    preserves the registry's own relative source path). A single-file
+    resource (one image, one component file) matches its one intended path
+    unambiguously.
+    """
+
+    if len(intended_paths) == 1:
+        return intended_paths[0]
+    source_name = source.name.casefold()
+    for candidate in intended_paths:
+        if source_name.endswith(Path(candidate).name.casefold()):
+            return candidate
+    return None
+
+
 def repository_root() -> Path:
     for parent in Path(__file__).resolve().parents:
         if (parent / "pyproject.toml").is_file() and (parent / "src").is_dir():
@@ -222,9 +276,22 @@ class GenerationWorkspace:
         return copied
 
     def materialize_acquisition_resources(
-        self, ledger: dict[str, Any] | None, materials_root: Path
+        self,
+        ledger: dict[str, Any] | None,
+        materials_root: Path,
+        execution_contract: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Copy receipt-bound Phase 2 materials into this generation workspace."""
+        """Copy receipt-bound Phase 2 materials into this generation workspace.
+
+        A deferred_materialized slot (D-060) was already assigned an intended
+        pack-relative path at plan time -- the compiled tokens/content and any
+        model-authored import already reference exactly that path, the same
+        way they would for a resource Build Preparation embedded directly.
+        Resources with no such intended path (genuine emergent/delegated
+        acquisition, discovered only during generation) keep the existing
+        hash-named "acquired" destination, since nothing upstream could have
+        referenced a path for them yet.
+        """
 
         copied: list[dict[str, Any]] = []
         requests_by_hash = {
@@ -232,10 +299,16 @@ class GenerationWorkspace:
             for item in (ledger or {}).get("requests", [])
             if isinstance(item, dict)
         }
+        intended_paths_by_candidate = _intended_pack_paths_by_candidate(execution_contract)
         for receipt in (ledger or {}).get("receipts", []):
             if not isinstance(receipt, dict) or receipt.get("disposition") != "admitted":
                 continue
             request_hash = str(receipt.get("request_hash", ""))
+            candidate_key = (
+                str(receipt.get("provider_key", "")),
+                str(receipt.get("selected_candidate_id", "")),
+            )
+            intended_paths = intended_paths_by_candidate.get(candidate_key, [])
             for material in receipt.get("materialized_files", []):
                 if not isinstance(material, dict):
                     continue
@@ -247,9 +320,17 @@ class GenerationWorkspace:
                         "A receipt-bound acquired resource is unavailable.",
                     )
                 digest = str(material.get("sha256", ""))
-                suffix = source.suffix.lower() or ".bin"
-                destination_name = f"{digest}{suffix}"
-                destination = self._acquired_destination(source, destination_name)
+                intended = _matching_intended_path(source, intended_paths)
+                if intended is not None:
+                    relative = intended.removeprefix("resources/")
+                    destination = (
+                        (self.repo_dir / "src" / "generated" / "resources" / "pack" / relative)
+                        if relative.startswith("components/")
+                        else (self.repo_dir / "public" / "resources" / "pack" / relative)
+                    ).resolve()
+                else:
+                    suffix = source.suffix.lower() or ".bin"
+                    destination = self._acquired_destination(source, f"{digest}{suffix}")
                 if not destination.is_relative_to(self.repo_dir.resolve()):
                     raise WorkspaceError(
                         "RESOURCE_PATH_UNSAFE", "An acquired resource destination is unsafe."
