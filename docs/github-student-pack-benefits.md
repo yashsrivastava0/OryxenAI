@@ -8,7 +8,11 @@
 
 ## Table of Contents
 1. [Executive Summary: OryxenAI Zero-Cost Production Stack](#1-executive-summary-oryxenai-zero-cost-production-stack)
-2. [OryxenAI Core Architecture Pillar Analysis](#2-oryxenai-core-architecture-pillar-analysis)
+2. [The 5-User Footprint & Zero-Cost Sizing Strategy](#2-the-5-user-footprint--zero-cost-sizing-strategy)
+   - [A. 5-User Architectural Reality Check](#a-5-user-architectural-reality-check)
+   - [B. Zero-Cost Resource Consumption & Runway Math](#b-zero-cost-resource-consumption--runway-math)
+   - [C. Recommended 5-User Zero-Cost Deployment Blueprint](#c-the-recommended-5-user-zero-cost-deployment-blueprint)
+3. [OryxenAI Core Architecture Pillar Analysis](#3-oryxenai-core-architecture-pillar-analysis)
    - [Pillar 1: Cloud Hosting & Compute (Deployment)](#pillar-1-cloud-hosting--compute-deployment)
    - [Pillar 2: Custom Domains, SSL & DNS Management](#pillar-2-custom-domains-ssl--dns-management)
    - [Pillar 3: Database & State Storage](#pillar-3-database--state-storage)
@@ -18,12 +22,12 @@
    - [Pillar 7: Developer IDEs, AI & Productivity](#pillar-7-developer-ides-ai--productivity)
    - [Pillar 8: Visual Assets & Template Design System](#pillar-8-visual-assets--template-design-system)
    - [Pillar 9: Monetization, Communication & Operations](#pillar-9-monetization-communication--operations)
-3. [Complete Master Catalog: All 83 Partner Offers](#3-complete-master-catalog-all-83-partner-offers)
+4. [Complete Master Catalog: All 83 Partner Offers](#4-complete-master-catalog-all-83-partner-offers)
    - [Summary Comparison Matrix](#summary-comparison-matrix)
    - [Tier 1: High Impact for OryxenAI (23 Partners)](#tier-1-high-impact-for-oryxenai)
    - [Tier 2: Medium Utility / Architecture Support (31 Partners)](#tier-2-medium-utility--architecture-support)
    - [Tier 3: Learning, Career & Non-Core Perks (29 Partners)](#tier-3-learning-career--non-core-perks)
-4. [Actionable Activation Checklist & Timing Strategy](#4-actionable-activation-checklist--timing-strategy)
+5. [Actionable Activation Checklist & Timing Strategy](#5-actionable-activation-checklist--timing-strategy)
 
 ---
 
@@ -91,7 +95,149 @@ graph TD
 
 ---
 
-## 2. OryxenAI Core Architecture Pillar Analysis
+## 2. The 5-User Footprint & Zero-Cost Sizing Strategy
+
+### A. 5-User Architectural Reality Check
+
+OryxenAI's native authentication architecture (Phase 1-4) was deliberately designed with a bounded single-tenant capacity gate: `MAX_STANDARD_USERS = 15` (defined in `oryxenai.auth.service`), plus bootstrap administrators. For an operational scale of **maximum 5 users**, the platform operates at **33% of its built-in single-tier gate**, meaning it will never trigger concurrency deadlocks, worker starvation, or connection pool exhaustion.
+
+Here is the exact operational footprint for 5 concurrent users:
+- **Active User Sessions**: 5 distinct users, each with 1 active portfolio session (as strictly enforced by Phase 3 single-portfolio entitlement rules).
+- **Concurrency Load**: In real-world usage, 5 users generate portfolios intermittently. Peak concurrent agent runs will be **1 to 2 jobs simultaneously** at most.
+- **Database Storage Footprint**:
+  - `app_users`: 5 rows (~2 KB).
+  - `portfolio_sessions`: 5 rows, each containing Discovery, Content Architect, and Visual Design Director state (~50 KB JSONB per session = ~250 KB total).
+  - `background_jobs`: Transient job rows that complete and archive (~10-50 rows per generation cycle = < 1 MB).
+  - `agent_runs`: Audit snapshots of model inputs and outputs (~5-10 MB total across all 5 users).
+  - **Total DB Footprint**: **< 20 MB total storage**, which is under 2% of even the smallest free managed database tier.
+- **Object Storage Footprint (Build Preparation ZIP Packs)**:
+  - Each compiled portfolio ZIP pack is between 5 MB and 15 MB.
+  - 5 users generating 2-3 revisions each = 10-15 ZIP archives (~150 MB total).
+  - Disposable staging storage footprint is negligible (< 0.2 GB).
+- **Network & Request Volume**:
+  - The browser chat UI uses lightweight SSE or polling during active generation (~1 request per 1-2 seconds per active user).
+  - For 5 users, maximum peak traffic is < 10 requests/sec, easily handled by a single asynchronous FastAPI worker.
+
+---
+
+### B. Zero-Cost Resource Consumption & Runway Math
+
+By mapping this 5-user footprint to the GitHub Student Developer Pack benefits, the system achieves an incredible **24-month zero-dollar runway**:
+
+| Resource Component | 5-User Daily/Monthly Load | Student Pack Partner & Benefit | Monthly Cost & Quota Utilization | Zero-Cost Runway |
+| :--- | :--- | :--- | :--- | :--- |
+| **API Web Server** (`main.py`) | < 10 req/s peak, ~50MB RAM base | **Heroku** ($13/mo for 24 mo) OR **Azure** Container Apps ($100 credit) | Heroku Eco/Basic Dyno ($5/mo) | **24 Months** (100% covered) |
+| **Background Worker** (`jobs.worker`) | 1-2 concurrent claims, ~100MB RAM | **Heroku** Worker Dyno OR **Azure** Container Apps | Heroku Basic Worker Dyno ($7/mo) | **24 Months** ($12/mo total dynos < $13/mo credit) |
+| **Relational Database** | PostgreSQL 16+, ~20MB storage, 5 conns | **Heroku Postgres Mini** OR **Azure Database for PostgreSQL** Flexible Server | Heroku Mini ($5/mo, credit-covered) OR Azure Free Tier (Burstable B1ms) | **12–24 Months** |
+| **Document Storage** | Optional transcript & schema experimentation | **MongoDB Atlas** ($50 credits + Free Shared M0 Cluster) | Free M0 cluster (512MB free forever) + $50 credit for dedicated bursts | **Indefinite / Permanent** |
+| **Artifact ZIP Storage** | 100–200 MB temporary packs | **Azure Blob Storage** OR **Cloudflare R2** | 5 GB free Azure Blob / 10 GB free R2 | **Permanent Free Tier** |
+| **Offline S3 Testing** | Local dev S3 emulation for tests | **LocalStack Pro** (Free student license) | Unlimited local offline runs | **Active Student Duration** |
+| **Primary Domain & SSL** | 1 production domain + wildcard subdomains | **Namecheap** (.me) + **Name.com** (.dev/.app) | 100% Free 1-year registration + SSL certificates | **12 Months** (renewable with 2nd domain) |
+| **User Portfolio Hosting** | 5 custom portfolio preview sites | **GitHub Pages** (Free static hosting) | Unlimited public/private project sites + custom domains | **Permanent Free Tier** |
+| **Error Tracking** | ~100–500 errors/mo during dev | **Sentry** (50,000 errors/mo, 100k transactions) | Utilizing < 1% of Sentry quota | **12 Months (Renewable)** |
+| **APM & Infrastructure Metrics**| 1 web + 1 worker instance | **Datadog** (10 hosts free for 2 years) | Utilizing only 2 out of 10 host licenses (20% quota) | **24 Months** |
+| **Worker Heartbeat / Uptime** | 1 worker lease check every 30s | **Honeybadger** (Small account free for 1 yr) | Monitors `jobs.worker` heartbeat loop | **12 Months** |
+| **Multi-Viewport Layout QA** | 5 users' custom responsive sites | **Polypane** (Free 1-year individual plan) | Unlimited local side-by-side viewport testing | **12 Months** |
+| **Real Device Testing** | Mobile Safari / Android layout audits | **BrowserStack** (1-yr Automate Mobile) | 1 parallel test runner (sufficient for 5-user pipeline) | **12 Months** |
+| **Secret Management** | Managing LLM keys & DB configs | **Doppler** (Team plan free while student) | Unlimited projects, covers all team seats | **Active Student Duration** |
+
+---
+
+### C. The Recommended 5-User Zero-Cost Deployment Blueprint
+
+For a team or single founder serving up to 5 users, this is the most friction-free, robust architecture to set up:
+
+```mermaid
+flowchart TB
+    subgraph Domain_Layer ["Custom Domains & DNS"]
+        NC["Namecheap: oryxenai.me (Main App)"]
+        ND["Name.com: oryxen.dev (Portfolios & Sandbox)"]
+    end
+
+    subgraph Hosting_Layer ["Cloud Compute (Heroku $13/mo Credit)"]
+        WEB["Heroku Web Dyno ($5/mo)\nFastAPI App (uvicorn)\nAuth & API Routes"]
+        WRK["Heroku Worker Dyno ($7/mo)\njobs.worker Background Queue\nDurable PostgreSQL Polling"]
+    end
+
+    subgraph Data_Layer ["State & Storage"]
+        PG["Heroku Postgres Mini / Azure PG\nportfolio_sessions, background_jobs"]
+        BLOB["Azure Blob Storage / R2\nBuild Prep ZIP Archives (<200MB)"]
+    end
+
+    subgraph Telemetry_Layer ["Telemetry & Secrets (100% Free Student Tiers)"]
+        SEN["Sentry (Error Tracking & Replays)"]
+        DD["Datadog (Worker APM & Tracing)"]
+        DOP["Doppler (Centralized Secret Injection)"]
+    end
+
+    subgraph Portfolio_Distribution ["Generated Portfolio Showcases (5 Users)"]
+        GHP["GitHub Pages\nuser1.oryxen.dev, user2.oryxen.dev"]
+    end
+
+    NC --> WEB
+    ND --> WEB
+    WEB --> PG
+    WRK --> PG
+    WRK --> BLOB
+    WEB --> GHP
+    WEB -.-> SEN
+    WRK -.-> SEN
+    WRK -.-> DD
+    DOP -.-> WEB
+    DOP -.-> WRK
+```
+
+#### Step 1: Compute (FastAPI & Worker on Heroku)
+- Create a `Procfile` in the project root:
+  ```text
+  web: uv run uvicorn oryxenai.main:app --host 0.0.0.0 --port $PORT
+  worker: uv run python -m oryxenai.jobs.worker
+  ```
+- Deploy to Heroku using the Git integration or Heroku CLI.
+- Apply the GitHub Student Pack Heroku credit ($13/month for 24 months).
+- Provision one **Basic Web Dyno** ($5/mo) and one **Basic Worker Dyno** ($7/mo). Total: $12/month (fully absorbed by the $13 monthly credit with $1/mo buffer).
+
+#### Step 2: Database (PostgreSQL)
+- Attach **Heroku Postgres Mini** ($5/mo) or connect to an **Azure Database for PostgreSQL Flexible Server** (utilizing the $100 Azure credit).
+- Run migrations:
+  ```powershell
+  uv run alembic upgrade head
+  ```
+- The database easily accommodates the 5 users' sessions, job queue locks, and run histories with sub-10ms query latency.
+
+#### Step 3: Domains & SSL
+- Claim your free domain from **Namecheap** (`oryxenai.me`) or **Name.com** (`oryxen.dev`).
+- Point DNS `CNAME` or `A` records to your Heroku app URL (`your-app.herokuapp.com`).
+- Enable Heroku's Automated Certificate Management (ACM) for free, automated SSL.
+- Set up wildcard or subdomain routing (e.g., `user1.oryxen.dev`, `user2.oryxen.dev`) or configure **GitHub Pages** to host static exports of client portfolios.
+
+#### Step 4: Storage & Offline Emulation
+- For production: Configure **Azure Blob Storage** (using the Azure student account) or Cloudflare R2 for storing temporary Build Preparation ZIP packs.
+- For local testing: Use **LocalStack Pro** (free student license) in `compose.yaml` to emulate AWS S3 on your laptop, executing test suites completely offline without incurring network egress or spending credits.
+
+#### Step 5: Observability & Heartbeat
+- Install `sentry-sdk` in OryxenAI:
+  ```python
+  import sentry_sdk
+  sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=1.0)
+  ```
+- Install the Datadog agent on your Dynos or configure Honeybadger to monitor the worker heartbeat in `src/oryxenai/jobs/worker.py`. If a worker stops claiming jobs, Honeybadger alerts you via email/Slack immediately.
+
+#### Step 6: Multi-Viewport Quality Verification
+- When the Code Generator agent generates a portfolio, open the preview URL in **Polypane**.
+- Polypane instantly renders the site in 4 viewports side by side (375px mobile, 768px tablet, 1280px desktop, and 1920px widescreen) and verifies WCAG contrast compliance, broken CSS tags, and mobile layout overflows before finalizing the build.
+- For physical device verification, trigger **BrowserStack Automate Mobile** to render the portfolio on a real iPhone 15 and Samsung Galaxy device.
+
+#### Step 7: Secrets Management
+- Import all secrets (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DATABASE_URL`, `SUPABASE_JWT_SECRET`) into **Doppler** under a project named `oryxenai`.
+- Inject secrets safely without local `.env` files:
+  ```powershell
+  doppler run -- uv run uvicorn oryxenai.main:app
+  ```
+
+---
+
+## 3. OryxenAI Core Architecture Pillar Analysis
 
 ### Pillar 1: Cloud Hosting & Compute (Deployment)
 OryxenAI requires two distinct runtime compute components: the synchronous HTTP FastAPI server (`main.py`) and the asynchronous polling background worker process (`jobs.worker`).
@@ -213,7 +359,7 @@ In a distributed agent architecture with long-running LLM tasks and background w
 
 ---
 
-## 3. Complete Master Catalog: All 83 Partner Offers
+## 4. Complete Master Catalog: All 83 Partner Offers
 
 Every single partner benefit included in the GitHub Student Developer Pack is cataloged below, complete with official descriptions, specific terms, category tags, and our tailored analysis for **OryxenAI**.
 
@@ -865,7 +1011,7 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 
 ---
 
-## 4. Actionable Activation Checklist & Timing Strategy
+## 5. Actionable Activation Checklist & Timing Strategy
 
 ### A. Claim Immediately (Zero Expiration Risk)
 These offers remain active for your entire tenure as a verified student and do not burn down a countdown clock upon activation:
