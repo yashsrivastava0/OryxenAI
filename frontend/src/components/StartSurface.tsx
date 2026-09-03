@@ -147,7 +147,9 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
               <div className="start-actions-row">
                 <div className="start-actions-left">
                   <span className="start-trust-badge">
-                    <span className="trust-lock-icon" aria-hidden="true">🔒</span>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className="trust-lock-svg">
+                      <path fillRule="evenodd" d="M4 4a4 4 0 0 1 8 0v2h.25c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25v-5.5C2 6.784 2.784 6 3.75 6H4V4Zm1.5 2h5V4a2.5 2.5 0 0 0-5 0v2Z" clipRule="evenodd" />
+                    </svg>
                     Private workspace. Nothing is built or published without your approval.
                   </span>
                 </div>
