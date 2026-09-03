@@ -47,11 +47,13 @@ h1, h2, h3, h4 {
   color: var(--ink);
   margin-top: 0;
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 p {
   margin: 0 0 var(--space-4);
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .eyebrow {
@@ -378,11 +380,27 @@ button {
   width: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.start-hero-section::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(840px, 90vw);
+  height: 360px;
+  background: radial-gradient(ellipse 60% 45% at 50% 30%, rgba(59, 130, 246, 0.08), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .start-hero-header {
   text-align: center;
   margin-bottom: var(--space-3);
+  position: relative;
+  z-index: 1;
 }
 
 .hero-status-beacon {
@@ -447,6 +465,8 @@ button {
 
 /* Double-Bezel Command Center Enclosure */
 .command-center-outer {
+  position: relative;
+  z-index: 1;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--rule);
   border-radius: 20px;
@@ -940,25 +960,25 @@ button {
   }
 }
 
-/* ── Pipeline Showcase Section ──────────────────────────────────────────── */
+/* ── Pipeline Showcase Section (Bento 2.0 Architecture) ─────────────────── */
 
 .pipeline-showcase-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: clamp(24px, 4vw, 44px);
+  gap: var(--space-4);
+  padding: clamp(20px, 3.5vw, 36px);
   background: var(--paper-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--rule);
   border-radius: var(--radius-frame);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.65);
 }
 
 .pipeline-showcase-header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
   margin-bottom: var(--space-2);
 }
 
@@ -967,7 +987,7 @@ button {
   align-items: center;
   gap: 7px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--signal);
@@ -978,63 +998,105 @@ button {
   height: 6px;
   border-radius: 50%;
   background: var(--signal);
+  box-shadow: 0 0 6px var(--signal);
+  animation: beaconPulse 2.4s infinite ease-in-out;
 }
 
 .pipeline-showcase-title {
   font-family: var(--font-display);
-  font-size: clamp(1.4rem, 2.5vw, 1.85rem);
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
   font-weight: 700;
   color: var(--ink);
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 .pipeline-showcase-subtitle {
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--graphite);
   margin: 0;
-  max-width: 580px;
+  max-width: 65ch;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
-.pipeline-showcase-grid {
+/* ── Bento 2.0 Grid ──────────────────────────────────────────────────────── */
+
+.pipeline-bento-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(12, 1fr);
   gap: var(--space-3);
 }
 
-.pipeline-showcase-card {
+.pipeline-bento-card {
   background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--rule);
   border-radius: var(--radius-sheet);
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  transition: all var(--duration-fast) var(--ease-spring);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.pipeline-showcase-card:hover {
+.pipeline-bento-card:hover {
   transform: translateY(-2px);
-  border-color: var(--rule-active);
+  border-color: rgba(59, 130, 246, 0.4);
   background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 14px 32px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-.pipeline-card-top {
+/* Asymmetric Bento Span Distribution: Top Row 3x4 | Bottom Row 2x6 */
+.bento-01 { grid-column: span 4; }
+.bento-02 { grid-column: span 4; }
+.bento-03 { grid-column: span 4; }
+.bento-04 { grid-column: span 6; }
+.bento-05 { grid-column: span 6; }
+
+@media (max-width: 900px) {
+  .bento-01, .bento-02, .bento-03 { grid-column: span 6; }
+  .bento-04, .bento-05 { grid-column: span 6; }
+}
+
+@media (max-width: 640px) {
+  .pipeline-bento-card { grid-column: span 12 !important; }
+}
+
+.bento-card-header {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
 }
 
-.pipeline-stage-number {
+.bento-stage-ident {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bento-stage-code {
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: 10px;
   font-weight: 800;
   color: var(--signal);
+  background: var(--signal-subtle);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
 }
 
-.pipeline-stage-discipline {
+.bento-discipline-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--graphite);
@@ -1042,39 +1104,83 @@ button {
   letter-spacing: 0.06em;
 }
 
-.pipeline-stage-name {
+.bento-discipline-tag svg {
+  color: var(--graphite-dim);
+  flex-shrink: 0;
+}
+
+.bento-number-watermark {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.05);
+  line-height: 1;
+  user-select: none;
+}
+
+.bento-stage-name {
   font-family: var(--font-display);
   font-size: 15px;
   font-weight: 700;
   color: var(--ink);
-  margin: 0;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
 }
 
-.pipeline-stage-outcome {
+.bento-stage-outcome {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--graphite);
   margin: 0;
   flex: 1;
+  text-wrap: pretty;
 }
 
-.pipeline-card-bottom {
-  margin-top: 8px;
-  padding-top: 8px;
+.bento-card-footer {
+  margin-top: auto;
+  padding-top: var(--space-3);
   border-top: 1px dashed var(--rule-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
-.pipeline-stage-badge {
+.bento-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
   color: var(--ink-secondary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--rule-subtle);
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: inline-block;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
   letter-spacing: 0.04em;
+}
+
+.bento-pip-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--positive);
+  box-shadow: 0 0 6px var(--positive);
+  animation: beaconPulse 1.8s infinite ease-in-out;
+}
+
+.bento-pip-active {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 6px var(--signal);
+  animation: beaconPulse 1.4s infinite ease-in-out;
+}
+
+.trust-lock-svg {
+  color: var(--graphite);
+  flex-shrink: 0;
 }
 
 /* ── ConversationSurface ───────────────────────────────────────────────── */
