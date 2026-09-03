@@ -92,11 +92,8 @@ export function ArchetypeSelector({
 }: ArchetypeSelectorProps) {
   return (
     <div className="archetype-control-bar" aria-label="Role archetypes">
-      <div className="archetype-chips-header">
-        <span className="archetype-chips-title">Start with a role template or paste your own notes:</span>
-      </div>
-
-      <div className="archetype-chips-row" role="radiogroup" aria-label="Role template chips">
+      <div className="archetype-segmented-track" role="radiogroup" aria-label="Role template chips">
+        <span className="archetype-lead-label">TEMPLATE:</span>
         {ARCHETYPES.map((arch) => {
           const isSelected = selectedId === arch.id;
           return (
@@ -108,18 +105,18 @@ export function ArchetypeSelector({
               disabled={disabled}
               role="radio"
               aria-checked={isSelected}
-              title={arch.tagline}
+              title={`${arch.title} — ${arch.tagline}`}
             >
               <span className="archetype-chip-code">{arch.code}</span>
-              <span className="archetype-chip-name">{arch.title}</span>
+              <span className="archetype-chip-name">{arch.shortLabel}</span>
               {isSelected && <span className="archetype-chip-dot" aria-hidden="true" />}
             </button>
           );
         })}
       </div>
 
-      <div className="quick-focus-row">
-        <span className="quick-focus-label">Quick focus:</span>
+      <div className="quick-focus-strip" aria-label="Quick focus suggestions">
+        <span className="quick-focus-label">FOCUS:</span>
         <div className="quick-focus-pills">
           {QUICK_STARTERS.map((prompt, idx) => (
             <button
@@ -129,7 +126,7 @@ export function ArchetypeSelector({
               onClick={() => onSelectQuickStarter(prompt)}
               disabled={disabled}
             >
-              + {prompt}
+              + {prompt.split(" ")[0]}
             </button>
           ))}
         </div>

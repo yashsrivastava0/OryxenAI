@@ -2,7 +2,7 @@ import type { DesignViewModel } from "../../data/adapters/design";
 import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
 import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
-import { LivingDraftMark } from "../../components/LivingDraftMark";
+import { ProgressSurface } from "../../components/ProgressSurface";
 
 export interface DesignStageProps {
   view: DesignViewModel | null;
@@ -57,13 +57,16 @@ export function DesignStage({
 
   if (view.state === "working") {
     return (
-      <div className="stage-working-panel" role="status">
-        <LivingDraftMark active={true} />
-        <h2>{view.statusText}</h2>
-        <p className="stage-desc">
-          The agent is establishing visual language, styling systems, and page-level layouts.
-        </p>
-      </div>
+      <ProgressSurface
+        stageLabel="Stage 03 / Visual Design Director"
+        title="Directing Visual Language & Experience"
+        currentMilestone={view.statusText || "Synthesizing design language & layout candidates"}
+        milestones={[
+          { id: "content", label: "Ingesting approved content architecture", state: "complete" },
+          { id: "thesis", label: "Establishing creative thesis & aesthetic tokens", state: "current" },
+          { id: "catalogue", label: "Selecting adapted layout candidates from catalogue", state: "quiet" },
+        ]}
+      />
     );
   }
 
