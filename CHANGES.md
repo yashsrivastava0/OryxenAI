@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-03 11:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [13cc78b] - stop Build Preparation packs from expiring in practice
+
+D-009's 3-day TTL existed to bound storage cost/cleanup for packs that embedded real image/font/component bytes -- D-060 made packs compact references instead (measured 68KB, down from 1.1MB), so the original rationale is now largely moot, and the TTL had repeatedly forced regenerating a pack mid-session purely to keep testing. Raised `bundle_ttl_days` from 3 to 36500 (100 years) in `config/app.toml` and its Pydantic default -- all existing enforcement (`PACK_EXPIRED`, `BUILD_PREPARATION_ARTIFACT_EXPIRED`, the packs-listing eligibility computation) is unchanged code; only the configured horizon moved. Recorded D-061 as a partial revision of D-009. 925 unit tests pass; ruff/mypy clean.
+
 ### 2026-09-03 11:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [6bd8a2d] - land deferred resources at their planned pack path
 
 A resumed live run reached generate and hit `FOUNDATION_SOURCE_CHECK_FAILED` -- a third real bug from this same D-060 pass, and a genuine gap in Track 1 itself. `write_generated_tokens` compiles `generated-tokens.css`'s `@font-face` rules directly from `plan.execution_bindings.local_paths`, correctly assuming a `resources/...` path already sits under `public/resources/pack/...` because Build Preparation shipped the bytes and `materialize_pack_resources()` copied them there verbatim -- but `materialize_acquisition_resources()` (which places bytes Code Generator itself fetches) always wrote to a hash-named `acquired` destination that nothing upstream ever referenced, so a deferred font's compiled CSS pointed at a path that didn't exist. Added `_intended_pack_paths_by_candidate()` (looks up a receipt's matching `deferred_materialized` slot by `(provider, candidate id)`) and `_matching_intended_path()` (pairs a materialized file to its one intended path, or by filename-suffix for a multi-file resource like a font's four weights); a resource with no matching slot (genuine emergent/delegated discovery) keeps the prior hash-named fallback, unchanged. Updated both call sites (initial generation, repair-round restore) to pass the execution contract through. 3 new tests; 925 unit tests and 12 integration tests pass; ruff/mypy clean.
@@ -77,17 +81,12 @@ Added static `public/_redirects` file so every generated build serves `index.htm
 ### 2026-09-02 15:33 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [375aae3] - thread image alt-text and placement into usage_contract
 Extended materialized-image `usage_contract` with `alt_text`, `focal_point`, `placement`, and `decorative`. Verified with 14 unit tests.
 
-### 2026-09-02 14:00 +05:30 - Codex (GPT-5 / OpenAI) - [280982e] - expand frontend research and implementation blueprint
-Added two focused frontend documents preserving evidence and defining exact route, API, adapter, component, recovery, accessibility, performance, test, and rollout contracts.
-
-### 2026-09-02 13:17 +05:30 - Codex (GPT-5 / OpenAI) - [ae17373] - frontend research and product experience direction
-Added a four-document frontend research package covering authenticated journey, information architecture, status and edge-case mapping, Preview UX, visual system, and performance budgets.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-02 - Codex (GPT-5 / OpenAI) - [280982e, ae17373] - Frontend research package and implementation blueprint (authenticated journey, information architecture, route/API/adapter/component contracts, Preview UX, visual system, performance/rollout budgets).
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [e8c6b55, 749022f, d971764, 08633e6, 97cdada, dfce00f, c0c1f67, a622d7d, 5f4be9a, b760acb] - Hardened Code Generator V4 admission, distinctive move floors, structural sameness detection, shadcn Tailwind v4 theme bridge, and retired legacy resource filenames.
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [1cf313f] - Final verification repair usage is bounded by diagnostic group with a shared run-wide ceiling and fail-closed V4 repair responses.
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [234a05d] - Restored dedicated Code Generator role profile bindings while keeping routing provider-neutral and configuration-owned.
@@ -243,8 +242,8 @@ Added a four-document frontend research package covering authenticated journey, 
 
 ---
 
-## Summary (as of last compaction — 2026-09-02)
+## Summary (as of last compaction — 2026-09-03)
 
-- Recent detailed entries retained: 22
-- Compacted milestone bullets: 134
-- Last updated: 2026-09-02 — Codex (GPT-5 / OpenAI)
+- Recent detailed entries retained: 20
+- Compacted milestone bullets: 135
+- Last updated: 2026-09-03 — Claude Code (Sonnet 5 / Anthropic)
