@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-03 11:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [5b4a33c] - fetch one optimized image for a deferred candidate
+
+A retried generate stage hit `SOURCE_TOTAL_TOO_LARGE` (8MB ceiling) -- a fourth real bug from this same D-060 pass. `ImageAdapter`'s shared `materialize()` unconditionally pre-generates 8 responsive width/format renditions per image, designed for genuine emergent acquisition where nothing downstream has a rendition set yet -- but for a `deferred_materialized` image, Build Preparation already decided and verified exactly one candidate, and `_materialize_image_assets()` already generates the responsive set locally from a single acquired file, identical to a pack-embedded image. Pre-rendering 8 variants on top of that was pure duplication (6 real photos alone totaled ~8.3MB). Extracted the existing single-file write logic into `_write_single_file()`, reused by non-image categories (unchanged) and a new `technical_metadata["single_rendition_only"]` branch `_build_deferred_requests` now sets for every deferred image. New tests in both `test_resource_adapters.py` and `test_code_generator_deferred_requests.py`; 926 unit tests pass; ruff/mypy clean.
+
 ### 2026-09-03 11:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [13cc78b] - stop Build Preparation packs from expiring in practice
 
 D-009's 3-day TTL existed to bound storage cost/cleanup for packs that embedded real image/font/component bytes -- D-060 made packs compact references instead (measured 68KB, down from 1.1MB), so the original rationale is now largely moot, and the TTL had repeatedly forced regenerating a pack mid-session purely to keep testing. Raised `bundle_ttl_days` from 3 to 36500 (100 years) in `config/app.toml` and its Pydantic default -- all existing enforcement (`PACK_EXPIRED`, `BUILD_PREPARATION_ARTIFACT_EXPIRED`, the packs-listing eligibility computation) is unchanged code; only the configured horizon moved. Recorded D-061 as a partial revision of D-009. 925 unit tests pass; ruff/mypy clean.
@@ -75,17 +79,12 @@ Persisted `repair_rounds` updated to `budget.total_used` on every consumed round
 ### 2026-09-02 15:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [d3cc095] - retry final repair within budget after cannot_complete
 `_attempt_repair` now loops on `FinalRepairError` until `RepairBudget.can_attempt` is exhausted. Recorded D-058.
 
-### 2026-09-02 15:41 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [082d179] - add SPA fallback redirects to the react-vite-v1 scaffold
-Added static `public/_redirects` file so every generated build serves `index.html` for deep-linked or refreshed routes on Netlify/Cloudflare Pages.
-
-### 2026-09-02 15:33 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [375aae3] - thread image alt-text and placement into usage_contract
-Extended materialized-image `usage_contract` with `alt_text`, `focal_point`, `placement`, and `decorative`. Verified with 14 unit tests.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-02 - Claude Code (Sonnet 5 / Anthropic) - [082d179, 375aae3] - Added SPA fallback redirects to the react-vite-v1 scaffold and threaded image alt-text/focal-point/placement into usage_contract (the first two of the seven pre-D-060 live-run fixes).
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [280982e, ae17373] - Frontend research package and implementation blueprint (authenticated journey, information architecture, route/API/adapter/component contracts, Preview UX, visual system, performance/rollout budgets).
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [e8c6b55, 749022f, d971764, 08633e6, 97cdada, dfce00f, c0c1f67, a622d7d, 5f4be9a, b760acb] - Hardened Code Generator V4 admission, distinctive move floors, structural sameness detection, shadcn Tailwind v4 theme bridge, and retired legacy resource filenames.
 - 2026-09-02 - Codex (GPT-5 / OpenAI) - [1cf313f] - Final verification repair usage is bounded by diagnostic group with a shared run-wide ceiling and fail-closed V4 repair responses.
@@ -245,5 +244,5 @@ Extended materialized-image `usage_contract` with `alt_text`, `focal_point`, `pl
 ## Summary (as of last compaction — 2026-09-03)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 135
+- Compacted milestone bullets: 136
 - Last updated: 2026-09-03 — Claude Code (Sonnet 5 / Anthropic)
