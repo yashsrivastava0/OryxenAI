@@ -739,12 +739,11 @@ def normalize_visual_input(
     # acquisition set; provider and per-role materialization limits remain the
     # operational safeguards.
     if enabled and not explicit_prohibition:
-        for ordinal, (route, page, section_id, scene_id, role_name) in enumerate(
+        for ordinal, (_route, page, section_id, scene_id, role_name) in enumerate(
             _ordered_descriptors(descriptors)
         ):
             role_spec = next(item for item in _IMAGE_ROLE_SPECS if item[0] == role_name)
-            route_id = str(route["route_id"])
-            asset_id = f"assumed-image:{route_id}:{section_id}:{ordinal}"
+            asset_id = f"assumed-image:{section_id}:{ordinal}"
             if asset_id in existing_assets:
                 continue
             _, purpose, terms, mood, orientation, aspect_ratio = role_spec
@@ -805,7 +804,7 @@ def normalize_visual_input(
             route_id = str(intent["route_id"])
             section_id = str(intent["section_id"])
             role_id = str(intent["role_id"])
-            resource_id = f"assumed-component:{route_id}:{section_id}:{role_id}"
+            resource_id = f"assumed-component:{section_id}:{role_id}"
             if resource_id in existing_resources:
                 continue
             resource = {
