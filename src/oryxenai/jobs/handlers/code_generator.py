@@ -1645,6 +1645,16 @@ def _build_deferred_requests(
         # so an unrecognized category still gets a best-effort direct URL.
         technical_metadata: dict[str, Any] = {}
         canonical_source = str(resolution.get("direct_source_url", "")) or source_reference
+        if category == "image":
+            # Build Preparation already decided and verified exactly this one
+            # image; ImageAdapter must fetch and optimize the single decided
+            # file, not pre-generate a full responsive rendition set the
+            # generated-source size budget was never sized to hold several of
+            # at once (confirmed live: 6 photos x 8 renditions each overflows
+            # the ceiling). The existing pack_image_renditions path generates
+            # the responsive set locally from this one file downstream,
+            # exactly as it already does for a pack-embedded image.
+            technical_metadata = {"single_rendition_only": True}
         if category == "font":
             technical_metadata = {"font_urls": dict(resolution.get("direct_source_urls", {}) or {})}
         elif category == "component_source":

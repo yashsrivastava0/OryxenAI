@@ -132,6 +132,10 @@ def test_deferred_slot_becomes_a_pinned_request_with_no_search_needed() -> None:
     # No direct_source_url in this fixture -- falls back to source_reference.
     assert candidate.canonical_source == "https://www.pexels.com/photo/1"
     assert candidate.licence == "Pexels License"
+    # ImageAdapter must fetch and optimize this one already-decided image,
+    # not pre-generate a full responsive set on top of the local rendition
+    # generation downstream already performs from a single file.
+    assert candidate.technical_metadata == {"single_rendition_only": True}
 
 
 def test_image_candidate_prefers_the_direct_fetch_url_over_the_page_url() -> None:
