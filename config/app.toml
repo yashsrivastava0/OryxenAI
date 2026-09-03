@@ -269,7 +269,15 @@ integration_profile = "code_generator_integrator"
 repair_profile = "code_generator_repairer"
 max_file_bytes = 262144
 max_response_bytes = 2097152
-max_source_bytes = 8388608
+# A real portfolio's own responsive image renditions (generated locally from
+# one fetched original per photo, whether pack-embedded or D-060 deferred --
+# see _pack_image_renditions) are real, necessary output, not runaway
+# generation: a single six-photo route measured ~10-13MB of legitimate
+# renditions plus generated JS/CSS/content. The prior 8MB ceiling had never
+# been exercised against a real, full-content pack before this session's
+# live-verification pass. This still bounds genuinely unbounded generation;
+# it is not a size an ordinary multi-route portfolio should ever approach.
+max_source_bytes = 33554432
 max_request_rounds = 4
 max_repair_rounds_per_unit = 3
 max_repair_rounds_total = 6
