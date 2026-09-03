@@ -1,8 +1,9 @@
 """In-process, file-backed monitoring for detached Build Preparation fixture runs.
 
 This development-only manager deliberately does not use the durable production
-job queue.  It gives the fixture UI immediate progress while retaining a safe,
-timestamped diagnostic report and local pack in the ignored ``output/`` tree.
+job queue. It gives the fixture UI immediate progress while retaining a safe,
+timestamped diagnostic report and the two Markdown briefs in the ignored
+``output/`` tree.
 """
 
 from __future__ import annotations
@@ -73,56 +74,48 @@ def _issue_from_error(exc: Exception) -> dict[str, Any]:
     message = str(getattr(exc, "message", str(exc)) or "Build Preparation fixture failed.")
     messages = {
         "PROVIDER_CONNECTION_ERROR": (
-            "The configured model provider could not be reached while composing resource queries."
+            "The configured model provider could not be reached while composing the visual brief."
         ),
         "PROVIDER_TIMEOUT_ERROR": (
-            "The configured model provider timed out while composing resource queries."
+            "The configured model provider timed out while composing the visual brief."
         ),
         "PROVIDER_AUTH_ERROR": (
-            "The configured model provider rejected its API key while composing resource queries."
+            "The configured model provider rejected its API key while composing the visual brief."
         ),
         "PROVIDER_RATE_LIMIT_ERROR": (
-            "The configured model provider rate-limited resource-query composition."
+            "The configured model provider rate-limited visual-brief composition."
         ),
         "PROVIDER_SERVER_ERROR": (
-            "The configured model provider returned a server error while composing resource queries."
+            "The configured model provider returned a server error while composing the visual brief."
         ),
     }
     message = messages.get(code, message)
     actions = {
-        "ARTIFACT_STORAGE_CREDENTIALS_MISSING": (
-            "Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in .env, then recreate the app container."
-        ),
         "FIXTURE_MODEL_UNAVAILABLE": (
             "Check the configured Build Preparation model profile and its API-key environment variable."
         ),
         "PROVIDER_CONNECTION_ERROR": (
-            "The live model endpoint could not be reached. Check worker DNS, proxy/firewall access, and the configured model profile endpoint, then retry."
+            "The live model endpoint could not be reached. Check network access and the configured "
+            "model profile endpoint, then retry."
         ),
         "PROVIDER_TIMEOUT_ERROR": (
-            "The live model endpoint timed out. Check worker network access or increase the configured provider timeout, then retry."
+            "The live model endpoint timed out. Check network access or increase the configured "
+            "provider timeout, then retry."
         ),
         "PROVIDER_AUTH_ERROR": (
-            "The live model provider rejected the API key. Verify the configured key environment variable and provider account, then retry."
+            "The live model provider rejected the API key. Verify the configured key environment "
+            "variable and provider account, then retry."
         ),
         "PROVIDER_RATE_LIMIT_ERROR": (
-            "The live model provider rate-limited this run. Wait for the provider window to reset, then retry once."
+            "The live model provider rate-limited this run. Wait for the provider window to reset, "
+            "then retry once."
         ),
-        "PROVIDER_SERVER_ERROR": (
-            "The live model provider returned a server error. Retry after the provider recovers."
-        ),
+        "PROVIDER_SERVER_ERROR": "The live model provider returned a server error. Retry after the provider recovers.",
         "BUILD_PREPARATION_MODEL_OUTPUT_INVALID": (
             "Inspect the returned model output in the issue report and retry with the same approved inputs."
         ),
         "FIXTURE_INPUT_INVALID": "Confirm the pasted Visual Design Director and Content Architect values are JSON objects.",
         "FIXTURE_INPUT_TOO_LARGE": "Reduce the pasted fixture payload to the configured input-size limit.",
-        "BUILD_PACK_V2_CONTENT_ROUTES_NONE_APPROVED": (
-            "Content Architect approved no publishable routes. Revise or re-run Content Architect so at "
-            "least one route has publication_status 'approved', re-approve it, then re-run Build Preparation."
-        ),
-        "BUILD_PACK_V2_CONTENT_ROUTES_EMPTY": (
-            "Content Architect produced no route_plan. Re-run Content Architect before Build Preparation."
-        ),
     }
     return {
         "code": code,
@@ -160,25 +153,26 @@ class FixtureRunRecord:
         return self.result_root / "result.json"
 
     @property
-    def archive_path(self) -> Path:
-        return self.result_root / "build-pack.zip"
+    def content_brief_path(self) -> Path:
+        return self.result_root / "content-and-narrative-brief.md"
 
     @property
-    def build_context_path(self) -> Path:
-        return self.result_root / "build-context"
+    def visual_brief_path(self) -> Path:
+        return self.result_root / "visual-and-build-brief.md"
 
     def local_result(self) -> dict[str, Any]:
         return {
-            "status": "ready" if self.build_context_path.is_dir() else "pending",
+            "status": "ready" if self.content_brief_path.is_file() else "pending",
             "result_folder": _relative(self.result_root),
-            "build_context_folder": _relative(self.build_context_path),
-            "archive_path": _relative(self.archive_path),
-            "archive_available": self.archive_path.is_file(),
+            "content_brief_path": _relative(self.content_brief_path),
+            "visual_brief_path": _relative(self.visual_brief_path),
+            "content_brief_available": self.content_brief_path.is_file(),
+            "visual_brief_available": self.visual_brief_path.is_file(),
         }
 
     def report(self) -> dict[str, Any]:
         return {
-            "schema_version": "fixture-run-diagnostics-v2",
+            "schema_version": "fixture-run-diagnostics-v3",
             "run_id": self.run_id,
             "status": self.status,
             "current_stage": self.current_stage,
@@ -196,14 +190,16 @@ class FixtureRunRecord:
         }
 
     def public(self) -> dict[str, Any]:
+        base_download = f"/api/v1/build-preparation/fixture/runs/{self.run_id}/download"
         return {
             **self.report(),
             "result": self.result,
             "details_url": f"/build-preparation-fixture/progress?run={self.run_id}",
-            "download_url": (
-                f"/api/v1/build-preparation/fixture/runs/{self.run_id}/download"
-                if self.archive_path.is_file()
-                else ""
+            "content_brief_download_url": (
+                f"{base_download}?doc=content" if self.content_brief_path.is_file() else ""
+            ),
+            "visual_brief_download_url": (
+                f"{base_download}?doc=visual" if self.visual_brief_path.is_file() else ""
             ),
         }
 
@@ -211,73 +207,30 @@ class FixtureRunRecord:
 def _result_summary(result: dict[str, Any] | None) -> dict[str, Any]:
     if not result:
         return {}
-    raw_package = result.get("package")
-    package = raw_package if isinstance(raw_package, dict) else {}
-    raw_materialization = result.get("materialization")
-    materialization = raw_materialization if isinstance(raw_materialization, dict) else {}
-    raw_handoff = result.get("handoff_report")
-    handoff = raw_handoff if isinstance(raw_handoff, dict) else {}
-    qualifications = result.get("candidate_qualifications")
-    qualified_count = (
-        sum(1 for item in qualifications if isinstance(item, dict) and item.get("eligible"))
-        if isinstance(qualifications, list)
-        else 0
-    )
-    selection_plan = result.get("selection_plan")
-    selections = selection_plan.get("selections", []) if isinstance(selection_plan, dict) else []
-    resources = materialization.get("resources", [])
-    real_images = sum(
+    resource_index = result.get("resource_index") or []
+    component_index = result.get("component_index") or []
+    resolved_resources = sum(
         1
-        for item in resources
-        if isinstance(item, dict)
-        and item.get("kind") == "photo"
-        and item.get("disposition") in {"local_file", "deferred_materialized"}
-        and item.get("provider") != "generated-local"
+        for item in resource_index
+        if isinstance(item, dict) and item.get("status") == "candidates_found"
     )
-    real_components = sum(
-        1
-        for item in resources
-        if isinstance(item, dict)
-        and item.get("kind") == "component"
-        and item.get("disposition") in {"adaptable_source", "deferred_materialized"}
-        and item.get("provider") != "generated-local"
+    resolved_components = sum(
+        1 for item in component_index if isinstance(item, dict) and item.get("suggestions")
     )
     return {
-        "stage": result.get("stage", ""),
         "route_count": len(result.get("routes", []) or []),
         "resource_need_count": len(result.get("resource_needs", []) or []),
-        "candidate_count": len(result.get("fetched_candidates", []) or []),
-        "qualified_candidate_count": qualified_count,
-        "selected_resource_count": sum(
-            1 for item in selections if isinstance(item, dict) and item.get("selected_resource_id")
-        ),
-        "materialized_file_count": len(materialization.get("files", []) or []),
-        "real_image_count": real_images,
-        "real_component_count": real_components,
+        "resource_role_count": len(resource_index),
+        "resource_roles_with_candidates": resolved_resources,
+        "component_role_count": len(component_index),
+        "component_roles_with_suggestions": resolved_components,
         "provider_calls": result.get("provider_calls", 0),
-        "provider_cache_hits": result.get("provider_cache_hits", 0),
-        "provider_rate_limit_events": result.get("provider_rate_limit_events", 0),
-        "provider_cooldown_skips": result.get("provider_cooldown_skips", 0),
-        "deferred_optional_roles": (
-            handoff.get("handoff_summary", {}).get("deferred_optional_roles", [])
-            if isinstance(handoff.get("handoff_summary"), dict)
-            else []
-        ),
+        "model_calls": result.get("model_calls", 0),
         "visual_input_mode": result.get("visual_input_mode", "approved_vdd"),
         "assumption_hash": result.get("assumption_hash", ""),
-        "image_target": handoff.get("handoff_summary", {}).get("image_target", 0)
-        if isinstance(handoff.get("handoff_summary"), dict)
-        else 0,
-        "component_target": handoff.get("handoff_summary", {}).get("component_target", 0)
-        if isinstance(handoff.get("handoff_summary"), dict)
-        else 0,
-        "model_calls": result.get("model_calls", 0),
-        "execution_gap_count": len(materialization.get("execution_gaps", []) or []),
-        "handoff_eligible": bool(handoff.get("handoff_eligible", False)),
-        "handoff_status": str(handoff.get("status", "needs_attention")),
-        "handoff_issue_count": len(handoff.get("issues", []) or []),
-        "archive_sha256": package.get("archive_sha256", ""),
-        "archive_size_bytes": package.get("archive_size_bytes", 0),
+        "content_brief_length": len(str(result.get("content_brief_markdown", ""))),
+        "visual_brief_length": len(str(result.get("visual_brief_markdown", ""))),
+        "warning_count": len(result.get("warnings", []) or []),
     }
 
 
@@ -336,16 +289,6 @@ class FixtureRunManager:
                     "Fixture run accepted and local result folder created.",
                 ),
             )
-            if record.storage["r2"]["status"] == "not_configured":
-                await self._record_event(
-                    record,
-                    _event(
-                        "r2_not_configured",
-                        "artifact_storage",
-                        "R2 upload is unavailable; the local package will still be created.",
-                        level="warning",
-                    ),
-                )
             record.task = asyncio.create_task(
                 self._execute(
                     record,
@@ -364,11 +307,18 @@ class FixtureRunManager:
         self._runs.setdefault(run_id, record)
         return record.public()
 
-    async def download_path(self, run_id: str) -> Path:
+    async def download_path(self, run_id: str, doc: str = "content") -> Path:
         record = self._runs.get(run_id) or self._load_from_disk(run_id)
-        if record is None or not record.archive_path.is_file():
+        path = (
+            record.content_brief_path
+            if record is not None and doc == "content"
+            else record.visual_brief_path
+            if record is not None
+            else None
+        )
+        if record is None or path is None or not path.is_file():
             raise FixtureRunNotFoundError
-        return record.archive_path
+        return path
 
     async def close(self) -> None:
         tasks = [
@@ -405,56 +355,28 @@ class FixtureRunManager:
             record.result = result
             record.storage = result.get("storage", record.storage)
             self._merge_result_events(record, result)
-            raw_handoff = result.get("handoff_report")
-            handoff = raw_handoff if isinstance(raw_handoff, dict) else {}
-            raw_handoff_issues = handoff.get("issues")
-            handoff_issues: list[Any] = (
-                raw_handoff_issues if isinstance(raw_handoff_issues, list) else []
+            has_both_briefs = bool(result.get("content_brief_markdown")) and bool(
+                result.get("visual_brief_markdown")
             )
-            if not bool(handoff.get("handoff_eligible", False)):
-                record.status = "needs_attention"
-                first_issue = (
-                    handoff_issues[0]
-                    if handoff_issues and isinstance(handoff_issues[0], dict)
-                    else {}
-                )
+            record.status = "ready" if has_both_briefs else "needs_attention"
+            if not has_both_briefs:
                 record.issue = {
-                    "code": str(first_issue.get("code", "HANDOFF_QUALITY_GATE_BLOCKED")),
-                    "message": str(
-                        first_issue.get(
-                            "message",
-                            "The package is retained locally but is blocked from Code Generator handoff.",
-                        )
-                    ),
-                    "next_action": str(
-                        first_issue.get(
-                            "next_action",
-                            "Review handoff-report.json and rerun after resolving the required resource.",
-                        )
-                    ),
-                    "details": {"handoff_issue_count": len(handoff_issues)},
+                    "code": "BRIEF_INCOMPLETE",
+                    "message": "The run completed but did not produce both Markdown briefs.",
+                    "next_action": "Review diagnostics.json and retry.",
+                    "details": {},
                 }
-            elif record.storage.get("r2", {}).get("status") == "not_configured":
-                record.status = "needs_attention"
-                record.issue = {
-                    "code": "ARTIFACT_STORAGE_CREDENTIALS_MISSING",
-                    "message": "The local package is verified, but R2 credentials are not configured.",
-                    "next_action": "Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in .env, then recreate the app container.",
-                    "details": {"missing": record.storage["r2"].get("missing", [])},
-                }
-            else:
-                record.status = "ready_for_handoff"
-            record.current_stage = "stage_5"
+            record.current_stage = "compose_visual_brief"
             record.completed_at = _now()
             await self._record_event(
                 record,
                 _event(
                     "fixture_run_complete",
-                    "stage_5",
-                    "Local build package completed and passed the Code Generator handoff gate."
-                    if record.status == "ready_for_handoff"
-                    else "Local build package completed for review; Code Generator handoff is blocked.",
-                    level="warning" if record.status == "needs_attention" else "info",
+                    "compose_visual_brief",
+                    "Both Markdown briefs were composed."
+                    if has_both_briefs
+                    else "The run completed without producing both briefs.",
+                    level="info" if has_both_briefs else "warning",
                 ),
             )
             self._write_result(record)
@@ -473,18 +395,15 @@ class FixtureRunManager:
         except Exception as exc:  # The UI must always receive one safe diagnostic record.
             record.completed_at = _now()
             record.issue = _issue_from_error(exc)
-            if record.archive_path.is_file() and record.build_context_path.is_dir():
-                record.status = "needs_attention"
-                record.current_stage = "artifact_storage"
-                record.storage.setdefault("r2", {})["status"] = "failed"
-                record.storage["r2"]["message"] = record.issue["message"]
-                message = "Local package completed, but artifact storage failed."
-            else:
-                record.status = "failed"
-                message = "Fixture run failed before a local package was completed."
+            record.status = "failed"
             await self._record_event(
                 record,
-                _event("fixture_run_failed", record.current_stage, message, level="error"),
+                _event(
+                    "fixture_run_failed",
+                    record.current_stage,
+                    "Fixture run failed before both briefs were composed.",
+                    level="error",
+                ),
             )
         finally:
             async with self._lock:
@@ -499,8 +418,6 @@ class FixtureRunManager:
         record.current_stage = str(
             payload.get("stage", record.current_stage) or record.current_stage
         )
-        if payload.get("event_id") == "artifact_upload_started":
-            record.storage.setdefault("r2", {})["status"] = "uploading"
         self._write_diagnostics(record)
 
     def _merge_result_events(self, record: FixtureRunRecord, result: dict[str, Any]) -> None:
@@ -522,7 +439,30 @@ class FixtureRunManager:
     def _write_result(self, record: FixtureRunRecord) -> None:
         if record.result is not None:
             self._atomic_json(record.result_path, record.result)
+            self._atomic_text(
+                record.content_brief_path, str(record.result.get("content_brief_markdown", ""))
+            )
+            self._atomic_text(
+                record.visual_brief_path, str(record.result.get("visual_brief_markdown", ""))
+            )
         self._write_diagnostics(record)
+
+    @staticmethod
+    def _atomic_text(path: Path, text: str) -> None:
+        temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+        try:
+            temporary.write_text(text, encoding="utf-8")
+            for attempt in range(5):
+                try:
+                    os.replace(temporary, path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.01 * (attempt + 1))
+        finally:
+            if temporary.exists():
+                temporary.unlink()
 
     @staticmethod
     def _atomic_json(path: Path, value: dict[str, Any]) -> None:

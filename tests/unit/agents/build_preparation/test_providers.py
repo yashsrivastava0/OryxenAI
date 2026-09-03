@@ -1,17 +1,10 @@
 from __future__ import annotations
 
-from io import BytesIO
-
 import httpx
 import pytest
-from PIL import Image
 
-from oryxenai.agents.build_preparation.providers import (
-    ProviderLookup,
-    download_image,
-    search_components,
-)
-from oryxenai.agents.build_preparation.schemas import FetchedResource, ResourceQuery
+from oryxenai.agents.build_preparation.providers import ProviderLookup, search_components
+from oryxenai.agents.build_preparation.schemas import ResourceQuery
 from oryxenai.agents.shared.image_retrieval import ImageSearchIntent, search_images
 from oryxenai.core.settings import Settings
 
@@ -67,35 +60,6 @@ async def test_pexels_metadata_search_and_pixabay_fallback(monkeypatch, tmp_path
     assert candidates[0].license_reference.endswith("license-summary/")
     assert any("api.pexels.com" in url for url in requests)
     assert any("pixabay.com/api/" in url for url in requests)
-
-
-@pytest.mark.asyncio
-async def test_selected_pixabay_image_downloads_real_bytes(monkeypatch) -> None:
-    settings = Settings()
-    monkeypatch.setenv("PIXABAY_API_KEY", "pixabay-test-key")
-    output = BytesIO()
-    Image.effect_noise((24, 24), 40).convert("RGB").save(output, format="PNG")
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            content=output.getvalue(),
-            headers={"content-type": "image/png"},
-            request=request,
-        )
-
-    candidate = FetchedResource(
-        resource_id="pixabay-1",
-        need_id="need-1",
-        kind="photo",
-        provider="pixabay",
-        provider_asset_id="1",
-        image_url="https://cdn.pixabay.com/photo-1.png",
-    )
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        data = await download_image(candidate, settings, client=client)
-
-    assert data.startswith(b"\x89PNG")
 
 
 @pytest.mark.asyncio
@@ -167,13 +131,16 @@ async def test_important_image_search_queries_both_active_providers(monkeypatch,
 
 
 @pytest.mark.asyncio
-async def test_registry_component_lookup_collects_safe_dependency_source() -> None:
+async def test_registry_component_discovery_returns_metadata_only() -> None:
+    """Discovery never fetches source -- Build Preparation only suggests candidates."""
     settings = Settings()
     settings.resource_providers.registry_order = ["shadcn"]
     settings.resource_providers.shadcn_catalog_url = "https://registry.test/catalog.json"
     settings.resource_providers.shadcn_item_url_template = "https://registry.test/{name}.json"
+    fetch_attempted = False
 
     async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal fetch_attempted
         if request.url.path == "/catalog.json":
             return httpx.Response(
                 200,
@@ -188,29 +155,16 @@ async def test_registry_component_lookup_collects_safe_dependency_source() -> No
                 },
                 request=request,
             )
-        return httpx.Response(
-            200,
-            json={
-                "files": [
-                    {"path": "card.tsx", "content": "export function Card() { return null; }"}
-                ],
-                "dependencies": ["react"],
-                "registryDependencies": [],
-                "version": "1.0.0",
-            },
-            request=request,
-        )
+        fetch_attempted = True
+        return httpx.Response(200, json={"files": []}, request=request)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        candidates = await search_components(
-            _query("component"), settings, client=client, fetch_source=True
-        )
+        candidates = await search_components(_query("component"), settings, client=client)
 
     assert len(candidates) == 1
-    assert candidates[0].source_files["card.tsx"].startswith("export function")
-    assert candidates[0].dependencies == ["react"]
-    assert candidates[0].license == "MIT"
-    assert candidates[0].license_reference.endswith("LICENSE.md")
+    assert candidates[0].title == "Workspace Card"
+    assert candidates[0].provider == "shadcn"
+    assert not fetch_attempted
 
 
 @pytest.mark.asyncio
@@ -223,32 +177,16 @@ async def test_provider_lookup_fetches_identical_live_queries_again() -> None:
 
     async def handler(request: httpx.Request) -> httpx.Response:
         requests.append(str(request.url))
-        if request.url.path.endswith("live-catalog.json"):
-            return httpx.Response(
-                200,
-                json={
-                    "items": [
-                        {
-                            "name": "card",
-                            "title": "Editorial workspace card",
-                            "description": "editorial workspace content card",
-                        }
-                    ]
-                },
-                request=request,
-            )
         return httpx.Response(
             200,
             json={
-                "files": [
+                "items": [
                     {
-                        "path": "card.tsx",
-                        "content": "export function Card() { return <article>Card</article>; }",
+                        "name": "card",
+                        "title": "Editorial workspace card",
+                        "description": "editorial workspace content card",
                     }
-                ],
-                "dependencies": ["react"],
-                "registryDependencies": [],
-                "version": "1.0.0",
+                ]
             },
             request=request,
         )

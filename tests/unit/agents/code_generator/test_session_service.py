@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -10,10 +9,7 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationSourceRef,
     BuildPreparationState,
     BuildPreparationStatus,
-    HandoffQualityReport,
-    PackageResult,
 )
-from oryxenai.agents.code_generator import service as service_module
 from oryxenai.agents.code_generator.service import (
     CodeGeneratorOperationError,
     CodeGeneratorService,
@@ -21,16 +17,6 @@ from oryxenai.agents.code_generator.service import (
 from oryxenai.agents.code_generator.session_schemas import CodeGeneratorSessionState
 from oryxenai.core.settings import Settings
 from oryxenai.jobs.handlers.code_generator_verification import _session_source_is_current
-from oryxenai.storage.artifacts import ArtifactReference
-
-
-class _ArtifactStore:
-    def __init__(self, reference: ArtifactReference) -> None:
-        self.reference = reference
-
-    async def head(self, reference: ArtifactReference) -> ArtifactReference | None:
-        assert reference == self.reference
-        return self.reference
 
 
 class _Runs:
@@ -51,37 +37,8 @@ class _Runs:
     async def get(self, run_id: UUID):
         return self.items.get(run_id)
 
-    async def accepted_variants_for_session(self, session_id: UUID, *, limit: int = 3):
-        return [
-            run
-            for run in sorted(
-                self.items.values(),
-                key=lambda item: str(item.id),
-                reverse=True,
-            )
-            if getattr(run, "portfolio_session_id", None) == session_id
-            and run.status == "ready"
-            and getattr(run, "creative_direction", None)
-        ][:limit]
-
     async def create(self, **values):
-        run = SimpleNamespace(
-            id=uuid4(),
-            revision=0,
-            status="created",
-            issues=[],
-            terminal_failure=None,
-            active_preview=None,
-            coordinator_stage="plan",
-            current_attempt=0,
-            plan_summary={},
-            source_summary={},
-            background_job_id=None,
-            acquire_job_id=None,
-            generation_job_id=None,
-            verification_job_id=None,
-            **values,
-        )
+        run = SimpleNamespace(id=uuid4(), revision=0, status="created", **values)
         self.items[run.id] = run
         self.created = run
         return run
@@ -139,7 +96,6 @@ class _Jobs:
         self.payload = None
 
     async def enqueue(self, kind: str, payload, **kwargs):
-        assert kind == "code_generator.plan"
         self.payload = payload
         return self.job
 
@@ -147,7 +103,7 @@ class _Jobs:
         return self.job if job_id == self.job.id else None
 
 
-def _preparation(reference: ArtifactReference) -> BuildPreparationState:
+def _ready_preparation() -> BuildPreparationState:
     return BuildPreparationState(
         status=BuildPreparationStatus.READY,
         run_id="build-preparation-run",
@@ -156,124 +112,46 @@ def _preparation(reference: ArtifactReference) -> BuildPreparationState:
             content_architect_content_hash="content-hash",
             visual_design_director_direction_hash="visual-hash",
         ),
-        package=PackageResult(
-            archive_sha256=reference.sha256,
-            archive_size_bytes=reference.size_bytes,
-            file_count=12,
-            expires_at=reference.expires_at,
-            artifact=reference,
-        ),
-        handoff_report=HandoffQualityReport(
-            handoff_eligible=True,
-            upstream_approval_verified=True,
-            status="ready_for_handoff",
-        ),
+        content_brief_markdown="# Content brief",
+        visual_brief_markdown="# Visual brief",
     )
 
 
 @pytest.mark.asyncio
-async def test_session_start_binds_exact_artifact_and_queues_production_payload(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    expiry = (datetime.now(UTC) + timedelta(days=2)).isoformat()
-    reference = ArtifactReference(
-        provider="memory",
-        key="temporary/pack.zip",
-        sha256="a" * 64,
-        size_bytes=128,
-        expires_at=expiry,
-        etag="etag",
-    )
+async def test_session_start_fails_closed_pending_markdown_brief_ingestion() -> None:
+    """Build Preparation now hands off two Markdown briefs, not a ZIP artifact.
+
+    Session-bound Code Generator ingestion of that new contract is tracked as
+    explicit follow-up work (see DECISIONS.md) -- start() must fail closed
+    with one clear diagnostic rather than dereferencing removed fields.
+    """
     session_id = uuid4()
-    repository = _Repository(session_id, _preparation(reference))
-    jobs = _Jobs()
-    settings = Settings()
-    checked_profiles: list[str] = []
+    repository = _Repository(session_id, _ready_preparation())
+    service = CodeGeneratorService(repository, _Jobs(), Settings())  # type: ignore[arg-type]
 
-    async def provider_preflight(profile: str):
-        checked_profiles.append(profile)
-        return {"ok": True}
+    with pytest.raises(CodeGeneratorOperationError) as exc_info:
+        await service.start(session_id, idempotency_key="start-once")
 
-    monkeypatch.setattr(service_module, "resolve_api_key", lambda profile: "configured")
-    monkeypatch.setattr(service_module.shutil, "which", lambda executable: executable)
-    monkeypatch.setattr(service_module, "browser_ready", lambda config: True)
-    service = CodeGeneratorService(
-        repository,  # type: ignore[arg-type]
-        jobs,  # type: ignore[arg-type]
-        settings,
-        artifact_store=_ArtifactStore(reference),  # type: ignore[arg-type]
-        provider_preflight=provider_preflight,
-    )
-
-    result = await service.start(session_id, idempotency_key="start-once")
-
-    assert result["code_generator"]["status"] == "queued"
-    assert jobs.payload == {"code_generator_run_id": str(repository.runs.created.id)}
-    assert repository.runs.created.run_mode == "session"
-    assert repository.runs.created.portfolio_session_id == session_id
-    assert repository.runs.created.artifact_reference["sha256"] == reference.sha256
-    assert repository.state.source_ref is not None
-    assert repository.state.source_ref.archive_sha256 == reference.sha256
-    assert checked_profiles
-    assert repository.state.current_run_id == str(repository.runs.created.id)
-    assert repository.runs.created.creative_direction["variant_receipt"]["ordinal"] == 1
+    assert exc_info.value.code == "CODE_GENERATOR_INGESTION_NOT_MIGRATED"
+    assert repository.runs.created is None
 
 
 @pytest.mark.asyncio
-async def test_regenerate_allocates_a_distinct_v4_variant_after_an_accepted_run(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    reference = ArtifactReference(
-        provider="memory",
-        key="temporary/variant-pack.zip",
-        sha256="d" * 64,
-        size_bytes=96,
-        expires_at=(datetime.now(UTC) + timedelta(days=2)).isoformat(),
-    )
+async def test_session_start_still_gates_on_build_preparation_readiness() -> None:
     session_id = uuid4()
-    repository = _Repository(session_id, _preparation(reference))
-    settings = Settings()
-    monkeypatch.setattr(service_module, "resolve_api_key", lambda profile: "configured")
-    monkeypatch.setattr(service_module.shutil, "which", lambda executable: executable)
-    monkeypatch.setattr(service_module, "browser_ready", lambda config: True)
-    service = CodeGeneratorService(
-        repository,  # type: ignore[arg-type]
-        _Jobs(),  # type: ignore[arg-type]
-        settings,
-        artifact_store=_ArtifactStore(reference),  # type: ignore[arg-type]
-        provider_preflight=lambda profile: _preflight_ok(profile),  # type: ignore[arg-type]
-    )
+    repository = _Repository(session_id, BuildPreparationState())
+    service = CodeGeneratorService(repository, _Jobs(), Settings())  # type: ignore[arg-type]
 
-    await service.start(session_id, idempotency_key="initial-variant")
-    first = repository.runs.created
-    first.status = "ready"
-    await service.regenerate(session_id, idempotency_key="new-variant")
-    second = repository.runs.created
+    with pytest.raises(CodeGeneratorOperationError) as exc_info:
+        await service.start(session_id, idempotency_key="start-once")
 
-    first_receipt = first.creative_direction["variant_receipt"]
-    second_receipt = second.creative_direction["variant_receipt"]
-    assert second.id != first.id
-    assert second_receipt["variant_id"] != first_receipt["variant_id"]
-    assert second_receipt["ordinal"] == 2
-    assert second_receipt["creation_reason"] == "regenerate"
-    assert repository.state.current_run_id == str(second.id)
-
-
-async def _preflight_ok(profile: str) -> dict[str, object]:
-    return {"ok": True, "profile": profile}
+    assert exc_info.value.code == "CODE_GENERATOR_BUILD_PREPARATION_NOT_READY"
 
 
 @pytest.mark.asyncio
 async def test_retry_requeues_the_existing_run_and_preserves_its_variant() -> None:
-    reference = ArtifactReference(
-        provider="memory",
-        key="temporary/retry-pack.zip",
-        sha256="e" * 64,
-        size_bytes=96,
-        expires_at=(datetime.now(UTC) + timedelta(days=2)).isoformat(),
-    )
     session_id = uuid4()
-    repository = _Repository(session_id, _preparation(reference))
+    repository = _Repository(session_id, _ready_preparation())
     run = SimpleNamespace(
         id=uuid4(),
         revision=4,
@@ -308,11 +186,7 @@ async def test_retry_requeues_the_existing_run_and_preserves_its_variant() -> No
         active_preview=run.active_preview,
     )
     jobs = _Jobs()
-    service = CodeGeneratorService(
-        repository,  # type: ignore[arg-type]
-        jobs,  # type: ignore[arg-type]
-        Settings(),
-    )
+    service = CodeGeneratorService(repository, jobs, Settings())  # type: ignore[arg-type]
 
     result = await service.retry(session_id, idempotency_key="same-variant-retry")
 
@@ -324,60 +198,13 @@ async def test_retry_requeues_the_existing_run_and_preserves_its_variant() -> No
 
 
 @pytest.mark.asyncio
-async def test_session_start_rejects_request_time_profile_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    reference = ArtifactReference(
-        provider="memory",
-        key="temporary/pack.zip",
-        sha256="b" * 64,
-        size_bytes=64,
-        expires_at=(datetime.now(UTC) + timedelta(days=2)).isoformat(),
-    )
+async def test_session_source_is_permanently_stale_pending_markdown_brief_ingestion() -> None:
+    """Any run still bound to the old artifact-based source ref is stale.
+
+    Build Preparation no longer produces a ZIP artifact to re-verify against.
+    """
     session_id = uuid4()
-    settings = Settings()
-    monkeypatch.setattr(service_module, "resolve_api_key", lambda profile: "configured")
-    monkeypatch.setattr(service_module.shutil, "which", lambda executable: executable)
-    monkeypatch.setattr(service_module, "browser_ready", lambda config: True)
-    service = CodeGeneratorService(
-        _Repository(session_id, _preparation(reference)),  # type: ignore[arg-type]
-        _Jobs(),  # type: ignore[arg-type]
-        settings,
-        artifact_store=_ArtifactStore(reference),  # type: ignore[arg-type]
-        provider_preflight=lambda profile: pytest.fail("preflight must not run"),  # type: ignore[arg-type]
-    )
+    repository = _Repository(session_id, _ready_preparation())
+    run = SimpleNamespace(portfolio_session_id=session_id, build_preparation_source_ref={})
 
-    with pytest.raises(CodeGeneratorOperationError) as exc_info:
-        await service.start(
-            session_id,
-            idempotency_key="override",
-            model_profile="unconfigured-request-profile",
-        )
-
-    assert exc_info.value.code == "CODE_GENERATOR_PROFILE_OVERRIDE_UNSUPPORTED"
-
-
-@pytest.mark.asyncio
-async def test_preview_promotion_rejects_a_changed_build_preparation_source() -> None:
-    reference = ArtifactReference(
-        provider="memory",
-        key="temporary/pack.zip",
-        sha256="c" * 64,
-        size_bytes=64,
-        expires_at=(datetime.now(UTC) + timedelta(days=2)).isoformat(),
-    )
-    session_id = uuid4()
-    repository = _Repository(session_id, _preparation(reference))
-    run = SimpleNamespace(
-        portfolio_session_id=session_id,
-        build_preparation_source_ref={
-            "build_preparation_run_id": "build-preparation-run",
-            "build_preparation_scope_hash": "scope-hash",
-            "archive_sha256": reference.sha256,
-            "artifact": reference.model_dump(mode="json"),
-        },
-    )
-
-    assert await _session_source_is_current(repository, run)  # type: ignore[arg-type]
-    repository.preparation.scope_hash = "changed-scope"
     assert not await _session_source_is_current(repository, run)  # type: ignore[arg-type]

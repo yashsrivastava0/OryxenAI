@@ -483,79 +483,51 @@ class ImageRetrievalConfig(BaseModel):
 
 
 class BuildPreparationConfig(BaseModel):
-    """Build Preparation limits and lifecycle policy."""
+    """Build Preparation limits and policy.
+
+    Output is two Markdown briefs stored directly on session state -- no
+    ZIP, no object storage, no pack version/TTL to manage.
+    """
 
     max_routes: int = 12
-    # D-060: packs are compact references, not embedded resource bytes, so a
-    # pack does not expire in practice. See config/app.toml for the rationale.
-    bundle_ttl_days: int = 36500
-    minimum_reuse_hours: int = 24
-    max_bundle_bytes: int = 64 * 1024 * 1024
     network_timeout_seconds: float = 15.0
     network_retry_count: int = 2
     target_contract: str = "react-vite-v1"
     fixture_enabled: bool = False
     fixture_input_path: str = "src/oryxenai/output/visual_design_director_Output.md"
     # Matching Content Architect snapshot for the fixture input above; used to
-    # reunite the (CA, VDD) pair the fixture compiles into one v3 pack.
+    # reunite the (CA, VDD) pair the fixture compiles from.
     fixture_content_input_path: str = "src/oryxenai/output/content-architect"
     fixture_output_dir: str = "output"
-    fixture_upload: bool = True
-    fixture_reasoning_enabled: bool = False
-    fixture_debug_mirror_enabled: bool = True
-    # Ephemeral per-run staging for the real session/worker path — deliberately
-    # separate from fixture_output_dir, which is host-mounted (./output) only
-    # for the detached developer fixture/CLI and is NOT volume-mounted into the
-    # worker container. Follows the same .workspace/<agent-purpose> convention
-    # already used by every other agent's ephemeral Docker-writable paths
-    # (code_generator_acquisition.materials_root etc.) so it works unmodified
-    # under the non-root container user without any Dockerfile/volume change.
+    # Ephemeral per-run debug-mirror root for the real session/worker path —
+    # deliberately separate from fixture_output_dir, which is host-mounted
+    # (./output) only for the detached developer fixture/CLI and is NOT
+    # volume-mounted into the worker container. Follows the same
+    # .workspace/<agent-purpose> convention already used by every other
+    # agent's ephemeral Docker-writable paths so it works unmodified under
+    # the non-root container user without any Dockerfile/volume change.
     session_staging_root: str = ".workspace/build-preparation-staging"
+    # Local debug mirror: a courtesy copy of both briefs written to disk for
+    # developer inspection. Never the source of truth.
     debug_mirror_enabled: bool = True
     model_profile: str = "build_preparation"
     reasoning_enabled: bool = True
-    integration_route_threshold: int = 2
-    # These are policy defaults for image-rich directions.  The approved VDD
-    # projection may explicitly lower them for text-led or privacy-limited
-    # work; Build Preparation never fabricates missing roles to meet a quota.
+    # Advisory targets for how many image/component roles a portfolio
+    # typically needs. The approved VDD projection may explicitly lower them
+    # for text-led or privacy-limited work; a role short of the target is
+    # never manufactured to meet it.
     editorial_image_budget: int = 5
     editorial_image_maximum: int = 6
     visual_component_budget: int = 4
     visual_component_maximum: int = 6
-    image_source_attempt_maximum: int = 3
-    component_source_attempt_maximum: int = 3
-    provider_max_wait_seconds: float = 8.0
     provider_max_concurrency: int = 2
-    require_live_visual_resources: bool = True
     auto_derive_visual_resources: bool = True
-    delegated_acquisition_enabled: bool = False
-    delegated_allowed_categories: list[str] = Field(
-        default_factory=lambda: ["image", "font", "component_source"]
-    )
-    delegated_allowed_providers: list[str] = Field(
-        default_factory=lambda: [
-            "pexels",
-            "pixabay",
-            "fontsource",
-            "shadcn",
-            "magicui",
-            "smoothui",
-            "cultui",
-        ]
-    )
-    delegated_candidate_limit: int = 8
-    delegated_attempt_maximum: int = 3
 
     @field_validator(
         "fixture_enabled",
-        "fixture_upload",
-        "fixture_reasoning_enabled",
-        "fixture_debug_mirror_enabled",
         "debug_mirror_enabled",
         "reasoning_enabled",
-        "require_live_visual_resources",
         "auto_derive_visual_resources",
-        "delegated_acquisition_enabled",
         mode="before",
     )
     @classmethod

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import io
 import json
 import zipfile
@@ -35,74 +34,21 @@ def test_optional_execution_gaps_are_admissible_but_required_gaps_block() -> Non
     assert _blocking_execution_gaps(required) == required["execution_gaps"]
 
 
-def test_fixture_and_upload_share_admitted_identity(tmp_path) -> None:
+def test_admit_fails_closed_pending_markdown_brief_ingestion(tmp_path) -> None:
+    """Build Preparation now hands off two Markdown briefs, not a versioned
+
+    JSON/ZIP pack. Code Generator ingestion of that new contract is tracked
+    as explicit follow-up work (see DECISIONS.md) -- admit() must fail
+    closed with one clear diagnostic rather than validating a contract that
+    no longer exists on the Build Preparation side.
+    """
     adapter = _adapter(tmp_path)
     fixture = adapter.from_fixture("privacy-safe-v3")
-    fixture_receipt, _ = adapter.admit(fixture)
-    upload = adapter.from_upload(
-        filename="same-pack.zip", mime_type="application/zip", data=adapter.read(fixture)
-    )
-    upload_receipt, _ = adapter.admit(upload)
-    assert fixture_receipt.admitted_identity == upload_receipt.admitted_identity
-    assert fixture_receipt.route_ids == ["home"]
-
-
-def test_rich_privacy_safe_fixture_admits_advanced_section_contract(tmp_path) -> None:
-    adapter = _adapter(tmp_path)
-    reference = adapter.from_fixture("privacy-safe-v3-rich")
-    receipt, projections = adapter.admit(reference)
-    sections = projections["site/contract.json"]["public_content"][0]["sections"]
-    assert receipt.route_ids == ["home"]
-    assert [section["section_id"] for section in sections] == [
-        "hero",
-        "principles",
-        "selected-work",
-        "process",
-        "contact",
-    ]
-
-
-def test_compiled_projection_rejects_visual_identity_mismatch(tmp_path) -> None:
-    adapter = _adapter(tmp_path)
-    reference = adapter.from_fixture("privacy-safe-v3")
-    _, admitted = adapter.admit(reference)
-    projections = copy.deepcopy(admitted)
-    projections["site/contract.json"]["facts"] = [
-        {"fact_id": "owner", "statement": "Arjun Mehta is a designer."}
-    ]
-    projections["design/visual-direction.json"]["global"] = {
-        "must_preserve": ["Aarav Mehta"],
-        "visual_language": {"anti_patterns": ["Avoid presenting Aarav as the owner of outcomes."]},
-    }
-    with zipfile.ZipFile(io.BytesIO(adapter.read(reference))) as archive:
-        package_paths = set(archive.namelist())
-        route_resource_maps = {
-            str(route["route_id"]): json.loads(
-                archive.read(str(route["files"]["resources"])).decode("utf-8")
-            )
-            for route in projections["site/contract.json"]["routes"]
-        }
 
     with pytest.raises(DevelopmentInputError) as caught:
-        adapter._validate_projections(
-            projections,
-            package_paths=package_paths,
-            route_resource_maps=route_resource_maps,
-        )
+        adapter.admit(fixture)
 
-    assert caught.value.code == "PACK_VISUAL_IDENTITY_MISMATCH"
-
-
-def test_v1_pack_is_rejected_without_adaptation(tmp_path) -> None:
-    adapter = _adapter(tmp_path)
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w") as archive:
-        archive.writestr("manifest.json", json.dumps({"pack_version": "phase3", "files": []}))
-    reference = adapter.from_upload(
-        filename="diagnostic.zip", mime_type="application/zip", data=output.getvalue()
-    )
-    with pytest.raises(DevelopmentInputError, match="Only Build Preparation pack v3"):
-        adapter.admit(reference)
+    assert caught.value.code == "PACK_INGESTION_NOT_MIGRATED"
 
 
 def test_zip_traversal_is_rejected_before_storage(tmp_path) -> None:
@@ -131,15 +77,14 @@ def test_upload_size_limit_is_enforced_before_storage(tmp_path) -> None:
         adapter.from_upload(filename="pack.zip", mime_type="application/zip", data=b"PKxx")
 
 
-def test_missing_required_projection_is_rejected_after_zip_validation(tmp_path) -> None:
+def test_v1_pack_still_admits_the_zip_itself_but_fails_at_content_ingestion(tmp_path) -> None:
     adapter = _adapter(tmp_path)
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as archive:
-        archive.writestr(
-            "manifest.json", json.dumps({"pack_version": "build-preparation-pack-v3", "files": []})
-        )
+        archive.writestr("manifest.json", json.dumps({"pack_version": "phase3", "files": []}))
     reference = adapter.from_upload(
-        filename="incomplete.zip", mime_type="application/zip", data=output.getvalue()
+        filename="diagnostic.zip", mime_type="application/zip", data=output.getvalue()
     )
-    with pytest.raises(DevelopmentInputError, match="projection"):
+    with pytest.raises(DevelopmentInputError) as caught:
         adapter.admit(reference)
+    assert caught.value.code == "PACK_INGESTION_NOT_MIGRATED"

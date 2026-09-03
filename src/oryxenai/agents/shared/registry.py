@@ -74,6 +74,7 @@ def default_registry() -> AgentRegistry:
     from oryxenai.agents.discovery.agent import DiscoveryAgent
     from oryxenai.agents.shared.model_client import MockModelClient
     from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorAgent
+    from oryxenai.core.settings import get_settings
 
     registry = AgentRegistry()
 
@@ -81,6 +82,8 @@ def default_registry() -> AgentRegistry:
 
     registry.register(ContentArchitectAgent(model_client=MockModelClient()))
     registry.register(VisualDesignDirectorAgent(model_client=MockModelClient()))
-    registry.register(BuildPreparationAgent(live_model=False, live_providers=False))
+    registry.register(
+        BuildPreparationAgent(settings=get_settings(), live_model=False, live_providers=False)
+    )
     registry.register(CodeGeneratorAgent(model_client=MockModelClient()))
     return registry

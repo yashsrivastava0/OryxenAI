@@ -1,4 +1,4 @@
-"""Validation for deterministic Stage 0 inputs and outputs."""
+"""Validation for deterministic Stage 0 inputs/outputs and the model's brief output."""
 
 from __future__ import annotations
 
@@ -6,13 +6,7 @@ import re
 from collections import Counter
 from typing import Any
 
-from oryxenai.agents.build_preparation.schemas import (
-    BuildContextDraft,
-    FetchedResource,
-    Stage0Result,
-    Stage1QueryPlan,
-    Stage2SelectionPlan,
-)
+from oryxenai.agents.build_preparation.schemas import Stage0Result, VisualBriefOutput
 
 
 class BuildPreparationValidationError(ValueError):
@@ -297,169 +291,66 @@ def validate_stage0_result(result: Stage0Result) -> Stage0Result:
     return result
 
 
-def validate_query_plan(plan: Stage1QueryPlan, need_ids: set[str]) -> Stage1QueryPlan:
-    """Ensure Stage 1 only translates deterministic Stage 0 needs."""
-    seen: set[str] = set()
-    for query in plan.queries:
-        if query.need_id in seen:
-            raise BuildPreparationValidationError(
-                "Stage 1 produced duplicate need IDs.", details={"need_id": query.need_id}
-            )
-        if query.need_id not in need_ids:
-            raise BuildPreparationValidationError(
-                "Stage 1 referenced an unknown Stage 0 need.",
-                details={"need_id": query.need_id},
-            )
-        seen.add(query.need_id)
-        if query.kind in {"photo", "component"} and not query.query.strip():
-            raise BuildPreparationValidationError(
-                "Provider queries must include a non-empty query string.",
-                details={"need_id": query.need_id},
-            )
-        if query.kind == "icon" and not query.icon_name.strip():
-            raise BuildPreparationValidationError(
-                "Icon queries must include an icon name.", details={"need_id": query.need_id}
-            )
-    missing = need_ids - seen
-    if missing:
-        raise BuildPreparationValidationError(
-            "Stage 1 did not produce a query for every Stage 0 need.",
-            details={"need_ids": sorted(missing)},
-        )
-    return plan
-
-
-def validate_fetched_candidates(
-    candidates: list[FetchedResource], need_ids: set[str]
-) -> list[FetchedResource]:
-    seen: set[str] = set()
-    for candidate in candidates:
-        if candidate.resource_id in seen:
-            raise BuildPreparationValidationError(
-                "Provider lookup produced duplicate resource IDs.",
-                details={"resource_id": candidate.resource_id},
-            )
-        if candidate.need_id not in need_ids:
-            raise BuildPreparationValidationError(
-                "Provider lookup returned a candidate for an unknown need.",
-                details={"need_id": candidate.need_id},
-            )
-        if not candidate.provider:
-            raise BuildPreparationValidationError(
-                "Provider candidates must identify their provider.",
-                details={"resource_id": candidate.resource_id},
-            )
-        seen.add(candidate.resource_id)
-    return candidates
-
-
-def validate_selection_plan(
-    plan: Stage2SelectionPlan,
-    need_ids: set[str],
-    candidates: list[FetchedResource],
-) -> Stage2SelectionPlan:
-    """Close Stage 2 selections over the exact Stage 1 candidate set."""
-    candidate_ids = {candidate.resource_id for candidate in candidates}
-    seen: set[str] = set()
-    for selection in plan.selections:
-        if selection.need_id in seen:
-            raise BuildPreparationValidationError(
-                "Stage 2 produced duplicate need IDs.", details={"need_id": selection.need_id}
-            )
-        if selection.need_id not in need_ids:
-            raise BuildPreparationValidationError(
-                "Stage 2 referenced an unknown need.", details={"need_id": selection.need_id}
-            )
-        if selection.selected_resource_id and selection.selected_resource_id not in candidate_ids:
-            raise BuildPreparationValidationError(
-                "Stage 2 selected a resource that providers did not return.",
-                details={"resource_id": selection.selected_resource_id},
-            )
-        unknown_alternates = set(selection.alternate_resource_ids) - candidate_ids
-        if unknown_alternates:
-            raise BuildPreparationValidationError(
-                "Stage 2 ranked an alternate resource that providers did not return.",
-                details={"resource_ids": sorted(unknown_alternates)},
-            )
-        if selection.selected_resource_id in set(selection.alternate_resource_ids):
-            raise BuildPreparationValidationError(
-                "Stage 2 cannot rank the selected resource as its own alternate.",
-                details={"need_id": selection.need_id},
-            )
-        if not selection.selected_resource_id and not selection.fallback.strip():
-            raise BuildPreparationValidationError(
-                "A rejected resource selection must include an explicit fallback.",
-                details={"need_id": selection.need_id},
-            )
-        seen.add(selection.need_id)
-    missing = need_ids - seen
-    if missing:
-        raise BuildPreparationValidationError(
-            "Stage 2 did not produce a selection for every Stage 0 need.",
-            details={"need_ids": sorted(missing)},
-        )
-    return plan
-
-
-def validate_build_context(
-    context: BuildContextDraft,
-    route_ids: set[str],
-    selected_resource_ids: set[str],
-) -> BuildContextDraft:
-    """Reject dangling route/resource references from Stage 3 or 4."""
-    seen_routes: set[str] = set()
-    for route in context.routes:
-        if route.route_id in seen_routes:
-            raise BuildPreparationValidationError(
-                "Build context contains duplicate route IDs.",
-                details={"route_id": route.route_id},
-            )
-        if route.route_id not in route_ids:
-            raise BuildPreparationValidationError(
-                "Build context referenced an unknown route.",
-                details={"route_id": route.route_id},
-            )
-        unknown_resources = set(route.resource_ids) - selected_resource_ids
-        if unknown_resources:
-            raise BuildPreparationValidationError(
-                "Build context referenced an unselected resource.",
-                details={"resource_ids": sorted(unknown_resources)},
-            )
-        if not route.brief_markdown.strip():
-            raise BuildPreparationValidationError(
-                "Every build-context route must contain a non-empty brief.",
-                details={"route_id": route.route_id},
-            )
-        seen_routes.add(route.route_id)
-    missing_routes = route_ids - seen_routes
-    if missing_routes:
-        raise BuildPreparationValidationError(
-            "Build context did not cover every approved route.",
-            details={"route_ids": sorted(missing_routes)},
-        )
-    if not context.overview_markdown.strip():
-        raise BuildPreparationValidationError("Build context overview must not be empty.")
-    return context
-
-
-def validate_phase2_contracts(
-    query_plan: Stage1QueryPlan,
-    candidates: list[FetchedResource],
-    selection_plan: Stage2SelectionPlan,
-    context: BuildContextDraft,
+def validate_visual_brief_output(
+    output: VisualBriefOutput,
     *,
     need_ids: set[str],
-    route_ids: set[str],
-) -> None:
-    validate_query_plan(query_plan, need_ids)
-    validate_fetched_candidates(candidates, need_ids)
-    validate_selection_plan(selection_plan, need_ids, candidates)
-    validate_build_context(
-        context,
-        route_ids,
-        {
-            selection.selected_resource_id
-            for selection in selection_plan.selections
-            if selection.selected_resource_id
-        },
-    )
+    candidate_counts: dict[str, int],
+    suggestion_counts: dict[str, int],
+) -> VisualBriefOutput:
+    """Reject any model pick that isn't a real index into the given candidates.
+
+    This is the whole enforcement mechanism for "never invent a resource": the
+    model can only choose ``None`` or an in-range index into the candidate
+    list Build Preparation's own deterministic discovery step already found.
+    """
+    if not output.visual_brief_prose.strip():
+        raise BuildPreparationValidationError("The visual brief prose must not be empty.")
+    seen: set[str] = set()
+    for guidance in output.resource_guidance:
+        if guidance.need_id in seen:
+            raise BuildPreparationValidationError(
+                "The model returned duplicate resource guidance for one need.",
+                details={"need_id": guidance.need_id},
+            )
+        seen.add(guidance.need_id)
+        if guidance.need_id not in need_ids:
+            raise BuildPreparationValidationError(
+                "The model returned guidance for an unknown resource need.",
+                details={"need_id": guidance.need_id},
+            )
+        available = candidate_counts.get(guidance.need_id, 0)
+        if guidance.primary_candidate_index is not None and not (
+            0 <= guidance.primary_candidate_index < available
+        ):
+            raise BuildPreparationValidationError(
+                "The model picked a resource candidate index that was not in the "
+                "discovered candidate list.",
+                details={"need_id": guidance.need_id, "index": guidance.primary_candidate_index},
+            )
+    seen = set()
+    for component_guidance in output.component_guidance:
+        if component_guidance.need_id in seen:
+            raise BuildPreparationValidationError(
+                "The model returned duplicate component guidance for one need.",
+                details={"need_id": component_guidance.need_id},
+            )
+        seen.add(component_guidance.need_id)
+        if component_guidance.need_id not in need_ids:
+            raise BuildPreparationValidationError(
+                "The model returned guidance for an unknown component need.",
+                details={"need_id": component_guidance.need_id},
+            )
+        available = suggestion_counts.get(component_guidance.need_id, 0)
+        if component_guidance.primary_suggestion_index is not None and not (
+            0 <= component_guidance.primary_suggestion_index < available
+        ):
+            raise BuildPreparationValidationError(
+                "The model picked a component suggestion index that was not in the "
+                "discovered suggestion list.",
+                details={
+                    "need_id": component_guidance.need_id,
+                    "index": component_guidance.primary_suggestion_index,
+                },
+            )
+    return output

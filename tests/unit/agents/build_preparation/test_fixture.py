@@ -20,10 +20,9 @@ from oryxenai.core.settings import Settings
 
 
 @pytest.mark.asyncio
-async def test_fixture_returns_routes_needs_and_complete_events(tmp_path: Path) -> None:
+async def test_fixture_returns_routes_and_both_briefs_offline(tmp_path: Path) -> None:
     settings = Settings()
     settings.build_preparation.max_routes = 12
-    settings.build_preparation.fixture_upload = False
     settings.build_preparation.fixture_output_dir = str(tmp_path)
     payload = {
         "approved": {"visual_direction_hash": "visual-hash"},
@@ -36,25 +35,18 @@ async def test_fixture_returns_routes_needs_and_complete_events(tmp_path: Path) 
         settings,
         raw_override=payload,
         content_architect_override={
-            "page_content_packs": [{"route_id": "home", "sections": [{"section_id": "hero"}]}]
+            "route_plan": [{"route_id": "home", "path": "/", "publication_status": "approved"}],
+            "page_content_packs": [{"route_id": "home", "sections": [{"section_id": "hero"}]}],
         },
         local_result_root=str(tmp_path / "fixture-result"),
     )
-    assert result["status"] == "needs_attention"
+    assert result["status"] == "ready"
     assert result["routes"][0]["route_id"] == "home"
-    assert result["events"][-1]["event_id"] == "phase_3_complete"
-    assert result["stage"] == "phase_3"
-    assert result["materialization"]["manifest_path"] == "resources/manifest.json"
-    assert result["materialization"]["resource_plan_path"] == "resources/ledger.json"
-    assert result["handoff_report"]["handoff_eligible"] is False
-    assert any(
-        issue["code"] == "OFFLINE_DIAGNOSTIC_ONLY" for issue in result["handoff_report"]["issues"]
-    )
-    assert (tmp_path / "fixture-result" / "build-context" / "handoff-report.json").is_file()
-    assert result["package"]["archive_sha256"]
-    assert result["package"]["mirror_root"]
-    assert (tmp_path / "fixture-result" / "build-context" / "manifest.json").is_file()
-    assert (tmp_path / "fixture-result" / "build-pack.zip").is_file()
+    assert result["content_brief_markdown"].startswith("# Content & Narrative Brief")
+    assert "home" in result["visual_brief_markdown"] or result["visual_brief_markdown"]
+    assert result["model_calls"] == 0
+    assert (tmp_path / "fixture-result" / "content-and-narrative-brief.md").is_file()
+    assert (tmp_path / "fixture-result" / "visual-and-build-brief.md").is_file()
 
 
 def test_fixture_auto_picks_attached_content_and_visual_outputs(

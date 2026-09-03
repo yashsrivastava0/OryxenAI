@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
@@ -23,12 +23,6 @@ from oryxenai.core.settings import get_settings
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
 from oryxenai.jobs.service import JobService
-from oryxenai.storage.artifacts import (
-    ArtifactStorageError,
-    ArtifactStore,
-    create_artifact_store,
-    is_expired,
-)
 
 _BUILD_KIND = "build_preparation.prepare"
 _AGENT_KEY = "build_preparation"
@@ -55,11 +49,9 @@ class BuildPreparationService:
         self,
         repository: BuildPreparationRepository,
         job_service: JobService,
-        artifact_store: ArtifactStore | None = None,
     ) -> None:
         self._repository = repository
         self._job_service = job_service
-        self._artifact_store = artifact_store
         self._settings = get_settings()
         self._input_integrator = BuildPreparationInputIntegrator(self._settings)
 
@@ -105,19 +97,12 @@ class BuildPreparationService:
             agent_key=_AGENT_KEY,
             status="pending",
             input_payload={
-                "operation": "build",
                 "model_profile": resolved_profile,
                 "max_routes": self._settings.build_preparation.max_routes,
                 "live_model": self._settings.build_preparation.reasoning_enabled,
                 "live_providers": self._settings.build_preparation.reasoning_enabled,
                 "output_dir": self._settings.build_preparation.session_staging_root,
-                "artifact_upload": True,
                 "debug_mirror": self._settings.build_preparation.debug_mirror_enabled,
-                "bundle_expires_at": (
-                    datetime.now(UTC)
-                    + timedelta(days=max(1, self._settings.build_preparation.bundle_ttl_days))
-                ).isoformat(),
-                "integration_route_threshold": self._settings.build_preparation.integration_route_threshold,
                 "source_ref": source_ref.model_dump(mode="json"),
                 "content_architect": ca_payload,
                 "visual_design_director": vdd_payload,
@@ -206,36 +191,12 @@ class BuildPreparationService:
                     stale_reasons.append("approved_upstream_changed")
                 stale = upstream_stale
             elif state.status is not BuildPreparationStatus.NOT_STARTED and (
-                state.source_ref.input_projection_hash or state.package is not None
+                state.source_ref.input_projection_hash or state.content_brief_markdown
             ):
                 stale = True
                 stale_reasons.append("approved_upstream_unavailable")
         except Exception:
             current_source_ref = None
-
-        if state.package is not None:
-            if is_expired(
-                state.package.artifact or _empty_artifact_reference(state.package.expires_at)
-            ):
-                stale = True
-                stale_reasons.append("artifact_expired")
-            reference = state.package.artifact
-            if reference is not None and reference.provider != "memory":
-                try:
-                    store = self._artifact_store or create_artifact_store(self._settings)
-                    stored = await store.head(reference)
-                    if stored is None:
-                        stale = True
-                        stale_reasons.append("artifact_missing")
-                    elif (
-                        stored.sha256 != reference.sha256
-                        or stored.size_bytes != reference.size_bytes
-                    ):
-                        stale = True
-                        stale_reasons.append("artifact_changed")
-                except ArtifactStorageError:
-                    stale = True
-                    stale_reasons.append("artifact_unavailable")
 
         jobs: list[dict[str, Any]] = []
         if state.job_id:
@@ -267,47 +228,24 @@ class BuildPreparationService:
             "jobs": jobs,
         }
 
-    async def download_artifact(self, session_id: UUID) -> tuple[bytes, str]:
-        """Return the current verified ZIP and its content type."""
+    async def download_brief(self, session_id: UUID, doc: str = "content") -> tuple[bytes, str]:
+        """Return one of the two Markdown briefs as UTF-8 bytes."""
         state_response = await self.get_state(session_id)
         payload = state_response["build_preparation"]
         if bool(payload.get("stale")):
             raise BuildPreparationOperationError(
-                "BUILD_PREPARATION_ARTIFACT_STALE",
-                "The Build Preparation package is stale. Regenerate it before downloading.",
+                "BUILD_PREPARATION_BRIEF_STALE",
+                "The Build Preparation briefs are stale. Regenerate them before downloading.",
                 details={"stale_reasons": payload.get("stale_reasons", [])},
             )
-        package = payload.get("package")
-        if not isinstance(package, dict):
+        field = "visual_brief_markdown" if doc == "visual" else "content_brief_markdown"
+        markdown = str(payload.get(field, "") or "")
+        if not markdown:
             raise BuildPreparationOperationError(
-                "BUILD_PREPARATION_ARTIFACT_NOT_READY",
-                "Build Preparation has not produced a downloadable package yet.",
+                "BUILD_PREPARATION_BRIEF_NOT_READY",
+                "Build Preparation has not produced this brief yet.",
             )
-        reference = package.get("artifact")
-        if not isinstance(reference, dict):
-            raise BuildPreparationOperationError(
-                "BUILD_PREPARATION_ARTIFACT_UNAVAILABLE",
-                "The verified Build Preparation package is not available in object storage.",
-            )
-        from oryxenai.storage.artifacts import ArtifactReference
-
-        artifact = ArtifactReference.model_validate(reference)
-        if is_expired(artifact):
-            raise BuildPreparationOperationError(
-                "BUILD_PREPARATION_ARTIFACT_EXPIRED",
-                "The Build Preparation package has expired. Regenerate it before downloading.",
-            )
-        try:
-            store = self._artifact_store or create_artifact_store(self._settings)
-            data = await store.get_verified(artifact)
-        except ArtifactStorageError as exc:
-            raise BuildPreparationOperationError(
-                exc.code,
-                exc.message,
-                status_code=404 if exc.code == "ARTIFACT_NOT_FOUND" else 503,
-                details=exc.details,
-            ) from exc
-        return data, artifact.content_type or "application/zip"
+        return markdown.encode("utf-8"), "text/markdown; charset=utf-8"
 
     async def _require_session(self, session_id: UUID) -> Any:
         session = await self._repository.get_session(session_id)
@@ -383,16 +321,3 @@ def _elapsed_seconds(started_at: str | None) -> float | None:
     except ValueError:
         return None
     return max(0.0, (datetime.now(UTC) - started).total_seconds())
-
-
-def _empty_artifact_reference(expires_at: str) -> Any:
-    """Provide a non-persisted reference so expiry uses one parser."""
-    from oryxenai.storage.artifacts import ArtifactReference
-
-    return ArtifactReference(
-        provider="memory",
-        key="expiry-only",
-        sha256="0" * 64,
-        size_bytes=0,
-        expires_at=expires_at,
-    )

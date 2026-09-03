@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -12,7 +11,6 @@ from oryxenai.agents.build_preparation.input_integrator import (
 from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationState,
     BuildPreparationStatus,
-    PackageResult,
 )
 from oryxenai.agents.build_preparation.service import BuildPreparationService
 from oryxenai.agents.build_preparation.validators import (
@@ -31,7 +29,6 @@ from oryxenai.agents.visual_design_director.schemas import (
 )
 from oryxenai.core.settings import Settings
 from oryxenai.jobs.service import JobService
-from oryxenai.storage.artifacts import MemoryArtifactStore
 
 
 def _content() -> dict[str, object]:
@@ -166,14 +163,6 @@ class _DownloadRepository:
 
 
 async def _download_service():
-    data = b"PK\x03\x04verified-build-pack"
-    store = MemoryArtifactStore()
-    reference = await store.put_verified(
-        key="temporary/session/build.zip",
-        data=data,
-        sha256=hashlib.sha256(data).hexdigest(),
-        expires_at="2099-01-01T00:00:00+00:00",
-    )
     source_ref = (
         BuildPreparationInputIntegrator(Settings())
         .compose(
@@ -191,27 +180,20 @@ async def _download_service():
     state = BuildPreparationState(
         status=BuildPreparationStatus.READY,
         source_ref=source_ref,
-        package=PackageResult(
-            archive_sha256=reference.sha256,
-            archive_size_bytes=reference.size_bytes,
-            file_count=1,
-            expires_at=reference.expires_at,
-            artifact=reference,
-        ),
+        content_brief_markdown="# Content brief",
+        visual_brief_markdown="# Visual brief",
     )
     repository = _DownloadRepository(state)
-    service = BuildPreparationService(
-        repository,
-        JobService(None),
-        artifact_store=store,
-    )
-    return service, data
+    service = BuildPreparationService(repository, JobService(None))
+    return service
 
 
-async def test_session_artifact_download_reads_verified_package_bytes() -> None:
-    service, expected = await _download_service()
+async def test_session_brief_download_reads_persisted_markdown() -> None:
+    service = await _download_service()
 
-    data, content_type = await service.download_artifact(service._repository.session_id)
+    data, content_type = await service.download_brief(service._repository.session_id, "content")
+    assert data == b"# Content brief"
+    assert content_type == "text/markdown; charset=utf-8"
 
-    assert data == expected
-    assert content_type == "application/zip"
+    data, content_type = await service.download_brief(service._repository.session_id, "visual")
+    assert data == b"# Visual brief"

@@ -225,21 +225,24 @@ async def regenerate_build_preparation(
 
 
 @router.get("/download")
-async def download_build_preparation_artifact(
+async def download_build_preparation_brief(
     session_id: str,
+    doc: str = "content",
     access: PortfolioAccess = Depends(require_pipeline_session),
     service: BuildPreparationService = Depends(get_build_preparation_service),
 ) -> Response:
+    doc = "visual" if doc == "visual" else "content"
     try:
-        data, content_type = await service.download_artifact(access.session.id)
+        data, content_type = await service.download_brief(access.session.id, doc)
     except BuildPreparationOperationError as exc:
         _translate(exc)
+    filename_stem = "visual-and-build-brief" if doc == "visual" else "content-and-narrative-brief"
     return Response(
         content=data,
         media_type=content_type,
         headers={
             "Content-Disposition": (
-                f'attachment; filename="build-preparation-{str(access.session.id)[:8]}.zip"'
+                f'attachment; filename="{filename_stem}-{str(access.session.id)[:8]}.md"'
             )
         },
     )
@@ -319,18 +322,22 @@ async def get_build_preparation_fixture_run(request: Request, run_id: str) -> di
 
 @fixture_router.get("/runs/{run_id}/download")
 @detached_fixture_router.get("/runs/{run_id}/download")
-async def download_build_preparation_fixture_run(request: Request, run_id: str) -> FileResponse:
+async def download_build_preparation_fixture_run(
+    request: Request, run_id: str, doc: str = "content"
+) -> FileResponse:
     _fixture_enabled(request)
+    doc = "visual" if doc == "visual" else "content"
     try:
-        archive_path = await _fixture_manager(request).download_path(run_id)
+        brief_path = await _fixture_manager(request).download_path(run_id, doc)
     except FixtureRunNotFoundError as exc:
         raise AppError(
-            "The requested Build Preparation fixture ZIP was not found.",
-            code="FIXTURE_RUN_ARCHIVE_NOT_FOUND",
+            "The requested Build Preparation fixture brief was not found.",
+            code="FIXTURE_RUN_BRIEF_NOT_FOUND",
             status_code=404,
         ) from exc
+    filename_stem = "visual-and-build-brief" if doc == "visual" else "content-and-narrative-brief"
     return FileResponse(
-        archive_path,
-        media_type="application/zip",
-        filename=f"build-preparation-{run_id[:8]}.zip",
+        brief_path,
+        media_type="text/markdown",
+        filename=f"{filename_stem}-{run_id[:8]}.md",
     )
