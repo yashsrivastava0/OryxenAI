@@ -122,21 +122,25 @@ export function ArchitecturalCanvas() {
         p.currentY += p.vy;
 
         // Proximity illumination calculation
-        let alpha = 0.15;
-        let pointSize = 1.2;
+        let alpha = 0.12;
+        let pointSize = 1.0;
+        let isProximity = false;
 
         if (isMouseActive) {
           const dx = mouseX - p.currentX;
           const dy = mouseY - p.currentY;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < radius * 1.5) {
+            isProximity = true;
             const proximity = 1 - dist / (radius * 1.5);
-            alpha = 0.15 + proximity * 0.45;
-            pointSize = 1.2 + proximity * 1.5;
+            alpha = 0.15 + proximity * 0.65;
+            pointSize = 1.0 + proximity * 1.8;
           }
         }
 
-        ctx.fillStyle = `rgba(23, 26, 25, ${alpha})`;
+        ctx.fillStyle = isProximity
+          ? `rgba(59, 130, 246, ${alpha})`
+          : `rgba(148, 163, 184, ${alpha})`;
         ctx.beginPath();
         ctx.arc(p.currentX, p.currentY, pointSize, 0, Math.PI * 2);
         ctx.fill();
@@ -144,7 +148,7 @@ export function ArchitecturalCanvas() {
 
       // If mouse is active, render subtle precision architectural crosshairs
       if (isMouseActive && mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
-        ctx.strokeStyle = "rgba(98, 102, 96, 0.12)";
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.22)";
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 6]);
 
@@ -163,9 +167,9 @@ export function ArchitecturalCanvas() {
         ctx.setLineDash([]);
 
         // Small technical coordinate readout badge near cursor
-        const coordText = `coord [${Math.round(mouseX)}, ${Math.round(mouseY)}]`;
+        const coordText = `ATELIER [${Math.round(mouseX)}, ${Math.round(mouseY)}]`;
         ctx.font = "9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-        ctx.fillStyle = "rgba(98, 102, 96, 0.55)";
+        ctx.fillStyle = "rgba(148, 163, 184, 0.75)";
         ctx.fillText(coordText, mouseX + 12, mouseY - 10);
       }
 

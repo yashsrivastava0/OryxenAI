@@ -810,8 +810,7 @@ class DevelopmentInputAdapter:
                 resource.get("provider") == "generated-local"
                 or (
                     resource.get("kind") == "photo"
-                    and resource.get("disposition")
-                    not in {"local_file", "deferred_materialized"}
+                    and resource.get("disposition") not in {"local_file", "deferred_materialized"}
                 )
                 or (
                     resource.get("kind") == "component"
