@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
-import { LivingDraftMark } from "./LivingDraftMark";
 import { safeSessionStorage } from "../data/safe-storage";
 
 export interface AnsweredTurn {
@@ -148,6 +147,19 @@ export function ConversationSurface({
     }
   };
 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isWorking) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isWorking]);
+
   return (
     <section className="conversation-surface" aria-label="Discovery conversation">
       {/* Transcript of prior answered turns */}
@@ -170,9 +182,40 @@ export function ConversationSurface({
 
       {/* Active working state */}
       {isWorking && (
-        <div className="working-banner" role="status">
-          <LivingDraftMark active={true} />
-          <span className="working-label">{workingLabel}</span>
+        <div className="discovery-engine-monitor" role="status" aria-live="polite">
+          <div className="engine-monitor-header">
+            <div className="engine-status-badge">
+              <span className="engine-beacon-dot" aria-hidden="true" />
+              <span className="engine-badge-text">DISCOVERY ENGINE ACTIVE</span>
+            </div>
+            <span className="engine-elapsed-timer">
+              {elapsedSeconds}s elapsed
+            </span>
+          </div>
+
+          <h2 className="engine-monitor-title">{workingLabel}</h2>
+          <p className="engine-monitor-desc">
+            The Discovery agent is analyzing your background materials and synthesizing your portfolio direction.
+          </p>
+
+          <ol className="engine-milestones-track" role="list">
+            <li className="engine-milestone complete">
+              <span className="milestone-icon">✓</span>
+              <span>Intake notes received</span>
+            </li>
+            <li className="engine-milestone active">
+              <span className="milestone-pulse" />
+              <span>Analyzing background & milestones</span>
+            </li>
+            <li className="engine-milestone pending">
+              <span className="milestone-dot" />
+              <span>Structuring portfolio brief</span>
+            </li>
+          </ol>
+
+          <p className="engine-leave-reassurance">
+            Work continues durably on the background server. You can safely stay on this page while it completes.
+          </p>
         </div>
       )}
 

@@ -2,7 +2,7 @@ import type { ContentViewModel } from "../../data/adapters/content";
 import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
 import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
-import { LivingDraftMark } from "../../components/LivingDraftMark";
+import { ProgressSurface } from "../../components/ProgressSurface";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
@@ -57,13 +57,16 @@ export function ContentStage({
 
   if (view.state === "working") {
     return (
-      <div className="stage-working-panel" role="status">
-        <LivingDraftMark active={true} />
-        <h2>{view.statusText}</h2>
-        <p className="stage-desc">
-          The agent is structuring routes, deriving positioning, and drafting page content packs.
-        </p>
-      </div>
+      <ProgressSurface
+        stageLabel="Stage 02 / Content Architect"
+        title="Structuring Portfolio Content Architecture"
+        currentMilestone={view.statusText || "Drafting routes and positioning statements"}
+        milestones={[
+          { id: "brief", label: "Consuming approved Discovery brief", state: "complete" },
+          { id: "routes", label: "Architecting site route hierarchy & targets", state: "current" },
+          { id: "packs", label: "Drafting page content packs & section copy", state: "quiet" },
+        ]}
+      />
     );
   }
 

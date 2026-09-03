@@ -37,8 +37,10 @@ export class PollCoordinator {
   constructor(options: PollCoordinatorOptions = {}) {
     this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
     this.documentRef = options.documentRef ?? (typeof document !== "undefined" ? document : null);
-    this.setTimeoutFn = options.setTimeoutFn ?? setTimeout;
-    this.clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
+    const rawSetTimeout = options.setTimeoutFn ?? setTimeout;
+    const rawClearTimeout = options.clearTimeoutFn ?? clearTimeout;
+    this.setTimeoutFn = ((fn: any, ms?: any, ...args: any[]) => rawSetTimeout(fn, ms, ...args)) as typeof setTimeout;
+    this.clearTimeoutFn = ((id?: any) => rawClearTimeout(id)) as typeof clearTimeout;
     this.documentRef?.addEventListener?.("visibilitychange", this.visibilityListener);
   }
 

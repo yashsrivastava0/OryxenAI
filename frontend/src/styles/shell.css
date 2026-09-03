@@ -350,23 +350,23 @@ button {
   text-align: center;
 }
 
-/* ── StartSurface & Hero Command Center ────────────────────────────────── */
+/* ── StartSurface & Hero Command Center (Zero-Scroll Studio Architecture) ── */
 
 .atelier-start-wrapper {
-  max-width: 1040px;
+  max-width: 980px;
   margin: 0 auto;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-12);
-  padding: var(--space-6) 0 var(--space-16);
-  animation: studioFadeIn 0.4s var(--ease-spring);
+  gap: var(--space-5);
+  padding: var(--space-3) 0 var(--space-8);
+  animation: studioFadeIn 0.35s var(--ease-spring);
 }
 
 @keyframes studioFadeIn {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -382,25 +382,25 @@ button {
 
 .start-hero-header {
   text-align: center;
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-3);
 }
 
 .hero-status-beacon {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 14px;
+  gap: 6px;
+  padding: 3px 12px;
   background: var(--paper-glass);
   border: 1px solid var(--rule);
   border-radius: var(--radius-pill);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 .beacon-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--positive);
   box-shadow: 0 0 8px var(--positive);
@@ -420,38 +420,38 @@ button {
 
 .beacon-text {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--ink-secondary);
 }
 
 .start-hero-title {
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 4.8vw, 3.6rem);
+  font-size: clamp(1.65rem, 3.2vw, 2.3rem);
   font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.035em;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   color: var(--ink);
-  margin: 0 auto var(--space-3);
-  max-width: 820px;
+  margin: 0 auto var(--space-1);
+  max-width: 760px;
 }
 
 .start-hero-thesis {
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: 13.5px;
+  line-height: 1.5;
   color: var(--graphite);
   margin: 0 auto;
-  max-width: 620px;
+  max-width: 600px;
 }
 
 /* Double-Bezel Command Center Enclosure */
 .command-center-outer {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-frame);
-  padding: 8px;
-  box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.7), 0 0 50px rgba(59, 130, 246, 0.06);
+  border-radius: 20px;
+  padding: 6px;
+  box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.65), 0 0 40px rgba(59, 130, 246, 0.05);
   transition: border-color var(--duration-fast) var(--ease-spring);
 }
 
@@ -464,51 +464,48 @@ button {
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-inner);
-  padding: clamp(20px, 3.5vw, 36px);
+  border-radius: 14px;
+  padding: clamp(16px, 2.5vw, 24px);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
 }
 
-/* ── Archetype Selector (Integrated Chip Bar) ──────────────────────────── */
+/* ── Archetype Selector (Single-Row Segmented Track) ───────────────────── */
 
 .archetype-control-bar {
-  margin-bottom: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.archetype-chips-header {
+  margin-bottom: var(--space-3);
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.archetype-chips-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--graphite);
-  text-transform: uppercase;
-}
-
-.archetype-chips-row {
-  display: flex;
+  gap: var(--space-2);
   flex-wrap: wrap;
-  gap: 8px;
+}
+
+.archetype-segmented-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.archetype-lead-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--graphite-dim);
+  margin-right: 2px;
 }
 
 .archetype-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: 6px;
+  padding: 5px 12px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--rule);
   border-radius: var(--radius-pill);
   color: var(--ink-secondary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--duration-fast) var(--ease-spring);
@@ -525,53 +522,53 @@ button {
   background: var(--signal-subtle) !important;
   border-color: rgba(59, 130, 246, 0.5) !important;
   color: #ffffff !important;
-  box-shadow: 0 0 14px var(--signal-glow);
+  box-shadow: 0 0 12px var(--signal-glow);
 }
 
 .archetype-chip-code {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--signal);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 
 .archetype-chip-name {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .archetype-chip-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--signal);
   box-shadow: 0 0 6px var(--signal);
 }
 
-.quick-focus-row {
+.quick-focus-strip {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-top: 2px;
 }
 
 .quick-focus-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--graphite-dim);
 }
 
 .quick-focus-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .quick-focus-pill {
   font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 3px 10px;
+  font-size: 10px;
+  padding: 3px 8px;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--rule-subtle);
@@ -591,7 +588,7 @@ button {
 .start-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .textarea-tactile-container {
@@ -612,16 +609,16 @@ button {
 
 .start-textarea {
   width: 100%;
-  padding: var(--space-5);
+  padding: var(--space-3) var(--space-4);
   border: none;
   font: var(--type-body);
   font-family: var(--font-mono), inherit;
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 13.5px;
+  line-height: 1.6;
   background: transparent;
   color: var(--ink);
   resize: vertical;
-  min-height: 180px;
+  min-height: 110px;
 }
 
 .start-textarea:focus {
@@ -635,8 +632,8 @@ button {
 .narrative-telemetry-bar {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: 4px;
+  padding: 6px 14px;
   background: rgba(255, 255, 255, 0.02);
   border-top: 1px solid var(--rule-subtle);
 }
@@ -644,7 +641,7 @@ button {
 .telemetry-metrics {
   display: flex;
   justify-content: space-between;
-  font-size: 11.5px;
+  font-size: 11px;
   font-family: var(--font-mono);
   color: var(--graphite);
 }
@@ -655,7 +652,7 @@ button {
 }
 
 .telemetry-progress-track {
-  height: 4px;
+  height: 3px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 2px;
   overflow: hidden;
@@ -670,10 +667,10 @@ button {
 
 .start-error {
   color: var(--critical);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   margin: 0;
-  padding: 10px 14px;
+  padding: 8px 12px;
   background: var(--critical-subtle);
   border-radius: var(--radius-control);
   border: 1px solid rgba(239, 68, 68, 0.25);
@@ -684,27 +681,27 @@ button {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-top: var(--space-2);
+  gap: var(--space-3);
+  margin-top: 2px;
 }
 
 .start-actions-left {
   flex: 1;
-  min-width: 260px;
+  min-width: 240px;
 }
 
 .start-trust-badge {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--graphite);
   margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   line-height: 1.4;
 }
 
 .trust-lock-icon {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .start-actions-right {
@@ -713,14 +710,32 @@ button {
   gap: var(--space-3);
 }
 
+.keyboard-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 2px;
+}
+
+.keyboard-hint kbd {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--rule);
+  color: var(--graphite);
+}
+
 .btn-text-secondary {
   background: transparent;
   border: none;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--graphite);
   cursor: pointer;
   text-decoration: underline;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: var(--radius-control);
   transition: color var(--duration-fast) var(--ease-spring);
 }
@@ -729,15 +744,16 @@ button {
   color: var(--ink);
 }
 
+/* Island Button Architecture with Button-in-Button Trailing Icon */
 .start-submit-btn {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 20px 12px 24px;
-  font-size: 15px;
+  padding: 8px 10px 8px 20px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   background: var(--signal);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -749,33 +765,159 @@ button {
 .start-submit-btn:hover:not(:disabled) {
   background: var(--signal-hover);
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px var(--signal-glow);
+  box-shadow: 0 6px 20px var(--signal-glow);
 }
 
 .start-submit-btn:hover:not(:disabled) .btn-icon-wrapper {
-  transform: translateX(2px);
-  background: rgba(255, 255, 255, 0.3);
+  transform: translate(2px, -1px);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .start-submit-btn:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-.start-submit-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
 .btn-icon-wrapper {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all var(--duration-fast) var(--ease-spring);
+}
+
+/* ── Discovery Live Engine Monitor ───────────────────────────────────────── */
+
+.discovery-engine-monitor {
+  background: var(--paper-glass);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-frame);
+  padding: clamp(20px, 3.5vw, 36px);
+  margin: var(--space-4) auto;
+  max-width: 760px;
+  box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.65);
+  animation: studioFadeIn 0.3s var(--ease-spring);
+}
+
+.engine-monitor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.engine-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--signal-subtle);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.engine-beacon-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 8px var(--signal);
+  animation: beaconPulse 1.8s infinite ease-in-out;
+}
+
+.engine-badge-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #93c5fd;
+}
+
+.engine-elapsed-timer {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--graphite);
+  font-variant-numeric: tabular-nums;
+}
+
+.engine-monitor-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: var(--space-2);
+}
+
+.engine-monitor-desc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--graphite);
+  margin-bottom: var(--space-5);
+}
+
+.engine-milestones-track {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.engine-milestone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--graphite-dim);
+}
+
+.engine-milestone.complete {
+  color: var(--ink);
+}
+
+.engine-milestone.complete .milestone-icon {
+  color: var(--positive);
+  font-weight: bold;
+}
+
+.engine-milestone.active {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.engine-milestone.active .milestone-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 8px var(--signal);
+  animation: beaconPulse 1.2s infinite ease-in-out;
+}
+
+.engine-milestone.pending .milestone-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.engine-leave-reassurance {
+  font-size: 12px;
+  color: var(--graphite-dim);
+  margin: 0;
+  border-top: 1px solid var(--rule-subtle);
+  padding-top: var(--space-3);
+}
+
+.start-submit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-arrow {
