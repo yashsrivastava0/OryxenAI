@@ -72,7 +72,6 @@ from oryxenai.preview.gateway import create_candidate_app
 from oryxenai.preview.promotion import PreviewPromoter
 from oryxenai.preview.reconciler import reconcile_pending_promotion
 from oryxenai.preview.server import EphemeralServer, start_ephemeral_server
-from oryxenai.storage.artifacts import is_expired
 from oryxenai.storage.preview import create_preview_storage
 
 logger = get_logger("oryxenai.jobs.code_generator_verification")
@@ -1004,29 +1003,11 @@ def _preview_host(run_id: str) -> str:
 
 
 async def _session_source_is_current(repository: CodeGeneratorRepository, run: Any) -> bool:
-    session_id = getattr(run, "portfolio_session_id", None)
-    source = dict(getattr(run, "build_preparation_source_ref", None) or {})
-    if session_id is None or not source:
-        return False
-    try:
-        preparation = await repository.get_build_preparation_state(session_id)
-    except (LookupError, ValueError):
-        return False
-    if preparation.package is None or preparation.package.artifact is None:
-        return False
-    artifact = preparation.package.artifact
-    expected_artifact_value = source.get("artifact")
-    expected_artifact: dict[str, Any] = (
-        expected_artifact_value if isinstance(expected_artifact_value, dict) else {}
-    )
-    return bool(
-        preparation.run_id == str(source.get("build_preparation_run_id", ""))
-        and preparation.scope_hash == str(source.get("build_preparation_scope_hash", ""))
-        and preparation.package.archive_sha256 == str(source.get("archive_sha256", ""))
-        and artifact.sha256 == str(expected_artifact.get("sha256", ""))
-        and artifact.key == str(expected_artifact.get("key", ""))
-        and not is_expired(artifact)
-    )
+    # Build Preparation no longer produces a ZIP artifact to compare against
+    # (Markdown-brief output) -- any run still bound to the old artifact-based
+    # CodeGeneratorSourceRef is permanently stale. Session-bound ingestion of
+    # the new brief contract is tracked as explicit follow-up work.
+    return False
 
 
 def _reference(run: Any) -> Any:

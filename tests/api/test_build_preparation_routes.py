@@ -50,7 +50,6 @@ def _fixture_app(tmp_path: Path):
     settings.build_preparation.fixture_enabled = True
     app = create_app(settings)
     override_test_identity(app, role="admin")
-    app.state.settings.build_preparation.fixture_upload = False
     app.state.settings.build_preparation.fixture_output_dir = str(tmp_path)
     return app
 
@@ -59,7 +58,6 @@ def _detached_fixture_app(tmp_path: Path):
     settings = Settings()
     settings.auth.pipeline_mode = "detached"
     settings.build_preparation.fixture_enabled = True
-    settings.build_preparation.fixture_upload = False
     settings.build_preparation.fixture_output_dir = str(tmp_path)
     return create_app(settings)
 
@@ -102,11 +100,11 @@ async def test_fixture_run_is_detached_and_deterministic(tmp_path: Path) -> None
         )
     assert response.status_code == 200
     body = response.json()
-    assert body["stage"] == "phase_3"
-    assert body["status"] == "needs_attention"
+    assert body["status"] == "ready"
     assert body["model_calls"] == 0
-    assert body["events"][-1]["event_id"] == "phase_3_complete"
-    assert body["package"]["archive_sha256"]
+    assert body["content_brief_markdown"].startswith("# Content & Narrative Brief")
+    assert body["visual_brief_markdown"]
+    assert body["events"][-1]["stage"] == "compose_visual_brief"
 
 
 @pytest.mark.asyncio
@@ -139,16 +137,8 @@ async def test_fixture_accepts_optional_content_architect_json(tmp_path: Path) -
     assert response.status_code == 200
     body = response.json()
     assert [route["route_id"] for route in body["routes"]] == ["home"]
-    assert "routes/home-4ea140588150/data.json" in {
-        item["relative_path"] for item in body["materialization"]["files"]
-    }
-    route_data = json.loads(
-        (
-            Path(body["materialization"]["root_path"]) / "routes/home-4ea140588150/data.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert route_data["sections"][0]["content"]["heading"] == "A public heading"
-    assert "internal_notes" not in route_data["sections"][0]
+    assert "A public heading" in body["content_brief_markdown"]
+    assert "must not be emitted" not in body["content_brief_markdown"]
 
 
 @pytest.mark.asyncio
@@ -222,15 +212,17 @@ async def test_detached_fixture_bypasses_auth_and_sign_in_redirects(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_fixture_run_api_persists_local_package_and_offers_download(tmp_path: Path) -> None:
+async def test_fixture_run_api_persists_both_briefs_and_offers_download(tmp_path: Path) -> None:
     app = _fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         preflight = await client.get("/api/v1/build-preparation/fixture/preflight")
         assert preflight.status_code == 200
-        assert preflight.json()["local"]["status"] == "ready"
-        assert preflight.json()["r2"]["status"] == "not_requested"
+        assert preflight.json()["inputs"]["visual_design_director"]["status"] in {
+            "ready",
+            "not_found",
+        }
         start = await client.post(
             "/api/v1/build-preparation/fixture/runs",
             json={
@@ -241,16 +233,16 @@ async def test_fixture_run_api_persists_local_package_and_offers_download(tmp_pa
         assert start.status_code == 202
         run_id = start.json()["run_id"]
         result = await _completed_run(client, run_id)
-        assert result["status"] == "needs_attention"
-        assert result["summary"]["handoff_eligible"] is False
-        assert result["summary"]["execution_gap_count"] > 0
-        assert result["local_result"]["archive_available"] is True
+        assert result["status"] == "ready"
+        assert result["summary"]["route_count"] == 1
+        assert result["local_result"]["content_brief_available"] is True
+        assert result["local_result"]["visual_brief_available"] is True
         assert (
             Path(result["local_result"]["result_folder"])
             .resolve()
             .is_relative_to(tmp_path.resolve())
         )
-        download = await client.get(result["download_url"])
+        download = await client.get(result["content_brief_download_url"])
     assert download.status_code == 200
-    assert download.content.startswith(b"PK")
+    assert download.text.startswith("# Content & Narrative Brief")
     assert (tmp_path / "build-preparation").is_dir()

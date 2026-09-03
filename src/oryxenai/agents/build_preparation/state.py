@@ -6,18 +6,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 from oryxenai.agents.build_preparation.schemas import (
-    BuildContextDraft,
     BuildPreparationSourceRef,
     BuildPreparationState,
     BuildPreparationStatus,
-    FetchedResource,
-    HandoffQualityReport,
-    MaterializationResult,
-    PackageResult,
+    ComponentBriefEntry,
+    ResourceBriefEntry,
     ResourceNeed,
     RouteScope,
-    Stage1QueryPlan,
-    Stage2SelectionPlan,
     StageEvent,
 )
 
@@ -66,17 +61,17 @@ def apply_start(
     next_state.scope_hash = ""
     next_state.routes = []
     next_state.resource_needs = []
-    next_state.current_stage = "stage_0"
-    next_state.query_plan = None
-    next_state.fetched_candidates = []
-    next_state.selection_plan = None
-    next_state.build_context = None
-    next_state.materialization = None
-    next_state.package = None
-    next_state.handoff_report = None
+    next_state.resource_index = []
+    next_state.component_index = []
+    next_state.content_brief_markdown = ""
+    next_state.visual_brief_markdown = ""
+    next_state.content_brief_hash = ""
+    next_state.visual_brief_hash = ""
+    next_state.recommended_dependencies = []
+    next_state.debug_mirror_path = ""
+    next_state.current_stage = "scope"
     next_state.model_calls = 0
     next_state.provider_calls = 0
-    next_state.manifest_path = ""
     next_state.warnings = []
     next_state.events = []
     next_state.latest_error = None
@@ -130,125 +125,42 @@ def apply_result(
     scope_hash: str,
     routes: list[RouteScope],
     resource_needs: list[ResourceNeed],
-    warnings: list[str],
-    events: list[StageEvent],
-) -> BuildPreparationState:
-    if not is_valid_transition(state.status, BuildPreparationStatus.READY):
-        raise InvalidTransitionError(state.status.value, BuildPreparationStatus.READY.value)
-    next_state = state.model_copy(deep=True)
-    next_state.status = BuildPreparationStatus.READY
-    next_state.current_stage = "stage_0"
-    next_state.scope_hash = scope_hash
-    next_state.routes = routes
-    next_state.resource_needs = resource_needs
-    next_state.warnings = warnings
-    next_state.events = events
-    next_state.latest_error = None
-    next_state.completed_at = datetime.now(UTC).isoformat()
-    return next_state
-
-
-def apply_phase2_result(
-    state: BuildPreparationState,
-    *,
-    scope_hash: str,
-    routes: list[RouteScope],
-    resource_needs: list[ResourceNeed],
-    query_plan: Stage1QueryPlan,
-    fetched_candidates: list[FetchedResource],
-    selection_plan: Stage2SelectionPlan,
-    build_context: BuildContextDraft,
-    materialization: MaterializationResult,
+    resource_index: list[ResourceBriefEntry],
+    component_index: list[ComponentBriefEntry],
+    content_brief_markdown: str,
+    visual_brief_markdown: str,
+    content_brief_hash: str,
+    visual_brief_hash: str,
+    target_contract: str,
+    recommended_dependencies: list[str],
+    debug_mirror_path: str,
     warnings: list[str],
     events: list[StageEvent],
     model_calls: int,
     provider_calls: int,
 ) -> BuildPreparationState:
-    """Apply a complete Stage 0 through Phase 2 result atomically."""
     if not is_valid_transition(state.status, BuildPreparationStatus.READY):
         raise InvalidTransitionError(state.status.value, BuildPreparationStatus.READY.value)
     next_state = state.model_copy(deep=True)
     next_state.status = BuildPreparationStatus.READY
-    next_state.current_stage = "phase_2"
+    next_state.current_stage = "compose_visual_brief"
     next_state.scope_hash = scope_hash
     next_state.routes = routes
     next_state.resource_needs = resource_needs
-    next_state.query_plan = query_plan
-    next_state.fetched_candidates = fetched_candidates
-    next_state.selection_plan = selection_plan
-    next_state.build_context = build_context
-    next_state.materialization = materialization
-    next_state.package = None
-    next_state.handoff_report = None
-    next_state.manifest_path = materialization.manifest_path
+    next_state.resource_index = resource_index
+    next_state.component_index = component_index
+    next_state.content_brief_markdown = content_brief_markdown
+    next_state.visual_brief_markdown = visual_brief_markdown
+    next_state.content_brief_hash = content_brief_hash
+    next_state.visual_brief_hash = visual_brief_hash
+    next_state.target_contract = target_contract
+    next_state.recommended_dependencies = recommended_dependencies
+    next_state.debug_mirror_path = debug_mirror_path
     next_state.warnings = warnings
     next_state.events = events
     next_state.model_calls = model_calls
     next_state.provider_calls = provider_calls
     next_state.latest_error = None
-    next_state.completed_at = datetime.now(UTC).isoformat()
-    return next_state
-
-
-def apply_phase3_result(
-    state: BuildPreparationState,
-    *,
-    scope_hash: str,
-    routes: list[RouteScope],
-    resource_needs: list[ResourceNeed],
-    query_plan: Stage1QueryPlan,
-    fetched_candidates: list[FetchedResource],
-    selection_plan: Stage2SelectionPlan,
-    build_context: BuildContextDraft,
-    materialization: MaterializationResult,
-    package: PackageResult,
-    warnings: list[str],
-    events: list[StageEvent],
-    model_calls: int,
-    provider_calls: int,
-    handoff_report: HandoffQualityReport | None = None,
-) -> BuildPreparationState:
-    """Persist a verified package, blocking downstream handoff when required resources fail."""
-    target_status = (
-        BuildPreparationStatus.NEEDS_ATTENTION
-        if handoff_report is not None and not handoff_report.handoff_eligible
-        else BuildPreparationStatus.READY
-    )
-    if not is_valid_transition(state.status, target_status):
-        raise InvalidTransitionError(state.status.value, target_status.value)
-    next_state = state.model_copy(deep=True)
-    next_state.status = target_status
-    next_state.current_stage = "phase_3"
-    next_state.scope_hash = scope_hash
-    next_state.routes = routes
-    next_state.resource_needs = resource_needs
-    next_state.query_plan = query_plan
-    next_state.fetched_candidates = fetched_candidates
-    next_state.selection_plan = selection_plan
-    next_state.build_context = build_context
-    next_state.materialization = materialization
-    next_state.package = package
-    next_state.handoff_report = handoff_report
-    next_state.manifest_path = package.manifest_path
-    next_state.warnings = warnings
-    next_state.events = events
-    next_state.model_calls = model_calls
-    next_state.provider_calls = provider_calls
-    if handoff_report is not None and not handoff_report.handoff_eligible:
-        first_issue = handoff_report.issues[0] if handoff_report.issues else None
-        next_state.latest_error = {
-            "code": "BUILD_PREPARATION_HANDOFF_BLOCKED",
-            "message": (
-                first_issue.message
-                if first_issue is not None
-                else "The verified package does not meet the Code Generator handoff gate."
-            ),
-            "details": {
-                "issues": [issue.model_dump(mode="json") for issue in handoff_report.issues],
-            },
-        }
-    else:
-        next_state.latest_error = None
     next_state.completed_at = datetime.now(UTC).isoformat()
     return next_state
 

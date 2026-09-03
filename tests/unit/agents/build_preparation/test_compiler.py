@@ -252,7 +252,7 @@ def test_stage0_compiles_routes_and_resource_needs_without_model_calls() -> None
         ).required_for_handoff
         is False
     )
-    assert result.model_calls == 0
+    assert result.events[-1].message == "Stage 0 completed without model or provider calls."
     assert result.source_ref.content_architect_content_hash == "ca-hash"
     assert result.source_ref.visual_design_director_direction_hash == "vdd-hash"
     assert [event.event_id for event in result.events][-1] == "stage_0_complete"

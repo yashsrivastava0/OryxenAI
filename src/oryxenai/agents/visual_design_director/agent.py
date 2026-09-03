@@ -369,7 +369,7 @@ class VisualDesignDirectorAgent(Agent):
             "image_maximum": self._resource_policy.editorial_image_maximum,
             "component_target_count": self._resource_policy.visual_component_budget,
             "component_maximum": self._resource_policy.visual_component_maximum,
-            "require_real_local_material": self._resource_policy.require_live_visual_resources,
+            "require_real_local_material": True,
         }
 
         return AgentResult(
