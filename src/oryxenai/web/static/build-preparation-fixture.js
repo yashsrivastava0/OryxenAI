@@ -58,14 +58,11 @@
   function renderPreflight(data) {
     var list = document.getElementById("preflight");
     while (list.firstChild) list.removeChild(list.firstChild);
-    var local = data.local || {};
-    var r2 = data.r2 || {};
     var resources = data.resources || {};
-    list.appendChild(element("li", "Local timestamped result: " + (local.status === "ready" ? "ready" : "checking"), local.status === "ready" ? "ok" : ""));
-    var r2Text = "R2: " + (r2.message || r2.status || "checking");
-    list.appendChild(element("li", r2Text, r2.status === "ready" || r2.status === "verified" ? "ok" : r2.status === "not_configured" ? "warn" : ""));
     var pexels = resources.pexels || {};
-    if (pexels.message) list.appendChild(element("li", "Editorial images: " + pexels.message, pexels.status === "ready" ? "ok" : "warn"));
+    if (pexels.message) list.appendChild(element("li", "Pexels: " + pexels.message, pexels.status === "ready" ? "ok" : "warn"));
+    var pixabay = resources.pixabay || {};
+    if (pixabay.message) list.appendChild(element("li", "Pixabay: " + pixabay.message, pixabay.status === "ready" ? "ok" : "warn"));
     var inputs = data.inputs || {};
     Object.keys(inputs).forEach(function (key) {
       var item = inputs[key] || {};
@@ -84,12 +81,16 @@
     var result = record.local_result || {};
     localFolder = result.result_folder || "";
     if (!localFolder) { localResult.textContent = "Creating timestamped local result folder…"; localActions.hidden = true; return; }
-    localResult.textContent = result.result_folder + (result.archive_available ? " · ZIP and extracted build-context ready." : " · Preparing files.");
+    localResult.textContent = result.result_folder + (result.content_brief_available ? " · both briefs ready." : " · preparing briefs.");
     localActions.hidden = false;
     var details = record.details_url || "/dev/build-preparation-fixture/progress";
     document.getElementById("view-details").href = details;
-    document.getElementById("download-zip").href = record.download_url || "#";
-    document.getElementById("download-zip").hidden = !record.download_url;
+    var contentLink = document.getElementById("download-content-brief");
+    contentLink.href = record.content_brief_download_url || "#";
+    contentLink.hidden = !record.content_brief_download_url;
+    var visualLink = document.getElementById("download-visual-brief");
+    visualLink.href = record.visual_brief_download_url || "#";
+    visualLink.hidden = !record.visual_brief_download_url;
   }
   function renderSummary(record) {
     var summary = document.getElementById("summary");
@@ -98,41 +99,21 @@
     summary.hidden = false;
     while (body.firstChild) body.removeChild(body.firstChild);
     var value = record.summary || {};
-    body.appendChild(element("p", "Real material: " + (value.real_image_count || 0) + " images · " + (value.real_component_count || 0) + " components · " + (value.execution_gap_count || 0) + " execution gaps"));
-    body.appendChild(element("p", "Targets: " + (value.image_target || 0) + " images · " + (value.component_target || 0) + " components · input: " + (value.visual_input_mode || "approved_vdd"), "muted"));
-    body.appendChild(element("p", "Calls: " + (value.model_calls || 0) + " model · " + (value.provider_calls || 0) + " provider · " + (value.provider_cache_hits || 0) + " cache hits · " + (value.provider_rate_limit_events || 0) + " rate-limit events", "muted"));
-    if (value.deferred_optional_roles && value.deferred_optional_roles.length) body.appendChild(element("p", "Deferred optional roles: " + value.deferred_optional_roles.join(", "), "muted"));
+    body.appendChild(element("p", "Resource roles: " + (value.resource_role_count || 0) + " total · " + (value.resource_roles_with_candidates || 0) + " with real candidates"));
+    body.appendChild(element("p", "Component roles: " + (value.component_role_count || 0) + " total · " + (value.component_roles_with_suggestions || 0) + " with suggestions", "muted"));
+    body.appendChild(element("p", "Calls: " + (value.model_calls || 0) + " model · " + (value.provider_calls || 0) + " provider · input mode: " + (value.visual_input_mode || "approved_vdd"), "muted"));
+    if (value.warning_count) body.appendChild(element("p", value.warning_count + " warning(s) -- see the diagnostics view for details.", "muted"));
     var assumptions = record.result && record.result.assumptions ? record.result.assumptions : [];
     if (assumptions.length) body.appendChild(element("p", "Assumptions applied: " + assumptions.join(" · "), "muted"));
-    var receipts = record.result && record.result.provider_receipts ? record.result.provider_receipts : [];
-    if (receipts.length) {
-      var receiptDetails = document.createElement("details");
-      receiptDetails.appendChild(element("summary", "Provider receipts (" + receipts.length + ")"));
-      receipts.slice(-12).forEach(function (receipt) {
-        receiptDetails.appendChild(element("p", (receipt.provider || "provider") + " · " + (receipt.query || "") + " · HTTP " + (receipt.http_status || "n/a") + " · " + (receipt.candidate_count || 0) + " candidates · " + (receipt.cache_state || "unknown"), "muted mono"));
-      });
-      body.appendChild(receiptDetails);
-    }
-    var issues = record.result && record.result.handoff_report && record.result.handoff_report.issues ? record.result.handoff_report.issues : [];
-    if (issues.length) {
-      var issueDetails = document.createElement("details");
-      issueDetails.appendChild(element("summary", "Role diagnostics (" + issues.length + ")"));
-      issues.forEach(function (issue) {
-        issueDetails.appendChild(element("p", (issue.code || "issue") + (issue.need_id ? " · " + issue.need_id : "") + " · " + (issue.message || ""), "muted"));
-      });
-      body.appendChild(issueDetails);
-    }
-    body.appendChild(element("p", "Status: " + record.status + " · Routes: " + (value.route_count || 0) + " · Needs: " + (value.resource_need_count || 0)));
-    body.appendChild(element("p", "ZIP: " + (value.archive_sha256 || "not available") + " · " + (value.archive_size_bytes || 0) + " bytes", "mono"));
+    body.appendChild(element("p", "Status: " + record.status + " · Routes: " + (value.route_count || 0)));
+    body.appendChild(element("p", "Content brief: " + (value.content_brief_length || 0) + " chars · Visual brief: " + (value.visual_brief_length || 0) + " chars", "mono"));
     document.getElementById("summary-details").href = record.details_url || "/dev/build-preparation-fixture/progress";
   }
   function render(record) {
     current = record;
-    var tone = record.status === "ready" || record.status === "ready_for_handoff" ? "ok" : record.status === "needs_attention" || record.status === "failed" ? "warn" : "running";
-    setStatus(record.status === "needs_attention" ? "Local ready · R2 attention" : record.status, tone);
-    status.textContent = record.status === "running" ? "Running " + (record.current_stage || "Build Preparation") + "…" : record.status === "ready" ? "Phase 3 completed." : record.status === "needs_attention" ? "Local result completed; review the issue card." : "Run failed; review the issue card.";
-    if (record.status === "ready_for_handoff") { setStatus("Ready for downstream build", "ok"); status.textContent = "Package verified and eligible for the downstream build stage."; }
-    if (record.status === "needs_attention" && record.result && record.result.handoff_report) { setStatus("Handoff blocked", "warn"); status.textContent = "Package retained for review; downstream handoff is blocked."; }
+    var tone = record.status === "ready" ? "ok" : record.status === "needs_attention" || record.status === "failed" ? "warn" : "running";
+    setStatus(record.status, tone);
+    status.textContent = record.status === "running" ? "Running " + (record.current_stage || "Build Preparation") + "…" : record.status === "ready" ? "Both Markdown briefs composed." : record.status === "needs_attention" ? "Run completed; review the issue card." : "Run failed; review the issue card.";
     setStages(record); setEvents(record.events); renderLocal(record); renderIssue(record.issue); renderSummary(record);
     renderPreflight(record.storage || {});
   }

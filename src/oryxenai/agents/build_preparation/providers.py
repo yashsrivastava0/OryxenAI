@@ -1,8 +1,10 @@
-"""Small provider clients used by Build Preparation.
+"""Discovery-only provider clients used by Build Preparation.
 
-The module intentionally contains plain async functions and a thin facade for
-dependency injection. Provider responses are reduced to safe metadata before
-they reach the agent; remote source is never executed.
+Every function here searches for real candidate resources and returns safe
+metadata -- a provider ID, a license, a direct or preview URL. None of them
+download or persist resource bytes. Code Generator's own acquisition adapters
+fetch the actual bytes at generation time from the exact candidate Build
+Preparation found.
 """
 
 from __future__ import annotations
@@ -14,21 +16,18 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlencode, urlparse
 
 import httpx
 
 from oryxenai.agents.build_preparation.schemas import FetchedResource, ResourceQuery
 from oryxenai.agents.shared.component_retrieval import (
     ComponentCandidate,
-    ComponentRetrievalError,
     ComponentRetrievalService,
     build_component_retrieval_service,
 )
 from oryxenai.agents.shared.image_retrieval import (
     ImageCandidate,
     bounded_provider_query,
-    download_image_bytes,
     intent_from_values,
     search_images,
 )
@@ -42,7 +41,7 @@ from oryxenai.agents.shared.providers.errors import (
 
 
 class ResourceProviderError(ProviderError):
-    """A provider lookup failed but the pipeline may still use a fallback."""
+    """A provider lookup failed. Discovery degrades to no candidates, never a fabricated one."""
 
     def __init__(
         self,
@@ -66,10 +65,6 @@ _PROVIDER_RATE_STATE: dict[str, dict[str, float]] = {}
 def _stable_id(prefix: str, value: str) -> str:
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:20]
     return f"resource-{prefix}-{digest}"
-
-
-def _tokens(value: str) -> set[str]:
-    return {token for token in re.findall(r"[a-z0-9]+", value.lower()) if len(token) > 2}
 
 
 def _env_value(settings: Any, field: str, fallback: str) -> str:
@@ -212,7 +207,6 @@ def _fetched_image(
         source_reference=candidate.source_url,
         preview_url=candidate.preview_url,
         hotlink_url=candidate.image_url if candidate.provider == "unsplash" else "",
-        download_tracking_url=candidate.download_tracking_url,
         title=candidate.title,
         description=candidate.description,
         photographer=candidate.author,
@@ -317,9 +311,6 @@ async def search_pexels(
             if not isinstance(photo, dict) or not isinstance(photo.get("src"), dict):
                 continue
             source = photo["src"]
-            # Prefer the provider-sized rendition before falling back to the
-            # original asset; Build Preparation still optimizes and validates
-            # the downloaded bytes before packaging.
             image_url = str(
                 source.get("large2x") or source.get("large") or source.get("original") or ""
             )
@@ -363,139 +354,23 @@ async def search_pexels(
             await http.aclose()
 
 
-async def search_unsplash(
-    query: ResourceQuery,
-    settings: Any,
-    *,
-    client: httpx.AsyncClient | None = None,
-    access_key: str | None = None,
-    limit: int = 5,
-) -> list[FetchedResource]:
-    key = (
-        access_key
-        if access_key is not None
-        else _env_value(settings, "unsplash_access_key_env", "UNSPLASH_ACCESS_KEY")
-    )
-    if not key or not query.query.strip():
-        return []
-    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
-    try:
-        response = await _get(
-            http,
-            "https://api.unsplash.com/search/photos",
-            headers={"Authorization": f"Client-ID {key}", "Accept": "application/json"},
-            params={
-                "query": bounded_provider_query(query.query, "unsplash"),
-                "per_page": min(max(limit, 1), 5),
-            },
-            timeout_seconds=settings.build_preparation.network_timeout_seconds,
-            retry_count=settings.build_preparation.network_retry_count,
-            provider="unsplash",
-        )
-        payload = response.json()
-        photos = payload.get("results", []) if isinstance(payload, dict) else []
-        result: list[FetchedResource] = []
-        for photo in photos:
-            if not isinstance(photo, dict):
-                continue
-            photo_id = str(photo.get("id", "") or "")
-            urls: dict[str, Any] = {}
-            links: dict[str, Any] = {}
-            user: dict[str, Any] = {}
-            if isinstance(photo.get("urls"), dict):
-                urls = photo["urls"]
-            if isinstance(photo.get("links"), dict):
-                links = photo["links"]
-            if isinstance(photo.get("user"), dict):
-                user = photo["user"]
-            user_links: dict[str, Any] = {}
-            if isinstance(user.get("links"), dict):
-                user_links = user["links"]
-            hotlink = str(urls.get("regular") or urls.get("full") or "")
-            if not photo_id or not hotlink.startswith("https://"):
-                continue
-            width = int(photo.get("width", 0) or 0)
-            height = int(photo.get("height", 0) or 0)
-            result.append(
-                FetchedResource(
-                    resource_id=_stable_id("unsplash", f"{query.need_id}:{photo_id}"),
-                    need_id=query.need_id,
-                    kind="photo",
-                    provider="unsplash",
-                    provider_asset_id=photo_id,
-                    source_reference=str(links.get("html", "") or ""),
-                    preview_url=str(urls.get("small", hotlink) or hotlink),
-                    hotlink_url=hotlink,
-                    download_tracking_url=str(links.get("download_location", "") or ""),
-                    title=str(photo.get("alt_description") or photo.get("description") or ""),
-                    description=str(photo.get("description") or ""),
-                    photographer=str(user.get("name", "") or ""),
-                    photographer_url=str(user_links.get("html", "") or ""),
-                    attribution_url=str(links.get("html", "") or ""),
-                    width=width,
-                    height=height,
-                    orientation=(
-                        "landscape"
-                        if width > height
-                        else "portrait"
-                        if height > width
-                        else "square"
-                    ),
-                    mime_type="image/*",
-                    license="Unsplash license",
-                    license_reference="https://unsplash.com/license",
-                    retrieval_metadata={
-                        "sent_query": bounded_provider_query(query.query, "unsplash")
-                    },
-                )
-            )
-        return result
-    except (ValueError, KeyError) as exc:
-        raise ResourceProviderError(
-            "Unsplash returned malformed JSON", provider="unsplash"
-        ) from exc
-    finally:
-        if owns:
-            await http.aclose()
-
-
-def _safe_path(path: str) -> str:
-    normalized = path.replace("\\", "/").strip("/")
-    if not normalized or ".." in normalized.split("/") or normalized.startswith("."):
-        raise ResourceProviderError(
-            "Registry returned an unsafe file path", provider="registry", retryable=False
-        )
-    if normalized.rsplit("/", 1)[-1].lower() in {
-        "package.json",
-        "package-lock.json",
-        "pnpm-lock.yaml",
-        "yarn.lock",
-    } or normalized.lower().endswith((".sh", ".ps1", ".bat", ".cmd")):
-        raise ResourceProviderError(
-            "Registry returned a forbidden file", provider="registry", retryable=False
-        )
-    return normalized
-
-
 async def search_components(
     query: ResourceQuery,
     settings: Any,
     *,
     client: httpx.AsyncClient | None = None,
     limit: int = 5,
-    fetch_source: bool = False,
     diagnostics: list[dict[str, Any]] | None = None,
 ) -> list[FetchedResource]:
-    """Discover registry components and optionally fetch their source.
+    """Discover real, currently-available registry components -- metadata only.
 
-    Build Preparation uses ``fetch_source=False`` for live discovery so the
-    model ranks metadata only.  The selected candidate is then fetched through
-    :func:`fetch_component`; source retrieval is never implicit during discovery.
+    Build Preparation only ever suggests a component by name/provider/URL; it
+    never fetches source. Code Generator's own registry-fetch adapters
+    materialize the actual source at generation time.
     """
     if not getattr(settings.resource_providers, "registries_enabled", True):
         return []
     http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
-    result: list[FetchedResource] = []
     try:
         service = _component_service(settings)
         candidates = await service.discover(
@@ -506,30 +381,19 @@ async def search_components(
             limit=limit,
             diagnostics=diagnostics,
         )
-        for candidate in candidates:
-            fetched = None
-            if fetch_source:
-                try:
-                    fetched = await service.fetch(candidate, client=http, settings=settings)
-                except ComponentRetrievalError:
-                    continue
-            result.append(_fetched_resource_from_candidate(query, candidate, fetched))
-        return result
+        return [_fetched_resource_from_candidate(query, candidate) for candidate in candidates]
     finally:
         if owns:
             await http.aclose()
 
 
 def _component_service(settings: Any) -> ComponentRetrievalService:
-    """Build the shared provider set without retaining provider responses."""
-
     return build_component_retrieval_service(settings)
 
 
 def _fetched_resource_from_candidate(
     query: ResourceQuery,
     candidate: ComponentCandidate,
-    fetched: Any | None,
 ) -> FetchedResource:
     return FetchedResource(
         resource_id=_stable_id(candidate.provider, f"{query.need_id}:{candidate.name}"),
@@ -540,13 +404,6 @@ def _fetched_resource_from_candidate(
         source_reference=candidate.item_url,
         title=candidate.title,
         description=candidate.description,
-        source_files=dict(fetched.source_files) if fetched is not None else {},
-        dependencies=list(fetched.dependencies if fetched is not None else candidate.dependencies),
-        registry_dependencies=list(
-            fetched.registry_dependencies
-            if fetched is not None
-            else candidate.registry_dependencies
-        ),
         retrieval_metadata={
             **candidate.as_metadata(),
             "query": query.query,
@@ -555,54 +412,12 @@ def _fetched_resource_from_candidate(
             "interaction_outcome": query.interaction_outcome,
             "placement": query.placement,
             "expected_exports": list(query.expected_exports),
-            "provider_receipt": {
-                "provider": candidate.provider,
-                "query": query.query,
-                "attempt": 1,
-                "cache_state": "not_cached",
-                "candidate_count": 1,
-            },
         },
-        license=(fetched.license if fetched is not None else candidate.license),
-        license_reference=(
-            fetched.license_reference if fetched is not None else candidate.license_reference
-        ),
-        source_version=(
-            fetched.source_version if fetched is not None else candidate.source_version
-        ),
+        license=candidate.license,
+        license_reference=candidate.license_reference,
+        source_version=candidate.source_version,
         fallback=query.fallback,
     )
-
-
-async def fetch_component(
-    candidate: FetchedResource,
-    settings: Any,
-    *,
-    client: httpx.AsyncClient | None = None,
-) -> FetchedResource:
-    """Fetch the selected component source exactly when the caller asks for it."""
-
-    metadata = candidate.retrieval_metadata
-    if not metadata:
-        return candidate
-    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
-    try:
-        service = _component_service(settings)
-        selected = ComponentCandidate.from_metadata(metadata)
-        fetched = await service.fetch(selected, client=http, settings=settings)
-        return candidate.model_copy(
-            update={
-                "source_files": dict(fetched.source_files),
-                "dependencies": list(fetched.dependencies),
-                "registry_dependencies": list(fetched.registry_dependencies),
-                "license": fetched.license,
-                "license_reference": fetched.license_reference,
-                "source_version": fetched.source_version,
-            }
-        )
-    finally:
-        if owns:
-            await http.aclose()
 
 
 async def resolve_icon(
@@ -660,7 +475,7 @@ async def search_fontsource(
     client: httpx.AsyncClient | None = None,
     limit: int = 3,
 ) -> list[FetchedResource]:
-    """Resolve a small, pinned Fontsource font set with local file URLs."""
+    """Find real, direct-fetchable Fontsource font files -- metadata only."""
 
     if not bool(getattr(settings.resource_providers, "fontsource_enabled", True)):
         return []
@@ -669,7 +484,6 @@ async def search_fontsource(
     )
     if not base:
         return []
-    # Flatten the set-of-sets while retaining stable order.
     terms: list[str] = []
     for value in [query.query, *query.provider_terms]:
         for token in re.findall(r"[a-z0-9]+", value.lower()):
@@ -766,147 +580,10 @@ async def search_fontsource(
             await http.aclose()
 
 
-async def download_font(
-    candidate: FetchedResource,
-    settings: Any,
-    *,
-    client: httpx.AsyncClient | None = None,
-    max_bytes: int | None = None,
-) -> dict[str, bytes]:
-    if candidate.provider != "fontsource" or not candidate.font_urls:
-        raise ResourceProviderError(
-            "Fontsource candidate is not approved", provider="fontsource", retryable=False
-        )
-    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
-    try:
-        result: dict[str, bytes] = {}
-        configured_limit = getattr(settings.resource_providers, "font_max_bytes", 2 * 1024 * 1024)
-        limit = int(max_bytes if max_bytes is not None else configured_limit or 2 * 1024 * 1024)
-        for key, url in sorted(candidate.font_urls.items()):
-            parsed = urlparse(url)
-            if parsed.scheme != "https" or parsed.hostname != "cdn.jsdelivr.net":
-                raise ResourceProviderError(
-                    "Fontsource file URL is not approved", provider="fontsource", retryable=False
-                )
-            response = await _get(
-                http,
-                url,
-                headers={"Accept": "font/woff2,font/woff,application/octet-stream"},
-                timeout_seconds=settings.build_preparation.network_timeout_seconds,
-                retry_count=settings.build_preparation.network_retry_count,
-                provider="fontsource",
-            )
-            if len(response.content) > limit:
-                raise ResourceProviderError(
-                    "Fontsource file exceeds the configured limit",
-                    provider="fontsource",
-                    retryable=False,
-                )
-            result[key] = response.content
-        return result
-    finally:
-        if owns:
-            await http.aclose()
-
-
-async def download_pexels(
-    candidate: FetchedResource,
-    settings: Any,
-    *,
-    client: httpx.AsyncClient | None = None,
-    max_bytes: int = 12 * 1024 * 1024,
-) -> bytes:
-    parsed = urlparse(candidate.image_url)
-    if (
-        candidate.provider != "pexels"
-        or parsed.scheme != "https"
-        or parsed.hostname != "images.pexels.com"
-    ):
-        raise ResourceProviderError(
-            "Pexels image URL is not approved", provider="pexels", retryable=False
-        )
-    key = _env_value(settings, "pexels_api_key_env", "PEXELS_API_KEY")
-    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
-    try:
-        response = await _get(
-            http,
-            candidate.image_url,
-            headers={"Authorization": key, "Accept": "image/*"},
-            timeout_seconds=settings.build_preparation.network_timeout_seconds,
-            retry_count=settings.build_preparation.network_retry_count,
-            provider="pexels",
-        )
-        content_type = response.headers.get("content-type", "").lower()
-        if not content_type.startswith("image/") or len(response.content) > max_bytes:
-            raise ResourceProviderError(
-                "Pexels response is not a safe image", provider="pexels", retryable=False
-            )
-        return response.content
-    finally:
-        if owns:
-            await http.aclose()
-
-
-async def download_image(
-    candidate: FetchedResource,
-    settings: Any,
-    *,
-    client: httpx.AsyncClient | None = None,
-    max_bytes: int | None = None,
-) -> bytes:
-    """Download a selected Pexels/Pixabay/opt-in Unsplash image safely."""
-
-    try:
-        configured_limit = getattr(
-            getattr(settings, "image_retrieval", None),
-            "raw_download_max_bytes",
-            24 * 1024 * 1024,
-        )
-        raw_limit = int(
-            max_bytes if max_bytes is not None else configured_limit or 24 * 1024 * 1024
-        )
-        return await download_image_bytes(candidate, settings, client=client, max_bytes=raw_limit)
-    except ValueError as exc:
-        raise ResourceProviderError(
-            str(exc),
-            provider=candidate.provider or "image",
-            retryable=False,
-            details=getattr(exc, "details", {})
-            if isinstance(getattr(exc, "details", {}), dict)
-            else {},
-        ) from exc
-
-
-async def trigger_unsplash_download(
-    candidate: FetchedResource,
-    settings: Any,
-    *,
-    client: httpx.AsyncClient | None = None,
-) -> None:
-    if candidate.provider != "unsplash" or not candidate.download_tracking_url:
-        return
-    key = _env_value(settings, "unsplash_access_key_env", "UNSPLASH_ACCESS_KEY")
-    if not key:
-        return
-    separator = "&" if "?" in candidate.download_tracking_url else "?"
-    url = f"{candidate.download_tracking_url}{separator}{urlencode({'client_id': key})}"
-    http, owns = _client_or_new(client, settings.build_preparation.network_timeout_seconds)
-    try:
-        await _get(
-            http,
-            url,
-            headers={"Accept": "application/json"},
-            timeout_seconds=settings.build_preparation.network_timeout_seconds,
-            retry_count=settings.build_preparation.network_retry_count,
-            provider="unsplash",
-        )
-    finally:
-        if owns:
-            await http.aclose()
-
-
 @dataclass
 class ProviderLookup:
+    """Discovery-only facade: search for real candidates, never fetch bytes."""
+
     settings: Any
     client: httpx.AsyncClient | None = None
     live: bool = True
@@ -914,7 +591,6 @@ class ProviderLookup:
     calls_made: int = field(default=0, init=False)
     rate_limit_events: int = field(default=0, init=False)
     cooldown_skips: int = field(default=0, init=False)
-    cache_hits: int = field(default=0, init=False)
     provider_receipts: list[dict[str, Any]] = field(default_factory=list, init=False)
     _image_asset_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _image_terms: set[str] = field(default_factory=set, init=False, repr=False)
@@ -924,12 +600,6 @@ class ProviderLookup:
         self._semaphore = asyncio.Semaphore(limit)
 
     async def _lookup_one(self, query: ResourceQuery) -> list[FetchedResource]:
-        provider = {
-            "photo": "pexels",
-            "component": "component",
-            "font": "fontsource",
-            "icon": "lucide",
-        }.get(query.kind, query.kind)
         self.calls_made += 1
         if self._semaphore is None:
             self.__post_init__()
@@ -990,31 +660,7 @@ class ProviderLookup:
                     bool(item.get("cooldown_skip"))
                     for item in self.provider_receipts[receipt_start:]
                 )
-                self.cache_hits += (
-                    sum(
-                        1
-                        for receipt in self.provider_receipts
-                        if receipt.get("cache_state") == "hit"
-                    )
-                    - self.cache_hits
-                )
-                found = [
-                    _fetched_image(
-                        candidate,
-                        query,
-                        next(
-                            (
-                                receipt
-                                for receipt in reversed(self.provider_receipts)
-                                if receipt.get("provider") == candidate.provider
-                                and receipt.get("query") == query.query
-                                and "candidate_count" in receipt
-                            ),
-                            None,
-                        ),
-                    )
-                    for candidate in image_candidates
-                ]
+                found = [_fetched_image(candidate, query) for candidate in image_candidates]
                 self._image_asset_ids.update(
                     candidate.provider_asset_id for candidate in image_candidates
                 )
@@ -1029,11 +675,7 @@ class ProviderLookup:
             elif query.kind == "component":
                 receipt_start = len(self.provider_receipts)
                 found = await search_components(
-                    query,
-                    self.settings,
-                    client=self.client,
-                    fetch_source=False,
-                    diagnostics=self.provider_receipts,
+                    query, self.settings, client=self.client, diagnostics=self.provider_receipts
                 )
                 self.rate_limit_events += sum(
                     bool(item.get("rate_limit_event"))
@@ -1047,63 +689,17 @@ class ProviderLookup:
                 found = await resolve_icon(query, self.settings, client=self.client)
             elif query.kind == "font":
                 found = await search_fontsource(query, self.settings, client=self.client)
-            if query.kind == "component":
-                found = [
-                    item.model_copy(
-                        update={
-                            "retrieval_metadata": {
-                                **item.retrieval_metadata,
-                                "provider_attempts": [
-                                    dict(receipt)
-                                    for receipt in self.provider_receipts
-                                    if receipt.get("query") == query.query
-                                    and receipt.get("kind") == "component"
-                                ],
-                            }
-                        }
-                    )
-                    for item in found
-                ]
-            elif query.kind != "photo":
-                found = [
-                    item.model_copy(
-                        update={
-                            "retrieval_metadata": {
-                                **item.retrieval_metadata,
-                                "provider_receipt": {
-                                    "provider": item.provider or provider,
-                                    "query": query.query,
-                                    "attempt": 1,
-                                    "http_status": 200 if found else None,
-                                    "retry_delay": 0.0,
-                                    "cache_state": "not_cached",
-                                    "configured_key": True,
-                                    "candidate_count": len(found),
-                                    "kind": query.kind,
-                                },
-                            }
-                        }
-                    )
-                    for item in found
-                ]
             if query.kind not in {"photo", "component"}:
                 self.provider_receipts.append(
                     {
-                        "provider": provider,
+                        "provider": found[0].provider if found else query.kind,
                         "query": query.query,
                         "attempt": 1,
-                        "http_status": 200 if found else None,
-                        "retry_delay": 0.0,
-                        "cache_state": "not_cached",
-                        "configured_key": True,
                         "candidate_count": len(found),
                         "kind": query.kind,
                     }
                 )
         return found
-
-    async def fetch_component(self, candidate: FetchedResource) -> FetchedResource:
-        return await fetch_component(candidate, self.settings, client=self.client)
 
     async def lookup(self, queries: list[ResourceQuery]) -> list[FetchedResource]:
         if not self.live:

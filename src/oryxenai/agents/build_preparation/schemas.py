@@ -1,4 +1,14 @@
-"""Strict contracts for Build Preparation Phase 1."""
+"""Contracts for the Build Preparation agent.
+
+Build Preparation compiles the approved Content Architect + Visual Design
+Director output into two Markdown briefs for Code Generator: a content brief
+(assembled deterministically from Content Architect's approved copy, no model
+involved) and a visual brief (one bounded model call over a deterministically
+compiled scope plus real, discovery-only resource candidates). Build
+Preparation never downloads or verifies resource bytes -- it finds and
+suggests real candidate links; Code Generator fetches bytes at generation
+time.
+"""
 
 from __future__ import annotations
 
@@ -6,8 +16,6 @@ from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-from oryxenai.storage.artifacts import ArtifactReference
 
 
 class BuildPreparationStatus(StrEnum):
@@ -108,10 +116,10 @@ class ResourceNeed(BaseModel):
 
 
 class Stage0Result(BaseModel):
+    """Pure, model-free output of the deterministic scope compiler."""
+
     model_config = ConfigDict(extra="forbid")
 
-    stage: Literal["stage_0"] = "stage_0"
-    status: Literal["ready"] = "ready"
     scope_hash: str
     source_ref: BuildPreparationSourceRef = Field(default_factory=BuildPreparationSourceRef)
     visual_input_mode: Literal["approved_vdd", "assumed_from_content", "merged_vdd_assumptions"] = (
@@ -124,11 +132,14 @@ class Stage0Result(BaseModel):
     resource_needs: list[ResourceNeed] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     events: list[StageEvent] = Field(default_factory=list)
-    model_calls: int = 0
 
 
 class ResourceQuery(BaseModel):
-    """One bounded provider query derived from a deterministic resource need."""
+    """One deterministic provider query derived from a Stage 0 resource need.
+
+    Built by plain string templating from the need's own fields -- no model
+    call. Ephemeral working data: never persisted to BuildPreparationState.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -161,21 +172,13 @@ class ResourceQuery(BaseModel):
     reduced_motion_behavior: str = ""
 
 
-class Stage1QueryPlan(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    stage: Literal["stage_1"] = "stage_1"
-    status: Literal["ready"] = "ready"
-    queries: list[ResourceQuery] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-
-
 class FetchedResource(BaseModel):
-    """Provider-returned metadata and safe registry source text.
+    """Provider-returned metadata only -- never resource bytes.
 
-    Image bytes are deliberately not represented here. Pexels/Pixabay bytes
-    are downloaded only after selection; an explicitly authorized Unsplash
-    path follows the same local-vendoring rule.
+    Ephemeral discovery-only working data: never persisted to
+    BuildPreparationState. Build Preparation reduces this to a much smaller
+    ResourceCandidateLink/ComponentSuggestion before it ever reaches the
+    model prompt or the final brief.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -188,7 +191,6 @@ class FetchedResource(BaseModel):
     source_reference: str = ""
     preview_url: str = ""
     hotlink_url: str = ""
-    download_tracking_url: str = ""
     title: str = ""
     description: str = ""
     photographer: str = ""
@@ -203,9 +205,6 @@ class FetchedResource(BaseModel):
     font_family: str = ""
     font_weights: list[str] = Field(default_factory=list)
     font_urls: dict[str, str] = Field(default_factory=dict)
-    source_files: dict[str, str] = Field(default_factory=dict)
-    dependencies: list[str] = Field(default_factory=list)
-    registry_dependencies: list[str] = Field(default_factory=list)
     retrieval_metadata: dict[str, Any] = Field(default_factory=dict)
     license: str = ""
     license_reference: str = ""
@@ -214,299 +213,108 @@ class FetchedResource(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class ResourceSelection(BaseModel):
+class ResourceCandidateLink(BaseModel):
+    """One real, discovery-only candidate. Never a downloaded byte."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str
+    provider_asset_id: str = ""
+    url: str = ""
+    preview_url: str = ""
+    license: str = ""
+    license_reference: str = ""
+    title: str = ""
+    width: int = 0
+    height: int = 0
+    attribution: str = ""
+    additional_urls: dict[str, str] = Field(default_factory=dict)
+
+
+class ComponentSuggestion(BaseModel):
+    """One real, currently-discoverable component -- a suggestion, not fetched source."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str
+    name: str = ""
+    title: str = ""
+    description: str = ""
+    item_url: str = ""
+
+
+class ResourceBriefEntry(BaseModel):
+    """One resource role as it will appear in the visual brief's resource table."""
+
     model_config = ConfigDict(extra="forbid")
 
     need_id: str
-    selected_resource_id: str | None = None
-    alternate_resource_ids: list[str] = Field(default_factory=list)
-    why_selected: str = ""
-    fallback: str = ""
-    adaptation_notes: str = ""
+    role_id: str
+    category: str
+    route_ids: list[str] = Field(default_factory=list)
+    purpose: str = ""
+    status: Literal["candidates_found", "no_material_found"] = "no_material_found"
+    candidates: list[ResourceCandidateLink] = Field(default_factory=list)
+    primary_candidate_index: int | None = None
+    guidance: str = ""
 
 
-class Stage2SelectionPlan(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    stage: Literal["stage_2"] = "stage_2"
-    status: Literal["ready"] = "ready"
-    selections: list[ResourceSelection] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-
-
-class CandidateQualification(BaseModel):
-    """Deterministic admission decision for one provider candidate."""
+class ComponentBriefEntry(BaseModel):
+    """One component-pattern role as it will appear in the visual brief."""
 
     model_config = ConfigDict(extra="forbid")
 
-    resource_id: str
     need_id: str
-    eligible: bool
-    relevance_score: int = 0
-    quality_score: int = 0
-    policy_status: str = "not_checked"
-    technical_status: str = "not_checked"
-    reasons: list[str] = Field(default_factory=list)
-    issue_codes: list[str] = Field(default_factory=list)
+    role_id: str
+    route_ids: list[str] = Field(default_factory=list)
+    purpose: str = ""
+    suggestions: list[ComponentSuggestion] = Field(default_factory=list)
+    primary_suggestion_index: int | None = None
+    guidance: str = ""
 
 
-class HandoffIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ResourceGuidance(BaseModel):
+    """Model-authored pick + note for one resource role.
 
-    code: str
-    message: str
-    need_id: str = ""
-    next_action: str = ""
-    # True (default) for every issue that must block Code Generator handoff.
-    # False marks an advisory issue about a non-required ("supporting"/
-    # "optional") role that failed to resolve — visible for review but not
-    # eligibility-blocking. See build_handoff_report()'s `eligible` computation.
-    blocking: bool = True
-
-
-class LocalRecipe(BaseModel):
-    """Declarative local implementation guidance for one execution slot.
-
-    A recipe is intentionally not model-authored source code.  It limits a
-    downstream builder to a truthful, static implementation that is already
-    allowed by the approved visual direction.
+    The model may only pick an index into the candidate list it was actually
+    given for this role -- it can never invent a URL. ``None`` means none of
+    the given candidates fit; the role stays "no material found" for Code
+    Generator to resolve at generation time.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    recipe_id: str
-    slot_id: str
-    category: Literal[
-        "typography_system",
-        "typographic_composition",
-        "css_surface_pattern",
-        "representative_svg_diagram",
-        "ornament_omission",
-    ]
-    description: str
-    allowed_labels: list[str] = Field(default_factory=list)
-    forbidden_concepts: list[str] = Field(default_factory=list)
-    reduced_motion_state: str = "static"
-    local_path: str = ""
+    need_id: str
+    primary_candidate_index: int | None = None
+    note: str = ""
 
 
-class ResolvedResource(BaseModel):
-    """Exactly one concrete resolution for an execution slot."""
+class ComponentGuidance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    need_id: str
+    primary_suggestion_index: int | None = None
+    note: str = ""
+
+
+class VisualBriefOutput(BaseModel):
+    """The single bounded model call's structured output.
+
+    The model never re-states approved copy, resource URLs, or route
+    structure -- only prose synthesis, layout/motion guidance, and bounded
+    index picks over candidates it was actually given.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    resolution_type: Literal[
-        "local_materialized",
-        "deferred_materialized",
-        "target_package_binding",
-        "local_recipe",
-        "delegated_acquisition",
-        "execution_gap",
-    ]
-    resource_id: str = ""
-    local_paths: list[str] = Field(default_factory=list)
-    package_name: str = ""
-    expected_exports: list[str] = Field(default_factory=list)
-    font_family: str = ""
-    font_weights: list[str] = Field(default_factory=list)
-    recipe_id: str = ""
-    fallback_disposition: str = ""
-    accessibility_treatment: str = ""
-    source_expectations: list[str] = Field(default_factory=list)
-    provider: str = ""
-    provider_asset_id: str = ""
-    source_reference: str = ""
-    # source_reference is the human-readable page/registry URL used for
-    # attribution. deferred_materialized slots additionally need the exact
-    # machine-fetchable URL(s) Build Preparation's own download already used
-    # to verify this candidate, so Code Generator can re-fetch the identical
-    # bytes rather than guess a provider-specific URL shape itself.
-    direct_source_url: str = ""
-    direct_source_urls: dict[str, str] = Field(default_factory=dict)
-    license: str = ""
-    license_reference: str = ""
-    source_hashes: list[str] = Field(default_factory=list)
-    release_pin: str = ""
-    dependencies: list[str] = Field(default_factory=list)
-    registry_dependencies: list[str] = Field(default_factory=list)
-    import_path: str = ""
-    responsive_behavior: str = ""
-    reduced_motion_behavior: str = ""
-    fallback_behavior: str = ""
-    delegation_policy: dict[str, Any] = Field(default_factory=dict)
-
-
-class ExecutionSlot(BaseModel):
-    """A fixed, route-scoped resource decision consumed by Code Generator."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    resource_slot_id: str
-    category: str
-    route_id: str = ""
-    scene_ids: list[str] = Field(default_factory=list)
-    section_ids: list[str] = Field(default_factory=list)
-    component_placement: str = ""
-    required: bool = False
-    source_ids: list[str] = Field(default_factory=list)
-    criterion_ids: list[str] = Field(default_factory=list)
-    rationale: str = ""
-    provenance: Literal["vdd_explicit", "build_preparation_derived"]
-    resolution: ResolvedResource
-
-
-class ExecutionGap(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    slot_id: str
-    route_id: str = ""
-    scene_ids: list[str] = Field(default_factory=list)
-    code: Literal["VDD_EXECUTION_GAP"] = "VDD_EXECUTION_GAP"
-    message: str
-    next_action: str
-
-
-class HandoffQualityReport(BaseModel):
-    """The Code Generator admission record for a packaged build context."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    schema_version: str = "build-preparation-handoff-v3"
-    pack_version: str = "build-preparation-pack-v3"
-    projection_hashes: dict[str, str] = Field(default_factory=dict)
-    readiness: dict[str, int] = Field(default_factory=dict)
-    execution_gaps: list[ExecutionGap] = Field(default_factory=list)
-    handoff_eligible: bool = False
-    upstream_approval_verified: bool = False
-    status: Literal["ready_for_handoff", "needs_attention"] = "needs_attention"
-    summary: str = ""
-    required_need_ids: list[str] = Field(default_factory=list)
-    selected_resource_ids: list[str] = Field(default_factory=list)
-    materialized_resource_ids: list[str] = Field(default_factory=list)
-    qualifications: list[CandidateQualification] = Field(default_factory=list)
-    issues: list[HandoffIssue] = Field(default_factory=list)
-    handoff_summary: dict[str, Any] = Field(default_factory=dict)
-    model_review: dict[str, Any] = Field(default_factory=dict)
-    run_analysis: dict[str, Any] = Field(default_factory=dict)
-
-
-class RouteBuildContext(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    route_id: str
-    path: str = ""
-    brief_markdown: str = ""
-    data: dict[str, Any] = Field(default_factory=dict)
-    data_fallback_note: str = ""
-    warnings: list[str] = Field(default_factory=list)
-    resource_ids: list[str] = Field(default_factory=list)
-    acceptance_criteria: list[str] = Field(default_factory=list)
-    free_to_change: list[str] = Field(default_factory=list)
-
-
-class BuildContextDraft(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    overview_markdown: str = ""
-    routes: list[RouteBuildContext] = Field(default_factory=list)
-    resource_ids: list[str] = Field(default_factory=list)
-    acceptance_criteria: list[str] = Field(default_factory=list)
-    free_to_change: list[str] = Field(default_factory=list)
-    runtime_requirements: dict[str, Any] = Field(default_factory=dict)
-    fixed_facts: list[str] = Field(default_factory=list)
-    freedoms: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-
-
-class Stage3BuildContextResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    stage: Literal["stage_3"] = "stage_3"
+    stage: Literal["compose_visual_brief"] = "compose_visual_brief"
     status: Literal["ready"] = "ready"
-    context: BuildContextDraft
-    runtime_requirements: dict[str, Any] = Field(default_factory=dict)
-    fixed_facts: list[str] = Field(default_factory=list)
-    freedoms: list[str] = Field(default_factory=list)
+    visual_brief_prose: str
+    resource_guidance: list[ResourceGuidance] = Field(default_factory=list)
+    component_guidance: list[ComponentGuidance] = Field(default_factory=list)
+    seo_suggestions: dict[str, str] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
-
-
-class Stage4IntegratedContextResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    stage: Literal["stage_4"] = "stage_4"
-    status: Literal["ready"] = "ready"
-    context: BuildContextDraft
-    runtime_requirements: dict[str, Any] = Field(default_factory=dict)
-    fixed_facts: list[str] = Field(default_factory=list)
-    freedoms: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-
-
-class Stage5HandoffReview(BaseModel):
-    """Structured model review that supplements deterministic admission checks."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    stage: Literal["stage_5"] = "stage_5"
-    status: Literal["ready"] = "ready"
-    summary: str = ""
-    warnings: list[str] = Field(default_factory=list)
-    role_findings: list[dict[str, Any]] = Field(default_factory=list)
-    recommended_next_actions: list[str] = Field(default_factory=list)
-
-
-class MaterializedFile(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    relative_path: str
-    kind: Literal["text", "image", "font", "metadata"]
-    size_bytes: int = 0
-    sha256: str = ""
-
-
-class MaterializationResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    root_path: str
-    relative_root: str
-    files: list[MaterializedFile] = Field(default_factory=list)
-    resource_ids: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    licenses: list[dict[str, Any]] = Field(default_factory=list)
-    manifest_path: str = ""
-    resource_plan_path: str = ""
-    # Same per-resource entries written to resources/manifest.json (id,
-    # provider, inspection_level, local_path/hotlink_url, warnings), exposed
-    # here so a caller can see exactly what was fetched without unzipping.
-    resources: list[dict[str, Any]] = Field(default_factory=list)
-    handoff_report_path: str = ""
-    pack_version: str = "build-preparation-pack-v3"
-    projection_hashes: dict[str, str] = Field(default_factory=dict)
-    execution_slots: list[ExecutionSlot] = Field(default_factory=list)
-    local_recipes: list[LocalRecipe] = Field(default_factory=list)
-    execution_gaps: list[ExecutionGap] = Field(default_factory=list)
-    execution_contract_path: str = ""
-    resource_ledger_path: str = ""
-    effective_selections: list[ResourceSelection] = Field(default_factory=list)
-    resource_attempts: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class PackageResult(BaseModel):
-    """The verified Phase 3 archive and its local development mirror."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    pack_version: str = "build-preparation-pack-v3"
-    archive_sha256: str
-    archive_size_bytes: int
-    file_count: int
-    manifest_path: str = "manifest.json"
-    expires_at: str
-    artifact: ArtifactReference | None = None
-    mirror_root: str = ""
-    mirror_relative_root: str = ""
-    local_archive_path: str = ""
-    local_archive_relative_path: str = ""
+    assistant_summary: str = ""
 
 
 class BuildPreparationState(BaseModel):
@@ -517,20 +325,22 @@ class BuildPreparationState(BaseModel):
     status: BuildPreparationStatus = BuildPreparationStatus.NOT_STARTED
     model_profile: str = ""
     source_ref: BuildPreparationSourceRef = Field(default_factory=BuildPreparationSourceRef)
-    version: str = "build-preparation-pack-v3"
+    version: str = "build-preparation-brief-v1"
     current_stage: str = "not_started"
     run_id: str = ""
     job_id: str = ""
     scope_hash: str = ""
     routes: list[RouteScope] = Field(default_factory=list)
     resource_needs: list[ResourceNeed] = Field(default_factory=list)
-    query_plan: Stage1QueryPlan | None = None
-    fetched_candidates: list[FetchedResource] = Field(default_factory=list)
-    selection_plan: Stage2SelectionPlan | None = None
-    build_context: BuildContextDraft | None = None
-    materialization: MaterializationResult | None = None
-    package: PackageResult | None = None
-    handoff_report: HandoffQualityReport | None = None
+    resource_index: list[ResourceBriefEntry] = Field(default_factory=list)
+    component_index: list[ComponentBriefEntry] = Field(default_factory=list)
+    content_brief_markdown: str = ""
+    visual_brief_markdown: str = ""
+    content_brief_hash: str = ""
+    visual_brief_hash: str = ""
+    target_contract: str = "react-vite-v1"
+    recommended_dependencies: list[str] = Field(default_factory=list)
+    debug_mirror_path: str = ""
     model_calls: int = 0
     provider_calls: int = 0
     warnings: list[str] = Field(default_factory=list)
@@ -540,4 +350,3 @@ class BuildPreparationState(BaseModel):
     max_attempts: int = 3
     started_at: str | None = None
     completed_at: str | None = None
-    manifest_path: str = ""

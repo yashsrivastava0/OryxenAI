@@ -158,16 +158,9 @@ unsplash_enabled = false
 unsplash_local_vendoring_authorized = false
 
 [build_preparation]
-# User-visible pre-code stage. Bundles live in private object storage, never on
-# a shared application/worker filesystem.
+# User-visible pre-code stage. Output is two Markdown briefs stored directly
+# on session state -- no ZIP, no object storage.
 max_routes = 12
-# D-060 made packs compact references, not embedded resource bytes, so the
-# original storage-cost/cleanup rationale for a short TTL (D-009) no longer
-# applies. A pack does not expire in practice; this is a deliberately large,
-# not-infinite horizon so a stale sentinel is still theoretically detectable.
-bundle_ttl_days = 36500
-minimum_reuse_hours = 24
-max_bundle_bytes = 67108864
 network_timeout_seconds = 15.0
 network_retry_count = 2
 target_contract = "react-vite-v1"
@@ -176,39 +169,20 @@ fixture_input_path = "Input-Output-Of-Engine/Visual Design Director output.md"
 # Matching Content Architect snapshot that reunites the fixture (CA, VDD) pair.
 fixture_content_input_path = "Input-Output-Of-Engine/Content Architect output.MD"
 fixture_output_dir = "output"
-fixture_upload = true
-fixture_reasoning_enabled = false
-fixture_debug_mirror_enabled = true
+# Local debug mirror: a courtesy copy of both briefs written to disk for
+# developer inspection. Never the source of truth.
 debug_mirror_enabled = true
 model_profile = "build_preparation"
 reasoning_enabled = true
-integration_route_threshold = 2
-# Defaults for image-rich approved directions.  VDD may explicitly authorize
-# fewer roles for text-led or privacy-limited portfolios; missing authorized
-# roles become execution gaps rather than generated placeholders.
+# Advisory targets for how many image/component roles a portfolio typically
+# needs. VDD may explicitly authorize fewer for text-led or privacy-limited
+# portfolios; a role short of the target is never manufactured to meet it.
 editorial_image_budget = 5
 editorial_image_maximum = 6
-# Targets are advisory for handoff reporting. Retrieval count is derived from
-# approved roles; only per-role source attempts remain bounded.
 visual_component_budget = 4
 visual_component_maximum = 6
-# Per-role transport/source retries remain bounded; role count is semantic.
-# Image search results often repeat one provider asset across adjacent
-# decorative roles. Leave enough bounded candidates to find a distinct,
-# locally valid asset without allowing an unbounded retrieval loop.
-image_source_attempt_maximum = 8
-component_source_attempt_maximum = 3
-provider_max_wait_seconds = 8.0
 provider_max_concurrency = 2
-require_live_visual_resources = true
 auto_derive_visual_resources = true
-# v4 delegated acquisition is opt-in and only applies after every configured
-# upstream role/provider attempt has been recorded.
-delegated_acquisition_enabled = false
-delegated_allowed_categories = ["image", "font", "component_source"]
-delegated_allowed_providers = ["pexels", "pixabay", "fontsource", "shadcn", "magicui", "smoothui", "cultui"]
-delegated_candidate_limit = 8
-delegated_attempt_maximum = 3
 
 [code_generator_development]
 # Standalone Phase 1 developer workflow. It has no portfolio-session coupling.

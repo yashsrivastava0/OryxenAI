@@ -1,122 +1,93 @@
 # Build Preparation Agent
 
-Build Preparation is the fourth explicit pipeline stage. Stage 0 deterministically
-compiles approved Content Architect content and the Visual Design Director
-projection into public route scope and resource needs. The session-backed main
-workflow requires both upstream approvals before this stage can start; it never
-silently fabricates the missing handoff. The detached diagnostic fixture may
-still demonstrate the presentation-only visual assumption layer for incomplete
-inputs, but that output is not a production session package. Build Preparation
-never invents portfolio facts, evidence, people, employers, metrics, or private
-media. Phase 2 then runs a bounded workflow:
+Build Preparation is the fourth explicit pipeline stage. It compiles approved
+Content Architect content and the Visual Design Director projection into two
+Markdown briefs for Code Generator -- nothing else. It never decides what the
+portfolio says (that is Content Architect's job, inserted verbatim), never
+downloads or verifies a resource byte, and never fetches component source.
+It researches real candidate resources through direct provider search and
+hands Code Generator a short, factual list of what it found; the actual bytes
+are fetched by Code Generator's own acquisition adapters at generation time.
 
-1. compose one provider query per deterministic need, including the configured
-   image and component roles from the normalized visual input;
-2. search Pexels for photos, resolve Fontsource fonts, and discover registry
-   component metadata through bounded provider clients;
-3. select only from the returned closed candidate set, fetch the selected
-   component source recursively, then resolve every
-   known need as local material, a verified target-package binding, a typed
-   local recipe, or an explicit upstream execution gap;
-4. write route-scoped Build Context, optionally integrating cross-route
-   constraints when the configured route threshold is reached; and
-5. materialize a local `build-context` tree with provenance, licenses, safe
-   component source, image inspection metadata, a complete resource decision
-   plan, and a resources manifest.
+The session-backed main workflow requires both upstream approvals before this
+stage can start; it never silently fabricates the missing handoff. The
+detached diagnostic fixture may still demonstrate the presentation-only
+visual assumption layer for incomplete inputs (see `visual_input.py`), which
+is exactly the fallback used when Visual Design Director hasn't produced full
+direction yet. Build Preparation never invents portfolio facts, evidence,
+people, employers, metrics, or private media.
 
-Before packaging, the agent writes `handoff-report.json`. Code Generator may
-consume a pack only when `handoff_eligible` is true, which requires approved
-Content Architect content plus either approved VDD provenance or recorded
-Build Preparation assumption provenance. Detached or unapproved fixture packages remain
-downloadable for review but are never production-eligible. A selected Pexels
-image is locally materialized and pixel-inspected, and a selected registry
-component is copied as importable source. Provider failure, an offline run, a
-blank/flat image, a placeholder component, or a metadata-only remote image
-creates an actionable `VDD_EXECUTION_GAP`; no generated-local visual, blank
-PNG, wrapper, or visual recipe can satisfy an image/component slot. Unsplash
-remains a diagnostic metadata source and cannot be used by the static target.
+## Pipeline
 
-Image-rich directions use dynamic component retrieval: every semantically
-justified approved role is attempted, with deterministic priority retained for
-reporting and candidate ordering. The count therefore follows the approved
-portfolio rather than a fixed quota. Per-role candidate lists, source-attempt
-limits, transport retries, provider rate limits, concurrency, and artifact
-limits remain enforced.
-Build Preparation records the policy, actual local material counts, provider
-calls/rate-limit events, and every missing role in the handoff summary.
+1. **Scope** (`compiler.py::compile_stage0`) -- pure, no I/O. Compiles the
+   approved public route scope and the deterministic list of resource
+   "needs" from Content Architect + Visual Design Director.
+2. **Resource research** (`resource_research.py::discover_resources`) --
+   deterministic query construction (no model call) plus real, discovery-only
+   provider search (Pexels, Pixabay, Fontsource, and real UI-component
+   registries via `providers.py`). No bytes are downloaded; every result is
+   reduced to a small `ResourceCandidateLink`/`ComponentSuggestion` (provider,
+   ID, URL, license -- nothing more) before it ever reaches a prompt.
+3. **Compose the visual brief** (at most one model call,
+   `compose_visual_brief`) -- the model receives the compiled scope, the
+   approved visual direction, and every candidate already found, and may only
+   pick a candidate by index or write `null`. Picking an index it was not
+   given is a hard validation failure (`validate_visual_brief_output`). This
+   is the entire "never invent a resource" guarantee -- enforced structurally,
+   not by trusting the model.
+4. **Assemble both briefs** (`brief_assembly.py`, pure Python, no model) --
+   `content-and-narrative-brief.md` is built entirely from Content Architect's
+   approved copy, inserted verbatim (plus the model's optional SEO
+   suggestions, clearly labeled as a Build Preparation addition, never
+   approved copy). `visual-and-build-brief.md` combines the model's prose with
+   the deterministic resource/component tables.
+5. **Persist** -- both briefs, their content hashes, and the compiled scope
+   are stored directly on `portfolio_sessions.current_state["build_preparation"]`
+   (the same JSONB-on-session-state pattern every other agent already uses).
+   A local debug mirror (two plain `.md` files) is written for developer
+   inspection when enabled -- never the source of truth.
 
-Historical diagnostic trees use the canonical `resources/ledger.json` path with
-their compatibility-only schema to record every selected and unselected need,
-its routes and scenes, fallback, adaptation guidance, and whether Code
-Generator may fetch one equivalent during Code Generation. Such a fetch must
-replace—not duplicate—the recorded fallback and is never permitted at
-portfolio runtime. In current pack-v3 output, known image/component roles do
-not receive a later-fetch escape hatch: they remain local material or an
-explicit execution gap. The target ships a dependency ceiling and starter
-`package.json`, not a synthetic lockfile; Code Generator generates the real
-lockfile after choosing its final dependency subset.
-
-Pack-v3 instead writes `execution/contract.json` as the only implementation
-inventory for Code Generator, plus `resources/ledger.json` and hash-covered
-declarative recipe files. Every slot is route/scene scoped and resolves exactly
-once to local material, an approved target dependency/export, a typed local
-recipe, or `VDD_EXECUTION_GAP`. Known needs never become prose-only fallbacks
-or later-fetch instructions; only genuinely emergent needs may use Code
-Generator's separate receipt-bound acquisition path.
-
-Phase 3 packages the staged tree into one deterministic pack-v3 ZIP, verifies it
-through the configured artifact store, and restores the verified bytes to a
-local debug mirror when enabled. A complete approved input writes hash-covered
-`site/contract.json`, `design/visual-direction.json`, approval/target
-projections, resource projection, execution contract, resource ledger, and v3
-handoff report. Historical packs, including v2, are diagnostic-only and cannot
-be admitted by Code Generator.
+There is no ZIP, no object storage, no pack version, and no execution-contract
+slot taxonomy. A pack used to exist because Build Preparation once embedded
+real image/font/component bytes; once it stopped doing that, the packaging,
+verification, and expiry machinery around those bytes stopped earning its
+complexity.
 
 ## What Code Generator consumes
 
-Code Generator does not treat `overview.md` as a hidden prompt or as a second
-source of truth. It admits the ZIP through the configured Build Preparation
-mirror, verifies the manifest, expiry, projection hashes, approvals, route
-contract, licenses, checksums, and execution contract, then constructs its
-planner context from the admitted JSON projections. The important handoff
-files are:
+Two Markdown documents, each with exactly one machine-readable fenced JSON
+block near the top (the only structured data either file contains) followed
+by prose and tables for human and model readability:
 
-- `site/contract.json` for the approved route/path/section/content contract;
-- `design/visual-direction.json` for visual, responsive, accessibility, and
-  reduced-motion intent;
-- `execution/contract.json` for one executable resolution per known slot,
-  including local paths, import paths, exports, dependencies, hashes,
-  provenance, and fallbacks;
-- `resources/projection.json` and `resources/ledger.json` for materialized
-  resources and decisions;
-- `provenance/` for approvals, target, licenses, and checksums; and
-- `routes/` plus `resources/` for the route-scoped content and local files.
+- `content-and-narrative-brief.md` -- a `build-preparation-content-index`
+  block (approved route/section IDs) followed by the complete approved
+  public content, verbatim.
+- `visual-and-build-brief.md` -- a `build-preparation-visual-index` block
+  (route list, resource roles with real candidate links, component roles
+  with real suggestions, target contract, recommended dependencies) followed
+  by the model's design-language and per-route guidance prose, reference
+  tables, and an explicit statement that Code Generator has final authority
+  to adapt, replace, or ignore any suggestion here.
 
-The consumer copies admitted local material into its generation workspace,
-imports prepared component source locally, references local images/fonts, and
-records a source manifest. It does not reacquire a known Build Preparation
-role. Only a genuinely emergent need absent from the execution contract can
-use the separate receipt-bound Code Generator acquisition path.
-
-The overview is intentionally more descriptive than prescriptive. The
-approved route and section IDs define public-scope coverage, but the overview
-does not impose a typical portfolio screen count, component count, card count,
-or layout. Within that approved scope, Code Generator chooses the visual
-composition and responsive grouping that fit the person and content—for
-example, an executive narrative may foreground trust and outcomes, while a
-software portfolio may foreground capabilities, experience, selected work, and
-technical evidence—without inventing facts or credentials.
+Code Generator's own ingestion of this new contract (replacing the old
+pack-v3/v4 ZIP admission) is tracked as explicit follow-up work -- see
+`DECISIONS.md`. It is not silently assumed done.
 
 ## Folder structure
 
 ```text
 build_preparation/
-  agent.py, service.py, state.py, schemas.py, validators.py
-  compiler.py, fixture.py, providers.py, materializer.py, packager.py
-  prompt_builder.py
-  ../../storage/artifacts.py  configured memory/S3-compatible artifact store
-  prompts/                    trusted system + operation prompts
-  samples/                    privacy-safe checked-in inputs when present
+  agent.py              single-call orchestration (Stage 0 -> research -> model call -> assembly)
+  compiler.py            pure Stage 0 scope compiler (unchanged from earlier packs)
+  resource_research.py   deterministic query construction + discovery-only provider search
+  providers.py           discovery-only Pexels/Pixabay/Fontsource/registry clients (no downloads)
+  brief_assembly.py       deterministic Markdown assembly for both briefs
+  debug_mirror.py        local .md debug mirror (courtesy copy, never source of truth)
+  visual_input.py         presentation-fallback normalizer when VDD is thin/absent
+  input_integrator.py     CA/VDD -> compact agent-input projection composer
+  service.py, state.py, schemas.py, validators.py, prompt_builder.py
+  fixture.py, fixture_runs.py   detached development harness
+  prompts/                trusted system + compose_visual_brief prompts
 ```
 
 ## State and routes
@@ -130,7 +101,7 @@ NOT_STARTED -> RUNNING -> READY
 | --- | --- | --- |
 | GET | `/api/v1/sessions/{id}/build-preparation` | State, jobs, and staleness |
 | POST | `/api/v1/sessions/{id}/build-preparation/start` | Start from approved Content Architect and approved Visual Design Director projections |
-| GET | `/api/v1/sessions/{id}/build-preparation/download` | Download the current verified ZIP when it is fresh |
+| GET | `/api/v1/sessions/{id}/build-preparation/download?doc=content\|visual` | Download one of the two Markdown briefs |
 | POST | `/api/v1/sessions/{id}/build-preparation/regenerate` | Re-run from current approved upstream |
 
 The state is stored under `portfolio_sessions.current_state["build_preparation"]`.
@@ -141,18 +112,14 @@ result, so stale work cannot overwrite newer approved state.
 
 When the development UI and Build Preparation fixture flag are enabled:
 
-- `/build-preparation-fixture` accepts pasted or uploaded Visual Design Director JSON and an approved Content Architect JSON projection; a missing or partial VDD is normalized from the approved CA projection for diagnostic-only runs;
-- `/build-preparation-fixture/progress` shows every stage event and the full JSON;
-- `POST /api/v1/build-preparation/fixture/run` runs the same Stage 0 → Phase 3
-  pipeline without a session, approval state, or database write.
+- `/build-preparation-fixture` accepts pasted or uploaded Visual Design Director JSON and an approved Content Architect JSON projection; a missing or partial VDD is normalized from the approved CA projection;
+- `/build-preparation-fixture/progress` shows every stage event, both rendered briefs, and the full JSON;
+- `POST /api/v1/build-preparation/fixture/run` runs the same scope -> research -> compose -> assemble pipeline without a session, approval state, or database write.
 
-The harness is deterministic and offline by default, but an offline run is
-diagnostic-only when visual roles are present: it cannot claim a ready handoff.
-Its two explicit options enable the configured model and resource providers for
-a live smoke run. Live providers are bounded by request ceilings, short retry
-windows, response caching, duplicate-query suppression, and rate-limit header
-tracking; provider exhaustion stops with a visible gap instead of retrying
-indefinitely.
-When the local debug mirror is enabled, each run is stored under a sortable
-timestamp plus an eight-character run prefix; the package manifest retains the
-full run ID.
+The harness auto-picks the newest matching files in `Input-Output-Of-Engine/`
+by filename (tokens `visual`/`design`/`director` and `content`/`architect`),
+falling back to the configured `fixture_input_path`/`fixture_content_input_path`.
+It is deterministic and offline by default (`live_model=False`); its two
+explicit options enable the configured model and live resource providers for
+a real run. When the local debug mirror is enabled, each run is stored under
+a sortable timestamp plus an eight-character run prefix.

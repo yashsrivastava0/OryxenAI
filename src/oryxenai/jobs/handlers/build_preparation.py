@@ -1,4 +1,9 @@
-"""Durable Build Preparation worker handler for Stage 0 through Phase 3."""
+"""Durable Build Preparation worker handler.
+
+Runs the single Build Preparation agent invocation (deterministic scope,
+deterministic resource research, at most one bounded model call) and persists
+its two Markdown briefs.
+"""
 
 from __future__ import annotations
 
@@ -10,33 +15,20 @@ from oryxenai.agents.build_preparation.agent import (
     BuildPreparationAgent,
     BuildPreparationModelOutputError,
 )
-from oryxenai.agents.build_preparation.checkpoint import (
-    BuildPreparationCheckpoint,
-    source_binding_hash,
-)
 from oryxenai.agents.build_preparation.input_integrator import (
     BuildPreparationInputIntegrator,
 )
-from oryxenai.agents.build_preparation.packager import PackageError
 from oryxenai.agents.build_preparation.schemas import (
-    BuildContextDraft,
     BuildPreparationStatus,
-    FetchedResource,
-    HandoffQualityReport,
-    MaterializationResult,
-    PackageResult,
+    ComponentBriefEntry,
+    ResourceBriefEntry,
     ResourceNeed,
     RouteScope,
-    Stage0Result,
-    Stage1QueryPlan,
-    Stage2SelectionPlan,
     StageEvent,
 )
 from oryxenai.agents.build_preparation.state import (
     apply_build_running,
     apply_needs_attention,
-    apply_phase2_result,
-    apply_phase3_result,
     apply_result,
 )
 from oryxenai.agents.build_preparation.validators import BuildPreparationValidationError
@@ -48,7 +40,6 @@ from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
 from oryxenai.db.session import get_sessionmaker
-from oryxenai.storage.artifacts import ArtifactStorageError
 
 logger = get_logger("oryxenai.jobs.handlers.build_preparation")
 
@@ -76,7 +67,6 @@ def _build_build_preparation_agent(
     override_profile_name: str = "",
     *,
     event_sink: Callable[[StageEvent], Awaitable[None]] | None = None,
-    checkpoint_sink: Callable[[BuildPreparationCheckpoint], Awaitable[None]] | None = None,
 ) -> Agent:
     """Create the live Build Preparation agent from the configured profile."""
     from oryxenai.agents.shared.model_runtime import get_model_runtime
@@ -87,8 +77,8 @@ def _build_build_preparation_agent(
     return BuildPreparationAgent(
         model_client=runtime.resolve("build_preparation", override_profile_name),
         settings=settings,
+        profile_name=override_profile_name,
         event_sink=event_sink,
-        checkpoint_sink=checkpoint_sink,
     )
 
 
@@ -108,7 +98,7 @@ class BuildPreparationHandler:
         own try/except blocks (which call _persist_failure) never run — this
         is the only chance to reflect a terminal timeout into the
         build_preparation session state instead of leaving it stuck at
-        "running" forever (live-reproduced during local testing).
+        "running" forever.
         """
         from oryxenai.core.settings import get_settings
 
@@ -144,9 +134,6 @@ async def _execute_persisted(
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
-    from oryxenai.agents.shared.model_runtime import get_model_runtime
-
-    runtime = get_model_runtime(settings.models)
 
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -162,17 +149,16 @@ async def _execute_persisted(
         if (
             state.status in {BuildPreparationStatus.READY, BuildPreparationStatus.NEEDS_ATTENTION}
             and state.run_id == str(run_id)
-            and state.package is not None
+            and state.content_brief_markdown
         ):
             # A lease can expire after the result was committed but before the
             # queue acknowledgement. Replaying the same run is a no-op.
-            return {"status": "succeeded", "run_id": str(run_id), "operation": "build"}
+            return {"status": "succeeded", "run_id": str(run_id)}
         await repo.mark_run_started(run_id)
         if state.status is BuildPreparationStatus.RUNNING and state.run_id == str(run_id):
             # A stale lease can replay a run after its first attempt already
-            # persisted the running marker. Reuse that snapshot instead of
-            # trying to CAS the same revision a second time.
-            state_snapshot = dict(session.current_state)
+            # persisted the running marker.
+            pass
         else:
             running = apply_build_running(state, str(run_id), state.job_id, attempt, max_attempts)
             expected_revision = int(payload.get("expected_session_revision", session.revision))
@@ -182,49 +168,8 @@ async def _execute_persisted(
                     "BUILD_PREPARATION_REVISION_CONFLICT",
                     "Build Preparation state changed while the worker was starting.",
                 )
-            state_snapshot = dict(updated.current_state)
         await db.commit()
         input_payload = dict(run.input_payload)
-
-        requested_profile = str(input_payload.get("model_profile", "") or "")
-        runtime_profile_id = runtime.resolve_profile_name("build_preparation", requested_profile)
-        profile_fingerprint = runtime.profile_fingerprint(runtime_profile_id)
-        raw_source_ref = input_payload.get("source_ref")
-        source_hash = source_binding_hash(
-            raw_source_ref if isinstance(raw_source_ref, dict) else {}
-        )
-        checkpoint: BuildPreparationCheckpoint | None = None
-        if isinstance(run.checkpoint_payload, dict):
-            try:
-                candidate_checkpoint = BuildPreparationCheckpoint.model_validate(
-                    run.checkpoint_payload
-                )
-            except ValueError:
-                candidate_checkpoint = None
-            if candidate_checkpoint is not None and candidate_checkpoint.compatible_with(
-                run_id=str(run_id),
-                approved_source_hash=source_hash,
-                profile_fingerprint=profile_fingerprint,
-            ):
-                checkpoint = candidate_checkpoint
-        if run.checkpoint_payload is not None and checkpoint is None:
-            await repo.save_checkpoint(run_id, None)
-            await db.commit()
-
-    checkpoint_binding = {
-        "run_id": str(run_id),
-        "approved_source_hash": source_hash,
-        "profile_fingerprint": profile_fingerprint,
-    }
-    input_payload.update(
-        {
-            "runtime_profile_id": runtime_profile_id,
-            "checkpoint_binding": checkpoint_binding,
-            "checkpoint_payload": (
-                checkpoint.model_dump(mode="json") if checkpoint is not None else None
-            ),
-        }
-    )
 
     async def persist_event(event: StageEvent) -> None:
         async with sessionmaker() as event_db:
@@ -250,30 +195,11 @@ async def _execute_persisted(
             if updated is not None:
                 await event_db.commit()
 
-    async def persist_checkpoint(value: BuildPreparationCheckpoint) -> None:
-        if not value.compatible_with(
-            run_id=str(run_id),
-            approved_source_hash=source_hash,
-            profile_fingerprint=profile_fingerprint,
-        ):
-            raise BuildPreparationJobError(
-                "BUILD_PREPARATION_CHECKPOINT_MISMATCH",
-                "Build Preparation rejected an incompatible checkpoint.",
-            )
-        async with sessionmaker() as checkpoint_db:
-            await WorkerAuthorizationFence(checkpoint_db).validate_payload(payload)
-            checkpoint_repo = BuildPreparationRepository(checkpoint_db)
-            checkpoint_run = await checkpoint_repo.get_run(run_id)
-            checkpoint_state = await checkpoint_repo.get_state(session_id)
-            if (
-                checkpoint_run is None
-                or checkpoint_run.status != "running"
-                or checkpoint_state.status is not BuildPreparationStatus.RUNNING
-                or checkpoint_state.run_id != str(run_id)
-            ):
-                return
-            await checkpoint_repo.save_checkpoint(run_id, value.model_dump(mode="json"))
-            await checkpoint_db.commit()
+    from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+    runtime = get_model_runtime(settings.models)
+    requested_profile = str(input_payload.get("model_profile", "") or "")
+    runtime_profile_id = runtime.resolve_profile_name("build_preparation", requested_profile)
 
     try:
         async with sessionmaker() as db:
@@ -281,16 +207,12 @@ async def _execute_persisted(
         agent = (
             agent_factory()
             if agent_factory is not None
-            else _build_build_preparation_agent(
-                str(input_payload.get("model_profile", "") or ""),
-                event_sink=persist_event,
-                checkpoint_sink=persist_checkpoint,
-            )
+            else _build_build_preparation_agent(requested_profile, event_sink=persist_event)
         )
         context = build_context(
             portfolio_session_id=session_id,
             agent_key=_AGENT_KEY,
-            current_state=state_snapshot,
+            current_state={},
             agent_input=input_payload,
             request_id=str(payload.get("request_id", "") or ""),
             attempt=attempt,
@@ -301,10 +223,7 @@ async def _execute_persisted(
         # A model response that failed the output contract is almost always a
         # one-off generation-quality issue on the same input (truncated JSON,
         # a malformed field), not a permanent condition — retry it like any
-        # other transient provider error, bounded by max_attempts. Mirrors
-        # Discovery's DiscoveryModelOutputError handling. Must be checked
-        # before the broader BuildPreparationValidationError branch below,
-        # since this is a subclass of it.
+        # other transient provider error, bounded by max_attempts.
         logger.warning("build_preparation model output invalid: %s", type(exc).__name__)
         error = {"code": exc.code, "message": exc.message, "details": exc.details}
         await _persist_failure(
@@ -331,34 +250,11 @@ async def _execute_persisted(
             retryable=exc.retryable,
         )
         raise BuildPreparationJobError(code, message, {}, retryable=exc.retryable) from exc
-    except ArtifactStorageError as exc:
-        error = {"code": exc.code, "message": exc.message, "details": exc.details}
-        await _persist_failure(
-            sessionmaker,
-            session_id,
-            run_id,
-            payload,
-            error,
-            attempt,
-            max_attempts,
-            retryable=exc.retryable,
-        )
-        raise BuildPreparationJobError(
-            exc.code, exc.message, exc.details, retryable=exc.retryable
-        ) from exc
-    except PackageError as exc:
-        error = {"code": exc.code, "message": exc.message, "details": exc.details}
-        await _persist_failure(
-            sessionmaker, session_id, run_id, payload, error, attempt, max_attempts, retryable=False
-        )
-        raise BuildPreparationJobError(exc.code, exc.message, exc.details) from exc
     except Exception as exc:
         # Everything with a known transient/classifiable shape is already
-        # handled by the typed except clauses above (model output, provider,
-        # artifact storage, package errors). An exception that reaches here
-        # is unclassified — treat it as a real bug rather than blindly
-        # retrying it up to max_attempts times at full 5-stage cost.
-        logger.warning("build_preparation phase 3 failed with %s", type(exc).__name__)
+        # handled above. An exception that reaches here is unclassified —
+        # treat it as a real bug rather than blindly retrying it.
+        logger.warning("build_preparation failed with %s", type(exc).__name__)
         stage_error: dict[str, Any] = {
             "code": "BUILD_PREPARATION_FAILED",
             "message": "Build Preparation could not complete.",
@@ -379,23 +275,14 @@ async def _execute_persisted(
         ) from exc
 
     return await _apply_result(
-        sessionmaker,
-        session_id,
-        run_id,
-        payload,
-        result,
-        attempt,
-        runtime_profile_id,
+        sessionmaker, session_id, run_id, payload, result, attempt, runtime_profile_id
     )
 
 
 def _approved_source_ref(content_architect: Any, visual_design_director: Any, settings: Any) -> Any:
     return (
         BuildPreparationInputIntegrator(settings)
-        .compose(
-            content_architect,
-            visual_design_director,
-        )
+        .compose(content_architect, visual_design_director)
         .source_ref
     )
 
@@ -438,76 +325,40 @@ async def _apply_result(
             await repo.save_state(session_id, next_state, session.revision)
             await repo.mark_run_failed(run_id, error)
             await db.commit()
-            return {"status": "failed", "run_id": str(run_id), "operation": "build"}
+            return {"status": "failed", "run_id": str(run_id)}
 
         output = dict(result.output)
-        if output.get("stage") == "stage_0" or "query_plan" not in output:
-            stage0 = Stage0Result.model_validate(output)
-            next_state = apply_result(
-                state,
-                scope_hash=stage0.scope_hash,
-                routes=stage0.routes,
-                resource_needs=stage0.resource_needs,
-                warnings=stage0.warnings,
-                events=stage0.events,
-            )
-            operation = "stage_0"
-            persisted_output = stage0.model_dump(mode="json")
-        else:
-            query_plan = Stage1QueryPlan.model_validate(output["query_plan"])
-            candidates = [
-                FetchedResource.model_validate(item) for item in output["fetched_candidates"]
-            ]
-            selection_plan = Stage2SelectionPlan.model_validate(output["selection_plan"])
-            build_context_result = BuildContextDraft.model_validate(output["build_context"])
-            materialization = MaterializationResult.model_validate(output["materialization"])
-            routes = [RouteScope.model_validate(item) for item in output["routes"]]
-            needs = [ResourceNeed.model_validate(item) for item in output["resource_needs"]]
-            warnings = [str(item) for item in output.get("warnings", [])]
-            events = [StageEvent.model_validate(item) for item in output.get("events", [])]
-            model_calls = int(output.get("model_calls", 0))
-            provider_calls = int(output.get("provider_calls", 0))
-            if output.get("package") is not None:
-                handoff_report = (
-                    HandoffQualityReport.model_validate(output["handoff_report"])
-                    if isinstance(output.get("handoff_report"), dict)
-                    else None
-                )
-                next_state = apply_phase3_result(
-                    state,
-                    scope_hash=str(output["scope_hash"]),
-                    routes=routes,
-                    resource_needs=needs,
-                    query_plan=query_plan,
-                    fetched_candidates=candidates,
-                    selection_plan=selection_plan,
-                    build_context=build_context_result,
-                    materialization=materialization,
-                    package=PackageResult.model_validate(output["package"]),
-                    warnings=warnings,
-                    events=events,
-                    model_calls=model_calls,
-                    provider_calls=provider_calls,
-                    handoff_report=handoff_report,
-                )
-            else:
-                next_state = apply_phase2_result(
-                    state,
-                    scope_hash=str(output["scope_hash"]),
-                    routes=routes,
-                    resource_needs=needs,
-                    query_plan=query_plan,
-                    fetched_candidates=candidates,
-                    selection_plan=selection_plan,
-                    build_context=build_context_result,
-                    materialization=materialization,
-                    warnings=warnings,
-                    events=events,
-                    model_calls=model_calls,
-                    provider_calls=provider_calls,
-                )
-            operation = "build"
-            persisted_output = output
+        routes = [RouteScope.model_validate(item) for item in output["routes"]]
+        needs = [ResourceNeed.model_validate(item) for item in output["resource_needs"]]
+        resource_index = [
+            ResourceBriefEntry.model_validate(item) for item in output.get("resource_index", [])
+        ]
+        component_index = [
+            ComponentBriefEntry.model_validate(item) for item in output.get("component_index", [])
+        ]
+        warnings = [str(item) for item in output.get("warnings", [])]
+        events = [StageEvent.model_validate(item) for item in output.get("events", [])]
+        next_state = apply_result(
+            state,
+            scope_hash=str(output["scope_hash"]),
+            routes=routes,
+            resource_needs=needs,
+            resource_index=resource_index,
+            component_index=component_index,
+            content_brief_markdown=str(output.get("content_brief_markdown", "")),
+            visual_brief_markdown=str(output.get("visual_brief_markdown", "")),
+            content_brief_hash=_hash_text(str(output.get("content_brief_markdown", ""))),
+            visual_brief_hash=_hash_text(str(output.get("visual_brief_markdown", ""))),
+            target_contract=str(output.get("target_contract", "react-vite-v1")),
+            recommended_dependencies=[
+                str(item) for item in output.get("recommended_dependencies", [])
+            ],
+            debug_mirror_path=str(output.get("debug_mirror_path", "")),
+            warnings=warnings,
+            events=events,
+            model_calls=int(output.get("model_calls", 0)),
+            provider_calls=int(output.get("provider_calls", 0)),
+        )
         next_state.attempt = attempt
         updated = await repo.save_state(session_id, next_state, session.revision)
         if updated is None:
@@ -517,9 +368,9 @@ async def _apply_result(
             )
         await repo.mark_run_succeeded(
             run_id,
-            persisted_output,
+            output,
             dict(updated.current_state),
-            prompt_version=str(result.prompt_version or "phase2"),
+            prompt_version=str(result.prompt_version or "compose_visual_brief"),
             model_metadata=durable_model_metadata(
                 {**result.model_metadata, "result_status": "succeeded"},
                 profile_id=runtime_profile_id,
@@ -527,7 +378,7 @@ async def _apply_result(
             ),
         )
         await db.commit()
-        return {"status": "succeeded", "run_id": str(run_id), "operation": operation}
+        return {"status": "succeeded", "run_id": str(run_id)}
 
 
 async def _persist_failure(
@@ -548,12 +399,6 @@ async def _persist_failure(
         if session is None:
             return
         state = await repo.get_state(session_id)
-        # A non-retryable failure is exactly as terminal as one that has
-        # exhausted max_attempts — either way, no further worker attempt
-        # will ever run. Only checking attempt >= max_attempts left the
-        # session stuck reporting "running" forever on a fail-fast attempt
-        # 1 failure (live-reproduced: a PermissionError classified
-        # non-retryable never advanced past "running").
         will_retry = bool(
             error.get("will_retry")
             if "will_retry" in error
@@ -565,3 +410,9 @@ async def _persist_failure(
             await repo.save_state(session_id, next_state, session.revision)
         await repo.mark_run_failed(run_id, error)
         await db.commit()
+
+
+def _hash_text(value: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()

@@ -37,20 +37,20 @@ prefix = "temporary"
 require_lifecycle = true
 
 [build_preparation]
-# Render disks are ephemeral; the verified ZIP remains the only deployment
-# artifact in normal session/worker execution.
+# Render disks are ephemeral; the two Markdown briefs on session state remain
+# the only durable output in normal session/worker execution.
 debug_mirror_enabled = false
 fixture_enabled = false
 # The detached developer fixture writes timestamped local results into the
 # ignored host-mounted output/ directory. Only the app/fixture services mount
 # ./output:/app/output — the worker does not — so this must never be reused
-# as the real session/worker run's staging directory (session_staging_root
+# as the real session/worker run's debug-mirror directory (session_staging_root
 # below is what that path actually uses).
 fixture_output_dir = "/app/output"
-fixture_debug_mirror_enabled = true
-# Ephemeral per-run staging for real session/worker Build Preparation runs.
-# Lives under /app/.workspace, which the Dockerfile chowns to the non-root
-# oryxen user, so no volume/Dockerfile change is needed in any service.
+# Ephemeral per-run debug-mirror root for real session/worker Build
+# Preparation runs. Lives under /app/.workspace, which the Dockerfile chowns
+# to the non-root oryxen user, so no volume/Dockerfile change is needed in
+# any service.
 session_staging_root = ".workspace/build-preparation-staging"
 
 [code_generator_development]
