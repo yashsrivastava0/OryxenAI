@@ -73,7 +73,9 @@ def materialize_trusted_manifests(
     execution = projections["execution/contract.json"]
     copied_resources = workspace.materialize_pack_resources()
     acquired_resources = (
-        workspace.materialize_acquisition_resources(acquisition_ledger, acquisition_materials_root)
+        workspace.materialize_acquisition_resources(
+            acquisition_ledger, acquisition_materials_root, execution
+        )
         if acquisition_ledger is not None and acquisition_materials_root is not None
         else []
     )
