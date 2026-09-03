@@ -161,7 +161,11 @@ unsplash_local_vendoring_authorized = false
 # User-visible pre-code stage. Bundles live in private object storage, never on
 # a shared application/worker filesystem.
 max_routes = 12
-bundle_ttl_days = 3
+# D-060 made packs compact references, not embedded resource bytes, so the
+# original storage-cost/cleanup rationale for a short TTL (D-009) no longer
+# applies. A pack does not expire in practice; this is a deliberately large,
+# not-infinite horizon so a stale sentinel is still theoretically detectable.
+bundle_ttl_days = 36500
 minimum_reuse_hours = 24
 max_bundle_bytes = 67108864
 network_timeout_seconds = 15.0
