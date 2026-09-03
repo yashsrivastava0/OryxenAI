@@ -561,6 +561,20 @@ def _pexels_candidate(photo: dict[str, Any], query: str, rank: int) -> ImageCand
     )
 
 
+def _clean_pixabay_tags(raw_tags: str) -> str:
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for tag in raw_tags.split(","):
+        tag_str = tag.strip()
+        if not tag_str:
+            continue
+        key = tag_str.casefold()
+        if key not in seen:
+            seen.add(key)
+            cleaned.append(tag_str)
+    return ", ".join(cleaned)
+
+
 def _pixabay_candidate(hit: dict[str, Any], query: str, rank: int) -> ImageCandidate | None:
     if bool(hit.get("isAiGenerated", False)):
         return None
@@ -576,12 +590,13 @@ def _pixabay_candidate(hit: dict[str, Any], query: str, rank: int) -> ImageCandi
         return None
     user = str(hit.get("user", "") or "Pixabay contributor")
     page = str(hit.get("pageURL", "") or "")
-    tags = sorted(_tokens(str(hit.get("tags", "") or "")))
+    cleaned_tags = _clean_pixabay_tags(str(hit.get("tags", "") or ""))
+    tags = sorted(_tokens(cleaned_tags))
     return ImageCandidate(
         provider="pixabay",
         provider_asset_id=asset_id,
-        title=str(hit.get("tags", "") or ""),
-        description=str(hit.get("tags", "") or ""),
+        title=cleaned_tags,
+        description=cleaned_tags,
         tags=tags,
         source_url=page,
         image_url=image_url,
@@ -629,7 +644,22 @@ async def _search_provider(
                     "candidate_count": len(cached),
                 }
             )
-        return [ImageCandidate.model_validate(item) for item in cached]
+        return [
+            ImageCandidate.model_validate(
+                {
+                    **item,
+                    **(
+                        {
+                            "title": _clean_pixabay_tags(item.get("title", "")),
+                            "description": _clean_pixabay_tags(item.get("description", "")),
+                        }
+                        if item.get("provider") == "pixabay"
+                        else {}
+                    ),
+                }
+            )
+            for item in cached
+        ]
     if provider == "pexels":
         key = _provider_key(settings, "pexels_api_key_env", "PEXELS_API_KEY")
         if not key:

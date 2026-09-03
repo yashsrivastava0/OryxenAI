@@ -55,6 +55,31 @@
         <div class="panel-heading"><h2>Compiled result</h2><a id="summary-details" class="link" href="/dev/build-preparation-fixture/progress">View full details</a></div>
         <div id="summary-body"></div>
       </section>
+
+      <section id="output" class="panel" hidden>
+        <div class="panel-heading"><h2>Output</h2></div>
+        <p class="muted">Saved to <span id="output-location" class="mono"></span></p>
+        <div class="output-brief">
+          <div class="output-brief-heading">
+            <h3>content-and-narrative-brief.md</h3>
+            <div class="output-brief-actions">
+              <button id="copy-content-brief" class="button secondary compact-btn" type="button">Copy Markdown</button>
+              <a id="output-content-download" class="link" href="#">Download</a>
+            </div>
+          </div>
+          <pre id="output-content-brief" class="raw"></pre>
+        </div>
+        <div class="output-brief">
+          <div class="output-brief-heading">
+            <h3>visual-and-build-brief.md</h3>
+            <div class="output-brief-actions">
+              <button id="copy-visual-brief" class="button secondary compact-btn" type="button">Copy Markdown</button>
+              <a id="output-visual-download" class="link" href="#">Download</a>
+            </div>
+          </div>
+          <pre id="output-visual-brief" class="raw"></pre>
+        </div>
+      </section>
       {% endif %}
     </section>
 
@@ -67,16 +92,9 @@
       <section class="monitor-section">
         <h3>Stages</h3>
         <ol id="stage-list" class="stage-list">
-          <li data-stage="stage_0">Stage 0 · Scope</li>
-          <li data-stage="stage_1">Stage 1 · Queries</li>
-          <li data-stage="providers">Providers · Candidates</li>
-          <li data-stage="stage_2">Stage 2 · Selection</li>
-          <li data-stage="stage_3">Stage 3 · Build context</li>
-          <li data-stage="stage_4">Stage 4 · Integration</li>
-          <li data-stage="materialize">Local result</li>
-          <li data-stage="stage_5">Stage 5 &middot; Handoff gate</li>
-          <li data-stage="artifact_storage">R2 storage</li>
-          <li data-stage="phase_3">Phase 3 · Verification</li>
+          <li data-stage="stage_0">Scope · deterministic</li>
+          <li data-stage="resource_research">Resource research · providers</li>
+          <li data-stage="compose_visual_brief">Compose visual brief · model</li>
         </ol>
       </section>
       <section class="monitor-section">
