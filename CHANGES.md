@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-04 16:30 +05:30 - Codex (GPT-5 / OpenAI) - [5b84673, 871f960] - harden migrated Code Generator generation
+
+Completed the Build Preparation Markdown handoff migration: fenced-index parsing with CRLF tolerance, immutable identity-addressed admission, closed-navigation projections, blueprint/planner normalization, v5 queue and worker-release fencing, deferred resource placement, reference-only optional registry components, cached provider readiness, and serial route-batch calls. Replaced the stale Code Generator issue log with current root causes and follow-up checks. Parser/workspace/resource smoke checks, targeted planner/pipeline/service tests, Ruff, mypy, and Node syntax checks pass. A live run reached valid foundation/acquisition checkpoints before the configured provider returned 429 during route generation; no additional live calls were spent.
+
 ### 2026-09-04 11:24 +05:30 — Codex (GPT-5 / OpenAI) — [1f0ed68] — migrate Code Generator to Build Preparation brief contracts
 
 Replaced the retired ZIP/object-store intake with strict parsing of Build Preparation's two Markdown briefs, immutable JSON-envelope admission, projection compilation, and closed-navigation enforcement. Wired pinned image/font/component candidates into deferred acquisition with explicit local fallbacks, made planner criteria compiler-owned, raised source validation to the configured generation ceiling, refreshed the production/development handoffs and UI, and updated the stale migration test; local parser, planner/session/resource/preflight, browser-harness, Ruff, mypy, and compile checks pass. Live acceptance was limited to three attempts and stopped at the requested cutoff before a preview was promoted.
