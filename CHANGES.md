@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 01:10 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [e635df6] - consolidate agent outputs and eliminate prebuild-output legacy locations
+
+Cleaned up repository structure and unified all agent outputs under a single canonical `output/` directory:
+(1) Removed deprecated `prebuild-output/` directory, including git-removal of legacy August zip packs (`15-36-25-08-8acdcb12` and `22-51-01-09-1961f2c9`), unadopted proposal document, and admission scratch files.
+(2) Cleaned `output/build-preparation/` by removing 54 empty/corrupted/ineligible runs while strictly preserving the 2 verified eligible packs (`01-31-04-09-94ae4a9c` benchmark and `01-28-04-09-fb8c6001`).
+(3) Pruned `output/code-gen-output/` to retain the 3 newest full generation runs, and deleted obsolete empty staging directories (`output/build-preparation-staging`, `output/test-build-preparation`, `output/live-build-preparation`).
+(4) Removed stray `src/oryxenai/output/` directory and unreferenced `VDD-NEW-OUTPUT.MD`, root `.pytest-tmp*`, and scattered `.uv-cache*` directories.
+(5) Updated `config/app.docker.codegen-run.toml` and `docs/run/run.md` to reference `output/build-preparation`, added `output/README.md`, and refined `.gitignore` to cleanly ignore ephemeral runs under `output/*` while tracking `output/README.md`.
+Verified with ruff and test suites across build preparation and development input discovery.
+
 ### 2026-09-04 23:45 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [112d1a6] - add commit-cadence policy to the multi-agent protocol
 
 Added rule 6 to `AGENTS.md`'s multi-agent collaboration protocol: commit locally at natural checkpoints (session end, meaningful chunk of work, before any bulk filesystem operation) regardless of whether the change meets the `CHANGES.md` "major work" bar, flag pre-existing uncommitted changes at session start instead of silently building on top of them, and push regularly so a branch doesn't drift far ahead of `origin`. Directly motivated by the incident in the entry immediately below: a local commit is the only real protection against losing work to something outside git (an accidental delete, a filesystem tool, antivirus quarantine), since git history survives all of those and an unprotected working tree does not.
