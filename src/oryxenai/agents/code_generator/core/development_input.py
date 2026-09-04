@@ -45,7 +45,7 @@ def _sha256(data: bytes) -> str:
 
 def _resolve_config_path(value: str) -> Path:
     path = Path(value)
-    return path if path.is_absolute() else (repository_root() / path).resolve()
+    return path.resolve() if path.is_absolute() else (repository_root() / path).resolve()
 
 
 def _blocking_execution_gaps(execution: dict[str, Any]) -> list[dict[str, Any]]:
@@ -379,7 +379,7 @@ class DevelopmentInputAdapter:
     def _store_source(
         self, *, mode: str, source_id: str, filename: str, data: bytes
     ) -> AdmittedInputReference:
-        self._compile(data)
+        receipt, _projections, _summary = self._compile(data)
         digest = _sha256(data)
         relative = Path("inputs") / digest[:2] / f"{digest}.json"
         target = (self._root / relative).resolve()
@@ -397,6 +397,38 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "INPUT_COPY_READBACK_FAILED", "The uploaded input copy could not be verified."
             )
+
+        # GenerationWorkspace intentionally consumes an identity-addressed,
+        # immutable tree rather than the content-addressed upload path.  The
+        # previous ZIP adapter populated ``admitted/<identity>`` by extracting
+        # the verified archive; Markdown briefs have no archive to extract.
+        # Keep that workspace boundary stable by publishing the exact envelope
+        # under the compiled contract identity.  The envelope is only a
+        # provenance anchor (resource bytes are acquired separately), but it
+        # makes resumed and production generation runs use the same admission
+        # contract as legacy fixtures.
+        admitted_root = (self._root / "admitted" / receipt.admitted_identity).resolve()
+        if not admitted_root.is_relative_to(self._root):
+            raise DevelopmentInputError(
+                "INPUT_ROOT_UNSAFE", "The configured development input root is unsafe."
+            )
+        admitted_root.mkdir(parents=True, exist_ok=True)
+        admitted_copy = admitted_root / "brief-envelope.json"
+        if admitted_copy.exists():
+            if not admitted_copy.is_file() or admitted_copy.read_bytes() != data:
+                raise DevelopmentInputError(
+                    "ADMITTED_COPY_READBACK_FAILED",
+                    "The identity-addressed brief copy could not be verified.",
+                )
+        else:
+            partial = admitted_copy.with_suffix(".partial")
+            partial.write_bytes(data)
+            os.replace(partial, admitted_copy)
+            if admitted_copy.read_bytes() != data:
+                raise DevelopmentInputError(
+                    "ADMITTED_COPY_READBACK_FAILED",
+                    "The identity-addressed brief copy could not be verified.",
+                )
         return AdmittedInputReference(
             mode=mode,  # type: ignore[arg-type]
             source_id=source_id,
@@ -506,9 +538,15 @@ class DevelopmentInputAdapter:
             "components": [],
             "recommended_dependencies": [],
         }
-        visual_lines = ["# Fixture Visual & Build Brief", "", "```json build-preparation-visual-index"]
+        visual_lines = [
+            "# Fixture Visual & Build Brief",
+            "",
+            "```json build-preparation-visual-index",
+        ]
         visual_lines.extend(json.dumps(visual_index, indent=2, ensure_ascii=False).splitlines())
-        visual_lines.extend(["```", "", "Use a restrained, accessible local composition with clear hierarchy."])
+        visual_lines.extend(
+            ["```", "", "Use a restrained, accessible local composition with clear hierarchy."]
+        )
         return make_brief_envelope("\n".join(content_lines), "\n".join(visual_lines))
 
     def _compile(

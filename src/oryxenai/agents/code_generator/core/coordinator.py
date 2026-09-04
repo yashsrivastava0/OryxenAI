@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from oryxenai.agents.code_generator.core.pipeline_contract import (
+    stage_job_kind,
+    stage_scope,
+    uses_v5_namespace,
+)
 from oryxenai.agents.code_generator.core.stage_attempt import (
     StageAttemptToken,
     StageCoordinator,
@@ -26,19 +31,14 @@ async def advance_after(
     """Queue the next stage once, without chaining Build Preparation itself."""
 
     transitions = {
-        "planned": ("acquire", "code_generator.acquire", "acquiring", "acquire_job_id"),
-        "acquired": ("generate", "code_generator.generate", "queued", "generation_job_id"),
-        "source_ready": (
-            "verify",
-            "code_generator.verify_and_preview",
-            "queued",
-            "verification_job_id",
-        ),
+        "planned": ("acquire", "acquiring", "acquire_job_id"),
+        "acquired": ("generate", "queued", "generation_job_id"),
+        "source_ready": ("verify", "queued", "verification_job_id"),
     }
     transition = transitions.get(completed_stage)
     if transition is None:
         return False
-    stage, kind, status, job_field = transition
+    stage, status, job_field = transition
     completed_attempt_stage = {"acquired": "acquire", "source_ready": "generate"}.get(
         completed_stage
     )
@@ -75,6 +75,10 @@ async def advance_after(
         }[completed_stage]
         idempotency_key = f"{run.id}:{stage}:{key_material}:{run.revision}"
         is_session_run = str(getattr(run, "run_mode", "development")) == "session"
+        pipeline_version = str(
+            getattr(run, "pipeline_contract_version", "code-generator-v3") or "code-generator-v3"
+        )
+        kind = stage_job_kind(stage, pipeline_version)
         payload_key = "code_generator_run_id" if is_session_run else "development_run_id"
         input_fingerprint = fingerprint_input(
             {
@@ -115,12 +119,25 @@ async def advance_after(
             else None
         )
         await WorkerAuthorizationFence(db).validate_run(run.id)
+        payload = StageCoordinator.payload_for_attempt(
+            token,
+            {payload_key: str(run.id), "coordinator_stage": stage},
+        )
+        # The run row intentionally carries the pipeline contract, while the
+        # release is configuration-owned.  Read it from the active settings
+        # only when available; development fixtures omit this attribute and
+        # remain compatible with the legacy namespace.
+        from oryxenai.core.settings import get_settings
+
+        if uses_v5_namespace(pipeline_version):
+            payload["required_pipeline_contract_version"] = pipeline_version
+            payload["required_worker_release_id"] = str(
+                getattr(get_settings().code_generator_development, "worker_release_id", "") or ""
+            )
         job = await JobService(db, context).enqueue(
             kind,
-            StageCoordinator.payload_for_attempt(
-                token, {payload_key: str(run.id), "coordinator_stage": stage}
-            ),
-            idempotency_scope=kind,
+            payload,
+            idempotency_scope=stage_scope(stage, pipeline_version),
             idempotency_key=idempotency_key,
         )
         values: dict[str, object] = {

@@ -48,7 +48,11 @@ Grounding and exact coverage:
   heading owner.
 - Give every route at least one content-specific distinctive move. Bind it to
   source and target selectors, a machine-readable geometric relationship,
-  ratio range, viewport set, and the CSS properties that establish it. A data
+  ratio range, viewport set, and the CSS properties that establish it. For
+  every non-sticky move, choose a numeric range with `maximum_ratio -
+  minimum_ratio >= 0.15` and at least one endpoint at least `0.15` away from
+  `1.0` (for example `0.25..0.85`, `0.4..0.7`, or `1.2..1.8`). Do not round a
+  valid asymmetric range into two nearly identical values. A data
   marker by itself is not implementation. Every required CSS property must be
   valid and effective on the exact `source_selector` element itself. Use
   composition/layout properties here; never require `object-fit` or

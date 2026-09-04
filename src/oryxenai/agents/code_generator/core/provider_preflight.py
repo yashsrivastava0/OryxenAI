@@ -159,6 +159,27 @@ async def run_provider_preflight(
     }
 
 
+def provider_preflight_status(settings: Any, profile_names: list[str]) -> dict[str, Any]:
+    """Read the shared preflight cache without contacting the provider.
+
+    The development readiness endpoint is called repeatedly by the browser;
+    using this helper keeps those polls free of model/API spend while still
+    expiring the status with the runtime's normal preflight TTL.
+    """
+
+    try:
+        return get_model_runtime(settings.models).preflight_status(profile_names)
+    except Exception:
+        # Readiness already reports missing profile/credential/schema blockers.
+        # A cache lookup must never turn a diagnostics endpoint into a 500.
+        return {
+            "status": "required",
+            "checked": False,
+            "checked_profiles": [],
+            "private_context_sent": False,
+        }
+
+
 def clear_provider_preflight_cache() -> None:
     """Clear cached receipts for deterministic tests and configuration reloads."""
 

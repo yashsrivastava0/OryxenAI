@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -19,24 +20,33 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunProjection,
     DevelopmentRunStatus,
 )
+from oryxenai.agents.code_generator.core.pipeline_contract import (
+    PIPELINE_V3,
+    stage_job_kind,
+    stage_scope,
+    uses_blueprint,
+    uses_v5_namespace,
+)
 from oryxenai.agents.code_generator.core.provider_preflight import (
     ProviderPreflightError,
     code_generator_wire_schema_issues,
+    provider_preflight_status,
     run_provider_preflight,
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
+from oryxenai.jobs.heartbeat import HeartbeatRepository
 from oryxenai.jobs.service import JobService
 from oryxenai.storage.preview import PreviewStorageError, create_preview_storage
 
-_PLAN_JOB_KIND = "code_generator.plan"
-_ACQUIRE_JOB_KIND = "code_generator.acquire"
-_GENERATE_JOB_KIND = "code_generator.generate"
-_VERIFY_JOB_KIND = "code_generator.verify_and_preview"
-_ACQUIRE_SCOPE = "code_generator.acquire"
-_GENERATE_SCOPE = "code_generator.generate"
-_VERIFY_SCOPE = "code_generator.verify_and_preview"
+_PLAN_JOB_KIND = stage_job_kind("plan", PIPELINE_V3)
+_ACQUIRE_JOB_KIND = stage_job_kind("acquire", PIPELINE_V3)
+_GENERATE_JOB_KIND = stage_job_kind("generate", PIPELINE_V3)
+_VERIFY_JOB_KIND = stage_job_kind("verify", PIPELINE_V3)
+_ACQUIRE_SCOPE = stage_scope("acquire", PIPELINE_V3)
+_GENERATE_SCOPE = stage_scope("generate", PIPELINE_V3)
+_VERIFY_SCOPE = stage_scope("verify", PIPELINE_V3)
 
 
 def _generation_attempt_key(
@@ -51,6 +61,23 @@ def _generation_attempt_key(
     """Give each terminally failed same-run retry a fresh durable job key."""
 
     return f"{run_id}:{plan_hash}:{resource_hash}:{dependency_hash}:{attempt}:{revision}"
+
+
+def _worker_payload(run_id: UUID, settings: Any, *, pipeline_version: str) -> dict[str, str]:
+    """Carry the immutable worker contract on every newly queued stage."""
+
+    development = settings.code_generator_development
+    payload = {"development_run_id": str(run_id)}
+    if uses_v5_namespace(pipeline_version):
+        payload.update(
+            {
+                "required_pipeline_contract_version": pipeline_version,
+                "required_worker_release_id": str(
+                    getattr(development, "worker_release_id", "") or ""
+                ),
+            }
+        )
+    return payload
 
 
 class DevelopmentRunError(ValueError):
@@ -78,20 +105,29 @@ class CodeGeneratorDevelopmentService:
         self._settings = settings
         self._inputs = DevelopmentInputAdapter(settings)
 
+    def _provider_profile_names(self) -> list[str]:
+        """Return every profile used by the standalone pipeline once."""
+
+        return list(
+            dict.fromkeys(
+                [
+                    self._settings.code_generator_development.director_profile,
+                    self._settings.code_generator_development.planner_profile,
+                    self._settings.code_generator_generation.route_profile,
+                    self._settings.code_generator_generation.compose_profile,
+                    self._settings.code_generator_generation.integration_profile,
+                    self._settings.code_generator_generation.repair_profile,
+                ]
+            )
+        )
+
     def fixtures(self) -> list[dict[str, str]]:
         return self._inputs.fixtures()
 
     async def provider_preflight(self) -> dict[str, Any]:
         """Run the same no-context provider check used by production starts."""
 
-        profile_names = [
-            self._settings.code_generator_development.director_profile,
-            self._settings.code_generator_development.planner_profile,
-            self._settings.code_generator_generation.route_profile,
-            self._settings.code_generator_generation.compose_profile,
-            self._settings.code_generator_generation.integration_profile,
-            self._settings.code_generator_generation.repair_profile,
-        ]
+        profile_names = self._provider_profile_names()
         try:
             result = await run_provider_preflight(self._settings, profile_names)
         except ProviderPreflightError as exc:
@@ -102,6 +138,118 @@ class CodeGeneratorDevelopmentService:
                 details=exc.details,
             ) from exc
         return result
+
+    async def _worker_contract_readiness(self) -> dict[str, Any]:
+        """Check that a fresh worker can execute the active pipeline.
+
+        The API and worker are separate processes and may be restarted at
+        different times. A heartbeat is the existing durable liveness
+        boundary; its non-secret metadata also carries the release and
+        pipeline contract. Development service fixtures without a database
+        session keep the historical optimistic behavior.
+        """
+
+        session = getattr(self._repo, "_session", None)
+        if session is None:
+            return {
+                "checked": False,
+                "ready": True,
+                "expected_pipeline_contract_version": str(
+                    getattr(
+                        self._settings.code_generator_development,
+                        "pipeline_contract_version",
+                        "",
+                    )
+                    or ""
+                ),
+                "expected_worker_release_id": str(
+                    getattr(self._settings.code_generator_development, "worker_release_id", "")
+                    or ""
+                ),
+                "active_workers": [],
+                "blocker": "",
+            }
+        expected_version = str(
+            getattr(self._settings.code_generator_development, "pipeline_contract_version", "")
+            or ""
+        )
+        expected_release = str(
+            getattr(self._settings.code_generator_development, "worker_release_id", "") or ""
+        )
+        try:
+            rows = await HeartbeatRepository(session).get_recent(limit=25)
+        except Exception:
+            return {
+                "checked": True,
+                "ready": False,
+                "expected_pipeline_contract_version": expected_version,
+                "expected_worker_release_id": expected_release,
+                "active_workers": [],
+                "blocker": "code_generator_worker_heartbeat_unavailable",
+            }
+        try:
+            stale_after = max(
+                float(
+                    getattr(
+                        getattr(self._settings, "diagnostics", None),
+                        "heartbeat_staleness",
+                        60.0,
+                    )
+                ),
+                float(
+                    getattr(
+                        getattr(self._settings, "worker", None),
+                        "heartbeat_interval",
+                        30.0,
+                    )
+                )
+                * 2,
+            )
+        except (TypeError, ValueError):
+            stale_after = 60.0
+        now = datetime.now(UTC)
+        active_workers: list[dict[str, Any]] = []
+        for row in rows:
+            last_seen = getattr(row, "last_seen_at", None)
+            if getattr(row, "stopped_at", None) is not None or last_seen is None:
+                continue
+            age = max(0.0, (now - last_seen).total_seconds())
+            if age > stale_after:
+                continue
+            metadata = getattr(row, "service_metadata", {})
+            metadata = metadata if isinstance(metadata, dict) else {}
+            active_workers.append(
+                {
+                    "instance_id": str(getattr(row, "instance_id", "")),
+                    "release_id": str(metadata.get("release_id", "")),
+                    "pipeline_contract_version": str(metadata.get("pipeline_contract_version", "")),
+                    "age_seconds": round(age, 1),
+                }
+            )
+        compatible = [
+            worker
+            for worker in active_workers
+            if worker["release_id"] == expected_release
+            and worker["pipeline_contract_version"] == expected_version
+        ]
+        incompatible = [worker for worker in active_workers if worker not in compatible]
+        blocker = ""
+        if not active_workers:
+            blocker = "code_generator_worker_unavailable"
+        elif incompatible:
+            # A legacy worker's claim query predates the queue namespace and
+            # can still pick up a migrated job. Do not advertise readiness
+            # while any fresh worker has a different release/contract; the
+            # operator must drain it before starting new portfolio work.
+            blocker = "code_generator_worker_contract_mismatch"
+        return {
+            "checked": True,
+            "ready": bool(compatible) and not incompatible,
+            "expected_pipeline_contract_version": expected_version,
+            "expected_worker_release_id": expected_release,
+            "active_workers": active_workers,
+            "blocker": blocker,
+        }
 
     async def readiness(self) -> dict[str, Any]:
         """Return non-secret prerequisites so the developer UI never implies readiness."""
@@ -170,11 +318,17 @@ class CodeGeneratorDevelopmentService:
         )
         if preview_gateway_blocker:
             readiness_blockers.append(preview_gateway_blocker)
+        worker_readiness = await self._worker_contract_readiness()
+        if worker_readiness.get("checked") and worker_readiness.get("blocker"):
+            readiness_blockers.append(str(worker_readiness["blocker"]))
         # A configured key, model name, or wire schema is not proof that the
         # provider can complete a billable structured request.  The explicit
         # no-context preflight endpoint must pass before the UI may describe
-        # this surface as start-ready.
-        readiness_blockers.append("provider_preflight_required")
+        # this surface as start-ready. Read its shared in-process cache rather
+        # than issuing another provider request while the browser polls.
+        preflight = provider_preflight_status(self._settings, self._provider_profile_names())
+        if preflight.get("status") != "ready":
+            readiness_blockers.append("provider_preflight_required")
         return {
             "planning_ready": profiles["director"] and profiles["planner"],
             "generation_ready": generation_ready,
@@ -193,6 +347,8 @@ class CodeGeneratorDevelopmentService:
             "provider_wire_ready": provider_wire_ready,
             "provider_wire_schema_issues": wire_schema_issues,
             "preview_gateway_ready": preview_gateway_ready,
+            "worker_contract_ready": bool(worker_readiness.get("ready")),
+            "worker_contract": worker_readiness,
             "preview_embed_origins": list(
                 getattr(preview_config, "preview_embed_origins", []) or []
             ),
@@ -204,11 +360,7 @@ class CodeGeneratorDevelopmentService:
                 getattr(self._settings.code_generator_development, "quality_gate_version", "") or ""
             ),
             "blocker_codes": list(readiness_blockers),
-            "provider_preflight": {
-                "status": "required",
-                "checked": False,
-                "private_context_sent": False,
-            },
+            "provider_preflight": preflight,
             "can_start_latest": not readiness_blockers,
             "can_start_best": not readiness_blockers,
             "readiness_blockers": readiness_blockers,
@@ -274,7 +426,7 @@ class CodeGeneratorDevelopmentService:
                 creation_reason="initial",
                 prior_fingerprint_hashes=[],
             )
-            if pipeline_contract_version == "code-generator-v4"
+            if uses_blueprint(pipeline_contract_version)
             else None
         )
         run = await self._repo.create(
@@ -328,10 +480,11 @@ class CodeGeneratorDevelopmentService:
             level="info",
             message="Development planning run created.",
         )
+        plan_kind = stage_job_kind("plan", pipeline_contract_version)
         job = await self._jobs.enqueue(
-            _PLAN_JOB_KIND,
-            {"development_run_id": str(run.id)},
-            idempotency_scope="code_generator.plan",
+            plan_kind,
+            _worker_payload(run.id, self._settings, pipeline_version=pipeline_contract_version),
+            idempotency_scope=stage_scope("plan", pipeline_contract_version),
             idempotency_key=f"{run.id}:{reference.source_sha256}",
         )
         updated = await self._repo.compare_and_swap(
@@ -460,10 +613,14 @@ class CodeGeneratorDevelopmentService:
                 "Only a planned development run can acquire resources.",
                 status_code=409,
             )
+        pipeline_version = str(
+            getattr(run, "pipeline_contract_version", "code-generator-v3") or "code-generator-v3"
+        )
+        acquire_kind = stage_job_kind("acquire", pipeline_version)
         job = await self._jobs.enqueue(
-            _ACQUIRE_JOB_KIND,
-            {"development_run_id": str(run.id)},
-            idempotency_scope=_ACQUIRE_SCOPE,
+            acquire_kind,
+            _worker_payload(run.id, self._settings, pipeline_version=pipeline_version),
+            idempotency_scope=stage_scope("acquire", pipeline_version),
             idempotency_key=job_key,
         )
         values: dict[str, object] = {
@@ -598,10 +755,14 @@ class CodeGeneratorDevelopmentService:
                 "Source generation is already in progress.",
                 status_code=409,
             )
+        pipeline_version = str(
+            getattr(run, "pipeline_contract_version", "code-generator-v3") or "code-generator-v3"
+        )
+        generate_kind = stage_job_kind("generate", pipeline_version)
         job = await self._jobs.enqueue(
-            _GENERATE_JOB_KIND,
-            {"development_run_id": str(run.id)},
-            idempotency_scope=_GENERATE_SCOPE,
+            generate_kind,
+            _worker_payload(run.id, self._settings, pipeline_version=pipeline_version),
+            idempotency_scope=stage_scope("generate", pipeline_version),
             idempotency_key=attempt_key,
         )
         # A generation failure can happen after one or more work units have
@@ -721,10 +882,14 @@ class CodeGeneratorDevelopmentService:
             and str(getattr(existing_job, "status", "")) in {"queued", "running"}
         ):
             return _projection(run)
+        pipeline_version = str(
+            getattr(run, "pipeline_contract_version", "code-generator-v3") or "code-generator-v3"
+        )
+        verify_kind = stage_job_kind("verify", pipeline_version)
         job = await self._jobs.enqueue(
-            _VERIFY_JOB_KIND,
-            {"development_run_id": str(run.id)},
-            idempotency_scope=_VERIFY_SCOPE,
+            verify_kind,
+            _worker_payload(run.id, self._settings, pipeline_version=pipeline_version),
+            idempotency_scope=stage_scope("verify", pipeline_version),
             idempotency_key=attempt_key,
         )
         updated = await self._repo.compare_and_swap(

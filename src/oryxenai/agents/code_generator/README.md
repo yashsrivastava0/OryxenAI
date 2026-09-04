@@ -17,10 +17,11 @@ session stage explicitly; the worker reads the exact bound Markdown pair,
 validates its fenced JSON indexes, and stores one immutable JSON envelope before
 planning. Workflow implementation belongs in `core/`, prompts belong in
 `prompts/`, and the checked-in React/Vite scaffold contains source and a real
-lockfile but never `node_modules`. Brief resource decisions remain executable
-bindings: Code Generator fetches selected media, fonts, and component source
+lockfile but never `node_modules`. Brief resource decisions remain bounded
+inputs: Code Generator fetches selected media, fonts, and component references
 locally at generation time, while every optional failure has a declared local
-fallback.
+fallback. Registry source without a plan-owned destination remains reference
+material and is never copied into the generated source tree.
 
 ## Registry planner surface
 
@@ -56,10 +57,12 @@ The session and developer workflows record durable runs and event streams. The
 production input is the verified Markdown brief pair; the developer harness
 accepts the same pair from a debug mirror, a deterministic fixture, or an uploaded
 JSON envelope containing both documents.
-Active V4 runs validate a provider-safe ExperienceBlueprintV4, then host-compile
-the typed SitePlan and WorkGraph; legacy runs retain their typed SitePlan
-reader. Both paths reconcile resources
-and dependencies through trusted receipt-backed adapters, then generate a
+Active blueprint runs validate a provider-safe ExperienceBlueprintV4, then
+host-compile the typed SitePlan and WorkGraph; legacy runs retain their typed
+SitePlan reader. The current brief consumer uses the release-fenced v5 queue
+namespace, while v3/v4 rows remain readable for compatibility. Both paths
+reconcile resources and dependencies through trusted receipt-backed adapters,
+then generate a
 React/Vite/TypeScript workspace in foundation, route-batch, composition, and
 integration units.
 
