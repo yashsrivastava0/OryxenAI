@@ -1416,6 +1416,51 @@ def test_v4_css_only_route_polish_does_not_require_export_signatures() -> None:
     assert "src/routes/home/hero.tsx" in exc_info.value.message
 
 
+def test_v4_duplicate_path_identifies_the_offending_file() -> None:
+    """A repair model can't fix "duplicate paths" without being told which
+    path is duplicated -- the diagnostic must carry it in `.file`, not just
+    a generic message, so a repair round has something to act on."""
+    unit = WorkUnit(
+        unit_id="route-home-batch-1",
+        kind="route_batch",
+        owns_paths=["src/routes/home/hero.tsx"],
+    )
+    projections = {
+        "site/contract.json": {"public_content": [], "facts": []},
+    }
+    duplicate_changes = GenerationChanges(
+        files=[
+            SourceFileChange(
+                path="src/routes/home/hero.tsx",
+                operation="replace",
+                complete_utf8_content="export default function Hero() { return <section />; }\n",
+            ),
+            SourceFileChange(
+                path="src/routes/home/hero.tsx",
+                operation="replace",
+                complete_utf8_content="export default function Hero() { return <div />; }\n",
+            ),
+        ],
+        exported_signatures=[],
+        content_coverage=[],
+        criterion_coverage=[],
+        resource_usage=[],
+        interaction_coverage=[],
+    )
+
+    with pytest.raises(SourceValidationError) as exc_info:
+        _validate_v4_generation_coverage(
+            duplicate_changes,
+            unit,
+            SimpleNamespace(),
+            projections,
+        )
+
+    assert exc_info.value.code == "SOURCE_DUPLICATE_PATH"
+    assert exc_info.value.file == "src/routes/home/hero.tsx"
+    assert "src/routes/home/hero.tsx" in exc_info.value.message
+
+
 def test_acquired_image_assets_do_not_require_pack_slots(tmp_path) -> None:
     execution = {
         "slots": [

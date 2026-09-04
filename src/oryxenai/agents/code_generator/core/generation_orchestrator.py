@@ -3463,8 +3463,22 @@ def _validate_v4_generation_coverage(
             )
     changed_paths = [item.path.replace("\\", "/") for item in changes.files]
     if len(changed_paths) != len(set(changed_paths)):
+        seen_paths: set[str] = set()
+        duplicate_paths = []
+        for path in changed_paths:
+            if path in seen_paths and path not in duplicate_paths:
+                duplicate_paths.append(path)
+            seen_paths.add(path)
+        # Name the exact duplicated path(s) so a repair attempt has something
+        # to act on. Leaving `file` empty here previously gave the repair
+        # model no way to know which file to fix, and it correctly (if
+        # unhelpfully) reported cannot_complete rather than guess.
         raise SourceValidationError(
-            "SOURCE_DUPLICATE_PATH", "The v4 source envelope contains duplicate file paths."
+            "SOURCE_DUPLICATE_PATH",
+            "The v4 source envelope lists the same file path more than once: "
+            f"{', '.join(duplicate_paths)}. Return one entry per path, merging any "
+            "content that belongs together.",
+            file=duplicate_paths[0] if duplicate_paths else "",
         )
     signatures = {
         (item.path.replace("\\", "/"), item.export_name) for item in changes.exported_signatures
