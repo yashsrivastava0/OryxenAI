@@ -25,6 +25,12 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunStatus,
 )
 from oryxenai.agents.code_generator.core.development_service import browser_ready
+from oryxenai.agents.code_generator.core.pipeline_contract import (
+    stage_job_kind,
+    stage_scope,
+    uses_blueprint,
+    uses_v5_namespace,
+)
 from oryxenai.agents.code_generator.core.provider_preflight import (
     code_generator_wire_schema_issues,
 )
@@ -209,7 +215,7 @@ class CodeGeneratorService:
         )
         variant_receipt: DesignVariantReceiptV1 | None = None
         prior_fingerprints: list[DesignFingerprintV1] = []
-        if pipeline_contract_version == "code-generator-v4":
+        if uses_blueprint(pipeline_contract_version):
             history_limit = int(self._settings.code_generator_development.design_similarity_history)
             accepted_variants = getattr(self._repo.runs, "accepted_variants_for_session", None)
             prior_runs = (
@@ -344,6 +350,20 @@ class CodeGeneratorService:
             },
         )
         job_payload: dict[str, Any] = {"code_generator_run_id": str(run.id)}
+        if uses_v5_namespace(pipeline_contract_version):
+            job_payload.update(
+                {
+                    "required_pipeline_contract_version": pipeline_contract_version,
+                    "required_worker_release_id": str(
+                        getattr(
+                            self._settings.code_generator_development,
+                            "worker_release_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                }
+            )
         if stage_attempt is not None:
             job_payload = StageCoordinator.payload_for_attempt(
                 StageAttemptToken(
@@ -357,11 +377,12 @@ class CodeGeneratorService:
                 ),
                 job_payload,
             )
+        plan_kind = stage_job_kind("plan", pipeline_contract_version)
         job = await self._jobs.enqueue(
-            "code_generator.plan",
+            plan_kind,
             job_payload,
             max_attempts=int(self._settings.worker_retry.max_attempts),
-            idempotency_scope="code_generator.plan",
+            idempotency_scope=stage_scope("plan", pipeline_contract_version),
             idempotency_key=f"{run.id}:{reference.source_sha256}",
         )
         updated = await self._repo.runs.compare_and_swap(
@@ -585,19 +606,31 @@ class CodeGeneratorService:
                     or "code-generator-v4"
                 ),
             )
+        pipeline_contract_version = str(
+            getattr(run, "pipeline_contract_version", "code-generator-v4") or "code-generator-v4"
+        )
         job_field = {
             "plan": "background_job_id",
             "acquire": "acquire_job_id",
             "generate": "generation_job_id",
             "verify": "verification_job_id",
         }[stage]
-        job_kind = {
-            "plan": "code_generator.plan",
-            "acquire": "code_generator.acquire",
-            "generate": "code_generator.generate",
-            "verify": "code_generator.verify_and_preview",
-        }[stage]
+        job_kind = stage_job_kind(stage, pipeline_contract_version)
         payload: dict[str, Any] = {"code_generator_run_id": str(run.id)}
+        if uses_v5_namespace(pipeline_contract_version):
+            payload.update(
+                {
+                    "required_pipeline_contract_version": pipeline_contract_version,
+                    "required_worker_release_id": str(
+                        getattr(
+                            self._settings.code_generator_development,
+                            "worker_release_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                }
+            )
         if stage_attempt is not None:
             payload = StageCoordinator.payload_for_attempt(
                 StageAttemptToken(

@@ -25,12 +25,12 @@ def digest(value: object) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
-def _contract_meta(plan: Any) -> dict[str, Any]:
+def _contract_meta(plan: Any, *, pipeline_contract_version: str = "") -> dict[str, Any]:
     blueprint = getattr(plan, "experience_blueprint", None)
     if not isinstance(blueprint, ExperienceBlueprintV4):
         return {"pipeline_contract_version": "code-generator-v3"}
     return {
-        "pipeline_contract_version": "code-generator-v4",
+        "pipeline_contract_version": pipeline_contract_version or "code-generator-v4",
         # The route-scoped content identity and the browser-facing selector
         # are deliberately separate in V4. Keep the compiler-supplied
         # selector in trusted source metadata so the Node source audit checks
@@ -155,7 +155,17 @@ def materialize_trusted_manifests(
     _write_ts(
         workspace.repo_dir / "src/generated/contract-meta.ts",
         "CONTRACT_META",
-        _contract_meta(plan),
+        _contract_meta(
+            plan,
+            pipeline_contract_version=str(
+                getattr(
+                    getattr(settings, "code_generator_development", None),
+                    "pipeline_contract_version",
+                    "",
+                )
+                or ""
+            ),
+        ),
     )
     _write_route_registry(workspace, route_entries)
 
