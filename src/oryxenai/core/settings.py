@@ -610,7 +610,12 @@ class CodeGeneratorGenerationConfig(BaseModel):
     max_request_rounds: int = 4
     max_repair_rounds_per_unit: int = 3
     max_repair_rounds_total: int = 6
-    max_integration_polish_rounds: int = Field(default=3, ge=1, le=3)
+    # 3 was live-reproduced twice (once via ScaleMax, once via direct OpenAI,
+    # same pack) as genuinely too tight: both runs converged steadily each
+    # round -- 3 blocking findings down to 1, then a lone, reviewer-described
+    # "bounded motion correction" -- but ran out of budget while still making
+    # real progress, not while stuck. See "code generator issues.md".
+    max_integration_polish_rounds: int = Field(default=5, ge=1, le=6)
     max_route_batch_sections: int = 8
     max_concurrency: int = 1
     typecheck_timeout_seconds: float = 120.0

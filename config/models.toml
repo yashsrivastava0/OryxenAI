@@ -192,11 +192,12 @@ supports_store_parameter = true
 uses_max_completion_tokens = true
 
 [profiles.code_generator_director]
-provider = "scalemax"
+# Direct OpenAI (D-067: new confirmed key).
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 16000
@@ -221,12 +222,12 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = true
 
 [profiles.code_generator_planner]
-# Code Generator uses the ScaleMax OpenAI-compatible route (D-066).
-provider = "scalemax"
+# Direct OpenAI (D-067: new confirmed key).
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 300
 max_retries = 1
 max_output_tokens = 32000
@@ -251,11 +252,11 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = true
 
 [profiles.code_generator_resource_scout]
-provider = "scalemax"
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 180
 max_retries = 1
 max_output_tokens = 4096
@@ -280,11 +281,11 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = true
 
 [profiles.code_generator_route_builder]
-provider = "scalemax"
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 24000
@@ -309,11 +310,11 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = true
 
 [profiles.code_generator_route_composer]
-provider = "scalemax"
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 16000
@@ -338,11 +339,11 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = true
 
 [profiles.code_generator_integrator]
-provider = "scalemax"
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 20000
@@ -367,11 +368,11 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = true
 
 [profiles.code_generator_repairer]
-provider = "scalemax"
+provider = "openai"
 model = "gpt-5.6-luna"
-display_name = "ScaleMax — GPT-5.6 Luna"
-base_url = "https://api.scalemax.pro/v1"
-api_key_env = "SCALEMAX_API_KEY"
+display_name = "OpenAI — GPT-5.6 Luna"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
 max_retries = 1
 max_output_tokens = 12000
