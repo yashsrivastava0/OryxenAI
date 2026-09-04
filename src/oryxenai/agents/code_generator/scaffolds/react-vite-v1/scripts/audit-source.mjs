@@ -562,7 +562,7 @@ function auditUnsafeCalls() {
 function auditV4Routes() {
   const metaFile = path.join(sourceRoot, "generated", "contract-meta.ts");
   const meta = exportedValue(metaFile, "CONTRACT_META");
-  if (meta?.pipeline_contract_version !== "code-generator-v4") return;
+  if (!new Set(["code-generator-v4", "code-generator-v5"]).has(meta?.pipeline_contract_version)) return;
   const routes = readRoutes();
   const sectionsByRoute = routeSections();
   const selectorsBySection = sectionSelectorMap(meta);

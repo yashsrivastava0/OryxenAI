@@ -173,6 +173,42 @@ async def test_readiness_is_async_and_exposes_preview_configuration_blocker(monk
 
 
 @pytest.mark.asyncio
+async def test_readiness_uses_cached_provider_preflight_without_requiring_a_new_call(
+    monkeypatch,
+) -> None:
+    settings = Settings()
+    service = development_service.CodeGeneratorDevelopmentService(
+        None,
+        None,
+        settings,  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(service, "build_preparation_packs", lambda: [])
+    monkeypatch.setattr(development_service, "browser_ready", lambda _config: True)
+    monkeypatch.setattr(development_service, "create_preview_storage", lambda _settings: object())
+    monkeypatch.setattr(development_service, "code_generator_wire_schema_issues", lambda: {})
+
+    async def fake_gateway(_config):
+        return True, None
+
+    monkeypatch.setattr(development_service, "_probe_preview_gateway", fake_gateway)
+    monkeypatch.setattr(
+        development_service,
+        "provider_preflight_status",
+        lambda _settings, _profiles: {
+            "status": "ready",
+            "checked": True,
+            "checked_profiles": ["cached-profile"],
+            "private_context_sent": False,
+        },
+    )
+
+    result = await service.readiness()
+
+    assert result["provider_preflight"]["status"] == "ready"
+    assert "provider_preflight_required" not in result["readiness_blockers"]
+
+
+@pytest.mark.asyncio
 async def test_provider_preflight_is_exposed_as_a_safe_service_operation(monkeypatch):
     settings = Settings()
 

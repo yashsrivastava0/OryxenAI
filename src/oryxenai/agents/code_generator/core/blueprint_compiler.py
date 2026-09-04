@@ -345,14 +345,44 @@ def canonicalize_v4_criterion_ids(
 
     site = projections.get("site/contract.json", {})
     expected: dict[tuple[str, str], list[str]] = {}
+    section_order: dict[str, list[str]] = {}
+    for route in site.get("routes", []) if isinstance(site, dict) else []:
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", "")).strip()
+        section_order[route_id] = [
+            str(item.get("section_id", "")).strip()
+            for item in route.get("sections", [])
+            if isinstance(item, dict) and str(item.get("section_id", "")).strip()
+        ]
+    for content in site.get("public_content", []) if isinstance(site, dict) else []:
+        if not isinstance(content, dict):
+            continue
+        route_id = str(content.get("route_id", "")).strip()
+        if route_id and route_id not in section_order:
+            section_order[route_id] = [
+                str(item.get("section_id", "")).strip()
+                for item in content.get("sections", [])
+                if isinstance(item, dict) and str(item.get("section_id", "")).strip()
+            ]
     for criterion in site.get("criteria", []) if isinstance(site, dict) else []:
         if not isinstance(criterion, dict):
             continue
-        route_id = str(criterion.get("route_id", ""))
-        section_id = str(criterion.get("section_id", ""))
-        criterion_id = str(criterion.get("criterion_id", ""))
-        if route_id and section_id and criterion_id:
-            expected.setdefault((route_id, section_id), []).append(criterion_id)
+        route_id = str(criterion.get("route_id", "")).strip()
+        section_id = str(criterion.get("section_id", "")).strip()
+        criterion_id = str(criterion.get("criterion_id", "")).strip()
+        if not route_id or not criterion_id:
+            continue
+        # Build Preparation may express a route-level criterion with an empty
+        # section ID.  The validator intentionally treats that as applying to
+        # every approved section, so the canonicalizer must do the same before
+        # the compiled plan is validated.  Keeping this rule in one place
+        # removes the late PLAN_REGION_CRITERION_COVERAGE failure seen in live
+        # runs when the model echoed an otherwise valid blueprint.
+        target_sections = [section_id] if section_id else section_order.get(route_id, [])
+        for target_section in target_sections:
+            if target_section:
+                expected.setdefault((route_id, target_section), []).append(criterion_id)
     changed = False
     regions = []
     for region in blueprint.section_regions:

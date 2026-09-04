@@ -173,10 +173,18 @@ def _deferred_execution_contract(
     }
 
 
-def _ledger(*, provider: str, candidate_id: str, request_hash: str, materials: list[dict]) -> dict:
+def _ledger(
+    *,
+    provider: str,
+    candidate_id: str,
+    request_hash: str,
+    materials: list[dict],
+    category: str = "image",
+    request_id: str = "deferred-slot-1",
+) -> dict:
     return {
         "requests": [
-            {"request_hash": request_hash, "request_id": "deferred-slot-1", "category": "image"}
+            {"request_hash": request_hash, "request_id": request_id, "category": category}
         ],
         "receipts": [
             {
@@ -188,6 +196,77 @@ def _ledger(*, provider: str, candidate_id: str, request_hash: str, materials: l
             }
         ],
     }
+
+
+def test_optional_component_source_without_plan_path_stays_reference_only(tmp_path: Path) -> None:
+    """Build Preparation component suggestions must not poison the source tree.
+
+    The registry payloads are useful design references, but commonly import
+    aliases from their own registry app.  A migrated brief has no executable
+    local path for those suggestions, so keeping the bytes in the durable
+    materials store while omitting them from ``src`` lets the route composer
+    implement the accessible equivalent without an orphan AST failure.
+    """
+    materials_root = tmp_path / "materials"
+    (materials_root / "component_source").mkdir(parents=True)
+    (materials_root / "component_source" / "registry.tsx").write_text(
+        'import { cn } from "@/lib/utils";\nexport const Registry = () => null;\n',
+        encoding="utf-8",
+    )
+    workspace = GenerationWorkspace(tmp_path / "run", tmp_path / "inputs", tmp_path / "checkpoints")
+    workspace.repo_dir.mkdir(parents=True)
+    ledger = _ledger(
+        provider="shadcn",
+        candidate_id="sidebar-14",
+        request_hash="component-hash",
+        category="component_source",
+        materials=[
+            {
+                "local_path": "component_source/registry.tsx",
+                "sha256": "component-sha",
+                "media_type": "text/typescript",
+            }
+        ],
+    )
+
+    copied = workspace.materialize_acquisition_resources(
+        ledger, materials_root, execution_contract=None
+    )
+
+    assert copied == []
+    assert not (workspace.repo_dir / "src/generated/resources/acquired").exists()
+
+
+def test_emergent_component_source_keeps_its_hash_named_materialization(tmp_path: Path) -> None:
+    """A generator-owned component request remains executable after the guard."""
+    materials_root = tmp_path / "materials"
+    (materials_root / "component_source").mkdir(parents=True)
+    (materials_root / "component_source" / "registry.tsx").write_text(
+        "export const LocalComponent = () => null;\n", encoding="utf-8"
+    )
+    workspace = GenerationWorkspace(tmp_path / "run", tmp_path / "inputs", tmp_path / "checkpoints")
+    workspace.repo_dir.mkdir(parents=True)
+    ledger = _ledger(
+        provider="fixture",
+        candidate_id="emergent-component",
+        request_hash="emergent-component-hash",
+        request_id="request-emergent-component",
+        category="component_source",
+        materials=[
+            {
+                "local_path": "component_source/registry.tsx",
+                "sha256": "component-sha",
+                "media_type": "text/typescript",
+            }
+        ],
+    )
+
+    copied = workspace.materialize_acquisition_resources(
+        ledger, materials_root, execution_contract=None
+    )
+
+    assert len(copied) == 1
+    assert (workspace.repo_dir / copied[0]["path"]).is_file()
 
 
 def test_deferred_resource_lands_at_its_plan_time_intended_path(tmp_path: Path) -> None:

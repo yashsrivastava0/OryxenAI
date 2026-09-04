@@ -191,7 +191,7 @@ async def _prepare_isolated_route_repo(source_repo: Path, isolated_root: Path) -
 
 def _resolve_config_path(value: str) -> Path:
     path = Path(value)
-    return path if path.is_absolute() else (repository_root() / path).resolve()
+    return path.resolve() if path.is_absolute() else (repository_root() / path).resolve()
 
 
 class CodeGeneratorGenerationOrchestrator:
@@ -1942,6 +1942,23 @@ class CodeGeneratorGenerationOrchestrator:
                     candidate = next(
                         item for item in candidates if item.candidate_id == candidate_id
                     )
+                    intended_paths = _intended_paths_for_candidate(
+                        projections.get("execution/contract.json", {}), candidate
+                    )
+                    component_reference_only = (
+                        request.category == "component_source"
+                        and request.request_id.startswith("deferred-")
+                        and not intended_paths
+                    )
+                    if (
+                        component_reference_only
+                        and request.requiredness == "required"
+                        and request.fallback.kind == "none"
+                    ):
+                        raise GenerationError(
+                            "REQ_REQUIRED_COMPONENT_PATH_MISSING",
+                            "A required component source has no executable local destination or fallback.",
+                        )
                     materialized_result = await adapter.materialize(
                         candidate, request, storage_root=materials_root, settings=settings
                     )
@@ -1950,48 +1967,75 @@ class CodeGeneratorGenerationOrchestrator:
                         if isinstance(materialized_result, list)
                         else [materialized_result]
                     )
+                    # Registry component payloads are reference material, not
+                    # executable files for this target.  They frequently carry
+                    # imports into a provider-owned alias tree (for example
+                    # ``@/registry/...``); copying them into ``src`` would make
+                    # the whole portfolio fail the AST/build audit even when
+                    # no generated route imports the suggestion.  Keep the
+                    # acquisition provenance, but let the route generator use
+                    # the requested accessible local equivalent.  A legacy or
+                    # explicitly planned component with an executable local
+                    # destination remains materializable; only an unbound
+                    # suggestion is reference-only.
                     receipt_files = []
-                    for materialized in materialized_files:
-                        source_file = materials_root / materialized.local_path
-                        local_name = f"{materialized.sha256}{Path(materialized.local_path).suffix}"
-                        generated_path = workspace.materialize_acquired_file(
-                            source_file, local_name
-                        )
-                        inspection = dict(materialized.inspection)
-                        licence_name = str(inspection.get("licence_path", ""))
-                        if licence_name:
-                            licence_source = materials_root / licence_name
-                            licence_target = (
-                                workspace.repo_dir / "public" / "licences" / Path(licence_name).name
-                            ).resolve()
-                            if licence_source.is_file() and licence_target.is_relative_to(
-                                workspace.repo_dir.resolve()
-                            ):
-                                licence_target.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copyfile(licence_source, licence_target)
-                                inspection["licence_path"] = licence_target.relative_to(
-                                    workspace.repo_dir
-                                ).as_posix()
-                        receipt_files.append(
-                            materialized.model_copy(
-                                update={"local_path": generated_path, "inspection": inspection}
+                    if not component_reference_only:
+                        for materialized in materialized_files:
+                            source_file = materials_root / materialized.local_path
+                            local_name = (
+                                f"{materialized.sha256}{Path(materialized.local_path).suffix}"
                             )
-                        )
+                            generated_path = workspace.materialize_acquired_file(
+                                source_file, local_name
+                            )
+                            inspection = dict(materialized.inspection)
+                            licence_name = str(inspection.get("licence_path", ""))
+                            if licence_name:
+                                licence_source = materials_root / licence_name
+                                licence_target = (
+                                    workspace.repo_dir
+                                    / "public"
+                                    / "licences"
+                                    / Path(licence_name).name
+                                ).resolve()
+                                if licence_source.is_file() and licence_target.is_relative_to(
+                                    workspace.repo_dir.resolve()
+                                ):
+                                    licence_target.parent.mkdir(parents=True, exist_ok=True)
+                                    shutil.copyfile(licence_source, licence_target)
+                                    inspection["licence_path"] = licence_target.relative_to(
+                                        workspace.repo_dir
+                                    ).as_posix()
+                            receipt_files.append(
+                                materialized.model_copy(
+                                    update={"local_path": generated_path, "inspection": inspection}
+                                )
+                            )
                     receipt = ResourceReceipt(
                         request_hash=request.request_hash,
-                        disposition="admitted",
+                        disposition="fallback" if component_reference_only else "admitted",
                         selected_candidate_id=candidate.candidate_id,
                         provider_key=candidate.provider_key,
                         canonical_source=candidate.canonical_source,
                         licence=candidate.licence,
                         attribution=candidate.attribution,
-                        original_hash=materialized_files[0].sha256,
+                        original_hash=materialized_files[0].sha256 if materialized_files else "",
                         materialized_files=receipt_files,
                         dependencies=sorted(candidate.dependency_metadata),
-                        satisfied_placements=[request.placement.purpose],
+                        satisfied_placements=[]
+                        if component_reference_only
+                        else [request.placement.purpose],
+                        fallback=(
+                            {
+                                "kind": request.fallback.kind,
+                                "reason": "Component source retained as reference-only material.",
+                            }
+                            if component_reference_only
+                            else {}
+                        ),
                         acquired_at=datetime.now(UTC).isoformat(),
                     )
-            except ResourceProviderError as exc:
+            except (ResourceProviderError, AcquisitionValidationError) as exc:
                 if request.requiredness == "required" and request.fallback.kind == "none":
                     raise GenerationError(
                         "REQ_REQUIRED_PROVIDER_UNAVAILABLE",
@@ -3070,6 +3114,49 @@ def _read_json(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _intended_paths_for_candidate(execution_contract: dict[str, Any], candidate: Any) -> list[str]:
+    """Return plan-owned local destinations for one acquired candidate.
+
+    Build Preparation's migrated brief deliberately omits executable component
+    paths, while legacy/explicit plans may still bind a vetted component to a
+    concrete destination.  Matching both the provider asset identity and the
+    adapter's candidate identity keeps this check deterministic without
+    trusting a model-authored filename.
+    """
+
+    if not isinstance(execution_contract, dict):
+        return []
+    provider = str(getattr(candidate, "provider_key", "")).strip()
+    candidate_ids = {
+        str(getattr(candidate, "candidate_id", "")).strip(),
+        str(getattr(candidate, "provider_resource_id", "")).strip(),
+    }
+    candidate_ids.discard("")
+    if not provider or not candidate_ids:
+        return []
+    matches: list[str] = []
+    for raw_slot in execution_contract.get("slots", []):
+        if not isinstance(raw_slot, dict):
+            continue
+        resolution_value = raw_slot.get("resolution")
+        resolution = resolution_value if isinstance(resolution_value, dict) else {}
+        if resolution.get("resolution_type") != "deferred_materialized":
+            continue
+        if str(resolution.get("provider", "")).strip() != provider:
+            continue
+        bound_ids = {
+            str(resolution.get("provider_asset_id", "")).strip(),
+            str(resolution.get("resource_id", "")).strip(),
+        }
+        if not candidate_ids.intersection(bound_ids):
+            continue
+        for value in resolution.get("local_paths", []):
+            path = str(value).strip()
+            if path and path not in matches:
+                matches.append(path)
+    return matches
 
 
 def _invalidate_stale_route_batch_checkpoint(

@@ -309,6 +309,22 @@ class GenerationWorkspace:
                 str(receipt.get("selected_candidate_id", "")),
             )
             intended_paths = intended_paths_by_candidate.get(candidate_key, [])
+            request = requests_by_hash.get(request_hash, {})
+            # Build Preparation component suggestions are optional design
+            # references.  Registry payloads commonly contain imports into
+            # the provider's alias tree (for example ``@/registry/...``) and
+            # cannot be dropped into this target as isolated source files.
+            # Keep their licensed bytes in the durable materials store and
+            # let the route generator implement the accessible equivalent;
+            # only a component with a plan-time intended path is executable
+            # material.  Copying an unbound component into ``src`` would make
+            # TypeScript/Vite compile an unused, unresolved module.
+            if (
+                str(request.get("category", "")).casefold() == "component_source"
+                and str(request.get("request_id", "")).startswith("deferred-")
+                and not intended_paths
+            ):
+                continue
             for material in receipt.get("materialized_files", []):
                 if not isinstance(material, dict):
                     continue
@@ -348,7 +364,7 @@ class GenerationWorkspace:
                             requests_by_hash.get(request_hash, {}).get("placement", {})
                         ),
                         "source_path": local_path,
-                        "local_path": destination.relative_to(self.repo_dir).as_posix(),
+                        "local_path": destination.relative_to(self.repo_dir.resolve()).as_posix(),
                         "sha256": digest,
                         "media_type": str(material.get("media_type", "")),
                         "inspection": dict(material.get("inspection", {})),
@@ -390,7 +406,7 @@ class GenerationWorkspace:
             )
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-        return target.relative_to(self.repo_dir).as_posix()
+        return target.relative_to(self.repo_dir.resolve()).as_posix()
 
     def _acquired_destination(self, source: Path, relative_name: str) -> Path:
         """Place executable source under src/ and browser-served media under public/."""
@@ -429,4 +445,4 @@ class GenerationWorkspace:
 
 def _resolve_path(value: str) -> Path:
     path = Path(value)
-    return path if path.is_absolute() else (repository_root() / path).resolve()
+    return path.resolve() if path.is_absolute() else (repository_root() / path).resolve()

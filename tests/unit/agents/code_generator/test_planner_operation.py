@@ -4,7 +4,11 @@ import pytest
 
 import oryxenai.agents.code_generator.core.planner_operation as planner_operation
 from oryxenai.agents.code_generator.core.development_planner import SitePlanValidationError
-from oryxenai.agents.code_generator.core.planner_operation import run_planner_operation
+from oryxenai.agents.code_generator.core.planner_operation import (
+    _canonicalize_v4_distinctive_move_ratios,
+    _canonicalize_v4_typography_bindings,
+    run_planner_operation,
+)
 
 
 class _RetryingPlanner:
@@ -76,3 +80,99 @@ async def test_planner_retries_semantic_output_once(monkeypatch) -> None:
     assert len(planner.calls) == 2
     assert "PLAN_SHARED_COMPONENTS" in planner.calls[1]
     assert "Shared components must be owned by the route composer." in planner.calls[1]
+
+
+def test_v4_distinctive_move_ratio_canonicalization_widens_rounded_ranges() -> None:
+    payload = {
+        "distinctive_moves": [
+            {
+                "relationship": "width_ratio",
+                "minimum_ratio": 0.8,
+                "maximum_ratio": 0.9,
+            },
+            {
+                "relationship": "horizontal_offset",
+                "minimum_ratio": 0.95,
+                "maximum_ratio": 1.05,
+            },
+            {
+                "relationship": "sticky_within_section",
+                "minimum_ratio": 1,
+                "maximum_ratio": 1,
+            },
+            {
+                "relationship": "width_ratio",
+                "minimum_ratio": 0.25,
+                "maximum_ratio": 0.85,
+            },
+        ]
+    }
+
+    canonical = _canonicalize_v4_distinctive_move_ratios(payload)
+
+    assert canonical["distinctive_moves"][0]["minimum_ratio"] == 0.8
+    assert canonical["distinctive_moves"][0]["maximum_ratio"] == 0.95
+    assert canonical["distinctive_moves"][1]["minimum_ratio"] == 0.95
+    assert canonical["distinctive_moves"][1]["maximum_ratio"] == 1.2
+    assert canonical["distinctive_moves"][2]["minimum_ratio"] == 1
+    assert canonical["distinctive_moves"][2]["maximum_ratio"] == 1
+    assert canonical["distinctive_moves"][3] == payload["distinctive_moves"][3]
+
+
+def test_v4_distinctive_move_ratio_canonicalization_leaves_invalid_types_for_schema() -> None:
+    payload = {
+        "distinctive_moves": [
+            {"relationship": "width_ratio", "minimum_ratio": "unknown", "maximum_ratio": 1}
+        ]
+    }
+
+    canonical = _canonicalize_v4_distinctive_move_ratios(payload)
+
+    assert canonical is payload
+
+
+def test_v4_typography_canonicalization_uses_deferred_font_binding() -> None:
+    payload = {
+        "tokens": {
+            "typography_roles": [
+                {
+                    "role": "body",
+                    "approved_font_slot": "space-grotesk",
+                    "family": "Inter",
+                    "weights": [300],
+                    "style": "italic",
+                    "local_files": ["remote-font.woff2"],
+                }
+            ]
+        }
+    }
+    projections = {
+        "execution/contract.json": {
+            "slots": [
+                {
+                    "resource_slot_id": "typography-font",
+                    "category": "font",
+                    "resolution": {
+                        "font_family": "Space Grotesk",
+                        "font_weights": ["400", "700"],
+                        "local_paths": [
+                            "resources/fonts/space-grotesk/400-normal.woff2",
+                            "resources/fonts/space-grotesk/700-normal.woff2",
+                        ],
+                    },
+                }
+            ]
+        }
+    }
+
+    canonical = _canonicalize_v4_typography_bindings(payload, projections)
+    role = canonical["tokens"]["typography_roles"][0]
+
+    assert role["approved_font_slot"] == "typography-font"
+    assert role["family"] == "Space Grotesk"
+    assert role["weights"] == [400, 700]
+    assert role["style"] == "normal"
+    assert (
+        role["local_files"]
+        == projections["execution/contract.json"]["slots"][0]["resolution"]["local_paths"]
+    )

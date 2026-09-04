@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -113,6 +114,16 @@ def compile_briefs(
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]], dict[str, Any]]:
     """Validate both contracts and compile the existing deterministic inputs."""
 
+    # Uploads arrive as bytes and therefore preserve Windows CRLF line endings,
+    # while ``Path.read_text`` normalizes them on some platforms.  Parse a
+    # canonical LF view so fenced JSON and headings have identical semantics
+    # regardless of transport, but retain the verbatim documents for their
+    # provenance hashes and immutable envelope storage.
+    content_source = content_markdown
+    visual_source = visual_markdown
+    content_markdown = _normalize_markdown(content_markdown)
+    visual_markdown = _normalize_markdown(visual_markdown)
+
     content_index = _tagged_index(content_markdown, _CONTENT_TAG)
     visual_index = _tagged_index(visual_markdown, _VISUAL_TAG)
     _validate_indexes(content_index, visual_index)
@@ -160,8 +171,8 @@ def compile_briefs(
         )
         public_content.append({"route_id": route_id, "sections": public_sections})
 
-    content_hash = sha256_bytes(content_markdown.encode("utf-8"))
-    visual_hash = sha256_bytes(visual_markdown.encode("utf-8"))
+    content_hash = sha256_bytes(content_source.encode("utf-8"))
+    visual_hash = sha256_bytes(visual_source.encode("utf-8"))
     contract_hash = sha256_bytes(
         canonical_json(
             {
@@ -359,8 +370,8 @@ def compile_briefs(
             canonical_json(
                 {
                     "schema_version": BRIEF_ENVELOPE_VERSION,
-                    "content_brief_markdown": content_markdown,
-                    "visual_brief_markdown": visual_markdown,
+                    "content_brief_markdown": content_source,
+                    "visual_brief_markdown": visual_source,
                 }
             )
         ),
@@ -386,6 +397,12 @@ def compile_briefs(
         "navigation_closed": True,
     }
     return receipt, projections, summary
+
+
+def _normalize_markdown(markdown: str) -> str:
+    """Return the parser view shared by LF and CRLF Markdown uploads."""
+
+    return markdown.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _tagged_index(markdown: str, required_tag: str) -> dict[str, Any]:
@@ -737,10 +754,25 @@ def _resolution(
         direct_urls = {"400-normal": source_url, **additional_urls}
         font_family = str(selected.get("title") or selected.get("provider_asset_id") or "")
         font_weights = sorted({key.split("-", 1)[0] for key in direct_urls})
+        # The bytes are still fetched only during Code Generator acquisition,
+        # but the workspace needs stable intended paths before planning.  The
+        # FontAdapter's hash-prefixed download names end with these variant
+        # names, so workspace materialization can safely remap them without
+        # putting remote URLs or bytes in the Build Preparation brief.
+        font_id = _semantic_id(str(selected.get("provider_asset_id") or font_family))
+        local_paths = []
+        for variant in sorted(direct_urls):
+            if not re.fullmatch(r"[0-9]+-(?:normal|italic|oblique)", variant):
+                continue
+            suffix = Path(urlsplit(str(direct_urls[variant])).path).suffix.casefold()
+            if suffix not in {".woff", ".woff2"}:
+                suffix = ".woff2"
+            local_paths.append(f"resources/fonts/{font_id}/{variant}{suffix}")
     else:
         direct_urls = additional_urls
         font_family = ""
         font_weights = []
+        local_paths = []
     dependencies = [str(value) for value in selected.get("dependencies", []) if str(value)]
     registry_dependencies = [
         str(value) for value in selected.get("registry_dependencies", []) if str(value)
@@ -761,6 +793,7 @@ def _resolution(
         "expected_exports": [],
         "font_family": font_family,
         "font_weights": font_weights,
+        "local_paths": local_paths,
         "fallback_behavior": fallback,
         "responsive_behavior": guidance or "Preserve meaning and hierarchy at every viewport.",
         "reduced_motion_behavior": "Remove transforms and reveal the final static state immediately.",
