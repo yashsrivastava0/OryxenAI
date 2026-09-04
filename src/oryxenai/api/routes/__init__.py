@@ -49,7 +49,12 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     if dev_ui_enabled and fixture_enabled:
         fixture_router = (
             build_preparation.detached_fixture_router
-            if getattr(getattr(settings, "auth", None), "pipeline_mode", "attached") == "detached"
+            if getattr(
+                getattr(settings, "auth", None),
+                "development_harness_mode",
+                "attached",
+            )
+            == "detached"
             else build_preparation.fixture_router
         )
         router.include_router(fixture_router)
@@ -57,7 +62,12 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     if dev_ui_enabled and code_generator_dev_enabled:
         code_gen_dev_router = (
             code_generator_development.detached_router
-            if getattr(getattr(settings, "auth", None), "pipeline_mode", "attached") == "detached"
+            if getattr(
+                getattr(settings, "auth", None),
+                "development_harness_mode",
+                "attached",
+            )
+            == "detached"
             else code_generator_development.router
         )
         router.include_router(code_gen_dev_router)

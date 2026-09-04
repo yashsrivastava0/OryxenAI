@@ -81,6 +81,13 @@ def _shell_context(settings: Any, *, pipeline_mode: str | None = None) -> dict[s
     }
 
 
+def _development_auth_config(settings: Any) -> dict[str, object]:
+    """Expose the isolated harness mode without changing product auth config."""
+    config = dict(settings.auth_public_config)
+    config["pipelineMode"] = settings.auth.development_harness_mode
+    return config
+
+
 def _set_shell_headers(response: HTMLResponse, settings: Any) -> HTMLResponse:
     response.headers["Content-Security-Policy"] = auth_csp(settings.supabase_url)
     response.headers["Cache-Control"] = "no-store"
@@ -149,7 +156,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
                 name="build_preparation_fixture.html",
                 context={
                     "app_name": settings.app.name,
-                    "auth_config": settings.auth_public_config,
+                    "auth_config": _development_auth_config(settings),
                     "auth_client_version": _auth_asset_version("auth-client.js"),
                     "dev_auth_bootstrap_version": _asset_version("dev-auth-bootstrap.mjs"),
                     "fixture_enabled": True,
@@ -166,7 +173,7 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
                 name="build_preparation_progress.html",
                 context={
                     "app_name": settings.app.name,
-                    "auth_config": settings.auth_public_config,
+                    "auth_config": _development_auth_config(settings),
                     "auth_client_version": _auth_asset_version("auth-client.js"),
                     "dev_auth_bootstrap_version": _asset_version("dev-auth-bootstrap.mjs"),
                     "fixture_enabled": True,
@@ -185,8 +192,8 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
                 name="code_generator_development.html",
                 context={
                     "app_name": settings.app.name,
-                    "auth_config": settings.auth_public_config,
-                    "pipeline_mode": settings.auth.pipeline_mode,
+                    "auth_config": _development_auth_config(settings),
+                    "pipeline_mode": settings.auth.development_harness_mode,
                     "auth_client_version": _auth_asset_version("auth-client.js"),
                     "dev_auth_bootstrap_version": _asset_version("dev-auth-bootstrap.mjs"),
                     "detached_bootstrap_version": _asset_version(

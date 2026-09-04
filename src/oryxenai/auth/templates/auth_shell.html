@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#f3f0e8">
+  <meta name="description" content="Sign in to shape and approve your portfolio brief, content architecture, and visual direction.">
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -16,28 +17,29 @@
   <meta name="oryxenai-app-path" content="{{ auth_config.appPath }}">
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
-  <title>{{ app_name }} · Studio Access</title>
+  <title>{{ app_name }} · Portfolio workspace</title>
   <link rel="stylesheet" href="/auth-static/tokens.css?v={{ tokens_css_version }}">
   <link rel="stylesheet" href="/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
   <link rel="stylesheet" href="/auth-static/auth.css?v={{ auth_css_version }}">
 </head>
 <body data-page="{{ page }}">
-  <div class="auth-ambient-mesh" aria-hidden="true"></div>
+  <a class="skip-link" href="#auth-root">Skip to access controls</a>
+  <div class="auth-structure-line" aria-hidden="true"></div>
 
   <main id="auth-root" class="auth-shell" tabindex="-1">
     <header class="brand-block">
       <div class="auth-brand-badge">
         <span class="auth-beacon-dot" aria-hidden="true"></span>
-        <span class="eyebrow">{{ app_name }} STUDIO</span>
+        <span class="eyebrow">{{ app_name }} / private workspace</span>
       </div>
-      <h1>Direct your portfolio from intent to production.</h1>
-      <p class="lede">A verified multi-stage pipeline that turns your engineering experience into a deployable portfolio.</p>
+      <h1>Make the work legible before making it public.</h1>
+      <p class="lede">Shape your source material through Discovery, Content Architecture, and Visual Direction. You approve every handoff.</p>
     </header>
 
     <div class="auth-card-outer">
       <div class="auth-card-core">
         <section id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
-          <p class="panel-eyebrow">SECURE ACCESS</p>
+          <p class="panel-eyebrow">Secure access</p>
           <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
           <h2 id="progress-title">Restoring your session</h2>
           <p id="progress-detail" class="muted" aria-live="polite">Checking browser credentials safely.</p>
@@ -50,9 +52,9 @@
         </section>
 
         <section id="sign-in-panel" class="panel" hidden aria-labelledby="sign-in-title">
-          <p class="panel-eyebrow">VERIFIED IDENTITY</p>
-          <h2 id="sign-in-title">Sign in to your studio</h2>
-          <p id="sign-in-guidance" class="muted">Continue with your Google account. No passwords stored by OryxenAI.</p>
+          <p class="panel-eyebrow">Verified identity</p>
+          <h2 id="sign-in-title">Open your portfolio workspace</h2>
+          <p id="sign-in-guidance" class="muted">Continue with Google to create an account or return to your existing work. OryxenAI never stores a Google password.</p>
           <button id="google-sign-in" class="primary-button google-auth-btn" type="button">
             <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
               <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
@@ -63,25 +65,25 @@
             <span>Continue with Google</span>
           </button>
           <p id="sign-in-error" class="error-text" role="alert" hidden></p>
-          <p class="fine-print">Encrypted browser session managed securely by Supabase.</p>
+          <p class="fine-print">Your browser session is managed by the configured identity provider. Portfolio access remains enforced by OryxenAI.</p>
         </section>
 
         <section id="access-panel" class="panel" hidden aria-labelledby="access-title">
-          <p class="panel-eyebrow">ACCESS REVIEW</p>
+          <p class="panel-eyebrow">Access review</p>
           <h2 id="access-title">Account pending admission</h2>
           <p id="access-detail" class="muted">Capacity is currently full, or this deployment uses a restricted admission list.</p>
           <button class="secondary-button" data-action="logout" type="button">Sign out</button>
         </section>
 
         <section id="unavailable-panel" class="panel" hidden aria-labelledby="unavailable-title">
-          <p class="panel-eyebrow">UNAVAILABLE</p>
+          <p class="panel-eyebrow">Unavailable</p>
           <h2 id="unavailable-title">Workspace temporarily unavailable</h2>
           <p class="muted">Access is paused locally. Sign out or reach out to the workspace administrator.</p>
           <button class="secondary-button" data-action="logout" type="button">Sign out</button>
         </section>
 
         <section id="onboarding-panel" class="panel" hidden aria-labelledby="onboarding-title">
-          <p class="panel-eyebrow">SETUP</p>
+          <p class="panel-eyebrow">One-time setup</p>
           <h2 id="onboarding-title">Choose your handle</h2>
           <p class="muted">Use 3–30 lowercase letters, numbers, underscores, or hyphens.</p>
           <form id="username-form" novalidate>
@@ -98,7 +100,7 @@
         <section id="app-panel" class="panel" hidden aria-labelledby="app-title">
           <div class="panel-heading">
             <div>
-              <p class="panel-eyebrow">STUDIO READY</p>
+              <p class="panel-eyebrow">Workspace ready</p>
               <h2 id="app-title">Welcome, <span data-user="username">there</span></h2>
             </div>
             <span class="status-pill" data-user="status">active</span>
@@ -108,9 +110,9 @@
             <div><dt>Role</dt><dd data-user="role">—</dd></div>
             <div><dt>Status</dt><dd data-user="status">—</dd></div>
           </dl>
-          <p class="muted">Your authenticated workspace is ready. Entering studio atelier.</p>
+          <p class="muted">Your authenticated workspace is ready for the three-stage editorial process.</p>
           <div class="button-row">
-            <a class="primary-button" href="/app">Enter Studio →</a>
+            <a class="primary-button" href="/app">Open workspace</a>
             <a id="admin-link" class="secondary-button" href="/admin" hidden>Open admin shell</a>
             <button class="text-button" data-action="logout" type="button">Sign out</button>
           </div>
@@ -119,7 +121,7 @@
         <section id="admin-panel" class="panel" hidden aria-labelledby="admin-title">
           <div class="panel-heading">
             <div>
-              <p class="panel-eyebrow">ADMINISTRATION</p>
+              <p class="panel-eyebrow">Administration</p>
               <h2 id="admin-title">Workspace administration</h2>
             </div>
             <span class="status-pill">admin</span>

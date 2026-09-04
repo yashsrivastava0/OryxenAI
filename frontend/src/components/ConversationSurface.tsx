@@ -22,7 +22,7 @@ export function ConversationSurface({
   questions,
   history,
   isWorking,
-  workingLabel = "Analyzing your details...",
+  workingLabel = "Discovery is processing your saved material",
   disabled = false,
   onSubmitAnswer,
   onGenerateBriefNow,
@@ -147,19 +147,6 @@ export function ConversationSurface({
     }
   };
 
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  useEffect(() => {
-    if (!isWorking) {
-      setElapsedSeconds(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isWorking]);
-
   return (
     <section className="conversation-surface" aria-label="Discovery conversation">
       {/* Transcript of prior answered turns */}
@@ -182,47 +169,18 @@ export function ConversationSurface({
 
       {/* Active working state */}
       {isWorking && (
-        <div className="discovery-engine-monitor" role="status" aria-live="polite">
-          <div className="engine-monitor-header">
-            <div className="engine-status-badge">
-              <span className="engine-beacon-dot" aria-hidden="true" />
-              <span className="engine-badge-text">DISCOVERY ENGINE ACTIVE</span>
-            </div>
-            <span className="engine-elapsed-timer">
-              {elapsedSeconds}s elapsed
-            </span>
-          </div>
-
-          <h2 className="engine-monitor-title">{workingLabel}</h2>
-          <p className="engine-monitor-desc">
-            The Discovery agent is analyzing your background materials and synthesizing your portfolio direction.
-          </p>
-
-          <ol className="engine-milestones-track" role="list">
-            <li className="engine-milestone complete">
-              <span className="milestone-icon">✓</span>
-              <span>Intake notes received</span>
-            </li>
-            <li className="engine-milestone active">
-              <span className="milestone-pulse" />
-              <span>Analyzing background & milestones</span>
-            </li>
-            <li className="engine-milestone pending">
-              <span className="milestone-dot" />
-              <span>Structuring portfolio brief</span>
-            </li>
-          </ol>
-
-          <p className="engine-leave-reassurance">
-            Work continues durably on the background server. You can safely stay on this page while it completes.
-          </p>
+        <div className="agent-working-proof" role="status" aria-live="polite" aria-busy="true">
+          <p className="eyebrow">Discovery / in progress</p>
+          <h2>{workingLabel}</h2>
+          <div className="working-rule" aria-hidden="true"><span /></div>
+          <p>The server has your input. You may leave this page; the durable job continues and this proof will update when its state changes.</p>
         </div>
       )}
 
       {/* Actionable current question */}
       {!isWorking && currentQuestion && (
         <div className="active-question-card" aria-live="polite">
-          <p className="eyebrow">Discovery Question</p>
+          <p className="eyebrow">Discovery / next question</p>
           <h2 className="question-prompt">{currentQuestion.text}</h2>
           {currentQuestion.helpText && (
             <p className="question-help">{currentQuestion.helpText}</p>
@@ -313,7 +271,7 @@ export function ConversationSurface({
                 ref={composerRef}
                 className="composer-textarea"
                 rows={4}
-                placeholder="Type your answer here... (Ctrl+Enter to send)"
+                placeholder="Add the detail that would make this answer accurate…"
                 value={textAnswer}
                 onInput={(e) => handleTextChange((e.target as HTMLTextAreaElement).value)}
                 onKeyDown={handleKeyDown}
@@ -347,19 +305,23 @@ export function ConversationSurface({
       {/* If all questions answered and brief can be generated */}
       {!isWorking && !currentQuestion && onGenerateBriefNow && (
         <div className="ready-for-brief-card">
-          <p className="eyebrow">Discovery Complete</p>
+          <p className="eyebrow">Discovery / answers saved</p>
           <h2>We have enough detail to shape your brief.</h2>
           <p className="ready-thesis">
             Discovery is ready to synthesize your answers into a coherent portfolio brief.
           </p>
+          {error && <p className="question-error" role="alert">{error}</p>}
           <button
             type="button"
             className="btn-primary"
             disabled={inFlight || disabled}
             onClick={async () => {
               setInFlight(true);
+              setError(null);
               try {
                 await onGenerateBriefNow();
+              } catch (reason) {
+                setError(reason instanceof Error ? reason.message : "The brief could not be started. Try again.");
               } finally {
                 setInFlight(false);
               }

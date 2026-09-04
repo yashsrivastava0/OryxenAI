@@ -29,6 +29,7 @@ async def test_development_routes_are_absent_when_feature_is_disabled() -> None:
 async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
     settings = Settings()
     settings.code_generator_development.enabled = True
+    settings.auth.development_harness_mode = "detached"
     app = create_app(settings)
     override_test_identity(app, role="admin")
     assert "/api/v1/development/code-generator/fixtures" in app.openapi()["paths"]
@@ -66,7 +67,7 @@ async def test_development_page_and_routes_are_mounted_when_enabled() -> None:
 async def test_attached_development_shell_retains_future_auth_boundary() -> None:
     settings = Settings()
     settings.code_generator_development.enabled = True
-    settings.auth.pipeline_mode = "attached"
+    settings.auth.development_harness_mode = "attached"
     app = create_app(settings)
     override_test_identity(app, role="admin")
     async with httpx.AsyncClient(

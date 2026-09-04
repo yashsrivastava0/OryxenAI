@@ -185,13 +185,14 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
         if path.startswith("/api/v1/build-preparation/fixture/"):
             if method != "GET":
                 assert _MUTATION_CLASSES[(method, path)] == "admin_fixture_mutation"
-            if app.state.settings.auth.pipeline_mode != "detached":
+            if app.state.settings.auth.development_harness_mode != "detached":
                 _require(route, require_admin)
             continue
         if path.startswith("/api/v1/development/code-generator/"):
             if method != "GET":
                 assert _MUTATION_CLASSES[(method, path)] == "admin_development_mutation"
-            _require(route, require_admin)
+            if app.state.settings.auth.development_harness_mode != "detached":
+                _require(route, require_admin)
             continue
         raise AssertionError(f"Unclassified business API route: {method} {path}")
 
@@ -215,7 +216,7 @@ def test_public_health_routes_have_no_auth_dependency() -> None:
 
 def test_attached_fixture_routes_retain_admin_boundary() -> None:
     settings = Settings()
-    settings.auth.pipeline_mode = "attached"
+    settings.auth.development_harness_mode = "attached"
     app = create_app(settings)
     fixture_routes = [
         route

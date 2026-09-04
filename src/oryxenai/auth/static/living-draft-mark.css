@@ -38,13 +38,12 @@
 }
 
 .dlm-active .dlm-sweep {
-  animation: dlm-sweep-cycle var(--motion-wait-cycle, 1200ms) ease-in-out infinite;
+  animation: dlm-sweep-once var(--motion-handoff-sweep, 420ms) var(--ease-snappy) forwards;
 }
 
-@keyframes dlm-sweep-cycle {
-  0% { stroke-dashoffset: 100; }
-  50% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -100; }
+@keyframes dlm-sweep-once {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

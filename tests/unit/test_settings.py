@@ -162,3 +162,24 @@ def test_detached_pipeline_is_rejected_for_production():
             admin_emails="",
             allowed_emails="",
         )
+
+
+def test_detached_development_harness_is_rejected_outside_local_development():
+    config = AuthConfig(development_harness_mode="detached")
+    config.validate_environment(
+        app_env="local",
+        supabase_url="",
+        publishable_key="",
+        secret_key="",
+        admin_emails="",
+        allowed_emails="",
+    )
+    with pytest.raises(ValueError, match="Detached development harnesses"):
+        config.validate_environment(
+            app_env="production",
+            supabase_url="",
+            publishable_key="",
+            secret_key="",
+            admin_emails="",
+            allowed_emails="",
+        )

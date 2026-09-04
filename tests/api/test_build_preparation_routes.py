@@ -46,7 +46,7 @@ def _content_architect_input() -> dict[str, object]:
 
 def _fixture_app(tmp_path: Path):
     settings = Settings()
-    settings.auth.pipeline_mode = "attached"
+    settings.auth.development_harness_mode = "attached"
     settings.build_preparation.fixture_enabled = True
     app = create_app(settings)
     override_test_identity(app, role="admin")
@@ -56,7 +56,7 @@ def _fixture_app(tmp_path: Path):
 
 def _detached_fixture_app(tmp_path: Path):
     settings = Settings()
-    settings.auth.pipeline_mode = "detached"
+    settings.auth.development_harness_mode = "detached"
     settings.build_preparation.fixture_enabled = True
     settings.build_preparation.fixture_output_dir = str(tmp_path)
     return create_app(settings)
@@ -194,7 +194,7 @@ async def test_two_harness_pages_are_available(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_detached_fixture_bypasses_auth_and_sign_in_redirects(tmp_path: Path) -> None:
+async def test_detached_fixture_does_not_detach_product_sign_in(tmp_path: Path) -> None:
     app = _detached_fixture_app(tmp_path)
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -207,8 +207,8 @@ async def test_detached_fixture_bypasses_auth_and_sign_in_redirects(tmp_path: Pa
     assert preflight.status_code == 200
     assert 'name="oryxenai-pipeline-mode" content="detached"' in input_page.text
     assert 'name="oryxenai-pipeline-mode" content="detached"' in progress_page.text
-    assert sign_in.status_code == 307
-    assert sign_in.headers["location"] == "/app"
+    assert sign_in.status_code == 200
+    assert "Continue with Google" in sign_in.text
 
 
 @pytest.mark.asyncio
