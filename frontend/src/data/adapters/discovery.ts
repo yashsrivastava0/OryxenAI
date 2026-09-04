@@ -29,6 +29,7 @@ export interface DiscoveryQuestionVM {
 export interface DiscoveryViewModel extends StageViewModel {
   currentQuestions: DiscoveryQuestionVM[];
   answeredQuestionIds: string[];
+  answeredTurns: Array<{ questionId: string; questionText: string; answerText: string }>;
   brief: { title: string; userSummary: string; approved: boolean } | null;
   safeError: { summary: string } | null;
 }
@@ -84,6 +85,25 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
   };
 }
 
+function formatAnswer(answer: unknown, question: DiscoveryQuestionVM): string {
+  if (!isRecord(answer)) return "Answer saved";
+  if (answer.mode === "skip") return "Skipped";
+  const value = answer.value;
+  const labels = new Map(question.options.map((option) => [option.id, option.label]));
+  if (Array.isArray(value)) {
+    return value.map((item) => labels.get(String(item)) ?? String(item)).join(", ");
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    if (question.kind === "boolean") {
+      if (value === "true") return "Yes";
+      if (value === "false") return "No";
+    }
+    return labels.get(value) ?? value;
+  }
+  return value == null ? "Answer saved" : JSON.stringify(value);
+}
+
 /**
  * Accepts the raw `discovery` dict from DiscoveryStateResponse. Returns
  * state "unsupported" (never silently "complete"/"available") for a status
@@ -97,6 +117,7 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
       raw,
       currentQuestions: [],
       answeredQuestionIds: [],
+      answeredTurns: [],
       brief: null,
       safeError: null,
     };
@@ -112,6 +133,13 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
   // questions_ready with no remaining answerable question is stale client
   // data, not an empty composer (docs/Frontend/05 §6.2).
   const allQuestions = items.map(adaptQuestion).filter((q): q is DiscoveryQuestionVM => q !== null);
+  const answeredTurns = allQuestions
+    .filter((question) => question.id in answers)
+    .map((question) => ({
+      questionId: question.id,
+      questionText: question.text,
+      answerText: formatAnswer(answers[question.id], question),
+    }));
   const currentQuestions =
     status === "questions_ready" || status === "answers_in_progress"
       ? allQuestions.filter((q) => !answeredIds.includes(q.id))
@@ -143,6 +171,7 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
     raw,
     currentQuestions,
     answeredQuestionIds: answeredIds,
+    answeredTurns,
     brief,
     safeError,
   };

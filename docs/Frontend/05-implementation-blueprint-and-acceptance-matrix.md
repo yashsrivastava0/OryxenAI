@@ -1,18 +1,19 @@
 # Frontend implementation blueprint and acceptance matrix
 
-> Status: implementation-ready; reviewed 2026-09-02 (see
+> Status: implemented through the authenticated three-agent release; reviewed
+> 2026-09-02 and scoped for release on 2026-09-04 (see
 > [06-cross-model-review-and-decisions](06-cross-model-review-and-decisions.md)).
-> This document describes how to build the researched frontend after review. It
-> does not authorize backend, database, agent, entitlement, or Preview protocol
-> changes.
+> The current `/app` scope ends after approved Visual Design Direction. Sections
+> describing Build Preparation, Code Generator, and Preview are retained as
+> deferred research and do not authorize exposing them in the product. See
+> `DECISIONS.md` D-063.
 
 ## 0. How to implement this document
 
-This file is the complete, self-contained implementation guide. Build it in the
-five phases in §19, in order — do not start a phase before the previous one's
-stop gate passes, and do not skip ahead because a later phase looks easier.
-Sections §1-§18 are reference material each phase draws on; §19 is the only
-section that tells you what to do and when.
+For the current release, implement Phase 1, Phase 2, and the applicable hardening
+work from Phase 5. Phases 3 and 4 are deferred and must not be represented by
+normal-product controls, routes, or API calls. Sections describing those phases
+remain design research for a later, separately approved release.
 
 **Non-negotiables, true in every phase:**
 
@@ -65,16 +66,16 @@ references it by name.
 ## 1. Outcome and boundaries
 
 The implementation should deliver one coherent normal-user journey from sign-in to
-verified Preview while keeping the current backend behavior intact.
+an approved Visual Design Direction while keeping the current backend behavior
+intact.
 
 The frontend must:
 
 - resolve authentication without exposing private content;
 - place first-time and returning users in the correct `/app` posture;
-- support the explicit Discover -> Content -> Design -> Prepare -> Generate flow;
+- support the explicit Discover -> Content -> Design flow;
 - make review, revision, approval, handoff, progress, attention, and recovery clear;
-- integrate only the production Code Generator session API;
-- show only the active promoted Preview on its separate origin;
+- end with a saved creative handoff without starting a later stage;
 - remain useful after refresh, navigation, tab switching, and temporary network loss;
 - be lightweight enough for low-cost hosting and ordinary laptops/phones; and
 - express the Editorial Swiss / Living Draft visual system consistently.
@@ -85,6 +86,8 @@ It must not:
 - change authentication or entitlement rules;
 - replace the Preview runtime/gateway;
 - merge development fixtures into the product;
+- expose Build Preparation, Code Generator, or Preview in the current `/app`
+  bundle;
 - expose model/provider/storage internals;
 - invent percentages, ETAs, logs, reasoning, versioning, publishing, or unsupported
   agent controls; or
@@ -1381,10 +1384,9 @@ accessibility tests.
 
 ## 19. Implementation sequence and stop gates
 
-Five phases, each ending in a working, deployable state. Do not start a phase
-before the previous one's stop gate passes. No phase auto-chains a backend stage
-or weakens the verified-Preview boundary — that invariant never changes,
-regardless of which phase is in progress.
+The current release includes Phases 1 and 2 plus applicable Phase 5 hardening.
+Phases 3 and 4 are deferred. No phase auto-chains a backend stage or weakens the
+verified-Preview boundary.
 
 ### Phase 1: foundation, visual system, and auth continuity
 
@@ -1443,7 +1445,9 @@ provider/credit-unavailable behavior above.
 Stop gate: refresh-safe Discovery parity, accessibility pass, and a realistic
 long-artifact review on desktop and mobile.
 
-### Phase 3: Build Preparation and Code Generator integration
+### Phase 3: Build Preparation and Code Generator integration (deferred)
+
+Do not implement this phase in the current authenticated product release.
 
 - Add volatile Build Preparation adapter and progress/attention states.
 - Add only production Code Generator session endpoints.
@@ -1451,7 +1455,9 @@ long-artifact review on desktop and mobile.
 
 Stop gate: state/entitlement/error matrix and long-running session test.
 
-### Phase 4: verified Preview
+### Phase 4: verified Preview (deferred)
+
+Do not implement this phase in the current authenticated product release.
 
 - Add active receipt validation, frame lifecycle, route/viewport/refresh/new-tab
   toolbar, exact-origin messaging, and previous-result preservation.
@@ -1474,17 +1480,17 @@ cleanup.
 
 ## 20. Definition of implementation complete
 
-Implementation is complete only when:
+The current three-agent implementation is complete only when:
 
-- auth through Preview is one visually coherent journey;
+- auth through approved Visual Design Direction is one visually coherent journey;
 - every current durable state has a tested presentation and every unknown state
   fails safely;
-- first-time, returning, attention, active-run, Preview-ready, and read-only users
-  land correctly;
+- first-time, returning, attention, active-run, and Design-approved users land
+  correctly;
 - no stage auto-starts and no unsupported control is visible;
 - user drafts and last confirmed state survive realistic conflicts/network loss;
-- only a verified promoted Preview is embedded, on its isolated origin;
-- the old verified Preview survives a failed replacement;
+- no Build Preparation, Code Generator, or Preview request is shipped in the
+  normal-product client;
 - desktop, tablet, and mobile support their intended jobs;
 - keyboard, screen-reader, zoom, contrast, and reduced-motion acceptance passes;
 - production bundle, responsiveness, and long-session behavior meet the budgets;

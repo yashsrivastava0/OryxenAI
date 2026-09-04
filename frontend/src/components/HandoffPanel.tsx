@@ -24,7 +24,7 @@ export function HandoffPanel({
   return (
     <div className="handoff-panel" role="region" aria-label={`Continue to ${nextStageName}`}>
       <div className="handoff-badge">
-        <LivingDraftMark active={false} />
+        <LivingDraftMark active />
         <span className="handoff-badge-label">{completedStageName} Approved</span>
       </div>
 

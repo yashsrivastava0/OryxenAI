@@ -27,7 +27,7 @@ router = APIRouter(
 # Mirrors build_preparation.py's fixture_router/detached_fixture_router split
 # (D-052): the same standalone dev-harness routes, but with no auth
 # dependency, mounted instead of `router` only when
-# settings.auth.pipeline_mode == "detached" (see api/routes/__init__.py).
+# settings.auth.development_harness_mode == "detached" (see api/routes/__init__.py).
 # Production Code Generator session routes (code_generator.py) are untouched.
 detached_router = APIRouter(
     prefix="/development/code-generator",

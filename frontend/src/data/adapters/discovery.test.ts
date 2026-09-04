@@ -19,6 +19,9 @@ describe("adaptDiscovery", () => {
     const vm = adaptDiscovery(fixtures.questionsReadyStale);
     expect(vm.state).toBe("working");
     expect(vm.currentQuestions).toHaveLength(0);
+    expect(vm.answeredTurns).toEqual([
+      { questionId: "q1", questionText: "Answered already", answerText: "engineering" },
+    ]);
   });
 
   it("maps brief_review to review and exposes the curated summary", () => {

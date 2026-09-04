@@ -1,8 +1,9 @@
 import type { DesignViewModel } from "../../data/adapters/design";
 import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
-import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
+import { CompletionPanel } from "../../components/CompletionPanel";
+import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 
 export interface DesignStageProps {
   view: DesignViewModel | null;
@@ -10,7 +11,6 @@ export interface DesignStageProps {
   onStart: () => Promise<void>;
   onApprove: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
-  onContinueToPrepare: () => void;
   inFlight?: boolean;
 }
 
@@ -20,7 +20,6 @@ export function DesignStage({
   onStart,
   onApprove,
   onRevise,
-  onContinueToPrepare,
   inFlight = false,
 }: DesignStageProps) {
   if (!view || view.state === "locked") {
@@ -55,16 +54,19 @@ export function DesignStage({
     );
   }
 
+  if (view.state === "unsupported") {
+    return <UnsupportedPanel stageName="Visual Design Director" statusText={view.statusText} />;
+  }
+
   if (view.state === "working") {
     return (
       <ProgressSurface
         stageLabel="Stage 03 / Visual Design Director"
-        title="Directing Visual Language & Experience"
-        currentMilestone={view.statusText || "Synthesizing design language & layout candidates"}
+        title="Directing the visual proof"
+        currentMilestone={view.statusText || "Visual Design Director is working from the approved content plan"}
         milestones={[
-          { id: "content", label: "Ingesting approved content architecture", state: "complete" },
-          { id: "thesis", label: "Establishing creative thesis & aesthetic tokens", state: "current" },
-          { id: "catalogue", label: "Selecting adapted layout candidates from catalogue", state: "quiet" },
+          { id: "content", label: "Approved content plan received", state: "complete" },
+          { id: "current", label: view.statusText || "Visual Design Director is working", state: "current" },
         ]}
       />
     );
@@ -156,14 +158,7 @@ export function DesignStage({
       />
 
       {isApproved && (
-        <HandoffPanel
-          completedStageName="Visual Direction"
-          nextStageName="Build Preparation"
-          summary="Both your Content Plan and Visual Direction are approved and verified. Build Preparation can now resolve verified assets, compile route context, and package the deterministic ZIP."
-          nextDescription="Build Preparation compiles public scope, resolves curated assets with fallbacks, builds deterministic ZIP packages, and verifies storage readiness."
-          actionLabel="Prepare the build"
-          onContinue={onContinueToPrepare}
-        />
+        <CompletionPanel />
       )}
     </div>
   );

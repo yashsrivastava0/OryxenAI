@@ -189,6 +189,9 @@ class AuthConfig(BaseModel):
     # only relaxes the explicitly anonymous local pipeline/fixture boundary;
     # attached and deployment-like surfaces remain protected.
     pipeline_mode: str = "attached"
+    # Build Preparation and Code Generator keep isolated development harnesses.
+    # This switch never relaxes the authenticated product/session boundary.
+    development_harness_mode: str = "attached"
     # ``allowlist`` keeps local/restricted environments closed.  ``open``
     # admits any verified Google identity until the database-owned normal-user
     # capacity is full.  The provider still remains Google-only; this setting
@@ -227,7 +230,7 @@ class AuthConfig(BaseModel):
     def _coerce_admission_mode(cls, value: Any) -> Any:
         return str(value).strip().lower() if value is not None else value
 
-    @field_validator("pipeline_mode", mode="before")
+    @field_validator("pipeline_mode", "development_harness_mode", mode="before")
     @classmethod
     def _coerce_pipeline_mode(cls, value: Any) -> Any:
         return str(value).strip().lower() if value is not None else value
@@ -256,6 +259,8 @@ class AuthConfig(BaseModel):
             raise ValueError("Auth admission mode must be 'allowlist' or 'open'.")
         if self.pipeline_mode not in {"attached", "detached"}:
             raise ValueError("Auth pipeline mode must be 'attached' or 'detached'.")
+        if self.development_harness_mode not in {"attached", "detached"}:
+            raise ValueError("Auth development harness mode must be 'attached' or 'detached'.")
         if self.audience != "authenticated":
             raise ValueError("Supabase JWT audience must be authenticated.")
         if self.issuer_path != "/auth/v1":
@@ -368,6 +373,12 @@ class AuthConfig(BaseModel):
         if self.pipeline_mode == "detached" and (self.required or environment == "production"):
             raise ValueError(
                 "Detached pipeline mode is allowed only in non-production development."
+            )
+        if self.development_harness_mode == "detached" and (
+            self.required or environment == "production"
+        ):
+            raise ValueError(
+                "Detached development harnesses are allowed only in non-production development."
             )
         if (self.required or environment == "production" or admission_configured) and len(
             admins

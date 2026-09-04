@@ -18,7 +18,7 @@ describe("Phase 5 Performance & Asset Budgets (docs/Frontend/05 §14, §18)", ()
       const fs = await import("node:fs");
       // @ts-expect-error dynamic node import for vitest
       const path = await import("node:path");
-      const assetsDir = path.resolve(process.cwd(), "src/oryxenai/web/static/product/assets");
+      const assetsDir = path.resolve(process.cwd(), "../src/oryxenai/web/static/product/assets");
       if (fs.existsSync(assetsDir)) {
         const files = fs.readdirSync(assetsDir);
         const jsFile = files.find((f: string) => f.endsWith(".js"));

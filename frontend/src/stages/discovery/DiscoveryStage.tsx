@@ -3,6 +3,8 @@ import { ConversationSurface, type AnsweredTurn } from "../../components/Convers
 import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
+import { StartSurface } from "../../components/StartSurface";
+import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 
 export interface DiscoveryStageProps {
   view: DiscoveryViewModel | null;
@@ -27,24 +29,23 @@ export function DiscoveryStage({
   onReviseBrief,
   onContinueToContent,
 }: DiscoveryStageProps) {
-  if (!view || view.state === "available") {
+  if (!view) {
     return (
-      <div className="stage-available-panel">
-        <p className="eyebrow">Stage 01 / Discovery</p>
-        <h2>Ready to explore your story</h2>
-        <p className="stage-desc">
-          Discovery asks focused questions to uncover what makes your background unique before shaping the portfolio brief.
-        </p>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={!canMutate}
-          onClick={() => onStartDiscovery("Let's begin my portfolio.")}
-        >
-          Begin discovery
-        </button>
+      <div className="agent-working-proof" role="status" aria-live="polite" aria-busy="true">
+        <p className="eyebrow">Discovery / restoring</p>
+        <h2>Opening your last confirmed proof</h2>
+        <div className="working-rule" aria-hidden="true"><span /></div>
+        <p>Your saved answers and brief remain on the server.</p>
       </div>
     );
+  }
+
+  if (view.state === "available") {
+    return <StartSurface onStart={onStartDiscovery} disabled={!canMutate} />;
+  }
+
+  if (view.state === "unsupported") {
+    return <UnsupportedPanel stageName="Discovery" statusText={view.statusText} />;
   }
 
   // Attention / Error
@@ -84,8 +85,8 @@ export function DiscoveryStage({
           <HandoffPanel
             completedStageName="Discovery Brief"
             nextStageName="Content Architect"
-            summary="Your portfolio brief is locked and ready. Content Architect will turn this brief into route architecture and verified page content."
-            nextDescription="Content Architect structures the site routes, positioning statement, and verified section-by-section copy."
+            summary="Your approved brief is now the only input Content Architect receives. Your raw source notes stay behind the Discovery boundary."
+            nextDescription="Content Architect defines the routes, positioning, and section-by-section portfolio copy."
             actionLabel="Continue to Content"
             onContinue={onContinueToContent}
           />

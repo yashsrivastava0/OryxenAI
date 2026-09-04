@@ -1,11 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{{ app_name }} · Studio{% endblock %}
+{% block title %}{{ app_name }} · Portfolio workspace{% endblock %}
 {% block base_stylesheet %}
 <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/tokens.css?v={{ tokens_css_version }}">
 <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
 {% endblock %}
 {% block head %}
 <meta name="theme-color" content="#f3f0e8">
+<meta name="description" content="Shape and approve your portfolio brief, content architecture, and visual direction.">
 <meta name="oryxenai-product-entry" content="{{ product_entry.script }}">
 {% for href in product_entry.styles %}
 <link rel="stylesheet" href="{{ href }}">

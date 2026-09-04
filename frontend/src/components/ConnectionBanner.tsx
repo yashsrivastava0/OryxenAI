@@ -7,7 +7,7 @@ interface ConnectionBannerProps {
 // Persistent, non-modal — never a toast per poll (docs/Frontend/02 §4).
 const COPY: Record<Exclude<ConnectionState, "confirmed">, string> = {
   checking: "Checking for updates…",
-  stale: "Offline. Showing the last confirmed state.",
+  stale: "The latest check did not complete. Showing the last confirmed state.",
   offline: "Reconnect to confirm the latest state.",
 };
 
