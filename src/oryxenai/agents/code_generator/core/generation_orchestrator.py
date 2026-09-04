@@ -2477,7 +2477,13 @@ def _scoped_repair_visual(visual: dict[str, Any]) -> dict[str, Any]:
 
     return {
         key: visual[key]
-        for key in ("global", "routes", "pack_version", "schema_version")
+        for key in (
+            "global",
+            "routes",
+            "navigation_contract",
+            "pack_version",
+            "schema_version",
+        )
         if key in visual
     }
 

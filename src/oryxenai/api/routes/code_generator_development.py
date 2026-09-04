@@ -106,7 +106,7 @@ async def create_fixture_run(
 async def build_preparation_packs(
     service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
 ) -> dict[str, Any]:
-    """Newest-first local Build Preparation debug-mirror packs."""
+    """Newest-first local Build Preparation Markdown brief pairs."""
 
     return {"packs": service.build_preparation_packs()}
 
@@ -141,7 +141,7 @@ async def create_upload_run(
         content_length = request.headers.get("content-length", "")
         if content_length.isdigit() and int(content_length) > limit:
             raise DevelopmentInputError(
-                "UPLOAD_TOO_LARGE", "The uploaded ZIP exceeds the configured size limit."
+                "UPLOAD_TOO_LARGE", "The uploaded brief envelope exceeds the configured size limit."
             )
         chunks: list[bytes] = []
         total = 0
@@ -149,7 +149,7 @@ async def create_upload_run(
             total += len(chunk)
             if total > limit:
                 raise DevelopmentInputError(
-                    "UPLOAD_TOO_LARGE", "The uploaded ZIP exceeds the configured size limit."
+                    "UPLOAD_TOO_LARGE", "The uploaded brief envelope exceeds the configured size limit."
                 )
             chunks.append(chunk)
         data = b"".join(chunks)

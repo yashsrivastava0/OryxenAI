@@ -252,7 +252,16 @@ def _materialize_image_assets(
         if str(item.get("category", "")).casefold() not in {"image", "texture", "illustration"}:
             continue
         request_id = str(item.get("request_id", ""))
-        possible_slot = request_id.removeprefix("request-")
+        # Acquisition requests are namespaced by their origin.  Deferred
+        # brief resources use ``deferred-<slot>``, delegated resources use
+        # ``delegated-<slot>``, while older fixtures use ``request-<slot>``.
+        # Preserve the execution slot identity so the generated source can
+        # never lose the image placement contract.
+        possible_slot = request_id
+        for prefix in ("request-", "deferred-", "delegated-"):
+            if possible_slot.startswith(prefix):
+                possible_slot = possible_slot.removeprefix(prefix)
+                break
         resource_id = possible_slot if possible_slot in slot_ids else request_id
         acquired_by_id.setdefault(resource_id, []).append(item)
     for resource_id, entries in acquired_by_id.items():

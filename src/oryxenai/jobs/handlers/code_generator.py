@@ -95,11 +95,6 @@ from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
-from oryxenai.storage.artifacts import (
-    ArtifactReference,
-    ArtifactStorageError,
-    create_artifact_store,
-)
 
 _KIND = "code_generator.plan"
 logger = get_logger("oryxenai.jobs.handlers.code_generator")
@@ -120,7 +115,7 @@ def _acquisition_failure_issue(exc: Exception) -> SafeIssue:
         code=code,
         message=message[:500],
         next_action=(
-            "Add a suitable resource to the pack or relax the request, then retry acquire."
+            "Add a suitable resource to the brief or relax the request, then retry acquire."
             if code == "REQ_FALLBACK_BLOCKED"
             else "Review the safe acquisition issue and start a corrected run."
         ),
@@ -256,82 +251,12 @@ async def _execute(
             run_id,
             event_type="admitting",
             level="info",
-            message="Verifying immutable pack input and configured pipeline projections.",
+            message="Verifying immutable Build Preparation brief input and compiled projections.",
         )
         await db.commit()
         reference = AdmittedInputReference.model_validate(run.input_reference)
 
     adapter = DevelopmentInputAdapter(settings)
-    if reference.mode == "build_preparation_artifact":
-        try:
-            await _validate_worker_payload(sessionmaker, payload)
-            artifact = ArtifactReference.model_validate(run.artifact_reference)
-            data = await create_artifact_store(settings).get_verified(artifact)
-            reference = adapter.from_build_preparation_artifact(
-                source_id=reference.source_id,
-                filename=reference.original_filename,
-                data=data,
-            )
-            async with sessionmaker() as db:
-                repo = CodeGeneratorDevelopmentRepository(db)
-                await WorkerAuthorizationFence(db).validate_run(run_id)
-                current = await repo.get(run_id)
-                if current is None:
-                    return {"status": "discarded", "run_id": str(run_id)}
-                updated = await repo.compare_and_swap(
-                    run_id,
-                    expected_revision=current.revision,
-                    values={
-                        "input_reference": reference.model_dump(mode="json"),
-                        "artifact_receipt": {
-                            "artifact_sha256": artifact.sha256,
-                            "size_bytes": artifact.size_bytes,
-                            "stored_relative_path": reference.stored_relative_path,
-                            "verified": True,
-                        },
-                    },
-                )
-                if updated is None:
-                    raise RuntimeError("Code Generator run changed during artifact admission")
-                await repo.append_event(
-                    run_id,
-                    event_type="artifact_downloaded",
-                    level="info",
-                    message="Build Preparation artifact downloaded and copied immutably.",
-                    details={"sha256": artifact.sha256, "size_bytes": artifact.size_bytes},
-                )
-                await db.commit()
-                run = updated
-        except ArtifactStorageError as exc:
-            attempt = int(payload.get("attempt", 1))
-            max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
-            if bool(exc.retryable) and attempt < max_attempts:
-                return {
-                    "status": "failed",
-                    "error": {"code": exc.code, "message": exc.message, "retryable": True},
-                }
-            await _needs_attention(
-                sessionmaker,
-                run_id,
-                SafeIssue(
-                    code=exc.code,
-                    message="The Build Preparation artifact could not be downloaded and verified.",
-                    next_action="Restore artifact-store access or regenerate Build Preparation.",
-                ),
-            )
-            return {"status": "needs_attention", "run_id": str(run_id)}
-        except DevelopmentInputError as exc:
-            await _needs_attention(
-                sessionmaker,
-                run_id,
-                SafeIssue(
-                    code=exc.code,
-                    message=exc.message,
-                    next_action="Regenerate a valid Build Preparation artifact.",
-                    details=exc.details,
-                ),
-            )
-            return {"status": "needs_attention", "run_id": str(run_id)}
     try:
         receipt, projections = adapter.admit(reference)
     except DevelopmentInputError as exc:
@@ -341,7 +266,7 @@ async def _execute(
             SafeIssue(
                 code=exc.code,
                 message=exc.message,
-                next_action="Correct the pack and start a new run.",
+                next_action="Regenerate a valid Build Preparation brief pair and start a new run.",
                 details=exc.details,
             ),
         )
@@ -383,7 +308,7 @@ async def _execute(
             run_id,
             event_type="admitted",
             level="info",
-            message=f"Pack {receipt.pack_version} admitted; immutable planner context written.",
+            message="Build Preparation Markdown briefs admitted; immutable planner context written.",
             details={"route_count": len(receipt.route_ids)},
         )
         await db.commit()

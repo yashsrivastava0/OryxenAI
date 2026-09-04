@@ -58,11 +58,11 @@ class AdmittedInputReference(BaseModel):
         "fixture",
         "upload",
         "build_preparation_mirror",
-        "build_preparation_artifact",
+        "build_preparation_briefs",
     ]
     source_id: str
     original_filename: str
-    mime_type: str = "application/zip"
+    mime_type: str = "application/json"
     source_sha256: str
     stored_relative_path: str
     size_bytes: int
@@ -73,12 +73,14 @@ class InputReceipt(BaseModel):
 
     receipt_id: str
     admitted_identity: str
-    pack_sha256: str
-    manifest_hash: str
+    source_sha256: str
+    content_brief_sha256: str
+    visual_brief_sha256: str
+    contract_hash: str
     projection_hashes: dict[str, str]
     route_ids: list[str]
     target_id: str
-    pack_version: str
+    source_version: str
     schema_version: str
 
 
@@ -3249,8 +3251,14 @@ class FixtureRunRequest(BaseModel):
 class BuildPreparationRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Mirror pack directory name, or "best" for deterministic ranking.
-    pack: str = "best"
+    # Mirror brief-set directory name, or "best" for deterministic ranking.
+    # ``pack`` remains a read-compatible field for older detached control-room
+    # clients; new callers should send the clearer ``brief_set`` key.
+    pack: str = Field(
+        default="best",
+        validation_alias=AliasChoices("brief_set", "pack"),
+        serialization_alias="brief_set",
+    )
 
 
 # The provider-safe source envelope intentionally appears before the legacy
