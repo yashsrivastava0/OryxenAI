@@ -50,6 +50,7 @@ except Exception as e:
 # Step 2: Test Minimal Completion (Credit & Quota Verification)
 print("\n[Step 2] Testing Chat Completion & Active Balance/Quota...")
 test_models = ["gpt-4o-mini", "gpt-4o"]
+any_success = False
 
 for model_name in test_models:
     print(f"\n--- Testing Model: {model_name} ---")
@@ -70,6 +71,7 @@ for model_name in test_models:
             elapsed = round((time.time() - t0) * 1000, 2)
 
             if resp.status_code == 200:
+                any_success = True
                 data = resp.json()
                 reply = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
                 usage = data.get("usage", {})
@@ -99,7 +101,14 @@ for model_name in test_models:
 print("\n" + "=" * 60)
 print("                      FINAL SUMMARY")
 print("=" * 60)
-print(" - OpenAI API Key is VALID and ACTIVE.")
-print(" - Credits / Balance are AVAILABLE and RECHARGED.")
-print(" - Chat completions are generating responses without rate limits or quota errors.")
+if any_success:
+    print(" [OK] OpenAI API Key is VALID and ACTIVE.")
+    print(" [OK] Credits / Balance are AVAILABLE and working.")
+    print(" [OK] Chat completions are generating responses.")
+else:
+    print(" [!] OpenAI API Key is VALID (Authentication succeeded).")
+    print(" [FAIL] NO CREDITS / BALANCE: Credit balance is EXHAUSTED (Not Recharged).")
+    print(" [FAIL] Error: insufficient_quota / credit_balance_exhausted.")
+    print(" -> Please recharge credits at: https://platform.openai.com/settings/organization/billing/")
 print("=" * 60)
+
