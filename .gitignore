@@ -64,19 +64,13 @@ postgres-data/
 # Scratch & temporary test artifacts
 scratch_benchmark.json
 scratch/
-output/
+.pytest-tmp*
+.uv-cache*
+
+# Agent outputs (disposable local exports and debug mirrors)
+output/*
+!output/README.md
 
 # Generated Preact/Vite product bundle (frontend/, docs/Frontend/05 §16) —
 # built by CI/container packaging, never hand-edited or committed.
 src/oryxenai/web/static/product/
-
-# Local Build Preparation debug-mirror output (disposable by design -- see
-# AGENTS.md). Two specific packs are checked in as verified Code Generator
-# test fixtures; everything else here (other packs, codegen-admission/,
-# and any future run's output) stays untracked so it doesn't show up as
-# pending changes.
-prebuild-output/*
-!prebuild-output/build-preparation/
-prebuild-output/build-preparation/*
-!prebuild-output/build-preparation/15-36-25-08-8acdcb12/
-!prebuild-output/build-preparation/22-51-01-09-1961f2c9/
