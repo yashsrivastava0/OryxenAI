@@ -41,6 +41,53 @@ _FILES = {
     "repair": "repair_source.md",
 }
 
+# Stable-first wire-payload ordering, passed to ModelClient.generate_structured
+# as request_context={"key_order": ...}. This does not change the JSON shape a
+# model sees (same flat keys, same nesting) — only the order the OpenAI-
+# compatible adapter serializes them in. Placing content that repeats
+# byte-for-byte across many calls in one run (the compiled site/visual/
+# resource contract, the frozen foundation source files) before per-call
+# content (plan/diagnostics/unit-specific slices) maximizes whatever
+# provider-side prefix caching the configured gateway performs. Listing a key
+# here is an optimization hint only: any key not listed is still sent,
+# appended afterward in its original order — omitting one only forfeits a
+# caching opportunity, it never drops data.
+PLANNER_FOUNDATION_KEY_ORDER: tuple[str, ...] = (
+    "site_contract",
+    "navigation_contract",
+    "visual_direction",
+    "resource_bindings",
+    "target_contract",
+    "content_key_manifest",
+    "blueprint_identity_manifest",
+    "blueprint_selector_manifest",
+    "receipt",
+    "role_profile",
+)
+
+ROUTE_UNIT_KEY_ORDER: tuple[str, ...] = (
+    "workspace_api",
+    "role_profile",
+    "operation",
+    "shared_source",
+    "site_contract",
+    "visual_direction",
+    "resource_bindings",
+    "execution_contract",
+    "plan",
+    "generation_contract",
+    "output_ceiling",
+)
+
+FINAL_REPAIR_KEY_ORDER: tuple[str, ...] = (
+    "role_profile",
+    "operation",
+    "plan",
+    "generation_contract",
+    "candidate_identity",
+    "output_ceiling",
+)
+
 
 def build_instructions(
     operation: str,
@@ -168,4 +215,9 @@ def _hash(value: object) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-__all__ = ["build_instructions"]
+__all__ = [
+    "FINAL_REPAIR_KEY_ORDER",
+    "PLANNER_FOUNDATION_KEY_ORDER",
+    "ROUTE_UNIT_KEY_ORDER",
+    "build_instructions",
+]

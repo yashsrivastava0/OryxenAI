@@ -68,7 +68,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     WorkUnit,
 )
 from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
-from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.generation_prompt_builder import (
+    ROUTE_UNIT_KEY_ORDER,
+    build_instructions,
+)
 from oryxenai.agents.code_generator.core.integration_review_operation import (
     run_integration_review_operation,
 )
@@ -1785,6 +1788,10 @@ class CodeGeneratorGenerationOrchestrator:
                     system_prompt=system,
                     model_profile=role_profile,
                     strict_schema=True,
+                    request_context={
+                        "key_order": ROUTE_UNIT_KEY_ORDER,
+                        "prompt_cache_key": f"codegen:{generation_id}:{role_profile}",
+                    },
                 )
                 parsed = getattr(raw, "parsed_output", raw)
                 if (

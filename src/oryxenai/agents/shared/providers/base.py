@@ -86,6 +86,7 @@ class BaseProviderAdapter(ModelClient, ABC):
                 system_prompt=system_prompt,
                 request_id=request_id,
                 strict_schema=strict_schema,
+                request_context=request_context,
             )
             elapsed_ms = (time.monotonic() * 1000) - start_ms
             logger.info(
@@ -123,6 +124,7 @@ class BaseProviderAdapter(ModelClient, ABC):
         request_id: str,
         system_prompt: str | None = None,
         strict_schema: bool = False,
+        request_context: Any = None,
     ) -> Any:
         """Provider-specific structured generation. Must be implemented."""
         ...

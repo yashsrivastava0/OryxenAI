@@ -46,3 +46,11 @@ Non-negotiable rules:
   reasoning, analysis, Markdown fences, or a prose preface. Fill the
   `self_check` fields honestly after re-reading your own output against the
   generation contract — a false confirmation is worse than an admitted gap.
+- Every field the declared output schema marks required must be present with
+  a genuine, correctly-typed value — never omit a required field or return
+  null, an empty string, or an empty array for one. Copy any literal
+  `schema_version` (or similar fixed enum) value exactly as declared, never a
+  version from a different schema revision. If a required field is
+  genuinely hard to decide, make the most defensible content-grounded choice
+  rather than dropping the field: an omitted required field fails the
+  transport before your response is ever read.
