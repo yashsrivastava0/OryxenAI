@@ -164,6 +164,42 @@ class ModelRuntime:
             "profiles": receipts,
         }
 
+    def preflight_status(self, engines: list[str], override: str = "") -> dict[str, Any]:
+        """Report the in-process preflight cache without making a model call.
+
+        Readiness is polled frequently by the developer UI.  It must be able
+        to distinguish a successful explicit preflight from a missing/expired
+        one without silently issuing another billable request on every poll.
+        ``preflight`` remains the only method that talks to the provider.
+        """
+
+        distinct: dict[str, str] = {}
+        for engine in engines:
+            profile_name = self.resolve_profile_name(engine, override)
+            distinct.setdefault(self.profile_fingerprint(profile_name), profile_name)
+        now = time.monotonic()
+        missing = [
+            profile_name
+            for fingerprint, profile_name in distinct.items()
+            if not (
+                (cached := self._preflight_cache.get(fingerprint))
+                and now - cached[0] <= _PREFLIGHT_TTL_SECONDS
+            )
+        ]
+        if missing:
+            return {
+                "status": "required",
+                "checked": False,
+                "checked_profiles": [],
+                "private_context_sent": False,
+            }
+        return {
+            "status": "ready",
+            "checked": True,
+            "checked_profiles": [name for _fingerprint, name in distinct.items()],
+            "private_context_sent": False,
+        }
+
     async def aclose(self) -> None:
         clients = list(self._clients.values())
         self._clients.clear()

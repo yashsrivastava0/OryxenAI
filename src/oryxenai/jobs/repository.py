@@ -1,7 +1,13 @@
 """BackgroundJob repository — enqueue, claim, update, recover."""
 
+# The two raw SQL statements below are fixed query templates; the optional
+# predicate is selected from a literal string and all values remain bound
+# parameters. Ruff cannot prove that property through the CTE formatting.
+# ruff: noqa: S608
+
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -114,14 +120,22 @@ class JobRepository:
         worker_instance: str,
         lease_seconds: float,
         batch_size: int,
+        *,
+        allowed_job_kinds: Collection[str] | None = None,
     ) -> list[BackgroundJob]:
         """Atomically claim up to `batch_size` due jobs via CTE + SKIP LOCKED."""
+        if allowed_job_kinds is not None and not allowed_job_kinds:
+            return []
         now = datetime.now(UTC)
+        kind_filter = (
+            "AND job.job_kind IN :allowed_job_kinds" if allowed_job_kinds is not None else ""
+        )
         raw = sa_text(
-            """
+            f"""
             WITH due AS (
                 SELECT job.id FROM background_jobs AS job
                 WHERE job.status = :status AND job.available_at <= :now
+                  {kind_filter}
                   AND (
                     job.execution_lane IS NULL
                     OR NOT EXISTS (
@@ -159,6 +173,8 @@ class JobRepository:
             RETURNING *
             """
         )
+        if allowed_job_kinds is not None:
+            raw = raw.bindparams(bindparam("allowed_job_kinds", expanding=True))
         for attempt in range(3):
             try:
                 result = await self._session.execute(
@@ -169,6 +185,11 @@ class JobRepository:
                         "now": now,
                         "limit": batch_size,
                         "w": worker_instance,
+                        **(
+                            {"allowed_job_kinds": list(allowed_job_kinds)}
+                            if allowed_job_kinds is not None
+                            else {}
+                        ),
                     },
                 )
                 return [_bg_from_row(r) for r in result.fetchall()]
@@ -185,6 +206,7 @@ class JobRepository:
         batch_size: int,
         *,
         exclude_job_ids: set[UUID] | None = None,
+        allowed_job_kinds: Collection[str] | None = None,
     ) -> list[BackgroundJob]:
         """Recover expired jobs not already active in this worker process.
 
@@ -194,32 +216,38 @@ class JobRepository:
         lease token. A process restart has an empty active set and can still
         recover abandoned jobs normally.
         """
+        if allowed_job_kinds is not None and not allowed_job_kinds:
+            return []
         cutoff = datetime.now(UTC) - timedelta(seconds=lease_seconds)
+        kind_filter = (
+            "AND job.job_kind IN :allowed_job_kinds" if allowed_job_kinds is not None else ""
+        )
         raw = sa_text(
-            """
+            f"""
             WITH stale AS (
-                SELECT id FROM background_jobs
-                WHERE status = :status AND heartbeat_at <= :cutoff
-                  AND id NOT IN :exclude_job_ids
+                SELECT job.id FROM background_jobs AS job
+                WHERE job.status = :status AND job.heartbeat_at <= :cutoff
+                  {kind_filter}
+                  AND job.id NOT IN :exclude_job_ids
                   AND (
-                    execution_lane IS NULL
+                    job.execution_lane IS NULL
                     OR NOT EXISTS (
                         SELECT 1 FROM background_jobs AS running
                         WHERE running.status = 'running'
-                          AND running.execution_lane = background_jobs.execution_lane
-                          AND running.id <> background_jobs.id
+                          AND running.execution_lane = job.execution_lane
+                          AND running.id <> job.id
                     )
                   )
                   AND (
-                    execution_lane IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1 FROM background_jobs AS earlier_stale
-                        WHERE earlier_stale.status = 'running'
-                          AND earlier_stale.heartbeat_at <= :cutoff
-                          AND earlier_stale.execution_lane = background_jobs.execution_lane
-                          AND earlier_stale.id <> background_jobs.id
+                        job.execution_lane IS NULL
+                        OR NOT EXISTS (
+                          SELECT 1 FROM background_jobs AS earlier_stale
+                          WHERE earlier_stale.status = 'running'
+                            AND earlier_stale.heartbeat_at <= :cutoff
+                          AND earlier_stale.execution_lane = job.execution_lane
+                          AND earlier_stale.id <> job.id
                           AND (earlier_stale.created_at, earlier_stale.id)
-                              < (background_jobs.created_at, background_jobs.id)
+                              < (job.created_at, job.id)
                     )
                   )
                 LIMIT :limit
@@ -239,6 +267,8 @@ class JobRepository:
                 type_=PostgreSQLUUID(as_uuid=True),
             )
         )
+        if allowed_job_kinds is not None:
+            raw = raw.bindparams(bindparam("allowed_job_kinds", expanding=True))
         result = await self._session.execute(
             raw,
             {
@@ -248,6 +278,11 @@ class JobRepository:
                 "w": worker_instance,
                 "now": datetime.now(UTC),
                 "exclude_job_ids": list(exclude_job_ids or set()),
+                **(
+                    {"allowed_job_kinds": list(allowed_job_kinds)}
+                    if allowed_job_kinds is not None
+                    else {}
+                ),
             },
         )
         return [_bg_from_row(r) for r in result.fetchall()]

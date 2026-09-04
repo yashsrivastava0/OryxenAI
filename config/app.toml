@@ -56,6 +56,14 @@ lease_duration = 120.0         # seconds before a claimed job is considered stal
 "code_generator.acquire" = 1200.0             # 20 min: provider searches + npm resolution
 "code_generator.generate" = 5400.0            # 90 min: several builder/integrator calls + typechecks
 "code_generator.verify_and_preview" = 3600.0  # 60 min: clean build + Playwright journeys + repair
+# V5 has its own queue namespace so a stale pre-migration worker cannot claim
+# a Markdown-brief job. Keep the same generous stage budgets as the legacy
+# aliases; otherwise the worker falls back to the 300s default and interrupts
+# a valid long-running generation.
+"code_generator.v5.plan" = 900.0
+"code_generator.v5.acquire" = 1200.0
+"code_generator.v5.generate" = 5400.0
+"code_generator.v5.verify_and_preview" = 3600.0
 # Content Architect and Visual Design Director each drive up to 3 sequential
 # model calls per job (each profile's own timeout_seconds=180) — worst case
 # ~540s alone, over the 300s default. Live-reproduced: a real content-rich
@@ -205,10 +213,11 @@ max_routes = 12
 max_work_units = 64
 max_events_page_size = 100
 # Local Build Preparation debug mirror consumed by the "from Build Preparation"
-# run source (newest eligible build-pack.zip wins).
-build_preparation_mirror_root = "prebuild-output/build-preparation"
-pipeline_contract_version = "code-generator-v4"
-worker_release_id = "oryxenai-code-generator-v4"
+# run source (newest eligible pair of Markdown briefs wins). The v5 namespace
+# is a deliberate queue boundary for the migrated two-brief contract.
+build_preparation_mirror_root = "output/build-preparation"
+pipeline_contract_version = "code-generator-v5"
+worker_release_id = "oryxenai-code-generator-v5"
 quality_gate_version = "quality-gate-v2"
 design_similarity_threshold = 0.82
 design_similarity_history = 3
@@ -264,7 +273,11 @@ typecheck_command = ["npm.cmd", "run", "typecheck"]
 source_audit_command = ["npm.cmd", "run", "source:audit"]
 format_command = []
 use_real_typecheck = true
-route_concurrency = 3
+# Keep provider-backed route calls serial. A portfolio can have several route
+# batches, but parallel structured requests make rate limits look like source
+# failures and waste retries; reliability is more valuable than this small
+# throughput gain for the bounded generation lane.
+route_concurrency = 1
 artifact_store_provider = "local_fs"
 artifact_root = ".workspace/code-generator-artifacts"
 max_context_chars = 170000

@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from oryxenai.agents.code_generator.core.pipeline_contract import is_verification_kind
 from oryxenai.auth.errors import EntitlementBindingConflictError
 from oryxenai.auth.models import AppUser, PortfolioEntitlement
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
@@ -246,7 +247,7 @@ async def _lock_current_job(
     job = job_result.scalar_one_or_none()
     if (
         job is None
-        or job.job_kind != "code_generator.verify_and_preview"
+        or not is_verification_kind(str(job.job_kind))
         or job.status != "running"
         or (attempt is not None and job.attempt != attempt)
         or (lease_token is not None and job.lease_token != lease_token)

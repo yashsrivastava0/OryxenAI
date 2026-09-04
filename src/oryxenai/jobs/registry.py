@@ -108,14 +108,24 @@ def _register_code_generator_handlers() -> None:
         CodeGeneratorAcquisitionHandler,
         CodeGeneratorGenerationHandler,
         CodeGeneratorPlanningHandler,
+        CodeGeneratorV5AcquisitionHandler,
+        CodeGeneratorV5GenerationHandler,
+        CodeGeneratorV5PlanningHandler,
     )
-    from oryxenai.jobs.handlers.code_generator_verification import CodeGeneratorVerificationHandler
+    from oryxenai.jobs.handlers.code_generator_verification import (
+        CodeGeneratorV5VerificationHandler,
+        CodeGeneratorVerificationHandler,
+    )
 
     for handler_cls in (
         CodeGeneratorPlanningHandler,
         CodeGeneratorAcquisitionHandler,
         CodeGeneratorGenerationHandler,
         CodeGeneratorVerificationHandler,
+        CodeGeneratorV5PlanningHandler,
+        CodeGeneratorV5AcquisitionHandler,
+        CodeGeneratorV5GenerationHandler,
+        CodeGeneratorV5VerificationHandler,
     ):
         instance = handler_cls()
         if not is_registered(instance.kind):

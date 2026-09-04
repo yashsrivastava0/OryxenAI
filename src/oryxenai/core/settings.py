@@ -576,10 +576,10 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     max_work_units: int = 64
     max_events_page_size: int = 100
     # Local Build Preparation debug-mirror root: directories produced by the
-    # Build Preparation stage, each holding build-context/ + build-pack.zip.
+    # Build Preparation stage, each holding the two Markdown brief files.
     build_preparation_mirror_root: str = "output/build-preparation"
-    pipeline_contract_version: str = "code-generator-v4"
-    worker_release_id: str = "oryxenai-code-generator-v4"
+    pipeline_contract_version: str = "code-generator-v5"
+    worker_release_id: str = "oryxenai-code-generator-v5"
     quality_gate_version: str = "quality-gate-v2"
     design_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
     design_similarity_history: int = Field(default=3, ge=1, le=10)
@@ -618,7 +618,10 @@ class CodeGeneratorGenerationConfig(BaseModel):
     source_audit_command: list[str] = Field(default_factory=lambda: ["npm", "run", "source:audit"])
     format_command: list[str] = Field(default_factory=list)
     use_real_typecheck: bool = True
-    route_concurrency: int = 3
+    # Structured route calls are serialized by default to avoid turning
+    # provider rate limits into repeated generation failures. Deployments can
+    # raise this explicitly after confirming their provider capacity.
+    route_concurrency: int = 1
     artifact_store_provider: str = "local_fs"
     artifact_root: str = ".workspace/code-generator-artifacts"
     max_context_chars: int = 120000
