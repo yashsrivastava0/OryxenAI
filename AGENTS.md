@@ -64,13 +64,12 @@ table and state machine.
 **Portfolio Build Preparation is implemented as a hidden pre-code stage.** It
 requires approved Content Architect and Visual Design Director state and is
 started explicitly with `POST .../build-preparation/start`. A durable
-`build_preparation.prepare` job compiles public scope, resolves verified
-resources with explicit fallbacks, writes route-scoped build context, creates
-one deterministic ZIP, verifies it through configured temporary
-S3-compatible object storage (R2 in production), and restores a local debug
-mirror when enabled. PostgreSQL stores only the object metadata and hashes;
-the staged tree is disposable. The GET endpoint reports staleness when
-approved upstream projections or the temporary object changes. See
+`build_preparation.prepare` job compiles the approved public scope and writes
+two Markdown briefs: `content-and-narrative-brief.md` and
+`visual-and-build-brief.md`. Each brief carries one fenced, hash-checked JSON
+index; the visual index contains researched image/font/component references,
+not ZIP bytes or runtime URLs that the generator must trust blindly. A local
+debug mirror is retained for the standalone Code Generator harness. See
 `src/oryxenai/agents/build_preparation/`.
 
 All model-backed agents call their configured model through the provider-neutral
@@ -79,13 +78,15 @@ per profile; never trust a model name written in prose documentation,
 including this one, since it changes independently of any doc.
 
 **Code Generator is implemented as both a standalone development harness and
-an explicit production session stage.** Production start requires one eligible
-Build Preparation artifact and binds its immutable object metadata before
-durable planning. The shared workflow performs structured creative direction
-and planning, deterministic work-graph/resource compilation, controlled
-acquisition, progressive generation, bounded integration review/repair, clean
-build, multi-viewport DOM/geometry verification, and atomic stable-preview
-promotion. It never auto-chains from Build Preparation. See
+an explicit production session stage.** Production start requires the
+immutable pair of approved Build Preparation Markdown briefs and binds their
+content/visual hashes before durable planning. The shared workflow performs
+structured creative direction and planning, deterministic work-graph/resource
+compilation, controlled acquisition of pinned media, progressive generation,
+bounded integration review/repair, clean build, multi-viewport DOM/geometry
+verification, and atomic stable-preview promotion. The active development
+contract is versioned and release-fenced so an older worker cannot claim a
+migrated brief job. It never auto-chains from Build Preparation. See
 `src/oryxenai/agents/code_generator/` and
 `docs/code-generator-architecture/v2-production-architecture.md`.
 
@@ -117,11 +118,11 @@ deterministic mock, not a live implementation.
 
 - The registry-compatible Code Generator agent exposes the same structured
   planner boundary used by the durable workflow. Its standalone development
-  harness and explicit production-session API share v3 admission, planning,
-  controlled acquisition, progressive source generation, checkpoints, clean
-  build/runtime verification, finite repair, and atomic preview promotion.
-  Build Preparation still does not auto-chain; see `DECISIONS.md` and
-  `docs/code-generator-architecture/`.
+  harness and explicit production-session API share the active brief-contract
+  admission, versioned planning, controlled acquisition, progressive source
+  generation, checkpoints, clean build/runtime verification, finite repair,
+  and atomic preview promotion. Build Preparation still does not auto-chain;
+  see `DECISIONS.md` and `docs/code-generator-architecture/`.
 - Normal tests use checked-in fixtures; live model calls are opt-in. When a
   user explicitly asks to run an agent or generate a portfolio, execute the
   configured live LLM/API workflow against the supplied input by default;
@@ -136,8 +137,9 @@ deterministic mock, not a live implementation.
   automation remain excluded. Phase 4 administrator lifecycle, audit,
   destructive cleanup/reset, local admin UI, and worker fencing are implemented
   locally; owner-completed multi-account browser acceptance is still an
-  acceptance gate. Cloudflare R2 is used only for temporary Build Preparation
-  packs.
+  acceptance gate. Preview artifact storage may use the configured
+  S3-compatible backend; Build Preparation's local handoff is the Markdown
+  brief pair.
 - No Redis, Celery, Kafka, or external queue.
 
 ## Config-driven policy — never hardcode
