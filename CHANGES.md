@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-04 23:45 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [112d1a6] - add commit-cadence policy to the multi-agent protocol
+
+Added rule 6 to `AGENTS.md`'s multi-agent collaboration protocol: commit locally at natural checkpoints (session end, meaningful chunk of work, before any bulk filesystem operation) regardless of whether the change meets the `CHANGES.md` "major work" bar, flag pre-existing uncommitted changes at session start instead of silently building on top of them, and push regularly so a branch doesn't drift far ahead of `origin`. Directly motivated by the incident in the entry immediately below: a local commit is the only real protection against losing work to something outside git (an accidental delete, a filesystem tool, antivirus quarantine), since git history survives all of those and an unprotected working tree does not.
+
+### 2026-09-04 23:30 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [6ab319a, 5d8a93b, 6cec47b] - sync docs, persist active session client-side, fix diagnostic reporting
+
+Recovered from an accidental local mass-deletion of `src/`, `tests/`, `scripts/`, and `prebuild-output/` (Windows Explorer delete, not a git operation) via `git restore` plus the user's own Recycle Bin restore; verified via `git diff`, Python `py_compile`, and TypeScript `tsc --noEmit` that nothing was lost or corrupted before committing anything. Then committed the real uncommitted work that had accumulated: (1) `docs(agents)` [6ab319a] synced `AGENTS.md`/`DECISIONS.md` with the already-shipped Markdown-brief handoff and ScaleMax routing work (D-064 through D-066), compacting superseded entries; (2) `feat(frontend)` [5d8a93b] made `AppShell` restore the active session id from `sessionStorage` on load instead of only trusting the server-provided id (survives a refresh), redesigned `StartSurface`'s hero/method-banner layout, and fixed the discovery adapter to report `available` instead of a stuck `working` state when a session has zero questions yet; (3) `chore` [6cec47b] fixed `test_openai_key.py` always printing success even when every model call hit `insufficient_quota`. Pushed all 14 previously-unpushed local commits to origin. Added a commit-cadence policy to AGENTS.md (see that commit's own entry) directly motivated by this incident: nearly a full day of uncommitted work was briefly exposed to total loss because it sat in the working tree only.
+
 ### 2026-09-04 16:30 +05:30 - Codex (GPT-5 / OpenAI) - [5b84673, 871f960] - harden migrated Code Generator generation
 
 Completed the Build Preparation Markdown handoff migration: fenced-index parsing with CRLF tolerance, immutable identity-addressed admission, closed-navigation projections, blueprint/planner normalization, v5 queue and worker-release fencing, deferred resource placement, reference-only optional registry components, cached provider readiness, and serial route-batch calls. Replaced the stale Code Generator issue log with current root causes and follow-up checks. Parser/workspace/resource smoke checks, targeted planner/pipeline/service tests, Ruff, mypy, and Node syntax checks pass. A live run reached valid foundation/acquisition checkpoints before the configured provider returned 429 during route generation; no additional live calls were spent.
@@ -76,27 +84,15 @@ A resumed live run reached generate and hit `FOUNDATION_SOURCE_CHECK_FAILED` -- 
 
 First live end-to-end test of Track 1 (D-060) against a genuinely fresh deferred_materialized pack surfaced two real bugs, neither reachable by unit tests: (1) `execution.py`'s `_local_paths()` listed a resource's bare directory alongside its file paths, then sorted the result — since a directory always lexically sorts before its own children, the model's font-file reference (correctly copied from the first `local_paths` entry) got the directory instead of a `.woff2` file, tripping the WOFF/WOFF2 validator. Fixed by filtering out any path that's a strict parent of another path in the same set. (2) The deferred reference only carried `source_reference` (a human-readable page/registry URL) but `ImageAdapter`/`FontAdapter`'s generic fetch path downloads `canonical_source` directly as file bytes, and `ComponentSourceAdapter` only takes its registry-aware path when specific metadata is present — acquisition was trying to download a Pexels *page*, a Fontsource *API* response, and treating a component registry's raw JSON as source text (failing the remote-code safety check on the JSON's own `$schema` URL). Added `ResolvedResource.direct_source_url`/`direct_source_urls`, populated from the exact URLs Build Preparation's own download already verified, and wired into `_build_deferred_requests`'s candidate construction. Verified directly: all 8 deferred resources (6 Pexels photos, 1 MagicUI component, 1 Fontsource font) now materialize real bytes matching the pre-D-060 pack's file counts/sizes. 922 unit tests pass; ruff/mypy clean.
 
-### 2026-09-03 03:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [b132a9a] - reconcile Build Preparation pack contract docs
-
-`README.md`/`generation-pipeline.md` now describe `deferred_materialized` as a normal, concrete resolution alongside local files/package bindings/recipes, not an emergent-acquisition edge case. Fixed `generation-pipeline.md`'s "representative layout" referencing two files that don't exist in real output (`resources/plan.json`, `provenance/sources.json`) and added `execution/contract.json`, which was missing entirely despite being central to admission. `selected-build-preparation-output.md` documents one specific checked-in fixture that predates D-060 (genuinely `local_materialized`) — added a scoping note rather than rewriting its accurate description of that pack's real committed content.
-
-### 2026-09-03 03:00 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [7fb421f] - remove confirmed duplication in the handoff report
-
-Stopped writing `handoff-analysis.json` (confirmed byte-for-byte duplicate of `handoff-report.json`'s own `run_analysis` field) and dropped the `analysis_path`/`analysis_hash` fields it was the only writer of. Trimmed `run_analysis` itself to drop four keys (`candidate_qualifications`, `materialized_resources`, `role_failures`, `code_generator_eligible`) that duplicated `HandoffQualityReport`'s own top-level fields verbatim, keeping the genuinely unique diagnostic content. Fixed a real doubly-nested `usage_contract.provider_receipt.provider_receipt` bug across the image, image-alternate, and component-alternate materialization paths — one code path unwrapped `retrieval_metadata.get("provider_receipt", {})` correctly, three others assigned the whole `retrieval_metadata` dict instead. Investigated the `execution_gaps` field looking populated in one file and empty in a sibling — confirmed intentional (an existing comment already explains Code Generator's admission check requires the report's top-level list filtered to blocking gaps only), left unchanged. 104 Build Preparation unit tests pass (1 updated); 920 unit tests and 15 related integration tests pass; ruff/mypy clean.
-
-### 2026-09-03 02:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [1c175c6] - fetch bytes for deferred_materialized slots in Code Generator
-
-Added `_build_deferred_requests` in `code_generator.py`: translates each `deferred_materialized` execution slot into a `ResourceRequest` paired with a fully-specified `ResourceCandidate` built directly from Build Preparation's pinned decision — no query to guess, no candidates to rank. `_execute_acquisition`'s main loop now skips `search()`/policy filtering/selection entirely for a request with a pinned candidate and calls `adapter.materialize()` directly, reusing the same adapters already live and tested for gap-slots. New `tests/unit/jobs/handlers/` directory (matches the project's own unit-test convention for pure, DB-free logic) covers request shape, category mapping, dependency metadata, and slot filtering. 920 unit tests, 12 code_generator integration tests, 1 worker test pass; mypy clean across all 216 source files. This completes the Track 1 core mechanism from D-060 — Build Preparation decides, Code Generator fetches.
-
-### 2026-09-03 02:05 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [a476452] - defer image/font/component bytes to Code Generator
-
-`_materialize_image_candidate`, the Fontsource block, and `_materialize_component_candidate` now emit `disposition="deferred_materialized"` and skip persisting bytes/source text into the pack, instead of writing them plus a redundant sidecar JSON their own prior comment already said the planner never reads — all the real download/inspect/dedupe/policy verification work is unchanged. Updated every disposition-aware handoff-eligibility and reporting check (`quality.py`, `fixture_runs.py`) to recognize the new value so a deferred decision counts as resolved. Dropped `_materialize_component_candidate`'s now-unused `root`/`files` parameters. 104 Build Preparation unit tests pass (3 updated for the new behavior); 917 unit tests and related API tests pass repo-wide.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [b132a9a] - Reconciled Build Preparation pack contract docs with the `deferred_materialized` resolution type and fixed nonexistent-file references.
+- 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [7fb421f] - Removed confirmed duplication in the handoff report and fixed a doubly-nested `provider_receipt` bug across three materialization paths.
+- 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [1c175c6] - Code Generator fetches bytes directly for `deferred_materialized` slots via pinned candidates, completing D-060 Track 1's core mechanism.
+- 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [a476452] - Image/font/component materialization defers bytes to Code Generator instead of embedding them in the pack.
 - 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [8c7e994] - Root-caused a 10/10 live Code Generator failure campaign to genuine pack bloat (not planner complexity, which only reads 6 files) and added `deferred_materialized` as a sixth resolution type, additive only.
 - 2026-09-02 - Antigravity (Gemini 2.5 Pro / Google) - [9b5ea36] - Frontend Phase 5 hardening/cutover: safe storage, ErrorBoundary, verified Preview surface with postMessage handshake, responsive layout system, canonical Preact shell default.
 - 2026-09-02 - Antigravity (Gemini 2.5 Pro / Google) - [f9e8eef] - Frontend Phase 3: Build Preparation/Code Generator progress adapters mapping runtime substages to honest semantic milestones, no fake percentages/ETAs.
@@ -261,8 +257,8 @@ Added `_build_deferred_requests` in `code_generator.py`: translates each `deferr
 
 ---
 
-## Summary (as of last compaction — 2026-09-03)
+## Summary (as of last compaction — 2026-09-04)
 
-- Recent detailed entries retained: 20
-- Compacted milestone bullets: 137
-- Last updated: 2026-09-03 — Claude Code (Sonnet 5 / Anthropic)
+- Recent detailed entries retained: 14
+- Compacted milestone bullets: 141
+- Last updated: 2026-09-04 — Claude Code (Sonnet 5 / Anthropic)
