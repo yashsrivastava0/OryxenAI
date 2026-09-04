@@ -161,7 +161,7 @@ async def _execute(
                     "Build Preparation changed or expired before preview promotion; "
                     "the stale candidate was not promoted."
                 ),
-                next_action="Start Code Generator again from the latest eligible artifact.",
+                next_action="Start Code Generator again from the latest eligible brief pair.",
             )
             await _cas(
                 repo,
@@ -422,6 +422,7 @@ async def _execute(
             projections=projections,
             allowed_packages=allowed_packages,
             public_text=public_text,
+            max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
         )
         prior_source_passed = _prior_gate_passed(
             prior_projection, "source_contract", identity.identity_hash
@@ -1003,11 +1004,35 @@ def _preview_host(run_id: str) -> str:
 
 
 async def _session_source_is_current(repository: CodeGeneratorRepository, run: Any) -> bool:
-    # Build Preparation no longer produces a ZIP artifact to compare against
-    # (Markdown-brief output) -- any run still bound to the old artifact-based
-    # CodeGeneratorSourceRef is permanently stale. Session-bound ingestion of
-    # the new brief contract is tracked as explicit follow-up work.
-    return False
+    """Revalidate the immutable two-brief snapshot before preview promotion."""
+
+    source = getattr(run, "build_preparation_source_ref", None)
+    if not isinstance(source, dict):
+        return False
+    session_id = getattr(run, "portfolio_session_id", None)
+    if session_id is None:
+        return False
+    try:
+        preparation = await repository.get_build_preparation_state(session_id)
+    except Exception:
+        return False
+    preparation_status = getattr(preparation, "status", "")
+    if str(getattr(preparation_status, "value", preparation_status)) != "ready":
+        return False
+    if str(getattr(preparation, "run_id", "")) != str(source.get("build_preparation_run_id", "")):
+        return False
+    if str(getattr(preparation, "scope_hash", "")) != str(source.get("build_preparation_scope_hash", "")):
+        return False
+    content_hash = str(getattr(preparation, "content_brief_hash", "") or "")
+    visual_hash = str(getattr(preparation, "visual_brief_hash", "") or "")
+    return (
+        bool(content_hash)
+        and bool(visual_hash)
+        and content_hash == str(source.get("content_brief_sha256", ""))
+        and visual_hash == str(source.get("visual_brief_sha256", ""))
+        and bool(str(getattr(preparation, "content_brief_markdown", "") or "").strip())
+        and bool(str(getattr(preparation, "visual_brief_markdown", "") or "").strip())
+    )
 
 
 def _reference(run: Any) -> Any:

@@ -39,6 +39,7 @@ def compile_blueprint_site_plan(
     """Compile route/content/criterion/resource ownership without model-authored paths."""
 
     blueprint = canonicalize_v4_h1_owners(blueprint)
+    blueprint = canonicalize_v4_criterion_ids(blueprint, projections)
     blueprint = _canonicalize_resource_placement_slots(blueprint, projections)
     blueprint = canonicalize_v4_resource_placement_selectors(blueprint)
     blueprint = canonicalize_v4_distinctive_move_selectors(blueprint)
@@ -330,6 +331,39 @@ def canonicalize_v4_h1_owners(blueprint: ExperienceBlueprintV4) -> ExperienceBlu
     return blueprint.model_copy(update={"route_shells": shells})
 
 
+def canonicalize_v4_criterion_ids(
+    blueprint: ExperienceBlueprintV4, projections: dict[str, dict[str, Any]]
+) -> ExperienceBlueprintV4:
+    """Bind each responsive region to the admitted criterion for its section.
+
+    Acceptance criteria are compiler-owned facts from Build Preparation. A
+    model may describe the right region while omitting or echoing a stale
+    criterion id; retaining that omission makes an otherwise valid portfolio
+    fail late with an opaque coverage error. Rebinding the exact section
+    criteria is deterministic and preserves the source-audit contract.
+    """
+
+    site = projections.get("site/contract.json", {})
+    expected: dict[tuple[str, str], list[str]] = {}
+    for criterion in site.get("criteria", []) if isinstance(site, dict) else []:
+        if not isinstance(criterion, dict):
+            continue
+        route_id = str(criterion.get("route_id", ""))
+        section_id = str(criterion.get("section_id", ""))
+        criterion_id = str(criterion.get("criterion_id", ""))
+        if route_id and section_id and criterion_id:
+            expected.setdefault((route_id, section_id), []).append(criterion_id)
+    changed = False
+    regions = []
+    for region in blueprint.section_regions:
+        criterion_ids = expected.get((region.route_id, region.section_id), [])
+        if region.criterion_ids != criterion_ids:
+            region = region.model_copy(update={"criterion_ids": criterion_ids})
+            changed = True
+        regions.append(region)
+    return blueprint.model_copy(update={"section_regions": regions}) if changed else blueprint
+
+
 def canonicalize_v4_resource_placement_selectors(
     blueprint: ExperienceBlueprintV4,
 ) -> ExperienceBlueprintV4:
@@ -432,6 +466,7 @@ def _viewport_strategy(regions: list[Any], viewport: str) -> str:
 
 __all__ = [
     "canonicalize_generation_plan",
+    "canonicalize_v4_criterion_ids",
     "canonicalize_v4_distinctive_move_selectors",
     "canonicalize_v4_h1_owners",
     "canonicalize_v4_resource_placement_selectors",

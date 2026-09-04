@@ -7,8 +7,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from oryxenai.storage.artifacts import ArtifactReference
-
 
 class CodeGeneratorSessionStatus(StrEnum):
     NOT_STARTED = "not_started"
@@ -28,8 +26,9 @@ class CodeGeneratorSourceRef(BaseModel):
     build_preparation_run_id: str
     build_preparation_scope_hash: str
     build_preparation_source_ref: dict[str, Any]
-    archive_sha256: str
-    artifact: ArtifactReference
+    content_brief_sha256: str
+    visual_brief_sha256: str
+    brief_contract_hash: str
     bound_session_revision: int
 
 
