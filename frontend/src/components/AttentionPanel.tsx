@@ -20,12 +20,16 @@ export function AttentionPanel({
   inFlight = false,
 }: AttentionPanelProps) {
   const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const handleRetry = async () => {
     if (!onRetry || retrying || inFlight) return;
     setRetrying(true);
+    setRetryError(null);
     try {
       await onRetry();
+    } catch (reason) {
+      setRetryError(reason instanceof Error ? reason.message : "Retry could not be started. Please try again.");
     } finally {
       setRetrying(false);
     }
@@ -34,12 +38,13 @@ export function AttentionPanel({
   return (
     <div className="attention-panel" role="alert">
       <div className="attention-header">
-        <span className="attention-icon" aria-hidden="true">⚠</span>
+        <span className="attention-icon" aria-hidden="true">!</span>
         <h3 className="attention-title">{title}</h3>
       </div>
 
       <p className="attention-summary">{summary}</p>
       {preservedWorkNote && <p className="attention-preserved">{preservedWorkNote}</p>}
+      {retryError ? <p className="attention-retry-error" role="alert">{retryError}</p> : null}
 
       {onRetry && (
         <div className="attention-actions">

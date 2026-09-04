@@ -1,46 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parseAppUrlState, serializeAppUrlState } from "./url-state";
 
-describe("parseAppUrlState", () => {
-  it("parses valid stage and view", () => {
-    const state = parseAppUrlState("?stage=discover&view=work");
-    expect(state).toEqual({ stage: "discover", view: "work", route: null, viewport: null });
+describe("three-stage URL state", () => {
+  it("parses valid product stages", () => {
+    expect(parseAppUrlState("?stage=discover&view=work")).toEqual({ stage: "discover", view: "work" });
+    expect(parseAppUrlState("?stage=content&view=artifact")).toEqual({ stage: "content", view: "artifact" });
+    expect(parseAppUrlState("?stage=design&view=progress")).toEqual({ stage: "design", view: "progress" });
   });
 
-  it("parses content stage and artifact view", () => {
-    const state = parseAppUrlState("?stage=content&view=artifact");
-    expect(state).toEqual({ stage: "content", view: "artifact", route: null, viewport: null });
+  it("drops removed and unknown stage parameters", () => {
+    expect(parseAppUrlState("?stage=prepare&view=artifact")).toEqual({ stage: null, view: "artifact" });
+    expect(parseAppUrlState("?stage=preview&view=preview&route=%2Fprojects")).toEqual({ stage: null, view: null });
   });
 
-  it("normalizes preview view", () => {
-    const state = parseAppUrlState("?view=preview&route=%2Fprojects&viewport=mobile");
-    expect(state).toEqual({ stage: "preview", view: "preview", route: "/projects", viewport: "mobile" });
-  });
-
-  it("drops unknown stage and view keys", () => {
-    const state = parseAppUrlState("?stage=bogus&view=unknown");
-    expect(state).toEqual({ stage: null, view: null, route: null, viewport: null });
-  });
-
-  it("rejects path-traversal or backslash routes", () => {
-    const state = parseAppUrlState("?view=preview&route=..%2Fescape");
-    expect(state.route).toBeNull();
-  });
-});
-
-describe("serializeAppUrlState", () => {
-  it("serializes stage and view", () => {
-    const qs = serializeAppUrlState({ stage: "content", view: "artifact" });
-    expect(qs).toBe("?stage=content&view=artifact");
-  });
-
-  it("serializes preview parameters", () => {
-    const qs = serializeAppUrlState({ view: "preview", route: "/about", viewport: "tablet" });
-    expect(qs).toBe("?view=preview&route=%2Fabout&viewport=tablet");
-  });
-
-  it("returns empty string when no allowed keys are set", () => {
-    const qs = serializeAppUrlState({});
-    expect(qs).toBe("");
+  it("serializes only the product stage and view", () => {
+    expect(serializeAppUrlState({ stage: "content", view: "artifact" })).toBe("?stage=content&view=artifact");
+    expect(serializeAppUrlState({})).toBe("");
   });
 });

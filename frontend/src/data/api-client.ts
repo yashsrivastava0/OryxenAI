@@ -6,9 +6,8 @@
 // re-maps that into product-facing ApiError copy (errors.ts) rather than
 // re-implementing the fetch boundary.
 //
-// Only Discovery + session endpoints are wired for Phase 1
-// (docs/Frontend/05 §19). Content, Design, Build Preparation, and Code
-// Generator methods are added in the phases that own them.
+// The authenticated product intentionally ends after Visual Design Director.
+// Later stages keep separate development harnesses and are not callable here.
 
 import { ApiError } from "./errors";
 
@@ -193,58 +192,6 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         jsonInit("POST", {}),
       ),
 
-    getBuildPreparation: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation`,
-      ),
-
-    startBuildPreparation: (
-      sessionId: string,
-      body: { model_profile?: string } = {},
-    ) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/start`,
-        jsonInit("POST", body),
-      ),
-
-    regenerateBuildPreparation: (
-      sessionId: string,
-      body: { model_profile?: string } = {},
-    ) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/regenerate`,
-        jsonInit("POST", body),
-      ),
-
-    getCodeGenerator: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator`,
-      ),
-
-    startCodeGenerator: (sessionId: string, idempotencyKey: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/start`,
-        jsonInit("POST", {}, idempotencyKey),
-      ),
-
-    regenerateCodeGenerator: (sessionId: string, idempotencyKey: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/regenerate`,
-        jsonInit("POST", {}, idempotencyKey),
-      ),
-
-    retryCodeGenerator: (sessionId: string, idempotencyKey: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/retry`,
-        jsonInit("POST", {}, idempotencyKey),
-      ),
   };
 }
 

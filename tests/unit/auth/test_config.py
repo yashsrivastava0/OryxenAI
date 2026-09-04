@@ -111,6 +111,8 @@ def test_auth_policy_rejects_wildcards_and_symmetric_algorithms() -> None:
         AuthConfig(issuer_path="/custom-auth")
     with pytest.raises(ValueError, match="admission mode"):
         AuthConfig(admission_mode="everyone")
+    with pytest.raises(ValueError, match="development harness mode"):
+        AuthConfig(development_harness_mode="public")
 
 
 def test_configured_local_auth_rejects_incomplete_provider_coordinates() -> None:

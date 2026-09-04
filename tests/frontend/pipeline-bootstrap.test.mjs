@@ -60,6 +60,7 @@ test("detached bootstrap clears legacy browser keys and boots the workspace dire
   assert.equal(values.has("oryxenai.discovery.session"), false);
   assert.equal(values.has("oryxenai.private"), false);
   assert.equal(bootOptions.pipelineMode, "detached");
-  assert.equal(bootOptions.me, null);
+  assert.equal(bootOptions.me.id, "detached-user");
+  assert.equal(bootOptions.me.role, "admin");
   assert.equal(typeof bootOptions.authorizedFetch, "function");
 });

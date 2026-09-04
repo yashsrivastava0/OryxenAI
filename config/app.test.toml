@@ -81,6 +81,7 @@ registries_enabled = false
 enabled = true
 required = false
 pipeline_mode = "attached"
+development_harness_mode = "attached"
 admission_mode = "allowlist"
 primary_origin = "http://test"
 allowed_origins = ["http://test"]

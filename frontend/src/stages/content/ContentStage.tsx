@@ -3,6 +3,7 @@ import { ArtifactSurface, type ArtifactSectionItem } from "../../components/Arti
 import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
+import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
@@ -55,16 +56,19 @@ export function ContentStage({
     );
   }
 
+  if (view.state === "unsupported") {
+    return <UnsupportedPanel stageName="Content Architect" statusText={view.statusText} />;
+  }
+
   if (view.state === "working") {
     return (
       <ProgressSurface
         stageLabel="Stage 02 / Content Architect"
-        title="Structuring Portfolio Content Architecture"
-        currentMilestone={view.statusText || "Drafting routes and positioning statements"}
+        title="Structuring the content proof"
+        currentMilestone={view.statusText || "Content Architect is working from the approved brief"}
         milestones={[
-          { id: "brief", label: "Consuming approved Discovery brief", state: "complete" },
-          { id: "routes", label: "Architecting site route hierarchy & targets", state: "current" },
-          { id: "packs", label: "Drafting page content packs & section copy", state: "quiet" },
+          { id: "brief", label: "Approved Discovery brief received", state: "complete" },
+          { id: "current", label: view.statusText || "Content Architect is working", state: "current" },
         ]}
       />
     );
@@ -176,8 +180,8 @@ export function ContentStage({
         <HandoffPanel
           completedStageName="Content Plan"
           nextStageName="Visual Design Director"
-          summary="Your site content and route architecture are approved and locked. Visual Design Director will now establish the creative thesis, aesthetic tokens, and page-by-page visual language."
-          nextDescription="Visual Design Director directs the typography hierarchy, color intention, motion rules, and resolves adaptable layout components."
+          summary="Your site content and route architecture are approved and locked. Visual Design Director is ready to establish the creative thesis and page-by-page visual language."
+          nextDescription="Visual Design Director establishes typography, color, motion rules, and page-level composition."
           actionLabel="Continue to Design"
           onContinue={onContinueToDesign}
         />

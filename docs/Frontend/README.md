@@ -1,18 +1,20 @@
 # OryxenAI frontend research
 
-> Status: reviewed and accepted (2026-09-02). See
+> Status: implemented for the authenticated three-agent release (2026-09-04).
+> The current `/app` boundary is Discovery, Content Architect, and Visual Design
+> Director only; Build Preparation, Code Generator, and Preview remain deferred
+> product phases while their backend and development surfaces continue separately.
+> See `DECISIONS.md` D-063 and
 > [06-cross-model-review-log](06-cross-model-review-and-decisions.md) for the review
-> record, two implementation-safety corrections, and the resolved deployment
-> target. A formal `DECISIONS.md` ADR is still pending explicit owner sign-off.
-> This package does not change an API, agent, database schema, preview invariant,
-> or deployed interface.
+> record and implementation-safety corrections. The later-stage material in this
+> package is retained as deferred research, not current `/app` scope.
 
 ## Recommendation in one sentence
 
 Build OryxenAI as a light, single-portfolio **studio that changes posture as the
 portfolio advances**: conversational during Discovery, document-oriented during
-Content and Design review, progress-oriented during preparation and generation,
-and preview-first after a verified build is promoted.
+Content and Design review, and explicit about ending this release at an approved
+creative handoff.
 
 This is deliberately not a chatbot wrapped around a dashboard and not a browser
 IDE. The user is producing one portfolio through a sequence of explicit decisions.
@@ -38,9 +40,9 @@ result obvious.
 | Agent sequence and explicit handoffs | 01 | 02 state maps; 05 adapters/actions |
 | Discovery conversation and brief | 01 | 02 edge cases; 05 endpoint/component contract |
 | Content and Design artifact review | 01 | 02 state maps; 05 artifact/revision contract |
-| Build Preparation progress | 02 | 04 evidence; 05 compatibility adapter |
-| Production Code Generator integration | 02 | 04 evidence; 05 production endpoint/adapter contract |
-| Preview behavior and security | 01, 02 | 03 architecture; 05 validation/acceptance |
+| Deferred Build Preparation product work | 02 | 04 evidence; 05 historical compatibility proposal |
+| Deferred Code Generator product work | 02 | 04 evidence; 05 historical endpoint/adapter proposal |
+| Deferred Preview product work | 01, 02 | 03 architecture; 05 historical validation proposal |
 | Visual identity, theme, imagery, and motion | 03 | 04 style comparison and asset strategy |
 | Performance and low-cost hosting | 03 | 04 platform findings; 05 measurable gates |
 | Accessibility and responsive behavior | 02, 03 | 05 implementation acceptance |
@@ -86,10 +88,10 @@ system does not have.
 
 ### The sequence is explicit and gated
 
-The durable product sequence is:
+The current authenticated product sequence is:
 
 ```text
-Discover -> Content -> Design -> Prepare -> Generate -> Preview
+Discover -> Content -> Design -> Creative handoff saved
 ```
 
 The user-facing names are intentionally shorter than the implementation names:
@@ -99,13 +101,17 @@ The user-facing names are intentionally shorter than the implementation names:
 | Discover | Discovery | Approved brief |
 | Content | Content Architect | Approved content plan |
 | Design | Visual Design Director | Approved visual direction |
-| Prepare | Build Preparation | Eligible verified pack |
-| Generate | Code Generator | Verified promoted build |
-| Preview | Preview gateway | Active preview receipt can be served |
 
-Preview is an outcome, not another agent. Every agent or stage begins through an
-explicit call. Approval of one stage must reveal a clear “Continue” action; it must
-not imply that the next stage started automatically.
+Every agent begins through an explicit call. Approval of one stage must reveal a
+clear continuation action; it must not imply that the next stage started
+automatically. Approval of Design is terminal in `/app`: it records a creative
+handoff and does not call Build Preparation or Code Generator.
+
+Build Preparation, Code Generator, and Preview remain implemented or researched
+outside this release boundary. Their production APIs retain server authorization,
+and their existing developer harnesses remain available for development. They must
+not appear in the authenticated product until a later release decision explicitly
+adds them.
 
 Authoritative source areas:
 
@@ -116,7 +122,7 @@ Authoritative source areas:
 - `src/oryxenai/agents/code_generator/`
 - `DECISIONS.md`
 
-### Preview means verified preview
+### Deferred Preview still means verified preview
 
 The product may embed only the active, promoted build. Generation does not expose a
 hot-reloading candidate, unverified source tree, or temporary development server.
@@ -173,8 +179,7 @@ from server state:
 No portfolio     -> a focused start surface
 Incomplete       -> resume the current decision or active run
 Needs attention  -> show recovery before secondary content
-Preview ready    -> make the verified preview the primary surface
-Read-only        -> keep the preview and approved artifacts reviewable
+Design approved  -> preserve the three approved artifacts and creative handoff
 ```
 
 There is no permanent three-column control room. The visible hierarchy changes
@@ -185,9 +190,7 @@ because the user’s job changes:
 | Discovery | Conversation and one current question | Intake/brief summary |
 | Content review | Readable content artifact | Revision composer |
 | Design review | Visual-direction artifact | Revision composer |
-| Build Preparation | Semantic preparation milestones | Approved source summary |
-| Code Generator | Semantic generation milestones | Existing preview, when one exists |
-| Complete | Verified portfolio preview | Journey and approved artifacts |
+| Complete | Creative handoff confirmation | Journey and approved artifacts |
 
 ### Agentic without looking like a chatbot
 
@@ -197,11 +200,11 @@ The AI character comes from observable handoffs, not decorative AI imagery:
 - completed artifacts remain inspectable as durable outputs;
 - the current stage explains what it is doing in user language;
 - user decisions receive stronger visual weight than background work; and
-- the Preview is visibly treated as the result of verified work.
+- the final approved direction is visibly treated as a saved creative handoff.
 
-Chat is used only where the backend supports conversational input. Build
-Preparation and Code Generator are run/progress interfaces, not empty chat boxes
-waiting for unsupported follow-up prompts.
+Chat is used only where the backend supports conversational input. Content and
+Design are run/review interfaces, not empty chat boxes waiting for unsupported
+follow-up prompts.
 
 ## Visual premise: Editorial Swiss - The Living Draft
 
@@ -254,15 +257,18 @@ The detailed palette, typography, spacing, motion, and component rules live in t
    code-native construction-line SVG, editorial composition, and the generated
    portfolio itself as the primary visual material.
 
-9. Target Render-style free web hosting plus the existing Cloudflare R2 artifact
+9. End the current normal-product UI after approved Visual Design Direction.
+   Preserve later-stage backend authorization and keep development-harness auth
+   independently configurable; see `DECISIONS.md` D-063.
+10. Target Render-style free web hosting plus the existing Cloudflare R2 artifact
    storage for the deployed product, per
    `docs/code-generator-architecture/free-host-deployment.md`. Treat the early AWS
    contingency in `docs/Auth/04-deployment-and-operations.md` as superseded
    unless explicitly revisited.
 
 These recommendations were reviewed on 2026-09-02 (see
-[06-cross-model-review-log](06-cross-model-review-and-decisions.md)). Record the formal
-ADR in `DECISIONS.md` once the owner gives explicit sign-off.
+[06-cross-model-review-log](06-cross-model-review-and-decisions.md)); the current
+three-agent release boundary is recorded in `DECISIONS.md` D-063.
 
 ## Explicit non-goals
 
@@ -277,6 +283,8 @@ The product frontend must not imply support for:
 - arbitrary downloads from generated content;
 - user-visible version history or rollback;
 - public portfolio deployment or custom domains;
+- Build Preparation, Code Generator, or Preview controls in the current
+  authenticated product;
 - exact progress percentages or time remaining; or
 - raw internal logs, provider names, storage vendors, hashes, or stack traces.
 
