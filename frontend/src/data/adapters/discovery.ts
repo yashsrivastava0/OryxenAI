@@ -146,7 +146,7 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
       : [];
   const effectiveState: StageState =
     (status === "questions_ready" || status === "answers_in_progress") && currentQuestions.length === 0
-      ? "working"
+      ? (allQuestions.length > 0 ? "working" : "available")
       : mappedState;
 
   const briefState = isRecord(raw.brief) ? raw.brief : {};

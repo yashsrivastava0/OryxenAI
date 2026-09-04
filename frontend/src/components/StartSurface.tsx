@@ -44,29 +44,24 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
 
   return (
     <section className="start-surface" aria-labelledby="start-heading">
-      <div className="start-editorial">
-        <p className="eyebrow">First proof / Discovery</p>
-        <h2 id="start-heading">Begin with evidence, not a template.</h2>
+      <div className="start-hero-header">
+        <p className="eyebrow">Portfolio studio / Discovery</p>
+        <h1 id="start-heading">Shape the evidence. Approve the story.</h1>
         <p className="start-lede">
-          Paste the material you already trust: a short bio, resume bullets, project notes, links, or the role this portfolio should support. Discovery will ask only for what is missing.
+          Paste your resume, work history, or project notes below. Discovery extracts the signal, asks for what is missing, and never advances without your approval.
         </p>
-        <ol className="start-method" aria-label="Three-stage workflow">
-          <li><span>01</span><strong>Discovery</strong><small>find the signal in your experience</small></li>
-          <li><span>02</span><strong>Content</strong><small>shape routes and portfolio copy</small></li>
-          <li><span>03</span><strong>Direction</strong><small>approve a coherent visual system</small></li>
-        </ol>
       </div>
 
-      <form className="intake-proof" onSubmit={submit} noValidate>
+      <form className="intake-proof centered-composer" onSubmit={submit} noValidate>
         <div className="intake-heading">
-          <label htmlFor="intake-notes">Source notes</label>
+          <label htmlFor="intake-notes">Source notes or resume</label>
           <span aria-label={`${characterCount} characters`}>{characterCount.toLocaleString()} characters</span>
         </div>
         <textarea
           id="intake-notes"
-          rows={12}
+          rows={11}
           value={intakeText}
-          placeholder="Example: I design reliable backend systems. The strongest evidence is a queue migration I led, an API platform I rebuilt, and the way I mentor engineers..."
+          placeholder="Paste your resume, work history, key project metrics, case study notes, or target roles here…"
           onInput={(event) => {
             setIntakeText((event.target as HTMLTextAreaElement).value);
             setError(null);
@@ -85,12 +80,29 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
         </div>
         {error ? <p className="start-error" role="alert">{error}</p> : null}
         <div className="intake-actions">
-          <p>Your notes stay private. Each stage waits for your explicit approval.</p>
+          <p>🔒 Private workspace · Explicit approval at each stage</p>
           <button className="btn-primary" type="submit" disabled={disabled || inFlight || !intakeText.trim()}>
-            {inFlight ? "Starting Discovery…" : "Start Discovery"}
+            {inFlight ? "Starting Discovery…" : "Start Discovery →"}
           </button>
         </div>
       </form>
+
+      <div className="start-method-banner" aria-label="Three-stage workflow">
+        <div className="method-step">
+          <span className="step-num">01</span>
+          <div className="step-text"><strong>Discovery</strong><small>signal & brief</small></div>
+        </div>
+        <span className="method-sep" aria-hidden="true">→</span>
+        <div className="method-step">
+          <span className="step-num">02</span>
+          <div className="step-text"><strong>Content</strong><small>routes & copy</small></div>
+        </div>
+        <span className="method-sep" aria-hidden="true">→</span>
+        <div className="method-step">
+          <span className="step-num">03</span>
+          <div className="step-text"><strong>Direction</strong><small>visual systems</small></div>
+        </div>
+      </div>
     </section>
   );
 }
