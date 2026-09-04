@@ -17,6 +17,7 @@ import { ContentStage } from "../stages/content/ContentStage";
 import { DesignStage } from "../stages/design/DesignStage";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
+import { safeSessionStorage } from "../data/safe-storage";
 
 export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
@@ -24,6 +25,8 @@ export interface AppShellProps {
   serverSessionId: string | null;
   readOnly: boolean;
 }
+
+const ACTIVE_SESSION_STORAGE_KEY = "oryxenai.active_session_id";
 
 function viewForStage(stage: JourneyStageId): "work" | "artifact" {
   return stage === "discover" ? "work" : "artifact";
@@ -37,11 +40,17 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const initialStage = initialUrl.stage ?? "discover";
   const [activeStage, setActiveStage] = useState<JourneyStageId>(initialStage);
   const [mutatingStage, setMutatingStage] = useState<JourneyStageId | null>(null);
+
+  const initialSessionId = useMemo(() => {
+    if (serverSessionId) return serverSessionId;
+    return safeSessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+  }, [serverSessionId]);
+
   const [state, dispatch] = useReducer(appReducer, {
     ...initialAppState,
     me,
     readOnly,
-    sessionId: serverSessionId,
+    sessionId: initialSessionId,
     activeStage: initialStage,
   });
 
@@ -143,8 +152,12 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   }, [refetchCurrentSession, state.sessionId]);
 
   useEffect(() => {
-    if (state.sessionId) void refetchCurrentSession();
-    else dispatch({ type: "connection/set", state: "confirmed" });
+    if (state.sessionId) {
+      safeSessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, state.sessionId);
+      void refetchCurrentSession();
+    } else {
+      dispatch({ type: "connection/set", state: "confirmed" });
+    }
   }, [refetchCurrentSession, state.sessionId]);
 
   useEffect(() => {
@@ -255,6 +268,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       if (!sessionId) {
         const created = await api.createSession("Portfolio workspace");
         sessionId = created.id;
+        safeSessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
         dispatch({ type: "session/set", sessionId, revision: created.revision });
       }
       const action = "discovery-start";
@@ -400,6 +414,17 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
               <p><strong>{me.username ?? "OryxenAI account"}</strong><span>{me.role === "admin" ? "Administrator" : "Portfolio owner"}</span></p>
               {state.readOnly ? <span className="read-only-tag">Read-only workspace</span> : null}
               {me.role === "admin" ? <a id="app-admin-link" href="/admin">Administration</a> : null}
+              {state.sessionId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    safeSessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+                    window.location.href = "/app";
+                  }}
+                >
+                  Start new portfolio
+                </button>
+              ) : null}
               <button id="app-logout" type="button">Sign out</button>
             </div>
           </details>
@@ -408,11 +433,13 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         <ConnectionBanner state={state.connection} />
 
         <div className="app-work-surface">
-          <div className="workspace-heading">
-            <p className="eyebrow">Authenticated workspace</p>
-            <h1>Shape the evidence. Approve the story.</h1>
-            <p>Three deliberate passes turn your source material into an approved portfolio brief, content architecture, and visual direction.</p>
-          </div>
+          {state.sessionId ? (
+            <div className="workspace-heading compact">
+              <p className="eyebrow">Authenticated workspace</p>
+              <h1>Shape the evidence. Approve the story.</h1>
+              <p>Three deliberate passes turn your source material into an approved portfolio brief, content architecture, and visual direction.</p>
+            </div>
+          ) : null}
 
           {state.sessionId ? (
             <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
