@@ -277,7 +277,7 @@ class ModelRuntime:
             raise ProviderConfigError(
                 f"Model profile '{profile_name}' uses an OpenAI effort parameter on Anthropic."
             )
-        if provider in {"openai", "openai_compatible", "opencode_go"} and (
+        if provider in {"openai", "openai_compatible", "opencode_go", "scalemax"} and (
             capabilities.effort_parameter == "output_config_effort"
         ):
             raise ProviderConfigError(

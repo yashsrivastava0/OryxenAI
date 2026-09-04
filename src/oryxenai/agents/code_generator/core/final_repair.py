@@ -27,7 +27,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 )
 from oryxenai.agents.code_generator.core.diagnostics import build_bundle
 from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
-from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.generation_prompt_builder import (
+    FINAL_REPAIR_KEY_ORDER,
+    build_instructions,
+)
 from oryxenai.agents.code_generator.core.source_generation_adapter import (
     adapt_v4_generation_result,
 )
@@ -151,6 +154,10 @@ class FinalRepairer:
                 system_prompt=system,
                 model_profile=str(settings.code_generator_generation.repair_profile),
                 strict_schema=True,
+                request_context={
+                    "key_order": FINAL_REPAIR_KEY_ORDER,
+                    "prompt_cache_key": f"codegen:{identity.identity_hash}:repair",
+                },
             )
             parsed = getattr(raw, "parsed_output", raw)
             if is_v4:

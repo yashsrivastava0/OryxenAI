@@ -310,6 +310,82 @@ class TestOpenCodeGoAdapterStructured:
                 )
 
 
+class TestOpenCodeGoAdapterStrictSchemaReinforcement:
+    """A gateway can accept a strict json_schema request (200 OK) without
+    actually constraining decoding to it -- observed live via ScaleMax, where
+    the model invented an unlisted property despite additionalProperties:
+    false. strict_schema=True must restate the exact schema as prompt text
+    too, as a gateway-independent safety net; non-strict callers are
+    unaffected."""
+
+    def _strict_capabilities(self):
+        from oryxenai.agents.shared.providers.capabilities import ModelCapabilities
+
+        return ModelCapabilities(
+            json_object_mode=True,
+            json_schema_mode=True,
+            thinking_mode=True,
+            structured_output_mode="native_json_schema",
+            reasoning_content=False,
+            temperature_control=False,
+            usage_metadata=True,
+            response_id=True,
+            context_cache_metadata=False,
+            supports_store_parameter=True,
+            uses_max_completion_tokens=True,
+        )
+
+    def test_strict_schema_true_restates_schema_as_prompt_text(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile(capabilities=self._strict_capabilities()))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                    strict_schema=True,
+                )
+            )
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        schema_messages = [m for m in messages if "matching this exact schema" in m["content"]]
+        assert len(schema_messages) == 1
+        assert '"additionalProperties": false' in schema_messages[0]["content"]
+
+    def test_strict_schema_false_does_not_restate_schema(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile(capabilities=self._strict_capabilities()))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                    strict_schema=False,
+                )
+            )
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        assert not any("matching this exact schema" in m["content"] for m in messages)
+
+
 class TestOpenCodeGoAdapterErrors:
     def test_retries_provider_schema_rejection_as_json_object(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
@@ -590,7 +666,21 @@ class TestAdapterFactory:
         assert can_build(_make_profile()) is True
         assert can_build(_make_profile(provider="openai")) is True
         assert can_build(_make_profile(provider="openai_compatible")) is True
+        assert can_build(_make_profile(provider="scalemax")) is True
         assert can_build(_make_profile(provider="unknown_provider")) is False
+
+    def test_build_adapter_scalemax(self):
+        from oryxenai.agents.shared.providers.factory import build_adapter
+
+        profile = _make_profile(
+            provider="scalemax",
+            base_url="https://api.scalemax.pro/v1",
+            api_key_env="TEST_API_KEY",
+        )
+        with patch.dict("os.environ", {"TEST_API_KEY": "sk-test-key"}):
+            adapter = build_adapter(profile)
+            assert adapter.profile.provider == "scalemax"
+            assert adapter.profile.base_url == "https://api.scalemax.pro/v1"
 
 
 class TestOpenCodeGoAdapterCapabilityHandling:
@@ -791,3 +881,221 @@ class TestOpenCodeGoAdapterCapabilityHandling:
         assert "reasoning" not in result.parsed_output
         serialized = result.model_dump_json()
         assert "SECRET REASONING" not in serialized
+
+
+class TestOpenCodeGoAdapterRequestContext:
+    """request_context is an existing, previously-unused ModelClient hook.
+
+    Code Generator uses it to pass an optional key_order (stable-first wire
+    ordering, for provider-side prefix caching) and prompt_cache_key. Every
+    other caller never sets it, so default behavior (alphabetical sort_keys)
+    must stay exactly as before.
+    """
+
+    def test_default_payload_order_is_alphabetical_sort_keys(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+        payload = {"zebra": 1, "alpha": 2, "middle": 3}
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload=payload,
+                    output_model=QuestionSetOutput,
+                )
+            )
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        untrusted = next(m["content"] for m in messages if m["content"].startswith("<untrusted_input"))
+        assert untrusted.index('"alpha"') < untrusted.index('"middle"') < untrusted.index('"zebra"')
+
+    def test_key_order_moves_listed_keys_first(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+        payload = {"zebra": 1, "alpha": 2, "middle": 3}
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload=payload,
+                    output_model=QuestionSetOutput,
+                    request_context={"key_order": ["zebra", "middle"]},
+                )
+            )
+        messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+        untrusted = next(m["content"] for m in messages if m["content"].startswith("<untrusted_input"))
+        assert untrusted.index('"zebra"') < untrusted.index('"middle"') < untrusted.index('"alpha"')
+
+    def test_key_order_two_calls_share_identical_stable_prefix(self, monkeypatch):
+        """The actual caching payoff: two calls whose *unique* keys differ
+        still produce a byte-identical prefix once the shared keys are
+        ordered first."""
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+        shared = {"foundation": {"big": "identical across calls"}}
+
+        def _run(unique_value: str):
+            with patch.object(adapter, "_build_client", return_value=mock_client):
+                import asyncio
+
+                asyncio.run(
+                    adapter.generate_structured(
+                        operation="test",
+                        instructions="test",
+                        input_payload={**shared, "per_call": unique_value},
+                        output_model=QuestionSetOutput,
+                        request_context={"key_order": ["foundation"]},
+                    )
+                )
+            messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
+            return next(m["content"] for m in messages if m["content"].startswith("<untrusted_input"))
+
+        first = _run("call-one")
+        second = _run("call-two")
+        prefix_len = len('<untrusted_input operation="test" encoding="json">\n{"foundation":')
+        assert first[:60] == second[:60]
+        assert first[:prefix_len] == second[:prefix_len]
+
+    def test_prompt_cache_key_sent_when_capability_supported(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.capabilities import DEFAULT_OPENCODE_GO
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        caps = DEFAULT_OPENCODE_GO.model_copy(update={"supports_prompt_cache_key": True})
+        adapter = OpenCodeGoAdapter(_make_profile(capabilities=caps))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                    request_context={"prompt_cache_key": "codegen:run-1:role-1"},
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["prompt_cache_key"] == "codegen:run-1:role-1"
+
+    def test_prompt_cache_key_omitted_when_capability_unsupported(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())  # DEFAULT_OPENCODE_GO: flag defaults False
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                    request_context={"prompt_cache_key": "codegen:run-1:role-1"},
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "prompt_cache_key" not in call_kwargs
+
+    def test_prompt_cache_key_omitted_when_not_given(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.capabilities import DEFAULT_OPENCODE_GO
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        caps = DEFAULT_OPENCODE_GO.model_copy(update={"supports_prompt_cache_key": True})
+        adapter = OpenCodeGoAdapter(_make_profile(capabilities=caps))
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                )
+            )
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "prompt_cache_key" not in call_kwargs
+
+    def test_cached_prompt_tokens_surfaced_when_provider_reports_them(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        details = MagicMock()
+        details.cached_tokens = 42
+        response.usage.prompt_tokens_details = details
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            result = asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                )
+            )
+        assert result.usage["cached_prompt_tokens"] == 42
+
+    def test_cached_prompt_tokens_absent_when_provider_does_not_report_them(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+        response = _mock_chat_response('{"ok": true}')
+        mock_client = _make_mock_openai_client(response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            result = asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="test",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                )
+            )
+        assert "cached_prompt_tokens" not in result.usage

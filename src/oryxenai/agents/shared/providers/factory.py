@@ -29,6 +29,7 @@ _ADAPTER_BUILDERS: dict[str, AdapterBuilder] = {
     "opencode_go": _openai_compatible,
     "openai": _openai_compatible,
     "openai_compatible": _openai_compatible,
+    "scalemax": _openai_compatible,
     "anthropic": _anthropic,
 }
 

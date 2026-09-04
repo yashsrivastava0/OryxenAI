@@ -10,9 +10,15 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     CreativeDirectionSetV2,
     CreativeDirectionSetV3,
 )
-from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.generation_prompt_builder import (
+    PLANNER_FOUNDATION_KEY_ORDER,
+    build_instructions,
+)
 from oryxenai.agents.shared.contracts import ModelClient
 from oryxenai.agents.shared.providers.errors import ModelJsonInvalidError, ModelOutputTruncatedError
+from oryxenai.core.logging import get_logger
+
+logger = get_logger("oryxenai.agents.code_generator.creative_operation")
 
 
 async def run_creative_direction_operation(
@@ -45,11 +51,28 @@ async def run_creative_direction_operation(
                 system_prompt=system,
                 model_profile=profile_name,
                 strict_schema=True,
+                request_context={"key_order": PLANNER_FOUNDATION_KEY_ORDER},
             )
             parsed = getattr(result, "parsed_output", result)
             return output_model.model_validate(parsed), receipt, result
         except (ModelJsonInvalidError, ModelOutputTruncatedError, ValidationError) as exc:
             last_issue = str(exc).strip() or type(exc).__name__
             if attempt:
+                if isinstance(exc, ValidationError):
+                    # Field paths and pydantic's own error types/messages only —
+                    # never the model's actual field values — so this is safe
+                    # to log even though the API response stays generic.
+                    summary = "; ".join(
+                        f"{'.'.join(str(part) for part in error.get('loc', ())) or 'root'}: "
+                        f"{str(error.get('msg', 'invalid value'))[:160]}"
+                        for error in exc.errors(include_url=False)[:8]
+                    )
+                    logger.warning(
+                        "operation=code_generator.direct profile=%s output_model=%s "
+                        "validation_failed_final_attempt: %s",
+                        profile_name,
+                        output_model.__name__,
+                        summary[:800],
+                    )
                 raise
     raise RuntimeError("creative direction validation failed")

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -139,10 +139,21 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
         request_id: str,
         system_prompt: str | None = None,
         strict_schema: bool = False,
+        request_context: Any = None,
     ) -> Any:
         from oryxenai.agents.discovery.schemas import StructuredModelResult
 
         self._ensure_initialized()
+
+        key_order: Sequence[str] | None = None
+        prompt_cache_key: str | None = None
+        if isinstance(request_context, Mapping):
+            raw_order = request_context.get("key_order")
+            if isinstance(raw_order, (list, tuple)):
+                key_order = [str(item) for item in raw_order]
+            raw_cache_key = request_context.get("prompt_cache_key")
+            if isinstance(raw_cache_key, str) and raw_cache_key:
+                prompt_cache_key = raw_cache_key
 
         messages: list[dict[str, str]] = []
         if system_prompt:
@@ -152,7 +163,9 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             messages.append(
                 {
                     "role": "user",
-                    "content": _serialize_structured_input(operation, input_payload),
+                    "content": _serialize_structured_input(
+                        operation, input_payload, key_order=key_order
+                    ),
                 }
             )
 
@@ -179,14 +192,35 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             )
         response_format: dict[str, Any] | None = None
         if structured_mode == "native_json_schema":
+            strict_schema_payload = _strict_json_schema(output_model)
             response_format = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": output_model.__name__.lower(),
                     "strict": True,
-                    "schema": _strict_json_schema(output_model),
+                    "schema": strict_schema_payload,
                 },
             }
+            if strict_schema:
+                # response_format alone is not always reliably enforced by
+                # every OpenAI-protocol gateway (observed live: a gateway can
+                # return 200 for a strict json_schema request yet the model
+                # still omits a required property or invents an unlisted one,
+                # e.g. "motion" instead of the declared "motion_vocabulary").
+                # Restating the exact schema as prompt text is a harmless
+                # no-op for a gateway that already enforces it, and a real
+                # safety net for one that doesn't.
+                schema_instruction = {
+                    "role": "user",
+                    "content": (
+                        "Return exactly one JSON object matching this exact schema and no "
+                        "commentary. Use only these property names -- never invent, rename, "
+                        "or omit a required property -- and copy any literal enum/const value "
+                        "exactly as declared:\n"
+                        + json.dumps(strict_schema_payload, ensure_ascii=False, sort_keys=True)
+                    ),
+                }
+                messages.insert(max(len(messages) - 1, 1), schema_instruction)
         elif structured_mode == "json_object":
             if not self._capabilities.json_object_mode:
                 from oryxenai.agents.shared.providers.errors import (
@@ -220,7 +254,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 timeout=self._profile.timeout_seconds,
                 **{token_kwarg: self._profile.max_output_tokens},
                 **structured_kwargs,
-                **self._structured_call_kwargs(),
+                **self._structured_call_kwargs(prompt_cache_key),
                 **extra,
             )
         except Exception as exc:
@@ -269,7 +303,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                         response_format={"type": "json_object"},
                         timeout=self._profile.timeout_seconds,
                         **{token_kwarg: self._profile.max_output_tokens},
-                        **self._structured_call_kwargs(),
+                        **self._structured_call_kwargs(prompt_cache_key),
                         **extra,
                     )
                 except Exception as retry_exc:
@@ -311,6 +345,14 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 "completion_tokens": response.usage.completion_tokens or 0,
                 "total_tokens": response.usage.total_tokens or 0,
             }
+            # Best-effort cache-hit evidence. Real OpenAI (and OpenAI-protocol
+            # gateways that pass usage through unmodified) report this nested
+            # field only when prefix caching actually hit; absent on gateways
+            # that don't support/forward it, so this must never be required.
+            details = getattr(response.usage, "prompt_tokens_details", None)
+            cached = getattr(details, "cached_tokens", None) if details is not None else None
+            if isinstance(cached, int):
+                usage_dict["cached_prompt_tokens"] = cached
 
         return StructuredModelResult(
             parsed_output=parsed_output,
@@ -389,11 +431,13 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             merged.setdefault("reasoning_effort", self._profile.reasoning_effort)
         return merged
 
-    def _structured_call_kwargs(self) -> dict[str, Any]:
+    def _structured_call_kwargs(self, prompt_cache_key: str | None = None) -> dict[str, Any]:
         """Extra kwargs for the structured chat/completions call."""
         kwargs: dict[str, Any] = {}
         if self._capabilities.supports_store_parameter:
             kwargs["store"] = bool(self._profile.store)
+        if self._capabilities.supports_prompt_cache_key and prompt_cache_key:
+            kwargs["prompt_cache_key"] = prompt_cache_key
         return kwargs
 
     def _map_sdk_error(self, exc: Exception) -> Exception:
@@ -477,7 +521,12 @@ def _safe_body(exc: Any) -> dict[str, Any] | None:
         return None
 
 
-def _serialize_structured_input(operation: str, input_payload: Mapping[str, object]) -> str:
+def _serialize_structured_input(
+    operation: str,
+    input_payload: Mapping[str, object],
+    *,
+    key_order: Sequence[str] | None = None,
+) -> str:
     """Serialize untrusted structured input once, separately from instructions.
 
     Every ModelClient structured call carries its data through ``input_payload``.
@@ -485,11 +534,29 @@ def _serialize_structured_input(operation: str, input_payload: Mapping[str, obje
     divergence and makes the provider boundary auditable. The XML-like wrapper
     is an instruction-boundary marker only; its contents are canonical JSON and
     must always be treated as data, never as trusted instructions.
+
+    ``key_order``, when given, moves those keys to the front (in that order)
+    and serializes in that fixed order instead of alphabetically — the exact
+    same flat JSON shape either way, just reordered, so this never changes
+    what the model reads. It exists so a caller whose payload repeats a large
+    invariant prefix across many calls in one run (Code Generator's route/
+    plan/foundation context) can keep that prefix byte-identical call to
+    call, which alphabetical ``sort_keys`` ordering would otherwise break by
+    interleaving it with each call's unique keys.
     """
 
-    serialized = json.dumps(
-        dict(input_payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
-    )
+    payload = dict(input_payload)
+    if key_order:
+        ordered: dict[str, object] = {}
+        for key in key_order:
+            if key in payload:
+                ordered[key] = payload.pop(key)
+        ordered.update(payload)
+        serialized = json.dumps(ordered, ensure_ascii=False, separators=(",", ":"), default=str)
+    else:
+        serialized = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
+        )
     escaped = serialized.replace("</untrusted_input>", "<\\/untrusted_input>")
     return (
         f'<untrusted_input operation={json.dumps(operation)} encoding="json">\n'
