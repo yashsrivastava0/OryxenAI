@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-05 01:10 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [e635df6] - consolidate agent outputs and eliminate prebuild-output legacy locations
+### 2026-09-05 01:10 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [9fabd58] - consolidate agent outputs and eliminate prebuild-output legacy locations
 
 Cleaned up repository structure and unified all agent outputs under a single canonical `output/` directory:
 (1) Removed deprecated `prebuild-output/` directory, including git-removal of legacy August zip packs (`15-36-25-08-8acdcb12` and `22-51-01-09-1961f2c9`), unadopted proposal document, and admission scratch files.
