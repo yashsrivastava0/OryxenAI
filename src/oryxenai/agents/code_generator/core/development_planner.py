@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
@@ -47,6 +48,10 @@ def build_planner_context(
     )
     return {
         "site_contract": site,
+        "navigation_contract": site.get(
+            "navigation_contract",
+            {"closed": True, "allowed_destinations": [], "allowed_hrefs": []},
+        ),
         "visual_direction": visual,
         "resource_bindings": {
             "slots": execution.get("slots", []),
@@ -63,6 +68,7 @@ def build_planner_context(
             for (route_id, section_id), values in sorted(content_ids.items())
         ],
         "blueprint_identity_manifest": _blueprint_identity_manifest(site),
+        "blueprint_selector_manifest": _blueprint_selector_manifest(site),
         "receipt": {
             "admitted_identity": input_receipt["admitted_identity"],
             "projection_hashes": input_receipt["projection_hashes"],
@@ -145,6 +151,20 @@ def validate_v4_blueprint_identities(
                 "PLAN_BLUEPRINT_IDENTITY_DRIFT",
                 "V4 region and semantic-owner IDs must echo the host identity manifest exactly.",
             )
+
+
+def _blueprint_selector_manifest(site_contract: dict[str, Any]) -> list[dict[str, str]]:
+    """Provide stable selectors without changing the historical identity map."""
+
+    return [
+        {
+            "route_id": str(item["route_id"]),
+            "section_id": str(item["section_id"]),
+            "section_selector": f"#{_section_anchor(str(item['section_id']))}",
+            "region_selector": f"[data-region-id=\"{item['region_id']}\"]",
+        }
+        for item in _blueprint_identity_manifest(site_contract)
+    ]
 
 
 def context_hash(context: dict[str, Any]) -> str:
@@ -395,6 +415,11 @@ def _route_path(value: str) -> bool:
     return (
         bool(value) and value.startswith("/") and "\\" not in value and ".." not in value.split("/")
     )
+
+
+def _section_anchor(section_id: str) -> str:
+    value = section_id.split(":", 1)[-1].casefold()
+    return "-".join(part for part in re.split(r"[^a-z0-9]+", value) if part) or "section"
 
 
 def _safe_owned_path(value: str) -> bool:

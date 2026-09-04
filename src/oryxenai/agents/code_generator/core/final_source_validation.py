@@ -27,6 +27,8 @@ _IMPORT_RE = re.compile(
 _COMPONENT_IMPORT_RE = re.compile(
     r"import\s+(?P<bindings>[\s\S]*?)\s+from\s+[\"'](?P<module>[^\"']+)[\"']"
 )
+_NAV_RE = re.compile(r"<nav\b[^>]*>(?P<body>[\s\S]*?)</nav\s*>", re.IGNORECASE)
+_HREF_RE = re.compile(r"\bhref\s*=\s*[\"'](?P<href>[^\"']+)[\"']")
 _HEADING_TEXT_RE = re.compile(r"<h[1-6]\b[^>]*>([^<]*)</h[1-6]>", re.DOTALL)
 
 
@@ -228,6 +230,7 @@ def validate_final_source(
     allowed_packages: set[str],
     public_text: set[str],
     work_unit_id: str = "final-source",
+    max_source_bytes: int = 32 * 1024 * 1024,
 ) -> list[Diagnostic]:
     del work_unit_id
     diagnostics: list[Diagnostic] = []
@@ -235,7 +238,7 @@ def validate_final_source(
         repo_dir,
         allowed_packages=allowed_packages,
         public_text=public_text,
-        max_source_bytes=8 * 1024 * 1024,
+        max_source_bytes=max_source_bytes,
         work_unit_id="final-source",
     )
     diagnostics.extend(
@@ -498,7 +501,81 @@ def validate_final_source(
                     route_id=interaction.route_id,
                 )
             )
+    _validate_closed_navigation(
+        diagnostics,
+        routes=routes,
+        route_source_by_id=route_source_by_id,
+        navigation=site.get("navigation_contract", {}),
+    )
     return _dedupe(diagnostics)
+
+
+def _validate_closed_navigation(
+    diagnostics: list[Diagnostic],
+    *,
+    routes: list[dict[str, Any]],
+    route_source_by_id: dict[str, str],
+    navigation: Any,
+) -> None:
+    """Ensure generated nav links cannot silently grow beyond the approved set."""
+
+    if not isinstance(navigation, dict) or navigation.get("closed") is not True:
+        return
+    allowed = {
+        str(value)
+        for value in navigation.get("allowed_hrefs", [])
+        if isinstance(value, str) and value.strip()
+    }
+    required = {
+        str(item.get("href", ""))
+        for item in navigation.get("resolved_destinations", [])
+        if isinstance(item, dict)
+        and item.get("kind") == "section"
+        and str(item.get("href", "")).strip()
+    }
+    if not allowed:
+        return
+    for route in routes:
+        route_id = str(route.get("route_id", ""))
+        source = route_source_by_id.get(route_id, "")
+        nav_matches = list(_NAV_RE.finditer(source))
+        if not nav_matches:
+            diagnostics.append(
+                _diag(
+                    "SOURCE_NAVIGATION_MISSING",
+                    "The closed navigation contract requires a semantic nav landmark.",
+                    route_id=route_id,
+                )
+            )
+            continue
+        observed: set[str] = set()
+        for nav_match in nav_matches:
+            for href_match in _HREF_RE.finditer(nav_match.group("body")):
+                href = href_match.group("href").strip()
+                if href.startswith("#") or href.startswith("/"):
+                    observed.add(href)
+                    if href not in allowed:
+                        diagnostics.append(
+                            _diag(
+                                "SOURCE_NAVIGATION_OUT_OF_SCOPE",
+                                "A local navigation link is outside Build Preparation's closed destination set.",
+                                route_id=route_id,
+                                symbol=href,
+                            )
+                        )
+        # A route's own path (for example ``/``) is a valid destination but
+        # does not need a self-link in its navigation. Section anchors are the
+        # explicit single-page navigation coverage contract.
+        missing = sorted(required - observed)
+        if missing:
+            diagnostics.append(
+                _diag(
+                    "SOURCE_NAVIGATION_COVERAGE_MISSING",
+                    "The generated nav does not expose every approved closed destination: "
+                    + ", ".join(missing),
+                    route_id=route_id,
+                )
+            )
 
 
 def _dedupe(values: list[Diagnostic]) -> list[Diagnostic]:

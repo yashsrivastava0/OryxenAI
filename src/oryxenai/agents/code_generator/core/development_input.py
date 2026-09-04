@@ -3,28 +3,26 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
-import stat
-import zipfile
 from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from typing import Any
 
+from oryxenai.agents.code_generator.core.brief_ingestion import (
+    BRIEF_CONTRACT_VERSION,
+    BRIEF_ENVELOPE_VERSION,
+    CONTENT_FILENAME,
+    VISUAL_FILENAME,
+    BriefContractError,
+    compile_brief_envelope,
+    make_brief_envelope,
+)
 from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
     InputReceipt,
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
-
-# Build Preparation's Markdown-brief output (no more ZIP/JSON pack, no more
-# execution/contract.json, resources/ledger.json, or the pack-v3/v4
-# resolution-type taxonomy) still needs a real ingestion path here -- this is
-# tracked as explicit follow-up work, not silently done. Until then, pack
-# admission fails closed with one clear diagnostic rather than dereferencing
-# a contract that no longer exists on the Build Preparation side.
-PACK_VERSION = "build-preparation-pack-v3"
 
 
 class DevelopmentInputError(ValueError):
@@ -48,43 +46,6 @@ def _sha256(data: bytes) -> str:
 def _resolve_config_path(value: str) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (repository_root() / path).resolve()
-
-
-def _safe_relative(value: str) -> str:
-    normalized = value.replace("\\", "/")
-    path = PurePosixPath(normalized)
-    if (
-        not normalized
-        or path.is_absolute()
-        or bool(PureWindowsPath(value).drive)
-        or ".." in path.parts
-        or any(not part or any(ord(char) < 32 for char in part) for part in path.parts)
-    ):
-        raise DevelopmentInputError("ZIP_UNSAFE_PATH", "The ZIP contains an unsafe entry path.")
-    reserved_names = {
-        "con",
-        "prn",
-        "aux",
-        "nul",
-        *(f"com{i}" for i in range(1, 10)),
-        *(f"lpt{i}" for i in range(1, 10)),
-    }
-    if any(part.casefold().split(".", 1)[0] in reserved_names for part in path.parts):
-        raise DevelopmentInputError(
-            "ZIP_DEVICE_NAME", "The ZIP contains a reserved device-name path."
-        )
-    return str(path)
-
-
-def _route_path(value: str) -> bool:
-    return (
-        bool(value)
-        and value.startswith("/")
-        and "\\" not in value
-        and "//" not in value
-        and ".." not in value.split("/")
-        and not any(ord(char) < 32 for char in value)
-    )
 
 
 def _blocking_execution_gaps(execution: dict[str, Any]) -> list[dict[str, Any]]:
@@ -121,9 +82,10 @@ def _blocking_execution_gaps(execution: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 class DevelopmentInputAdapter:
-    """Owns only configured fixture IDs and raw ZIP upload bytes."""
+    """Own configured brief fixtures and immutable two-brief envelopes."""
 
     def __init__(self, settings: Any) -> None:
+        self._settings = settings
         self._config = settings.code_generator_development
         self._root = _resolve_config_path(self._config.input_root)
 
@@ -144,70 +106,114 @@ class DevelopmentInputAdapter:
             raise DevelopmentInputError(
                 "FIXTURE_UNAVAILABLE", "The configured development fixture is unavailable."
             )
-        data = _zip_fixture_tree(fixture_root)
+        try:
+            data = self._read_brief_pair(fixture_root)
+        except DevelopmentInputError as exc:
+            if exc.code != "BRIEF_PAIR_INCOMPLETE":
+                raise
+            # Keep the checked-in privacy-safe development fixtures useful
+            # while their source files are gradually migrated.  This adapter
+            # conversion is deterministic and never used for production
+            # Build Preparation state.
+            data = self._legacy_fixture_briefs(fixture_root)
         return self._store_source(
             mode="fixture",
             source_id=fixture_id,
-            filename=f"{fixture_id}.zip",
+            filename=f"{fixture_id}-briefs.json",
             data=data,
         )
 
     def from_upload(self, *, filename: str, mime_type: str, data: bytes) -> AdmittedInputReference:
-        if mime_type.split(";", 1)[0].strip().lower() != "application/zip":
-            raise DevelopmentInputError("UPLOAD_MIME_INVALID", "Uploads must use application/zip.")
-        if not filename or Path(filename).name != filename or not filename.lower().endswith(".zip"):
+        normalized_mime = mime_type.split(";", 1)[0].strip().lower()
+        if normalized_mime not in {"application/json", "text/json"}:
             raise DevelopmentInputError(
-                "UPLOAD_FILENAME_INVALID", "The upload filename must be a safe .zip name."
+                "UPLOAD_MIME_INVALID",
+                "Uploads must use application/json and contain the two Markdown briefs.",
+            )
+        if (
+            not filename
+            or Path(filename).name != filename
+            or not filename.lower().endswith(".json")
+        ):
+            raise DevelopmentInputError(
+                "UPLOAD_FILENAME_INVALID", "The upload filename must be a safe .json name."
             )
         if len(data) > int(self._config.max_upload_bytes):
             raise DevelopmentInputError(
-                "UPLOAD_TOO_LARGE", "The uploaded ZIP exceeds the configured size limit."
+                "UPLOAD_TOO_LARGE", "The uploaded brief envelope exceeds the configured size limit."
             )
-        self._validate_zip(data)
+        self._compile(data)
         return self._store_source(
             mode="upload", source_id=_sha256(data), filename=filename, data=data
         )
 
-    def from_build_preparation_artifact(
-        self, *, source_id: str, filename: str, data: bytes
+    def from_build_preparation_briefs(
+        self, *, source_id: str, content_markdown: str, visual_markdown: str
     ) -> AdmittedInputReference:
-        """Store a verified object-store download in the common immutable input area."""
+        """Persist one session-owned immutable copy of the two brief strings."""
 
+        try:
+            data = make_brief_envelope(content_markdown, visual_markdown)
+        except BriefContractError as exc:
+            raise self._brief_error(exc) from exc
         if len(data) > int(self._config.max_uncompressed_bytes):
             raise DevelopmentInputError(
-                "ARTIFACT_TOO_LARGE", "The Build Preparation artifact exceeds the configured limit."
+                "BRIEFS_TOO_LARGE", "The Build Preparation briefs exceed the configured limit."
             )
         return self._store_source(
-            mode="build_preparation_artifact",
+            mode="build_preparation_briefs",
             source_id=source_id,
-            filename=filename,
+            filename=f"build-preparation-{_safe_filename_part(source_id)}-briefs.json",
             data=data,
         )
 
-    def list_build_preparation_packs(self) -> list[dict[str, Any]]:
-        """Newest-first summary of local Build Preparation debug-mirror packs."""
+    def from_brief_uploads(
+        self,
+        *,
+        content_filename: str,
+        content_data: bytes,
+        visual_filename: str,
+        visual_data: bytes,
+    ) -> AdmittedInputReference:
+        """Admit two explicit Markdown uploads as one immutable source envelope."""
 
-        packs: list[dict[str, Any]] = []
+        if content_filename != CONTENT_FILENAME or visual_filename != VISUAL_FILENAME:
+            raise DevelopmentInputError(
+                "BRIEF_FILENAME_INVALID",
+                f"Uploads must be named {CONTENT_FILENAME} and {VISUAL_FILENAME}.",
+            )
+        try:
+            content = content_data.decode("utf-8-sig")
+            visual = visual_data.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise DevelopmentInputError(
+                "BRIEF_ENCODING_INVALID", "Markdown briefs must be UTF-8 encoded."
+            ) from exc
+        return self.from_build_preparation_briefs(
+            source_id=_sha256(content_data + b"\0" + visual_data),
+            content_markdown=content,
+            visual_markdown=visual,
+        )
+
+    def list_build_preparation_packs(self) -> list[dict[str, Any]]:
+        """Compatibility name: list local Build Preparation brief pairs newest first."""
+
+        brief_sets: list[dict[str, Any]] = []
         for entry in self._mirror_entries():
             info = self._mirror_pack_info(entry)
             if info is not None:
-                packs.append(info)
-        packs.sort(key=lambda item: (item["modified_at"], item["pack_dir"]), reverse=True)
-        return packs
+                brief_sets.append(info)
+        brief_sets.sort(key=lambda item: (item["modified_at"], item["brief_dir"]), reverse=True)
+        return brief_sets
 
     def from_build_preparation_mirror(self, pack: str = "latest") -> AdmittedInputReference:
-        """Store an immutable copy of a local Build Preparation mirror pack.
-
-        Selection is advisory only (name, expiry, handoff flag read from the
-        mirror's extracted manifest); full admission re-verifies every hash and
-        projection when the planning job runs.
-        """
+        """Store an immutable copy of a local Build Preparation brief pair."""
 
         entries = self._mirror_entries()
         if not entries:
             raise DevelopmentInputError(
-                "PACK_MIRROR_UNAVAILABLE",
-                "The Build Preparation mirror has no packs. Run Build Preparation first.",
+                "BRIEF_MIRROR_UNAVAILABLE",
+                "The Build Preparation mirror has no complete brief pairs.",
             )
         if pack in {"latest", "best"}:
             candidates = sorted(
@@ -227,153 +233,96 @@ class DevelopmentInputAdapter:
             if selected is None:
                 reason = infos[0][1].get("issue", "unknown") if infos else "unknown"
                 raise DevelopmentInputError(
-                    "PACK_MIRROR_NO_ELIGIBLE",
-                    f"No eligible pack in the mirror (newest issue: {reason}).",
+                    "BRIEF_MIRROR_NO_ELIGIBLE",
+                    f"No eligible brief pair exists in the mirror (newest issue: {reason}).",
                 )
         else:
             if Path(pack).name != pack:
                 raise DevelopmentInputError(
-                    "PACK_DIR_INVALID", "The pack directory name is not a safe directory name."
+                    "BRIEF_DIR_INVALID",
+                    "The brief directory name is not a safe directory name.",
                 )
             selected = next((entry for entry in entries if entry.name == pack), None)
             if selected is None:
                 raise DevelopmentInputError(
-                    "PACK_DIR_NOT_FOUND", "The requested pack directory is not in the mirror."
+                    "BRIEF_DIR_NOT_FOUND",
+                    "The requested brief directory is not in the mirror.",
                 )
         info = self._mirror_pack_info(selected)
         if not info["eligible"]:
             raise DevelopmentInputError(
-                "PACK_NOT_ADMISSIBLE",
-                f"The selected pack is not admissible ({info.get('issue', 'unknown')}).",
+                "BRIEFS_NOT_ADMISSIBLE",
+                f"The selected briefs are not admissible ({info.get('issue', 'unknown')}).",
             )
-        data = (selected / "build-pack.zip").read_bytes()
+        data = self._read_brief_pair(selected)
         if len(data) > int(self._config.max_uncompressed_bytes):
             raise DevelopmentInputError(
-                "UPLOAD_TOO_LARGE", "The mirror pack exceeds the configured size limit."
+                "BRIEFS_TOO_LARGE", "The mirror brief pair exceeds the configured size limit."
             )
         return self._store_source(
             mode="build_preparation_mirror",
             source_id=selected.name,
-            filename=f"{selected.name}-build-pack.zip",
+            filename=f"{selected.name}-briefs.json",
             data=data,
         )
 
     def _mirror_entries(self) -> list[Path]:
-        root = _resolve_config_path(self._config.build_preparation_mirror_root)
-        if not root.is_dir():
-            return []
-        return sorted(
-            (
-                entry
-                for entry in root.iterdir()
-                if entry.is_dir() and (entry / "build-pack.zip").is_file()
-            ),
-            key=lambda entry: entry.name,
-        )
+        configured = _resolve_config_path(self._config.build_preparation_mirror_root)
+        roots = [configured]
+        # Build Preparation's own fixture/debug output is the canonical local
+        # handoff when a deployment overlays the legacy development setting.
+        prep_config = getattr(self._settings, "build_preparation", None)
+        fixture_output = str(getattr(prep_config, "fixture_output_dir", "") or "").strip()
+        if fixture_output:
+            roots.append(_resolve_config_path(f"{fixture_output}/build-preparation"))
+        entries: dict[str, Path] = {}
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for entry in root.iterdir():
+                if (
+                    entry.is_dir()
+                    and (entry / CONTENT_FILENAME).is_file()
+                    and (entry / VISUAL_FILENAME).is_file()
+                ):
+                    entries.setdefault(entry.name, entry)
+        return sorted(entries.values(), key=lambda entry: entry.name)
 
     def _mirror_pack_info(self, entry: Path) -> dict[str, Any]:
-        """Eligibility summary for one mirror entry; ``eligible`` is False with
-        an ``issue`` reason when the pack cannot be selected."""
+        """Return a non-secret validation summary for one mirrored brief pair."""
 
-        zip_path = entry / "build-pack.zip"
-        stat = zip_path.stat()
-        manifest: dict[str, Any] = {}
-        handoff: dict[str, Any] = {}
+        content_path = entry / CONTENT_FILENAME
+        visual_path = entry / VISUAL_FILENAME
+        modified = max(content_path.stat().st_mtime, visual_path.stat().st_mtime)
+        size_bytes = content_path.stat().st_size + visual_path.stat().st_size
         issue = ""
-        execution_gaps = 1
-        provenance_complete = 0
-        resource_coverage = 0
-        visual_readiness = 0
-        context_dir = entry / "build-context"
-        manifest_path = context_dir / "manifest.json"
-        handoff_path = context_dir / "handoff-report.json"
+        summary: dict[str, Any] = {}
         try:
-            if manifest_path.is_file():
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            else:
-                with zipfile.ZipFile(zip_path) as archive:
-                    manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
-            if handoff_path.is_file():
-                handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
-            else:
-                with zipfile.ZipFile(zip_path) as archive:
-                    handoff = json.loads(archive.read("handoff-report.json").decode("utf-8"))
-            with zipfile.ZipFile(zip_path) as archive:
-                execution = json.loads(archive.read("execution/contract.json").decode("utf-8"))
-                resources = json.loads(archive.read("resources/projection.json").decode("utf-8"))
-                visual = json.loads(archive.read("design/visual-direction.json").decode("utf-8"))
-                execution_gaps = (
-                    len(execution.get("execution_gaps", [])) if isinstance(execution, dict) else 1
-                )
-                resource_coverage = (
-                    len(resources.get("resources", [])) if isinstance(resources, dict) else 0
-                )
-                provenance_complete = int(
-                    all(
-                        path in archive.namelist()
-                        for path in (
-                            "provenance/approvals.json",
-                            "provenance/licenses.json",
-                            "provenance/targets.json",
-                        )
-                    )
-                )
-                visual_readiness = len(visual.get("routes", [])) if isinstance(visual, dict) else 0
-        except (OSError, ValueError, UnicodeDecodeError, zipfile.BadZipFile, KeyError) as exc:
-            manifest, handoff = {}, {}
-            issue = f"unreadable pack: {type(exc).__name__}"
-        pack_version = str(manifest.get("pack_version", ""))
-        accepted_pack_versions = set(
-            getattr(self._config, "accepted_pack_versions", [self._config.pack_version])
-        )
-        accepted_schema_versions = set(
-            getattr(self._config, "accepted_schema_versions", [self._config.schema_version])
-        )
-        expires_at = str(manifest.get("expires_at", ""))
-        expired = False
-        if not issue:
-            if pack_version not in accepted_pack_versions:
-                issue = f"pack version {pack_version or 'unknown'} is not admissible"
-            else:
-                try:
-                    expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-                    expired = expiry.tzinfo is None or expiry.astimezone(UTC) <= datetime.now(UTC)
-                except ValueError:
-                    expired, issue = True, "pack has no valid expiry marker"
-                if expired and not issue:
-                    issue = f"pack expired at {expires_at}"
-                elif not issue and not bool(handoff.get("handoff_eligible", False)):
-                    issue = "handoff report is not eligible"
-                elif not issue:
-                    manifest_schema = str(manifest.get("schema_version", ""))
-                    if (
-                        manifest_schema
-                        and manifest_schema not in accepted_schema_versions
-                        and not manifest_schema.startswith("build-preparation-handoff-")
-                    ):
-                        issue = "pack schema version is not admissible"
-        if not issue:
-            try:
-                self._validate_admitted_data(zip_path.read_bytes())
-            except (DevelopmentInputError, OSError) as exc:
-                issue = (
-                    f"{exc.code}: {exc.message}"
-                    if isinstance(exc, DevelopmentInputError)
-                    else f"unreadable pack: {type(exc).__name__}"
-                )
+            _receipt, _projections, summary = self._compile(self._read_brief_pair(entry))
+        except (DevelopmentInputError, OSError) as exc:
+            issue = (
+                f"{exc.code}: {exc.message}"
+                if isinstance(exc, DevelopmentInputError)
+                else f"unreadable briefs: {type(exc).__name__}"
+            )
         info: dict[str, Any] = {
+            "brief_dir": entry.name,
+            # Keep this transitional display key so existing development UI
+            # clients do not break while their labels migrate from pack to briefs.
             "pack_dir": entry.name,
-            "size_bytes": stat.st_size,
-            "modified_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
-            "pack_version": pack_version,
-            "schema_version": str(manifest.get("schema_version", "")),
-            "expires_at": expires_at,
-            "handoff_eligible": bool(handoff.get("handoff_eligible", False)),
-            "execution_gaps": execution_gaps,
-            "provenance_complete": provenance_complete,
-            "resource_coverage": resource_coverage,
-            "visual_readiness": visual_readiness,
-            "expired": expired,
+            "size_bytes": size_bytes,
+            "modified_at": datetime.fromtimestamp(modified, UTC).isoformat(),
+            "source_version": BRIEF_CONTRACT_VERSION,
+            "schema_version": BRIEF_ENVELOPE_VERSION,
+            "run_id": summary.get("run_id", ""),
+            "content_brief_sha256": summary.get("content_brief_sha256", ""),
+            "visual_brief_sha256": summary.get("visual_brief_sha256", ""),
+            "route_count": summary.get("route_count", 0),
+            "section_count": summary.get("section_count", 0),
+            "resource_coverage": summary.get("resource_count", 0),
+            "component_coverage": summary.get("component_count", 0),
+            "navigation_closed": bool(summary.get("navigation_closed", False)),
+            "contract_hash": summary.get("contract_hash", ""),
             "eligible": not issue,
         }
         if issue:
@@ -383,15 +332,15 @@ class DevelopmentInputAdapter:
 
     @staticmethod
     def _pack_rank(info: dict[str, Any]) -> tuple[int, int, int, int, int, int]:
-        """Lexicographic quality ranking; modified time is only the final tie-break."""
+        """Rank complete, richer brief pairs ahead of sparse fixtures."""
 
         return (
-            int(bool(info.get("handoff_eligible"))),
-            int(not bool(info.get("expired"))),
-            int(info.get("execution_gaps", 1) == 0),
-            int(info.get("provenance_complete", 0)),
+            int(bool(info.get("eligible"))),
+            int(bool(info.get("navigation_closed"))),
+            int(info.get("route_count", 0)),
+            int(info.get("section_count", 0)),
             int(info.get("resource_coverage", 0)),
-            int(info.get("visual_readiness", 0)),
+            int(info.get("component_coverage", 0)),
         )
 
     def read(self, reference: AdmittedInputReference) -> bytes:
@@ -415,33 +364,24 @@ class DevelopmentInputAdapter:
         return data
 
     def admit(self, reference: AdmittedInputReference) -> tuple[InputReceipt, dict[str, Any]]:
-        raise DevelopmentInputError(
-            "PACK_INGESTION_NOT_MIGRATED",
-            "Build Preparation now hands off two Markdown briefs instead of a "
-            "versioned JSON/ZIP pack. Code Generator ingestion of that new "
-            "contract is tracked as explicit follow-up work and is not yet "
-            "implemented.",
-        )
+        receipt, projections, _summary = self._compile(self.read(reference))
+        if receipt.source_sha256 != reference.source_sha256:
+            raise DevelopmentInputError(
+                "BRIEF_SOURCE_IDENTITY_MISMATCH",
+                "The compiled brief receipt does not match the immutable source copy.",
+            )
+        return receipt, projections
 
     def _validate_admitted_data(self, data: bytes) -> tuple[InputReceipt, dict[str, Any], str]:
-        """Kept only as _mirror_pack_info's eligibility probe for legacy ZIP mirrors.
-
-        Always fails closed: Build Preparation no longer produces this pack
-        shape, so a legacy build-pack.zip in the local mirror is correctly
-        reported as ineligible rather than admitted.
-        """
-        raise DevelopmentInputError(
-            "PACK_INGESTION_NOT_MIGRATED",
-            "Build Preparation now hands off two Markdown briefs instead of a "
-            "versioned JSON/ZIP pack.",
-        )
+        receipt, projections, _summary = self._compile(data)
+        return receipt, projections, receipt.contract_hash
 
     def _store_source(
         self, *, mode: str, source_id: str, filename: str, data: bytes
     ) -> AdmittedInputReference:
-        self._validate_zip(data)
+        self._compile(data)
         digest = _sha256(data)
-        relative = Path("inputs") / digest[:2] / f"{digest}.zip"
+        relative = Path("inputs") / digest[:2] / f"{digest}.json"
         target = (self._root / relative).resolve()
         if not target.is_relative_to(self._root):
             raise DevelopmentInputError(
@@ -466,106 +406,130 @@ class DevelopmentInputAdapter:
             size_bytes=len(data),
         )
 
-    def _validate_zip(self, data: bytes) -> None:
-        if not data.startswith(b"PK"):
-            raise DevelopmentInputError("ZIP_INVALID", "The input is not a ZIP archive.")
+    def _read_brief_pair(self, root: Path) -> bytes:
         try:
-            with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                entries = archive.infolist()
-                if len(entries) > int(self._config.max_entries):
-                    raise DevelopmentInputError("ZIP_ENTRY_LIMIT", "The ZIP has too many entries.")
-                seen: set[str] = set()
-                total = 0
-                for entry in entries:
-                    path = _safe_relative(entry.filename)
-                    key = path.casefold()
-                    if key in seen:
-                        raise DevelopmentInputError(
-                            "ZIP_CASE_COLLISION",
-                            "The ZIP contains duplicate or case-colliding paths.",
-                        )
-                    seen.add(key)
-                    if entry.is_dir():
-                        continue
-                    if stat.S_ISLNK(entry.external_attr >> 16):
-                        raise DevelopmentInputError(
-                            "ZIP_SYMLINK", "ZIP symbolic links are not allowed."
-                        )
-                    total += entry.file_size
-                    if total > int(self._config.max_uncompressed_bytes):
-                        raise DevelopmentInputError(
-                            "ZIP_UNCOMPRESSED_LIMIT", "The ZIP expands beyond the configured limit."
-                        )
-                    if entry.compress_size and entry.file_size / entry.compress_size > float(
-                        self._config.max_compression_ratio
-                    ):
-                        raise DevelopmentInputError(
-                            "ZIP_COMPRESSION_RATIO",
-                            "A ZIP entry exceeds the compression-ratio limit.",
-                        )
-                    if entry.file_size and not entry.compress_size:
-                        raise DevelopmentInputError(
-                            "ZIP_COMPRESSION_RATIO",
-                            "A ZIP entry has an invalid compressed size.",
-                        )
-        except zipfile.BadZipFile as exc:
+            content = (root / CONTENT_FILENAME).read_text(encoding="utf-8-sig")
+            visual = (root / VISUAL_FILENAME).read_text(encoding="utf-8-sig")
+            return make_brief_envelope(content, visual)
+        except FileNotFoundError as exc:
             raise DevelopmentInputError(
-                "ZIP_INVALID", "The input is not a readable ZIP archive."
+                "BRIEF_PAIR_INCOMPLETE",
+                f"A brief source must contain {CONTENT_FILENAME} and {VISUAL_FILENAME}.",
             ) from exc
+        except BriefContractError as exc:
+            raise self._brief_error(exc) from exc
 
-
-def _json_object(data: bytes, path: str) -> dict[str, Any]:
-    try:
-        value = json.loads(data)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise DevelopmentInputError(
-            "PACK_PROJECTION_INVALID", "A required pack projection is invalid JSON."
-        ) from exc
-    if not isinstance(value, dict):
-        raise DevelopmentInputError(
-            "PACK_PROJECTION_INVALID", "A required pack projection is not a JSON object."
-        )
-    return value
-
-
-def _zip_fixture_tree(root: Path) -> bytes:
-    entries: list[tuple[str, bytes]] = []
-    for path in sorted(root.rglob("*")):
-        if (
-            not path.is_file()
-            or path.is_symlink()
-            or path.relative_to(root).as_posix() == "manifest.json"
-        ):
-            continue
-        entries.append((path.relative_to(root).as_posix(), path.read_bytes()))
-    checksums = {path: _sha256(data) for path, data in entries}
-    entries.append(
-        (
-            "provenance/checksums.json",
-            json.dumps({"algorithm": "sha256", "files": checksums}, sort_keys=True).encode("utf-8"),
-        )
-    )
-    manifest = {
-        "pack_version": PACK_VERSION,
-        "run_id": "privacy-safe-v2-fixture",
-        "scope_hash": "fixture",
-        "source_ref": {
+    def _legacy_fixture_briefs(self, root: Path) -> bytes:
+        try:
+            site = json.loads((root / "site" / "contract.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DevelopmentInputError(
+                "BRIEF_PAIR_INCOMPLETE",
+                f"A fixture must contain {CONTENT_FILENAME} and {VISUAL_FILENAME}.",
+            ) from exc
+        raw_routes = [item for item in site.get("routes", []) if isinstance(item, dict)]
+        raw_content = [item for item in site.get("public_content", []) if isinstance(item, dict)]
+        routes: list[dict[str, Any]] = []
+        sections: list[tuple[str, str, dict[str, Any]]] = []
+        for route in raw_routes:
+            route_id = str(route.get("route_id", "home"))
+            raw_sections: Any = next(
+                (
+                    item.get("sections", [])
+                    for item in raw_content
+                    if str(item.get("route_id", "")) == route_id
+                ),
+                [],
+            )
+            normalized_sections: list[str] = []
+            for section in raw_sections if isinstance(raw_sections, list) else []:
+                if not isinstance(section, dict):
+                    continue
+                section_id = f"{route_id}:{section.get('section_id', 'section')!s}"
+                normalized_sections.append(section_id)
+                sections.append(
+                    (
+                        section_id,
+                        str(section.get("purpose", "")),
+                        section.get("content", {})
+                        if isinstance(section.get("content", {}), dict)
+                        else {},
+                    )
+                )
+            if normalized_sections:
+                routes.append(
+                    {
+                        "route_id": route_id,
+                        "path": str(route.get("path", "/")),
+                        "title": str(route.get("title", route_id)),
+                        "sections": normalized_sections,
+                    }
+                )
+        if not routes:
+            raise DevelopmentInputError("BRIEF_ROUTES_EMPTY", "The fixture has no route content.")
+        run_id = f"fixture-{_safe_filename_part(root.name)}"
+        content_index = {
+            "kind": "content_index",
+            "run_id": run_id,
             "content_architect_content_hash": "fixture-content-hash",
-            "visual_design_director_direction_hash": "fixture-visual-hash",
-            "input_projection_hash": "fixture-projection-hash",
-        },
-        "expires_at": "2099-01-01T00:00:00+00:00",
-        "files": [
-            {"path": path, "size_bytes": len(data), "sha256": _sha256(data)}
-            for path, data in sorted(entries)
-        ],
-    }
-    entries.append(("manifest.json", json.dumps(manifest, sort_keys=True).encode("utf-8")))
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for name, data in entries:
-            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o100644 << 16
-            archive.writestr(info, data)
-    return output.getvalue()
+            "navigation_contract": {
+                "closed": True,
+                "allowed_destinations": [
+                    *(str(route["route_id"]) for route in routes),
+                    *(section_id for section_id, _purpose, _content in sections),
+                ],
+            },
+            "routes": routes,
+        }
+        content_lines = ["# Fixture Content", "", "```json build-preparation-content-index"]
+        content_lines.extend(json.dumps(content_index, indent=2, ensure_ascii=False).splitlines())
+        content_lines.extend(["```", ""])
+        for section_id, purpose, content in sections:
+            content_lines.extend(
+                [
+                    f"### {section_id}",
+                    f"*{purpose or 'Approved fixture section'}*",
+                    "",
+                    "```json section-content",
+                    *json.dumps(content, indent=2, ensure_ascii=False).splitlines(),
+                    "```",
+                    "",
+                ]
+            )
+        visual_index = {
+            "kind": "visual_index",
+            "run_id": run_id,
+            "target_contract": "react-vite-v1",
+            "visual_input_mode": "fixture",
+            "routes": [str(route["route_id"]) for route in routes],
+            "resources": [],
+            "components": [],
+            "recommended_dependencies": [],
+        }
+        visual_lines = ["# Fixture Visual & Build Brief", "", "```json build-preparation-visual-index"]
+        visual_lines.extend(json.dumps(visual_index, indent=2, ensure_ascii=False).splitlines())
+        visual_lines.extend(["```", "", "Use a restrained, accessible local composition with clear hierarchy."])
+        return make_brief_envelope("\n".join(content_lines), "\n".join(visual_lines))
+
+    def _compile(
+        self, data: bytes
+    ) -> tuple[InputReceipt, dict[str, dict[str, Any]], dict[str, Any]]:
+        try:
+            receipt, projections, summary = compile_brief_envelope(data)
+            return InputReceipt.model_validate(receipt), projections, summary
+        except BriefContractError as exc:
+            raise self._brief_error(exc) from exc
+
+    @staticmethod
+    def _brief_error(exc: BriefContractError) -> DevelopmentInputError:
+        details = {
+            str(key): value
+            for key, value in exc.details.items()
+            if isinstance(value, (str, int, float, bool))
+        }
+        return DevelopmentInputError(exc.code, exc.message, details=details)
+
+
+def _safe_filename_part(value: str) -> str:
+    normalized = "".join(char if char.isalnum() or char in "-_" else "-" for char in value)
+    return normalized.strip("-")[:80] or hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]

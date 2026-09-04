@@ -6,21 +6,21 @@ This package has three deliberately bounded surfaces over one implementation:
 
 - agent.py is the registry-compatible, model-backed structured planner surface.
 - service.py and the session API are the explicit production entrypoint. They
-  bind one eligible Build Preparation artifact before durable work is queued.
+  bind one eligible Build Preparation brief pair before durable work is queued.
 - core/ is the shared durable generation workflow and the feature-gated
   standalone development harness. It accepts only an admitted Build
-  Preparation v3/v4 pack and owns planning, resource/dependency admission,
+  Preparation brief pair and owns planning, resource/dependency admission,
   progressive source generation, verification, and preview promotion.
 
 Code Generator never auto-chains from Build Preparation. A caller starts the
-session stage explicitly; the worker downloads the exact bound object, verifies
-its recorded identity, and admits it through the same versioned pack boundary as the
-standalone harness. Workflow implementation belongs in `core/`, prompts belong
-in `prompts/`, and the checked-in React/Vite scaffold contains source and a real
-lockfile but never `node_modules`. Required visual slots are executable local
-bindings: media is served from the prepared pack and component/font source is
-imported from the generated resource tree; recipes and comments cannot satisfy
-them.
+session stage explicitly; the worker reads the exact bound Markdown pair,
+validates its fenced JSON indexes, and stores one immutable JSON envelope before
+planning. Workflow implementation belongs in `core/`, prompts belong in
+`prompts/`, and the checked-in React/Vite scaffold contains source and a real
+lockfile but never `node_modules`. Brief resource decisions remain executable
+bindings: Code Generator fetches selected media, fonts, and component source
+locally at generation time, while every optional failure has a declared local
+fallback.
 
 ## Registry planner surface
 
@@ -37,7 +37,7 @@ All routes are under `/api/v1/sessions/{session_id}/code-generator`:
 - `GET /` returns the current session projection, active preview, attempt, and
   durable jobs;
 - `POST /start` requires an idempotency key and an empty JSON object, verifies
-  the current Build Preparation package and object metadata, performs the fixed
+  the current Build Preparation brief pair and its hashes, performs the fixed
   provider/toolchain preflight, then queues the first attempt;
 - `POST /regenerate` repeats the same gates for a new design variant while
   retaining the previous promoted preview until replacement succeeds;
@@ -46,15 +46,16 @@ All routes are under `/api/v1/sessions/{session_id}/code-generator`:
 
 Model/provider selection comes only from `config/models.toml`; request bodies
 cannot override it. The service reads only the approved Build Preparation
-projection and artifact reference, not raw intake or upstream reasoning. The
-production R2/object-store path verifies key, ETag, byte length, SHA-256,
-expiry, package report, and every ZIP member before extraction.
+projection and brief reference, not raw intake or upstream reasoning. The
+immutable envelope records both brief hashes, a contract hash, projection
+hashes, and the closed navigation destinations that source verification enforces.
 
 ## Durable generation workflow
 
 The session and developer workflows record durable runs and event streams. The
-production input is the verified object-store artifact; the developer harness
-accepts supported build-preparation-pack-v3/v4 fixtures, debug mirrors, or uploaded ZIPs.
+production input is the verified Markdown brief pair; the developer harness
+accepts the same pair from a debug mirror, a deterministic fixture, or an uploaded
+JSON envelope containing both documents.
 Active V4 runs validate a provider-safe ExperienceBlueprintV4, then host-compile
 the typed SitePlan and WorkGraph; legacy runs retain their typed SitePlan
 reader. Both paths reconcile resources

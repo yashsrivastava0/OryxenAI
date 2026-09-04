@@ -118,13 +118,8 @@ def _ready_preparation() -> BuildPreparationState:
 
 
 @pytest.mark.asyncio
-async def test_session_start_fails_closed_pending_markdown_brief_ingestion() -> None:
-    """Build Preparation now hands off two Markdown briefs, not a ZIP artifact.
-
-    Session-bound Code Generator ingestion of that new contract is tracked as
-    explicit follow-up work (see DECISIONS.md) -- start() must fail closed
-    with one clear diagnostic rather than dereferencing removed fields.
-    """
+async def test_session_start_fails_closed_invalid_markdown_brief_pair() -> None:
+    """Invalid Markdown brief pairs are rejected before a durable run exists."""
     session_id = uuid4()
     repository = _Repository(session_id, _ready_preparation())
     service = CodeGeneratorService(repository, _Jobs(), Settings())  # type: ignore[arg-type]
@@ -132,7 +127,7 @@ async def test_session_start_fails_closed_pending_markdown_brief_ingestion() -> 
     with pytest.raises(CodeGeneratorOperationError) as exc_info:
         await service.start(session_id, idempotency_key="start-once")
 
-    assert exc_info.value.code == "CODE_GENERATOR_INGESTION_NOT_MIGRATED"
+    assert exc_info.value.code == "CODE_GENERATOR_BRIEF_INVALID"
     assert repository.runs.created is None
 
 

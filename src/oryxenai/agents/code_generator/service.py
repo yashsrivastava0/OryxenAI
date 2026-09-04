@@ -8,15 +8,20 @@ import json
 import shutil
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, NoReturn
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
 from oryxenai.agents.build_preparation.schemas import BuildPreparationStatus
+from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
+from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
 from oryxenai.agents.code_generator.core.development_schemas import (
+    DesignFingerprintV1,
+    DesignVariantReceiptV1,
     DevelopmentRunStatus,
 )
 from oryxenai.agents.code_generator.core.development_service import browser_ready
@@ -32,10 +37,12 @@ from oryxenai.agents.code_generator.core.stage_attempt import (
 from oryxenai.agents.code_generator.session_schemas import (
     CodeGeneratorSessionState,
     CodeGeneratorSessionStatus,
+    CodeGeneratorSourceRef,
     ProviderPreflightEnvelope,
 )
 from oryxenai.agents.shared.model_client import build_provider_client, resolve_api_key
 from oryxenai.agents.shared.providers.errors import stable_provider_failure
+from oryxenai.auth.authorization import durable_snapshot
 from oryxenai.auth.domain import AuthRole
 from oryxenai.auth.errors import (
     EntitlementBindingConflictError,
@@ -50,7 +57,6 @@ from oryxenai.storage.artifacts import (
     ArtifactStorageError,
     ArtifactStore,
     create_artifact_store,
-    is_expired,
 )
 
 _PREFLIGHT_TTL_SECONDS = 300.0
@@ -106,7 +112,7 @@ class CodeGeneratorService:
                 "Idempotency-Key is required.",
                 status_code=400,
             )
-        await self._require_session(session_id)
+        session = await self._require_session(session_id)
         state = await self._repo.get_state(session_id)
         current = (
             await self._repo.runs.get(UUID(state.current_run_id)) if state.current_run_id else None
@@ -133,20 +139,271 @@ class CodeGeneratorService:
         preparation = await self._repo.get_build_preparation_state(session_id)
         if preparation.status is not BuildPreparationStatus.READY:
             self._not_ready("Build Preparation has not reached ready status.")
-        # Build Preparation now hands off two Markdown briefs on session state
-        # instead of a verified ZIP artifact in object storage -- there is no
-        # more artifact to bind, HEAD-verify, or expire. Session-bound
-        # ingestion of the new brief contract is tracked as explicit,
-        # not-yet-implemented follow-up work (see DECISIONS.md); fail closed
-        # here rather than dereferencing fields BuildPreparationState no
-        # longer carries.
-        raise CodeGeneratorOperationError(
-            "CODE_GENERATOR_INGESTION_NOT_MIGRATED",
-            "Code Generator's session-bound start path has not yet been migrated "
-            "to Build Preparation's new Markdown-brief output. This is tracked as "
-            "explicit follow-up work, not a silent regression.",
-            status_code=503,
+        content_brief = str(getattr(preparation, "content_brief_markdown", "") or "")
+        visual_brief = str(getattr(preparation, "visual_brief_markdown", "") or "")
+        if not content_brief.strip() or not visual_brief.strip():
+            self._not_ready("Build Preparation has not produced both Markdown briefs.")
+        profile = self._settings.code_generator_development.planner_profile
+        if model_profile and model_profile != profile:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_PROFILE_OVERRIDE_UNSUPPORTED",
+                "Code Generator model selection is controlled by the configured profile.",
+                status_code=400,
+            )
+        try:
+            reference = DevelopmentInputAdapter(self._settings).from_build_preparation_briefs(
+                source_id=preparation.run_id or preparation.scope_hash or "build-preparation",
+                content_markdown=content_brief,
+                visual_markdown=visual_brief,
+            )
+        except Exception as exc:
+            if isinstance(exc, CodeGeneratorOperationError):
+                raise
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BRIEF_INVALID",
+                "Build Preparation produced briefs that do not satisfy the Code Generator contract.",
+                status_code=409,
+                details={"reason": str(exc)[:500]},
+            ) from exc
+        try:
+            receipt, _projections = DevelopmentInputAdapter(self._settings).admit(reference)
+        except Exception as exc:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BRIEF_INVALID",
+                "The Build Preparation brief pair failed immutable admission.",
+                status_code=409,
+                details={"reason": str(exc)[:500]},
+            ) from exc
+        stored_content_hash = str(getattr(preparation, "content_brief_hash", "") or "")
+        stored_visual_hash = str(getattr(preparation, "visual_brief_hash", "") or "")
+        if stored_content_hash and stored_content_hash != receipt.content_brief_sha256:
+            self._not_ready("The persisted content brief hash does not match its Markdown body.")
+        if stored_visual_hash and stored_visual_hash != receipt.visual_brief_sha256:
+            self._not_ready("The persisted visual brief hash does not match its Markdown body.")
+        preflight = await self._preflight(profile)
+        source_ref = CodeGeneratorSourceRef(
+            build_preparation_run_id=preparation.run_id,
+            build_preparation_scope_hash=preparation.scope_hash,
+            build_preparation_source_ref=preparation.source_ref.model_dump(mode="json"),
+            content_brief_sha256=receipt.content_brief_sha256,
+            visual_brief_sha256=receipt.visual_brief_sha256,
+            brief_contract_hash=receipt.contract_hash,
+            bound_session_revision=session.revision,
         )
+        scope = f"code_generator:{session_id}"
+        existing = await self._repo.runs.find_idempotent(idempotency_key, scope=scope)
+        if existing is not None:
+            existing_source = str((existing.input_reference or {}).get("source_sha256", ""))
+            if existing_source != reference.source_sha256:
+                raise CodeGeneratorOperationError(
+                    "IDEMPOTENCY_KEY_CONFLICT",
+                    "Idempotency-Key was already used for another Build Preparation brief pair.",
+                )
+            return await self.get_state(session_id)
+        pipeline_contract_version = str(
+            getattr(
+                self._settings.code_generator_development,
+                "pipeline_contract_version",
+                "code-generator-v4",
+            )
+        )
+        variant_receipt: DesignVariantReceiptV1 | None = None
+        prior_fingerprints: list[DesignFingerprintV1] = []
+        if pipeline_contract_version == "code-generator-v4":
+            history_limit = int(self._settings.code_generator_development.design_similarity_history)
+            accepted_variants = getattr(self._repo.runs, "accepted_variants_for_session", None)
+            prior_runs = (
+                await accepted_variants(session_id, limit=history_limit)
+                if accepted_variants is not None
+                else []
+            )
+            prior_ordinals: list[int] = []
+            for prior in reversed(prior_runs):
+                creative = prior.creative_direction or {}
+                fingerprint_payload = creative.get("design_fingerprint")
+                variant_payload = creative.get("variant_receipt")
+                if isinstance(fingerprint_payload, dict):
+                    with suppress(ValueError):
+                        prior_fingerprints.append(
+                            DesignFingerprintV1.model_validate(fingerprint_payload)
+                        )
+                if isinstance(variant_payload, dict):
+                    with suppress(ValueError):
+                        prior_ordinals.append(
+                            DesignVariantReceiptV1.model_validate(variant_payload).ordinal
+                        )
+            variant_receipt = create_design_variant_receipt(
+                input_hash=hashlib.sha256(
+                    f"{receipt.contract_hash}:{preparation.scope_hash}".encode()
+                ).hexdigest(),
+                ordinal=max(prior_ordinals, default=0) + 1,
+                idempotency_key=idempotency_key,
+                creation_reason="regenerate" if current is not None else creation_reason,
+                prior_fingerprint_hashes=[
+                    item.fingerprint_hash for item in prior_fingerprints[-history_limit:]
+                ],
+            )
+        entitlement_revision: int | None = None
+        if normal_entitlement is not None:
+            normal_entitlement = await self._repo.entitlements.get_for_user(
+                self._normal_owner_id(), lock=True
+            )
+            if normal_entitlement is None or normal_entitlement.portfolio_session_id != session_id:
+                raise EntitlementBindingConflictError()
+            if normal_entitlement.successful_run_id is not None:
+                raise PortfolioReadOnlyError()
+            if normal_entitlement.generation_run_id is not None:
+                return await self.get_state(session_id)
+            entitlement_revision = normal_entitlement.revision + 1
+            context = getattr(self._jobs, "authorization_context", None)
+            if context is None:
+                raise EntitlementBindingConflictError()
+            self._jobs.authorization_context = replace(
+                context, entitlement_revision=entitlement_revision
+            )
+        context = getattr(self._jobs, "authorization_context", None)
+        if context is not None and context.authorization_context_version != 1:
+            raise EntitlementBindingConflictError()
+        lock_session = getattr(self._repo, "get_session_for_update", None)
+        bound_session = await lock_session(session_id) if lock_session is not None else session
+        if bound_session is None:
+            raise CodeGeneratorOperationError(
+                "SESSION_NOT_FOUND", "Portfolio session was not found.", status_code=404
+            )
+        if bound_session.revision != session.revision:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_SESSION_REVISION_CONFLICT",
+                "The portfolio changed while Code Generator was preparing. Reload and try again.",
+            )
+        if context is not None and (
+            bound_session.legacy_quarantined
+            or bound_session.owner_user_id != context.owner_user_id
+            or context.portfolio_session_id != session_id
+        ):
+            raise EntitlementBindingConflictError()
+        session = bound_session
+        run_snapshot = durable_snapshot(getattr(self._jobs, "authorization_context", None))
+        if run_snapshot["portfolio_session_id"] is None:
+            run_snapshot["portfolio_session_id"] = session_id
+        trace_id = uuid4().hex
+        run = await self._repo.runs.create(
+            input_reference=reference.model_dump(mode="json"),
+            idempotency_key=idempotency_key,
+            idempotency_scope=scope,
+            auto_advance=True,
+            run_mode="session",
+            build_preparation_source_ref=source_ref.model_dump(mode="json"),
+            artifact_reference=None,
+            preflight_receipt=preflight,
+            preview_host=_session_preview_host(session_id),
+            pipeline_contract_version=pipeline_contract_version,
+            trace_id=trace_id,
+            creative_direction=(
+                {
+                    "variant_receipt": variant_receipt.model_dump(mode="json"),
+                    "prior_fingerprints": [
+                        item.model_dump(mode="json") for item in prior_fingerprints
+                    ],
+                }
+                if variant_receipt is not None
+                else None
+            ),
+            **run_snapshot,
+        )
+        if normal_entitlement is not None:
+            await self._repo.entitlements.bind_generation_run(
+                user_id=self._normal_owner_id(),
+                session_id=session_id,
+                run_id=run.id,
+                revision=normal_entitlement.revision,
+                actor_user_id=getattr(self._jobs.authorization_context, "actor_user_id", None),
+            )
+        stage_attempt = None
+        create_stage_attempt = getattr(self._repo.runs, "create_stage_attempt", None)
+        if create_stage_attempt is not None:
+            input_fingerprint = fingerprint_input(source_ref.model_dump(mode="json"))
+            stage_attempt = await create_stage_attempt(
+                run.id,
+                stage="plan",
+                input_fingerprint=input_fingerprint,
+                idempotency_key=stage_idempotency_key(run.id, "plan", input_fingerprint),
+                expected_run_revision=run.revision,
+                trace_id=trace_id,
+                worker_version=pipeline_contract_version,
+            )
+        await self._repo.runs.append_event(
+            run.id,
+            event_type="created",
+            level="info",
+            message="Session Code Generator run created from the immutable Build Preparation brief pair.",
+            details={
+                "content_brief_sha256": receipt.content_brief_sha256,
+                "visual_brief_sha256": receipt.visual_brief_sha256,
+                "brief_contract_hash": receipt.contract_hash,
+                "run_mode": "session",
+            },
+        )
+        job_payload: dict[str, Any] = {"code_generator_run_id": str(run.id)}
+        if stage_attempt is not None:
+            job_payload = StageCoordinator.payload_for_attempt(
+                StageAttemptToken(
+                    attempt_id=stage_attempt.id,
+                    run_id=run.id,
+                    stage="plan",
+                    attempt_no=stage_attempt.attempt_no,
+                    expected_run_revision=run.revision,
+                    input_fingerprint=stage_attempt.input_fingerprint,
+                    trace_id=trace_id,
+                ),
+                job_payload,
+            )
+        job = await self._jobs.enqueue(
+            "code_generator.plan",
+            job_payload,
+            max_attempts=int(self._settings.worker_retry.max_attempts),
+            idempotency_scope="code_generator.plan",
+            idempotency_key=f"{run.id}:{reference.source_sha256}",
+        )
+        updated = await self._repo.runs.compare_and_swap(
+            run.id,
+            expected_revision=run.revision,
+            values={
+                "status": DevelopmentRunStatus.QUEUED.value,
+                "background_job_id": job.id,
+                **({"active_attempt_id": stage_attempt.id} if stage_attempt is not None else {}),
+            },
+        )
+        if updated is None:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_REVISION_CONFLICT",
+                "The Code Generator run changed while it was being queued.",
+            )
+        if stage_attempt is not None:
+            bind_stage_attempt_job = getattr(self._repo.runs, "bind_stage_attempt_job", None)
+            if bind_stage_attempt_job is not None:
+                await bind_stage_attempt_job(stage_attempt.id, job_id=job.id)
+        retained_preview = (
+            dict(current.active_preview)
+            if current is not None and current.active_preview
+            else state.active_preview
+        )
+        next_state = CodeGeneratorSessionState(
+            status=CodeGeneratorSessionStatus.QUEUED,
+            current_run_id=str(run.id),
+            model_profile=profile,
+            source_ref=source_ref,
+            active_preview=retained_preview,
+            started_at=datetime.now(UTC).isoformat(),
+            pipeline_contract_version=pipeline_contract_version,
+            trace_id=trace_id,
+        )
+        saved = await self._repo.save_state(session_id, next_state, session.revision)
+        if saved is None:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_SESSION_REVISION_CONFLICT",
+                "The session changed while Code Generator was starting. Reload and try again.",
+            )
+        return await self.get_state(session_id)
 
     async def regenerate(
         self,
@@ -234,7 +491,7 @@ class CodeGeneratorService:
         if stale_reasons:
             raise CodeGeneratorOperationError(
                 "CODE_GENERATOR_SOURCE_STALE",
-                "The approved Build Preparation source changed; start a new run from the latest artifact.",
+                "The approved Build Preparation brief source changed; start a new run from the latest briefs.",
                 status_code=409,
                 details={"stale_reasons": stale_reasons},
             )
@@ -730,16 +987,20 @@ class CodeGeneratorService:
         except Exception:
             return ["build_preparation_unavailable"]
         reasons: list[str] = []
-        if is_expired(state.source_ref.artifact):
-            reasons.append("build_preparation_artifact_expired")
         if preparation.run_id != state.source_ref.build_preparation_run_id:
             reasons.append("build_preparation_run_changed")
         if preparation.scope_hash != state.source_ref.build_preparation_scope_hash:
             reasons.append("build_preparation_scope_changed")
-        # Build Preparation no longer produces a ZIP artifact to compare
-        # against (Markdown-brief output) -- any run still bound to the old
-        # artifact-based CodeGeneratorSourceRef is permanently stale.
-        reasons.append("build_preparation_artifact_format_migrated")
+        if str(getattr(preparation, "content_brief_hash", "") or "") not in {
+            "",
+            state.source_ref.content_brief_sha256,
+        }:
+            reasons.append("build_preparation_content_brief_changed")
+        if str(getattr(preparation, "visual_brief_hash", "") or "") not in {
+            "",
+            state.source_ref.visual_brief_sha256,
+        }:
+            reasons.append("build_preparation_visual_brief_changed")
         return reasons
 
     async def _require_session(self, session_id: UUID) -> Any:

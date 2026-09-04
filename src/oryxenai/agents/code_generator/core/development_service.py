@@ -156,7 +156,7 @@ class CodeGeneratorDevelopmentService:
                 ("npm", npm_available),
                 ("verification_browser", browser_available),
                 ("preview_storage", preview_storage_available),
-                ("build_preparation_pack", best_pack is not None),
+                ("build_preparation_briefs", best_pack is not None),
             )
             if not ready
         ]
@@ -185,6 +185,7 @@ class CodeGeneratorDevelopmentService:
             ),
             "fixture_ids": [item["fixture_id"] for item in self.fixtures()],
             "build_preparation_pack_ready": latest_pack is not None,
+            "build_preparation_briefs_ready": latest_pack is not None,
             "build_preparation_latest": latest_pack,
             "build_preparation_best": best_pack,
             "browser_ready": browser_available,
@@ -296,18 +297,18 @@ class CodeGeneratorDevelopmentService:
                 {},
             )
             selected_pack_receipt = {
+                "brief_set_id": reference.source_id,
                 "pack_id": reference.source_id,
                 "source_id": reference.source_id,
-                "pack_sha256": reference.source_sha256,
                 "source_sha256": reference.source_sha256,
-                "pack_version": pack_info.get("pack_version", ""),
+                "content_brief_sha256": pack_info.get("content_brief_sha256", ""),
+                "visual_brief_sha256": pack_info.get("visual_brief_sha256", ""),
+                "source_version": pack_info.get("source_version", ""),
                 "schema_version": pack_info.get("schema_version", ""),
                 "eligible": bool(pack_info.get("eligible", False)),
-                "expiry": pack_info.get("expires_at", ""),
                 "resource_counts": {
-                    "execution_gaps": pack_info.get("execution_gaps", 0),
                     "resource_coverage": pack_info.get("resource_coverage", 0),
-                    "visual_readiness": pack_info.get("visual_readiness", 0),
+                    "component_coverage": pack_info.get("component_coverage", 0),
                 },
                 "selection": pack_selection or "explicit",
                 "requested_pack": requested_pack or reference.source_id,

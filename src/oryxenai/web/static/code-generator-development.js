@@ -9,7 +9,8 @@ export const READINESS_BLOCKER_LABELS = Object.freeze({
   verification_browser: 'verification browser',
   preview_storage: 'preview storage',
   provider_wire_schema: 'provider wire schemas',
-  build_preparation_pack: 'eligible Build Preparation pack',
+  build_preparation_pack: 'eligible Build Preparation brief pair',
+  build_preparation_briefs: 'eligible Build Preparation brief pair',
   preview_gateway_not_configured: 'preview gateway is not configured',
   preview_gateway_unreachable: 'preview gateway is unreachable',
 });
@@ -45,7 +46,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   };
   const stageOrder = ['prepare', 'resources', 'source', 'verify'];
   const statusLabels = {
-    created: 'Created', queued: 'Queued', planning: 'Admitting pack', planned: 'Plan ready',
+    created: 'Created', queued: 'Queued', planning: 'Admitting brief pair', planned: 'Plan ready',
     acquiring: 'Preparing resources', acquired: 'Resources ready',
     generating_foundation: 'Building visual foundation', generating_routes: 'Building routes',
     integrating: 'Connecting the portfolio', source_ready: 'Source ready',
@@ -111,7 +112,9 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     if (readiness.preview_gateway_ready === false && !blockerCodesFromServer.some(
       (item) => item === 'preview_gateway_not_configured' || item === 'preview_gateway_unreachable',
     )) fallbackBlockers.push('preview_gateway_unreachable');
-    if (!readiness.build_preparation_pack_ready) fallbackBlockers.push('build_preparation_pack');
+    if (!(readiness.build_preparation_briefs_ready ?? readiness.build_preparation_pack_ready)) {
+      fallbackBlockers.push('build_preparation_briefs');
+    }
     const staticReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
     const preflightRequired = readiness.provider_preflight?.status === 'required';
     readinessReady = Boolean(staticReady || (preflightRequired && fallbackBlockers.length === 0));
@@ -147,8 +150,9 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     const labelFor = (pack) => {
       const counts = pack.resource_counts || {};
       const resources = Number(pack.resource_coverage || counts.resource_coverage || 0);
-      const visuals = Number(pack.visual_readiness || counts.visual_readiness || 0);
-      return `${pack.pack_dir} · ${resources} resources · ${visuals} visual routes`;
+      const components = Number(pack.component_coverage || counts.component_coverage || 0);
+      const sections = Number(pack.section_count || 0);
+      return `${pack.brief_dir || pack.pack_dir} · ${sections} sections · ${resources} resources · ${components} components`;
     };
     select.replaceChildren(
       ...eligible.map((pack) => new Option(labelFor(pack), pack.pack_dir)),
@@ -158,8 +162,8 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     select.disabled = entries.length === 0;
     const status = view('pack-status');
     if (!entries.length) status.textContent = 'No eligible Build Preparation output found. Run Build Preparation first.';
-    else if (selectedPack) status.textContent = `Selected ${selectedPack} · server will bind this immutable ZIP.`;
-    else status.textContent = `No eligible pack is available (${entries[0].issue || 'unknown reason'}).`;
+    else if (selectedPack) status.textContent = `Selected ${selectedPack} · server will bind this immutable brief pair.`;
+    else status.textContent = `No eligible brief pair is available (${entries[0].issue || 'unknown reason'}).`;
     updateLaunchButton();
   };
 
@@ -367,7 +371,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     view('status-pill').dataset.state = run.status === 'ready' ? 'ready' : run.status === 'needs_attention' ? 'error' : 'active';
     const selectedPackReceipt = run.selected_pack_receipt;
     view('receipt').textContent = selectedPackReceipt?.pack_id
-      ? `Pack ${selectedPackReceipt.pack_id} · ${selectedPackReceipt.pack_version || 'unknown'} · ${String(selectedPackReceipt.pack_sha256 || 'hash pending').slice(0, 18)}`
+      ? `Briefs ${selectedPackReceipt.brief_set_id || selectedPackReceipt.pack_id} · ${selectedPackReceipt.source_version || 'unknown'} · ${String(selectedPackReceipt.source_sha256 || 'hash pending').slice(0, 18)}`
       : run.input_receipt?.admitted_identity ? `Receipt ${run.input_receipt.admitted_identity}` : '';
     const latestEvent = events.at(-1);
     view('event').textContent = latestEvent ? latestEvent.message : '';
@@ -485,12 +489,12 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       runGenerate: (id) => request(`/runs/${id}/generate`, { method: 'POST', headers: { 'Idempotency-Key': requestKey() } }),
       runVerify: (id) => request(`/runs/${id}/verify`, { method: 'POST', headers: { 'Idempotency-Key': requestKey() } }),
       createFixture: (fixture_id) => request('/runs', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ fixture_id }) }),
-      createUpload: (file) => request('/runs/upload', { method: 'POST', headers: { 'content-type': 'application/zip', 'X-Upload-Filename': file.name, 'Idempotency-Key': requestKey() }, body: file }),
+      createUpload: (file) => request('/runs/upload', { method: 'POST', headers: { 'content-type': 'application/json', 'X-Upload-Filename': file.name, 'Idempotency-Key': requestKey() }, body: file }),
       getBuildPreparationPacks: () => request('/build-preparation-packs'),
       providerPreflight: () => request('/provider-preflight', { method: 'POST' }),
       createBuildPreparation: async (pack) => {
         await request('/provider-preflight', { method: 'POST' });
-        return request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ pack: pack || 'best' }) });
+        return request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ brief_set: pack || 'best' }) });
       },
     },
     storage: localStorage,
