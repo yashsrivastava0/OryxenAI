@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from oryxenai.agents.code_generator.core.pipeline_contract import is_verification_kind
 from oryxenai.auth.models import AppUser, PortfolioEntitlement
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.models.background_job import BackgroundJob
@@ -96,9 +97,7 @@ class WorkerAuthorizationFence:
         # it may finish the already-promoted receipt without creating work.
         # Administrators bypass this entitlement cell while retaining the
         # owner/actor and workflow checks above.
-        is_exact_verification_job = (
-            job.job_kind == "code_generator.verify_and_preview" and codegen_id is not None
-        )
+        is_exact_verification_job = is_verification_kind(job.job_kind) and codegen_id is not None
         is_finalized_success_replay = (
             is_exact_verification_job
             and codegen_run is not None

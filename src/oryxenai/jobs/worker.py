@@ -43,6 +43,7 @@ from oryxenai.core.settings import get_settings
 from oryxenai.db.session import get_engine, reset_engine_cache
 from oryxenai.jobs.contracts import permanent, retryable
 from oryxenai.jobs.registry import get as get_handler
+from oryxenai.jobs.registry import list_kinds
 from oryxenai.jobs.repository import JobRepository
 from oryxenai.jobs.retry import delay_for_attempt, should_retry
 
@@ -211,6 +212,7 @@ class Worker:
                     limit or self._settings.worker.claim_batch_size,
                     self._settings.worker.claim_batch_size,
                 ),
+                allowed_job_kinds=list_kinds(),
             )
             await session.commit()
         return jobs
@@ -228,6 +230,7 @@ class Worker:
                     self._settings.worker.claim_batch_size,
                 ),
                 exclude_job_ids=set(self._active_job_ids),
+                allowed_job_kinds=list_kinds(),
             )
             await session.commit()
         return stale

@@ -77,6 +77,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SafeIssue,
     SitePlan,
 )
+from oryxenai.agents.code_generator.core.pipeline_contract import (
+    PIPELINE_V5,
+    stage_job_kind,
+    uses_blueprint,
+)
 from oryxenai.agents.code_generator.core.planner_operation import (
     PlannerOperationError,
     run_planner_operation,
@@ -91,12 +96,15 @@ from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.agents.shared.contracts import ModelClient
 from oryxenai.agents.shared.model_client import build_provider_client
 from oryxenai.agents.shared.providers.errors import stable_provider_failure
-from oryxenai.auth.worker_fence import WorkerAuthorizationFence
+from oryxenai.auth.worker_fence import AuthorizationFenceError, WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
 
 _KIND = "code_generator.plan"
+_V5_PLAN_KIND = stage_job_kind("plan", PIPELINE_V5)
+_V5_ACQUIRE_KIND = stage_job_kind("acquire", PIPELINE_V5)
+_V5_GENERATE_KIND = stage_job_kind("generate", PIPELINE_V5)
 logger = get_logger("oryxenai.jobs.handlers.code_generator")
 
 
@@ -347,7 +355,7 @@ async def _execute(
     pipeline_contract_version = str(
         getattr(run, "pipeline_contract_version", "code-generator-v3") or "code-generator-v3"
     )
-    uses_v4 = pipeline_contract_version == "code-generator-v4"
+    uses_v4 = uses_blueprint(pipeline_contract_version)
     # Pipeline version selects generation contracts. Pack version controls
     # only upstream resource authority/delegation; it must never select a
     # planner contract or silently upgrade a legacy compatibility run.
@@ -902,6 +910,11 @@ async def _execute_acquisition(
                         selected_id, _ = select_candidate(request, filtered)
                     candidate = next(item for item in filtered if item.candidate_id == selected_id)
                 await _validate_worker_payload(sessionmaker, payload)
+                component_reference_only = (
+                    request.category == "component_source"
+                    and request.request_id.startswith("deferred-")
+                    and not _deferred_component_local_paths(projections, request, candidate)
+                )
                 materialized = await adapter.materialize(
                     candidate,
                     request,
@@ -914,22 +927,39 @@ async def _execute_acquisition(
                 materialized_files = [
                     _prefix_materialized_file(item, str(run_id)) for item in materialized_files
                 ]
-                original_hash = str(
-                    materialized_files[0].inspection.get("source_sha256", "")
-                    or materialized_files[0].sha256
+                original_hash = (
+                    ""
+                    if component_reference_only
+                    else str(
+                        materialized_files[0].inspection.get("source_sha256", "")
+                        or materialized_files[0].sha256
+                    )
                 )
                 receipt = ResourceReceipt(
                     request_hash=request.request_hash,
-                    disposition="admitted",
+                    disposition="fallback" if component_reference_only else "admitted",
                     selected_candidate_id=candidate.candidate_id,
                     provider_key=candidate.provider_key,
                     canonical_source=candidate.canonical_source,
                     licence=candidate.licence,
                     attribution=candidate.attribution,
                     original_hash=original_hash,
-                    materialized_files=materialized_files,
-                    dependencies=sorted(candidate.dependency_metadata),
-                    satisfied_placements=[request.placement.purpose],
+                    materialized_files=[] if component_reference_only else materialized_files,
+                    dependencies=[]
+                    if component_reference_only
+                    else sorted(candidate.dependency_metadata),
+                    satisfied_placements=[]
+                    if component_reference_only
+                    else [request.placement.purpose],
+                    fallback=(
+                        {
+                            "kind": request.fallback.kind,
+                            "implementation": request.fallback.implementation,
+                            "reason": "Build Preparation component suggestion retained as reference-only material.",
+                        }
+                        if component_reference_only
+                        else {}
+                    ),
                     acquired_at=datetime.now(UTC).isoformat(),
                 )
                 resource_receipts.append(receipt)
@@ -958,7 +988,7 @@ async def _execute_acquisition(
                         if dep_receipt.decision == "admitted":
                             prior_manifest = _read_json(repo_dir / "package.json", prior_manifest)
                             prior_lock = _read_json(repo_dir / "package-lock.json", prior_lock)
-            except ResourceProviderError as exc:
+            except (ResourceProviderError, AcquisitionValidationError) as exc:
                 if request.requiredness == "required" and request.fallback.kind == "none":
                     rejected = _rejected_receipt(request, str(exc))
                     resource_receipts.append(rejected)
@@ -1254,6 +1284,40 @@ def _execution_package_bindings(
 
 def _execution_binding_hash(slot_id: str, package_name: str) -> str:
     return _model_hash({"execution_slot": slot_id, "package": package_name})
+
+
+def _deferred_component_local_paths(
+    projections: dict[str, dict[str, Any]], request: ResourceRequest, candidate: ResourceCandidate
+) -> list[str]:
+    """Return executable destinations for one pinned Build Preparation component."""
+
+    execution = projections.get("execution/contract.json", {})
+    if not isinstance(execution, dict):
+        return []
+    slot_id = request.request_id.removeprefix("deferred-")
+    candidate_ids = {
+        str(candidate.candidate_id).strip(),
+        str(candidate.provider_resource_id).strip(),
+    }
+    candidate_ids.discard("")
+    for raw_slot in execution.get("slots", []):
+        if not isinstance(raw_slot, dict) or str(raw_slot.get("resource_slot_id", "")) != slot_id:
+            continue
+        resolution = raw_slot.get("resolution")
+        if not isinstance(resolution, dict) or resolution.get("resolution_type") != (
+            "deferred_materialized"
+        ):
+            return []
+        if str(resolution.get("provider", "")).strip() != str(candidate.provider_key).strip():
+            return []
+        bound_ids = {
+            str(resolution.get("provider_asset_id", "")).strip(),
+            str(resolution.get("resource_id", "")).strip(),
+        }
+        if not candidate_ids.intersection(bound_ids):
+            return []
+        return [str(item) for item in resolution.get("local_paths", []) if str(item)]
+    return []
 
 
 def _build_initial_requests(
@@ -1808,6 +1872,24 @@ class CodeGeneratorGenerationHandler:
         ).execute(payload, instance_id)
 
 
+class CodeGeneratorV5PlanningHandler(CodeGeneratorPlanningHandler):
+    """V5 queue alias using the same validated planner implementation."""
+
+    kind = _V5_PLAN_KIND
+
+
+class CodeGeneratorV5AcquisitionHandler(CodeGeneratorAcquisitionHandler):
+    """V5 queue alias using the same pinned-resource acquisition logic."""
+
+    kind = _V5_ACQUIRE_KIND
+
+
+class CodeGeneratorV5GenerationHandler(CodeGeneratorGenerationHandler):
+    """V5 queue alias using the same progressive source generator."""
+
+    kind = _V5_GENERATE_KIND
+
+
 async def _cas_status(
     repo: CodeGeneratorDevelopmentRepository,
     run: Any,
@@ -1860,3 +1942,43 @@ async def _validate_worker_payload(sessionmaker: Any, payload: dict[str, Any]) -
 
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
+        job_kind = str(payload.get("job_kind", ""))
+        expected_version = str(payload.get("required_pipeline_contract_version", "")).strip()
+        expected_release = str(payload.get("required_worker_release_id", "")).strip()
+        if job_kind.startswith("code_generator.v5.") and not (
+            expected_version and expected_release
+        ):
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_WORKER_CONTRACT_MISSING",
+                "The v5 Code Generator job is missing its worker contract fence.",
+            )
+        if not expected_version and not expected_release:
+            return
+        run_id_value = payload.get("code_generator_run_id") or payload.get("development_run_id")
+        try:
+            run_id = UUID(str(run_id_value))
+        except (TypeError, ValueError):
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_WORKER_CONTRACT_INVALID",
+                "The Code Generator worker contract has no valid run identity.",
+            ) from None
+        run = await CodeGeneratorDevelopmentRepository(db).get(run_id)
+        if run is None:
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_RUN_NOT_FOUND",
+                "The Code Generator run was not found.",
+            )
+        from oryxenai.core.settings import get_settings
+
+        configured = get_settings().code_generator_development
+        active_version = str(getattr(configured, "pipeline_contract_version", "")).strip()
+        active_release = str(getattr(configured, "worker_release_id", "")).strip()
+        run_version = str(getattr(run, "pipeline_contract_version", "")).strip()
+        if (
+            expected_version
+            and (expected_version != active_version or expected_version != run_version)
+        ) or (expected_release and expected_release != active_release):
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_WORKER_CONTRACT_MISMATCH",
+                "The worker release cannot execute this Code Generator contract.",
+            )

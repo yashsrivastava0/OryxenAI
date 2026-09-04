@@ -111,6 +111,12 @@ class CodeGeneratorVerificationHandler:
         )
 
 
+class CodeGeneratorV5VerificationHandler(CodeGeneratorVerificationHandler):
+    """V5 queue alias using the existing bounded verification/promotion path."""
+
+    kind = "code_generator.v5.verify_and_preview"
+
+
 async def _execute(
     payload: dict[str, Any],
     *,
@@ -1021,7 +1027,9 @@ async def _session_source_is_current(repository: CodeGeneratorRepository, run: A
         return False
     if str(getattr(preparation, "run_id", "")) != str(source.get("build_preparation_run_id", "")):
         return False
-    if str(getattr(preparation, "scope_hash", "")) != str(source.get("build_preparation_scope_hash", "")):
+    if str(getattr(preparation, "scope_hash", "")) != str(
+        source.get("build_preparation_scope_hash", "")
+    ):
         return False
     content_hash = str(getattr(preparation, "content_brief_hash", "") or "")
     visual_hash = str(getattr(preparation, "visual_brief_hash", "") or "")
@@ -1043,7 +1051,7 @@ def _reference(run: Any) -> Any:
 
 def _resolve_config_path(value: str) -> Path:
     path = Path(value)
-    return path if path.is_absolute() else (repository_root() / path).resolve()
+    return path.resolve() if path.is_absolute() else (repository_root() / path).resolve()
 
 
 def _checkpoint(run: Any) -> Any:
@@ -1106,6 +1114,46 @@ async def _validate_run_fence(sessionmaker: Any, run_id: UUID) -> None:
 async def _validate_worker_payload(sessionmaker: Any, payload: dict[str, Any]) -> None:
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
+        job_kind = str(payload.get("job_kind", ""))
+        expected_version = str(payload.get("required_pipeline_contract_version", "")).strip()
+        expected_release = str(payload.get("required_worker_release_id", "")).strip()
+        if job_kind.startswith("code_generator.v5.") and not (
+            expected_version and expected_release
+        ):
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_WORKER_CONTRACT_MISSING",
+                "The v5 Code Generator job is missing its worker contract fence.",
+            )
+        if not expected_version and not expected_release:
+            return
+        run_id_value = payload.get("code_generator_run_id") or payload.get("development_run_id")
+        try:
+            run_id = UUID(str(run_id_value))
+        except (TypeError, ValueError):
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_WORKER_CONTRACT_INVALID",
+                "The Code Generator worker contract has no valid run identity.",
+            ) from None
+        run = await CodeGeneratorDevelopmentRepository(db).get(run_id)
+        if run is None:
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_RUN_NOT_FOUND",
+                "The Code Generator run was not found.",
+            )
+        from oryxenai.core.settings import get_settings
+
+        configured = get_settings().code_generator_development
+        active_version = str(getattr(configured, "pipeline_contract_version", "")).strip()
+        active_release = str(getattr(configured, "worker_release_id", "")).strip()
+        run_version = str(getattr(run, "pipeline_contract_version", "")).strip()
+        if (
+            expected_version
+            and (expected_version != active_version or expected_version != run_version)
+        ) or (expected_release and expected_release != active_release):
+            raise AuthorizationFenceError(
+                "CODE_GENERATOR_WORKER_CONTRACT_MISMATCH",
+                "The worker release cannot execute this Code Generator contract.",
+            )
 
 
 def _payload_uuid(payload: dict[str, Any], key: str) -> UUID | None:
