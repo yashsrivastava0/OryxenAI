@@ -430,6 +430,29 @@ consistent:
      history unless the user explicitly requests it. After committing, show
      `git log -1 --oneline` and the remaining `git status --short` so unfinished
      or unrelated work stays visible.
+6. **Minimize how long real work sits uncommitted.** A local commit costs
+   nothing and is the only real protection against losing work to an
+   accidental delete, overwrite, or filesystem operation outside git — git
+   history survives all of those; an unprotected working tree does not (this
+   rule exists because exactly that happened: a day of uncommitted work was
+   briefly exposed to total loss by a Windows Explorer delete before it was
+   recovered via `git restore` plus a Recycle Bin restore — see `CHANGES.md`,
+   2026-09-04).
+   - At the start of a session, if `git status` shows non-trivial
+     pre-existing uncommitted changes unrelated to the current task, flag it
+     to the user rather than silently building more work on top of an
+     unprotected worktree.
+   - Commit locally at natural checkpoints — end of a work session, after a
+     meaningful chunk of work, or before any bulk filesystem operation
+     (drag-drop, `rm -rf`, antivirus quarantine, a large refactor) — even if
+     the change doesn't yet meet the `CHANGES.md` "major work" bar. Rule 2's
+     `CHANGES.md`/`DECISIONS.md` logging stays reserved for commit-sized
+     units; the local commit itself should happen more often than that.
+   - Push to the remote regularly too, not just commit locally — a local
+     commit protects against working-tree loss but not against losing the
+     whole machine or disk. Don't let a branch drift many commits ahead of
+     `origin` for extended periods; ask the user before pushing if it's
+     unclear whether they want that branch published yet.
 
 ## Related documents
 
