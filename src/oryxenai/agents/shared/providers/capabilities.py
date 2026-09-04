@@ -41,6 +41,9 @@ class ModelCapabilities(BaseModel):
     structured_output_mode: StructuredOutputMode = "json_object"
     thinking_strategy: ThinkingStrategy = "default"
     effort_parameter: EffortParameter = "none"
+    # Chat Completions' opaque prompt-cache-routing hint (OpenAI protocol).
+    # Defaults false so declaring it is opt-in per profile, not inherited.
+    supports_prompt_cache_key: bool = False
 
 
 DEFAULT_OPENCODE_GO = ModelCapabilities(

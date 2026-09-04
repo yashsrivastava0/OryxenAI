@@ -75,6 +75,18 @@ def test_runtime_rejects_capability_contradictions() -> None:
         ModelRuntime(config)
 
 
+def test_runtime_rejects_anthropic_effort_parameter_on_scalemax() -> None:
+    config = _config(provider="scalemax")
+    config.profiles["primary"].capabilities = _capabilities(
+        thinking_mode=True,
+        thinking_strategy="adaptive",
+        effort_parameter="output_config_effort",
+    )
+
+    with pytest.raises(ProviderConfigError, match="OpenAI-compatible transport"):
+        ModelRuntime(config)
+
+
 @pytest.mark.asyncio
 async def test_runtime_reuses_clients_caches_preflight_and_closes_once(monkeypatch) -> None:
     built: list[str] = []

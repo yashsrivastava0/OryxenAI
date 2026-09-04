@@ -79,8 +79,9 @@ class AnthropicAdapter(BaseProviderAdapter):
         request_id: str,
         system_prompt: str | None = None,
         strict_schema: bool = False,
+        request_context: Any = None,
     ) -> Any:
-        del request_id
+        del request_id, request_context
         from oryxenai.agents.discovery.schemas import StructuredModelResult
 
         schema = output_model.model_json_schema()

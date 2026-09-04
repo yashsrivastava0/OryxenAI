@@ -25,7 +25,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     SitePlan,
 )
-from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.generation_prompt_builder import (
+    PLANNER_FOUNDATION_KEY_ORDER,
+    build_instructions,
+)
 from oryxenai.agents.code_generator.core.pipeline_contract import uses_blueprint
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.shared.contracts import ModelClient
@@ -142,6 +145,7 @@ async def run_planner_operation(
                 system_prompt=system_prompt,
                 model_profile=profile_name,
                 strict_schema=True,
+                request_context={"key_order": PLANNER_FOUNDATION_KEY_ORDER},
             )
         except (ModelJsonInvalidError, ModelOutputTruncatedError) as exc:
             last_issue = _safe_planner_issue(exc)
