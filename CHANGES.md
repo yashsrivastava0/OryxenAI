@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-04 05:36 +05:30 - Codex (GPT-5 / OpenAI) - [389fa28] - ship the authenticated three-agent editorial studio
+
+Restricted the normal `/app` product to Discovery, Content Architect, and Visual Design Director, with explicit start/revise/approve handoffs and approved Visual Direction as the honest terminal state; removed Build Preparation, Code Generator, and Preview calls, adapters, routes, and components from the product bundle without weakening their backend authorization. Split attached product auth from independently configurable local development harness auth through `auth.development_harness_mode`, retaining attached fail-closed production/test defaults. Rebuilt the auth and product surfaces around the restrained Editorial Proofing system with a self-hosted licensed Newsreader subset, asymmetric composition, responsive recomposition, accessible focus/reduced-motion behavior, persisted Discovery transcript reconstruction, observable stale/offline recovery, and branded loading/error/completion states. Updated D-063 and the frontend blueprint, and verified the production build, frontend suites, auth/bootstrap runtime suite, focused auth/config/route suite, task-owned Ruff checks, TypeScript, and mypy. The repository-wide pytest run reached the existing Build Preparation integration expectation that assumes a blocked offline result but received a successful live result; online Google acceptance remains externally blocked because the configured Supabase hostname does not resolve.
+
 ### 2026-09-04 01:35 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [1627f5d] - complete evidence-based Build Preparation brief fixes and diagnostic harness optimizations
 
 Resolved four live-observed defects and prompt bloat in Build Preparation briefs and shared image retrieval:
