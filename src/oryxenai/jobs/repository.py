@@ -115,6 +115,41 @@ class JobRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def cancel(
+        self,
+        job_id: UUID,
+        *,
+        code: str = "JOB_CANCELLED",
+        message: str = "The job was stopped by the user.",
+    ) -> bool:
+        """Cancel queued/running work and fence any late worker completion.
+
+        Clearing the lease token is intentional: a worker that finishes after
+        this update can no longer mark the row succeeded. The agent handler
+        also checks the cancelled row before applying its state result.
+        """
+        now = datetime.now(UTC)
+        stmt = (
+            update(BackgroundJob)
+            .where(
+                BackgroundJob.id == job_id,
+                BackgroundJob.status.in_((JobStatus.QUEUED.value, JobStatus.RUNNING.value)),
+            )
+            .values(
+                status=JobStatus.CANCELLED.value,
+                error_payload={"code": code, "message": message, "retryable": False},
+                result=None,
+                locked_by=None,
+                locked_at=None,
+                heartbeat_at=None,
+                lease_token=None,
+                finished_at=now,
+                updated_at=now,
+            )
+        )
+        result = await self._session.execute(stmt)
+        return bool(getattr(result, "rowcount", 0))
+
     async def claim_batch(
         self,
         worker_instance: str,
@@ -122,14 +157,28 @@ class JobRepository:
         batch_size: int,
         *,
         allowed_job_kinds: Collection[str] | None = None,
+        foreground_job_kinds: Collection[str] | None = None,
     ) -> list[BackgroundJob]:
         """Atomically claim up to `batch_size` due jobs via CTE + SKIP LOCKED."""
         if allowed_job_kinds is not None and not allowed_job_kinds:
             return []
+        if foreground_job_kinds is not None and not foreground_job_kinds:
+            foreground_job_kinds = None
         now = datetime.now(UTC)
         kind_filter = (
             "AND job.job_kind IN :allowed_job_kinds" if allowed_job_kinds is not None else ""
         )
+        foreground_rank = (
+            "CASE WHEN job.job_kind IN :foreground_job_kinds THEN 0 ELSE 1 END"
+            if foreground_job_kinds is not None
+            else "0"
+        )
+        earlier_foreground_rank = (
+            "CASE WHEN earlier.job_kind IN :foreground_job_kinds THEN 0 ELSE 1 END"
+            if foreground_job_kinds is not None
+            else "0"
+        )
+        foreground_order = f"{foreground_rank} ASC, " if foreground_job_kinds is not None else ""
         raw = sa_text(
             f"""
             WITH due AS (
@@ -152,16 +201,22 @@ class JobRepository:
                           AND earlier.execution_lane = job.execution_lane
                           AND earlier.available_at <= :now
                           AND (
-                              earlier.priority > job.priority
+                              {earlier_foreground_rank} < {foreground_rank}
                               OR (
-                                  earlier.priority = job.priority
-                                  AND (earlier.created_at, earlier.id)
-                                      < (job.created_at, job.id)
+                                  {earlier_foreground_rank} = {foreground_rank}
+                                  AND (
+                                      earlier.priority > job.priority
+                                      OR (
+                                          earlier.priority = job.priority
+                                          AND (earlier.created_at, earlier.id)
+                                              < (job.created_at, job.id)
+                                      )
+                                  )
                               )
                           )
-                    )
+                      )
                   )
-                ORDER BY job.priority DESC, job.created_at ASC
+                ORDER BY {foreground_order}job.priority DESC, job.created_at ASC
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )
@@ -175,6 +230,8 @@ class JobRepository:
         )
         if allowed_job_kinds is not None:
             raw = raw.bindparams(bindparam("allowed_job_kinds", expanding=True))
+        if foreground_job_kinds is not None:
+            raw = raw.bindparams(bindparam("foreground_job_kinds", expanding=True))
         for attempt in range(3):
             try:
                 result = await self._session.execute(
@@ -188,6 +245,11 @@ class JobRepository:
                         **(
                             {"allowed_job_kinds": list(allowed_job_kinds)}
                             if allowed_job_kinds is not None
+                            else {}
+                        ),
+                        **(
+                            {"foreground_job_kinds": list(foreground_job_kinds)}
+                            if foreground_job_kinds is not None
                             else {}
                         ),
                     },
@@ -207,6 +269,7 @@ class JobRepository:
         *,
         exclude_job_ids: set[UUID] | None = None,
         allowed_job_kinds: Collection[str] | None = None,
+        foreground_job_kinds: Collection[str] | None = None,
     ) -> list[BackgroundJob]:
         """Recover expired jobs not already active in this worker process.
 
@@ -218,10 +281,18 @@ class JobRepository:
         """
         if allowed_job_kinds is not None and not allowed_job_kinds:
             return []
+        if foreground_job_kinds is not None and not foreground_job_kinds:
+            foreground_job_kinds = None
         cutoff = datetime.now(UTC) - timedelta(seconds=lease_seconds)
         kind_filter = (
             "AND job.job_kind IN :allowed_job_kinds" if allowed_job_kinds is not None else ""
         )
+        foreground_rank = (
+            "CASE WHEN job.job_kind IN :foreground_job_kinds THEN 0 ELSE 1 END"
+            if foreground_job_kinds is not None
+            else "0"
+        )
+        foreground_order = f"{foreground_rank} ASC, " if foreground_job_kinds is not None else ""
         raw = sa_text(
             f"""
             WITH stale AS (
@@ -250,6 +321,7 @@ class JobRepository:
                               < (job.created_at, job.id)
                     )
                   )
+                ORDER BY {foreground_order}job.created_at ASC
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )
@@ -269,6 +341,8 @@ class JobRepository:
         )
         if allowed_job_kinds is not None:
             raw = raw.bindparams(bindparam("allowed_job_kinds", expanding=True))
+        if foreground_job_kinds is not None:
+            raw = raw.bindparams(bindparam("foreground_job_kinds", expanding=True))
         result = await self._session.execute(
             raw,
             {
@@ -283,9 +357,126 @@ class JobRepository:
                     if allowed_job_kinds is not None
                     else {}
                 ),
+                **(
+                    {"foreground_job_kinds": list(foreground_job_kinds)}
+                    if foreground_job_kinds is not None
+                    else {}
+                ),
             },
         )
         return [_bg_from_row(r) for r in result.fetchall()]
+
+    async def requeue_stale(
+        self,
+        lease_seconds: float,
+        batch_size: int,
+        *,
+        exclude_job_ids: set[UUID] | None = None,
+        allowed_job_kinds: Collection[str] | None = None,
+        foreground_job_kinds: Collection[str] | None = None,
+    ) -> int:
+        """Release expired leases so the normal claim order can choose work.
+
+        Requeueing first is important when an abandoned job occupies the
+        unique model-generation lane: a fresh foreground request must be
+        able to claim that lane before the abandoned job is dispatched again.
+        The old worker's lease token is cleared, so any late completion is
+        fenced by the existing completion predicates.
+        """
+        if batch_size <= 0:
+            return 0
+        if allowed_job_kinds is not None and not allowed_job_kinds:
+            return 0
+        if foreground_job_kinds is not None and not foreground_job_kinds:
+            foreground_job_kinds = None
+        cutoff = datetime.now(UTC) - timedelta(seconds=lease_seconds)
+        kind_filter = (
+            "AND job.job_kind IN :allowed_job_kinds" if allowed_job_kinds is not None else ""
+        )
+        foreground_rank = (
+            "CASE WHEN job.job_kind IN :foreground_job_kinds THEN 0 ELSE 1 END"
+            if foreground_job_kinds is not None
+            else "0"
+        )
+        foreground_order = f"{foreground_rank} ASC, " if foreground_job_kinds is not None else ""
+        raw = sa_text(
+            f"""
+            WITH stale AS (
+                SELECT job.id FROM background_jobs AS job
+                WHERE job.status = :running_status AND job.heartbeat_at <= :cutoff
+                  {kind_filter}
+                  AND job.id NOT IN :exclude_job_ids
+                  AND (
+                    job.execution_lane IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM background_jobs AS running
+                        WHERE running.status = :running_status
+                          AND running.execution_lane = job.execution_lane
+                          AND running.id <> job.id
+                          AND running.heartbeat_at > :cutoff
+                    )
+                  )
+                  AND (
+                    job.execution_lane IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM background_jobs AS earlier_stale
+                        WHERE earlier_stale.status = :running_status
+                          AND earlier_stale.heartbeat_at <= :cutoff
+                          AND earlier_stale.execution_lane = job.execution_lane
+                          AND earlier_stale.id <> job.id
+                          AND (earlier_stale.created_at, earlier_stale.id)
+                              < (job.created_at, job.id)
+                    )
+                  )
+                ORDER BY {foreground_order}job.created_at ASC
+                LIMIT :limit
+                FOR UPDATE SKIP LOCKED
+            )
+            UPDATE background_jobs SET
+                status = :queued_status,
+                locked_by = NULL,
+                locked_at = NULL,
+                heartbeat_at = NULL,
+                lease_token = NULL,
+                started_at = NULL,
+                available_at = :now,
+                updated_at = :now
+            WHERE id IN (SELECT id FROM stale)
+            RETURNING id
+            """
+        ).bindparams(
+            bindparam(
+                "exclude_job_ids",
+                expanding=True,
+                type_=PostgreSQLUUID(as_uuid=True),
+            )
+        )
+        if allowed_job_kinds is not None:
+            raw = raw.bindparams(bindparam("allowed_job_kinds", expanding=True))
+        if foreground_job_kinds is not None:
+            raw = raw.bindparams(bindparam("foreground_job_kinds", expanding=True))
+        result = await self._session.execute(
+            raw,
+            {
+                "running_status": JobStatus.RUNNING.value,
+                "queued_status": JobStatus.QUEUED.value,
+                "cutoff": cutoff,
+                "limit": batch_size,
+                "now": datetime.now(UTC),
+                "exclude_job_ids": list(exclude_job_ids or set()),
+                **(
+                    {"allowed_job_kinds": list(allowed_job_kinds)}
+                    if allowed_job_kinds is not None
+                    else {}
+                ),
+                **(
+                    {"foreground_job_kinds": list(foreground_job_kinds)}
+                    if foreground_job_kinds is not None
+                    else {}
+                ),
+            },
+        )
+        return len(result.fetchall())
 
     async def mark_succeeded(
         self,

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from oryxenai.api.routes import (
     agents,
     build_preparation,
+    client_diagnostics,
     code_generator,
     code_generator_development,
     content_architect,
@@ -46,6 +47,12 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     router.include_router(content_architect.router)
     router.include_router(visual_design_director.router)
     router.include_router(build_preparation.router)
+    # Client diagnostics are a separate local-only switch. Keep the route
+    # available when the developer UI is not mounted so API-backed local
+    # product shells can still export a trace; deployment overlays disable it
+    # explicitly through [client_diagnostics].
+    if bool(getattr(getattr(settings, "client_diagnostics", None), "enabled", False)):
+        router.include_router(client_diagnostics.router)
     if dev_ui_enabled and fixture_enabled:
         fixture_router = (
             build_preparation.detached_fixture_router
