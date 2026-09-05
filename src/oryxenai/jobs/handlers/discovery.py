@@ -45,6 +45,8 @@ from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.db.session import get_sessionmaker
+from oryxenai.jobs.contracts import JobStatus
+from oryxenai.jobs.repository import JobRepository
 
 logger = get_logger("oryxenai.jobs.handlers.discovery")
 
@@ -181,8 +183,13 @@ async def _execute_persisted(
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    raw_job_id = payload.get("job_id")
+    job_id = UUID(str(raw_job_id)) if raw_job_id else None
 
     async with sessionmaker() as db:
+        job = await JobRepository(db).get_by_id(job_id) if job_id is not None else None
+        if job_id is not None and (job is None or job.status == JobStatus.CANCELLED.value):
+            return {"status": "cancelled", "job_id": str(job_id)}
         await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = DiscoveryRepository(db)
         run = await repo.get_run(run_id)
@@ -191,6 +198,8 @@ async def _execute_persisted(
             raise ValueError("Discovery run or session was not found")
         await repo.mark_run_started(run_id)
         state = await repo.get_discovery_state(session_id)
+        if not _job_owns_active_state(state, operation, run_id, job_id):
+            return {"status": "cancelled", "job_id": str(job_id)}
         running = _running_state(state, operation, run_id)
         running.attempt = attempt
         running.max_attempts = max_attempts
@@ -203,6 +212,10 @@ async def _execute_persisted(
     from oryxenai.agents.shared.model_runtime import get_model_runtime
 
     runtime = get_model_runtime(settings.models)
+    async with sessionmaker() as db:
+        job = await JobRepository(db).get_by_id(job_id) if job_id is not None else None
+        if job_id is not None and (job is None or job.status == JobStatus.CANCELLED.value):
+            return {"status": "cancelled", "job_id": str(job_id)}
     requested_profile = str(input_payload.get("model_profile", "") or "")
     runtime_profile_id = runtime.resolve_profile_name("discovery", requested_profile)
     input_payload["runtime_profile_id"] = runtime_profile_id
@@ -345,12 +358,19 @@ async def _apply_result(
     runtime_profile_id: str,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
+        raw_job_id = payload.get("job_id")
+        job_id = UUID(str(raw_job_id)) if raw_job_id else None
+        job = await JobRepository(db).get_by_id(job_id) if job_id is not None else None
+        if job_id is not None and (job is None or job.status == JobStatus.CANCELLED.value):
+            return {"status": "cancelled", "job_id": str(job_id)}
         await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = DiscoveryRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
             raise ValueError("Discovery session was not found")
         state = await repo.get_discovery_state(session_id)
+        if not _job_owns_active_state(state, operation, run_id, job_id):
+            return {"status": "cancelled", "job_id": str(job_id or "")}
 
         if operation in _QUESTIONS_OPS:
             questions = [
@@ -387,6 +407,9 @@ async def _apply_result(
 
         updated = await repo.save_discovery_state(session_id, next_state, session.revision)
         if updated is None:
+            current_job = await JobRepository(db).get_by_id(job_id) if job_id is not None else None
+            if job_id is not None and (current_job is None or current_job.status == JobStatus.CANCELLED.value):
+                return {"status": "cancelled", "job_id": str(job_id)}
             raise ValueError("Discovery state changed while the job was running")
         state_after = dict(updated.current_state)
         await repo.mark_run_succeeded(
@@ -402,6 +425,23 @@ async def _apply_result(
         )
         await db.commit()
         return {"status": "succeeded", "run_id": str(run_id), "operation": operation}
+
+
+def _job_owns_active_state(
+    state: Any, operation: str, run_id: UUID, job_id: UUID | None
+) -> bool:
+    """Prevent a late worker result from reviving a stopped/restarted run."""
+    if operation in _QUESTIONS_OPS:
+        return (
+            state.status in {DiscoveryStatus.QUESTIONS_QUEUED, DiscoveryStatus.QUESTIONS_RUNNING}
+            and state.operation_a.run_id == str(run_id)
+            and (job_id is None or state.operation_a.job_id == str(job_id))
+        )
+    return (
+        state.status is DiscoveryStatus.BRIEF_RUNNING
+        and state.brief.run_id == str(run_id)
+        and (job_id is None or state.brief.job_id == str(job_id))
+    )
 
 
 async def _persist_failure(

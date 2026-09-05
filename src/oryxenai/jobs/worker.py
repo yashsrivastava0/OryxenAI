@@ -42,6 +42,7 @@ from oryxenai.core.logging import configure_logging, get_logger
 from oryxenai.core.settings import get_settings
 from oryxenai.db.session import get_engine, reset_engine_cache
 from oryxenai.jobs.contracts import permanent, retryable
+from oryxenai.jobs.policy import foreground_job_kinds
 from oryxenai.jobs.registry import get as get_handler
 from oryxenai.jobs.registry import list_kinds
 from oryxenai.jobs.repository import JobRepository
@@ -213,6 +214,7 @@ class Worker:
                     self._settings.worker.claim_batch_size,
                 ),
                 allowed_job_kinds=list_kinds(),
+                foreground_job_kinds=foreground_job_kinds(),
             )
             await session.commit()
         return jobs
@@ -222,8 +224,7 @@ class Worker:
             return []
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
-            stale = await repo.recover_stale(
-                self._instance_id,
+            await repo.requeue_stale(
                 self._settings.worker_job.lease_duration,
                 min(
                     limit or self._settings.worker.claim_batch_size,
@@ -231,9 +232,12 @@ class Worker:
                 ),
                 exclude_job_ids=set(self._active_job_ids),
                 allowed_job_kinds=list_kinds(),
+                foreground_job_kinds=foreground_job_kinds(),
             )
             await session.commit()
-        return stale
+        # Requeue before claiming so a fresh foreground request can take the
+        # unique model-generation lane before an abandoned job is dispatched.
+        return await self._claim_due(limit)
 
     # ── dispatch ───────────────────────────────────────────────────────────
 
@@ -341,6 +345,10 @@ class Worker:
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
 
+        if result.get("status") == "cancelled":
+            # The API already made the durable row terminal. Do not turn a
+            # user cancellation into a success/failure transition.
+            return
         if result.get("status") == "failed":
             raw_error = result.get("error")
             if isinstance(raw_error, dict):

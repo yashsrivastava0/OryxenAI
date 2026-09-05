@@ -22,8 +22,10 @@ from oryxenai.agents.discovery.state import (
     apply_answers_in_progress,
     apply_approval,
     apply_brief_running,
+    apply_needs_attention,
     apply_start,
 )
+from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.model_router import ModelRouter
 from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.auth.authorization import durable_snapshot_for_session
@@ -326,6 +328,54 @@ class DiscoveryService:
             self._revision_conflict(session.revision, session.revision + 1)
         return await self.get_discovery_state(session_id)
 
+    async def stop(self, session_id: UUID) -> dict[str, Any]:
+        """Stop the active Discovery operation and preserve the intake.
+
+        Cancellation is deliberately recoverable: the session enters the
+        existing ``needs_attention`` state so the user can retry from the
+        preserved input, while the durable job becomes terminal and cannot be
+        resurrected by a late worker completion.
+        """
+        session = await self._require_session(session_id)
+        state = await self._repository.get_discovery_state(session_id)
+        if state.status in {
+            DiscoveryStatus.QUESTIONS_QUEUED,
+            DiscoveryStatus.QUESTIONS_RUNNING,
+        }:
+            job_id = state.operation_a.job_id
+            run_id = state.operation_a.run_id
+            operation = "understand_and_question"
+        elif state.status is DiscoveryStatus.BRIEF_RUNNING:
+            job_id = state.brief.job_id
+            run_id = state.brief.run_id
+            operation = "build_or_revise_brief"
+        else:
+            return await self.get_discovery_state(session_id)
+
+        error = {
+            "code": "JOB_CANCELLED",
+            "message": "Discovery was stopped. Your input is preserved and can be retried.",
+            "retryable": False,
+            "operation": operation,
+        }
+        if job_id:
+            try:
+                await self._job_service.cancel(UUID(job_id))
+            except (TypeError, ValueError):
+                logger.warning("discovery stop found malformed job id session_id=%s", session_id)
+        stopped = apply_needs_attention(state, error)
+        updated = await self._repository.save_discovery_state(
+            session_id, stopped, session.revision
+        )
+        if updated is None:
+            self._revision_conflict(session.revision, session.revision + 1)
+        if run_id:
+            try:
+                await self._repository.mark_run_cancelled(UUID(run_id), error)
+            except (TypeError, ValueError):
+                logger.warning("discovery stop found malformed run id session_id=%s", session_id)
+        return await self.get_discovery_state(session_id)
+
     async def get_discovery_state(self, session_id: UUID) -> dict[str, Any]:
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
@@ -338,16 +388,7 @@ class DiscoveryService:
                 except Exception:
                     job = None
                 if job is not None:
-                    jobs.append(
-                        {
-                            "id": str(job.id),
-                            "kind": job.job_kind,
-                            "status": job.status,
-                            "execution_lane": getattr(job, "execution_lane", None),
-                            "attempt": job.attempt,
-                            "error": job.error_payload,
-                        }
-                    )
+                    jobs.append(public_job_status(job))
 
         discovery = state.model_dump(mode="json")
         discovery["elapsed_seconds"] = _elapsed_seconds(state.started_at)

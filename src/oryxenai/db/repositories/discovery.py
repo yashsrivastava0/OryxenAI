@@ -99,3 +99,10 @@ class DiscoveryRepository:
         model_metadata: dict[str, Any] | None = None,
     ) -> None:
         await self._runs.mark_failed(run_id, error_payload, model_metadata=model_metadata)
+
+    async def mark_run_cancelled(
+        self,
+        run_id: UUID,
+        error_payload: dict[str, Any],
+    ) -> None:
+        await self._runs.mark_cancelled(run_id, error_payload)

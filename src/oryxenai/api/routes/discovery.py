@@ -157,3 +157,17 @@ async def approve_discovery_brief(
         return DiscoveryStateResponse(**await service.approve_brief(access.session.id))
     except DiscoveryOperationError as exc:
         _translate(exc)
+
+
+@router.post("/stop", response_model=DiscoveryStateResponse)
+async def stop_discovery(
+    session_id: str,
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
+    service: DiscoveryService = Depends(get_discovery_service),
+) -> DiscoveryStateResponse:
+    """Stop the active Discovery job without deleting the user's intake."""
+    try:
+        return DiscoveryStateResponse(**await service.stop(access.session.id))
+    except DiscoveryOperationError as exc:
+        _translate(exc)
