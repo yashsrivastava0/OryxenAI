@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type HTMLAttributes,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -231,11 +232,19 @@ export function Reveal({
   pattern = "reveal-fade-rise",
   className = "",
   children,
+  ...rest
 }: {
   pattern?: "reveal-fade-rise" | "reveal-clip-lines";
   className?: string;
   children: ReactNode;
-}) {
+} & Omit<HTMLAttributes<HTMLDivElement>, "className" | "children">) {
+  // `rest` forwards any other attribute (a resource/interaction marker, for
+  // example) onto this same wrapper element -- the one element that also
+  // carries `data-motion-ready`, so a selector combining both attributes on
+  // one element (rather than a descendant combinator) has something real to
+  // match. Without this, a marker placed on `children` instead lands on a
+  // different DOM node than `data-motion-ready`, and the two can never be
+  // matched by the same compound CSS selector.
   const { ref, inView } = useInView<HTMLDivElement>();
   const dataMotionReady = inView ? "true" : undefined;
   if (pattern === "reveal-clip-lines") {
@@ -244,6 +253,7 @@ export function Reveal({
         ref={ref}
         className={["motion-reveal-clip-lines", className].filter(Boolean).join(" ")}
         data-motion-ready={dataMotionReady}
+        {...rest}
       >
         <span className="motion-reveal-clip-lines__inner">{children}</span>
       </div>
@@ -254,6 +264,7 @@ export function Reveal({
       ref={ref}
       className={["motion-reveal-fade-rise", className].filter(Boolean).join(" ")}
       data-motion-ready={dataMotionReady}
+      {...rest}
     >
       {children}
     </div>
@@ -264,11 +275,12 @@ export function StaggerGroup({
   className = "",
   itemClassName = "",
   children,
+  ...rest
 }: {
   className?: string;
   itemClassName?: string;
   children: ReactNode;
-}) {
+} & Omit<HTMLAttributes<HTMLDivElement>, "className" | "children">) {
   const { ref, inView } = useInView<HTMLDivElement>();
   const items = Children.toArray(children);
   return (
@@ -276,6 +288,7 @@ export function StaggerGroup({
       ref={ref}
       className={["motion-stagger-group", className].filter(Boolean).join(" ")}
       data-motion-ready={inView ? "true" : undefined}
+      {...rest}
     >
       {items.map((child, index) => {
         if (!isValidElement(child)) return child;
