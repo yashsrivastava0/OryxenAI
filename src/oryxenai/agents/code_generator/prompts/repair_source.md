@@ -103,6 +103,16 @@ actually gone.
   the admitted local font faces and root-public URLs.
 - `SOURCE_LOCAL_IMPORT_MISSING` / `SOURCE_UNDECLARED_IMPORT`: fix or remove the
   import using only files and packages admitted in the current context.
+  Import paths resolve from the repository root, not the prompt's logical
+  `src/...` labels; use the `@/` alias when possible. If using a relative
+  import, the file being repaired sets the required depth: from a section
+  file at `src/routes/<route-storage-key>/sections/<section-file>.tsx`, use
+  exactly three `..` segments (`../../../components/generated/SharedSystems`,
+  `../../../content/generated-content`); from the route composer at
+  `src/routes/<route-storage-key>/index.tsx`, use exactly two
+  (`../../components/generated/SharedSystems`). Never use four `..` segments
+  from a section file — that leaves `src/` entirely and cannot resolve any
+  trusted module.
 - `SOURCE_ROUTE_H1_COUNT_INVALID` / `SOURCE_SECTION_ANCHOR_COUNT_INVALID` /
   `SOURCE_SECTION_DOM_ID_MISSING` / `SOURCE_SECTION_ORDER_INVALID`: for a V4
   route, section `.tsx` modules own their single literal section anchors and
