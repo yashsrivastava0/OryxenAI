@@ -1027,7 +1027,14 @@ async def test_integration_polish_survives_cannot_complete_and_reaches_unresolve
     now leave that owner's files untouched for the round and let the
     bounded loop continue, landing on the pre-existing
     INTEGRATION_REVIEW_UNRESOLVED terminal state once rounds are exhausted,
-    never INTEGRATION_POLISH_INCOMPLETE."""
+    never INTEGRATION_POLISH_INCOMPLETE.
+
+    Also a regression test for a second, later live finding (2026-09-05,
+    run 93d4d3c4-...): the same STILL_BROKEN code recurring across rounds
+    used to get an identical, doomed repair call every single round with no
+    memory of the previous round's cannot_complete. The review here returns
+    the same code every round on purpose -- once round 1 answers "no", round
+    2 must not spend another repair call re-asking the identical question."""
     workspace = GenerationWorkspace(
         tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
     )
@@ -1183,7 +1190,218 @@ async def test_integration_polish_survives_cannot_complete_and_reaches_unresolve
         )
 
     assert excinfo.value.code == "INTEGRATION_REVIEW_UNRESOLVED"
+    # The review itself still runs every round -- it must always reflect the
+    # tree's current state -- but round 2 must not re-attempt the owner: its
+    # only finding (STILL_BROKEN) already returned cannot_complete in round
+    # 1, so a fresh, identical repair call would be spending budget on a
+    # question already answered "no" once.
     assert review_rounds == [0, 1, 2]
+    assert repair_units == ["route-home-integration-polish"]
+
+
+@pytest.mark.asyncio
+async def test_integration_polish_still_attempts_a_genuinely_new_finding_code(
+    tmp_path, monkeypatch
+) -> None:
+    """Companion to the dedup regression above: skipping a re-attempt is
+    scoped to the exact finding code that already returned cannot_complete,
+    never the whole owner. A different code for the same owner next round is
+    a genuinely new question and must still get its fair first attempt."""
+    workspace = GenerationWorkspace(
+        tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    workspace.repo_dir.mkdir(parents=True)
+    workspace.ledger_dir.mkdir(parents=True)
+    owned_path = "src/routes/home/index.tsx"
+    source = workspace.repo_dir / owned_path
+    source.parent.mkdir(parents=True)
+    source.write_text("export default function Home() { return null; }", encoding="utf-8")
+    unit = WorkUnit(
+        unit_id="route-home",
+        kind="route",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=[owned_path],
+    )
+    plan = SitePlan(
+        plan_id="new-finding-polish",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stacked",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        work_graph=WorkGraph(units=[unit]),
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+            "criteria": [],
+            "facts": [],
+            "public_content": [],
+        },
+        "design/visual-direction.json": {},
+        "resources/ledger.json": {},
+        "execution/contract.json": {},
+    }
+
+    def review_for_round(round_number: int) -> IntegrationReviewV1:
+        if round_number == 2:
+            return IntegrationReviewV1(
+                status="accepted",
+                findings=[],
+                distinctiveness_score=4,
+                composition_score=4,
+                typography_score=4,
+                resource_fit_score=4,
+                motion_score=4,
+            )
+        code = "STILL_BROKEN" if round_number == 0 else "NEW_ISSUE"
+        return IntegrationReviewV1(
+            status="findings",
+            findings=[
+                IntegrationFinding(
+                    finding_id=f"finding-round-{round_number}",
+                    severity="blocking",
+                    section_id=owned_path,
+                    owner_work_unit_id=unit.unit_id,
+                    code=code,
+                    evidence="concrete source mismatch",
+                    requested_outcome="correct the owned source",
+                )
+            ],
+            distinctiveness_score=4,
+            composition_score=4,
+            typography_score=3,
+            resource_fit_score=4,
+            motion_score=4,
+        )
+
+    review_rounds: list[int] = []
+    repair_units: list[str] = []
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def integration_review(**kwargs):
+        round_number = int(kwargs["round_number"])
+        review_rounds.append(round_number)
+        return review_for_round(round_number)
+
+    async def model_result(**kwargs):
+        repair_units.append(str(kwargs["unit_id"]))
+        # Round 1's attempt (STILL_BROKEN) cannot complete; round 2's
+        # attempt (NEW_ISSUE) succeeds.
+        if len(repair_units) == 1:
+            return (
+                GenerationResult(
+                    operation_id=f"repair:{kwargs['unit_id']}",
+                    based_on_context_receipt=str(kwargs["context_receipt"].context_hash),
+                    mode="cannot_complete",
+                    cannot_complete=GenerationCannotComplete(
+                        code="STILL_BROKEN",
+                        safe_reason="Outside this unit's bounded authority.",
+                    ),
+                ),
+                GenerationCallReceipt(
+                    receipt_id=f"call-{len(repair_units)}",
+                    operation_id="repair",
+                    idempotency_key=f"repair-{len(repair_units)}",
+                    context_receipt_hash=str(kwargs["context_receipt"].context_hash),
+                    result_hash=f"result-{len(repair_units)}",
+                    profile="repair-profile",
+                ),
+            )
+        return (
+            GenerationResult(
+                operation_id=f"repair:{kwargs['unit_id']}",
+                based_on_context_receipt=str(kwargs["context_receipt"].context_hash),
+                mode="changes",
+                changes=GenerationChanges(
+                    files=[
+                        SourceFileChange(
+                            path=owned_path,
+                            operation="replace",
+                            complete_utf8_content=(
+                                "export default function Home() { return null; }"
+                            ),
+                        )
+                    ]
+                ),
+            ),
+            GenerationCallReceipt(
+                receipt_id=f"call-{len(repair_units)}",
+                operation_id="repair",
+                idempotency_key=f"repair-{len(repair_units)}",
+                context_receipt_hash=str(kwargs["context_receipt"].context_hash),
+                result_hash=f"result-{len(repair_units)}",
+                profile="repair-profile",
+            ),
+        )
+
+    async def no_diagnostics(*_args, **_kwargs):
+        return []
+
+    async def no_op(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(orchestrator, "_integration_review", integration_review)
+    monkeypatch.setattr(orchestrator, "_model_result", model_result)
+    monkeypatch.setattr(orchestrator, "_apply_changes", lambda **_kwargs: None)
+    monkeypatch.setattr(orchestrator, "_validate_run", no_op)
+    monkeypatch.setattr(orchestrator, "_persist", no_op)
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.core.generation_orchestrator.run_source_checks",
+        no_diagnostics,
+    )
+    settings = SimpleNamespace(
+        code_generator_generation=SimpleNamespace(
+            repair_profile="repair-profile",
+            max_response_bytes=2_000_000,
+            max_context_chars=170_000,
+            max_source_bytes=2_000_000,
+            max_integration_polish_rounds=2,
+        )
+    )
+    projection = GenerationProjection(
+        generation_id="generation-new-finding-polish",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="integrating",
+    )
+    initial_checkpoint = SourceCheckpoint(
+        checkpoint_id="checkpoint-initial",
+        checkpoint_hash="hash-initial",
+        stored_relative_path="checkpoints/initial",
+        source_manifest_hash="manifest-initial",
+        file_count=1,
+        total_bytes=source.stat().st_size,
+        work_unit_id=unit.unit_id,
+        accepted_at="2026-09-05T00:00:00+00:00",
+    )
+
+    await orchestrator._review_and_polish(
+        sessionmaker=None,
+        run_id=uuid4(),
+        settings=settings,
+        run=SimpleNamespace(),
+        plan=plan,
+        projections=projections,
+        workspace=workspace,
+        projection=projection,
+        checkpoint_store=SimpleNamespace(accept=lambda **_kwargs: initial_checkpoint),
+        checkpoint=initial_checkpoint,
+        allowed_packages=set(),
+        public_text=set(),
+    )
+
+    assert review_rounds == [0, 1, 2]
+    # Both rounds spent a repair call: STILL_BROKEN in round 1, then the
+    # different NEW_ISSUE code in round 2 -- a new code is never suppressed
+    # by an unrelated code's earlier cannot_complete for the same owner.
     assert repair_units == ["route-home-integration-polish", "route-home-integration-polish-2"]
 
 

@@ -868,8 +868,84 @@ def _is_concrete_source_size(value: str) -> bool:
     )
 
 
+_NUMBER_WORD_VALUES: dict[str, int] = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+}
+_NUMBER_WORD_TENS = frozenset(
+    {"twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"}
+)
+_NUMBER_WORD_ONES = frozenset(
+    {"one", "two", "three", "four", "five", "six", "seven", "eight", "nine"}
+)
+_CSS_WORD_LENGTH_CAPTURE_RE = re.compile(
+    r"(?<![\w-])([a-z][a-z0-9-]*?)\s*"
+    r"(px|cm|mm|q|in|pc|pt|rem|em|ex|ch|cap|ic|lh|rlh|vw|vh|vi|vb|vmin|vmax|"
+    r"svw|svh|svi|svb|svmin|svmax|lvw|lvh|lvi|lvb|lvmin|lvmax|dvw|dvh|dvi|dvb|"
+    r"dvmin|dvmax|cqw|cqh|cqi|cqb|cqmin|cqmax|fr|%)(?![\w-])",
+    re.IGNORECASE,
+)
+
+
+def _word_to_number(word: str) -> str | None:
+    """Parse a spelled-out integer word into its digit string, covering the
+    realistic range for a design-system CSS length (0-999): a plain word
+    ("sixty"), a tens+ones compound with no separator ("sixtyfour"), or an
+    N-hundred compound ("twohundred"). Returns None if unparseable, so the
+    caller's existing reject-check still fires -- this is a safety net for
+    the common case the model actually produces, not a full parser."""
+    folded = word.casefold()
+    if folded in _NUMBER_WORD_VALUES:
+        return str(_NUMBER_WORD_VALUES[folded])
+    if folded.endswith("hundred") and folded != "hundred":
+        prefix = folded[: -len("hundred")]
+        if prefix in _NUMBER_WORD_ONES:
+            return str(_NUMBER_WORD_VALUES[prefix] * 100)
+    for tens_word in _NUMBER_WORD_TENS:
+        if folded.startswith(tens_word) and len(folded) > len(tens_word):
+            ones_word = folded[len(tens_word) :]
+            if ones_word in _NUMBER_WORD_ONES:
+                return str(_NUMBER_WORD_VALUES[tens_word] + _NUMBER_WORD_VALUES[ones_word])
+    return None
+
+
+def _normalize_spelled_out_css_lengths(value: str) -> str:
+    def _replace(match: re.Match[str]) -> str:
+        digits = _word_to_number(match.group(1))
+        return match.group(0) if digits is None else f"{digits}{match.group(2)}"
+
+    return _CSS_WORD_LENGTH_CAPTURE_RE.sub(_replace, value)
+
+
 def _validate_source_sizes(value: str) -> str:
     normalized = " ".join(value.strip().split())
+    normalized = _normalize_spelled_out_css_lengths(normalized)
     if not normalized or any(character in normalized for character in ('"', "'", ";", "{", "}")):
         raise ValueError(
             "resource placement sizes require a concrete browser-safe CSS sizes policy"
@@ -902,6 +978,15 @@ def _validate_source_sizes(value: str) -> str:
     return normalized
 
 
+def _normalize_token_identifier(value: str) -> str:
+    """Lowercase and hyphenate a token name before it's validated as a
+    semantic identifier. Case is not semantic here -- these are internal
+    labels, not CSS values -- and the model's own worked example already
+    anticipates "Cobalt" needing to become "cobalt" rather than being
+    rejected outright and forcing a whole extra planner round-trip."""
+    return value.strip().replace("_", "-").lower()
+
+
 class NamedColorTokenV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -911,7 +996,7 @@ class NamedColorTokenV4(BaseModel):
     @field_validator("name")
     @classmethod
     def _name(cls, value: str) -> str:
-        normalized = value.strip().replace("_", "-")
+        normalized = _normalize_token_identifier(value)
         if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
             raise ValueError("color token names must be lowercase semantic identifiers")
         return normalized
@@ -937,7 +1022,7 @@ class LengthTokenV4(BaseModel):
     @field_validator("name")
     @classmethod
     def _name(cls, value: str) -> str:
-        normalized = value.strip().replace("_", "-")
+        normalized = _normalize_token_identifier(value)
         if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
             raise ValueError("length token names must be lowercase semantic identifiers")
         return normalized
@@ -966,7 +1051,7 @@ class SignedLengthTokenV4(BaseModel):
     @field_validator("name")
     @classmethod
     def _name(cls, value: str) -> str:
-        normalized = value.strip().replace("_", "-")
+        normalized = _normalize_token_identifier(value)
         if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
             raise ValueError("length token names must be lowercase semantic identifiers")
         return normalized
@@ -998,7 +1083,7 @@ class MotionTokenV4(BaseModel):
     @field_validator("name")
     @classmethod
     def _name(cls, value: str) -> str:
-        normalized = value.strip().replace("_", "-")
+        normalized = _normalize_token_identifier(value)
         if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
             raise ValueError("motion token names must be lowercase semantic identifiers")
         return normalized
@@ -1078,7 +1163,7 @@ class FluidTypeStepV4(BaseModel):
     def _ordered(self) -> FluidTypeStepV4:
         if self.minimum_rem > self.maximum_rem:
             raise ValueError("fluid type minimum must not exceed its maximum")
-        normalized = self.name.strip().replace("_", "-")
+        normalized = _normalize_token_identifier(self.name)
         if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
             raise ValueError("fluid type steps require semantic identifiers")
         self.name = normalized

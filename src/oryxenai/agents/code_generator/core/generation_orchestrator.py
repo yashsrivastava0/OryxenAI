@@ -1247,6 +1247,13 @@ class CodeGeneratorGenerationOrchestrator:
         maximum_rounds = int(
             getattr(settings.code_generator_generation, "max_integration_polish_rounds", 2)
         )
+        # Owner -> finding codes that already returned cannot_complete once.
+        # A fresh review re-derives blocking findings every round with no
+        # memory of prior rounds (by design -- review.findings must reflect
+        # the tree's *current* state); without this, an owner whose finding
+        # is structurally unfixable (e.g. a resource with no real binding)
+        # gets handed an identical doomed repair call every remaining round.
+        exhausted_owner_codes: dict[str, set[str]] = {}
         for polish_round in range(1, maximum_rounds + 1):
             if _review_accepted(review):
                 return
@@ -1290,6 +1297,12 @@ class CodeGeneratorGenerationOrchestrator:
                         ),
                     )
                 )
+            grouped = {
+                owner_id: diagnostics
+                for owner_id, diagnostics in grouped.items()
+                if not {item.code for item in diagnostics}
+                <= exhausted_owner_codes.get(owner_id, set())
+            }
             for owner_id, diagnostics in grouped.items():
                 owner = owners[owner_id]
                 projection.diagnostics.extend(diagnostics)
@@ -1372,12 +1385,22 @@ class CodeGeneratorGenerationOrchestrator:
                         # never converges, the run still lands cleanly on the
                         # pre-existing INTEGRATION_REVIEW_UNRESOLVED terminal
                         # state below, not an abrupt, less-informative one.
+                        reason = (
+                            result.cannot_complete.safe_reason
+                            if result.mode == "cannot_complete" and result.cannot_complete
+                            else ""
+                        )
                         logger.warning(
-                            "integration polish call reported cannot_complete "
-                            "run_id=%s owner=%s round=%s",
+                            "integration polish call reported mode=%s (not changes) "
+                            "run_id=%s owner=%s round=%s reason=%s",
+                            result.mode,
                             run_id,
                             owner.unit_id,
                             polish_round,
+                            reason or "<none>",
+                        )
+                        exhausted_owner_codes.setdefault(owner_id, set()).update(
+                            item.code for item in diagnostics
                         )
                         break
                     rejected_attempt_files = (
