@@ -233,4 +233,45 @@ def _generation_report(payload: dict[str, Any]) -> str:
     return "\n".join(str(line) for line in lines) + "\n"
 
 
-__all__ = ["DEFAULT_EXPORT_ROOT", "DEFAULT_EXPORT_TIMEZONE", "export_portfolio"]
+def export_failed_run(
+    *,
+    settings: Any,
+    run_id: str,
+    reason: str,
+    issues: list[dict[str, Any]] | None = None,
+) -> Path | None:
+    """Best-effort export of whatever source tree exists for a run that did
+    not reach a promoted READY state (needs_attention or failed). Unlike
+    `export_portfolio`, this never requires promotion-only state (a build
+    manifest, an active preview, a candidate identity) -- only a run id and
+    whatever the generation/verification workspace already has on disk.
+    Returns None (never raises) when there is nothing yet to export, e.g. a
+    run that failed before generation produced any source tree."""
+
+    config = settings.code_generator_generation
+    workspace_root = Path(str(getattr(config, "workspace_root", "")))
+    if not workspace_root.is_absolute():
+        workspace_root = repository_root() / workspace_root
+    run_root = (workspace_root / run_id).resolve()
+    repo_dir = run_root / "repo"
+    if not repo_dir.is_dir():
+        return None
+    return export_portfolio(
+        settings=settings,
+        run_id=run_id,
+        repo_dir=repo_dir,
+        screenshots_dir=run_root / "verification-screenshots",
+        metadata={
+            "status": "needs_attention",
+            "export_reason": reason,
+            "issues": issues or [],
+        },
+    )
+
+
+__all__ = [
+    "DEFAULT_EXPORT_ROOT",
+    "DEFAULT_EXPORT_TIMEZONE",
+    "export_failed_run",
+    "export_portfolio",
+]
