@@ -207,6 +207,39 @@ The package upgrade restarted the services it could restart and deferred a
 few normal service restarts. No container existed yet, and no application
 service was running. This is not an application failure.
 
+## Local environment audit (not production-ready)
+
+On 2026-09-05, the local repository's `.env` was audited without displaying
+any secret values.
+
+- `.env` exists and is correctly ignored by Git.
+- The expected names from `.env.example` are present.
+- The active model configuration references the provider-key names
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `OPENCODE_GO_API_KEY`; the local
+  file contains those names with non-empty values.
+- Supabase URL, publishable key, and server-only key names are present with
+  non-empty values, but presence alone does not prove that the credentials or
+  Google OAuth dashboard settings are valid.
+- R2 access-key names are present with non-empty values, but their values must
+  never be copied into chat or committed.
+- `FIREBASE_ADMIN_CREDENTIAL_JSON` is empty; this is acceptable for the
+  current Supabase Google-auth path unless a future configuration explicitly
+  enables Firebase.
+- `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS` appears twice.
+- `ORYXENAI_ALLOWED_USER_EMAILS` appears twice.
+- One non-comment line at local `.env` line 42 is not parseable as a normal
+  `NAME=value` entry.
+- `SCALEMAX_API_KEY` and `SCALEMAX_BASE_URL` are extra local names not listed
+  in the current `.env.example`; do not transfer them unless the selected
+  runtime configuration explicitly requires them.
+
+Before deployment, clean the local file so each environment variable appears
+once and every non-comment line is a valid `NAME=value` assignment. Keep one
+admin allow-list line and one normal-user allow-list line, using the
+comma-separated format documented in `.env.example`. Do not copy this local
+`.env` wholesale to the VM: create a separate production `.env` directly on
+the VM and enter only the required values there.
+
 ## Not done yet
 
 None of the following has been performed on the VM:
