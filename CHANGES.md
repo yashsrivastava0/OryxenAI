@@ -11,25 +11,24 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-05 - Codex (GPT-5 / OpenAI) - [e1173df] - record Azure VM wizard checkpoint
+### 2026-09-05 21:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [d6cde91] - code-generator: resource acquisition, generation_orchestrator, image_retrieval, jobs/handlers, development_schemas, tests
 
-Added `docs/deployment/04-current-azure-deployment-status.md` as the canonical
-handoff for the live Azure setup. It records that only `oryxenai-demo-rg` is
-created, the VM wizard is paused at Networking, all confirmed VM/disk/SSH
-choices, the exact intended NSG and resource names, pending Supabase/R2/DNS/
-Docker work, secret rules, cost controls, acceptance criteria, and the next
-portal action. Linked the checkpoint from the deployment README; no Azure
-resources or application code were changed.
-
-### 2026-09-05 - Codex (GPT-5 / OpenAI) - [903477a] - add Chrome Azure setup handoff
-
-Added a detailed browser-agent handoff for restarting Azure deployment after a
-lost portal session. It defines the fresh-session truth, existing-resource
-check, exact VM wizard values, network ranges and NSG priorities, explicit
-pause points before billable creation and after VM provisioning, secret rules,
-and the boundary between Azure setup and later Docker/application deployment.
-Marked the earlier wizard checkpoint as superseded after the browser reset and
-left the unrelated resume change untouched.
+Root-caused two fresh live-run failures to a genuine resource-acquisition
+reliability defect rather than patching symptoms: Build Preparation's
+pinned Pixabay candidate URLs can go stale (signed/time-limited) between
+pin time and Code Generator's later acquisition, confirmed by directly
+re-requesting the exact pinned URLs from a real run against the live
+Pixabay API. Acquisition's pinned-candidate path now falls back to one
+bounded live search on materialize failure; also stopped requesting
+Pixabay's approved-accounts-only `imageURL`/`fullHDURL` fields as defense
+in depth. Separately fixed: the mid-generation polish loop no longer
+re-attempts an identical structurally-unfixable finding every round
+(ledger-confirmed recurrence at round 1 and round 4 of the same run); the
+`cannot_complete` log line now surfaces the model's real reason instead of
+dropping it; and the planner's CSS-length/token-name validators normalize
+common mechanical mistakes instead of only rejecting them, since the
+existing corrective-feedback retry had already failed twice on the
+identical mistake live. See D-072.
 
 ### 2026-09-05 19:30 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [34c638b] - catch a silent token collision and sharpen two repair diagnostics
 
@@ -47,90 +46,26 @@ Added owner/session-scoped PostgreSQL caching for validated structured results a
 
 Root-caused D-067's frontier blocker (`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` on a single easily-fixable finding) to a genuine control-flow gap, not a capability/budget problem: `_attempt_repair`'s post-repair whole-site re-review rejection raised terminally from *outside* its own bounded retry loop, discarding 5 of 6 available repair rounds. Added exactly one bounded extra repair+re-review attempt (never open-ended); refactored into `_run_bounded_repair`/`_rereview_after_repair`/`_diagnostics_from_quality_findings` helpers, 2 new + 1 unchanged regression test prove the exact bound. Live testing surfaced the identical class of gap one stage earlier: `_review_and_polish`'s owner-scoped repair call killed the whole run outright on a `cannot_complete` response with zero retry, even though the outer polish-round loop (5 rounds, D-067) exists precisely to give a different round another try — fixed the same way (skip that owner for the round, let the bounded loop continue), with a matching regression test. Completed prefix-caching coverage for the whole-site integration review — the single most expensive, most-repeated call in the pipeline (up to 8x/run, up to ~600,000 chars) had zero `request_context` support, unlike 4 of the other 5 call sites — with a careful `INTEGRATION_REVIEW_KEY_ORDER` (source_manifest/round last, since they change every round) plus a stable per-run `prompt_cache_key`; confirmed live via non-zero `cached_prompt_tokens`. Added a deterministic motion-pattern catalogue (`core/motion_pattern_catalogue.py`, 3 patterns: reveal-fade-rise, reveal-clip-lines, stagger-group) and an optional `MotionBeatV4.pattern_id`, extending the codebase's existing image/font/component catalogue-and-select precedent to motion — confirmed live, the planner set `pattern_id` on a real beat on its first attempt; required fixing a load-bearing prompt contradiction (`route_batch.md`/`route_compose.md` explicitly forbade the `.reveal`/`.stagger` class names this introduces). Added advisory screenshot capture to DOM/runtime verification (zero extra cost, the browser context is already open) since the pipeline had never once captured visual evidence of a generated portfolio, and captured raw model `usage` at 3 previously-discarding call sites (director, redirect-director, final-repair), with a `RepairReceipt` hash-exclusion-set fix so existing persisted receipts don't break on load. Also fixed, as a safety measure: `tests/integration/test_build_preparation_worker.py`'s one worker test built no mock model client and was silently spending real provider budget on every plain `pytest` run — gated behind the project's own existing `RUN_LIVE_*` opt-in convention (`tests/live/`). Verified: 231 code_generator unit tests, 10/14 code_generator integration tests (4 pre-existing `PLAN_SECTION_COVERAGE` failures confirmed unrelated via `git stash` on unmodified HEAD, not touched this session), ruff/mypy clean. Live-verified over 2 real runs against the eligible pack (~$0.06-$0.21 total at published Luna rates); a third and fourth attempt were killed by real system memory pressure before reaching final verification, so the first fix's exact retry firing was not directly witnessed live this session, though its regression tests prove the bound precisely. Records D-068; `code generator issues.md` rewritten with the current state and next verification target.
 
-### 2026-09-05 - Codex (GPT-5 / OpenAI) - [0ce8ecd] - add simple Azure deployment documentation
-
-Added the canonical first-deployment path for the two-user demo: one Azure
-Linux VM running the existing Docker Compose API, PostgreSQL, worker, and
-preview gateway; Supabase Google authentication; Cloudflare R2; and Caddy
-HTTPS. Added current provider research, a production-overlay runbook,
-end-to-end agent-to-preview acceptance checks, recovery commands, and cost
-notes. Marked the older Render topology in the auth operations document as
-historical. No application source or pre-existing Code Generator changes were
-included.
-
-### 2026-09-05 01:10 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [9fabd58] - consolidate agent outputs and eliminate prebuild-output legacy locations
-
-Cleaned up repository structure and unified all agent outputs under a single canonical `output/` directory:
-(1) Removed deprecated `prebuild-output/` directory, including git-removal of legacy August zip packs (`15-36-25-08-8acdcb12` and `22-51-01-09-1961f2c9`), unadopted proposal document, and admission scratch files.
-(2) Cleaned `output/build-preparation/` by removing 54 empty/corrupted/ineligible runs while strictly preserving the 2 verified eligible packs (`01-31-04-09-94ae4a9c` benchmark and `01-28-04-09-fb8c6001`).
-(3) Pruned `output/code-gen-output/` to retain the 3 newest full generation runs, and deleted obsolete empty staging directories (`output/build-preparation-staging`, `output/test-build-preparation`, `output/live-build-preparation`).
-(4) Removed stray `src/oryxenai/output/` directory and unreferenced `VDD-NEW-OUTPUT.MD`, root `.pytest-tmp*`, and scattered `.uv-cache*` directories.
-(5) Updated `config/app.docker.codegen-run.toml` and `docs/run/run.md` to reference `output/build-preparation`, added `output/README.md`, and refined `.gitignore` to cleanly ignore ephemeral runs under `output/*` while tracking `output/README.md`.
-Verified with ruff and test suites across build preparation and development input discovery.
-
-### 2026-09-04 23:45 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [112d1a6] - add commit-cadence policy to the multi-agent protocol
-
-Added rule 6 to `AGENTS.md`'s multi-agent collaboration protocol: commit locally at natural checkpoints (session end, meaningful chunk of work, before any bulk filesystem operation) regardless of whether the change meets the `CHANGES.md` "major work" bar, flag pre-existing uncommitted changes at session start instead of silently building on top of them, and push regularly so a branch doesn't drift far ahead of `origin`. Directly motivated by the incident in the entry immediately below: a local commit is the only real protection against losing work to something outside git (an accidental delete, a filesystem tool, antivirus quarantine), since git history survives all of those and an unprotected working tree does not.
-
-### 2026-09-04 23:30 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [6ab319a, 5d8a93b, 6cec47b] - sync docs, persist active session client-side, fix diagnostic reporting
-
-Recovered from an accidental local mass-deletion of `src/`, `tests/`, `scripts/`, and `prebuild-output/` (Windows Explorer delete, not a git operation) via `git restore` plus the user's own Recycle Bin restore; verified via `git diff`, Python `py_compile`, and TypeScript `tsc --noEmit` that nothing was lost or corrupted before committing anything. Then committed the real uncommitted work that had accumulated: (1) `docs(agents)` [6ab319a] synced `AGENTS.md`/`DECISIONS.md` with the already-shipped Markdown-brief handoff and ScaleMax routing work (D-064 through D-066), compacting superseded entries; (2) `feat(frontend)` [5d8a93b] made `AppShell` restore the active session id from `sessionStorage` on load instead of only trusting the server-provided id (survives a refresh), redesigned `StartSurface`'s hero/method-banner layout, and fixed the discovery adapter to report `available` instead of a stuck `working` state when a session has zero questions yet; (3) `chore` [6cec47b] fixed `test_openai_key.py` always printing success even when every model call hit `insufficient_quota`. Pushed all 14 previously-unpushed local commits to origin. Added a commit-cadence policy to AGENTS.md (see that commit's own entry) directly motivated by this incident: nearly a full day of uncommitted work was briefly exposed to total loss because it sat in the working tree only.
-
-### 2026-09-04 16:30 +05:30 - Codex (GPT-5 / OpenAI) - [5b84673, 871f960] - harden migrated Code Generator generation
-
-Completed the Build Preparation Markdown handoff migration: fenced-index parsing with CRLF tolerance, immutable identity-addressed admission, closed-navigation projections, blueprint/planner normalization, v5 queue and worker-release fencing, deferred resource placement, reference-only optional registry components, cached provider readiness, and serial route-batch calls. Replaced the stale Code Generator issue log with current root causes and follow-up checks. Parser/workspace/resource smoke checks, targeted planner/pipeline/service tests, Ruff, mypy, and Node syntax checks pass. A live run reached valid foundation/acquisition checkpoints before the configured provider returned 429 during route generation; no additional live calls were spent.
-
-### 2026-09-04 11:24 +05:30 — Codex (GPT-5 / OpenAI) — [1f0ed68] — migrate Code Generator to Build Preparation brief contracts
-
-Replaced the retired ZIP/object-store intake with strict parsing of Build Preparation's two Markdown briefs, immutable JSON-envelope admission, projection compilation, and closed-navigation enforcement. Wired pinned image/font/component candidates into deferred acquisition with explicit local fallbacks, made planner criteria compiler-owned, raised source validation to the configured generation ceiling, refreshed the production/development handoffs and UI, and updated the stale migration test; local parser, planner/session/resource/preflight, browser-harness, Ruff, mypy, and compile checks pass. Live acceptance was limited to three attempts and stopped at the requested cutoff before a preview was promoted.
-
-### 2026-09-04 05:36 +05:30 - Codex (GPT-5 / OpenAI) - [389fa28] - ship the authenticated three-agent editorial studio
-
-Restricted the normal `/app` product to Discovery, Content Architect, and Visual Design Director, with explicit start/revise/approve handoffs and approved Visual Direction as the honest terminal state; removed Build Preparation, Code Generator, and Preview calls, adapters, routes, and components from the product bundle without weakening their backend authorization. Split attached product auth from independently configurable local development harness auth through `auth.development_harness_mode`, retaining attached fail-closed production/test defaults. Rebuilt the auth and product surfaces around the restrained Editorial Proofing system with a self-hosted licensed Newsreader subset, asymmetric composition, responsive recomposition, accessible focus/reduced-motion behavior, persisted Discovery transcript reconstruction, observable stale/offline recovery, and branded loading/error/completion states. Updated D-063 and the frontend blueprint, and verified the production build, frontend suites, auth/bootstrap runtime suite, focused auth/config/route suite, task-owned Ruff checks, TypeScript, and mypy. The repository-wide pytest run reached the existing Build Preparation integration expectation that assumes a blocked offline result but received a successful live result; online Google acceptance remains externally blocked because the configured Supabase hostname does not resolve.
-
-### 2026-09-04 01:35 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [1627f5d] - complete evidence-based Build Preparation brief fixes and diagnostic harness optimizations
-
-Resolved four live-observed defects and prompt bloat in Build Preparation briefs and shared image retrieval:
-(1) Added `purpose` and `guidance` to `resources` and `components` in `build_visual_brief()`'s machine-readable `build-preparation-visual-index` JSON block, exposing role intent and model crop/treatment notes programmatically rather than only in prose reference tables.
-(2) Deduplicated Pixabay comma-separated tags case-insensitively while preserving first-seen order in `_clean_pixabay_tags()`, stripping noisy repeated tags from candidate `title` and `description` across both live API and cached lookups.
-(3) Fixed duplicated route prefixes in auto-derived role IDs in `normalize_visual_input()`, changing `assumed-image:{route_id}:{section_id}:{ordinal}` and `assumed-component:{route_id}:{section_id}:{role_id}` to `assumed-image:{section_id}:{ordinal}` and `assumed-component:{section_id}:{role_id}`.
-(4) Added explicit `navigation_contract` (`{"closed": true, "allowed_destinations": [...]}`) to `build_content_brief()`'s JSON index and an unambiguous closed-scope assertion sentence in the prose body to prevent downstream route/destination invention.
-(5) Optimized model prompt packet in `_compose_visual_brief()` by stripping raw URLs, licenses, attribution, and extra registry metadata from candidate objects sent to `openai_luna` while leaving full metadata intact on brief assembly.
-(6) Optimized `/build-preparation-fixture` developer harness with run-state button locks preventing race-condition double-clicks, direct "Copy Markdown" buttons for each brief, and 2-second timeout clipboard feedback.
-Verified with 58 passing unit and API tests, clean ruff/mypy checks, and a live end-to-end browser execution against `openai_luna` on port 8001.
-
-### 2026-09-04 00:45 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [a8ad4e7] - prune hallucination-prone AI skills and retain stack-respectful core
-
-Audited and pruned `.agents/skills/` to eliminate framework and tool hallucinations across parallel coding agents (Claude Code, Codex). Deleted 11 conflicting skills that falsely mandated Tailwind CSS, Next.js Server Components, Framer Motion, GSAP, iPhone mobile mockups, Google Stitch, or pre-code image generation (`brandkit`, `design-taste-frontend`, `design-taste-frontend-v1`, `gpt-taste`, `high-end-visual-design`, `image-to-code`, `imagegen-frontend-mobile`, `imagegen-frontend-web`, `industrial-brutalist-ui`, `minimalist-ui`, `stitch-design-taste`). Preserved the three stack-respectful, universally safe skills: `no-ai-slop` (pure copywriting and anti-buzzword filter), `full-output-enforcement` (prevents LLM code truncation and placeholder shortcuts), and `redesign-existing-projects` (framework-agnostic audit methodology). Synchronized `skills-lock.json` and verified with 134 passing Vitest tests.
-
-Rebuilt Build Preparation from a 5-model-call, ZIP/R2-packaged pipeline (~6,000 lines of PIL-based image download/pixel-inspection, component-source fetch, and pack/execution-contract machinery across `quality.py`, `materializer.py`, `providers.py`, `execution.py`, `contracts.py`, `packager.py`) into a 1-model-call pipeline that never downloads a byte: deterministic scope compilation (unchanged `compiler.py`), deterministic discovery-only provider research (new `resource_research.py` + a trimmed `providers.py` keeping every search-only Pexels/Pixabay/Fontsource/registry function and deleting every byte-fetching one), a single bounded `compose_visual_brief` model call that may only pick a candidate by index from the exact list it was given (validated structurally, never trusted), and deterministic Markdown assembly (new `brief_assembly.py`) producing `content-and-narrative-brief.md` (Content Architect's approved copy inserted verbatim, never model-touched) and `visual-and-build-brief.md` (design/layout/resource guidance prose plus reference tables). Both briefs persist directly on `portfolio_sessions.current_state["build_preparation"]` — no ZIP, no object storage, no pack version, no checkpoint system. Deleted `materializer.py`, `packager.py`, `quality.py`, `execution.py`, `contracts.py`, `checkpoint.py`, and five of six old prompt files outright; rewrote `agent.py`, `schemas.py`, `state.py`, `validators.py`, `fixture.py`, `fixture_runs.py`, `service.py`, `jobs/handlers/build_preparation.py`, the API download route, both fixture-harness HTML/JS pages, `config/app.toml`/`config/app.docker.toml`/`config/app.test.toml`, and `core/settings.py`'s `BuildPreparationConfig`. Made Code Generator's now-orphaned dependency on the deleted pack modules safe without attempting its full migration: `development_input.py` no longer imports `build_preparation.contracts`/`packager` and its ZIP-content admission fails closed with `PACK_INGESTION_NOT_MIGRATED`; `CodeGeneratorService.start()`'s session-bound production path fails closed with `CODE_GENERATOR_INGESTION_NOT_MIGRATED` immediately after the Build Preparation readiness check, rather than dereferencing removed fields; `_session_source_is_current` now always reports stale. Recorded D-062, explicitly superseding/partially revising D-009/011/013/018/021/025/028/029/030/031/032/033/035/051/060/061 and naming Code Generator's actual ingestion migration as separate, not-yet-done follow-up work. Rewrote the Build Preparation unit/API test suites for the new contract and the handful of Code Generator tests that referenced the deleted pack shape; full mypy/ruff pass clean across `src/`; 962 unit+API tests pass repo-wide.
-
-### 2026-09-03 16:45 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [222419a] - document 5-user zero-cost deployment and complete GitHub Student Pack roadmap
-
-Authored and refined `docs/github-student-pack-benefits.md` providing an exhaustive analysis of the GitHub Student Developer Pack (83 partner offers across 14 categories) tailored specifically for an operational scale of maximum 5 concurrent users. Modeled exact resource consumption, database footprint (<20MB PostgreSQL JSONB state, operating well within OryxenAI's 15-user capacity gate), and a 24-month zero-dollar runway across Heroku ($13/mo for 24 months = 24-month free web+worker dynos), Azure ($100 credit), custom domains (Namecheap .me, Name.com .dev/.app, .TECH), multi-viewport visual layout QA (Polypane, BrowserStack, LambdaTest), observability (<3% of Sentry 50k error quota, Datadog 10 hosts for 2 years, Honeybadger worker heartbeat), secret management (Doppler Team plan), and local S3 emulation (LocalStack Pro).
-
-
-
-Applied the redesign-existing-projects and design-taste-frontend-v1 skills to eliminate remaining AI design clichés across the studio interface. Upgraded PipelineStagePreview into a Bento 2.0 architectural grid featuring an asymmetric 3-col (authoring & creative) / 2-col (compiler & synthesis) layout, unique discipline SVG icons, monospace stage codes (`STG-01` to `STG-05`), liquid glass refraction (`border-white/10` with `box-shadow: inset 0 1px 0 rgba(255,255,255,0.08)`), and perpetual micro-motion indicators (`bento-pip-pulse` and `bento-pip-active`). Enforced the Anti-Emoji Policy by replacing the unicode lock emoji in StartSurface with an inline SVG padlock vector. Added subtle atmospheric radial spotlight illumination to the start hero section, enabled `text-wrap: balance` on display headers and `text-wrap: pretty` on paragraph bodies, and ensured clean responsive collapse to single-column on viewports < 640px. Verified with 134 passing Vitest tests, clean Vite production build, passing ruff check, and browser verification confirming 0 console errors.
-
-### 2026-09-03 14:35 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [28b8b1c] - deliver zero-scroll studio command center, fix engine polling invocation, and add live progress monitors
-
-Overhauled the OryxenAI frontend into an agency-grade studio command center with zero scrolling required on standard viewports (< 730px). Eliminated the V8 `TypeError: Illegal invocation` bug in `frontend/src/data/polling.ts` by wrapping `setTimeout` and `clearTimeout` in safe closures, unblocking live engine status polling across all stages. Re-architected `StartSurface.tsx`, `ArchetypeSelector.tsx`, and `shell.css` into a compact, double-bezel command center (460px height footprint) featuring single-row segmented archetype selection (`SYS-01`, `CRT-02`, `PRD-03`, `RES-04`), monospace prompt textarea with `Ctrl+Enter` shortcut, and island button architecture with nested circular trailing icon. Added universal live engine progress monitors with animated radar beacons, elapsed stopwatches, and milestone checklists across Discovery, Content Architect, and Visual Design Director stages. Verified with 134 passing Vitest unit tests across 16 suites (including invocation safety test), clean production Vite build, 441 passing backend unit tests, and live browser verification showing 0 console errors and working engine start.
-
-### 2026-09-03 13:55 +05:30 - Antigravity (Gemini 2.5 Pro / Google) - [2cc2cb9] - redesign studio hero, invert user journey, and modernize design tokens
-
-Redesigned the studio frontend and authentication surfaces to an agency-grade, high-contrast dark atelier aesthetic. Inverted the user intake journey by moving the primary Command Center input box directly inside the Hero above the fold, embedding single-click archetype chips (`SYS-01`, `CRT-02`, `PRD-03`, `RES-04`) and quick-focus pills into the double-bezel header so users can immediately direct their portfolio without scrolling. Purged all AI-slop copy and banned visual clichés (eliminated the `#f3f0e8` beige paper palette and Georgia serif, replacing with deep obsidian midnight `#090d16`, frosted glass `#0f172a`, electric sapphire `#3b82f6`, and Plus Jakarta Sans / Cabinet Grotesk / JetBrains Mono). Upgraded auth shell (`/` & `/sign-in`) with ambient mesh backdrop, official Google SVG sign-in button, and double-bezel cards while preserving all DOM IDs and controller contracts. Updated ArchitecturalCanvas with luminescent drafting points and crosshair coordinates for the dark theme. Fixed 4 linter errors in test_openai_key.py. Verified with 133 passing Vitest tests across 16 suites, passing typechecks, clean production Vite build, 75 passing backend tests across auth and discovery routes, and visual browser subagent verification with 0 console errors.
-
-### 2026-09-03 12:10 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [c461b49] - raise the generated-source size ceiling to a real value
-
-The single-rendition fix (`5b4a33c`) stopped duplicate provider-side pre-rendering, but a fresh run still hit `SOURCE_TOTAL_TOO_LARGE`. Direct reproduction showed the deferred path was never the problem: `_pack_image_renditions` (the same local rendition generator a pack-embedded image has always used) legitimately produces a comparable responsive set from the one fetched original -- a real six-photo route measured ~10-13MB of legitimate renditions plus generated JS/CSS/content, and the prior 8MB ceiling had never actually been exercised against a real, full-content pack before this session. Raised `max_source_bytes` from 8MB to 32MB in `config/app.toml` and its Pydantic default. Confirmed via direct reproduction: diagnostics count 0 for the same pack/plan/ledger that previously failed. 926 unit tests pass; ruff clean. Fifth and, per reproduction, final blocker found in this D-060 live-verification pass.
-
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [0ce8ecd] - Added the canonical first-deployment path (one Azure Linux VM, Docker Compose, Supabase auth, Cloudflare R2, Caddy HTTPS) with a production-overlay runbook; no application code changed.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [903477a] - Added a browser-agent handoff for resuming Azure deployment after a lost portal session, with exact VM wizard values and billable-action pause points.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [e1173df] - Recorded the live Azure VM wizard checkpoint (resource group created, wizard paused at Networking) as the canonical deployment-status handoff.
+- 2026-09-05 - Antigravity (Gemini 3.8 Flash / Google) - [9fabd58] - Consolidated all agent outputs under a single canonical `output/` directory, removing deprecated prebuild-output and 54 empty/corrupted Build Preparation runs.
+- 2026-09-04 - Claude Code (Sonnet 5 / Anthropic) - [112d1a6] - Added commit-cadence policy to the multi-agent protocol after a near-loss incident.
+- 2026-09-04 - Claude Code (Sonnet 5 / Anthropic) - [6ab319a, 5d8a93b, 6cec47b] - Synced Build Preparation/Code Generator docs with the Markdown-brief pipeline, persisted active session client-side, and fixed OpenAI key diagnostic reporting.
+- 2026-09-04 - Codex (GPT-5 / OpenAI) - [5b84673, 871f960] - Hardened migrated Code Generator generation after the Build Preparation brief-contract migration.
+- 2026-09-04 - Codex (GPT-5 / OpenAI) - [1f0ed68] - Migrated Code Generator to consume Build Preparation's Markdown brief contracts directly.
+- 2026-09-04 - Codex (GPT-5 / OpenAI) - [389fa28] - Shipped the authenticated three-agent editorial studio.
+- 2026-09-04 - Antigravity (Gemini 3.8 Flash / Google) - [1627f5d] - Fixed four live-observed Build Preparation brief/image-retrieval defects and optimized model prompt packet size; verified live end to end.
+- 2026-09-04 - Antigravity (Gemini 2.5 Pro / Google) - [a8ad4e7] - Pruned 11 hallucination-prone AI skills; rebuilt Build Preparation into a 1-model-call zero-byte-download pipeline producing two Markdown briefs directly on session state (D-062), superseding a dozen prior pack-era decisions.
+- 2026-09-03 - Antigravity (Gemini 3.8 Flash / Google) - [222419a] - Documented a 5-user zero-cost 24-month deployment runway using the GitHub Student Developer Pack.
+- 2026-09-03 - Antigravity (Gemini 2.5 Pro / Google) - [28b8b1c] - Delivered a zero-scroll studio command center, fixed an engine-polling invocation bug, and added live progress monitors.
+- 2026-09-03 - Antigravity (Gemini 2.5 Pro / Google) - [2cc2cb9] - Redesigned the studio hero into an agency-grade dark atelier aesthetic and inverted the user intake journey.
+- 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [c461b49] - Raised the generated-source size ceiling from 8MB to 32MB after direct reproduction showed legitimate responsive-rendition bloat, not a bug.
 - 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [5b4a33c] - Removed duplicate deferred-image renditions that caused source bloat and exceeded the 8MB generation ceiling.
 - 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [13cc78b] - Extended Build Preparation pack retention to a long horizon after compacting reference-only packs; recorded D-061.
 - 2026-09-03 - Claude Code (Sonnet 5 / Anthropic) - [6bd8a2d] - Aligned deferred-resource materialization with planned pack paths, preserving emergent-resource fallback behavior.
@@ -305,6 +240,6 @@ The single-rendition fix (`5b4a33c`) stopped duplicate provider-side pre-renderi
 
 ## Summary (as of last compaction — 2026-09-05)
 
-- Recent detailed entries retained: 16
-- Compacted milestone bullets: 145
-- Last updated: 2026-09-05 15:23 +05:30 — Codex (GPT-5 / OpenAI)
+- Recent detailed entries retained: 5
+- Compacted milestone bullets: 164
+- Last updated: 2026-09-05 21:15 +05:30 — Claude Code (Sonnet 5 / Anthropic)
