@@ -1,0 +1,54 @@
+.route-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: var(--container-content-container-max);
+  margin-inline: auto;
+  padding: var(--space-4) var(--container-content-container-padding);
+  background: var(--color-surface-page);
+  color: var(--color-content-primary);
+  font-family: var(--font-body), sans-serif;
+}
+
+.route-navigation a {
+  min-block-size: var(--size-3);
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--space-2);
+  border-bottom: var(--border-subtle);
+  color: var(--color-content-primary);
+  font-size: var(--type-label-step-min);
+  font-weight: 600;
+  letter-spacing: var(--type-label-step-tracking);
+  line-height: var(--type-label-step-line-height);
+  text-decoration: none;
+  transition: color var(--motion-motion-state-duration) var(--motion-motion-state-easing), background-color var(--motion-motion-state-duration) var(--motion-motion-state-easing);
+}
+
+.route-navigation a:hover {
+  background: var(--color-state-accent-soft);
+  color: var(--color-content-primary);
+}
+
+.route-navigation a:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: var(--space-1);
+}
+
+@media (max-width: 40rem) {
+  .route-navigation {
+    gap: var(--space-2);
+    padding-block: var(--space-3);
+  }
+
+  .route-navigation a {
+    font-size: var(--type-label-step-min);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-navigation a {
+    transition: none;
+  }
+}

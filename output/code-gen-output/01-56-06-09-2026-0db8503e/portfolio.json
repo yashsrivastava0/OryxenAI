@@ -1,0 +1,33 @@
+{
+  "evaluator_handoff": {
+    "dist_path": "dist",
+    "metadata_path": "portfolio.json",
+    "report_path": "generation-report.md",
+    "screenshots_path": "screenshots",
+    "source_path": "source"
+  },
+  "excluded_source_artifacts": [
+    "dist",
+    "node_modules"
+  ],
+  "export_folder": "01-56-06-09-2026-0db8503e",
+  "export_reason": "DOM_RUNTIME_FAILED",
+  "export_timezone": "system-local",
+  "exported_at": "2026-09-05T20:26:52.292054+00:00",
+  "issues": [
+    {
+      "code": "RUNTIME_TOUCH_TARGET_TOO_SMALL",
+      "message": "test"
+    }
+  ],
+  "legacy_schema_version": "oryxenai-portfolio-export-v1",
+  "run_id": "0db8503e-9792-44c5-b13f-fa44a57ade16",
+  "runtime": {
+    "docker": false,
+    "entrypoint": "dist/index.html",
+    "kind": "static-vite",
+    "preview": "shared-static-gateway"
+  },
+  "schema_version": "oryxenai-portfolio-export-v2",
+  "status": "needs_attention"
+}
