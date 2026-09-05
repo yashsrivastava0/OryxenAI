@@ -82,6 +82,10 @@ offer normally covers the first year; renewal is not assumed to be free.
 
 ## Deployment order
 
+For the live human/AI handoff, read the [current Azure deployment status](./04-current-azure-deployment-status.md)
+before continuing the VM wizard. It is a checkpoint, not a replacement for
+this general deployment plan.
+
 Follow the documents in this order:
 
 1. Read [the options research](./01-deployment-options-research.md) and claim
