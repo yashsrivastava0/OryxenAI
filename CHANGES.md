@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 22:53 +05:30 - Codex (GPT-5 / OpenAI) - [caa8f33] - frontend: complete authenticated three-stage handoff
+
+Completed the authenticated Preact product handoff for the first three
+explicit stages. Fixed progressive Discovery answer persistence and retry
+classification, surfaced stage-start failures, scoped admin session hints,
+cleared private drafts/idempotency state on logout, built the frontend bundle
+inside Docker, and extended the opt-in live smoke path through Content
+Architect and Visual Design Director with explicit approvals.
+
 ### 2026-09-05 22:25 +05:30 - Codex (GPT-5 / OpenAI) - [7a0c68f] - deployment: record local environment audit findings
 
 Recorded the redacted local `.env` audit in the live deployment checkpoint:
@@ -255,6 +264,6 @@ Root-caused D-067's frontier blocker (`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` on 
 
 ## Summary (as of last compaction — 2026-09-05)
 
-- Recent detailed entries retained: 5
-- Compacted milestone bullets: 164
-- Last updated: 2026-09-05 21:15 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Recent detailed entries retained: 8
+- Compacted milestone bullets: 170
+- Last updated: 2026-09-05 22:53 +05:30 — Codex (GPT-5 / OpenAI)
