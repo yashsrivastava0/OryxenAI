@@ -390,8 +390,30 @@ class JobRepository:
         if foreground_job_kinds is not None and not foreground_job_kinds:
             foreground_job_kinds = None
         cutoff = datetime.now(UTC) - timedelta(seconds=lease_seconds)
+        # A worker restricted to a subset of handlers still needs to release
+        # an expired *different* kind when that row occupies an execution
+        # lane required by one of its due jobs.  Otherwise a stale generator
+        # lease can keep a healthy Discovery-only worker idle forever.  The
+        # worker may only claim allowed kinds; this broader predicate merely
+        # releases the expired lane blocker and fences its old lease token.
         kind_filter = (
-            "AND job.job_kind IN :allowed_job_kinds" if allowed_job_kinds is not None else ""
+            """
+            AND (
+                job.job_kind IN :allowed_job_kinds
+                OR (
+                    job.execution_lane IS NOT NULL
+                    AND EXISTS (
+                        SELECT 1 FROM background_jobs AS due_allowed
+                        WHERE due_allowed.status = :queued_status
+                          AND due_allowed.available_at <= :now
+                          AND due_allowed.execution_lane = job.execution_lane
+                          AND due_allowed.job_kind IN :allowed_job_kinds
+                    )
+                )
+            )
+            """
+            if allowed_job_kinds is not None
+            else ""
         )
         foreground_rank = (
             "CASE WHEN job.job_kind IN :foreground_job_kinds THEN 0 ELSE 1 END"

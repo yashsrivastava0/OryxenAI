@@ -115,6 +115,52 @@ async def test_requeue_stale_releases_lane_for_foreground_claim(db_session):
     assert stale_generator.status == JobStatus.QUEUED.value
 
 
+async def test_restricted_worker_requeues_disallowed_stale_lane_blocker(db_session):
+    """Handler allowlists must not let an expired foreign kind retain a shared lane."""
+    now = datetime.now(UTC)
+    stale_generator = BackgroundJob(
+        job_kind="code_generator.v5.generate",
+        status=JobStatus.RUNNING.value,
+        payload={"source": "abandoned"},
+        execution_lane=MODEL_GENERATION_LANE,
+        locked_by="dead-generator-worker",
+        heartbeat_at=now - timedelta(seconds=300),
+        started_at=now - timedelta(seconds=300),
+    )
+    db_session.add(stale_generator)
+    await db_session.flush()
+
+    repo = JobRepository(db_session)
+    discovery = await repo.enqueue(
+        "discovery.understand_and_question",
+        {"source": "fresh"},
+        execution_lane=MODEL_GENERATION_LANE,
+    )
+    await db_session.commit()
+
+    allowed_kinds = ("discovery.understand_and_question",)
+    released = await repo.requeue_stale(
+        60.0,
+        1,
+        allowed_job_kinds=allowed_kinds,
+        foreground_job_kinds=foreground_job_kinds(),
+    )
+    assert released == 1
+
+    claimed = await repo.claim_batch(
+        "restricted-discovery-worker",
+        120.0,
+        batch_size=1,
+        allowed_job_kinds=allowed_kinds,
+        foreground_job_kinds=foreground_job_kinds(),
+    )
+    assert [job.id for job in claimed] == [discovery.id]
+    await db_session.refresh(stale_generator)
+    assert stale_generator.status == JobStatus.QUEUED.value
+    assert stale_generator.locked_by is None
+    assert stale_generator.lease_token is None
+
+
 async def test_claim_skip_locked(db_session, test_engine):
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
