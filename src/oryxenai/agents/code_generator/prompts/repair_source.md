@@ -44,6 +44,14 @@ actually gone.
 - `SOURCE_INTERACTION_MARKER_MISSING`: put the exact literal
   `data-interaction-id="<interaction_id>"` on the interactive element in the
   anchor file; do not hide it behind a dynamic prop/helper.
+- Any diagnostic that faults a placement for having no real local resource:
+  check that placement's `required` field in `<generation-contract>` first.
+  When `required` is false and no `local_paths` exist, this is the resource's
+  own honest fallback working as designed, not a defect — render a tasteful,
+  non-personal decorative or generated composition for that placement (no
+  `LocalImage`, no invented photograph) instead. Never report
+  `cannot_complete` solely because a non-required resource has no real
+  binding; that authority exists for resources marked `required`.
 - `SOURCE_EXECUTION_SLOT_UNUSED`: use executable resource binding. Import and
   render the admitted local component module, render a planned image through
   `LocalImage` with its exact short `resourceId` and no `sources` prop, or
