@@ -3504,25 +3504,23 @@ def _validate_v4_generation_coverage(
                 "SOURCE_COVERAGE_MISMATCH",
                 f"The v4 {category} coverage array does not exactly match its work unit.",
             )
+    raw_paths = [item.path.replace("\\", "/") for item in changes.files]
+    if len(raw_paths) != len(set(raw_paths)):
+        # Live-observed 2026-09-05: a single response can list the same path
+        # twice with two nearly-identical bodies (e.g. one CSS rule split
+        # into two declarations in one entry, merged into one in the other)
+        # -- the model revising its own answer mid-response rather than a
+        # meaningful conflict. Silently keep only the last entry per path
+        # (the model's own final word on that file) instead of spending a
+        # repair round asking it to do the exact same merge itself; a
+        # response that never repeats a path is completely unaffected.
+        last_index_for_path: dict[str, int] = {}
+        for index, path in enumerate(raw_paths):
+            last_index_for_path[path] = index
+        kept_indices = sorted(last_index_for_path.values())
+        if len(kept_indices) != len(changes.files):
+            changes.files = [changes.files[index] for index in kept_indices]
     changed_paths = [item.path.replace("\\", "/") for item in changes.files]
-    if len(changed_paths) != len(set(changed_paths)):
-        seen_paths: set[str] = set()
-        duplicate_paths = []
-        for path in changed_paths:
-            if path in seen_paths and path not in duplicate_paths:
-                duplicate_paths.append(path)
-            seen_paths.add(path)
-        # Name the exact duplicated path(s) so a repair attempt has something
-        # to act on. Leaving `file` empty here previously gave the repair
-        # model no way to know which file to fix, and it correctly (if
-        # unhelpfully) reported cannot_complete rather than guess.
-        raise SourceValidationError(
-            "SOURCE_DUPLICATE_PATH",
-            "The v4 source envelope lists the same file path more than once: "
-            f"{', '.join(duplicate_paths)}. Return one entry per path, merging any "
-            "content that belongs together.",
-            file=duplicate_paths[0] if duplicate_paths else "",
-        )
     signatures = {
         (item.path.replace("\\", "/"), item.export_name) for item in changes.exported_signatures
     }

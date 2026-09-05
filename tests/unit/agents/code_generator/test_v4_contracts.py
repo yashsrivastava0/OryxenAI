@@ -1460,10 +1460,17 @@ def test_v4_css_only_route_polish_does_not_require_export_signatures() -> None:
     assert "src/routes/home/hero.tsx" in exc_info.value.message
 
 
-def test_v4_duplicate_path_identifies_the_offending_file() -> None:
-    """A repair model can't fix "duplicate paths" without being told which
-    path is duplicated -- the diagnostic must carry it in `.file`, not just
-    a generic message, so a repair round has something to act on."""
+def test_v4_duplicate_path_keeps_the_last_entry_instead_of_rejecting() -> None:
+    """Regression test for the 2026-09-05 live-discovered pattern (run
+    b980b20e-...): a single response listed the same CSS file twice with
+    two nearly-identical bodies (one rule split into two declarations,
+    merged into one in the other) -- the model revising its own answer
+    within one response, not a meaningful conflict. Rejecting outright and
+    asking the model to redo the identical merge burned the entire repair
+    budget (SOURCE_REPAIR_EXHAUSTED) without ever resolving. The model's own
+    last-stated entry per path is now kept silently -- the same "last key
+    wins" semantics almost every JSON consumer already applies -- and a
+    response that never repeats a path is completely unaffected."""
     unit = WorkUnit(
         unit_id="route-home-batch-1",
         kind="route_batch",
@@ -1485,24 +1492,25 @@ def test_v4_duplicate_path_identifies_the_offending_file() -> None:
                 complete_utf8_content="export default function Hero() { return <div />; }\n",
             ),
         ],
-        exported_signatures=[],
+        exported_signatures=[
+            ExportedSignature(path="src/routes/home/hero.tsx", export_name="Hero", kind="component")
+        ],
         content_coverage=[],
         criterion_coverage=[],
         resource_usage=[],
         interaction_coverage=[],
     )
 
-    with pytest.raises(SourceValidationError) as exc_info:
-        _validate_v4_generation_coverage(
-            duplicate_changes,
-            unit,
-            SimpleNamespace(),
-            projections,
-        )
+    _validate_v4_generation_coverage(
+        duplicate_changes,
+        unit,
+        SimpleNamespace(),
+        projections,
+    )
 
-    assert exc_info.value.code == "SOURCE_DUPLICATE_PATH"
-    assert exc_info.value.file == "src/routes/home/hero.tsx"
-    assert "src/routes/home/hero.tsx" in exc_info.value.message
+    assert [item.path for item in duplicate_changes.files] == ["src/routes/home/hero.tsx"]
+    assert "<div />" in duplicate_changes.files[0].complete_utf8_content
+    assert "<section />" not in duplicate_changes.files[0].complete_utf8_content
 
 
 def test_acquired_image_assets_do_not_require_pack_slots(tmp_path) -> None:
