@@ -24,7 +24,16 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
-## D-069 — Use scoped validated-result caching with a long application TTL for the first four agents
+## D-070 - Enforce live model-cost ceilings before provider transmission
+
+- **Date & Time:** 2026-09-05 16:40 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** An explicitly authorized live pipeline run may contain provider calls whose usage is not persisted when a request is interrupted or returns malformed output. A post-run total cannot protect a caller's ceiling, especially when the run has dependent stages and retries.
+- **Decision:** For explicitly capped live validation, wrap the shared structured `ModelClient` in `BudgetedModelClient`. Before every provider request it reserves a conservative prompt charge (including the highest configured ordinary/cache-write prompt rate) plus the maximum completion charge allowed by the remaining ceiling, serializes calls through one lock, and temporarily lowers the provider profile's output cap. On success it settles to finite provider telemetry; on failure, malformed, or missing telemetry it consumes the full reservation. A plain completion is refused because the provider-neutral contract has no safe token override. Durable application caching remains the primary production cost optimization; this wrapper is a run-level safety boundary, not a replacement for the cache.
+- **Rejected alternatives:** Checking the total only after the pipeline finishes (too late to protect the cap); allowing each stage to maintain an independent budget (can overspend across sequential stages); assuming failed or canceled calls cost zero (provider usage is not always persisted); and globally lowering the configured model profile (changes normal product behavior and can affect other workers).
+- **Consequence:** A bounded live run either reserves a safe request or fails before transmission, while successful short responses return unused reservation to later stages. Unknown usage is intentionally treated conservatively. The September 5 resume validation stopped at Content Architect after `MODEL_EMPTY_OUTPUT`; the missing receipt from an earlier interrupted attempt was not guessed, so later provider calls were not risked.
+
+## D-069 - Use scoped validated-result caching with a long application TTL for the first four agents
 
 - **Date & Time:** 2026-09-05 15:00 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
@@ -526,7 +535,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Summary (as of last update — 2026-09-05)
 
-- Total decisions logged: 66
+- Total decisions logged: 67
 - Active decisions: 50
 - Compacted & superseded decisions: 16
 - Last updated: 2026-09-05 — Claude Code (Sonnet 5 / Anthropic)
