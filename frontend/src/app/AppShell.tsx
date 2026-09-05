@@ -4,6 +4,7 @@ import { createApiClient, type AuthorizedFetch, type CacheReceipt, type MeProjec
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
+import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "../data/idempotency";
 import { createInvalidationChannel, type InvalidationChannel } from "../data/invalidation";
 import { PollCoordinator } from "../data/polling";
@@ -353,15 +354,13 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   };
 
   const handleSubmitDiscoveryAnswer = async (
-    questionId: string,
-    mode: string,
-    value: unknown,
+    answer: DiscoveryAnswerSubmission,
     isComplete: boolean,
   ) => {
     if (!state.sessionId) return;
     const result = await api.putDiscoveryAnswers(state.sessionId, {
       complete: isComplete,
-      answers: [{ question_id: questionId, mode, value }],
+      answers: [{ question_id: answer.questionId, mode: answer.mode, value: answer.value }],
     });
     inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });

@@ -325,6 +325,27 @@ test("authorized fetch rejects foreign destinations and clears after a second 40
   assert.equal(failures, 1);
 });
 
+test("non-auth API errors preserve their safe server message without invalidating login", async () => {
+  let failures = 0;
+  const request = createAuthorizedFetch({
+    auth: authWithSession(),
+    fetchImpl: async () => response(422, {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "The request could not be validated.",
+      },
+    }),
+    onAuthFailure: async () => { failures += 1; },
+  });
+
+  await assert.rejects(request("/api/v1/sessions/session-id/discovery/answers"), {
+    code: "VALIDATION_ERROR",
+    status: 422,
+    message: "The request could not be validated.",
+  });
+  assert.equal(failures, 0);
+});
+
 test("logout stops activity, clears private UI, signs out, and replaces the page", async () => {
   const location = fakeLocation("/app");
   const ui = uiProbe();

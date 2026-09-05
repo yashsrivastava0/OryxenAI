@@ -118,10 +118,12 @@ export function safeRelativePath(value, fallback) {
   }
 }
 
-function errorMessage(code) {
+function errorMessage(code, serverMessage = "") {
   switch (code) {
     case "AUTH_REQUIRED":
       return "Authentication is required.";
+    case "AUTH_INVALID":
+      return "Your authentication session is no longer valid.";
     case "ACCESS_NOT_APPROVED":
       return "This Google account is not approved for OryxenAI access.";
     case "ACCOUNT_SUSPENDED":
@@ -167,7 +169,9 @@ function errorMessage(code) {
     case "ENTITLEMENT_RESET_NOT_APPLICABLE":
       return "This account has no deleted portfolio entitlement to reset.";
     default:
-      return "Your authentication session is no longer valid.";
+      return typeof serverMessage === "string" && serverMessage.trim()
+        ? serverMessage.trim()
+        : "The request could not be completed.";
   }
 }
 
@@ -179,7 +183,8 @@ export async function responseError(response) {
     body = null;
   }
   const code = body?.error?.code || (response.status === 401 ? "AUTH_INVALID" : "REQUEST_FAILED");
-  return new AuthRequestError(errorMessage(code), { status: response.status, code });
+  const serverMessage = typeof body?.error?.message === "string" ? body.error.message : "";
+  return new AuthRequestError(errorMessage(code, serverMessage), { status: response.status, code });
 }
 
 export function createAuthorizedFetch({
