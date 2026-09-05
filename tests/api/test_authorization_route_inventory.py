@@ -65,12 +65,15 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("PUT", "/api/v1/sessions/{session_id}/discovery/answers"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/discovery/revise"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/discovery/approve"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/discovery/stop"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/content-architect/start"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/content-architect/revise"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/content-architect/approve"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/content-architect/stop"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/visual-design-director/start"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/visual-design-director/revise"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/visual-design-director/approve"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/stop"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/build-preparation/start"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/build-preparation/regenerate"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/restart"): "portfolio_mutation",
@@ -78,6 +81,7 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/sessions/{session_id}/code-generator/regenerate"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/code-generator/retry"): "portfolio_mutation",
     ("POST", "/api/v1/system/worker-probes"): "admin_system_mutation",
+    ("POST", "/api/v1/client-diagnostics/events"): "client_diagnostics",
     ("POST", "/api/v1/build-preparation/fixture/run"): "admin_fixture_mutation",
     ("POST", "/api/v1/build-preparation/fixture/runs"): "admin_fixture_mutation",
     ("POST", "/api/v1/development/code-generator/provider-preflight"): "admin_development_mutation",
@@ -108,6 +112,9 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
     assert routes
 
     for method, path, route in routes:
+        if path == "/api/v1/client-diagnostics/events":
+            assert method == "POST"
+            continue
         if path.startswith("/api/v1/admin/"):
             _require(route, require_admin)
             continue

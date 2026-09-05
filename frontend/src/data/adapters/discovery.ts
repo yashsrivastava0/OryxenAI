@@ -8,6 +8,7 @@
 // src/oryxenai/api/routes/discovery.py::DiscoveryStateResponse — the API
 // response is { session_id, session_revision, discovery: <dict>, jobs: [] }.
 
+import { selectStageJob, type StageJobViewModel } from "./job";
 import type { StageState, StageViewModel } from "./types";
 
 export type DiscoveryQuestionKind = "text" | "single_select" | "multi_select" | "boolean";
@@ -111,12 +112,13 @@ function formatAnswer(answer: unknown, question: DiscoveryQuestionVM): string {
  * state "unsupported" (never silently "complete"/"available") for a status
  * this adapter does not recognize, per the adapter fail-closed rule.
  */
-export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
+export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryViewModel {
   if (!isRecord(raw) || typeof raw.status !== "string" || !(raw.status in STATE_MAP)) {
     return {
       state: "unsupported",
       statusText: "This stage returned a newer state. Refresh to continue.",
       raw,
+      job: selectStageJob(jobs),
       currentQuestions: [],
       answeredQuestionIds: [],
       answeredTurns: [],
@@ -128,6 +130,14 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
   const status = raw.status;
   const mappedState = STATE_MAP[status] ?? "unsupported";
   const operationA = isRecord(raw.operation_a) ? raw.operation_a : {};
+  const briefState = isRecord(raw.brief) ? raw.brief : {};
+  const activeJobId =
+    typeof operationA.job_id === "string"
+      ? operationA.job_id
+      : typeof briefState.job_id === "string"
+        ? briefState.job_id
+        : null;
+  const job: StageJobViewModel | null = selectStageJob(jobs, activeJobId);
   const items = Array.isArray(operationA.items) ? operationA.items : [];
   const answers = isRecord(raw.answers) && isRecord(raw.answers.items) ? raw.answers.items : {};
   const answeredIds = Object.keys(answers);
@@ -151,7 +161,8 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
       ? (allQuestions.length > 0 ? "working" : "available")
       : mappedState;
 
-  const briefState = isRecord(raw.brief) ? raw.brief : {};
+  const failedJob = job?.status === "failed" || job?.status === "cancelled";
+  const renderedState: StageState = failedJob ? "attention" : effectiveState;
   const brief =
     status === "brief_review" || status === "approved"
       ? {
@@ -164,26 +175,32 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const operation = typeof latestError?.operation === "string" ? latestError.operation : "";
   const retryOperation: DiscoveryRetryOperation =
-    operation === "understand_and_question" || operation === "prepare_questions"
+    operation === "understand_and_question" ||
+    operation === "prepare_questions" ||
+    job?.kind.includes("understand") === true ||
+    job?.kind.includes("prepare_questions") === true ||
+    status === "questions_queued" ||
+    status === "questions_running"
       ? "questions"
       : "brief";
   const safeError =
-    status === "needs_attention" && latestError
+    (status === "needs_attention" && latestError) || failedJob
       ? {
           summary:
-            typeof latestError.message === "string"
+            typeof latestError?.message === "string"
               ? latestError.message
-              : typeof latestError.summary === "string"
+              : typeof latestError?.summary === "string"
                 ? latestError.summary
-                : "Discovery could not continue.",
+                : job?.error?.message ?? "Discovery could not continue.",
           retryOperation,
         }
       : null;
 
   return {
-    state: effectiveState,
+    state: renderedState,
     statusText: STATUS_TEXT[status] ?? "Working on Discovery",
     raw,
+    job,
     currentQuestions,
     answeredQuestionIds: answeredIds,
     answeredTurns,

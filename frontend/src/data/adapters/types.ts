@@ -4,6 +4,8 @@
 // stages": accept unknown, validate the minimal required envelope, never
 // normalize an unrecognized required status to "complete" or "available".
 
+import type { StageJobViewModel } from "./job";
+
 export type StageState =
   | "locked"
   | "available"
@@ -18,4 +20,5 @@ export interface StageViewModel {
   state: StageState;
   statusText: string;
   raw: unknown;
+  job: StageJobViewModel | null;
 }

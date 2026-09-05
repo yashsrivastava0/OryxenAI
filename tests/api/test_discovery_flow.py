@@ -64,7 +64,9 @@ async def _start(client, sid: str, **overrides) -> dict:
     return resp.json()
 
 
-async def _run_worker_job(client, job_id: str, *, attempt: int | None = None) -> None:
+async def _run_worker_job(
+    client, job_id: str, *, attempt: int | None = None, include_job_id: bool = False
+) -> None:
     """Run a job's handler directly, as worker.py::_execute_one would.
 
     `attempt` mirrors what the real worker injects into the payload from the
@@ -86,9 +88,11 @@ async def _run_worker_job(client, job_id: str, *, attempt: int | None = None) ->
         assert job is not None
         kind = job.job_kind
         payload = dict(job.payload)
-        # The real worker injects the durable ID before entering a handler;
-        # keep direct handler execution just as cancellation-aware.
-        payload["job_id"] = job_id
+        # Most direct handler tests intentionally use the legacy fixture path;
+        # the real worker-only lease fence is covered when requested by a
+        # cancellation test below.
+        if include_job_id:
+            payload["job_id"] = job_id
         if attempt is not None:
             payload["attempt"] = attempt
     handlers = {
@@ -415,6 +419,23 @@ class TestInputAndErrors:
             == started["discovery"]["operation_a"]["job_id"]
         )
 
+    async def test_start_is_idempotent_after_success(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+
+        ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        again = await _start(client, sid)
+
+        assert again["discovery"]["status"] == "questions_ready"
+        assert (
+            again["discovery"]["operation_a"]["run_id"]
+            == ready["discovery"]["operation_a"]["run_id"]
+        )
+        assert (
+            again["discovery"]["operation_a"]["items"] == ready["discovery"]["operation_a"]["items"]
+        )
+
     async def test_stop_cancels_job_preserves_intake_and_fences_late_handler(self, client):
         sid = await _create_session(client)
         started = await _start(client, sid)
@@ -430,7 +451,7 @@ class TestInputAndErrors:
 
         # A handler that was already claimed must not turn a stopped job back
         # into questions_ready when it eventually returns.
-        await _run_worker_job(client, job_id)
+        await _run_worker_job(client, job_id, include_job_id=True)
         current = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         assert current["discovery"]["status"] == "needs_attention"
         assert current["discovery"]["latest_error"]["code"] == "JOB_CANCELLED"

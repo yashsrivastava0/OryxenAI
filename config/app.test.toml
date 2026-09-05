@@ -21,6 +21,10 @@ max_overflow = 5
 provider = "memory"
 require_lifecycle = false
 
+[client_diagnostics]
+enabled = false
+output_root = ".workspace/test-diagnostics"
+
 [model_cache]
 # Unit/integration tests use short-lived isolated rows and a temporary-safe
 # local export root when they opt into the durable cache explicitly.

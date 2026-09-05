@@ -17,6 +17,7 @@ from oryxenai.agents.build_preparation.schemas import (
 )
 from oryxenai.agents.build_preparation.state import apply_start, reset_for_regeneration
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
+from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorStatus
 from oryxenai.auth.authorization import durable_snapshot_for_session
@@ -206,16 +207,7 @@ class BuildPreparationService:
             except Exception:
                 job = None
             if job is not None:
-                jobs.append(
-                    {
-                        "id": str(job.id),
-                        "kind": job.job_kind,
-                        "status": job.status,
-                        "execution_lane": getattr(job, "execution_lane", None),
-                        "attempt": job.attempt,
-                        "error": job.error_payload,
-                    }
-                )
+                jobs.append(public_job_status(job))
         payload = state.model_dump(mode="json")
         payload["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         payload["stale"] = stale
