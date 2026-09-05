@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-071 — Catch a silent token-collision corruption bug; sharpen two repair diagnostics with concrete evidence
+
+- **Date & Time:** 2026-09-05 19:30 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** Live testing of D-068's fixes surfaced three further real bugs across 6 fresh live runs. (1) The model transcribes an opaque hash-like content-key suffix with a one-character typo and repeats the identical typo across every repair round, exhausting the mid-generation repair budget on a copy mistake the generic `SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING` diagnostic gave it no way to self-correct. (2) `SOURCE_BLUEPRINT_MOVE_MARKER_ONLY` (final-verification distinctive-move CSS check) had a generic message, unlike its mid-generation sibling `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID` which already names the exact selector/properties — the final-repair model reported `cannot_complete` on it 3 rounds running. (3) A genuine silent-corruption bug: a raw color token and a shadcn theme binding slot sharing the same literal name (both commonly "accent", one of the fixed shadcn slot names) compile to the identical `--color-accent` CSS custom property; the alias, emitted second in `_compile_v4_tokens`, silently overwrites the real color with no error anywhere in the pipeline — it only surfaced as a whole-site quality-review finding after a full, costly generation pass, and even then only as an opaque "semantic-token-alias-collision" description with real scores of 4/4/4/4/4 lost to one avoidable finding.
+- **Decision:** For (1) and (2), added near-miss/concrete-evidence detection to the respective diagnostic messages (`source_validation.py`'s `_near_miss_content_key`, `typescript_ast_audit.py`'s enriched `SOURCE_BLUEPRINT_MOVE_MARKER_ONLY` message) so the repair model gets the same actionable specificity its sibling checks already had. For (3), added the identical collision check at two layers: `DesignTokenSystemV4`'s own Pydantic validator (`development_schemas.py`, right beside its existing sibling check that binding values reference approved colors) — catching it the instant the planner responds, confirmed live rejecting a real "accent"/"accent" collision on the very next attempt — and `token_compiler.py`'s `_compile_v4_tokens` as a defense-in-depth backstop for any blueprint reaching compilation without re-validating (e.g. via `model_copy`, which does not re-run validators). Also added explicit `planner.md` guidance naming the exact failure mode, since the model repeated the identical collision on the live attempt immediately after the validator started rejecting it — the validator prevents the corruption either way, but the prompt guidance reduces how often the whole plan has to be regenerated for it.
+- **Rejected alternatives:** Auto-correcting a detected near-miss content-key server-side instead of asking the repair model to fix it — rejected as exactly the kind of invented-authority shortcut this project's validation layer exists to prevent; naming the mismatch and asking the model to correct it preserves an honest, traceable correction. Silently choosing which of the two colliding `--color-accent` declarations should win (e.g. always preferring the raw color) — rejected as masking a genuine planner-output defect rather than surfacing and preventing it; the planner should never produce a collision in the first place.
+- **Consequence:** Confirmed live: the "accent"/"accent" collision was caught instantly and cheaply (failed at the `plan` stage, before any acquire/generate/verify spend) on the run immediately following this fix. One subsequent run reached final whole-site review with all 5 scores at 4 and exactly one blocking finding — the closest this pipeline has gotten to a clean pass, though not yet one. Full end-to-end success (a promoted preview) was not reached this session; remaining live variance is concentrated in whole-site resource-placement rendering (the model rendering decorative placeholder markup instead of the required `LocalImage` component) and generic non-determinism on already-prompted-against rules (e.g. spelled-out `sizes` values), not in the control-flow/validation gaps D-068 and this decision closed. `code generator issues.md` should be updated by whichever session next runs a live confirmation pass.
+
 ## D-070 - Enforce live model-cost ceilings before provider transmission
 
 - **Date & Time:** 2026-09-05 16:40 +05:30 - Codex (GPT-5 / OpenAI)
@@ -535,7 +544,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Summary (as of last update — 2026-09-05)
 
-- Total decisions logged: 67
-- Active decisions: 50
+- Total decisions logged: 72
+- Active decisions: 56
 - Compacted & superseded decisions: 16
 - Last updated: 2026-09-05 — Claude Code (Sonnet 5 / Anthropic)
