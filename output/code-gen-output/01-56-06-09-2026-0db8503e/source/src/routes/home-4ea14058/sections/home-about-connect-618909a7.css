@@ -1,0 +1,15 @@
+.home-about-connect { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(16rem, 0.9fr); gap: var(--space-12); max-width: var(--container-content-max); margin-inline: auto; padding: var(--space-24) var(--container-content-padding); background: var(--color-surface-panel); color: var(--color-ink-primary); }
+.home-about-connect__label { margin: 0; color: var(--color-ink-muted); font-size: clamp(var(--type-label-min), 1vw, var(--type-label-max)); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-tracking); text-transform: uppercase; }
+.home-about-connect h2 { max-width: 12ch; margin: var(--space-6) 0 0; font-size: clamp(var(--type-heading-min), 5vw, var(--type-heading-max)); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-tracking); }
+.home-about-connect__body, .home-about-connect__cta { max-width: 52ch; margin: var(--space-8) 0 0; font-size: clamp(var(--type-body-min), 1.2vw, var(--type-body-max)); line-height: var(--type-body-line-height); }
+.home-about-connect__cta { margin-top: var(--space-6); font-weight: 600; }
+.home-about-connect__links { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-8); }
+.home-about-connect__links a { display: inline-flex; align-items: center; min-block-size: 2.75rem; padding-inline: var(--space-4); border: var(--border-accent); color: var(--color-ink-primary); font-weight: 600; text-decoration: none; transition: background var(--motion-motion-state-duration) var(--motion-motion-state-easing), color var(--motion-motion-state-duration) var(--motion-motion-state-easing); }
+.home-about-connect__links a:hover { background: var(--color-accent-signal); color: var(--color-on-accent); }
+.home-about-connect__links a:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: var(--space-1); }
+.home-about-connect__aside { display: grid; gap: var(--space-6); align-content: start; }
+.home-about-connect__image { aspect-ratio: 1.35; overflow: hidden; background: var(--color-surface-secondary); }
+.home-about-connect__details { display: grid; gap: var(--space-2); }
+.home-about-connect__details p { margin: 0; color: var(--color-ink-muted); font-size: 0.875rem; line-height: 1.45; }
+@media (max-width: 48rem) { .home-about-connect { grid-template-columns: 1fr; gap: var(--space-8); padding-block: var(--space-16); } .home-about-connect h2 { max-width: 15ch; } .home-about-connect__aside { order: 2; } .home-about-connect__image { aspect-ratio: 1.5; } }
+@media (prefers-reduced-motion: reduce) { .home-about-connect__links a { transition: none; } }

@@ -1,0 +1,34 @@
+{
+  "evaluator_handoff": {
+    "dist_path": "",
+    "metadata_path": "portfolio.json",
+    "report_path": "generation-report.md",
+    "screenshots_path": "",
+    "source_path": "source"
+  },
+  "excluded_source_artifacts": [],
+  "export_folder": "02-23-06-09-2026-fa31c124",
+  "export_reason": "SOURCE_CONTRACT_FAILED",
+  "export_timezone": "system-local",
+  "exported_at": "2026-09-05T20:53:22.007578+00:00",
+  "issues": [
+    {
+      "code": "SOURCE_CONTENT_KEY_MISSING",
+      "message": "primary-cta-kind not referenced"
+    },
+    {
+      "code": "SOURCE_CONTENT_KEY_MISSING",
+      "message": "primary-cta-label not referenced"
+    }
+  ],
+  "legacy_schema_version": "oryxenai-portfolio-export-v1",
+  "run_id": "fa31c124-99f6-410a-adeb-651261d88114",
+  "runtime": {
+    "docker": false,
+    "entrypoint": "dist/index.html",
+    "kind": "static-vite",
+    "preview": "shared-static-gateway"
+  },
+  "schema_version": "oryxenai-portfolio-export-v2",
+  "status": "needs_attention"
+}

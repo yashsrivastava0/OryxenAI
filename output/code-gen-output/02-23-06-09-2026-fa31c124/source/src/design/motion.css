@@ -1,0 +1,69 @@
+/* Motion is authored by each portfolio, optionally by referencing one of
+   the trusted patterns below (core/motion_pattern_catalogue.py) instead of
+   hand-authoring new keyframes/IntersectionObserver wiring. This file's
+   reduced-motion policy guarantees that reduced-motion users never
+   receive unsafe animation from either path. */
+
+/* reveal-fade-rise: default/unguarded state is fully visible; the hidden
+   "before" state and its animation only apply once an ancestor observer
+   sets [data-motion-ready="true"] (see SharedSystems.tsx's <Reveal>). */
+.motion-reveal-fade-rise {
+  opacity: 1;
+  transform: none;
+}
+[data-motion-ready="true"].motion-reveal-fade-rise {
+  opacity: 0;
+  transform: translateY(28px);
+  animation: motion-reveal-fade-rise 720ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes motion-reveal-fade-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* reveal-clip-lines: an overflow-hidden clip box with an inner span that
+   slides up into view from below the clip line. */
+.motion-reveal-clip-lines {
+  display: block;
+  overflow: hidden;
+}
+.motion-reveal-clip-lines__inner {
+  display: inline-block;
+  opacity: 1;
+  transform: translateY(0);
+}
+[data-motion-ready="true"] .motion-reveal-clip-lines__inner {
+  opacity: 0;
+  transform: translateY(115%);
+  animation: motion-reveal-clip-lines 620ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes motion-reveal-clip-lines {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* stagger-group: each child reveals like reveal-fade-rise, staggered by
+   the index StaggerGroup writes onto --stagger-index per child. */
+.motion-stagger-item {
+  opacity: 1;
+  transform: none;
+}
+[data-motion-ready="true"] .motion-stagger-item {
+  opacity: 0;
+  transform: translateY(28px);
+  animation: motion-reveal-fade-rise 720ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--stagger-index, 0) * 90ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -165,8 +165,20 @@ pg_isready -h 127.0.0.1 -p 5432 -U oryxen -d oryxenai
 pg_isready -h 127.0.0.1 -p 5432 -U oryxen -d oryxenai
 ```
 
-If local PostgreSQL uses another port, change the native overlay or set the
-same `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` values in every native terminal.
+If local PostgreSQL listens on another port (common when a pre-existing
+system-wide PostgreSQL service already owns `5432`), don't edit the
+committed `config/app.native.toml` — add these two lines to your own
+`.env` instead (already git-ignored, so the override stays machine-local
+and applies automatically to every native script without re-exporting
+anything per terminal):
+
+```
+DB_HOST_OVERRIDE=127.0.0.1
+DB_PORT_OVERRIDE=5545
+```
+
+They take priority over the TOML `[database]` block wherever
+`settings.database_url` is used. Leave both blank to use the plain default.
 
 ### Run native services on Windows
 
@@ -460,8 +472,10 @@ must not point at the application database.
 
 ### `connection refused` or `/health/ready` is not ready
 
-- Native: confirm PostgreSQL is running on `127.0.0.1:5432`, the `oryxen`
-  role/database exist, and `POSTGRES_PASSWORD` matches.
+- Native: confirm PostgreSQL is running on `127.0.0.1:5432` (or your
+  `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` if set — see the native setup
+  section above), the `oryxen` role/database exist, and `POSTGRES_PASSWORD`
+  matches.
 - Docker: confirm `docker compose ps` shows PostgreSQL healthy; the host port
   is `5544`, while containers use internal port `5432`.
 - Confirm migrations completed with `uv run alembic current` in native mode or
@@ -498,6 +512,16 @@ docker compose up -d migrate app worker
 ```
 
 Use native mode when rapid source iteration is the priority.
+
+### Preview gateway port `4174` conflict (native + isolated Docker Code Generator)
+
+Native mode's preview gateway (`config/app.toml` `preview_port`) and the
+isolated Docker Code Generator workflow's published port both default to
+`4174`. Running both at once on the same machine collides. Stop whichever
+one you're not actively using, or change one side's port (native:
+`preview_port` in an overlay; isolated Docker: the `-p 4174:4174` mapping in
+the command above) — they don't need to match each other since they're
+unrelated stacks.
 
 ### Switching between native and Docker shows different data
 

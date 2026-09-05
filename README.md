@@ -1,39 +1,53 @@
 # OryxenAI
 
-Production-oriented OryxenAI backend, Phase 2 authentication/ownership
-foundation, and developer testing harness.
+Production-oriented OryxenAI backend: a staged portfolio-generation pipeline
+(Discovery through Code Generator), a bounded local Phase 1-4 authentication/
+ownership/admin foundation, and a developer testing harness.
 
-> **Discovery, Content Architect, Visual Design Director, and the hidden
-> Portfolio Build Preparation stage are implemented end to end.** Code
-> Generator remains intentionally out of scope for now. See
-> [docs/architecture.md](docs/architecture.md) for design
-> rationale and [docs/frontend-behavior-spec.md](docs/frontend-behavior-spec.md)
-> for the chat/UX contract.
+> **Discovery, Content Architect, Visual Design Director, the hidden
+> Portfolio Build Preparation stage, Code Generator, and Authentication
+> Phases 1-4 are all implemented**, each as a bounded local foundation. See
+> [docs/architecture.md](docs/architecture.md) for design rationale and
+> [docs/frontend-behavior-spec.md](docs/frontend-behavior-spec.md) for the
+> chat/UX contract. Production deployment and the owner-completed
+> multi-account browser acceptance gate remain separate, not-yet-done steps
+> — see `AGENTS.md` for the exact boundary.
 
 > **AI agents working on this repo:** start with
 > [`AGENTS.md`](AGENTS.md), not this file — it's the canonical, current
 > project context. See also [`CHANGES.md`](CHANGES.md) (change history) and
 > [`DECISIONS.md`](DECISIONS.md) (decisions and open issues).
+>
+> **Continuing Code Generator reliability work?** Read
+> [<code generator issues.md>](<code generator issues.md>) first — it is
+> the handoff log for exactly this work: what was fixed, how far live runs
+> got, and the prioritized next steps. `docs/code-generator-architecture/`
+> covers the design; `DECISIONS.md` (D-072 onward) has the evidence trail
+> behind the most recent fixes.
 
 ## Current purpose
 
-Prove the staged pipeline works:
+Prove the staged pipeline works end to end:
 
 ```
-Application starts → PostgreSQL connects → approved Discovery/Content/Visual
-snapshots → explicit Build Preparation start → durable immutable preparation
-pack in temporary object storage
+Application starts → PostgreSQL connects → authenticated session → approved
+Discovery/Content/Visual snapshots → explicit Build Preparation → immutable
+Markdown brief pair → explicit Code Generator session → generated portfolio
+source, clean build, and multi-viewport verification screenshots
 ```
 
 ## Current non-goals
 
-- Portfolio generation, code-generation sandbox, and downstream agent chaining
-- Agent chaining, supervisor agent, LangChain/LangGraph, or any agent framework
-- Queue/worker (Redis, Celery, Temporal, Kafka)
-- Phase 3-4 authorization: one-portfolio/variant/success entitlements, durable
-  worker fencing, administrator lifecycle, and production deployment handoff
-- Billing, published-portfolio hosting automation, and production cloud setup
-- React frontend, visual editor, SEO, analytics, and published-portfolio hosting
+- Automatic cross-agent chaining or a supervisor agent — every stage (through
+  Code Generator) is started by an explicit caller, never auto-invoked
+- LangChain/LangGraph or any other agent framework
+- Redis, Celery, Temporal, Kafka, or any external queue — jobs are durable
+  PostgreSQL rows (see `src/oryxenai/jobs/`)
+- Production deployment, billing automation, and published-portfolio hosting
+  automation; the owner-completed multi-account browser acceptance gate for
+  authentication is also still open (see `AGENTS.md`)
+- A separate frontend framework, visual editor, SEO/analytics for the
+  *generated* portfolios themselves
 - Vector database, embeddings, prompt-management platform, observability SaaS
 - Multiple microservices, Kubernetes, Terraform
 
@@ -47,7 +61,8 @@ pack in temporary object storage
 - **Agents:** Ordinary Python protocols + Pydantic models (no agent framework)
 - **Model:** Provider-neutral `ModelClient` protocol with config-driven Anthropic Messages API defaults and extensible provider adapters
 - **Config:** Secrets in `.env`; non-secret config in committed `config/app.toml` + `config/models.toml`
-- **Docker:** One app image (API + testing UI) + one PostgreSQL container
+- **Docker:** One app image (API/UI, worker, and preview gateway all run
+  from it as separate services) + one PostgreSQL container
 
 ## Folder structure
 
@@ -57,20 +72,23 @@ OryxenAI/
 │   ├── main.py                    # FastAPI app factory + middleware
 │   ├── core/                      # settings, logging, lifecycle
 │   ├── db/                        # models, repositories, async session
+│   ├── jobs/                      # durable PostgreSQL job queue, worker, heartbeat
+│   ├── auth/                      # identity, ownership, entitlements/fencing, admin lifecycle
 │   ├── agents/shared/             # contracts, registry, executor, model_client
-│   ├── agents/{discovery,content_architect,visual_design_director,code_generator}/
+│   ├── agents/{discovery,content_architect,visual_design_director,
+│   │            build_preparation,code_generator}/
 │   │   ├── agent.py  schemas.py  README.md
-│   │   ├── prompts/{system.md,prepare_questions.md,build_brief.md,repair_output.md}
+│   │   ├── prompts/                (per-agent prompt set)
 │   │   └── samples/{input.json,output.json}
-│   ├── agents/build_preparation/  # Stage 0 through Phase 3 preparation agent
 │   ├── runtime/                   # state_service, mock_runner
-│   ├── api/routes/                # health, agents, sessions, runs, discovery, content-architect, visual-design-director
+│   ├── api/routes/                # stage/session APIs — see docs/run/run.md
 │   └── web/                       # templates, static (css/js)
 ├── config/                        # committed non-secret TOML config
 ├── migrations/                    # Alembic
-├── tests/                         # unit, api, integration, fixtures
-├── docs/architecture.md
-├── scripts/                       # docker-entrypoint.sh, verify_environment.py
+├── tests/                         # unit, api, integration, worker
+├── docs/                          # architecture.md, frontend-behavior-spec.md,
+│                                   # run/run.md, code-generator-architecture/
+├── scripts/                       # cross-platform launcher scripts — see docs/run/run.md
 ├── .github/workflows/ci.yml
 ├── Dockerfile, compose.yaml, alembic.ini, pyproject.toml, uv.lock
 └── README.md
@@ -82,10 +100,18 @@ OryxenAI/
 - **uv** — [install](https://docs.astral.sh/uv/getting-started/installation/)
 - **Docker Desktop** (optional; required only for the Docker Compose mode)
 - **PostgreSQL** (local native mode uses port `5432`; Docker mode publishes
-  PostgreSQL on host port `5544`)
+  PostgreSQL on host port `5544`). If `5432` is already taken by another
+  local PostgreSQL install, don't edit the committed TOML — set
+  `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` in your `.env` instead (see
+  `.env.example` and the Troubleshooting section below).
+- **Node.js/npm** and a **Chromium-family browser** — only needed to run
+  Code Generator generation and verification (source builds and Playwright
+  DOM checks); not required to start the API, worker, or any other stage.
 
 For complete startup, service, agent, credential, and troubleshooting
-instructions, use the canonical [development runbook](docs/run/run.md).
+instructions, use the canonical [development runbook](docs/run/run.md) —
+it covers both modes in full and is kept current; treat this README's setup
+steps below as a quick start, not the authoritative reference.
 
 ## Environment setup
 
@@ -111,11 +137,16 @@ committed files under `config/`:
 ```powershell
 uv python install 3.13
 uv sync --frozen
-.\scripts\run-native.ps1 align-db
-.\scripts\run-native.ps1 migrate
-.\scripts\run-native.ps1 api
-.\scripts\run-native.ps1 worker
+.\scripts\run-native.ps1 align-db   # one-time: creates the local DB role/database
+.\scripts\run-native.ps1 migrate    # one-time (and after pulling new migrations)
+.\scripts\run-native.ps1 dev        # starts api + worker + preview gateway together
 ```
+
+`dev` launches all three as background windows. To run them individually
+instead (useful when you want each one's logs in its own foreground
+terminal), open separate PowerShell windows and run `.\scripts\run-native.ps1 api`,
+then `worker`, then `preview` — each blocks its terminal until you `Ctrl+C` it.
+Run `.\scripts\run-native.ps1 doctor` any time to check the environment.
 
 The native commands require a local PostgreSQL role/database. Docker users
 should follow the Docker Compose section in `docs/run/run.md` instead.
@@ -128,11 +159,20 @@ workspace. Docker remains attached and production-like.
 ```bash
 uv python install 3.13
 uv sync --frozen
-./scripts/run-native.sh align-db
-./scripts/run-native.sh migrate
+chmod +x scripts/run-native.sh      # one-time
+./scripts/run-native.sh align-db    # one-time: creates the local DB role/database
+./scripts/run-native.sh migrate     # one-time (and after pulling new migrations)
+```
+
+Then, in separate terminals (each blocks in the foreground until `Ctrl+C`):
+
+```bash
 ./scripts/run-native.sh api
 ./scripts/run-native.sh worker
+./scripts/run-native.sh preview   # optional; only needed for Code Generator
 ```
+
+Run `./scripts/run-native.sh doctor` any time to check the environment.
 
 ## uv commands
 
@@ -268,6 +308,12 @@ uv run mypy src                # type check
 | POST | `/api/v1/sessions/{id}/visual-design-director/revise` | Natural-language visual-direction revision (re-runs build) |
 | POST | `/api/v1/sessions/{id}/visual-design-director/approve` | Approve the reviewed visual direction |
 
+This table covers the first three stages only. Build Preparation and Code
+Generator each have their own larger route set — see
+`src/oryxenai/agents/build_preparation/README.md` and
+`src/oryxenai/agents/code_generator/README.md` for their full tables, and
+`docs/run/run.md` for how to exercise them locally.
+
 All errors return a structured envelope:
 
 ```json
@@ -351,6 +397,26 @@ for the complete flow.
 - DB port 5544: pick another free host port and update it in both
   `compose.yaml` (`ports:`) and `config/app.toml` (`[database] port`) —
   they must match
+
+### Native mode: PostgreSQL port `5432` is already taken
+
+This happens when another local PostgreSQL install (not this project's) is
+already listening on `5432` — common on Windows when a system-wide
+PostgreSQL service auto-starts. **Don't edit the committed
+`config/app.native.toml`** (that changes the default for every native
+developer). Instead, add these two lines to your own `.env` (already
+git-ignored, so this stays machine-local):
+
+```
+DB_HOST_OVERRIDE=127.0.0.1
+DB_PORT_OVERRIDE=5545
+```
+
+Set `DB_PORT_OVERRIDE` to whatever free port your own local PostgreSQL
+instance actually listens on. These two settings take priority over
+`config/app.native.toml`'s `[database]` block for every native script
+(`align-db`, `migrate`, `api`, `worker`, `dev`) — no script or TOML edit
+needed. Leave both blank/unset to use the plain default (`5432`).
 
 ### `.env` is accidentally missing
 

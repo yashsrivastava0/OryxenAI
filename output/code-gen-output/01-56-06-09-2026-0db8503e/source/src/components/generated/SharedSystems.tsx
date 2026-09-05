@@ -1,0 +1,312 @@
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type HTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+} from "react";
+import { publicResourceUrl, publicSectionUrl } from "../../app/ResourceUrl";
+import { RESOURCE_MANIFEST } from "../../generated/resource-manifest";
+
+export type RouteShellProps = {
+  routeId: string;
+  routePath: string;
+  children: ReactNode;
+  navigation?: ReactNode;
+  footer?: ReactNode;
+};
+
+export function RouteShell({
+  routeId,
+  routePath,
+  children,
+  navigation,
+  footer,
+}: RouteShellProps) {
+  return (
+    <div data-route-shell={routeId}>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      {navigation}
+      <main id="main-content" data-route-id={routeId} data-route-path={routePath}>
+        {children}
+      </main>
+      {footer}
+    </div>
+  );
+}
+
+export function SectionAnchor({
+  routePath,
+  sectionId,
+  children,
+}: {
+  routePath: string;
+  sectionId: string;
+  children: ReactNode;
+}) {
+  return <a href={publicSectionUrl(routePath, sectionId)}>{children}</a>;
+}
+
+export type LocalImageSource = {
+  path: string;
+  width: number;
+  height: number;
+  format?: string;
+};
+
+type ManifestImageAsset = {
+  resource_id: string;
+  sources: readonly LocalImageSource[];
+};
+
+export function LocalImage({
+  resourceId,
+  sources,
+  alt,
+  sizes = "100vw",
+  loading = "lazy",
+  fit = "cover",
+  focalPosition = "center",
+}: {
+  resourceId: string;
+  sources?: readonly LocalImageSource[];
+  alt: string;
+  sizes?: string;
+  loading?: "lazy" | "eager";
+  fit?: CSSProperties["objectFit"];
+  focalPosition?: string;
+}) {
+  const manifestAssets = RESOURCE_MANIFEST.image_assets as readonly ManifestImageAsset[];
+  const manifestAsset = manifestAssets.find((asset) => asset.resource_id === resourceId);
+  const ordered = [...(sources ?? manifestAsset?.sources ?? [])]
+    .filter((source) => source.path && source.width > 0 && source.height > 0)
+    .sort((left, right) => left.width - right.width);
+  const largest = ordered.at(-1);
+  if (!largest) return null;
+  const grouped = new Map<string, LocalImageSource[]>();
+  for (const source of ordered) {
+    const format = (source.format || "").toLowerCase();
+    const entries = grouped.get(format) || [];
+    entries.push(source);
+    grouped.set(format, entries);
+  }
+  const fallbackFormat = grouped.has("jpeg")
+    ? "jpeg"
+    : grouped.has("jpg")
+      ? "jpg"
+      : grouped.keys().next().value || "";
+  const fallbackSources = grouped.get(fallbackFormat) || [largest];
+  const srcSet = (items: readonly LocalImageSource[]) =>
+    items
+      .map((source) => `${publicResourceUrl(source.path)} ${source.width}w`)
+      .join(", ");
+  return (
+    <picture style={{ display: "block", inlineSize: "100%", blockSize: "100%" }}>
+      {[...grouped.entries()]
+        .filter(([format]) => format && format !== fallbackFormat)
+        .map(([format, items]) => (
+          <source
+            key={format}
+            type={`image/${format === "jpg" ? "jpeg" : format}`}
+            srcSet={srcSet(items)}
+            sizes={sizes}
+          />
+        ))}
+      <img
+        data-resource-id={resourceId}
+        src={publicResourceUrl((fallbackSources.at(-1) || largest).path)}
+        srcSet={srcSet(fallbackSources)}
+        sizes={sizes}
+        width={largest.width}
+        height={largest.height}
+        loading={loading}
+        decoding="async"
+        alt={alt}
+        style={{
+          display: "block",
+          inlineSize: "100%",
+          blockSize: "100%",
+          objectFit: fit,
+          objectPosition: focalPosition,
+        }}
+      />
+    </picture>
+  );
+}
+
+export function useDisclosure(initialOpen = false) {
+  const [open, setOpen] = useState(initialOpen);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const close = () => {
+    setOpen(false);
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+  return {
+    open,
+    panelId,
+    triggerRef,
+    toggle: () => setOpen((value) => !value),
+    close,
+  };
+}
+
+export function Disclosure({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  const disclosure = useDisclosure();
+  return (
+    <div data-disclosure>
+      <button
+        ref={disclosure.triggerRef}
+        type="button"
+        aria-expanded={disclosure.open}
+        aria-controls={disclosure.panelId}
+        onClick={disclosure.toggle}
+      >
+        {label}
+      </button>
+      <div id={disclosure.panelId} hidden={!disclosure.open}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Trusted motion primitives (core/motion_pattern_catalogue.py). Each names
+// a real, tested implementation a beat's optional pattern_id can reference
+// instead of hand-authoring new CSS/JS. The default, unguarded state is
+// always the fully visible final state; the "before" (hidden) state and
+// its animation are gated behind [data-motion-ready="true"], set only
+// after confirming IntersectionObserver support -- so content stays
+// visible with no motion at all if the observer is unavailable.
+
+export function useInView<T extends HTMLElement>(threshold = 0.2) {
+  const ref = useRef<T>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setInView(true);
+            observer.disconnect();
+          }
+        }
+      },
+      { threshold }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [threshold]);
+  return { ref, inView };
+}
+
+export function Reveal({
+  pattern = "reveal-fade-rise",
+  className = "",
+  children,
+  ...rest
+}: {
+  pattern?: "reveal-fade-rise" | "reveal-clip-lines";
+  className?: string;
+  children: ReactNode;
+} & Omit<HTMLAttributes<HTMLDivElement>, "className" | "children">) {
+  // `rest` forwards any other attribute (a resource/interaction marker, for
+  // example) onto this same wrapper element -- the one element that also
+  // carries `data-motion-ready`, so a selector combining both attributes on
+  // one element (rather than a descendant combinator) has something real to
+  // match. Without this, a marker placed on `children` instead lands on a
+  // different DOM node than `data-motion-ready`, and the two can never be
+  // matched by the same compound CSS selector.
+  const { ref, inView } = useInView<HTMLDivElement>();
+  const dataMotionReady = inView ? "true" : undefined;
+  if (pattern === "reveal-clip-lines") {
+    return (
+      <div
+        ref={ref}
+        className={["motion-reveal-clip-lines", className].filter(Boolean).join(" ")}
+        data-motion-ready={dataMotionReady}
+        {...rest}
+      >
+        <span className="motion-reveal-clip-lines__inner">{children}</span>
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={ref}
+      className={["motion-reveal-fade-rise", className].filter(Boolean).join(" ")}
+      data-motion-ready={dataMotionReady}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function StaggerGroup({
+  className = "",
+  itemClassName = "",
+  children,
+  ...rest
+}: {
+  className?: string;
+  itemClassName?: string;
+  children: ReactNode;
+} & Omit<HTMLAttributes<HTMLDivElement>, "className" | "children">) {
+  const { ref, inView } = useInView<HTMLDivElement>();
+  const items = Children.toArray(children);
+  return (
+    <div
+      ref={ref}
+      className={["motion-stagger-group", className].filter(Boolean).join(" ")}
+      data-motion-ready={inView ? "true" : undefined}
+      {...rest}
+    >
+      {items.map((child, index) => {
+        if (!isValidElement(child)) return child;
+        const element = child as ReactElement<{
+          className?: string;
+          style?: CSSProperties;
+        }>;
+        return cloneElement(element, {
+          key: element.key ?? index,
+          className: ["motion-stagger-item", itemClassName, element.props.className]
+            .filter(Boolean)
+            .join(" "),
+          style: {
+            ...element.props.style,
+            ["--stagger-index" as string]: index,
+          } as CSSProperties,
+        });
+      })}
+    </div>
+  );
+}

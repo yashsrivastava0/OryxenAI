@@ -1,0 +1,140 @@
+{
+  "completed_at": "2026-09-03T20:02:29.006357+00:00",
+  "current_stage": "compose_visual_brief",
+  "events": [
+    {
+      "details": {},
+      "event_id": "fixture_run_queued",
+      "level": "info",
+      "message": "Fixture run accepted and local result folder created.",
+      "stage": "queued",
+      "timestamp": "2026-09-03T20:01:43.986719+00:00"
+    },
+    {
+      "details": {},
+      "event_id": "stage_0_complete",
+      "level": "info",
+      "message": "Stage 0 completed without model or provider calls.",
+      "stage": "stage_0",
+      "timestamp": "2026-09-03T20:01:44.015026+00:00"
+    },
+    {
+      "details": {
+        "provider_calls": 11
+      },
+      "event_id": "resource_research:9623e4e0",
+      "level": "info",
+      "message": "Discovered candidates for 7 resource role(s) and 4 component role(s).",
+      "stage": "resource_research",
+      "timestamp": "2026-09-03T20:01:55.449573+00:00"
+    },
+    {
+      "details": {
+        "model_calls": 1
+      },
+      "event_id": "compose_visual_brief:dc6a8fd6",
+      "level": "info",
+      "message": "Composed both Markdown briefs.",
+      "stage": "compose_visual_brief",
+      "timestamp": "2026-09-03T20:02:29.003899+00:00"
+    },
+    {
+      "details": {},
+      "event_id": "input_validated",
+      "level": "info",
+      "message": "Validated the Visual Design Director structure.",
+      "stage": "stage_0",
+      "timestamp": "2026-09-03T20:01:44.011546+00:00"
+    },
+    {
+      "details": {
+        "assumption_hash": "6d891367fbefc247463167f2144c157f9a501898c92f2fade080813516f87543",
+        "assumptions": [
+          "Editorial imagery is decorative and non-evidentiary.",
+          "No portrait, screenshot, dashboard, logo, or project proof is allowed.",
+          "Component roles are derived from approved route sections and interaction needs.",
+          "All visual resources must be local, attributed, and usable without runtime provider calls.",
+          "Reduced motion receives a complete static equivalent."
+        ],
+        "dropped_routes": [],
+        "resource_need_count": 11,
+        "resource_targets": {
+          "component_target": 4,
+          "image_target": 5
+        },
+        "route_count": 1,
+        "visual_input_mode": "merged_vdd_assumptions"
+      },
+      "event_id": "scope_compiled",
+      "level": "info",
+      "message": "Compiled approved route scope and structured resource needs.",
+      "stage": "stage_0",
+      "timestamp": "2026-09-03T20:01:44.014928+00:00"
+    },
+    {
+      "details": {},
+      "event_id": "fixture_run_complete",
+      "level": "info",
+      "message": "Both Markdown briefs were composed.",
+      "stage": "compose_visual_brief",
+      "timestamp": "2026-09-03T20:02:29.006384+00:00"
+    }
+  ],
+  "issue": null,
+  "local_result": {
+    "content_brief_available": true,
+    "content_brief_path": "output\\build-preparation\\01-31-04-09-94ae4a9c\\content-and-narrative-brief.md",
+    "result_folder": "output\\build-preparation\\01-31-04-09-94ae4a9c",
+    "result_folder_absolute": "C:\\Users\\Yash Srivastava\\Desktop\\01_Projects\\OryxenAI\\output\\build-preparation\\01-31-04-09-94ae4a9c",
+    "status": "ready",
+    "visual_brief_available": true,
+    "visual_brief_path": "output\\build-preparation\\01-31-04-09-94ae4a9c\\visual-and-build-brief.md"
+  },
+  "modes": {
+    "live_model": true,
+    "live_providers": true
+  },
+  "run_id": "94ae4a9c-d63c-4bcc-b994-b12dc56ac62c",
+  "schema_version": "fixture-run-diagnostics-v3",
+  "started_at": "2026-09-03T20:01:43.984419+00:00",
+  "status": "ready",
+  "storage": {
+    "inputs": {
+      "content_architect": {
+        "path": "C:\\Users\\Yash Srivastava\\Desktop\\01_Projects\\OryxenAI\\Input-Output-Of-Engine\\Content Architect output.MD",
+        "status": "ready"
+      },
+      "visual_design_director": {
+        "path": "C:\\Users\\Yash Srivastava\\Desktop\\01_Projects\\OryxenAI\\Input-Output-Of-Engine\\Visual Design Director output.md",
+        "status": "ready"
+      }
+    },
+    "resources": {
+      "pexels": {
+        "message": "Pexels image discovery is ready.",
+        "missing": [],
+        "status": "ready"
+      },
+      "pixabay": {
+        "message": "Pixabay image discovery is ready.",
+        "missing": [],
+        "status": "ready"
+      }
+    }
+  },
+  "summary": {
+    "assumption_hash": "6d891367fbefc247463167f2144c157f9a501898c92f2fade080813516f87543",
+    "component_role_count": 4,
+    "component_roles_with_suggestions": 4,
+    "content_brief_length": 11793,
+    "model_calls": 1,
+    "provider_calls": 11,
+    "resource_need_count": 11,
+    "resource_role_count": 7,
+    "resource_roles_with_candidates": 7,
+    "route_count": 1,
+    "visual_brief_length": 38296,
+    "visual_input_mode": "merged_vdd_assumptions",
+    "warning_count": 4
+  }
+}

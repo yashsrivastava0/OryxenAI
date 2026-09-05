@@ -1,0 +1,6 @@
+/* The compiler emits local @font-face rules from execution bindings. */
+:root {
+  --font-body: system-ui, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, monospace;
+}
