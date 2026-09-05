@@ -71,14 +71,25 @@ actually gone.
   region selector, move the marker and declarations onto that exact region;
   declarations on its section ancestor or a descendant do not satisfy the
   move.
-- `SOURCE_ROUTE_BATCH_MOTION_INVALID` / `MOTION_BEATS_NOT_IMPLEMENTED`:
-  implement every exact motion marker, selector, before/after value, and
-  reduced-motion final state. A viewport trigger needs IntersectionObserver
-  state or a CSS view timeline, not a load-time animation. For essential
-  content with a before opacity of 0, keep the unguarded CSS baseline at
-  opacity 1; put opacity 0 only beneath `[data-motion-ready="true"]`, and call
+- `SOURCE_ROUTE_BATCH_MOTION_INVALID` / `MOTION_BEATS_NOT_IMPLEMENTED` (this
+  also covers a whole-site review finding naming a mismatch between a motion
+  state attribute and another marker on a different element): implement
+  every exact motion marker, selector, before/after value, and reduced-motion
+  final state. A viewport trigger needs IntersectionObserver state or a CSS
+  view timeline, not a load-time animation. For essential content with a
+  before opacity of 0, keep the unguarded CSS baseline at opacity 1; put
+  opacity 0 only beneath `[data-motion-ready="true"]`, and call
   `setAttribute("data-motion-ready", "true")` only after confirming
-  IntersectionObserver support.
+  IntersectionObserver support. `Reveal`/`StaggerGroup` set
+  `data-motion-ready` on their own wrapper, not on `children` — if a selector
+  must combine it with another marker (a resource or interaction marker) on
+  one element, pass that marker as a literal attribute directly to
+  `Reveal`/`StaggerGroup` (for example `<Reveal data-resource-marker="...">`);
+  a marker left on `children` lands on a different element than
+  `data-motion-ready` and a compound selector requiring both will never
+  match. If the two attributes genuinely belong on different elements
+  instead, use a descendant selector (`[data-motion-ready="true"]
+  [data-resource-marker="..."]`) rather than a compound one.
 - `SOURCE_ROUTE_COMPOSER_NAVIGATION_MISSING` /
   `APPROVED_ANCHOR_NAVIGATION_MISSING`: pass a compact `<nav>` through
   RouteShell's `navigation` prop with every literal section href from the

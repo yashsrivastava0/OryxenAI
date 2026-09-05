@@ -108,7 +108,15 @@ Visual and implementation contract:
   pattern ... exactly"), use the named `SharedSystems.tsx` component or class
   exactly as instructed instead of hand-authoring new CSS/JS for that beat —
   wrap the section's content in it rather than reimplementing the same
-  before/after values, trigger, and easing yourself.
+  before/after values, trigger, and easing yourself. `Reveal`/`StaggerGroup`
+  set `data-motion-ready` on their own wrapper element, not on `children` —
+  if a CSS selector must combine `data-motion-ready` with another marker
+  (a resource or interaction marker) on one element, pass that marker as a
+  literal attribute directly to `Reveal`/`StaggerGroup` itself (for example
+  `<Reveal data-resource-marker="...">`), which forwards it onto the same
+  wrapper. Putting the marker on `children` instead puts it on a different
+  DOM node than `data-motion-ready`, and a compound selector requiring both
+  will never match either one.
 - Every visible link, button, and disclosure has a keyboard name, focus state,
   and at least a 36px inline and block hit area.
 - Put every assigned interaction on the actual target element identified by
