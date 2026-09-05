@@ -240,6 +240,25 @@ comma-separated format documented in `.env.example`. Do not copy this local
 `.env` wholesale to the VM: create a separate production `.env` directly on
 the VM and enter only the required values there.
 
+## External prerequisite readiness reported
+
+The user reports that Cloudflare R2 artifact storage is already set up and
+that an R2 API token, access key, and secret key are available. The values
+were not displayed or recorded.
+
+Before the VM is configured, confirm only the non-secret R2 identifiers:
+
+- bucket name;
+- Cloudflare account ID or S3-compatible endpoint;
+- whether the bucket is private; and
+- whether the required lifecycle policy is configured.
+
+The runtime production configuration primarily needs the R2 S3-compatible
+endpoint, bucket, access key ID, and secret access key. The API token must not
+be substituted for the S3 secret key and should not be copied to the VM unless
+the selected deployment operation explicitly requires it. Enter secret values
+directly into the VM-local production `.env` when deployment begins.
+
 ## Not done yet
 
 None of the following has been performed on the VM:
@@ -258,7 +277,7 @@ None of the following has been performed on the VM:
 - Preview gateway startup.
 - Domain DNS records.
 - Supabase production Google OAuth configuration.
-- Cloudflare R2 bucket or credentials.
+- VM-side Cloudflare R2 configuration and validation.
 - HTTPS certificate issuance.
 - Application or portfolio generation acceptance testing.
 
