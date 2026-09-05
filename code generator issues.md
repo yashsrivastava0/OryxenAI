@@ -13,11 +13,17 @@ trace found resource acquisition itself failing in the majority of sampled
 runs — see the table below. Five fixes landed (all free/mocked-tested, zero
 API cost): Pixabay field fix, bounded pinned-candidate fallback, polish-round
 finding dedup, cannot_complete log reason, and planner-output normalization.
-Live re-testing after those five landed found two more real bugs (below):
-the review/repair layers being blind to non-required resource placements,
-and a false-positive selector-matching bug in the distinctive-move CSS
-check. No run has yet reached a clean `ready` status; live iteration is
-ongoing per the user's explicit "keep going until fixed" instruction.
+Live re-testing after those five landed found four more real bugs (below):
+the review/repair layers being blind to non-required resource placements, a
+false-positive selector-matching bug in the distinctive-move CSS check, a
+planner retry-count fix, and a duplicate-file-path canonicalization fix.
+Run `15debdae-…` (2026-09-05 ~19:35) got the furthest of any run this round
+— past every one of those blockers, through all 5 whole-site polish rounds
+— and landed on 2 real remaining findings: a `Reveal`/marker DOM-node
+mismatch (fixed, see table) and a missing keyboard-accessible disclosure
+component (not yet fixed — see below). No run has yet reached a clean
+`ready` status; live iteration is ongoing per the user's explicit "keep
+going until fixed" instruction.
 
 ## Findings and fixes this round
 
@@ -33,6 +39,11 @@ ongoing per the user's explicit "keep going until fixed" instruction.
 | Planner collision retry not always landing in 2 attempts | Live-observed 3 separate times (`accent`/`accent` twice, `muted`+`secondary` once) — the shadcn-collision validator (D-071) correctly rejects, but a single corrective retry doesn't always fix it even with the exact colliding tokens named. | `planner_operation.py`: widened the bounded retry from 2 to 3 attempts (all 4 `attempt ==`/`range(2)` sites updated consistently). Still finite; only costs a cheap planner-stage call. 2 new tests prove the 3rd attempt fires and that it still raises correctly once exhausted. |
 | Duplicate file path exhausting the repair budget | Live run `b980b20e-…`: one response listed the same CSS file twice with two nearly-identical bodies (one rule split into two declarations, merged into one in the other) — the model revising its own answer within one response, not a real conflict. 3 repair attempts couldn't resolve it (`SOURCE_REPAIR_EXHAUSTED`). | `generation_orchestrator.py::_validate_v4_generation_coverage` now silently keeps the *last* entry per path (same "last key wins" semantics as JSON) instead of raising `SOURCE_DUPLICATE_PATH`. A response that never repeats a path is unaffected. |
 | Repair given wrong import-path depth for section files | Live run `040380f5-…`: 3 section files all repaired with `../../../../` (4 levels) to `SharedSystems`/`generated-content`, which overshoots `src/` entirely. `route_batch.md` (initial generation) already correctly states section files need 3 levels and warns against 4; `repair_source.md` had no depth guidance for section files at all — its only nearby example was for the *route composer* (`index.tsx`, correctly 2 levels), which likely bled into confusing the repair model. | `repair_source.md`'s `SOURCE_LOCAL_IMPORT_MISSING` guidance now states both depths explicitly (3 for a section file, 2 for the route composer), mirroring `route_batch.md`'s own wording. |
+| `Reveal`/marker DOM-node mismatch | Live run `15debdae-…` (furthest run yet — past every other blocker, through all 5 polish rounds): a blocking finding reported a motion CSS selector combining `data-resource-marker` and `data-motion-ready` on one element that could never match. `Reveal` (added earlier this engagement) sets `data-motion-ready` on its own wrapper `<div>`; a marker placed on `children` instead lands on a different DOM node. `Reveal`/`StaggerGroup` had no way to accept an extra attribute onto their own wrapper at all. | `SharedSystems.tsx`: both now forward a typed `...rest` onto the wrapper element, so `<Reveal data-resource-marker="...">` puts both attributes on the same node. `route_batch.md`/`repair_source.md` both state this explicitly, plus the descendant-selector alternative for when the two attributes genuinely belong on different elements. Verified: scaffold `npm run typecheck` and `npm run build` both clean. |
+
+## Not yet fixed (found, not yet acted on)
+
+- **Missing keyboard-accessible disclosure component** — same run (`15debdae-…`): the systems section rendered a static `<ul>` instead of the assigned capability-grouping progressive-disclosure behavior (no `aria-expanded`/`aria-controls`, no keyboard-operable trigger), despite the selected creative direction calling for it. Not yet investigated — next thing to check if this recurs.
 
 ## Investigated, not a bug (by design)
 
