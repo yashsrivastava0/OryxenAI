@@ -4,6 +4,87 @@ Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
 findings that help diagnose the next persistent failure.
 
+## HANDOFF — read this first (2026-09-06, early morning, Claude Code session ending)
+
+**Overall status: substantially fixed, not fully fixed.** This session found
+and fixed 14 real, distinct bugs today (full list in the table below), every
+one confirmed by tracing an actual live run's real failure, not guessed at.
+All are committed and pushed to `codex/code-generator-control-room`. Budget
+is confirmed fine by the user (real OpenAI balance was $8.51/$10 as of
+tonight) — do not self-limit live testing over cost.
+
+**The single biggest finding**: resource acquisition (Pixabay pinned image
+URLs going stale between Build Preparation and Code Generator) was silently
+failing in the majority of sampled runs all along — this explains most of
+the historical "generation looks broken" reports better than any single
+generation-side bug did. That is now fixed and confirmed live.
+
+**Where things actually got to tonight**: two consecutive fresh live runs
+both reached `generate: succeeded` -> final DOM/runtime verification — the
+deepest and most consistent this whole engagement has gone. Neither reached
+a clean `ready`/promoted state. Both are exported for direct inspection at:
+- `output/code-gen-output/01-56-06-09-2026-0db8503e/` — has a real `dist/`
+  build and real `screenshots/`. **Open the screenshots — the portfolio
+  genuinely looks good** (real hero photo, clean editorial layout, coherent
+  sections, correct responsive reflow). Failed at final verification with
+  `DOM_RUNTIME_FAILED` (11 distinct runtime codes, since deduped — see
+  table). This is concrete proof "visually looking good" is achievable with
+  the current pipeline; the remaining gap is narrower/more technical than it
+  looks from a screenshot alone.
+- `output/code-gen-output/02-23-06-09-2026-fa31c124/` — reached
+  `generate: succeeded` too, but failed before building (`SOURCE_CONTRACT_FAILED`
+  — 2 `SOURCE_CONTENT_KEY_MISSING` diagnostics, **not yet investigated at
+  all** — see "Not yet fixed" below. This is probably the single best next
+  thing to look at; it is a fresh, unexplored finding from tonight, not a
+  repeat of anything already fixed.
+
+**Two known environmental gotchas, not code bugs:**
+- **System memory is tight** on this machine (often 2-4GB free out of
+  15.68GB total — other apps + a peer Codex session share it). Roughly 40%
+  of tonight's live attempts got killed by memory pressure mid-`generate`
+  (the `npm install`/build/Playwright-verify steps are the heavy part).
+  Check free memory first (`Get-CimInstance Win32_OperatingSystem`); if a
+  run gets killed, it is almost always **resumable** — check
+  `code_generator_runs.status`/`coordinator_stage` for that run_id in
+  Postgres, and if it's not yet at a terminal status, re-invoke with
+  `scratch/continue_live_generation.py <run_id>` rather than starting over
+  (skips the already-completed stages, saving both time and API cost).
+- **DB connection**: use `OryxenAI_CONFIG_OVERLAY=config/app.native.toml`
+  before `uv run python ...` — that's the native dev Postgres (port 5545),
+  which is where all of tonight's real run data actually lives. The
+  hardcoded `127.0.0.1:5432` in old scratch scripts is stale; both
+  `scratch/run_live_generation.py` and `scratch/continue_live_generation.py`
+  were already fixed tonight to just call `get_settings()` plain.
+- **Cost accounting**: `config/models.toml`'s pricing rates are an internal
+  "configured credits" unit, not 1:1 with real USD (confirmed off by ~24x
+  tonight) — never compute a dollar figure from them. If real spend needs
+  checking, ask the user to look at their actual provider billing page.
+
+**Suggested next steps, roughly in priority order:**
+1. Investigate `fa31c124`'s `SOURCE_CONTENT_KEY_MISSING` (fresh, unexplored).
+2. Run one more fresh live attempt against the same eligible pack
+   (`output/build-preparation/01-31-04-09-94ae4a9c/`, or check
+   `output/build-preparation/` for whichever pack is currently eligible) to
+   see whether tonight's accumulated fixes (dedup, `Reveal` marker
+   forwarding, easing normalization) let a run reach final verification
+   cleanly, or whether `DOM_RUNTIME_FAILED` recurs with a smaller, deduped
+   bundle that repair can actually resolve now.
+3. If `DOM_RUNTIME_FAILED` recurs, the other ~10 distinct runtime codes
+   from `0db8503e` (font load, resource decode, region geometry, motion
+   state, distinctive-move relationship/selector) have not been
+   individually root-caused yet — same methodology as everything in the
+   table below: read the actual ledger/ workspace data for the failing run
+   before guessing, most bugs tonight were subtler than the terminal
+   error message alone suggested.
+4. The missing keyboard-accessible disclosure component finding (run
+   `15debdae-…`) is also still open, lower priority than #1-3 since it's
+   only been seen once.
+
+Every fix below also has a runnable regression test — `uv run pytest -k
+code_generator` should stay green (261 passing, 5 confirmed-pre-existing-
+unrelated failures, see the dedicated section below) after any further
+change.
+
 ## Current state — 2026-09-05 evening (round 3, resource-acquisition root cause + live-testing iteration)
 
 Two fresh live runs (`b52330f2-…` PLANNER_OUTPUT_INVALID, `93d4d3c4-…`
@@ -41,10 +122,12 @@ going until fixed" instruction.
 | Repair given wrong import-path depth for section files | Live run `040380f5-…`: 3 section files all repaired with `../../../../` (4 levels) to `SharedSystems`/`generated-content`, which overshoots `src/` entirely. `route_batch.md` (initial generation) already correctly states section files need 3 levels and warns against 4; `repair_source.md` had no depth guidance for section files at all — its only nearby example was for the *route composer* (`index.tsx`, correctly 2 levels), which likely bled into confusing the repair model. | `repair_source.md`'s `SOURCE_LOCAL_IMPORT_MISSING` guidance now states both depths explicitly (3 for a section file, 2 for the route composer), mirroring `route_batch.md`'s own wording. |
 | `Reveal`/marker DOM-node mismatch | Live run `15debdae-…` (furthest run yet — past every other blocker, through all 5 polish rounds): a blocking finding reported a motion CSS selector combining `data-resource-marker` and `data-motion-ready` on one element that could never match. `Reveal` (added earlier this engagement) sets `data-motion-ready` on its own wrapper `<div>`; a marker placed on `children` instead lands on a different DOM node. `Reveal`/`StaggerGroup` had no way to accept an extra attribute onto their own wrapper at all. | `SharedSystems.tsx`: both now forward a typed `...rest` onto the wrapper element, so `<Reveal data-resource-marker="...">` puts both attributes on the same node. `route_batch.md`/`repair_source.md` both state this explicitly, plus the descendant-selector alternative for when the two attributes genuinely belong on different elements. Verified: scaffold `npm run typecheck` and `npm run build` both clean. |
 | Motion easing rejected on all 3 planner attempts | Live run: "motion beats require a validated CSS easing value" for 2 beats, all 3 attempts. Traced to this project's own `planner.md` prose ("easeOutCubic-family", "easeOutExpo-family" — a style family, not a literal value) reading close enough to valid CSS that the model copied it directly into `easing`. | Fixed both ends: `planner.md` now explicitly requires a schema-valid easing keyword regardless of `pattern_id` and suggests `ease-out` as a safe default; `development_schemas.py` also gets a host-side `_normalize_easing()` mapping common spelled-together words to their valid keyword before the reject-check, on both `MotionTokenV4` and `MotionBeatV4`. |
-| Identical runtime diagnostic repeated across viewports | Live run `0db8503e-…` — **furthest run this entire engagement**: `generate` fully succeeded, reached final verification, produced real screenshots of an actually good-looking site (see screenshots dir), but failed with 11 distinct `DOM_RUNTIME_FAILED` codes, one (`RUNTIME_TOUCH_TARGET_TOO_SMALL`) repeated 6 times with the identical fingerprint — the same one real small nav link, caught once per viewport/journey. Final repair failed to produce any correction across all 3 attempts against this bloated bundle. | `runtime_verifier.py::verify()` now dedupes by `Diagnostic.fingerprint` (already keys on code+journey_id+route_id+message) before returning. New Playwright-driven test proves 2 same-journey-id viewports hitting one real failure collapse to 1 diagnostic. |
+| Identical runtime diagnostic repeated across viewports | Live run `0db8503e-…` — **furthest run this entire engagement**: `generate` fully succeeded, reached final verification, produced real screenshots of an actually good-looking site (see screenshots dir), but failed with 11 distinct `DOM_RUNTIME_FAILED` codes, one (`RUNTIME_TOUCH_TARGET_TOO_SMALL`) repeated 6 times with the identical fingerprint — the same one real small nav link, caught once per viewport/journey. Final repair failed to produce any correction across all 3 attempts against this bloated bundle. | `runtime_verifier.py::verify()` now dedupes by `Diagnostic.fingerprint` (already keys on code+journey_id+route_id+message) before returning. New Playwright-driven test proves 2 same-journey-id viewports hitting one real failure collapse to 1 diagnostic. **Not yet re-tested live** — next live run should confirm whether the smaller bundle actually lets repair succeed. |
+| `output/code-gen-output/` only preserved successful runs | Explicit user request: a failed/incomplete run's generated source (and any build/screenshots) was silently discarded — only a promoted `ready` run ever got exported, so there was no way to inspect what a failed attempt had actually produced. | Added `export_failed_run()` to `portfolio_export.py` (needs only a run id + whatever the workspace has on disk, no promotion-only state) and wired it into the two failure choke-points: `code_generator.py`'s shared `_needs_attention()` (plan/acquire/generate failures) and `CodeGeneratorVerificationHandler.execute()` (verification failures). Both are try/except-wrapped, advisory only. 4 new tests. Confirmed live for both `0db8503e` and `fa31c124` (manually re-exported the latter since its own run process had the pre-fix code already loaded in memory — expected, not a bug). |
 
 ## Not yet fixed (found, not yet acted on)
 
+- **`SOURCE_CONTENT_KEY_MISSING` on 2 content keys** — run `fa31c124-…` (2026-09-06 ~02:15, exported at `output/code-gen-output/02-23-06-09-2026-fa31c124/`, source only, no build): `generate` fully succeeded, but final verification failed with `SOURCE_CONTRACT_FAILED` — two approved content keys (`content:home:home:hero:primary-cta-kind-dd5e7a62` and `...primary-cta-label-7207f029`) are "not referenced by executable route source." **Not yet investigated at all** — this is the single most promising next lead, since it's a fresh, unexplored finding from a run that got as far as any run tonight. Start by reading `output/code-gen-output/02-23-06-09-2026-fa31c124/source/src/routes/home-4ea14058/index.tsx` (or the equivalent path in `.workspace/code-generator-generation/fa31c124-99f6-410a-adeb-651261d88114/repo/` if the workspace still exists) to see what the primary-CTA rendering actually looks like, and compare against how `contentValue(...)` calls are supposed to reference these two specific keys elsewhere in the codebase's own conventions (see `source_validation.py`'s near-miss-detection work from earlier tonight for the sibling `SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING` diagnostic, which may share a root cause).
 - **Missing keyboard-accessible disclosure component** — run `15debdae-…`: the systems section rendered a static `<ul>` instead of the assigned capability-grouping progressive-disclosure behavior (no `aria-expanded`/`aria-controls`, no keyboard-operable trigger), despite the selected creative direction calling for it. Not yet investigated — next thing to check if this recurs.
 - **The other ~10 distinct `DOM_RUNTIME_FAILED` codes from run `0db8503e-…`** (font load, resource decode, region geometry, motion state, distinctive-move relationship/selector) — the dedup fix above removes redundant copies of the *same* issue but not the underlying distinct issues themselves. Not yet individually investigated; next live run will show whether the smaller, deduped bundle lets final repair actually resolve them, or whether each needs its own root-cause trace.
 
@@ -101,10 +184,7 @@ live runs this round reached `generate`/`verify` normally. Superseded by the
 
 ## Next verification target
 
-- Re-run a fresh full attempt (plan → acquire → generate → verify) against
-  the same eligible pack with this round's fixes applied. Confirm:
-  (a) resource dispositions are majority `admitted`, not majority `fallback`;
-  (b) no identical blocking finding gets re-attempted across non-adjacent
-  polish rounds; (c) inspect captured `verification-screenshots/` for real
-  visual confirmation of images actually rendering, not decorative-only
-  sections — the concrete test of "visually looking good."
+Superseded by "HANDOFF — read this first" at the top of this file (that
+target was fully met — resource dispositions did flip to majority-admitted,
+no finding was re-attempted after the dedup fix, and captured screenshots
+did confirm real images rendering). See the top section for what to do next.
