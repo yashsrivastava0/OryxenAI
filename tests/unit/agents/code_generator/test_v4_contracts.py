@@ -28,6 +28,9 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationChanges,
     GenerationContextReceipt,
     InteractionContract,
+    MotionBeatV4,
+    MotionPropertyExpectationV4,
+    MotionTokenV4,
     NamedColorTokenV4,
     QualityReviewDraftV1,
     ResourcePlacementV4,
@@ -530,6 +533,49 @@ def test_v4_token_names_are_lowercased_instead_of_rejected() -> None:
     assert NamedColorTokenV4(name="Deep_Blue", value="#123456").name == "deep-blue"
     with pytest.raises(ValidationError, match="lowercase semantic identifiers"):
         NamedColorTokenV4(name="Cobalt Blue", value="#2457C5")
+
+
+def test_v4_motion_token_easing_normalizes_spelled_together_words() -> None:
+    """Regression test for the 2026-09-05 live-discovered bug: planner.md's
+    own prose describing the 3 trusted motion patterns ("easeOutCubic-
+    family", "easeOutExpo-family") reads close enough to a literal CSS
+    value that the model copied it directly into `easing` on all 3 planner
+    attempts of one real run, rejecting the plan outright every time."""
+    assert MotionTokenV4(name="reveal", duration_ms=500, easing="easeOutCubic").easing == "ease-out"
+    assert MotionTokenV4(name="reveal", duration_ms=500, easing="easeOutExpo").easing == "ease-out"
+    assert MotionTokenV4(name="reveal", duration_ms=500, easing="easeInOut").easing == "ease-in-out"
+    with pytest.raises(ValidationError, match="validated CSS easing value"):
+        MotionTokenV4(name="reveal", duration_ms=500, easing="bogus-nonsense")
+
+
+def _motion_beat(**overrides: object) -> MotionBeatV4:
+    base = {
+        "motion_id": "motion:home:hero:reveal",
+        "route_id": "home",
+        "section_id": "home:hero",
+        "target_marker": 'data-motion="hero-reveal"',
+        "target_selector": '[data-motion="hero-reveal"]',
+        "trigger_selector": "#hero",
+        "trigger": "viewport",
+        "changed_properties": [
+            MotionPropertyExpectationV4(property_name="opacity", before_value="0", after_value="1")
+        ],
+        "duration_min_ms": 600,
+        "duration_max_ms": 900,
+        "easing": "easeOutCubic",
+        "purposeful_outcome": "Draw attention to the hero entrance.",
+        "performance_budget_ms": 16,
+        "reduced_motion_replacement": "opacity: 1 with no animation.",
+    }
+    base.update(overrides)
+    return MotionBeatV4(**base)
+
+
+def test_v4_motion_beat_easing_normalizes_spelled_together_words() -> None:
+    assert _motion_beat().easing == "ease-out"
+    assert _motion_beat(easing="easeInOut").easing == "ease-in-out"
+    with pytest.raises(ValidationError, match="validated CSS easing value"):
+        _motion_beat(easing="bogus-nonsense")
 
 
 def _shadow(*, offset_x: float, offset_y: float, blur: float, spread: float) -> dict:

@@ -103,14 +103,21 @@ Grounding and exact coverage:
   a default or blanket instruction, and every other required field is still
   populated as normal:
   - `reveal-fade-rise`: viewport trigger; opacity 0->1 and
-    translateY(28px->0); easeOutCubic-family, ~600-900ms, plays once.
+    translateY(28px->0); a smooth deceleration curve, ~600-900ms, plays once.
   - `reveal-clip-lines`: viewport/load trigger; text wrapped in an
     overflow:hidden clip box, inner span translateY(115%->0) and opacity
-    0->1, staggered per line/word; easeOutExpo-family.
+    0->1, staggered per line/word; a pronounced deceleration curve.
   - `stagger-group`: viewport trigger on a list; each child gets
     reveal-fade-rise with an index-driven transition-delay.
   Leave `pattern_id` empty for any beat that needs a different,
-  purpose-specific motion.
+  purpose-specific motion. Every beat still requires a schema-valid
+  `easing` value (`linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`, or
+  a literal `cubic-bezier(...)`/`steps(...)` expression) even when
+  `pattern_id` is set — the pattern's exact curve is already fixed in
+  `motion.css`, so `ease-out` is a safe, valid choice here regardless of
+  which pattern is used. Never write a spelled-together word like
+  `easeOutCubic` or `easeOutExpo` as the `easing` value itself; those are
+  not valid CSS and will be rejected.
 
 Reject interchangeable templates: repeated identical section shells,
 unauthorized card grids, uniform centering, arbitrary gradients, glass, pills,
