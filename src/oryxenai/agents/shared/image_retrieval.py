@@ -579,13 +579,11 @@ def _pixabay_candidate(hit: dict[str, Any], query: str, rank: int) -> ImageCandi
     if bool(hit.get("isAiGenerated", False)):
         return None
     asset_id = str(hit.get("id", "") or "")
-    image_url = str(
-        hit.get("imageURL")
-        or hit.get("fullHDURL")
-        or hit.get("largeImageURL")
-        or hit.get("webformatURL")
-        or ""
-    )
+    # Pixabay only serves `imageURL`/`fullHDURL` to specially-approved
+    # accounts; a normal API key gets the field back in the search response
+    # but every download 400s. `largeImageURL` (up to 1920px) is served to
+    # every API key and is what should be preferred.
+    image_url = str(hit.get("largeImageURL") or hit.get("webformatURL") or "")
     if not asset_id or not image_url.startswith("https://"):
         return None
     user = str(hit.get("user", "") or "Pixabay contributor")

@@ -300,10 +300,23 @@ def test_v4_resource_sizes_require_concrete_browser_css_lengths() -> None:
     )
     assert valid.sizes == "(max-width: 40rem) 100vw, calc(72vw - 2rem)"
 
+    # A spelled-out number is deterministically normalized rather than
+    # rejected outright: the planner's own corrective-feedback retry already
+    # failed on this exact mistake twice in a live run (2026-09-05), so a
+    # host-side fix -- not more prompting -- is the right escalation for a
+    # purely mechanical, unambiguous text transform.
+    normalized = ResourcePlacementV4(
+        **base,
+        sizes="(max-width: sixtyrem) 100vw, 58vw",
+    )
+    assert normalized.sizes == "(max-width: 60rem) 100vw, 58vw"
+
+    # A genuinely unparseable word still hits the same reject path -- the
+    # normalizer is a safety net for the common case, not a guarantee.
     with pytest.raises(ValidationError, match="numeric CSS lengths"):
         ResourcePlacementV4(
             **base,
-            sizes="(max-width: sixtyrem) 100vw, 58vw",
+            sizes="(max-width: bloopvw) 100vw, 58vw",
         )
 
     with pytest.raises(ValidationError, match="concrete CSS lengths"):
@@ -506,6 +519,17 @@ def test_v4_shadcn_theme_bindings_reject_slot_names_colliding_with_a_color_token
         DesignTokenSystemV4.model_validate(
             {**token_data, "shadcn_theme_bindings": {"accent": "ink"}}
         )
+
+
+def test_v4_token_names_are_lowercased_instead_of_rejected() -> None:
+    """Regression test: token-name validators used to reject any mixed-case
+    identifier outright (e.g. planner.md's own "Cobalt" example), forcing a
+    whole extra planner round-trip for a purely cosmetic mistake. Case is
+    not semantic for an internal token label, so it's normalized instead."""
+    assert NamedColorTokenV4(name="Cobalt", value="#2457C5").name == "cobalt"
+    assert NamedColorTokenV4(name="Deep_Blue", value="#123456").name == "deep-blue"
+    with pytest.raises(ValidationError, match="lowercase semantic identifiers"):
+        NamedColorTokenV4(name="Cobalt Blue", value="#2457C5")
 
 
 def _shadow(*, offset_x: float, offset_y: float, blur: float, spread: float) -> dict:
