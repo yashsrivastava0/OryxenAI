@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 01:51 +05:30 - Codex (GPT-5 / OpenAI) - [ae89b61] - worker: release stale shared-lane blockers
+
+Allowed-handler workers now release an expired foreign job only when it
+blocks a shared execution lane needed by due work they can run. This fixes
+repeat Discovery stalls behind stale Code Generator leases and adds the
+restricted-worker regression missing from D-073.
+
 ### 2026-09-06 01:19 +05:30 - Codex (GPT-5 / OpenAI) - [68f1cd1] - pipeline: make stalled agent runs observable and recoverable
 
 Added safe job lifecycle metadata, foreground scheduling and lease recovery,
