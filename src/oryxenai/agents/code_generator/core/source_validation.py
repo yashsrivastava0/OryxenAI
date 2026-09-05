@@ -967,6 +967,23 @@ def validate_route_batch_contract(
     return diagnostics
 
 
+def _selector_matches_scoped(candidate: str, expected: str) -> bool:
+    """A candidate CSS selector satisfies an expected selector when it is
+    that exact selector, or that exact selector nested under an ancestor
+    descendant/child scope (e.g. "#hero [data-region-id=...]") -- a common,
+    harmless section-scoping pattern that still targets the same rendered
+    element as the bare expected selector would (confirmed live 2026-09-05:
+    a model consistently, reasonably scoped distinctive-move CSS this way
+    across 3 repair rounds; the prior exact-string check rejected all three
+    identically, exhausting the repair budget on a false positive)."""
+
+    normalized_candidate = " ".join(candidate.split())
+    normalized_expected = " ".join(expected.split())
+    return normalized_candidate == normalized_expected or normalized_candidate.endswith(
+        " " + normalized_expected
+    )
+
+
 def _exact_selector_declarations(
     source: str,
     selector: str,
@@ -975,16 +992,20 @@ def _exact_selector_declarations(
 ) -> set[str]:
     if not selector.strip():
         return set()
-    accepted_selectors = {selector.strip()}
+    accepted_selectors = [selector.strip()]
     if runtime_marker.strip():
         # The marker is already required as a literal attribute on the source
         # element. Qualifying that exact selector with the same attribute does
         # not weaken section/element scope; it names the same executable node.
-        accepted_selectors.add(f"{selector.strip()}[{runtime_marker.strip()}]")
+        accepted_selectors.append(f"{selector.strip()}[{runtime_marker.strip()}]")
     bodies: list[str] = []
     for match in re.finditer(r"(?P<selectors>[^{}]+)\{(?P<body>[^{}]*)\}", source, re.DOTALL):
         selectors = [item.strip() for item in match.group("selectors").split(",")]
-        if accepted_selectors.intersection(selectors):
+        if any(
+            _selector_matches_scoped(candidate, expected)
+            for candidate in selectors
+            for expected in accepted_selectors
+        ):
             bodies.append(match.group("body"))
     return {
         match.group(1).casefold()

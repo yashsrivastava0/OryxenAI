@@ -311,6 +311,63 @@ def test_route_batch_contract_requires_exact_distinctive_move_css(tmp_path) -> N
     assert not validate_route_batch_contract(tmp_path, paths, **kwargs)
 
 
+def test_route_batch_contract_allows_distinctive_move_css_scoped_under_an_ancestor(
+    tmp_path,
+) -> None:
+    """Regression test for the 2026-09-05 live-discovered false positive
+    (run cf762cfb-...): a model consistently, reasonably scoped distinctive-
+    move CSS under the section's own ancestor selector (e.g.
+    "#hero [data-region-id=...]") across 3 repair rounds, and the prior
+    exact-string selector check rejected all three identically -- exhausting
+    the repair budget on CSS that actually satisfied every required
+    property, just not via the bare expected selector alone."""
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    hero = section / "Hero.tsx"
+    css = section / "Hero.css"
+    hero.write_text(
+        '<section id="hero" data-content-id="home:hero" '
+        'data-region-id="region:home:home:hero" data-move="move-home-hero-split" />\n',
+        encoding="utf-8",
+    )
+    css.write_text(
+        '#hero [data-region-id="region:home:home:hero"] { display: grid; align-items: center; }\n'
+        '#hero [data-region-id="region:home:home:hero"][data-move="move-home-hero-split"] '
+        "{ display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }\n",
+        encoding="utf-8",
+    )
+    paths = [
+        "src/routes/home/sections/Hero.tsx",
+        "src/routes/home/sections/Hero.css",
+    ]
+    kwargs = {
+        "route_id": "home",
+        "section_ids": ["home:hero"],
+        "section_selectors_by_section": {"home:hero": "#hero"},
+        "distinctive_moves": [
+            {
+                "move_id": "move-home-hero-split",
+                "section_id": "home:hero",
+                "runtime_marker": 'data-move="move-home-hero-split"',
+                "source_selector": '[data-region-id="region:home:home:hero"]',
+                "required_css_properties": ["display", "grid-template-columns", "align-items"],
+            }
+        ],
+        "work_unit_id": "route-home-batch-1",
+    }
+
+    assert not validate_route_batch_contract(tmp_path, paths, **kwargs)
+
+    # A selector that only coincidentally shares a substring must still fail.
+    css.write_text(
+        '#hero [data-region-id="region:home:home:hero-other"] '
+        "{ display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }\n",
+        encoding="utf-8",
+    )
+    diagnostics = validate_route_batch_contract(tmp_path, paths, **kwargs)
+    assert [item.code for item in diagnostics] == ["SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID"]
+
+
 def test_route_batch_contract_enforces_canonical_h1_section_owner(tmp_path) -> None:
     section = tmp_path / "src" / "routes" / "home" / "sections"
     section.mkdir(parents=True)

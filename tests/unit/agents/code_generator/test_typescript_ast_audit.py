@@ -7,6 +7,7 @@ from oryxenai.agents.code_generator.core.typescript_ast_audit import (
     _route_source_path,
     _selector_declarations,
     _selector_has_reduced_motion,
+    _selector_targets_contract,
 )
 
 
@@ -59,6 +60,14 @@ def test_motion_selector_audit_accepts_runtime_state_qualifiers() -> None:
 """
 
     assert "animation" in _selector_declarations(css, "#hero .hero-copy")
+    assert _selector_targets_contract(
+        '#hero [data-region-id="region:home:home:hero"][data-move="move-home-hero-split"]',
+        '[data-region-id="region:home:home:hero"][data-move="move-home-hero-split"]',
+    )
+    assert not _selector_targets_contract(
+        '#hero [data-region-id="region:home:home:hero-other"]',
+        '[data-region-id="region:home:home:hero"]',
+    )
     assert _selector_has_reduced_motion(css, "#hero .hero-copy")
     assert not _selector_has_reduced_motion(css, "#other .hero-copy")
     assert not _selector_has_reduced_motion(
