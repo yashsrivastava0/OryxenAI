@@ -24,6 +24,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
     WorkUnit,
 )
+from oryxenai.agents.code_generator.core.motion_pattern_catalogue import get_motion_pattern
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 
 CONTRACT_VERSION = "code-generator-generation-contract-v4"
@@ -768,6 +769,17 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
             "IntersectionObserver support."
         )
         for beat in motion_beats:
+            pattern = get_motion_pattern(str(beat.get("pattern_id", "") or ""))
+            if pattern is not None:
+                lines.append(
+                    f"- {beat.get('motion_id')}: marker {beat.get('target_marker')}; target "
+                    f"{beat.get('target_selector')}; trigger {beat.get('trigger')} at "
+                    f"{beat.get('trigger_selector')}. Apply trusted motion pattern "
+                    f"`{pattern.pattern_id}` exactly -- use {pattern.trusted_binding} rather than "
+                    "hand-authoring new CSS/JS for this beat. Keep the exact target marker on the "
+                    "rendered element and the reduced-motion rule below."
+                )
+                continue
             lines.append(
                 f"- {beat.get('motion_id')}: marker {beat.get('target_marker')}; target "
                 f"{beat.get('target_selector')}; trigger {beat.get('trigger')} at "

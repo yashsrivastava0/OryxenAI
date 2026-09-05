@@ -81,8 +81,9 @@ Visual and implementation contract:
   `--shadow-<name>`. Always include that prefix, even when it looks redundant
   with the token's own name (a spacing token already named `space-5` still
   compiles to `--space-5`, not `--space-space-5`). Do not
-  assume or recreate a default palette, `.card`, `.surface`, `.grid`,
-  `.reveal`, `.stagger`, or other generic scaffold primitive. Do not add a
+  assume or recreate a default palette, `.card`, `.surface`, `.grid`, or
+  other generic scaffold primitive not named in the motion pattern
+  catalogue or already exported by SharedSystems.tsx. Do not add a
   second token system, arbitrary gradients, glass panels, floating blobs,
   dashboard card repetition, decorative pill overload, or uniform centering.
 - Use route-scoped CSS and approved responsive composition. Layout must remain
@@ -102,7 +103,12 @@ Visual and implementation contract:
   stylesheet-load animation is not a viewport trigger. Essential content is
   visible in the unguarded CSS baseline. If a viewport beat starts at opacity
   0, guard that before-state with `[data-motion-ready="true"]` and set the
-  attribute only after confirming IntersectionObserver support.
+  attribute only after confirming IntersectionObserver support. When a beat's
+  instruction names a trusted motion pattern (it reads "Apply trusted motion
+  pattern ... exactly"), use the named `SharedSystems.tsx` component or class
+  exactly as instructed instead of hand-authoring new CSS/JS for that beat —
+  wrap the section's content in it rather than reimplementing the same
+  before/after values, trigger, and easing yourself.
 - Every visible link, button, and disclosure has a keyboard name, focus state,
   and at least a 36px inline and block hit area.
 - Put every assigned interaction on the actual target element identified by

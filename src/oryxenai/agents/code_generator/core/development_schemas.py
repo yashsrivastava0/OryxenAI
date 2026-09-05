@@ -19,6 +19,8 @@ from pydantic import (
     model_validator,
 )
 
+from oryxenai.agents.code_generator.core.motion_pattern_catalogue import MOTION_PATTERN_IDS
+
 
 class DevelopmentRunStatus(StrEnum):
     CREATED = "created"
@@ -1472,6 +1474,14 @@ class MotionBeatV4(BaseModel):
     purposeful_outcome: str
     performance_budget_ms: int = Field(ge=0, le=100)
     reduced_motion_replacement: str
+    # Optional reference into core/motion_pattern_catalogue.py's small,
+    # checked-in set of trusted, tested motion implementations. "" (the
+    # default, not None -- strict structured-output mode forces every field
+    # into `required` regardless of a Python default) keeps today's fully
+    # free-form beat authoring; a real catalogue id tells route_batch/
+    # route_compose to apply the named trusted class/component exactly
+    # instead of hand-authoring new CSS/JS for this beat.
+    pattern_id: str = ""
 
     @model_validator(mode="after")
     def _range(self) -> MotionBeatV4:
@@ -1489,6 +1499,10 @@ class MotionBeatV4(BaseModel):
             raise ValueError("motion beats require a valid duration range and reduced-motion rule")
         if not _EASING_RE.fullmatch(self.easing.strip()):
             raise ValueError("motion beats require a validated CSS easing value")
+        if self.pattern_id and self.pattern_id not in MOTION_PATTERN_IDS:
+            raise ValueError(
+                f"pattern_id {self.pattern_id!r} is not a real motion pattern catalogue entry"
+            )
         return self
 
 
@@ -2956,6 +2970,7 @@ class RuntimeEvidence(BaseModel):
     geometry_results: list[dict[str, Any]] = Field(default_factory=list)
     realization_results: list[dict[str, Any]] = Field(default_factory=list)
     passed: bool
+    screenshot_relative_path: str = ""
 
 
 class RepairReceipt(BaseModel):
@@ -2977,11 +2992,23 @@ class RepairReceipt(BaseModel):
     corrected_checkpoint: str
     checks_rerun: list[str] = Field(default_factory=list)
     accepted_at: str
+    # Observability only, not part of the receipt's content-integrity
+    # identity -- excluded from receipt_hash below (see that field's
+    # comment for why widening the exclude set matters).
+    usage: dict[str, int] = Field(default_factory=dict)
+    cached_tokens: int = Field(default=0, ge=0)
     receipt_hash: str = ""
 
     @model_validator(mode="after")
     def stamp_receipt_hash(self) -> RepairReceipt:
-        payload = self.model_dump(mode="json", exclude={"receipt_hash"})
+        # usage/cached_tokens must stay excluded alongside receipt_hash
+        # itself: they were added after this hash scheme shipped, so an
+        # already-persisted receipt (inside an existing run's
+        # verification_projection.repair_receipts JSON) re-validates with
+        # them defaulted to {}/0. Including them in the hash would make
+        # that recomputed hash differ from what's stored and raise on
+        # load, breaking every historical/in-flight run.
+        payload = self.model_dump(mode="json", exclude={"receipt_hash", "usage", "cached_tokens"})
         computed = hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
         ).hexdigest()

@@ -72,6 +72,7 @@ def export_portfolio(
     run_id: str,
     repo_dir: Path,
     metadata: dict[str, Any],
+    screenshots_dir: Path | None = None,
 ) -> Path:
     config = settings.code_generator_verification
     root = Path(str(getattr(config, "export_root", DEFAULT_EXPORT_ROOT)))
@@ -110,6 +111,14 @@ def export_portfolio(
             symlinks=False,
             ignore=_export_ignore(dist_dir, excluded),
         )
+    has_screenshots = screenshots_dir is not None and screenshots_dir.is_dir()
+    if has_screenshots and screenshots_dir is not None:
+        shutil.copytree(
+            screenshots_dir,
+            target / "screenshots",
+            symlinks=False,
+            ignore=_export_ignore(screenshots_dir, excluded),
+        )
 
     payload = {
         # v2 is additive: readers must continue accepting v1 exports while
@@ -131,6 +140,7 @@ def export_portfolio(
         "evaluator_handoff": {
             "source_path": "source",
             "dist_path": "dist" if dist_dir.is_dir() else "",
+            "screenshots_path": "screenshots" if has_screenshots else "",
             "metadata_path": "portfolio.json",
             "report_path": "generation-report.md",
         },
@@ -177,6 +187,8 @@ def _generation_report(payload: dict[str, Any]) -> str:
     provenance_status = (
         provenance.get("status", "recorded") if isinstance(provenance, dict) else "recorded"
     )
+    handoff = payload.get("evaluator_handoff")
+    screenshots_path = handoff.get("screenshots_path", "") if isinstance(handoff, dict) else ""
     lines = [
         "# OryxenAI generation report",
         "",
@@ -196,6 +208,7 @@ def _generation_report(payload: dict[str, Any]) -> str:
         "## Artifact map",
         "- Source project: `source/`",
         "- Built site: `dist/`",
+        *([f"- Verification screenshots: `{screenshots_path}/`"] if screenshots_path else []),
         "- Safe metadata: `portfolio.json`",
         "- This report: `generation-report.md`",
         "",
