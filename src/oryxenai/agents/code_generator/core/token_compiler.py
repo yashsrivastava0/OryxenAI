@@ -155,6 +155,32 @@ def _compile_v4_tokens(
                 f"{slot}={color_name}" for slot, color_name in sorted(invalid_bindings.items())
             )
         )
+    # Live-discovered 2026-09-05: a raw color token and a shadcn theme
+    # binding slot both compile to the same "--color-<name>" custom
+    # property (group_name is idempotent for an already-prefixed name).
+    # Raw colors are emitted first, then binding aliases -- so when a
+    # planner names a raw color the same as a semantic slot (e.g. both an
+    # "accent" color and an "accent" binding, common since "accent" is a
+    # natural name for both), the alias silently overwrites the raw color
+    # in the same :root block. This corrupts every derived token (e.g.
+    # --color-primary: var(--color-accent) resolving to the wrong value)
+    # without any error -- it only surfaced as a whole-site quality-review
+    # finding after a full, costly generation pass. Reject it here instead,
+    # before any route generation call is made.
+    raw_color_property_names = {group_name("color", name) for name in color_names}
+    colliding_slots = {
+        slot: color_name
+        for slot, color_name in blueprint.tokens.shadcn_theme_bindings.items()
+        if group_name("color", slot) in raw_color_property_names
+    }
+    if colliding_slots:
+        raise TokenCompilationError(
+            "shadcn theme binding slot names collide with existing raw color token names "
+            "and would silently overwrite them in the emitted CSS: "
+            + ", ".join(
+                f"{slot}->{color_name}" for slot, color_name in sorted(colliding_slots.items())
+            )
+        )
     for slot, color_name in sorted(blueprint.tokens.shadcn_theme_bindings.items()):
         emit(
             group_name("color", slot),

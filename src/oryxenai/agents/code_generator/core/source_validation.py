@@ -576,11 +576,29 @@ def validate_route_batch_contract(
                 rf"\bcontentValue\s*\(\s*[\"']{re.escape(content_id)}[\"']\s*\)",
                 owner_text,
             ):
+                message = (
+                    f"The section owner must render its approved content key through "
+                    f"a direct contentValue call: {content_id}"
+                )
+                near_miss = _near_miss_content_key(content_id, owner_text)
+                if near_miss is not None:
+                    # Live-discovered 2026-09-05: the model transcribed an
+                    # opaque hash-like suffix with a one-character typo
+                    # ("section-label-7cac7d3b" -> "section-label-7cacd3b")
+                    # and repeated the exact same typo across every repair
+                    # round, exhausting the budget on what was really a
+                    # copy error, not a missing binding. Naming the actual
+                    # near-miss call gives the repair model something
+                    # concrete to correct instead of regenerating blind.
+                    message += (
+                        f'. A similarly-named call was found instead: contentValue("{near_miss}"). '
+                        "Check for a transcription mistake in the literal suffix and correct it to "
+                        "the exact required key above; do not invent a different one."
+                    )
                 diagnostics.append(
                     _diagnostic(
                         "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING",
-                        f"The section owner must render its approved content key through "
-                        f"a direct contentValue call: {content_id}",
+                        message,
                         work_unit_id,
                         owner_relative,
                     )
@@ -1688,6 +1706,30 @@ def _validate_imports(text: str, path: str, allowed_packages: set[str]) -> None:
                 f"The import '{package}' is not in the trusted dependency ledger.",
                 file=path,
             )
+
+
+_CONTENT_KEY_HASH_SUFFIX_RE = re.compile(r"^(?P<prefix>.*-)(?P<suffix>[0-9a-f]{6,10})$")
+
+
+def _near_miss_content_key(content_id: str, owner_text: str) -> str | None:
+    """Find a contentValue(...) call in owner_text sharing content_id's
+    prefix but not its exact opaque hash suffix -- catches the model
+    transcribing a hash-like identifier with a typo rather than genuinely
+    omitting the binding, so the repair diagnostic can name the actual
+    mistake instead of just "missing"."""
+
+    match = _CONTENT_KEY_HASH_SUFFIX_RE.match(content_id)
+    if match is None:
+        return None
+    prefix = match.group("prefix")
+    pattern = re.compile(
+        rf"contentValue\s*\(\s*[\"']({re.escape(prefix)}[0-9a-f]{{6,10}})[\"']\s*\)"
+    )
+    for candidate in pattern.finditer(owner_text):
+        found = candidate.group(1)
+        if found != content_id:
+            return found
+    return None
 
 
 def _diagnostic(code: str, message: str, work_unit_id: str, file: str) -> SourceDiagnostic:

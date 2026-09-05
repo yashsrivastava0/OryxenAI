@@ -589,10 +589,26 @@ def audit_typescript_source(
                     if property_name.casefold() not in declarations
                 ]
                 if not declarations or missing_properties:
+                    # Live-discovered 2026-09-05: this diagnostic's message
+                    # used to be generic ("...without selector-scoped CSS
+                    # evidence"), unlike its mid-generation sibling
+                    # (SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID in
+                    # source_validation.py) which already names the exact
+                    # selector and missing properties -- the final-repair
+                    # model, given only the generic message, reported
+                    # cannot_complete on this exact diagnostic 3 rounds
+                    # running rather than guess what evidence was expected.
+                    # State the same concrete facts here.
+                    move_missing: list[str] = []
+                    if not declarations:
+                        move_missing.append(f"exact CSS selector {v4_move.source_selector}")
+                    if missing_properties:
+                        move_missing.append("CSS properties " + ", ".join(missing_properties))
                     diagnostics.append(
                         _diagnostic(
                             "SOURCE_BLUEPRINT_MOVE_MARKER_ONLY",
-                            "A distinctive-move marker is present without selector-scoped CSS evidence.",
+                            f"The distinctive move {move.move_id} is missing executable "
+                            "evidence: " + "; ".join(move_missing),
                             file=owner_file,
                             route_id=route_id,
                             symbol=(
