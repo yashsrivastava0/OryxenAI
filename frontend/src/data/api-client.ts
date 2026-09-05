@@ -11,6 +11,7 @@
 
 import { ApiError } from "./errors";
 import { recordClientEvent } from "./client-diagnostics";
+import type { DiscoveryAnswerMode } from "./discovery-answer";
 
 export type AuthorizedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -211,7 +212,10 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
 
     putDiscoveryAnswers: (
       sessionId: string,
-      body: { complete: boolean; answers: Array<{ question_id: string; mode: string; value: unknown }> },
+      body: {
+        complete: boolean;
+        answers: Array<{ question_id: string; mode: DiscoveryAnswerMode; value: unknown }>;
+      },
     ) =>
       requestJson<StageEnvelope>(
         authorizedFetch,

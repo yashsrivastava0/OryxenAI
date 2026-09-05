@@ -1,4 +1,5 @@
 import type { DiscoveryViewModel } from "../../data/adapters/discovery";
+import type { DiscoveryAnswerSubmission } from "../../data/discovery-answer";
 import { ConversationSurface, type AnsweredTurn } from "../../components/ConversationSurface";
 import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { HandoffPanel } from "../../components/HandoffPanel";
@@ -11,7 +12,7 @@ export interface DiscoveryStageProps {
   history: AnsweredTurn[];
   canMutate: boolean;
   onStartDiscovery: (notes: string) => Promise<void>;
-  onSubmitAnswer: (questionId: string, mode: string, value: unknown, isComplete: boolean) => Promise<void>;
+  onSubmitAnswer: (answer: DiscoveryAnswerSubmission, isComplete: boolean) => Promise<void>;
   onGenerateBriefNow: () => Promise<void>;
   onRetryDiscovery: () => Promise<void>;
   onStopDiscovery?: () => Promise<void>;

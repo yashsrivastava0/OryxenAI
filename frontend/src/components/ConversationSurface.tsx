@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
 import type { StageJobViewModel } from "../data/adapters/job";
+import {
+  answeredDiscoveryQuestion,
+  skippedDiscoveryQuestion,
+  type DiscoveryAnswerSubmission,
+} from "../data/discovery-answer";
 import { safeSessionStorage } from "../data/safe-storage";
 
 export interface AnsweredTurn {
@@ -16,7 +21,7 @@ export interface ConversationSurfaceProps {
   job?: StageJobViewModel | null;
   workingLabel?: string;
   disabled?: boolean;
-  onSubmitAnswer: (questionId: string, mode: string, value: unknown, isComplete: boolean) => Promise<void>;
+  onSubmitAnswer: (answer: DiscoveryAnswerSubmission, isComplete: boolean) => Promise<void>;
   onGenerateBriefNow?: () => Promise<void>;
   onRetryStalled?: () => Promise<void>;
   onStop?: () => Promise<void>;
@@ -102,7 +107,7 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(currentQuestion.id, "text", trimmed, isLast);
+      await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, trimmed), isLast);
       handleClearDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your answer. Please try again.");
@@ -117,7 +122,7 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(currentQuestion.id, "single_select", optionId, isLast);
+      await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, optionId), isLast);
       handleClearDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
@@ -132,7 +137,10 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(currentQuestion.id, "boolean", val ? "true" : "false", isLast);
+      await onSubmitAnswer(
+        answeredDiscoveryQuestion(currentQuestion.id, val ? "true" : "false"),
+        isLast,
+      );
       handleClearDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
@@ -148,7 +156,7 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(currentQuestion.id, "multi_select", selectedOptions, isLast);
+      await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedOptions), isLast);
       handleClearDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your selections.");
@@ -163,7 +171,7 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(currentQuestion.id, "skip", "", isLast);
+      await onSubmitAnswer(skippedDiscoveryQuestion(currentQuestion.id), isLast);
       handleClearDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not skip question.");
@@ -359,6 +367,19 @@ export function ConversationSurface({
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+          {currentQuestion.kind !== "text" && currentQuestion.allowSkip && (
+            <div className="question-actions">
+              <button
+                type="button"
+                className="btn-quiet"
+                disabled={inFlight || disabled}
+                onClick={handleSkip}
+              >
+                Skip question
+              </button>
             </div>
           )}
         </div>
