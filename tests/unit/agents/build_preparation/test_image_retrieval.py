@@ -11,6 +11,7 @@ from oryxenai.agents.shared.image_retrieval import (
     ImageSearchCache,
     ImageSearchIntent,
     _clean_pixabay_tags,
+    _pixabay_candidate,
     prepare_image_bytes,
     search_images,
 )
@@ -74,7 +75,11 @@ async def test_important_image_role_searches_pexels_and_pixabay_with_filters(
                     {
                         "id": 2,
                         "tags": "backend platform systems",
-                        "imageURL": "https://cdn.pixabay.com/photo/2.jpg",
+                        # largeImageURL, not imageURL: imageURL/fullHDURL are
+                        # only served to specially-approved Pixabay accounts
+                        # and a normal API key's download 400s even when the
+                        # field is present in the response (confirmed live).
+                        "largeImageURL": "https://cdn.pixabay.com/photo/2.jpg",
                         "previewURL": "https://cdn.pixabay.com/photo/2-preview.jpg",
                         "imageWidth": 2400,
                         "imageHeight": 1350,
@@ -275,3 +280,41 @@ def test_pixabay_tags_are_deduplicated_preserving_order() -> None:
     raw = "graphic designer, graphic designer, Graphic Designer, designer, UI designer, designer"
     cleaned = _clean_pixabay_tags(raw)
     assert cleaned == "graphic designer, designer, UI designer"
+
+
+def test_pixabay_candidate_prefers_large_image_url_over_gated_image_url() -> None:
+    # Pixabay only serves imageURL/fullHDURL to specially-approved accounts;
+    # for a normal API key the field can still be present in the response
+    # but every download 400s (confirmed live). largeImageURL is served to
+    # every API key and must be preferred.
+    hit = {
+        "id": 12345,
+        "imageURL": "https://pixabay.com/get/gated-original_1920.jpg",
+        "fullHDURL": "https://pixabay.com/get/gated-fullhd_1920.jpg",
+        "largeImageURL": "https://pixabay.com/get/large-1280.jpg",
+        "webformatURL": "https://pixabay.com/get/webformat-640.jpg",
+        "previewURL": "https://pixabay.com/get/preview-150.jpg",
+        "tags": "office, workspace",
+        "user": "contributor",
+        "pageURL": "https://pixabay.com/photos/office-12345/",
+        "imageWidth": 1920,
+        "imageHeight": 1280,
+        "likes": 10,
+        "downloads": 100,
+    }
+    candidate = _pixabay_candidate(hit, "office workspace", 0)
+    assert candidate is not None
+    assert candidate.image_url == "https://pixabay.com/get/large-1280.jpg"
+
+
+def test_pixabay_candidate_falls_back_to_webformat_when_large_is_absent() -> None:
+    hit = {
+        "id": 12345,
+        "webformatURL": "https://pixabay.com/get/webformat-640.jpg",
+        "tags": "office, workspace",
+        "user": "contributor",
+        "pageURL": "https://pixabay.com/photos/office-12345/",
+    }
+    candidate = _pixabay_candidate(hit, "office workspace", 0)
+    assert candidate is not None
+    assert candidate.image_url == "https://pixabay.com/get/webformat-640.jpg"

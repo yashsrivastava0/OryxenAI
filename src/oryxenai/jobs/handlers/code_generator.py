@@ -873,12 +873,37 @@ async def _execute_acquisition(
             pinned_candidate = pinned_candidates.get(request.request_id)
             try:
                 await _validate_worker_payload(sessionmaker, payload)
+                candidate = None
+                materialized: Any = None
                 if pinned_candidate is not None:
                     # Build Preparation already searched, ranked, and picked
-                    # exactly this one candidate (D-060) -- there is nothing
-                    # left to search for or select among.
-                    candidate = pinned_candidate
-                else:
+                    # exactly this one candidate (D-060). Its own materialize
+                    # attempt gets a bounded, one-shot fallback: a signed
+                    # provider URL pinned at Build Preparation time can go
+                    # stale by the time Code Generator actually downloads it
+                    # much later (confirmed live: Pixabay's pinned /get/ URLs
+                    # expire even though the same field succeeds on a fresh
+                    # search), so a failure here falls through to exactly one
+                    # fresh live search below instead of giving up outright.
+                    try:
+                        materialized = await adapter.materialize(
+                            pinned_candidate,
+                            request,
+                            storage_root=run_material_root,
+                            settings=settings,
+                        )
+                    except (ResourceProviderError, AcquisitionValidationError) as exc:
+                        logger.warning(
+                            "pinned resource candidate failed to materialize; "
+                            "falling back to one live search request_id=%s "
+                            "provider=%s reason=%s",
+                            request.request_id,
+                            pinned_candidate.provider_key,
+                            exc,
+                        )
+                    else:
+                        candidate = pinned_candidate
+                if candidate is None:
                     candidates = await adapter.search(request, settings=settings)
                     filtered = filter_candidates_by_policy(candidates, request)
                     if not filtered:
@@ -923,17 +948,17 @@ async def _execute_acquisition(
                     else:
                         selected_id, _ = select_candidate(request, filtered)
                     candidate = next(item for item in filtered if item.candidate_id == selected_id)
-                await _validate_worker_payload(sessionmaker, payload)
+                    await _validate_worker_payload(sessionmaker, payload)
+                    materialized = await adapter.materialize(
+                        candidate,
+                        request,
+                        storage_root=run_material_root,
+                        settings=settings,
+                    )
                 component_reference_only = (
                     request.category == "component_source"
                     and request.request_id.startswith("deferred-")
                     and not _deferred_component_local_paths(projections, request, candidate)
-                )
-                materialized = await adapter.materialize(
-                    candidate,
-                    request,
-                    storage_root=run_material_root,
-                    settings=settings,
                 )
                 materialized_files = (
                     list(materialized) if isinstance(materialized, list) else [materialized]
