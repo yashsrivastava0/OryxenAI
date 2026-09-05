@@ -17,7 +17,9 @@ from uuid import UUID
 
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
+from oryxenai.agents.shared.model_cache import build_result_cache
 from oryxenai.agents.shared.observability import durable_model_metadata
+from oryxenai.agents.shared.output_export import export_agent_result
 from oryxenai.agents.shared.providers.errors import (
     ModelOutputInvalidError,
     ProviderError,
@@ -101,7 +103,12 @@ class VisualDesignDirectorBuildHandler:
         )
 
 
-def _build_visual_design_director_agent(override_profile_name: str = "") -> Any:
+def _build_visual_design_director_agent(
+    override_profile_name: str = "",
+    *,
+    result_cache: Any = None,
+    profile_fingerprint: str = "",
+) -> Any:
     """Create a VisualDesignDirectorAgent with the live provider adapter.
 
     override_profile_name is the validated, session-sticky model/provider
@@ -119,6 +126,8 @@ def _build_visual_design_director_agent(override_profile_name: str = "") -> Any:
     return VisualDesignDirectorAgent(
         model_client=runtime.resolve("visual_design_director", override_profile_name),
         profile_name=resolved_profile,
+        result_cache=result_cache,
+        profile_fingerprint=profile_fingerprint,
     )
 
 
@@ -153,13 +162,23 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
 
     from oryxenai.agents.shared.model_runtime import get_model_runtime
 
-    input_payload["runtime_profile_id"] = get_model_runtime(settings.models).resolve_profile_name(
-        "visual_design_director", str(input_payload.get("model_profile", "") or "")
+    runtime = get_model_runtime(settings.models)
+    requested_profile = str(input_payload.get("model_profile", "") or "")
+    runtime_profile_id = runtime.resolve_profile_name("visual_design_director", requested_profile)
+    input_payload["runtime_profile_id"] = runtime_profile_id
+    result_cache = build_result_cache(
+        settings,
+        owner_user_id=run.owner_user_id if run is not None else None,
+        portfolio_session_id=session_id,
     )
 
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
-    agent = _build_visual_design_director_agent(str(input_payload.get("model_profile", "") or ""))
+    agent = _build_visual_design_director_agent(
+        requested_profile,
+        result_cache=result_cache,
+        profile_fingerprint=runtime.profile_fingerprint(runtime_profile_id),
+    )
     agent_input: dict[str, Any] = {
         "operation": "build",
         "intake": input_payload.get("intake", {}),
@@ -225,7 +244,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         )
         raise
 
-    return await _apply_result(
+    applied = await _apply_result(
         sessionmaker,
         session_id,
         run_id,
@@ -234,6 +253,15 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         attempt,
         str(input_payload["runtime_profile_id"]),
     )
+    if applied.get("status") == "succeeded":
+        export_agent_result(
+            settings,
+            agent_key=_AGENT_KEY.value,
+            run_id=run_id,
+            output=result.output,
+            model_metadata=result.model_metadata,
+        )
+    return applied
 
 
 async def _apply_result(

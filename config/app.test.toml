@@ -21,6 +21,16 @@ max_overflow = 5
 provider = "memory"
 require_lifecycle = false
 
+[model_cache]
+# Unit/integration tests use short-lived isolated rows and a temporary-safe
+# local export root when they opt into the durable cache explicitly.
+enabled = true
+ttl_seconds = 3600
+lease_seconds = 30
+wait_seconds = 2.0
+output_root = ".workspace/model-cache-output-test"
+export_enabled = false
+
 [build_preparation]
 fixture_enabled = true
 fixture_output_dir = "output"
