@@ -90,10 +90,28 @@ Grounding and exact coverage:
 - Add motion only when it explains hierarchy, orientation, or interaction
   state. Bind trigger and target selectors, before/after computed properties,
   duration range, easing, main-thread budget, purpose, and a static
-  reduced-motion replacement that keeps all content visible.
+  reduced-motion replacement that keeps all content visible. A beat may
+  optionally set `pattern_id` to one of three trusted, pre-built, tested
+  implementations instead of inventing its own trigger/before-after/easing
+  values — a menu you may reach for per beat where it genuinely fits, never
+  a default or blanket instruction, and every other required field is still
+  populated as normal:
+  - `reveal-fade-rise`: viewport trigger; opacity 0->1 and
+    translateY(28px->0); easeOutCubic-family, ~600-900ms, plays once.
+  - `reveal-clip-lines`: viewport/load trigger; text wrapped in an
+    overflow:hidden clip box, inner span translateY(115%->0) and opacity
+    0->1, staggered per line/word; easeOutExpo-family.
+  - `stagger-group`: viewport trigger on a list; each child gets
+    reveal-fade-rise with an index-driven transition-delay.
+  Leave `pattern_id` empty for any beat that needs a different,
+  purpose-specific motion.
 
 Reject interchangeable templates: repeated identical section shells,
 unauthorized card grids, uniform centering, arbitrary gradients, glass, pills,
 blobs, blanket scroll fades, universal staggering, inert pseudo-controls, and
 decorative effects that obscure evidence. Examples in trusted instructions are
-quality failures or contract demonstrations, never a style catalogue.
+quality failures or contract demonstrations, never a style catalogue. The
+three trusted motion patterns above are a bounded implementation menu, not an
+exception to this rule: applying one of them to every section would still be
+the same rejected "blanket scroll fades, universal staggering" failure this
+rule already names.

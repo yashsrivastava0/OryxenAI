@@ -15,9 +15,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ResourceCandidate,
     ResourceRequest,
 )
+from oryxenai.core.logging import get_logger
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _SCOUT_OPERATION = "code_generator.resource_scout"
+logger = get_logger("oryxenai.agents.code_generator.resource_scout")
 
 
 class ScoutSelection(BaseModel):
@@ -92,6 +94,16 @@ async def select_candidate_with_scout(
         system_prompt=system_prompt,
         model_profile=profile_name,
         strict_schema=True,
+    )
+    logger.info(
+        "resource scout call usage request_id=%s candidate_count=%s usage=%s",
+        request.request_id,
+        len(candidates),
+        {
+            str(key): int(value)
+            for key, value in dict(getattr(result, "usage", {}) or {}).items()
+            if isinstance(value, int)
+        },
     )
     parsed = getattr(result, "parsed_output", result)
     selection = ScoutSelection.model_validate(parsed)

@@ -26,6 +26,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GateResult,
     GenerationProjection,
     PendingPromotion,
+    QualityReviewDraftV1,
     QualityReviewReceiptV2,
     RepairReceipt,
     SafeIssue,
@@ -602,6 +603,7 @@ async def _execute(
             profile=profile,
             timeout_ms=int(settings.code_generator_verification.runtime_timeout_ms),
             verification_token=token,
+            screenshot_dir=workspace.root / "verification-screenshots",
         )
         executed_runtime_check_ids = sorted(
             set(profile.runtime_check_ids).union(item.journey_id for item in evidence)
@@ -1414,6 +1416,207 @@ def _quality_rejection_summary(review: Any) -> str:
     return " ".join(parts)
 
 
+def _diagnostics_from_quality_findings(review: QualityReviewDraftV1) -> list[Diagnostic]:
+    """Convert a rejected post-repair whole-site re-review's blocking findings
+    into Diagnostic objects FinalRepairer.repair()/RepairBudget/
+    repair_allowed_paths() can act on directly for one bounded extra repair
+    attempt. Deliberately NOT the shape generation_orchestrator's
+    SourceDiagnostic uses (that class's `group` Literal excludes
+    "type_build_artifact"/"dom_runtime" and includes "typecheck" instead,
+    for the mid-generation polish loop) -- group="source_contract" here
+    matches that same loop's own precedent for a finding-derived, not
+    build/runtime-derived, diagnostic, and is a valid Diagnostic.group value.
+    """
+
+    diagnostics: list[Diagnostic] = []
+    for finding in review.findings:
+        if finding.severity != "blocking":
+            continue
+        diagnostics.append(
+            Diagnostic(
+                diagnostic_id=f"quality-rereview-{finding.finding_id}",
+                group="source_contract",
+                code=finding.code,
+                severity="blocking",
+                owner="generator",
+                phase="quality_review_post_repair",
+                work_unit_id=finding.owner_work_unit_id,
+                normalized_message=finding.requested_outcome,
+                file=finding.file,
+                line=finding.line,
+                expected=finding.requested_outcome,
+                observed=finding.evidence,
+                fingerprint=digest(
+                    {
+                        "source": "post-repair-requery",
+                        "finding_id": finding.finding_id,
+                        "code": finding.code,
+                        "file": finding.file,
+                    }
+                ),
+            )
+        )
+    return diagnostics
+
+
+async def _run_bounded_repair(
+    *,
+    sessionmaker: Any,
+    run_id: UUID,
+    settings: Any,
+    workspace: GenerationWorkspace,
+    checkpoint_store: CheckpointStore,
+    checkpoint: Any,
+    identity: Any,
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+    projection: VerificationProjection,
+    diagnostics: list[Diagnostic],
+    public_text: set[str],
+    allowed_packages: set[str],
+    model_factory: Any | None,
+    budget: RepairBudget,
+    unit_id: str,
+) -> tuple[Any, RepairReceipt] | None:
+    """Run FinalRepairer within `budget`'s `unit_id` bucket until one
+    structurally valid corrected checkpoint is produced, or that bucket's
+    budget is exhausted. None means the budget could not fund a successful
+    attempt. Extracted, unchanged in behavior, from _attempt_repair's
+    original inline while-loop so it can be reused for a second, bounded
+    repair attempt after a rejected post-repair re-review."""
+
+    if not budget.can_attempt(diagnostics, unit_id=unit_id):
+        return None
+    while True:
+        strategy = budget.consume(diagnostics, unit_id=unit_id)
+        projection.status = "repairing"
+        projection.phase = "repairing"
+        await _persist_projection(
+            sessionmaker,
+            run_id,
+            projection,
+            DevelopmentRunStatus.REPAIRING.value,
+            event=("repairing", "A bounded generator-owned verification repair is running."),
+        )
+        try:
+            await _validate_run_fence(sessionmaker, run_id)
+            corrected, receipt = await FinalRepairer(model_factory=model_factory).repair(
+                settings=settings,
+                workspace=workspace,
+                checkpoint_store=checkpoint_store,
+                checkpoint=checkpoint,
+                identity=identity,
+                plan=plan,
+                projections=projections,
+                diagnostics=diagnostics,
+                allowed_paths=repair_allowed_paths(
+                    diagnostics,
+                    plan,
+                    projections,
+                    repo_dir=workspace.repo_dir,
+                ),
+                public_text=public_text,
+                allowed_packages=allowed_packages,
+                strategy=strategy,
+                round_number=budget.total_used,
+            )
+            return corrected, receipt
+        except (FinalRepairError, SourceValidationError):
+            # The model honestly reported it could not produce a bounded
+            # correction this round (repair_source.md's cannot_complete
+            # escape hatch, a context-binding mismatch), or its response
+            # failed host-side content validation (e.g. duplicate paths in
+            # the returned file list). Both are a rejected model response,
+            # not an infrastructure failure — the budget exists to give a
+            # different round/strategy value another chance, so only give
+            # up once the budget itself is exhausted.
+            logger.warning(
+                "final repair round produced no usable correction run_id=%s round=%s unit=%s",
+                run_id,
+                budget.total_used,
+                unit_id,
+                exc_info=True,
+            )
+            # Persisted even on exhaustion: a failed round still consumed
+            # budget, and the terminal report must show the true attempt
+            # count rather than whatever the last *successful* round left
+            # behind (0, if every round this call made failed).
+            projection.repair_rounds = budget.total_used
+            if not budget.can_attempt(diagnostics, unit_id=unit_id):
+                return None
+            continue
+        except Exception:
+            logger.error(
+                "final repair attempt failed run_id=%s",
+                run_id,
+                exc_info=True,
+            )
+            return None
+
+
+async def _rereview_after_repair(
+    *,
+    sessionmaker: Any,
+    run_id: UUID,
+    settings: Any,
+    plan: SitePlan,
+    workspace: GenerationWorkspace,
+    checkpoint: Any,
+    model_factory: Any | None,
+    round_number: int,
+) -> tuple[dict[str, Any], dict[str, Any], QualityReviewDraftV1 | None]:
+    """Run one whole-site re-review bound to `checkpoint`. Returns
+    (generation_projection_payload, integration_review_payload, the
+    rejected review if not accepted else None). Extracted, unchanged in
+    behavior, from _attempt_repair's original inline v4 block so it can be
+    called a second time (round_number=3) after one bounded extra repair
+    attempt, without duplicating the block."""
+
+    async with sessionmaker() as db:
+        current = await CodeGeneratorDevelopmentRepository(db).get(run_id)
+        if current is None or not current.generation_projection:
+            raise VerificationFailure(
+                "QUALITY_REVIEW_STATE_MISSING",
+                "The repaired v4 source has no generation quality state.",
+                owner="generator",
+            )
+        generation_projection = GenerationProjection.model_validate(current.generation_projection)
+        generation_projection.accepted_checkpoint = checkpoint
+        generation_projection.source_file_count = checkpoint.file_count
+        generation_projection.source_total_bytes = checkpoint.total_bytes
+        generation_projection.quality_review = None
+        await _validate_run_fence(sessionmaker, run_id)
+        review = await CodeGeneratorGenerationOrchestrator(
+            model_factory=model_factory
+        )._integration_review(
+            sessionmaker=sessionmaker,
+            run_id=run_id,
+            settings=settings,
+            run=current,
+            plan=plan,
+            workspace=workspace,
+            projection=generation_projection,
+            round_number=round_number,
+            persist=False,
+        )
+        # This helper is only ever called under the caller's own
+        # `isinstance(plan.experience_blueprint, ExperienceBlueprintV4)`
+        # guard, which makes _integration_review pass output_version="v4"
+        # internally and therefore guarantees a QualityReviewDraftV1 -- but
+        # that guarantee lives in a different function, so it isn't visible
+        # to the type checker from here without this assertion.
+        assert isinstance(review, QualityReviewDraftV1)
+        generation_projection_payload = generation_projection.model_dump(mode="json")
+        integration_review_payload = review.model_dump(mode="json")
+        rejected = (
+            review
+            if generation_projection.quality_review is None
+            or not bool(generation_projection.quality_review.accepted)
+            else None
+        )
+    return generation_projection_payload, integration_review_payload, rejected
+
+
 async def _attempt_repair(
     *,
     sessionmaker: Any,
@@ -1453,115 +1656,102 @@ async def _attempt_repair(
             )
     projection.active_gate = diagnostics[0].group if diagnostics else ""
     repair_unit_id = projection.active_gate or "final"
-    if not budget.can_attempt(diagnostics, unit_id=repair_unit_id):
+
+    outcome = await _run_bounded_repair(
+        sessionmaker=sessionmaker,
+        run_id=run_id,
+        settings=settings,
+        workspace=workspace,
+        checkpoint_store=checkpoint_store,
+        checkpoint=checkpoint,
+        identity=identity,
+        plan=plan,
+        projections=projections,
+        projection=projection,
+        diagnostics=diagnostics,
+        public_text=public_text,
+        allowed_packages=allowed_packages,
+        model_factory=model_factory,
+        budget=budget,
+        unit_id=repair_unit_id,
+    )
+    if outcome is None:
         return False
-    while True:
-        strategy = budget.consume(diagnostics, unit_id=repair_unit_id)
-        projection.status = "repairing"
-        projection.phase = "repairing"
-        await _persist_projection(
-            sessionmaker,
-            run_id,
-            projection,
-            DevelopmentRunStatus.REPAIRING.value,
-            event=("repairing", "A bounded generator-owned verification repair is running."),
-        )
-        try:
-            await _validate_run_fence(sessionmaker, run_id)
-            corrected, receipt = await FinalRepairer(model_factory=model_factory).repair(
-                settings=settings,
-                workspace=workspace,
-                checkpoint_store=checkpoint_store,
-                checkpoint=checkpoint,
-                identity=identity,
-                plan=plan,
-                projections=projections,
-                diagnostics=diagnostics,
-                allowed_paths=repair_allowed_paths(
-                    diagnostics,
-                    plan,
-                    projections,
-                    repo_dir=workspace.repo_dir,
-                ),
-                public_text=public_text,
-                allowed_packages=allowed_packages,
-                strategy=strategy,
-                round_number=budget.total_used,
-            )
-            break
-        except (FinalRepairError, SourceValidationError):
-            # The model honestly reported it could not produce a bounded
-            # correction this round (repair_source.md's cannot_complete
-            # escape hatch, a context-binding mismatch), or its response
-            # failed host-side content validation (e.g. duplicate paths in
-            # the returned file list). Both are a rejected model response,
-            # not an infrastructure failure — the budget exists to give a
-            # different round/strategy value another chance, so only give
-            # up once the budget itself is exhausted.
-            logger.warning(
-                "final repair round produced no usable correction run_id=%s round=%s",
-                run_id,
-                budget.total_used,
-                exc_info=True,
-            )
-            # Persisted even on exhaustion: a failed round still consumed
-            # budget, and the terminal report must show the true attempt
-            # count rather than whatever the last *successful* round left
-            # behind (0, if every round this call made failed).
-            projection.repair_rounds = budget.total_used
-            if not budget.can_attempt(diagnostics, unit_id=repair_unit_id):
-                return False
-            continue
-        except Exception:
-            logger.error(
-                "final repair attempt failed run_id=%s",
-                run_id,
-                exc_info=True,
-            )
-            return False
+    corrected, receipt = outcome
+
     projection.repair_rounds = budget.total_used
     projection.repair_receipts.append(receipt)
     projection.diagnostics = []
     projection.gate_results = []
     generation_projection_payload: dict[str, Any] | None = None
     integration_review_payload: dict[str, Any] | None = None
-    quality_rejected_review: Any | None = None
+    quality_rejected_review: QualityReviewDraftV1 | None = None
     if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
-        async with sessionmaker() as db:
-            current = await CodeGeneratorDevelopmentRepository(db).get(run_id)
-            if current is None or not current.generation_projection:
-                raise VerificationFailure(
-                    "QUALITY_REVIEW_STATE_MISSING",
-                    "The repaired v4 source has no generation quality state.",
-                    owner="generator",
+        (
+            generation_projection_payload,
+            integration_review_payload,
+            quality_rejected_review,
+        ) = await _rereview_after_repair(
+            sessionmaker=sessionmaker,
+            run_id=run_id,
+            settings=settings,
+            plan=plan,
+            workspace=workspace,
+            checkpoint=corrected,
+            model_factory=model_factory,
+            round_number=2,
+        )
+        if quality_rejected_review is not None:
+            # Exactly one bounded extra repair+re-review attempt: feed the
+            # rejected review's blocking findings back through the same
+            # repair machinery for one more round (still governed by the
+            # same numeric budget), then re-review at most once more
+            # (round_number=3). If that still rejects -- or the budget
+            # can't fund another attempt, or the review carried no
+            # blocking findings to act on -- give up for real. This never
+            # loops more than once past the original repair; it does not
+            # reopen the whole-site review loop indefinitely.
+            retry_diagnostics = _diagnostics_from_quality_findings(quality_rejected_review)
+            retry_outcome = (
+                await _run_bounded_repair(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    settings=settings,
+                    workspace=workspace,
+                    checkpoint_store=checkpoint_store,
+                    checkpoint=corrected,
+                    identity=identity,
+                    plan=plan,
+                    projections=projections,
+                    projection=projection,
+                    diagnostics=retry_diagnostics,
+                    public_text=public_text,
+                    allowed_packages=allowed_packages,
+                    model_factory=model_factory,
+                    budget=budget,
+                    unit_id=retry_diagnostics[0].group,
                 )
-            generation_projection = GenerationProjection.model_validate(
-                current.generation_projection
+                if retry_diagnostics
+                else None
             )
-            generation_projection.accepted_checkpoint = corrected
-            generation_projection.source_file_count = corrected.file_count
-            generation_projection.source_total_bytes = corrected.total_bytes
-            generation_projection.quality_review = None
-            await _validate_run_fence(sessionmaker, run_id)
-            review = await CodeGeneratorGenerationOrchestrator(
-                model_factory=model_factory
-            )._integration_review(
-                sessionmaker=sessionmaker,
-                run_id=run_id,
-                settings=settings,
-                run=current,
-                plan=plan,
-                workspace=workspace,
-                projection=generation_projection,
-                round_number=2,
-                persist=False,
-            )
-            generation_projection_payload = generation_projection.model_dump(mode="json")
-            integration_review_payload = review.model_dump(mode="json")
-            if generation_projection.quality_review is None or not bool(
-                generation_projection.quality_review.accepted
-            ):
-                quality_rejected_review = review
+            if retry_outcome is not None:
+                corrected, retry_receipt = retry_outcome
+                projection.repair_rounds = budget.total_used
+                projection.repair_receipts.append(retry_receipt)
+                (
+                    generation_projection_payload,
+                    integration_review_payload,
+                    quality_rejected_review,
+                ) = await _rereview_after_repair(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    settings=settings,
+                    plan=plan,
+                    workspace=workspace,
+                    checkpoint=corrected,
+                    model_factory=model_factory,
+                    round_number=3,
+                )
         if quality_rejected_review is not None:
             # The rejection reason was previously computed and then silently
             # discarded: the raise below used to happen before any persist
@@ -1649,6 +1839,7 @@ async def _export_portfolio(
             settings=settings,
             run_id=str(run_id),
             repo_dir=workspace.repo_dir,
+            screenshots_dir=workspace.root / "verification-screenshots",
             metadata={
                 "preview_url": active.url,
                 "build_hash": manifest.build_hash,

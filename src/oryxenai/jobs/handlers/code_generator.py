@@ -469,6 +469,13 @@ async def _execute(
                         "direction": direction.model_dump(mode="json"),
                         "context_receipt": direction_receipt.model_dump(mode="json"),
                         "response_id": str(getattr(direction_result, "response_id", "") or ""),
+                        "usage": {
+                            str(key): int(value)
+                            for key, value in dict(
+                                getattr(direction_result, "usage", {}) or {}
+                            ).items()
+                            if isinstance(value, int)
+                        },
                     },
                     "context_receipt": context_receipt.model_dump(mode="json"),
                 },
@@ -609,6 +616,13 @@ async def _execute(
                         "direction": redirected.model_dump(mode="json"),
                         "context_receipt": redirected_receipt.model_dump(mode="json"),
                         "response_id": str(getattr(redirected_result, "response_id", "") or ""),
+                        "usage": {
+                            str(key): int(value)
+                            for key, value in dict(
+                                getattr(redirected_result, "usage", {}) or {}
+                            ).items()
+                            if isinstance(value, int)
+                        },
                         "similarity_redirected": True,
                     }
                 )

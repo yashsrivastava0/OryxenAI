@@ -1356,11 +1356,30 @@ class CodeGeneratorGenerationOrchestrator:
                     )
                     projection.call_receipts.append(call_receipt)
                     if result.mode != "changes":
-                        raise GenerationError(
-                            "INTEGRATION_POLISH_INCOMPLETE",
-                            "The bounded integration polish pass did not return owner-scoped "
-                            "source changes.",
+                        # The model honestly reported it could not produce a
+                        # bounded owner-scoped correction this round
+                        # (repair_source.md's cannot_complete escape hatch) --
+                        # discovered live 2026-09-05, this used to raise and
+                        # kill the entire run on the very first such response,
+                        # with no retry at all. That's the same class of gap
+                        # Fix A closed for the final-verification-gate's own
+                        # post-repair rejection: the outer polish-round loop
+                        # is already bounded (max_integration_polish_rounds)
+                        # precisely to give a different round/context another
+                        # try. Leave this owner's files untouched this round
+                        # and let that existing bounded loop decide whether to
+                        # retry this owner next round or move on -- if it
+                        # never converges, the run still lands cleanly on the
+                        # pre-existing INTEGRATION_REVIEW_UNRESOLVED terminal
+                        # state below, not an abrupt, less-informative one.
+                        logger.warning(
+                            "integration polish call reported cannot_complete "
+                            "run_id=%s owner=%s round=%s",
+                            run_id,
+                            owner.unit_id,
+                            polish_round,
                         )
+                        break
                     rejected_attempt_files = (
                         {
                             item.path.replace("\\", "/").strip("/"): item.complete_utf8_content
@@ -1548,6 +1567,7 @@ class CodeGeneratorGenerationOrchestrator:
             output_version=(
                 "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
             ),
+            cache_key=f"codegen:{projection.generation_id}:review",
         )
         review = _canonicalize_review_owners(
             review,

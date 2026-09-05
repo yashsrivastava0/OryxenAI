@@ -13,6 +13,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExecutionBindingV2,
     ExperienceBlueprintV3,
     GenerationCallReceipt,
+    GenerationCannotComplete,
     GenerationChanges,
     GenerationProjection,
     GenerationResult,
@@ -1010,6 +1011,180 @@ async def test_integration_polish_repairs_late_finding_through_third_rereview(
         "route-home-integration-polish-3",
     ]
     assert checkpoint_units == repair_units
+
+
+@pytest.mark.asyncio
+async def test_integration_polish_survives_cannot_complete_and_reaches_unresolved(
+    tmp_path, monkeypatch
+) -> None:
+    """Regression test for the 2026-09-05 live-discovered bug: an owner-scoped
+    polish repair call reporting cannot_complete (repair_source.md's honest
+    escape hatch) used to raise INTEGRATION_POLISH_INCOMPLETE and kill the
+    whole run on the very first such response, with zero retry -- even
+    though the outer polish-round loop is already bounded specifically to
+    give a different round another try (the same class of gap Fix A closed
+    for the final-verification-gate's own post-repair rejection). It must
+    now leave that owner's files untouched for the round and let the
+    bounded loop continue, landing on the pre-existing
+    INTEGRATION_REVIEW_UNRESOLVED terminal state once rounds are exhausted,
+    never INTEGRATION_POLISH_INCOMPLETE."""
+    workspace = GenerationWorkspace(
+        tmp_path / "workspace", tmp_path / "input", tmp_path / "checkpoints"
+    )
+    workspace.repo_dir.mkdir(parents=True)
+    workspace.ledger_dir.mkdir(parents=True)
+    owned_path = "src/routes/home/index.tsx"
+    source = workspace.repo_dir / owned_path
+    source.parent.mkdir(parents=True)
+    source.write_text("export default function Home() { return null; }", encoding="utf-8")
+    unit = WorkUnit(
+        unit_id="route-home",
+        kind="route",
+        route_id="home",
+        route_ids=["home"],
+        section_ids=["hero"],
+        owns_paths=[owned_path],
+    )
+    plan = SitePlan(
+        plan_id="cannot-complete-polish",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stacked",
+                reduced_motion_outcome="static",
+                interaction_outcome="keyboard accessible",
+            )
+        ],
+        work_graph=WorkGraph(units=[unit]),
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [{"route_id": "home", "path": "/", "storage_key": "home"}],
+            "criteria": [],
+            "facts": [],
+            "public_content": [],
+        },
+        "design/visual-direction.json": {},
+        "resources/ledger.json": {},
+        "execution/contract.json": {},
+    }
+
+    def rejected_review(finding_id: str) -> IntegrationReviewV1:
+        return IntegrationReviewV1(
+            status="findings",
+            findings=[
+                IntegrationFinding(
+                    finding_id=finding_id,
+                    severity="blocking",
+                    section_id=owned_path,
+                    owner_work_unit_id=unit.unit_id,
+                    code="STILL_BROKEN",
+                    evidence="concrete source mismatch",
+                    requested_outcome="correct the owned source",
+                )
+            ],
+            distinctiveness_score=4,
+            composition_score=4,
+            typography_score=3,
+            resource_fit_score=4,
+            motion_score=4,
+        )
+
+    review_rounds: list[int] = []
+    repair_units: list[str] = []
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def integration_review(**kwargs):
+        round_number = int(kwargs["round_number"])
+        review_rounds.append(round_number)
+        return rejected_review(f"finding-round-{round_number}")
+
+    async def model_result(**kwargs):
+        repair_units.append(str(kwargs["unit_id"]))
+        return (
+            GenerationResult(
+                operation_id=f"repair:{kwargs['unit_id']}",
+                based_on_context_receipt=str(kwargs["context_receipt"].context_hash),
+                mode="cannot_complete",
+                cannot_complete=GenerationCannotComplete(
+                    code="STILL_BROKEN",
+                    safe_reason=(
+                        "The requested correction is outside this unit's bounded authority."
+                    ),
+                ),
+            ),
+            GenerationCallReceipt(
+                receipt_id=f"call-{len(repair_units)}",
+                operation_id="repair",
+                idempotency_key=f"repair-{len(repair_units)}",
+                context_receipt_hash=str(kwargs["context_receipt"].context_hash),
+                result_hash=f"result-{len(repair_units)}",
+                profile="repair-profile",
+            ),
+        )
+
+    async def no_diagnostics(*_args, **_kwargs):
+        return []
+
+    async def no_op(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(orchestrator, "_integration_review", integration_review)
+    monkeypatch.setattr(orchestrator, "_model_result", model_result)
+    monkeypatch.setattr(orchestrator, "_apply_changes", lambda **_kwargs: None)
+    monkeypatch.setattr(orchestrator, "_validate_run", no_op)
+    monkeypatch.setattr(orchestrator, "_persist", no_op)
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.core.generation_orchestrator.run_source_checks",
+        no_diagnostics,
+    )
+    settings = SimpleNamespace(
+        code_generator_generation=SimpleNamespace(
+            repair_profile="repair-profile",
+            max_response_bytes=2_000_000,
+            max_context_chars=170_000,
+            max_source_bytes=2_000_000,
+            max_integration_polish_rounds=2,
+        )
+    )
+    projection = GenerationProjection(
+        generation_id="generation-cannot-complete-polish",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="integrating",
+    )
+    initial_checkpoint = SourceCheckpoint(
+        checkpoint_id="checkpoint-initial",
+        checkpoint_hash="hash-initial",
+        stored_relative_path="checkpoints/initial",
+        source_manifest_hash="manifest-initial",
+        file_count=1,
+        total_bytes=source.stat().st_size,
+        work_unit_id=unit.unit_id,
+        accepted_at="2026-09-05T00:00:00+00:00",
+    )
+
+    with pytest.raises(GenerationError) as excinfo:
+        await orchestrator._review_and_polish(
+            sessionmaker=None,
+            run_id=uuid4(),
+            settings=settings,
+            run=SimpleNamespace(),
+            plan=plan,
+            projections=projections,
+            workspace=workspace,
+            projection=projection,
+            checkpoint_store=SimpleNamespace(accept=lambda **_kwargs: initial_checkpoint),
+            checkpoint=initial_checkpoint,
+            allowed_packages=set(),
+            public_text=set(),
+        )
+
+    assert excinfo.value.code == "INTEGRATION_REVIEW_UNRESOLVED"
+    assert review_rounds == [0, 1, 2]
+    assert repair_units == ["route-home-integration-polish", "route-home-integration-polish-2"]
 
 
 @pytest.mark.asyncio

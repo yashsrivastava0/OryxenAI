@@ -1,9 +1,13 @@
 import {
+  Children,
+  cloneElement,
+  isValidElement,
   useEffect,
   useId,
   useRef,
   useState,
   type CSSProperties,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import { publicResourceUrl, publicSectionUrl } from "../../app/ResourceUrl";
@@ -184,6 +188,112 @@ export function Disclosure({
       <div id={disclosure.panelId} hidden={!disclosure.open}>
         {children}
       </div>
+    </div>
+  );
+}
+
+// Trusted motion primitives (core/motion_pattern_catalogue.py). Each names
+// a real, tested implementation a beat's optional pattern_id can reference
+// instead of hand-authoring new CSS/JS. The default, unguarded state is
+// always the fully visible final state; the "before" (hidden) state and
+// its animation are gated behind [data-motion-ready="true"], set only
+// after confirming IntersectionObserver support -- so content stays
+// visible with no motion at all if the observer is unavailable.
+
+export function useInView<T extends HTMLElement>(threshold = 0.2) {
+  const ref = useRef<T>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setInView(true);
+            observer.disconnect();
+          }
+        }
+      },
+      { threshold }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [threshold]);
+  return { ref, inView };
+}
+
+export function Reveal({
+  pattern = "reveal-fade-rise",
+  className = "",
+  children,
+}: {
+  pattern?: "reveal-fade-rise" | "reveal-clip-lines";
+  className?: string;
+  children: ReactNode;
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>();
+  const dataMotionReady = inView ? "true" : undefined;
+  if (pattern === "reveal-clip-lines") {
+    return (
+      <div
+        ref={ref}
+        className={["motion-reveal-clip-lines", className].filter(Boolean).join(" ")}
+        data-motion-ready={dataMotionReady}
+      >
+        <span className="motion-reveal-clip-lines__inner">{children}</span>
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={ref}
+      className={["motion-reveal-fade-rise", className].filter(Boolean).join(" ")}
+      data-motion-ready={dataMotionReady}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function StaggerGroup({
+  className = "",
+  itemClassName = "",
+  children,
+}: {
+  className?: string;
+  itemClassName?: string;
+  children: ReactNode;
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>();
+  const items = Children.toArray(children);
+  return (
+    <div
+      ref={ref}
+      className={["motion-stagger-group", className].filter(Boolean).join(" ")}
+      data-motion-ready={inView ? "true" : undefined}
+    >
+      {items.map((child, index) => {
+        if (!isValidElement(child)) return child;
+        const element = child as ReactElement<{
+          className?: string;
+          style?: CSSProperties;
+        }>;
+        return cloneElement(element, {
+          key: element.key ?? index,
+          className: ["motion-stagger-item", itemClassName, element.props.className]
+            .filter(Boolean)
+            .join(" "),
+          style: {
+            ...element.props.style,
+            ["--stagger-index" as string]: index,
+          } as CSSProperties,
+        });
+      })}
     </div>
   );
 }
