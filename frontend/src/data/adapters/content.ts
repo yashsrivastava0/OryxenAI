@@ -2,6 +2,7 @@
 // Normalizes ContentArchitectState into ContentViewModel.
 // Follows the same fail-closed, defensive pattern established by discovery.ts.
 
+import { selectStageJob } from "./job";
 import type { StageState, StageViewModel } from "./types";
 
 export interface RoutePlanVM {
@@ -116,12 +117,17 @@ function adaptDecision(raw: unknown): DecisionRecordVM | null {
  * Accepts the raw `content_architect` dict from ContentArchitectStateResponse
  * and whether Discovery has been approved.
  */
-export function adaptContentArchitect(raw: unknown, discoveryApproved = false): ContentViewModel {
+export function adaptContentArchitect(
+  raw: unknown,
+  discoveryApproved = false,
+  jobs: unknown[] = [],
+): ContentViewModel {
   if (!isRecord(raw) || typeof raw.status !== "string" || !(raw.status in STATE_MAP)) {
     return {
       state: "unsupported",
       statusText: "Content Architect returned an unrecognised state. Refresh to continue.",
       raw,
+      job: selectStageJob(jobs),
       userSummary: "",
       positioning: "",
       routePlan: [],
@@ -134,7 +140,9 @@ export function adaptContentArchitect(raw: unknown, discoveryApproved = false): 
   }
 
   const status = raw.status;
-  let state: StageState = STATE_MAP[status] ?? "unsupported";
+  const job = selectStageJob(jobs, typeof raw.job_id === "string" ? raw.job_id : null);
+  const failedJob = job?.status === "failed" || job?.status === "cancelled";
+  let state: StageState = failedJob ? "attention" : STATE_MAP[status] ?? "unsupported";
 
   // Upstream gating: if not started and Discovery is not yet approved, this stage is locked.
   if (status === "not_started" && !discoveryApproved) {
@@ -167,14 +175,14 @@ export function adaptContentArchitect(raw: unknown, discoveryApproved = false): 
 
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const safeError =
-    status === "needs_attention" && latestError
+    (status === "needs_attention" && latestError) || failedJob
       ? {
           summary:
-            typeof latestError.message === "string"
+            typeof latestError?.message === "string"
               ? latestError.message
-              : typeof latestError.summary === "string"
+              : typeof latestError?.summary === "string"
                 ? latestError.summary
-                : "Content Architect needs attention.",
+                : job?.error?.message ?? "Content Architect needs attention.",
         }
       : null;
 
@@ -184,6 +192,7 @@ export function adaptContentArchitect(raw: unknown, discoveryApproved = false): 
       ? "Locked until Discovery is approved"
       : STATUS_TEXT[status] ?? "Working on Content",
     raw,
+    job,
     userSummary,
     positioning,
     routePlan,

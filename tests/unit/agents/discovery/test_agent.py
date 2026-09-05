@@ -56,6 +56,19 @@ def _context() -> Any:
     )
 
 
+def _questions_context(message: str) -> Any:
+    return build_context(
+        portfolio_session_id=uuid4(),
+        agent_key=AgentKey.DISCOVERY,
+        current_state={},
+        agent_input={
+            "operation": "understand_and_question",
+            "intake": {"message": message, "document_text": "", "goal": ""},
+            "prior_memory": {},
+        },
+    )
+
+
 async def test_build_or_revise_brief_truncates_projects_over_the_configured_max():
     """A resume can legitimately list more projects than max_projects.
 
@@ -81,3 +94,56 @@ async def test_build_or_revise_brief_keeps_projects_under_the_max_untouched():
     result = await agent.run(_context())
 
     assert len(result.output["profile"]["projects"]) == 3
+
+
+async def test_questions_fallback_keeps_substantive_material_actionable():
+    """A contradictory cached NEEDS_DETAILS result still yields questions."""
+    resume = "\n".join(
+        [
+            "# Professional Summary",
+            "Senior engineer building reliable platforms.",
+            "## Professional Experience",
+            "Led production systems and mentored engineers.",
+            "## Core Skills",
+            "Python, SQL, and cloud architecture.",
+        ]
+        + ["Additional factual project detail."] * 80
+    )
+    agent = DiscoveryAgent(
+        model_client=_FakeModelClient(
+            {
+                "mode": "NEEDS_DETAILS",
+                "assistant_message": "Please provide more details.",
+                "questions": [],
+                "memory_update": {},
+            }
+        )
+    )
+
+    result = await agent.run(_questions_context(resume))
+
+    assert result.output["mode"] == "ASK_QUESTIONS"
+    assert len(result.output["questions"]) == 2
+    assert result.output["questions"][0]["id"] == "portfolio_priority"
+
+
+async def test_questions_fallback_handles_long_unstructured_material():
+    """A long paste still gets an actionable question when headings are absent."""
+    agent = DiscoveryAgent(
+        model_client=_FakeModelClient(
+            {
+                "mode": "NEEDS_DETAILS",
+                "assistant_message": "Please provide more details.",
+                "questions": [],
+                "memory_update": {},
+            }
+        )
+    )
+
+    result = await agent.run(_questions_context("Experience detail. " * 180))
+
+    assert result.output["mode"] == "ASK_QUESTIONS"
+    assert [question["id"] for question in result.output["questions"]] == [
+        "portfolio_priority",
+        "signature_proof",
+    ]

@@ -2,6 +2,7 @@
 // Normalizes VisualDesignDirectorState into DesignViewModel.
 // Follows the same fail-closed, defensive pattern established by discovery.ts and content.ts.
 
+import { selectStageJob } from "./job";
 import type { StageState, StageViewModel } from "./types";
 
 export interface VisualLanguageVM {
@@ -87,12 +88,17 @@ function adaptResourceCandidate(raw: unknown): ResourceCandidateVM | null {
  * Accepts the raw `visual_design_director` dict from VisualDesignDirectorStateResponse
  * and whether Content Architect has been approved.
  */
-export function adaptVisualDesignDirector(raw: unknown, contentApproved = false): DesignViewModel {
+export function adaptVisualDesignDirector(
+  raw: unknown,
+  contentApproved = false,
+  jobs: unknown[] = [],
+): DesignViewModel {
   if (!isRecord(raw) || typeof raw.status !== "string" || !(raw.status in STATE_MAP)) {
     return {
       state: "unsupported",
       statusText: "Visual Design Director returned an unrecognised state. Refresh to continue.",
       raw,
+      job: selectStageJob(jobs),
       userSummary: "",
       creativeThesis: "",
       visualLanguage: {
@@ -111,7 +117,9 @@ export function adaptVisualDesignDirector(raw: unknown, contentApproved = false)
   }
 
   const status = raw.status;
-  let state: StageState = STATE_MAP[status] ?? "unsupported";
+  const job = selectStageJob(jobs, typeof raw.job_id === "string" ? raw.job_id : null);
+  const failedJob = job?.status === "failed" || job?.status === "cancelled";
+  let state: StageState = failedJob ? "attention" : STATE_MAP[status] ?? "unsupported";
 
   // Upstream gating: if not started and Content is not yet approved, this stage is locked.
   if (status === "not_started" && !contentApproved) {
@@ -151,14 +159,14 @@ export function adaptVisualDesignDirector(raw: unknown, contentApproved = false)
 
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const safeError =
-    status === "needs_attention" && latestError
+    (status === "needs_attention" && latestError) || failedJob
       ? {
           summary:
-            typeof latestError.message === "string"
+            typeof latestError?.message === "string"
               ? latestError.message
-              : typeof latestError.summary === "string"
+              : typeof latestError?.summary === "string"
                 ? latestError.summary
-                : "Visual Design Director needs attention.",
+                : job?.error?.message ?? "Visual Design Director needs attention.",
         }
       : null;
 
@@ -168,6 +176,7 @@ export function adaptVisualDesignDirector(raw: unknown, contentApproved = false)
       ? "Locked until Content is approved"
       : STATUS_TEXT[status] ?? "Working on Design",
     raw,
+    job,
     userSummary,
     creativeThesis,
     visualLanguage,

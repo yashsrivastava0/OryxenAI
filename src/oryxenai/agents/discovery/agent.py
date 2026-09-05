@@ -38,6 +38,17 @@ logger = get_logger("oryxenai.agents.discovery")
 
 _QUESTIONS_OPERATIONS = {"understand_and_question", "prepare_questions"}
 _BRIEF_OPERATIONS = {"build_or_revise_brief", "build_brief"}
+_MATERIAL_HEADING_MARKERS = (
+    "professional summary",
+    "professional experience",
+    "work experience",
+    "education",
+    "certifications",
+    "core skills",
+    "technical skills",
+    "selected projects",
+    "employment history",
+)
 
 
 class DiscoveryModelOutputError(Exception):
@@ -120,6 +131,22 @@ class DiscoveryAgent(Agent):
 
         mode = OperationMode(parsed.get("mode", OperationMode.ASK_QUESTIONS.value))
         questions = parsed.get("questions") or []
+        if mode is OperationMode.NEEDS_DETAILS and not questions and _has_material(intake):
+            # A substantive resume/document paired with NEEDS_DETAILS is a
+            # contradictory but transport-valid model response. Reusing it
+            # from the durable cache would otherwise leave the UI with no
+            # actionable question forever. A small deterministic fallback
+            # preserves the cost saving and keeps the conversation moving.
+            logger.warning(
+                "understand_and_question returned NEEDS_DETAILS for substantive material; "
+                "using deterministic question fallback"
+            )
+            mode = OperationMode.ASK_QUESTIONS
+            questions = _fallback_questions()
+            parsed["assistant_message"] = (
+                "I have enough material to work from. Two quick choices will help me position "
+                "the portfolio accurately."
+            )
         logger.info("understand_and_question mode=%s questions=%d", mode.value, len(questions))
         for question in questions:
             options = question.get("options") if isinstance(question, dict) else None
@@ -219,6 +246,46 @@ class DiscoveryAgent(Agent):
             "document_text": str(raw.get("document_text", "") or ""),
             "goal": str(raw.get("goal", "") or ""),
         }
+
+
+def _has_material(intake: dict[str, Any]) -> bool:
+    """Recognize clearly substantive source material without another model call."""
+
+    document_text = str(intake.get("document_text", "") or "").strip()
+    if len(document_text) >= 240:
+        return True
+    message = str(intake.get("message", "") or "").strip().casefold()
+    if len(message) >= 2400:
+        return True
+    if len(message) < 800:
+        return False
+    marker_count = sum(marker in message for marker in _MATERIAL_HEADING_MARKERS)
+    return marker_count >= 2
+
+
+def _fallback_questions() -> list[dict[str, Any]]:
+    """Return the minimum useful interaction for a contradictory model mode."""
+
+    return [
+        {
+            "id": "portfolio_priority",
+            "text": "Which kind of opportunity should this portfolio prioritize first?",
+            "kind": "text",
+            "options": [],
+            "reason": "sets the portfolio's positioning and call to action",
+            "allow_skip": True,
+            "allow_auto": False,
+        },
+        {
+            "id": "signature_proof",
+            "text": "Which project or accomplishment should be the main proof point on the portfolio?",
+            "kind": "text",
+            "options": [],
+            "reason": "determines the strongest story for the case-study section",
+            "allow_skip": True,
+            "allow_auto": False,
+        },
+    ]
 
 
 def _parsed_output(result: StructuredModelResult) -> dict[str, Any]:

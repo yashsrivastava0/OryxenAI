@@ -7,6 +7,11 @@
 # and fixture APIs are not registered in this environment.
 enable_dev_ui = false
 
+[client_diagnostics]
+# Browser trace ingestion is a local development aid and is disabled in the
+# deployment-like overlay.
+enabled = false
+
 [database]
 host = "postgres"
 port = 5432

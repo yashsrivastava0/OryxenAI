@@ -101,6 +101,18 @@ class DiscoveryService:
 
         intake = DiscoveryIntake(message=message, document_text=document_text, goal=goal)
         intake_payload = intake.model_dump(mode="json")
+        # A browser retry can arrive after the first job has already finished
+        # but before the client received its response.  The deterministic
+        # idempotency key intentionally identifies that exact request, so
+        # return the persisted result instead of attempting a duplicate
+        # AgentRun insert (and, more importantly, another model call).
+        if (
+            state.status is DiscoveryStatus.QUESTIONS_READY
+            and state.operation_a.run_id
+            and state.intake == intake
+            and state.model_profile == resolved_profile
+        ):
+            return await self.get_discovery_state(session_id)
         if state.status is DiscoveryStatus.NEEDS_ATTENTION:
             retry_nonce = state.attempt
         elif state.status is DiscoveryStatus.QUESTIONS_READY:
@@ -364,9 +376,7 @@ class DiscoveryService:
             except (TypeError, ValueError):
                 logger.warning("discovery stop found malformed job id session_id=%s", session_id)
         stopped = apply_needs_attention(state, error)
-        updated = await self._repository.save_discovery_state(
-            session_id, stopped, session.revision
-        )
+        updated = await self._repository.save_discovery_state(session_id, stopped, session.revision)
         if updated is None:
             self._revision_conflict(session.revision, session.revision + 1)
         if run_id:
