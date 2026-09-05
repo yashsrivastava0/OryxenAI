@@ -11,6 +11,30 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 02:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [83179f3 and 8 prior commits] - live-testing iteration closes 8 more real gaps; failed runs now export
+
+Continued live-testing (per the user's "keep going until fixed" instruction)
+found and fixed 8 more real, distinct Code Generator bugs beyond D-072's
+five: non-required resources wrongly treated as blocking; a distinctive-move
+CSS selector check with zero tolerance for a legitimate ancestor-scoping
+prefix; the planner's collision retry widened from 2 to 3 bounded attempts;
+a duplicate-file-path response now canonicalizes (keeps the last entry)
+instead of rejecting; `repair_source.md` given the same section-file
+import-depth guidance `route_batch.md` already had; `Reveal`/`StaggerGroup`
+now forward marker attributes onto their own wrapper; a host-side easing
+normalizer plus a corrected `planner.md` prompt (its own prose read too
+close to a literal CSS value); and identical runtime diagnostics across
+viewports now dedupe by fingerprint before repair sees them. Two
+consecutive fresh live runs reached `generate: succeeded` -> final
+verification -- the deepest and most consistent this engagement has gone --
+and one produced this project's first real screenshots of a generated
+portfolio (genuinely good-looking; see D-074). Separately, added
+`export_failed_run()` so `output/code-gen-output/` preserves a run's
+source/build/screenshots even when it ends in `needs_attention`/`failed`,
+per explicit user request; wired into the plan/acquire/generate and
+verification failure choke-points. 261 code_generator tests pass (up from
+232 at D-068); full evidence trail in D-074 and `code generator issues.md`.
+
 ### 2026-09-06 01:51 +05:30 - Codex (GPT-5 / OpenAI) - [ae89b61] - worker: release stale shared-lane blockers
 
 Allowed-handler workers now release an expired foreign job only when it
