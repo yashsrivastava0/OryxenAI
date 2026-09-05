@@ -58,7 +58,9 @@ class AgentRunRepository:
         stmt = select(AgentRun).where(AgentRun.id == run_id)
         result = await self._session.execute(stmt)
         run = result.scalar_one_or_none()
-        if run is not None:
+        # A stop request may commit between job claim and handler startup.
+        # Never resurrect a run that the API has already made terminal.
+        if run is not None and run.status not in {"succeeded", "cancelled"}:
             run.status = "running"
             run.started_at = datetime.now(UTC)
             await self._session.flush()
@@ -68,7 +70,7 @@ class AgentRunRepository:
     ) -> None:
         result = await self._session.execute(select(AgentRun).where(AgentRun.id == run_id))
         run = result.scalar_one_or_none()
-        if run is not None:
+        if run is not None and run.status != "cancelled":
             run.checkpoint_payload = checkpoint_payload
             await self._session.flush()
 
@@ -83,7 +85,7 @@ class AgentRunRepository:
     ) -> None:
         result = await self._session.execute(select(AgentRun).where(AgentRun.id == run_id))
         run = result.scalar_one_or_none()
-        if run is not None:
+        if run is not None and run.status != "cancelled":
             run.status = "succeeded"
             run.error_payload = None
             run.output_payload = output_payload
@@ -111,6 +113,20 @@ class AgentRunRepository:
             if model_metadata is not None:
                 run.model_metadata = model_metadata
             self._apply_run_metadata(run, model_metadata)
+            run.finished_at = datetime.now(UTC)
+            await self._session.flush()
+
+    async def mark_cancelled(
+        self,
+        run_id: UUID,
+        error_payload: dict[str, object],
+    ) -> None:
+        """Record a user-stopped run without presenting it as a model failure."""
+        result = await self._session.execute(select(AgentRun).where(AgentRun.id == run_id))
+        run = result.scalar_one_or_none()
+        if run is not None and run.status not in {"succeeded", "failed", "cancelled"}:
+            run.status = "cancelled"
+            run.error_payload = error_payload
             run.finished_at = datetime.now(UTC)
             await self._session.flush()
 

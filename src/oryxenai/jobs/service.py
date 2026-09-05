@@ -150,6 +150,10 @@ class JobService:
         """Return a job by ID for status polling."""
         return await self._repo.get_by_id(job_id)
 
+    async def cancel(self, job_id: UUID) -> bool:
+        """Stop queued/running work; the caller owns session authorization."""
+        return await self._repo.cancel(job_id)
+
     async def find_idempotent(self, scope: str, key: str) -> Any:
         """Return an existing idempotent job, if one exists."""
         return await self._repo.find_idempotent(scope, key)

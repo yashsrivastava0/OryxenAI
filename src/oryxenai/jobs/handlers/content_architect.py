@@ -40,6 +40,8 @@ from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.session import get_sessionmaker
+from oryxenai.jobs.contracts import JobStatus
+from oryxenai.jobs.repository import JobRepository
 
 logger = get_logger("oryxenai.jobs.handlers.content_architect")
 
@@ -115,8 +117,12 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    raw_job_id = payload.get("job_id")
+    job_id = UUID(str(raw_job_id)) if raw_job_id else None
 
     async with sessionmaker() as db:
+        if job_id is not None and await _job_is_cancelled(db, job_id):
+            return {"status": "cancelled", "job_id": str(job_id)}
         await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = ContentArchitectRepository(db)
         run = await repo.get_run(run_id)
@@ -125,7 +131,9 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
             raise ValueError("Content Architect run or session was not found")
         await repo.mark_run_started(run_id)
         state = await repo.get_content_architect_state(session_id)
-        running = apply_build_running(state, str(run_id), state.job_id or "")
+        if not _job_owns_active_state(state, run_id, job_id):
+            return {"status": "cancelled", "job_id": str(job_id or "")}
+        running = apply_build_running(state, str(run_id), str(job_id or state.job_id or ""))
         running.attempt = attempt
         running.max_attempts = max_attempts
         expected_revision = int(payload.get("expected_session_revision", session.revision))
@@ -137,6 +145,9 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     from oryxenai.agents.shared.model_runtime import get_model_runtime
 
     runtime = get_model_runtime(settings.models)
+    async with sessionmaker() as db:
+        if job_id is not None and await _job_is_cancelled(db, job_id):
+            return {"status": "cancelled", "job_id": str(job_id)}
     requested_profile = str(input_payload.get("model_profile", "") or "")
     runtime_profile_id = runtime.resolve_profile_name("content_architect", requested_profile)
     input_payload["runtime_profile_id"] = runtime_profile_id
@@ -242,12 +253,18 @@ async def _apply_result(
     runtime_profile_id: str,
 ) -> dict[str, Any]:
     async with sessionmaker() as db:
+        raw_job_id = payload.get("job_id")
+        job_id = UUID(str(raw_job_id)) if raw_job_id else None
+        if job_id is not None and await _job_is_cancelled(db, job_id):
+            return {"status": "cancelled", "job_id": str(job_id)}
         await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = ContentArchitectRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
             raise ValueError("Content Architect session was not found")
         state = await repo.get_content_architect_state(session_id)
+        if not _job_owns_active_state(state, run_id, job_id):
+            return {"status": "cancelled", "job_id": str(job_id or "")}
 
         discovery = await repo.get_discovery_snapshot(session_id)
         current_hash = discovery.brief.approved.brief_hash if discovery.brief.approved else ""
@@ -302,6 +319,8 @@ async def _apply_result(
 
         updated = await repo.save_content_architect_state(session_id, next_state, session.revision)
         if updated is None:
+            if job_id is not None and await _job_is_cancelled(db, job_id):
+                return {"status": "cancelled", "job_id": str(job_id)}
             raise ValueError("Content Architect state changed while the job was running")
         state_after = dict(updated.current_state)
         await repo.mark_run_succeeded(
@@ -336,6 +355,10 @@ async def _persist_failure(
     automatic retry. Only surface once no further retry will happen.
     """
     async with sessionmaker() as db:
+        raw_job_id = payload.get("job_id")
+        job_id = UUID(str(raw_job_id)) if raw_job_id else None
+        if job_id is not None and await _job_is_cancelled(db, job_id):
+            return
         await WorkerAuthorizationFence(db).validate_payload(payload)
         repo = ContentArchitectRepository(db)
         session = await repo.get_session(session_id)
@@ -369,3 +392,18 @@ async def _persist_failure(
         await repo.save_content_architect_state(session_id, next_state, session.revision)
         await repo.mark_run_failed(run_id, safe_error)
         await db.commit()
+
+
+async def _job_is_cancelled(db: Any, job_id: UUID) -> bool:
+    job = await JobRepository(db).get_by_id(job_id)
+    return job is None or job.status == JobStatus.CANCELLED.value
+
+
+def _job_owns_active_state(state: Any, run_id: UUID, job_id: UUID | None) -> bool:
+    from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
+
+    return (
+        state.status is ContentArchitectStatus.BUILD_RUNNING
+        and state.run_id == str(run_id)
+        and (job_id is None or state.job_id == str(job_id))
+    )

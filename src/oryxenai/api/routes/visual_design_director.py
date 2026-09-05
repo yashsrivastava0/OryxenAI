@@ -122,3 +122,16 @@ async def approve_visual_design_director(
         return VisualDesignDirectorStateResponse(**await service.approve(access.session.id))
     except VisualDesignDirectorOperationError as exc:
         _translate(exc)
+
+
+@router.post("/stop", response_model=VisualDesignDirectorStateResponse)
+async def stop_visual_design_director(
+    session_id: str,
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
+    service: VisualDesignDirectorService = Depends(get_visual_design_director_service),
+) -> VisualDesignDirectorStateResponse:
+    try:
+        return VisualDesignDirectorStateResponse(**await service.stop(access.session.id))
+    except VisualDesignDirectorOperationError as exc:
+        _translate(exc)

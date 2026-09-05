@@ -13,14 +13,18 @@ class JobStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 # ── Valid status transitions ────────────────────────────────────────────────
 _VALID_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
-    JobStatus.QUEUED: frozenset({JobStatus.RUNNING}),
-    JobStatus.RUNNING: frozenset({JobStatus.QUEUED, JobStatus.SUCCEEDED, JobStatus.FAILED}),
+    JobStatus.QUEUED: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED}),
+    JobStatus.RUNNING: frozenset(
+        {JobStatus.QUEUED, JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}
+    ),
     JobStatus.SUCCEEDED: frozenset(),
     JobStatus.FAILED: frozenset({JobStatus.QUEUED}),
+    JobStatus.CANCELLED: frozenset(),
 }
 
 
