@@ -104,12 +104,40 @@ class CodeGeneratorVerificationHandler:
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         del instance_id
-        return await _execute(
+        result = await _execute(
             payload,
             model_factory=self._model_factory,
             runtime_verifier_factory=self._runtime_verifier_factory,
             storage_factory=self._storage_factory,
         )
+        if result.get("status") in {"needs_attention", "failed"}:
+            # Best-effort: preserve whatever source/build tree exists even
+            # though this run did not reach a promoted READY state. Never
+            # allowed to affect the actual result above; a run with nothing
+            # on disk yet (e.g. rejected before a workspace existed) exports
+            # nothing, silently.
+            try:
+                from oryxenai.agents.code_generator.core.portfolio_export import (
+                    export_failed_run,
+                )
+                from oryxenai.core.settings import get_settings
+
+                run_id = str(
+                    payload.get("code_generator_run_id") or payload.get("development_run_id", "")
+                )
+                if run_id:
+                    export_failed_run(
+                        settings=get_settings(),
+                        run_id=run_id,
+                        reason=str(result.get("code", result.get("status", ""))),
+                    )
+            except Exception:
+                logger.warning(
+                    "failed-run export could not be written run_id=%s",
+                    result.get("run_id"),
+                    exc_info=True,
+                )
+        return result
 
 
 class CodeGeneratorV5VerificationHandler(CodeGeneratorVerificationHandler):

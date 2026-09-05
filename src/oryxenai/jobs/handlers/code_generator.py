@@ -1974,6 +1974,22 @@ async def _needs_attention(
             details={"code": issue.code},
         )
         await db.commit()
+    # Best-effort: preserve whatever source tree exists for inspection even
+    # though this run did not reach a promoted READY state. Never allowed to
+    # affect the actual failure-reporting flow above; a run that failed
+    # before generation produced any files exports nothing, silently.
+    try:
+        from oryxenai.agents.code_generator.core.portfolio_export import export_failed_run
+        from oryxenai.core.settings import get_settings
+
+        export_failed_run(
+            settings=get_settings(),
+            run_id=str(run_id),
+            reason=issue.code,
+            issues=[issue.model_dump(mode="json")],
+        )
+    except Exception:
+        logger.warning("failed-run export could not be written run_id=%s", run_id, exc_info=True)
 
 
 async def _validate_worker_payload(sessionmaker: Any, payload: dict[str, Any]) -> None:
