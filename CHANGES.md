@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 - Codex (GPT-5 / OpenAI) - [e1173df] - record Azure VM wizard checkpoint
+
+Added `docs/deployment/04-current-azure-deployment-status.md` as the canonical
+handoff for the live Azure setup. It records that only `oryxenai-demo-rg` is
+created, the VM wizard is paused at Networking, all confirmed VM/disk/SSH
+choices, the exact intended NSG and resource names, pending Supabase/R2/DNS/
+Docker work, secret rules, cost controls, acceptance criteria, and the next
+portal action. Linked the checkpoint from the deployment README; no Azure
+resources or application code were changed.
+
 ### 2026-09-05 19:30 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [34c638b] - catch a silent token collision and sharpen two repair diagnostics
 
 Live testing of D-068's fixes across 6 fresh live runs surfaced three more real bugs, each found only by actually completing a run. (1) The model transcribes an opaque hash-like content-key suffix with a one-character typo and repeats the identical typo across every repair round; `SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING` now searches for a same-prefix near-miss call already in the source and names it directly, giving the repair model something concrete to fix instead of guessing. (2) `SOURCE_BLUEPRINT_MOVE_MARKER_ONLY` had a generic message, unlike its mid-generation sibling which already names the exact selector/properties — the final-repair model reported `cannot_complete` on it 3 rounds running; now states the same concrete facts. (3) A genuine silent-corruption bug: a raw color token and a shadcn theme binding slot sharing the same literal name (both commonly "accent") compile to the identical `--color-accent` CSS custom property; the alias silently overwrites the real color with no error anywhere, surfacing only as an opaque whole-site review finding after a full generation pass that otherwise scored 4/4/4/4/4. Added the same collision check at both the schema level (`DesignTokenSystemV4`'s validator, catching it the instant the planner responds — confirmed live) and the token compiler (defense-in-depth for any blueprint reaching compilation via `model_copy`, which doesn't re-validate), plus `planner.md` guidance since the model repeated the identical collision on the very next live attempt even after the validator started rejecting it. Also confirmed live: D-068's `cannot_complete` polish-loop resilience fix fired multiple times across several runs without crashing, correctly falling through to the pre-existing bounded `INTEGRATION_REVIEW_UNRESOLVED` terminal state. Verified: 232 code_generator unit tests (2 new), ruff/mypy clean. Live-verified over 6 real runs (~$0.3-1.0 this batch, ~$0.4-1.2 combined with D-068's runs, well within the $5 session budget); one run reached final review with all 5 scores at 4 and exactly one blocking finding — the closest yet, not a clean pass. Full end-to-end success (a promoted preview) was not reached this session; remaining variance is concentrated in whole-site resource-placement rendering and generic model non-determinism on already-prompted-against rules, not in control-flow/validation gaps. Records D-071.
