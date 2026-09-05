@@ -123,7 +123,15 @@ async def run_planner_operation(
     last_issue = ""
     result: Any = None
     plan: SitePlan | None = None
-    for attempt in range(2):
+    # 3 attempts, not 2: live-observed 2026-09-05 (three separate runs) that a
+    # single corrective retry does not always land the fixed-vocabulary/color
+    # collision check (development_schemas.py's shadcn_theme_bindings
+    # validator) on the second try, even though the safe validator summary
+    # already names the exact colliding tokens. Still bounded and cheap --
+    # this only costs an extra planner-stage call, never touches the more
+    # expensive acquire/generate/verify stages.
+    max_attempts = 3
+    for attempt in range(max_attempts):
         call_instructions = instructions
         if last_issue:
             call_instructions += (
@@ -149,7 +157,7 @@ async def run_planner_operation(
             )
         except (ModelJsonInvalidError, ModelOutputTruncatedError) as exc:
             last_issue = _safe_planner_issue(exc)
-            if attempt == 0:
+            if attempt < max_attempts - 1:
                 continue
             raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
 
@@ -188,7 +196,7 @@ async def run_planner_operation(
                 if isinstance(exc, ValidationError)
                 else str(exc)[:500]
             )
-            if attempt == 0:
+            if attempt < max_attempts - 1:
                 continue
             raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
         if plan is None:
@@ -230,7 +238,7 @@ async def run_planner_operation(
                 )
             except PlannerOperationError as exc:
                 last_issue = _safe_semantic_issue(exc)
-                if attempt == 0:
+                if attempt < max_attempts - 1:
                     continue
                 raise
             except Exception as exc:
@@ -245,7 +253,7 @@ async def run_planner_operation(
                     message,
                 )
                 last_issue = _safe_semantic_issue(semantic_error)
-                if attempt == 0:
+                if attempt < max_attempts - 1:
                     continue
                 raise semantic_error from exc
         else:
