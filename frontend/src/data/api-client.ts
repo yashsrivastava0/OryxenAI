@@ -79,6 +79,7 @@ export interface MeProjection {
   onboarding_required: boolean;
   admin_available: boolean;
   read_only?: boolean;
+  can_create_portfolio?: boolean;
   portfolio_session_id?: string | null;
   [key: string]: unknown;
 }

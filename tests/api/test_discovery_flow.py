@@ -157,6 +157,75 @@ class TestFullHttpFlow:
         assert approved["discovery"]["status"] == "approved"
         assert approved["discovery"]["brief"]["approved"] is not None
 
+    async def test_incremental_answers_are_merged_before_brief_generation(
+        self, client, monkeypatch
+    ):
+        model = _MockModelClient(
+            questions_payload={
+                "mode": "ASK_QUESTIONS",
+                "assistant_message": "Two focused questions.",
+                "questions": [
+                    {
+                        "id": "direction",
+                        "text": "Which direction should lead?",
+                        "kind": "text",
+                        "options": [],
+                        "allow_skip": True,
+                        "allow_auto": False,
+                    },
+                    {
+                        "id": "audience",
+                        "text": "Who should this persuade?",
+                        "kind": "text",
+                        "options": [],
+                        "allow_skip": True,
+                        "allow_auto": False,
+                    },
+                ],
+                "memory_update": {},
+            }
+        )
+        monkeypatch.setattr(
+            "oryxenai.jobs.handlers.discovery._build_discovery_agent",
+            lambda *args, **kwargs: DiscoveryAgent(model_client=model),
+        )
+
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        questions = ready["discovery"]["operation_a"]["items"]
+        assert [question["id"] for question in questions] == ["direction", "audience"]
+
+        first = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": False,
+                "answers": [{"question_id": "direction", "mode": "answered", "value": "systems"}],
+            },
+        )
+        assert first.status_code == 200, first.text
+        assert set(first.json()["discovery"]["answers"]["items"]) == {"direction"}
+        assert first.json()["discovery"]["status"] == "answers_in_progress"
+
+        second = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": True,
+                "answers": [{"question_id": "audience", "mode": "answered", "value": "CTOs"}],
+            },
+        )
+        assert second.status_code == 200, second.text
+        assert set(second.json()["discovery"]["answers"]["items"]) == {"direction", "audience"}
+        await _run_worker_job(client, second.json()["discovery"]["brief"]["job_id"])
+
+        brief_request = next(
+            request
+            for request in model.requests
+            if request.get("operation") == "build_or_revise_brief"
+        )
+        assert set(brief_request["input_payload"]["answers"]) == {"direction", "audience"}
+
     async def test_revision_endpoint_enqueues_brief_and_stays_in_review(self, client):
         sid = await _create_session(client)
         await _full_flow(client, sid)
@@ -298,6 +367,7 @@ class TestInputAndErrors:
         state = resp.json()
         assert state["discovery"]["status"] == "needs_attention"
         assert state["discovery"]["latest_error"]["code"] == "PROVIDER_TIMEOUT_ERROR"
+        assert state["discovery"]["latest_error"]["operation"] == "understand_and_question"
 
     async def test_retry_after_failure_restarts(self, client, monkeypatch):
         sid = await _create_session(client)

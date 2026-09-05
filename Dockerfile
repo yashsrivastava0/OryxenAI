@@ -1,5 +1,18 @@
 # Multi-stage Dockerfile for the OryxenAI application image.
-# Serves both the FastAPI API and the Jinja2 testing frontend.
+# Serves the FastAPI API plus the compiled authenticated Preact product shell.
+
+# ---- Stage 0: product frontend ----
+FROM node:22-bookworm-slim AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Install from the lockfile before copying source so dependency layers remain
+# cacheable while every image build produces the manifest-backed product bundle.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+
+COPY frontend/ ./
+RUN npm run build
 
 # ---- Stage 1: builder ----
 FROM python:3.13-slim-bookworm AS builder
@@ -52,6 +65,9 @@ COPY --from=builder --chown=oryxen:oryxen /app/.venv /app/.venv
 
 # Copy runtime assets: source, config, migrations, entrypoint.
 COPY --chown=oryxen:oryxen src/ ./src/
+# The Vite output is generated in the image rather than relying on an ignored
+# local build directory being present in the Docker build context.
+COPY --from=frontend-builder --chown=oryxen:oryxen /app/src/oryxenai/web/static/product/ ./src/oryxenai/web/static/product/
 COPY --chown=oryxen:oryxen config/ ./config/
 COPY --chown=oryxen:oryxen migrations/ ./migrations/
 COPY --chown=oryxen:oryxen alembic.ini ./

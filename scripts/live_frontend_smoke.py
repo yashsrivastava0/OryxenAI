@@ -1,8 +1,8 @@
 """Live smoke test through the HTTP API used by the frontend.
 
-This creates a session, starts Discovery, polls the durable worker result,
-saves answers, revises the brief, and approves it. It uses the live configured
-model and has a hard overall timeout so it cannot wait forever.
+This creates a session, drives Discovery through approval, then explicitly
+starts and approves Content Architect and Visual Design Director. It uses the
+live configured model and has a hard overall timeout so it cannot wait forever.
 
 Run:
     uv run python scripts/live_frontend_smoke.py
@@ -86,6 +86,27 @@ async def _poll_discovery(
             raise SmokeFailure(f"Discovery failed: {error.get('code')} {error.get('message')}")
         await asyncio.sleep(1.2)
     raise SmokeFailure(f"Timed out waiting for states: {sorted(accepted)}")
+
+
+async def _poll_stage(
+    client: httpx.AsyncClient,
+    path: str,
+    stage_key: str,
+    accepted: set[str],
+    deadline: float,
+) -> dict[str, Any]:
+    """Poll one explicit post-Discovery stage until it reaches review."""
+    while time.monotonic() < deadline:
+        body = await _request(client, "GET", path)
+        stage = body[stage_key]
+        status = stage["status"]
+        if status in accepted:
+            return body
+        if status == "needs_attention":
+            error = stage.get("latest_error") or {}
+            raise SmokeFailure(f"{stage_key} failed: {error.get('code')} {error.get('message')}")
+        await asyncio.sleep(1.2)
+    raise SmokeFailure(f"Timed out waiting for {stage_key} states: {sorted(accepted)}")
 
 
 def _answer_value(question: dict[str, Any]) -> Any:
@@ -186,9 +207,60 @@ async def main() -> None:
             f"[approve] status=approved hash={approved['discovery']['brief']['approved']['brief_hash'][:16]}"
         )
 
+        content_path = f"/api/v1/sessions/{session_id}/content-architect"
+        content_start_path = f"{content_path}/start"
+        content_approve_path = f"{content_path}/approve"
+        content_started = await _request(client, "POST", content_start_path, json={})
+        print(f"[content-start] status={content_started['content_architect']['status']}")
+        content_review = await _poll_stage(
+            client, content_path, "content_architect", {"content_review"}, deadline
+        )
+        content = content_review["content_architect"]
+        if not content.get("route_plan") or not content.get("page_content_packs"):
+            raise SmokeFailure("content_review returned incomplete public content")
+        print(
+            f"[content-review] routes={len(content['route_plan'])} "
+            f"page_packs={len(content['page_content_packs'])}"
+        )
+        content_approved = await _request(client, "POST", content_approve_path, json={})
+        if content_approved["content_architect"]["status"] != "approved":
+            raise SmokeFailure(
+                f"content approval returned {content_approved['content_architect']['status']}"
+            )
+        print(
+            "[content-approve] status=approved "
+            f"hash={content_approved['content_architect']['approved']['content_hash'][:16]}"
+        )
+
+        design_path = f"/api/v1/sessions/{session_id}/visual-design-director"
+        design_start_path = f"{design_path}/start"
+        design_approve_path = f"{design_path}/approve"
+        design_started = await _request(client, "POST", design_start_path, json={})
+        print(f"[design-start] status={design_started['visual_design_director']['status']}")
+        design_review = await _poll_stage(
+            client, design_path, "visual_design_director", {"design_review"}, deadline
+        )
+        design = design_review["visual_design_director"]
+        if not design.get("visual_language") or not design.get("pages"):
+            raise SmokeFailure("design_review returned incomplete visual direction")
+        print(
+            f"[design-review] pages={len(design['pages'])} "
+            f"resources={len(design.get('resource_candidates') or [])}"
+        )
+        design_approved = await _request(client, "POST", design_approve_path, json={})
+        if design_approved["visual_design_director"]["status"] != "approved":
+            raise SmokeFailure(
+                f"design approval returned {design_approved['visual_design_director']['status']}"
+            )
+        print(
+            "[design-approve] status=approved "
+            f"hash={design_approved['visual_design_director']['approved']['visual_direction_hash'][:16]}"
+        )
+
         runs = await _request(client, "GET", f"/api/v1/sessions/{session_id}/runs")
         keys = {run["agent_key"] for run in runs}
-        if keys != {"discovery"}:
+        expected_keys = {"discovery", "content_architect", "visual_design_director"}
+        if keys != expected_keys:
             raise SmokeFailure(f"unexpected agent keys: {keys}")
         print(f"[runs] count={len(runs)} agent_keys={sorted(keys)}")
     print(f"LIVE FRONTEND API SMOKE PASSED: {base_url}/")

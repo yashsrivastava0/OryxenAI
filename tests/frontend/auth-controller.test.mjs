@@ -8,6 +8,7 @@ import {
   logoutCurrentBrowser,
   routeController,
 } from "../../src/oryxenai/auth/static/auth-controller.mjs";
+import { clearPrivateState } from "../../src/oryxenai/auth/static/auth-runtime.mjs";
 
 function fakeLocation(path, query = "") {
   return {
@@ -346,6 +347,46 @@ test("logout stops activity, clears private UI, signs out, and replaces the page
     "oryxenai.session_id",
     "oryxenai.discovery.session",
     "oryxenai.private",
+    "oryxenai.active_session_id",
+    "oryxenai.pipeline.session_id",
+    "oryxenai.pipeline.pending_restart_session_id",
   ]);
   assert.deepEqual(location.replacements, ["/sign-in"]);
+});
+
+test("private browser cleanup removes product drafts and idempotency keys but preserves unrelated storage", () => {
+  const values = [
+    "oryxenai.active_session_id:admin-user",
+    "oryxenai.draft.q1",
+    "oryxenai.revision_draft.brief",
+    "oryxen:idempotency:session:discovery-start",
+    "sb-project-auth-token",
+    "user-preference",
+  ];
+  const removed = [];
+  const storage = {
+    get length() { return values.length; },
+    key(index) { return values[index] ?? null; },
+    removeItem(key) {
+      removed.push(key);
+      const index = values.indexOf(key);
+      if (index >= 0) values.splice(index, 1);
+    },
+  };
+
+  clearPrivateState(storage);
+
+  assert.deepEqual(removed, [
+    "oryxenai.session_id",
+    "oryxenai.discovery.session",
+    "oryxenai.private",
+    "oryxenai.active_session_id",
+    "oryxenai.pipeline.session_id",
+    "oryxenai.pipeline.pending_restart_session_id",
+    "oryxenai.active_session_id:admin-user",
+    "oryxenai.draft.q1",
+    "oryxenai.revision_draft.brief",
+    "oryxen:idempotency:session:discovery-start",
+  ]);
+  assert.deepEqual(values, ["sb-project-auth-token", "user-preference"]);
 });

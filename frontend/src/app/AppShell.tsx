@@ -27,10 +27,12 @@ export interface AppShellProps {
   readOnly: boolean;
 }
 
-const ACTIVE_SESSION_STORAGE_KEY = "oryxenai.active_session_id";
-
 function viewForStage(stage: JourneyStageId): "work" | "artifact" {
   return stage === "discover" ? "work" : "artifact";
+}
+
+function activeSessionStorageKey(userId: string): string {
+  return `oryxenai.active_session_id:${userId}`;
 }
 
 export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: AppShellProps) {
@@ -42,10 +44,14 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const [activeStage, setActiveStage] = useState<JourneyStageId>(initialStage);
   const [mutatingStage, setMutatingStage] = useState<JourneyStageId | null>(null);
 
+  // Normal users receive their single owner-scoped session from /me. Admins
+  // can work across explicitly created sessions, so retain only an
+  // account-scoped hint for that developer/admin workflow.
+  const scopedSessionKey = useMemo(() => activeSessionStorageKey(me.id), [me.id]);
   const initialSessionId = useMemo(() => {
-    if (serverSessionId) return serverSessionId;
-    return safeSessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
-  }, [serverSessionId]);
+    if (serverSessionId || me.role !== "admin") return serverSessionId;
+    return safeSessionStorage.getItem(scopedSessionKey);
+  }, [me.role, scopedSessionKey, serverSessionId]);
 
   const [state, dispatch] = useReducer(appReducer, {
     ...initialAppState,
@@ -186,12 +192,12 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
   useEffect(() => {
     if (state.sessionId) {
-      safeSessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, state.sessionId);
+      if (me.role === "admin") safeSessionStorage.setItem(scopedSessionKey, state.sessionId);
       void refetchCurrentSession();
     } else {
       dispatch({ type: "connection/set", state: "confirmed" });
     }
-  }, [refetchCurrentSession, state.sessionId]);
+  }, [me.role, refetchCurrentSession, scopedSessionKey, state.sessionId]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -304,7 +310,6 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       if (!sessionId) {
         const created = await api.createSession("Portfolio workspace");
         sessionId = created.id;
-        safeSessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
         dispatch({ type: "session/set", sessionId, revision: created.revision });
       }
       const action = "discovery-start";
@@ -345,7 +350,40 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     const result = await api.putDiscoveryAnswers(state.sessionId, { complete: true, answers: [] });
     inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
     notifyMutation(state.sessionId);
+  };
+
+  const handleRetryDiscovery = async () => {
+    if (!state.sessionId || !state.discovery) return;
+    if (state.discovery.safeError?.retryOperation !== "questions") {
+      await handleGenerateBrief();
+      return;
+    }
+
+    const raw = state.discovery.raw;
+    const rawIntake =
+      typeof raw === "object" && raw !== null && "intake" in raw &&
+      typeof raw.intake === "object" && raw.intake !== null
+        ? raw.intake as Record<string, unknown>
+        : {};
+    const sessionId = state.sessionId;
+    const action = "discovery-retry-questions";
+    const result = await api.startDiscovery(
+      sessionId,
+      {
+        message: typeof rawIntake.message === "string" ? rawIntake.message : "",
+        document_text: typeof rawIntake.document_text === "string" ? rawIntake.document_text : "",
+        goal: typeof rawIntake.goal === "string" ? rawIntake.goal : "",
+      },
+      getOrCreateIdempotencyKey(sessionId, action),
+    );
+    clearIdempotencyKey(sessionId, action);
+    inspectCacheReceipt("discovery", result);
+    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+    dispatch({ type: "announce", message: "Discovery retry started." });
+    notifyMutation(sessionId);
   };
 
   const handleReviseBrief = async (request: string) => {
@@ -457,17 +495,6 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
               <p><strong>{me.username ?? "OryxenAI account"}</strong><span>{me.role === "admin" ? "Administrator" : "Portfolio owner"}</span></p>
               {state.readOnly ? <span className="read-only-tag">Read-only workspace</span> : null}
               {me.role === "admin" ? <a id="app-admin-link" href="/admin">Administration</a> : null}
-              {state.sessionId ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    safeSessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-                    window.location.href = "/app";
-                  }}
-                >
-                  Start new portfolio
-                </button>
-              ) : null}
               <button id="app-logout" type="button">Sign out</button>
             </div>
           </details>
@@ -492,7 +519,11 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           <ErrorBoundary fallbackTitle="Unable to display this stage" onReset={refetchCurrentSession}>
             <section id="workspace-stage" className="stage-frame" data-stage={activeStage} tabIndex={-1}>
               {!state.sessionId ? (
-                <StartSurface onStart={handleStartPortfolio} disabled={state.readOnly || mutatingStage === "discover"} />
+                <StartSurface
+                  onStart={handleStartPortfolio}
+                  disabled={state.readOnly || me.can_create_portfolio === false || mutatingStage === "discover"}
+                  disabledReason={me.can_create_portfolio === false ? "Your account cannot start another portfolio." : undefined}
+                />
               ) : null}
 
               {state.sessionId && activeStage === "discover" ? (
@@ -503,6 +534,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
                   onStartDiscovery={handleStartPortfolio}
                   onSubmitAnswer={handleSubmitDiscoveryAnswer}
                   onGenerateBriefNow={handleGenerateBrief}
+                  onRetryDiscovery={handleRetryDiscovery}
                   onApproveBrief={handleApproveBrief}
                   onReviseBrief={handleReviseBrief}
                   onContinueToContent={() => selectStage("content")}

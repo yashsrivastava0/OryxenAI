@@ -43,6 +43,20 @@ describe("adaptDiscovery", () => {
     expect(vm.safeError?.summary).toBe("Discovery could not continue.");
   });
 
+  it("uses the backend error message and selects the Operation A retry path", () => {
+    const vm = adaptDiscovery({
+      status: "needs_attention",
+      latest_error: {
+        message: "Question generation timed out.",
+        operation: "understand_and_question",
+      },
+    });
+    expect(vm.safeError).toEqual({
+      summary: "Question generation timed out.",
+      retryOperation: "questions",
+    });
+  });
+
   it("fails closed on an unrecognized status instead of guessing success", () => {
     const vm = adaptDiscovery(fixtures.unknownFutureStatus);
     expect(vm.state).toBe("unsupported");

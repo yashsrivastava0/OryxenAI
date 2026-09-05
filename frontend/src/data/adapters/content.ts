@@ -168,7 +168,14 @@ export function adaptContentArchitect(raw: unknown, discoveryApproved = false): 
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const safeError =
     status === "needs_attention" && latestError
-      ? { summary: typeof latestError.message === "string" ? latestError.message : "Content Architect needs attention." }
+      ? {
+          summary:
+            typeof latestError.message === "string"
+              ? latestError.message
+              : typeof latestError.summary === "string"
+                ? latestError.summary
+                : "Content Architect needs attention.",
+        }
       : null;
 
   return {
