@@ -91,6 +91,10 @@ browser-agent Azure setup prompt](./05-chrome-browser-agent-azure-setup-prompt.m
 from Azure Portal home. It includes the interaction protocol, pause points,
 exact portal values, and the post-creation stopping point.
 
+After the VM is created, use the [live Azure VM status checkpoint](./06-live-azure-vm-status.md)
+as the current source of truth. The older [`04-current-azure-deployment-status.md`](./04-current-azure-deployment-status.md)
+file is retained as historical pre-provisioning context.
+
 Follow the documents in this order:
 
 1. Read [the options research](./01-deployment-options-research.md) and claim

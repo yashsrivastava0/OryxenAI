@@ -1,5 +1,9 @@
 # Current Azure deployment status
 
+> **Historical checkpoint:** The VM wizard was later completed successfully.
+> This file records the pre-provisioning wizard state only. For the current
+> post-creation state, read [`06-live-azure-vm-status.md`](./06-live-azure-vm-status.md).
+
 **Checkpoint purpose:** This file is the handoff state for the human user and
 the next step-by-step deployment assistant. Read it before touching the Azure
 VM wizard. Update it after each meaningful portal step.
