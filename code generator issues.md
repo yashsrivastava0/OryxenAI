@@ -4,7 +4,7 @@ Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
 findings that help diagnose the next persistent failure.
 
-## Current state — 2026-09-05 evening (round 3, resource-acquisition root cause)
+## Current state — 2026-09-05 evening (round 3, resource-acquisition root cause + live-testing iteration)
 
 Two fresh live runs (`b52330f2-…` PLANNER_OUTPUT_INVALID, `93d4d3c4-…`
 INTEGRATION_REVIEW_UNRESOLVED after 5 polish rounds) were traced to root
@@ -13,6 +13,11 @@ trace found resource acquisition itself failing in the majority of sampled
 runs — see the table below. Five fixes landed (all free/mocked-tested, zero
 API cost): Pixabay field fix, bounded pinned-candidate fallback, polish-round
 finding dedup, cannot_complete log reason, and planner-output normalization.
+Live re-testing after those five landed found two more real bugs (below):
+the review/repair layers being blind to non-required resource placements,
+and a false-positive selector-matching bug in the distinctive-move CSS
+check. No run has yet reached a clean `ready` status; live iteration is
+ongoing per the user's explicit "keep going until fixed" instruction.
 
 ## Findings and fixes this round
 
@@ -23,6 +28,8 @@ finding dedup, cannot_complete log reason, and planner-output normalization.
 | Polish loop re-attempted an identical unfixable finding every round | Ledger inspection of `93d4d3c4-…` showed the same owner returning `cannot_complete` at round 1 (`RESOURCE_BINDING_UNAVAILABLE`) and again at round 4 (`RESOURCE_PLACEMENT_MISSING`, same root cause) — `grouped` findings are rebuilt fresh from the review every round with zero memory of prior rounds. | `generation_orchestrator.py`: added an owner→exhausted-finding-codes map, scoped per run. An owner is skipped for a round only if *every* current blocking code already returned cannot_complete before; a genuinely new code for the same owner still gets its fair attempt. 2 tests (dedup fires; a new code is not suppressed). |
 | `cannot_complete` reason silently dropped from logs | The model's `safe_reason` was captured in `GenerationCannotComplete` but the log call only recorded owner/round — diagnosing today's failure required manually grepping workspace ledger files. Also the log message hardcoded the word "cannot_complete" even though the same guard also matches mode `"requests"`. | Log call now includes `result.mode` and, when it's `cannot_complete`, the real `safe_reason`. Confirmed live via test output. |
 | Planner CSS-length rejection survived a corrective retry | `run_planner_operation()` already retries once with the validation error appended as feedback — the model still wrote `"sixtyrem"` on both attempts of the same real run. More prompting had already failed; escalated to a host-side fix. | `development_schemas.py`: `_validate_source_sizes()` now normalizes a spelled-out number immediately before a CSS unit (ones/teens/tens/hundred compounds) before the reject-check, instead of only rejecting. A genuinely unparseable word still rejects. Also normalized the 5 duplicated token-name casing validators (lowercase instead of reject) since `planner.md`'s own example anticipates this. |
+| Review/repair blind to non-required resources | Live run `ff980629-…`: two image placements both had `required=false` and an honest `generated_local` fallback (system policy already says decorative is fine), yet the whole-site review raised a blocking finding and repair reported `cannot_complete` anyway — `required`/`local_paths` were in context but no prompt told either layer what to do with that fact. | `route_batch.md`, `repair_source.md`, `integration_review.md` all now state the same rule: `required=false` + no local binding is expected input, render a tasteful decorative/generated composition instead, never blocking. |
+| Distinctive-move CSS false-positive on ancestor-scoped selectors | Live run `cf762cfb-…`: `SOURCE_REPAIR_EXHAUSTED` after 3 identical repair attempts, all reasonably scoping CSS as `#hero [data-region-id=...]`. Both `source_validation.py::_exact_selector_declarations` and `typescript_ast_audit.py::_selector_targets_contract` required an *exact* selector-string match with zero tolerance for a legitimate ancestor prefix, so genuinely-correct CSS was rejected as "missing" every round. | Both now accept a candidate selector that is the expected selector nested under any ancestor scope, while still rejecting a selector that only coincidentally shares a substring (new negative-case test in each). |
 
 ## Investigated, not a bug (by design)
 
