@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 22:19 +05:30 - Codex (GPT-5 / OpenAI) - [a2a8a60] - deployment: record live Azure VM and SSH checkpoint
+
+Recorded the completed Azure VM provisioning, final networking/NSG settings,
+current public/private addresses, cross-device SSH handoff, completed Ubuntu
+package preparation, and the remaining Docker/application deployment gates.
+Marked the older wizard document as historical so future agents use the live
+post-creation checkpoint.
+
 ### 2026-09-05 21:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [d6cde91] - code-generator: resource acquisition, generation_orchestrator, image_retrieval, jobs/handlers, development_schemas, tests
 
 Root-caused two fresh live-run failures to a genuine resource-acquisition
