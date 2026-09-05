@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
+import type { StageJobViewModel } from "../data/adapters/job";
 import { safeSessionStorage } from "../data/safe-storage";
 
 export interface AnsweredTurn {
@@ -12,30 +13,61 @@ export interface ConversationSurfaceProps {
   questions: DiscoveryQuestionVM[];
   history: AnsweredTurn[];
   isWorking: boolean;
+  job?: StageJobViewModel | null;
   workingLabel?: string;
   disabled?: boolean;
   onSubmitAnswer: (questionId: string, mode: string, value: unknown, isComplete: boolean) => Promise<void>;
   onGenerateBriefNow?: () => Promise<void>;
+  onRetryStalled?: () => Promise<void>;
+  onStop?: () => Promise<void>;
 }
 
 export function ConversationSurface({
   questions,
   history,
   isWorking,
+  job,
   workingLabel = "Discovery is processing your saved material",
   disabled = false,
   onSubmitAnswer,
   onGenerateBriefNow,
+  onRetryStalled,
+  onStop,
 }: ConversationSurfaceProps) {
   const currentQuestion = questions[0] ?? null;
 
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [inFlight, setInFlight] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const draftKey = currentQuestion ? `oryxenai.draft.${currentQuestion.id}` : null;
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!isWorking) return;
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isWorking]);
+
+  const jobCreatedMs = job?.createdAt ? Date.parse(job.createdAt) : Number.NaN;
+  const jobHeartbeatMs = job?.heartbeatAt ? Date.parse(job.heartbeatAt) : Number.NaN;
+  const queuedAgeSeconds = Number.isFinite(jobCreatedMs) ? Math.max(0, (nowMs - jobCreatedMs) / 1000) : null;
+  const heartbeatAgeSeconds = Number.isFinite(jobHeartbeatMs) ? Math.max(0, (nowMs - jobHeartbeatMs) / 1000) : null;
+  const workerStalled = Boolean(
+    isWorking &&
+      ((job?.status === "queued" && queuedAgeSeconds !== null && queuedAgeSeconds >= 20) ||
+        (job?.status === "running" && heartbeatAgeSeconds !== null && heartbeatAgeSeconds >= 180)),
+  );
+
+  const formatDuration = (seconds: number | null): string => {
+    if (seconds === null) return "a moment";
+    if (seconds < 60) return `${Math.max(1, Math.floor(seconds))} seconds`;
+    return `${Math.floor(seconds / 60)} minutes`;
+  };
 
   // Restore draft when current question changes
   useEffect(() => {
@@ -147,6 +179,19 @@ export function ConversationSurface({
     }
   };
 
+  const handleStop = async () => {
+    if (!onStop || stopping || disabled) return;
+    setStopping(true);
+    setError(null);
+    try {
+      await onStop();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not stop Discovery.");
+    } finally {
+      setStopping(false);
+    }
+  };
+
   return (
     <section className="conversation-surface" aria-label="Discovery conversation">
       {/* Transcript of prior answered turns */}
@@ -169,11 +214,28 @@ export function ConversationSurface({
 
       {/* Active working state */}
       {isWorking && (
-        <div className="agent-working-proof" role="status" aria-live="polite" aria-busy="true">
-          <p className="eyebrow">Discovery / in progress</p>
-          <h2>{workingLabel}</h2>
+        <div className={`agent-working-proof${workerStalled ? " worker-stalled" : ""}`} role="status" aria-live="polite" aria-busy={!workerStalled}>
+          <p className="eyebrow">Discovery / {workerStalled ? "worker check" : "in progress"}</p>
+          <h2>{workerStalled ? "Discovery is waiting for the worker" : workingLabel}</h2>
           <div className="working-rule" aria-hidden="true"><span /></div>
-          <p>The server has your input. You may leave this page; the durable job continues and this proof will update when its state changes.</p>
+          {workerStalled ? (
+            <>
+              <p>
+                Your notes are saved. This run has been {job?.status === "queued" ? "queued" : "running"} for {formatDuration(job?.status === "queued" ? queuedAgeSeconds : heartbeatAgeSeconds)}, but the worker has not acknowledged a recent update.
+              </p>
+              <div className="question-actions">
+                <button type="button" className="btn-secondary" onClick={() => void onRetryStalled?.()} disabled={disabled || stopping || !onRetryStalled}>
+                  Check again
+                </button>
+                {onStop ? <button type="button" className="btn-quiet stop-action" onClick={() => void handleStop()} disabled={disabled || stopping}>{stopping ? "Stopping..." : "Stop Discovery"}</button> : null}
+              </div>
+            </>
+          ) : (
+            <>
+              <p>The server has your input. You may leave this page; the durable job continues and this proof will update when its state changes.</p>
+              {onStop ? <div className="question-actions"><button type="button" className="btn-quiet stop-action" onClick={() => void handleStop()} disabled={disabled || stopping}>{stopping ? "Stopping..." : "Stop Discovery"}</button></div> : null}
+            </>
+          )}
         </div>
       )}
 

@@ -14,6 +14,7 @@ export interface DiscoveryStageProps {
   onSubmitAnswer: (questionId: string, mode: string, value: unknown, isComplete: boolean) => Promise<void>;
   onGenerateBriefNow: () => Promise<void>;
   onRetryDiscovery: () => Promise<void>;
+  onStopDiscovery?: () => Promise<void>;
   onApproveBrief: () => Promise<void>;
   onReviseBrief: (revisionRequest: string) => Promise<void>;
   onContinueToContent: () => void;
@@ -27,6 +28,7 @@ export function DiscoveryStage({
   onSubmitAnswer,
   onGenerateBriefNow,
   onRetryDiscovery,
+  onStopDiscovery,
   onApproveBrief,
   onReviseBrief,
   onContinueToContent,
@@ -103,10 +105,13 @@ export function DiscoveryStage({
       questions={view.currentQuestions}
       history={history}
       isWorking={view.state === "working"}
+      job={view.job}
       workingLabel={view.statusText}
       disabled={!canMutate}
       onSubmitAnswer={onSubmitAnswer}
       onGenerateBriefNow={onGenerateBriefNow}
+      onRetryStalled={onRetryDiscovery}
+      onStop={onStopDiscovery}
     />
   );
 }

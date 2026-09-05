@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
@@ -26,10 +27,12 @@ from oryxenai.agents.content_architect.state import (
     NoPublishableRoutesError,
     PublicScopeIncompleteError,
     apply_approval,
+    apply_needs_attention,
     apply_revision_requested,
     apply_start,
 )
 from oryxenai.agents.discovery.schemas import DiscoveryState, DiscoveryStatus
+from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.db.models.agent_run import AgentRun
@@ -292,6 +295,33 @@ class ContentArchitectService:
             self._revision_conflict(session.revision, session.revision + 1)
         return await self.get_content_architect_state(session_id)
 
+    async def stop(self, session_id: UUID) -> dict[str, Any]:
+        """Stop the active build while preserving the approved Discovery input."""
+        session = await self._require_session(session_id)
+        state = await self._repository.get_content_architect_state(session_id)
+        if state.status is not ContentArchitectStatus.BUILD_RUNNING:
+            return await self.get_content_architect_state(session_id)
+
+        error = {
+            "code": "JOB_CANCELLED",
+            "message": "Content Architect was stopped. Your approved Discovery brief is preserved.",
+            "retryable": False,
+            "operation": "build",
+        }
+        if state.job_id:
+            with suppress(TypeError, ValueError):
+                await self._job_service.cancel(UUID(state.job_id))
+        stopped = apply_needs_attention(state, error)
+        updated = await self._repository.save_content_architect_state(
+            session_id, stopped, session.revision
+        )
+        if updated is None:
+            self._revision_conflict(session.revision, session.revision + 1)
+        if state.run_id:
+            with suppress(TypeError, ValueError):
+                await self._repository.mark_run_cancelled(UUID(state.run_id), error)
+        return await self.get_content_architect_state(session_id)
+
     async def get_content_architect_state(self, session_id: UUID) -> dict[str, Any]:
         session = await self._require_session(session_id)
         state = await self._repository.get_content_architect_state(session_id)
@@ -303,16 +333,7 @@ class ContentArchitectService:
             except Exception:
                 job = None
             if job is not None:
-                jobs.append(
-                    {
-                        "id": str(job.id),
-                        "kind": job.job_kind,
-                        "status": job.status,
-                        "execution_lane": getattr(job, "execution_lane", None),
-                        "attempt": job.attempt,
-                        "error": job.error_payload,
-                    }
-                )
+                jobs.append(public_job_status(job))
 
         content_architect = state.model_dump(mode="json")
         content_architect["elapsed_seconds"] = _elapsed_seconds(state.started_at)

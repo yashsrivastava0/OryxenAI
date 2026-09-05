@@ -19,6 +19,8 @@ import { DesignStage } from "../stages/design/DesignStage";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
 import { safeSessionStorage } from "../data/safe-storage";
+import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics";
+import { ClientTraceNotice } from "../components/ClientTraceNotice";
 
 export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
@@ -127,7 +129,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       let discoveryApproved = false;
       if (discoveryResult.status === "fulfilled") {
         inspectCacheReceipt("discovery", discoveryResult.value);
-        const view = adaptDiscovery(discoveryResult.value.discovery);
+        const view = adaptDiscovery(discoveryResult.value.discovery, discoveryResult.value.jobs);
         discoveryApproved = view.state === "complete";
         dispatch({ type: "discovery/set", view });
       }
@@ -135,7 +137,11 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       let contentApproved = false;
       if (contentResult.status === "fulfilled") {
         inspectCacheReceipt("content_architect", contentResult.value);
-        const view = adaptContentArchitect(contentResult.value.content_architect, discoveryApproved);
+        const view = adaptContentArchitect(
+          contentResult.value.content_architect,
+          discoveryApproved,
+          contentResult.value.jobs,
+        );
         contentApproved = view.state === "complete";
         dispatch({ type: "content/set", view });
       }
@@ -144,7 +150,11 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         inspectCacheReceipt("visual_design_director", designResult.value);
         dispatch({
           type: "design/set",
-          view: adaptVisualDesignDirector(designResult.value.visual_design_director, contentApproved),
+          view: adaptVisualDesignDirector(
+            designResult.value.visual_design_director,
+            contentApproved,
+            designResult.value.jobs,
+          ),
         });
       }
 
@@ -228,7 +238,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         try {
           const result = await api.getDiscovery(sessionId);
           inspectCacheReceipt("discovery", result);
-          const view = adaptDiscovery(result.discovery);
+          const view = adaptDiscovery(result.discovery, result.jobs);
           dispatch({ type: "discovery/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
@@ -247,7 +257,11 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         try {
           const result = await api.getContentArchitect(sessionId);
           inspectCacheReceipt("content_architect", result);
-          const view = adaptContentArchitect(result.content_architect, state.discovery?.state === "complete");
+          const view = adaptContentArchitect(
+            result.content_architect,
+            state.discovery?.state === "complete",
+            result.jobs,
+          );
           dispatch({ type: "content/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
@@ -266,7 +280,11 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         try {
           const result = await api.getVisualDesignDirector(sessionId);
           inspectCacheReceipt("visual_design_director", result);
-          const view = adaptVisualDesignDirector(result.visual_design_director, state.content?.state === "complete");
+          const view = adaptVisualDesignDirector(
+            result.visual_design_director,
+            state.content?.state === "complete",
+            result.jobs,
+          );
           dispatch({ type: "design/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
@@ -304,6 +322,12 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
   const handleStartPortfolio = async (intakeText: string) => {
     if (mutatingStage) return;
+    recordClientEvent({
+      kind: "user_action",
+      stage: "discovery",
+      action: "start",
+      input_characters: intakeText.length,
+    });
     setMutatingStage("discover");
     try {
       let sessionId = state.sessionId;
@@ -320,7 +344,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       );
       clearIdempotencyKey(sessionId, action);
       inspectCacheReceipt("discovery", result);
-      dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+      dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
       dispatch({ type: "announce", message: "Discovery started." });
       notifyMutation(sessionId);
     } finally {
@@ -340,7 +364,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       answers: [{ question_id: questionId, mode, value }],
     });
     inspectCacheReceipt("discovery", result);
-    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
     notifyMutation(state.sessionId);
   };
@@ -349,13 +373,17 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     if (!state.sessionId) return;
     const result = await api.putDiscoveryAnswers(state.sessionId, { complete: true, answers: [] });
     inspectCacheReceipt("discovery", result);
-    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
     notifyMutation(state.sessionId);
   };
 
   const handleRetryDiscovery = async () => {
     if (!state.sessionId || !state.discovery) return;
+    if (state.discovery.job?.status === "queued" || state.discovery.job?.status === "running") {
+      await refetchCurrentSession();
+      return;
+    }
     if (state.discovery.safeError?.retryOperation !== "questions") {
       await handleGenerateBrief();
       return;
@@ -380,17 +408,89 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     );
     clearIdempotencyKey(sessionId, action);
     inspectCacheReceipt("discovery", result);
-    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
     dispatch({ type: "announce", message: "Discovery retry started." });
     notifyMutation(sessionId);
+  };
+
+  const handleStopDiscovery = async () => {
+    if (!state.sessionId || mutatingStage) return;
+    const sessionId = state.sessionId;
+    recordClientEvent({ kind: "user_action", stage: "discovery", action: "stop" });
+    setMutatingStage("discover");
+    try {
+      pollerRef.current?.unsubscribe("discovery");
+      const result = await api.stopDiscovery(sessionId);
+      inspectCacheReceipt("discovery", result);
+      dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+      dispatch({ type: "announce", message: "Discovery stopped. Your input is preserved." });
+      notifyMutation(sessionId);
+    } catch (error) {
+      // The stop request is itself a mutation. If it fails, immediately
+      // restore the durable poller so a transient response/network error does
+      // not leave the UI looking frozen with no way to observe recovery.
+      void refetchCurrentSession();
+      throw error;
+    } finally {
+      setMutatingStage(null);
+    }
+  };
+
+  const handleStopContent = async () => {
+    if (!state.sessionId || mutatingStage) return;
+    const sessionId = state.sessionId;
+    recordClientEvent({ kind: "user_action", stage: "content_architect", action: "stop" });
+    setMutatingStage("content");
+    try {
+      pollerRef.current?.unsubscribe("content_architect");
+      const result = await api.stopContentArchitect(sessionId);
+      inspectCacheReceipt("content_architect", result);
+      dispatch({
+        type: "content/set",
+        view: adaptContentArchitect(result.content_architect, state.discovery?.state === "complete", result.jobs),
+      });
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+      dispatch({ type: "announce", message: "Content Architect stopped. Your approved Discovery brief is preserved." });
+      notifyMutation(sessionId);
+    } catch (error) {
+      void refetchCurrentSession();
+      throw error;
+    } finally {
+      setMutatingStage(null);
+    }
+  };
+
+  const handleStopDesign = async () => {
+    if (!state.sessionId || mutatingStage) return;
+    const sessionId = state.sessionId;
+    recordClientEvent({ kind: "user_action", stage: "visual_design_director", action: "stop" });
+    setMutatingStage("design");
+    try {
+      pollerRef.current?.unsubscribe("visual_design_director");
+      const result = await api.stopVisualDesignDirector(sessionId);
+      inspectCacheReceipt("visual_design_director", result);
+      dispatch({
+        type: "design/set",
+        view: adaptVisualDesignDirector(result.visual_design_director, state.content?.state === "complete", result.jobs),
+      });
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+      dispatch({ type: "announce", message: "Visual Design Director stopped. Your approved Content Plan is preserved." });
+      notifyMutation(sessionId);
+    } catch (error) {
+      void refetchCurrentSession();
+      throw error;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   const handleReviseBrief = async (request: string) => {
     if (!state.sessionId) return;
     const result = await api.reviseDiscovery(state.sessionId, request);
     inspectCacheReceipt("discovery", result);
-    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "announce", message: "Brief revision requested." });
     notifyMutation(state.sessionId);
   };
@@ -399,7 +499,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     if (!state.sessionId) return;
     const result = await api.approveDiscovery(state.sessionId);
     inspectCacheReceipt("discovery", result);
-    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
+    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "announce", message: "Portfolio brief approved." });
     notifyMutation(state.sessionId);
     await refetchCurrentSession();
@@ -424,7 +524,10 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           : await api.reviseContentArchitect(state.sessionId, revisionRequest);
       if (operation === "start") clearIdempotencyKey(state.sessionId, action);
       inspectCacheReceipt("content_architect", result);
-      dispatch({ type: "content/set", view: adaptContentArchitect(result.content_architect, true) });
+      dispatch({
+        type: "content/set",
+        view: adaptContentArchitect(result.content_architect, true, result.jobs),
+      });
       dispatch({
         type: "announce",
         message: operation === "approve" ? "Content plan approved." : operation === "revise" ? "Content revision requested." : "Content Architect started.",
@@ -458,7 +561,10 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           : await api.reviseVisualDesignDirector(state.sessionId, revisionRequest);
       if (operation === "start") clearIdempotencyKey(state.sessionId, action);
       inspectCacheReceipt("visual_design_director", result);
-      dispatch({ type: "design/set", view: adaptVisualDesignDirector(result.visual_design_director, true) });
+      dispatch({
+        type: "design/set",
+        view: adaptVisualDesignDirector(result.visual_design_director, true, result.jobs),
+      });
       dispatch({
         type: "announce",
         message: operation === "approve" ? "Creative handoff saved." : operation === "revise" ? "Visual direction revision requested." : "Visual Design Director started.",
@@ -502,6 +608,9 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
         <ConnectionBanner state={state.connection} />
         <CacheNotice key={cacheNotice?.id ?? "empty"} message={cacheNotice?.message ?? null} />
+        {typeof window !== "undefined" && ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname) ? (
+          <ClientTraceNotice traceId={getClientTraceId()} />
+        ) : null}
 
         <div className="app-work-surface">
           {state.sessionId ? (
@@ -535,6 +644,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
                   onSubmitAnswer={handleSubmitDiscoveryAnswer}
                   onGenerateBriefNow={handleGenerateBrief}
                   onRetryDiscovery={handleRetryDiscovery}
+                  onStopDiscovery={handleStopDiscovery}
                   onApproveBrief={handleApproveBrief}
                   onReviseBrief={handleReviseBrief}
                   onContinueToContent={() => selectStage("content")}
@@ -549,6 +659,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
                   onStart={() => runContentMutation("start")}
                   onApprove={() => runContentMutation("approve")}
                   onRevise={(request) => runContentMutation("revise", request)}
+                  onStop={handleStopContent}
                   onContinueToDesign={() => selectStage("design")}
                 />
               ) : null}
@@ -561,6 +672,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
                   onStart={() => runDesignMutation("start")}
                   onApprove={() => runDesignMutation("approve")}
                   onRevise={(request) => runDesignMutation("revise", request)}
+                  onStop={handleStopDesign}
                 />
               ) : null}
             </section>

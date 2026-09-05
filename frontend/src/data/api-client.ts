@@ -10,6 +10,7 @@
 // Later stages keep separate development harnesses and are not callable here.
 
 import { ApiError } from "./errors";
+import { recordClientEvent } from "./client-diagnostics";
 
 export type AuthorizedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -35,18 +36,110 @@ function remapAuthorizedFetchError(error: unknown): ApiError {
   return new ApiError("The request could not be completed.", { code: "REQUEST_FAILED", status: 0 });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function safeText(value: unknown): string | undefined {
+  return typeof value === "string" && value.length <= 200 ? value : undefined;
+}
+
+/** Extract lifecycle facts without ever copying intake, prompts, or output. */
+function summarizeApiPayload(path: string, payload: unknown): Record<string, unknown> {
+  if (!isRecord(payload)) return {};
+  const summary: Record<string, unknown> = {};
+  if (typeof payload.session_id === "string") summary.session_id = payload.session_id;
+  if (typeof payload.session_revision === "number") summary.session_revision = payload.session_revision;
+
+  for (const stage of ["discovery", "content_architect", "visual_design_director"]) {
+    const value = payload[stage];
+    if (!isRecord(value)) continue;
+    if (typeof value.status === "string") summary[`${stage}_status`] = value.status;
+    if (typeof value.attempt === "number") summary[`${stage}_attempt`] = value.attempt;
+    if (typeof value.max_attempts === "number") summary[`${stage}_max_attempts`] = value.max_attempts;
+    const error = isRecord(value.latest_error) ? value.latest_error : null;
+    if (error) {
+      const code = safeText(error.code);
+      const operation = safeText(error.operation);
+      if (code) summary[`${stage}_error_code`] = code;
+      if (operation) summary[`${stage}_error_operation`] = operation;
+    }
+  }
+
+  if (Array.isArray(payload.jobs)) {
+    const jobs = payload.jobs.filter(isRecord).slice(-4);
+    summary.job_count = jobs.length;
+    for (const field of [
+      "id",
+      "kind",
+      "status",
+      "attempt",
+      "max_attempts",
+      "created_at",
+      "started_at",
+      "heartbeat_at",
+      "finished_at",
+    ] as const) {
+      const values = jobs.map((job) => job[field]).filter((value) =>
+        typeof value === "string" || typeof value === "number",
+      );
+      if (values.length) summary[`job_${field}`] = values;
+    }
+    const errorCodes = jobs
+      .map((job) => (isRecord(job.error) ? job.error.code : undefined))
+      .filter((value): value is string => typeof value === "string");
+    if (errorCodes.length) summary.job_error_codes = errorCodes;
+  }
+  if (path.includes("/discovery")) summary.pipeline_stage = "discovery";
+  return summary;
+}
+
 async function requestJson<T>(
   authorizedFetch: AuthorizedFetch,
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const startedAt = performance.now();
+  const method = init?.method ?? "GET";
   let response: Response;
   try {
     response = await authorizedFetch(path, init);
   } catch (error) {
-    throw remapAuthorizedFetchError(error);
+    const mapped = remapAuthorizedFetchError(error);
+    recordClientEvent({
+      kind: "api_error",
+      route: path,
+      method,
+      status: mapped.status,
+      duration_ms: performance.now() - startedAt,
+      code: mapped.code,
+      meta: { api_code: mapped.code, pipeline_stage: path.includes("/discovery") ? "discovery" : "unknown" },
+    });
+    throw mapped;
   }
-  return (await response.json()) as T;
+  try {
+    const payload = (await response.json()) as T;
+    recordClientEvent({
+      kind: "api_response",
+      route: path,
+      method,
+      status: response.status,
+      duration_ms: performance.now() - startedAt,
+      meta: summarizeApiPayload(path, payload),
+    });
+    return payload;
+  } catch (error) {
+    recordClientEvent({
+      kind: "api_error",
+      route: path,
+      method,
+      status: response.status,
+      duration_ms: performance.now() - startedAt,
+      code: "INVALID_JSON_RESPONSE",
+      meta: { pipeline_stage: path.includes("/discovery") ? "discovery" : "unknown" },
+    });
+    throw error;
+  }
 }
 
 function jsonInit(method: string, body?: unknown, idempotencyKey?: string): RequestInit {
@@ -68,6 +161,7 @@ export interface CacheReceipt {
 export interface StageEnvelope {
   session_id: string;
   session_revision: number;
+  jobs?: unknown[];
   [stageKey: string]: unknown;
 }
 
@@ -139,6 +233,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         jsonInit("POST", {}),
       ),
 
+    stopDiscovery: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/discovery/stop`,
+        jsonInit("POST", {}),
+      ),
+
     getContentArchitect: (sessionId: string) =>
       requestJson<StageEnvelope>(
         authorizedFetch,
@@ -170,6 +271,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         jsonInit("POST", {}),
       ),
 
+    stopContentArchitect: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/content-architect/stop`,
+        jsonInit("POST", {}),
+      ),
+
     getVisualDesignDirector: (sessionId: string) =>
       requestJson<StageEnvelope>(
         authorizedFetch,
@@ -198,6 +306,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
       requestJson<StageEnvelope>(
         authorizedFetch,
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/approve`,
+        jsonInit("POST", {}),
+      ),
+
+    stopVisualDesignDirector: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/stop`,
         jsonInit("POST", {}),
       ),
 

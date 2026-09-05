@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.jobs.contracts import JobStatus
+from oryxenai.jobs.policy import MODEL_GENERATION_LANE, foreground_job_kinds
 from oryxenai.jobs.repository import JobRepository
 
 pytestmark = pytest.mark.integration
@@ -43,6 +44,75 @@ async def test_claim_batch_atomic(db_session):
     remaining = await repo.list_recent(10)
     queued = [j for j in remaining if j.status == JobStatus.QUEUED.value]
     assert len(queued) == 1
+
+
+async def test_claim_foregrounds_visible_agents_over_old_generator_backlog(db_session):
+    """A fresh first-four request must not wait behind abandoned codegen rows."""
+    repo = JobRepository(db_session)
+    old_generator = await repo.enqueue(
+        "code_generator.v5.plan",
+        {"source": "old"},
+        execution_lane=MODEL_GENERATION_LANE,
+    )
+    discovery = await repo.enqueue(
+        "discovery.understand_and_question",
+        {"source": "fresh"},
+        execution_lane=MODEL_GENERATION_LANE,
+    )
+    await db_session.commit()
+
+    claimed = await repo.claim_batch(
+        "foreground-worker",
+        120.0,
+        batch_size=1,
+        foreground_job_kinds=foreground_job_kinds(),
+    )
+
+    assert [job.id for job in claimed] == [discovery.id]
+    remaining = await repo.get_by_id(old_generator.id)
+    assert remaining is not None
+    assert remaining.status == JobStatus.QUEUED.value
+
+
+async def test_requeue_stale_releases_lane_for_foreground_claim(db_session):
+    """An abandoned lane occupant cannot block a fresh visible-agent job."""
+    now = datetime.now(UTC)
+    stale_generator = BackgroundJob(
+        job_kind="code_generator.v5.generate",
+        status=JobStatus.RUNNING.value,
+        payload={"source": "abandoned"},
+        execution_lane=MODEL_GENERATION_LANE,
+        locked_by="dead-worker",
+        heartbeat_at=now - timedelta(seconds=300),
+        started_at=now - timedelta(seconds=300),
+    )
+    db_session.add(stale_generator)
+    await db_session.flush()
+
+    repo = JobRepository(db_session)
+    discovery = await repo.enqueue(
+        "discovery.understand_and_question",
+        {"source": "fresh"},
+        execution_lane=MODEL_GENERATION_LANE,
+    )
+    await db_session.commit()
+
+    released = await repo.requeue_stale(
+        60.0,
+        1,
+        foreground_job_kinds=foreground_job_kinds(),
+    )
+    assert released == 1
+
+    claimed = await repo.claim_batch(
+        "foreground-worker",
+        120.0,
+        batch_size=1,
+        foreground_job_kinds=foreground_job_kinds(),
+    )
+    assert [job.id for job in claimed] == [discovery.id]
+    await db_session.refresh(stale_generator)
+    assert stale_generator.status == JobStatus.QUEUED.value
 
 
 async def test_claim_skip_locked(db_session, test_engine):

@@ -178,6 +178,21 @@ class DiagnosticsConfig(BaseModel):
     heartbeat_staleness: float = 60.0
 
 
+class ClientDiagnosticsConfig(BaseModel):
+    """Local browser-test trace storage policy."""
+
+    enabled: bool = True
+    output_root: str = "output/test-diagnostics"
+    max_events_per_batch: int = Field(default=100, ge=1, le=100)
+
+    @field_validator("enabled", mode="before")
+    @classmethod
+    def _coerce_enabled(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
 class AuthConfig(BaseModel):
     """Committed, non-secret policy for the Phase 1 auth boundary."""
 
@@ -1024,6 +1039,7 @@ class Settings(BaseSettings):
     worker_retry: WorkerRetryConfig = Field(default_factory=WorkerRetryConfig)
     api: ApiConfig = Field(default_factory=ApiConfig)
     diagnostics: DiagnosticsConfig = Field(default_factory=DiagnosticsConfig)
+    client_diagnostics: ClientDiagnosticsConfig = Field(default_factory=ClientDiagnosticsConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
     models: ModelConfig = Field(default_factory=ModelConfig)
     model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
@@ -1084,6 +1100,8 @@ class Settings(BaseSettings):
             self.api = ApiConfig(**app_data["api"])
         if "diagnostics" in app_data:
             self.diagnostics = DiagnosticsConfig(**app_data["diagnostics"])
+        if "client_diagnostics" in app_data:
+            self.client_diagnostics = ClientDiagnosticsConfig(**app_data["client_diagnostics"])
         if "auth" in app_data:
             self.auth = AuthConfig(**app_data["auth"])
         if "model_cache" in app_data:
