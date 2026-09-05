@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-073 — Make foreground agent jobs recoverable and user-observable
+
+- **Date & Time:** 2026-09-06 01:19 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The API could accept a request while the worker was stale or older generator work occupied the single model lane; the browser had no safe lifecycle evidence and could spin indefinitely; a valid long pasted resume could also be returned as `NEEDS_DETAILS` with no questions.
+- **Decision:** Keep one global model-generation lane but rank Discovery, Content Architect, Visual Design Director, and Build Preparation jobs as foreground work; requeue expired leases before claims and clear their lease tokens to fence late completions; expose allow-listed lifecycle metadata and a local metadata-only trace/download path; postprocess contradictory substantive Discovery output into two deterministic questions, including long unstructured messages. Keep cache scope, result validation, and provider boundaries unchanged. Treat an identical completed Discovery start as a stored-result/idempotent response.
+- **Rejected alternatives:** Starting model calls from the API (breaks the durable worker boundary); adding an unbounded retry/second lane (increases spend and concurrency); logging request/response bodies (privacy risk); making another model call to repair the contradictory cached result (unnecessary spend); sharing results globally across users (cross-user contamination).
+- **Consequence:** Fresh visible-agent work can reclaim an abandoned lane; users see actionable waiting/retry/stop states and can hand off a safe trace; repeated results remain cheap and privacy-safe; the deterministic fallback keeps full resumes actionable without a second provider call.
+
 ## D-072 — Root-cause resource-acquisition failure to a stale pinned URL, not a wrong-field bug; bound the fallback and stop repeating unfixable findings
 
 - **Date & Time:** 2026-09-05 21:15 +05:30 — Claude Code (Sonnet 5 / Anthropic)
@@ -553,7 +562,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Summary (as of last update — 2026-09-05)
 
-- Total decisions logged: 73
-- Active decisions: 57
+- Total decisions logged: 74
+- Active decisions: 58
 - Compacted & superseded decisions: 16
-- Last updated: 2026-09-05 21:15 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Last updated: 2026-09-06 01:19 +05:30 — Codex (GPT-5 / OpenAI)
