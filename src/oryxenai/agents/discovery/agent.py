@@ -26,6 +26,11 @@ from oryxenai.agents.discovery.validators import (
     validate_questions_output,
 )
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
+from oryxenai.agents.shared.model_cache import (
+    StructuredResultCache,
+    generate_with_cache,
+    prompt_cache_context,
+)
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
@@ -49,12 +54,21 @@ class DiscoveryAgent(Agent):
 
     key = AgentKey.DISCOVERY
 
-    def __init__(self, model_client: ModelClient, profile_name: str = "") -> None:
+    def __init__(
+        self,
+        model_client: ModelClient,
+        profile_name: str = "",
+        *,
+        result_cache: StructuredResultCache | None = None,
+        profile_fingerprint: str = "",
+    ) -> None:
         if model_client is None:
             raise ValueError("DiscoveryAgent requires a model client")
         self._model_client = model_client
         self._config = get_settings().discovery
         self._profile_name = profile_name
+        self._result_cache = result_cache
+        self._profile_fingerprint = profile_fingerprint
 
     async def run(self, context: AgentContext) -> AgentResult:
         operation = context.agent_input.get("operation", "understand_and_question")
@@ -79,19 +93,30 @@ class DiscoveryAgent(Agent):
             source_packet=source_packet,
         )
 
-        result = await self._model_client.generate_structured(
+        def validate(parsed: dict[str, Any]) -> None:
+            validation = validate_questions_output(parsed, self._config.max_questions)
+            if not validation.is_valid:
+                raise DiscoveryModelOutputError("understand_and_question", validation.errors)
+
+        result = await generate_with_cache(
+            client=self._model_client,
+            result_cache=self._result_cache,
+            agent_key=self.key.value,
             operation="understand_and_question",
             system_prompt=system_prompt,
             instructions=task_prompt,
             input_payload=source_packet,
             output_model=QuestionSetOutput,
             model_profile=self._profile_name,
+            profile_fingerprint=self._profile_fingerprint,
+            request_context=prompt_cache_context(
+                self.key.value, "understand_and_question", manifest
+            ),
+            strict_schema=False,
+            validator=validate,
         )
 
         parsed = _parsed_output(result)
-        validation = validate_questions_output(parsed, self._config.max_questions)
-        if not validation.is_valid:
-            raise DiscoveryModelOutputError("understand_and_question", validation.errors)
 
         mode = OperationMode(parsed.get("mode", OperationMode.ASK_QUESTIONS.value))
         questions = parsed.get("questions") or []
@@ -135,19 +160,28 @@ class DiscoveryAgent(Agent):
             source_packet=source_packet,
         )
 
-        result = await self._model_client.generate_structured(
+        def validate(parsed: dict[str, Any]) -> None:
+            validation = validate_brief_output(parsed)
+            if not validation.is_valid:
+                raise DiscoveryModelOutputError("build_or_revise_brief", validation.errors)
+
+        result = await generate_with_cache(
+            client=self._model_client,
+            result_cache=self._result_cache,
+            agent_key=self.key.value,
             operation="build_or_revise_brief",
             system_prompt=system_prompt,
             instructions=task_prompt,
             input_payload=source_packet,
             output_model=BriefOutput,
             model_profile=self._profile_name,
+            profile_fingerprint=self._profile_fingerprint,
+            request_context=prompt_cache_context(self.key.value, "build_or_revise_brief", manifest),
+            strict_schema=False,
+            validator=validate,
         )
 
         parsed = _parsed_output(result)
-        validation = validate_brief_output(parsed)
-        if not validation.is_valid:
-            raise DiscoveryModelOutputError("build_or_revise_brief", validation.errors)
 
         logger.info(
             "build_or_revise_brief produced %d chars of markdown",
@@ -202,4 +236,6 @@ def _metadata(result: StructuredModelResult, manifest: dict[str, str]) -> dict[s
         "latency_ms": result.latency_ms,
         "finish_reason": result.finish_reason,
         "prompt_modules": manifest,
+        "telemetry": result.telemetry,
+        "cache": result.cache_metadata,
     }

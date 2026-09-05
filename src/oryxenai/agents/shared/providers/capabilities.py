@@ -44,6 +44,11 @@ class ModelCapabilities(BaseModel):
     # Chat Completions' opaque prompt-cache-routing hint (OpenAI protocol).
     # Defaults false so declaring it is opt-in per profile, not inherited.
     supports_prompt_cache_key: bool = False
+    # Explicit prompt-cache controls are also opt-in. Keeping these separate
+    # lets a compatible gateway accept the routing key while declining the
+    # newer mode/TTL or content-block breakpoint fields.
+    supports_prompt_cache_options: bool = False
+    supports_prompt_cache_breakpoint: bool = False
 
 
 DEFAULT_OPENCODE_GO = ModelCapabilities(

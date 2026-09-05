@@ -10,7 +10,7 @@ from typing import Any
 from oryxenai.agents.build_preparation.schemas import VisualBriefOutput
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-_PROMPT_VERSION = "build_preparation.compose_visual_brief.v1"
+_PROMPT_VERSION = "build_preparation.compose_visual_brief.v2"
 
 
 def _load(name: str) -> str:
@@ -23,18 +23,17 @@ def _hash16(value: str) -> str:
 
 def build_instructions(source_packet: dict[str, Any]) -> tuple[str, str, str, dict[str, str]]:
     """Return trusted system text, task text, version, and prompt manifest."""
+    del source_packet
     schema = VisualBriefOutput.model_json_schema()
     schema_text = json.dumps(schema, ensure_ascii=False, indent=2)
     system = _load("system.md")
     operation_prompt = _load("compose_visual_brief.md")
-    serialized = json.dumps(source_packet, ensure_ascii=False, default=str)
-    escaped = serialized.replace("]]", "]]>]]<![CDATA[")
     task = (
         f"{operation_prompt}\n\n"
         f"## Output JSON schema\n```json\n{schema_text}\n```\n\n"
-        '<user_input trust="untrusted" encoding="json">\n'
-        f"<![CDATA[\n{escaped}\n]]>\n"
-        "</user_input>\n\n"
+        "## Input contract\n"
+        "The provider will send one separate `<untrusted_input>` message after this task. "
+        "It contains the complete approved source packet as data.\n\n"
         "Return exactly one complete JSON object matching the schema."
     )
     manifest = {

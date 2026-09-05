@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel
 
+from oryxenai.agents.shared.model_cache import estimate_model_cost
 from oryxenai.agents.shared.providers.base import BaseProviderAdapter
 from oryxenai.agents.shared.providers.errors import (
     ModelEmptyOutputError,
@@ -151,6 +152,28 @@ class AnthropicAdapter(BaseProviderAdapter):
             if capabilities is None or capabilities.usage_metadata
             else {}
         )
+        input_characters = _content_characters(trusted_system) + sum(
+            _content_characters(message.get("content")) for message in messages
+        )
+        output_characters = len(raw)
+        cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
+        cache_creation = int(usage.get("cache_creation_input_tokens", 0) or 0)
+        telemetry: dict[str, Any] = {
+            "input_characters": input_characters,
+            "output_characters": output_characters,
+            "charged_input_characters": input_characters,
+            "charged_output_characters": output_characters,
+        }
+        estimated_cost = estimate_model_cost(usage, getattr(self._profile, "pricing", None))
+        if estimated_cost is not None:
+            telemetry["estimated_cost"] = estimated_cost
+            telemetry["cost_unit"] = str(
+                getattr(getattr(self._profile, "pricing", None), "unit", "") or ""
+            )
+        if cache_read:
+            telemetry["provider_prompt_cache"] = "hit"
+        elif cache_creation:
+            telemetry["provider_prompt_cache"] = "write"
         return StructuredModelResult(
             parsed_output=parsed_output,
             response_id=(
@@ -162,13 +185,14 @@ class AnthropicAdapter(BaseProviderAdapter):
             usage=usage,
             finish_reason=str(payload.get("stop_reason", "unknown") or "unknown"),
             latency_ms=latency_ms,
+            telemetry=telemetry,
         )
 
     def _request_body(
         self,
         *,
         system_prompt: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         request_params: dict[str, Any] | None,
         structured_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -386,7 +410,10 @@ def _serialize_structured_input(operation: str, input_payload: Mapping[str, obje
 def _instructions_embed_input(instructions: str) -> bool:
     """Return whether the task already carries its untrusted input envelope."""
 
-    return "<user_input" in instructions or "<untrusted_input" in instructions
+    return (
+        '<user_input trust="untrusted"' in instructions
+        or "<untrusted_input operation=" in instructions
+    )
 
 
 def _instructions_embed_schema(instructions: str) -> bool:
@@ -495,3 +522,15 @@ def _usage(raw_usage: Any) -> dict[str, int]:
         "cache_creation_input_tokens": cache_creation,
         "cache_read_input_tokens": cache_read,
     }
+
+
+def _content_characters(content: Any) -> int:
+    if isinstance(content, str):
+        return len(content)
+    if isinstance(content, list):
+        return sum(
+            len(str(item.get("text", "")))
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        )
+    return 0

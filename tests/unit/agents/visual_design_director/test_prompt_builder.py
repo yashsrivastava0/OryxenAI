@@ -52,19 +52,24 @@ class TestBuildInstructions:
         assert "visual_language" in task
         assert "resource_candidates" in task
 
-    def test_user_input_included_as_cdata(self):
+    def test_dynamic_input_is_left_out_of_stable_task(self):
         _, task, _, _ = build_instructions(
             "establish_visual_language", {"presentation_mode": "]] inside"}
         )
-        assert "user_input" in task
-        assert "]]>]]<![CDATA[" in task
+        _, other_task, _, _ = build_instructions(
+            "establish_visual_language", {"presentation_mode": "different"}
+        )
+        assert "<untrusted_input>" in task
+        assert "]] inside" not in task
+        assert task == other_task
 
     def test_unknown_input_accepted(self):
         _system, task, _, _ = build_instructions(
             "establish_visual_language",
             {"presentation_mode": "x", "unexpected": {"anything": True}},
         )
-        assert "anything" in task
+        assert task
+        assert "anything" not in task
 
     def test_system_prompt_loaded_from_file(self):
         system, _task, _version, _manifest = build_instructions(

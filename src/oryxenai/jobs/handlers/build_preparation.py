@@ -34,7 +34,9 @@ from oryxenai.agents.build_preparation.state import (
 from oryxenai.agents.build_preparation.validators import BuildPreparationValidationError
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import Agent, AgentKey
+from oryxenai.agents.shared.model_cache import build_result_cache
 from oryxenai.agents.shared.observability import durable_model_metadata
+from oryxenai.agents.shared.output_export import export_agent_result
 from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
@@ -67,6 +69,8 @@ def _build_build_preparation_agent(
     override_profile_name: str = "",
     *,
     event_sink: Callable[[StageEvent], Awaitable[None]] | None = None,
+    result_cache: Any = None,
+    profile_fingerprint: str = "",
 ) -> Agent:
     """Create the live Build Preparation agent from the configured profile."""
     from oryxenai.agents.shared.model_runtime import get_model_runtime
@@ -77,8 +81,10 @@ def _build_build_preparation_agent(
     return BuildPreparationAgent(
         model_client=runtime.resolve("build_preparation", override_profile_name),
         settings=settings,
-        profile_name=override_profile_name,
+        profile_name=runtime.resolve_profile_name("build_preparation", override_profile_name),
         event_sink=event_sink,
+        result_cache=result_cache,
+        profile_fingerprint=profile_fingerprint,
     )
 
 
@@ -200,6 +206,7 @@ async def _execute_persisted(
     runtime = get_model_runtime(settings.models)
     requested_profile = str(input_payload.get("model_profile", "") or "")
     runtime_profile_id = runtime.resolve_profile_name("build_preparation", requested_profile)
+    input_payload["runtime_profile_id"] = runtime_profile_id
 
     try:
         async with sessionmaker() as db:
@@ -207,7 +214,16 @@ async def _execute_persisted(
         agent = (
             agent_factory()
             if agent_factory is not None
-            else _build_build_preparation_agent(requested_profile, event_sink=persist_event)
+            else _build_build_preparation_agent(
+                requested_profile,
+                event_sink=persist_event,
+                result_cache=build_result_cache(
+                    settings,
+                    owner_user_id=run.owner_user_id if run is not None else None,
+                    portfolio_session_id=session_id,
+                ),
+                profile_fingerprint=runtime.profile_fingerprint(runtime_profile_id),
+            )
         )
         context = build_context(
             portfolio_session_id=session_id,
@@ -274,9 +290,18 @@ async def _execute_persisted(
             stage_error["code"], stage_error["message"], stage_error["details"], retryable=False
         ) from exc
 
-    return await _apply_result(
+    applied = await _apply_result(
         sessionmaker, session_id, run_id, payload, result, attempt, runtime_profile_id
     )
+    if applied.get("status") == "succeeded":
+        export_agent_result(
+            settings,
+            agent_key=_AGENT_KEY.value,
+            run_id=run_id,
+            output=result.output,
+            model_metadata=result.model_metadata,
+        )
+    return applied
 
 
 def _approved_source_ref(content_architect: Any, visual_design_director: Any, settings: Any) -> Any:

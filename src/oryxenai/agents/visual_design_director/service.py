@@ -18,6 +18,7 @@ from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
 from oryxenai.agents.content_architect.schemas import ContentArchitectState, ContentArchitectStatus
+from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.agents.visual_design_director.schemas import (
     VisualDesignDirectorIntake,
     VisualDesignDirectorPreferences,
@@ -420,6 +421,15 @@ class VisualDesignDirectorService:
         visual_design_director["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         visual_design_director["attempt"] = state.attempt
         visual_design_director["max_attempts"] = state.max_attempts
+        if state.run_id:
+            try:
+                run = await self._repository.get_run(UUID(state.run_id))
+            except Exception:
+                run = None
+            if run is not None and run.status == "succeeded":
+                receipt = frontend_cache_receipt(run.model_metadata, run_id=state.run_id)
+                if receipt:
+                    visual_design_director["cache_receipt"] = receipt
         return {
             "session_id": str(session_id),
             "session_revision": session.revision,

@@ -274,3 +274,7 @@ class StructuredModelResult(BaseModel):
     usage: dict[str, Any] = Field(default_factory=dict)
     finish_reason: str | None = None
     latency_ms: float = 0.0
+    telemetry: dict[str, Any] = Field(default_factory=dict)
+    # This is transport metadata only. Agent output remains independent from
+    # whether the result came from the durable cache or a provider call.
+    cache_metadata: dict[str, Any] = Field(default_factory=dict)

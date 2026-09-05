@@ -25,6 +25,7 @@ from oryxenai.agents.discovery.state import (
     apply_start,
 )
 from oryxenai.agents.shared.model_router import ModelRouter
+from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.core.logging import get_logger
 from oryxenai.db.models.agent_run import AgentRun
@@ -349,6 +350,16 @@ class DiscoveryService:
         discovery["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         discovery["attempt"] = state.attempt
         discovery["max_attempts"] = state.max_attempts
+        run_id = state.brief.run_id or state.operation_a.run_id
+        if run_id:
+            try:
+                run = await self._repository.get_run(UUID(run_id))
+            except Exception:
+                run = None
+            if run is not None and run.status == "succeeded":
+                receipt = frontend_cache_receipt(run.model_metadata, run_id=run_id)
+                if receipt:
+                    discovery["cache_receipt"] = receipt
         return {
             "session_id": str(session_id),
             "session_revision": session.revision,

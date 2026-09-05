@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
+from oryxenai.agents.shared.model_cache import estimate_model_cost
 from oryxenai.agents.shared.providers.base import BaseProviderAdapter
 from oryxenai.agents.shared.providers.capabilities import DEFAULT_OPENCODE_GO, ModelCapabilities
 from oryxenai.agents.shared.providers.errors import (
@@ -105,7 +106,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
         request_params: dict[str, Any] | None = None,
     ) -> str:
         self._ensure_initialized()
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": task_prompt})
@@ -147,6 +148,9 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
 
         key_order: Sequence[str] | None = None
         prompt_cache_key: str | None = None
+        prompt_cache_mode: str | None = None
+        prompt_cache_ttl: str | None = None
+        prompt_cache_breakpoint = False
         if isinstance(request_context, Mapping):
             raw_order = request_context.get("key_order")
             if isinstance(raw_order, (list, tuple)):
@@ -154,8 +158,15 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             raw_cache_key = request_context.get("prompt_cache_key")
             if isinstance(raw_cache_key, str) and raw_cache_key:
                 prompt_cache_key = raw_cache_key
+            raw_cache_mode = request_context.get("prompt_cache_mode")
+            if isinstance(raw_cache_mode, str) and raw_cache_mode:
+                prompt_cache_mode = raw_cache_mode
+            raw_cache_ttl = request_context.get("prompt_cache_ttl")
+            if isinstance(raw_cache_ttl, str) and raw_cache_ttl:
+                prompt_cache_ttl = raw_cache_ttl
+            prompt_cache_breakpoint = bool(request_context.get("prompt_cache_breakpoint"))
 
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": instructions})
@@ -244,6 +255,13 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 ),
             }
             messages.insert(max(len(messages) - 1, 1), schema_instruction)
+        if (
+            prompt_cache_breakpoint
+            and self._capabilities.supports_prompt_cache_breakpoint
+            and (prompt_cache_mode or "explicit") == "explicit"
+        ):
+            _mark_prompt_cache_breakpoint(messages)
+
         structured_kwargs = (
             {"response_format": response_format} if response_format is not None else {}
         )
@@ -254,7 +272,11 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 timeout=self._profile.timeout_seconds,
                 **{token_kwarg: self._profile.max_output_tokens},
                 **structured_kwargs,
-                **self._structured_call_kwargs(prompt_cache_key),
+                **self._structured_call_kwargs(
+                    prompt_cache_key,
+                    prompt_cache_mode=prompt_cache_mode,
+                    prompt_cache_ttl=prompt_cache_ttl,
+                ),
                 **extra,
             )
         except Exception as exc:
@@ -303,7 +325,11 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                         response_format={"type": "json_object"},
                         timeout=self._profile.timeout_seconds,
                         **{token_kwarg: self._profile.max_output_tokens},
-                        **self._structured_call_kwargs(prompt_cache_key),
+                        **self._structured_call_kwargs(
+                            prompt_cache_key,
+                            prompt_cache_mode=prompt_cache_mode,
+                            prompt_cache_ttl=prompt_cache_ttl,
+                        ),
                         **extra,
                     )
                 except Exception as retry_exc:
@@ -353,6 +379,45 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             cached = getattr(details, "cached_tokens", None) if details is not None else None
             if isinstance(cached, int):
                 usage_dict["cached_prompt_tokens"] = cached
+            cache_write = (
+                getattr(details, "cache_write_tokens", None) if details is not None else None
+            )
+            if isinstance(cache_write, int):
+                usage_dict["cache_write_tokens"] = cache_write
+            completion_details = getattr(response.usage, "completion_tokens_details", None)
+            reasoning = (
+                getattr(completion_details, "reasoning_tokens", None)
+                if completion_details is not None
+                else None
+            )
+            if isinstance(reasoning, int):
+                usage_dict["reasoning_tokens"] = reasoning
+
+        input_characters = _message_characters(messages)
+        output_characters = len(raw)
+        prompt_tokens = int(usage_dict.get("prompt_tokens", 0) or 0)
+        cached_tokens = int(usage_dict.get("cached_prompt_tokens", 0) or 0)
+        cache_write_tokens = int(usage_dict.get("cache_write_tokens", 0) or 0)
+        uncached_tokens = max(0, prompt_tokens - cached_tokens - cache_write_tokens)
+        charged_input_tokens = uncached_tokens + cached_tokens + cache_write_tokens
+        pricing = getattr(self._profile, "pricing", None)
+        estimated_cost = estimate_model_cost(usage_dict, pricing)
+        telemetry: dict[str, Any] = {
+            "input_characters": input_characters,
+            "output_characters": output_characters,
+            "charged_input_characters": _scale_characters(
+                input_characters, prompt_tokens, charged_input_tokens
+            ),
+            "charged_output_characters": output_characters,
+        }
+        if estimated_cost is not None:
+            telemetry["estimated_cost"] = estimated_cost
+            if pricing is not None:
+                telemetry["cost_unit"] = str(getattr(pricing, "unit", "") or "")
+        if cached_tokens:
+            telemetry["provider_prompt_cache"] = "hit"
+        elif cache_write_tokens:
+            telemetry["provider_prompt_cache"] = "write"
 
         return StructuredModelResult(
             parsed_output=parsed_output,
@@ -361,6 +426,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             usage=usage_dict,
             finish_reason=finish_reason,
             latency_ms=latency_ms,
+            telemetry=telemetry,
         )
 
     def _resolve_api_key(self) -> str:
@@ -431,13 +497,26 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             merged.setdefault("reasoning_effort", self._profile.reasoning_effort)
         return merged
 
-    def _structured_call_kwargs(self, prompt_cache_key: str | None = None) -> dict[str, Any]:
+    def _structured_call_kwargs(
+        self,
+        prompt_cache_key: str | None = None,
+        *,
+        prompt_cache_mode: str | None = None,
+        prompt_cache_ttl: str | None = None,
+    ) -> dict[str, Any]:
         """Extra kwargs for the structured chat/completions call."""
         kwargs: dict[str, Any] = {}
         if self._capabilities.supports_store_parameter:
             kwargs["store"] = bool(self._profile.store)
         if self._capabilities.supports_prompt_cache_key and prompt_cache_key:
             kwargs["prompt_cache_key"] = prompt_cache_key
+        if self._capabilities.supports_prompt_cache_options:
+            ttl = str(
+                prompt_cache_ttl or getattr(self._profile, "prompt_cache_ttl", "") or ""
+            ).strip()
+            mode = str(prompt_cache_mode or "implicit").strip().lower()
+            if mode in {"implicit", "explicit"} and ttl == "30m":
+                kwargs["prompt_cache_options"] = {"mode": mode, "ttl": ttl}
         return kwargs
 
     def _map_sdk_error(self, exc: Exception) -> Exception:
@@ -519,6 +598,54 @@ def _safe_body(exc: Any) -> dict[str, Any] | None:
         return None
     except Exception:
         return None
+
+
+def _mark_prompt_cache_breakpoint(messages: list[dict[str, Any]]) -> None:
+    """Mark the last trusted message before the dynamic input message."""
+
+    index = len(messages) - 1
+    for candidate_index in range(len(messages) - 1, -1, -1):
+        content = messages[candidate_index].get("content")
+        if isinstance(content, str) and content.startswith("<untrusted_input"):
+            index = candidate_index - 1
+            break
+    if index < 0:
+        return
+    message = messages[index]
+    content = message.get("content")
+    if isinstance(content, list):
+        if content and isinstance(content[-1], dict):
+            content[-1].setdefault("prompt_cache_breakpoint", {"mode": "explicit"})
+        return
+    if isinstance(content, str):
+        message["content"] = [
+            {
+                "type": "text",
+                "text": content,
+                "prompt_cache_breakpoint": {"mode": "explicit"},
+            }
+        ]
+
+
+def _message_characters(messages: list[dict[str, Any]]) -> int:
+    total = 0
+    for message in messages:
+        content = message.get("content")
+        if isinstance(content, str):
+            total += len(content)
+        elif isinstance(content, list):
+            total += sum(
+                len(str(part.get("text", "")))
+                for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+    return total
+
+
+def _scale_characters(characters: int, source_tokens: int, target_tokens: int) -> int:
+    if characters <= 0 or source_tokens <= 0:
+        return characters if target_tokens else 0
+    return max(0, round(characters * target_tokens / source_tokens))
 
 
 def _serialize_structured_input(

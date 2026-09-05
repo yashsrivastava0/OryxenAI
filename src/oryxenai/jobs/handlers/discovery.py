@@ -33,7 +33,9 @@ from oryxenai.agents.discovery.state import (
 )
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
+from oryxenai.agents.shared.model_cache import build_result_cache
 from oryxenai.agents.shared.observability import durable_model_metadata
+from oryxenai.agents.shared.output_export import export_agent_result
 from oryxenai.agents.shared.providers.errors import (
     ModelOutputInvalidError,
     ProviderError,
@@ -124,7 +126,12 @@ class DiscoveryBuildBriefHandler:
         await _on_timeout_persisted(payload, error)
 
 
-def _build_discovery_agent(override_profile_name: str = "") -> Any:
+def _build_discovery_agent(
+    override_profile_name: str = "",
+    *,
+    result_cache: Any = None,
+    profile_fingerprint: str = "",
+) -> Any:
     """Create a DiscoveryAgent with the live provider adapter.
 
     override_profile_name is the user's validated, session-sticky
@@ -141,6 +148,8 @@ def _build_discovery_agent(override_profile_name: str = "") -> Any:
     return DiscoveryAgent(
         model_client=runtime.resolve("discovery", override_profile_name),
         profile_name=resolved_profile,
+        result_cache=result_cache,
+        profile_fingerprint=profile_fingerprint,
     )
 
 
@@ -179,11 +188,21 @@ async def _execute_persisted(
 
     from oryxenai.agents.shared.model_runtime import get_model_runtime
 
-    input_payload["runtime_profile_id"] = get_model_runtime(settings.models).resolve_profile_name(
-        "discovery", str(input_payload.get("model_profile", "") or "")
+    runtime = get_model_runtime(settings.models)
+    requested_profile = str(input_payload.get("model_profile", "") or "")
+    runtime_profile_id = runtime.resolve_profile_name("discovery", requested_profile)
+    input_payload["runtime_profile_id"] = runtime_profile_id
+    result_cache = build_result_cache(
+        settings,
+        owner_user_id=run.owner_user_id if run is not None else None,
+        portfolio_session_id=session_id,
     )
 
-    agent = _build_discovery_agent(str(input_payload.get("model_profile", "") or ""))
+    agent = _build_discovery_agent(
+        requested_profile,
+        result_cache=result_cache,
+        profile_fingerprint=runtime.profile_fingerprint(runtime_profile_id),
+    )
     agent_input: dict[str, Any] = {
         "operation": operation,
         "intake": input_payload.get("intake", {}),
@@ -250,7 +269,7 @@ async def _execute_persisted(
         )
         raise
 
-    return await _apply_result(
+    applied = await _apply_result(
         sessionmaker,
         session_id,
         run_id,
@@ -260,6 +279,15 @@ async def _execute_persisted(
         attempt,
         str(input_payload["runtime_profile_id"]),
     )
+    if applied.get("status") == "succeeded":
+        export_agent_result(
+            settings,
+            agent_key=_AGENT_KEY.value,
+            run_id=run_id,
+            output=result.output,
+            model_metadata=result.model_metadata,
+        )
+    return applied
 
 
 def _running_state(state: Any, operation: str, run_id: UUID) -> Any:
