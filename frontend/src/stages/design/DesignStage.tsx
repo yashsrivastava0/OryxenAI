@@ -12,6 +12,7 @@ export interface DesignStageProps {
   onStart: () => Promise<void>;
   onApprove: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
+  onStop?: () => Promise<void>;
   inFlight?: boolean;
 }
 
@@ -21,6 +22,7 @@ export function DesignStage({
   onStart,
   onApprove,
   onRevise,
+  onStop,
   inFlight = false,
 }: DesignStageProps) {
   if (!view || view.state === "locked") {
@@ -68,6 +70,8 @@ export function DesignStage({
           { id: "content", label: "Approved content plan received", state: "complete" },
           { id: "current", label: view.statusText || "Visual Design Director is working", state: "current" },
         ]}
+        onStop={onStop}
+        stopLabel="Stop Visual Design Director"
       />
     );
   }

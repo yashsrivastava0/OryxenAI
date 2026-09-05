@@ -120,3 +120,16 @@ async def approve_content_architect(
         return ContentArchitectStateResponse(**await service.approve(access.session.id))
     except ContentArchitectOperationError as exc:
         _translate(exc)
+
+
+@router.post("/stop", response_model=ContentArchitectStateResponse)
+async def stop_content_architect(
+    session_id: str,
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
+    service: ContentArchitectService = Depends(get_content_architect_service),
+) -> ContentArchitectStateResponse:
+    try:
+        return ContentArchitectStateResponse(**await service.stop(access.session.id))
+    except ContentArchitectOperationError as exc:
+        _translate(exc)

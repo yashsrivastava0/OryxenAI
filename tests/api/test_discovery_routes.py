@@ -15,6 +15,7 @@ def test_all_discovery_endpoints_are_registered() -> None:
         "/api/v1/sessions/{session_id}/discovery/answers",
         "/api/v1/sessions/{session_id}/discovery/revise",
         "/api/v1/sessions/{session_id}/discovery/approve",
+        "/api/v1/sessions/{session_id}/discovery/stop",
     }
     assert expected.issubset(paths)
     assert "get" in paths["/api/v1/sessions/{session_id}/discovery"]
@@ -22,10 +23,13 @@ def test_all_discovery_endpoints_are_registered() -> None:
     assert "put" in paths["/api/v1/sessions/{session_id}/discovery/answers"]
     assert "post" in paths["/api/v1/sessions/{session_id}/discovery/revise"]
     assert "post" in paths["/api/v1/sessions/{session_id}/discovery/approve"]
+    assert "post" in paths["/api/v1/sessions/{session_id}/discovery/stop"]
 
 
 def test_model_profile_endpoint_is_config_driven_and_safe() -> None:
     paths = create_app().openapi()["paths"]
+    assert "post" in paths["/api/v1/sessions/{session_id}/content-architect/stop"]
+    assert "post" in paths["/api/v1/sessions/{session_id}/visual-design-director/stop"]
     assert "/api/v1/model-profiles" in paths
     schema = paths["/api/v1/model-profiles"]["get"]["responses"]["200"]["content"][
         "application/json"

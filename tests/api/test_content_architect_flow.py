@@ -60,7 +60,7 @@ async def _create_session(client) -> str:
     return resp.json()["id"]
 
 
-async def _run_job(client, job_id: str, handlers: dict) -> None:
+async def _run_job(client, job_id: str, handlers: dict, *, include_job_id: bool = False) -> None:
     from oryxenai.jobs.service import JobService
 
     app = client._transport.app
@@ -69,6 +69,8 @@ async def _run_job(client, job_id: str, handlers: dict) -> None:
         assert job is not None
         kind = job.job_kind
         payload = dict(job.payload)
+        if include_job_id:
+            payload["job_id"] = job_id
     handler = handlers.get(kind)
     assert handler is not None, f"no handler for {kind}"
     await handler.execute(payload, "test-worker")
@@ -261,6 +263,23 @@ class TestFullHttpFlow:
             )
             run_ids = result.all()
         assert len(run_ids) == 1
+
+    async def test_stop_cancels_build_and_fences_late_handler(self, client):
+        sid = await _approve_discovery(client)
+        started = await client.post(f"/api/v1/sessions/{sid}/content-architect/start", json={})
+        assert started.status_code == 202, started.text
+        job_id = started.json()["content_architect"]["job_id"]
+
+        stopped = await client.post(f"/api/v1/sessions/{sid}/content-architect/stop", json={})
+        assert stopped.status_code == 200, stopped.text
+        body = stopped.json()
+        assert body["content_architect"]["status"] == "needs_attention"
+        assert body["content_architect"]["latest_error"]["code"] == "JOB_CANCELLED"
+        assert next(job for job in body["jobs"] if job["id"] == job_id)["status"] == "cancelled"
+
+        await _run_job(client, job_id, _CONTENT_ARCHITECT_HANDLERS, include_job_id=True)
+        current = (await client.get(f"/api/v1/sessions/{sid}/content-architect")).json()
+        assert current["content_architect"]["status"] == "needs_attention"
 
     async def test_duplicate_approve_is_idempotent(self, client):
         sid = await _approve_discovery(client)

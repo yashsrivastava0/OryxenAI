@@ -86,6 +86,9 @@ async def _run_worker_job(client, job_id: str, *, attempt: int | None = None) ->
         assert job is not None
         kind = job.job_kind
         payload = dict(job.payload)
+        # The real worker injects the durable ID before entering a handler;
+        # keep direct handler execution just as cancellation-aware.
+        payload["job_id"] = job_id
         if attempt is not None:
             payload["attempt"] = attempt
     handlers = {
@@ -411,6 +414,26 @@ class TestInputAndErrors:
             again["discovery"]["operation_a"]["job_id"]
             == started["discovery"]["operation_a"]["job_id"]
         )
+
+    async def test_stop_cancels_job_preserves_intake_and_fences_late_handler(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        job_id = started["discovery"]["operation_a"]["job_id"]
+
+        stopped_response = await client.post(f"/api/v1/sessions/{sid}/discovery/stop", json={})
+        assert stopped_response.status_code == 200, stopped_response.text
+        stopped = stopped_response.json()
+        assert stopped["discovery"]["status"] == "needs_attention"
+        assert stopped["discovery"]["latest_error"]["code"] == "JOB_CANCELLED"
+        assert stopped["discovery"]["intake"]["message"]
+        assert next(job for job in stopped["jobs"] if job["id"] == job_id)["status"] == "cancelled"
+
+        # A handler that was already claimed must not turn a stopped job back
+        # into questions_ready when it eventually returns.
+        await _run_worker_job(client, job_id)
+        current = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        assert current["discovery"]["status"] == "needs_attention"
+        assert current["discovery"]["latest_error"]["code"] == "JOB_CANCELLED"
 
     async def test_answers_rejected_from_wrong_state(self, client):
         sid = await _create_session(client)

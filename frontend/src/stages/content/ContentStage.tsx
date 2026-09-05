@@ -13,6 +13,7 @@ export interface ContentStageProps {
   onApprove: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
   onContinueToDesign: () => void;
+  onStop?: () => Promise<void>;
   inFlight?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function ContentStage({
   onApprove,
   onRevise,
   onContinueToDesign,
+  onStop,
   inFlight = false,
 }: ContentStageProps) {
   if (!view || view.state === "locked") {
@@ -70,6 +72,8 @@ export function ContentStage({
           { id: "brief", label: "Approved Discovery brief received", state: "complete" },
           { id: "current", label: view.statusText || "Content Architect is working", state: "current" },
         ]}
+        onStop={onStop}
+        stopLabel="Stop Content Architect"
       />
     );
   }
