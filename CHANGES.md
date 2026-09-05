@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 - Codex (GPT-5 / OpenAI) - [0ce8ecd] - add simple Azure deployment documentation
+
+Added the canonical first-deployment path for the two-user demo: one Azure
+Linux VM running the existing Docker Compose API, PostgreSQL, worker, and
+preview gateway; Supabase Google authentication; Cloudflare R2; and Caddy
+HTTPS. Added current provider research, a production-overlay runbook,
+end-to-end agent-to-preview acceptance checks, recovery commands, and cost
+notes. Marked the older Render topology in the auth operations document as
+historical. No application source or pre-existing Code Generator changes were
+included.
+
 ### 2026-09-05 01:10 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [9fabd58] - consolidate agent outputs and eliminate prebuild-output legacy locations
 
 Cleaned up repository structure and unified all agent outputs under a single canonical `output/` directory:
