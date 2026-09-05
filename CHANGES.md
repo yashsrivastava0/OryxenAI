@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 01:06 +05:30 - Codex (GPT-5 / OpenAI) - [cdf7a18] - pipeline: cancellable stage jobs and safe trace export
+
+Added durable cancellation fencing for Content Architect and Visual Design
+Director, a reusable first-three-stage job projection, bounded client trace
+export/copy support, and regression coverage. The remaining Discovery-specific
+integration is still isolated in the dirty worktree because overlapping files
+belong to another contributor's in-progress changes.
+
 ### 2026-09-05 23:08 +05:30 - Codex (GPT-5 / OpenAI) - [963375b] - deployment: record R2 readiness
 
 Recorded the user's report that R2 storage and credentials are already
