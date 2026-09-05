@@ -163,6 +163,24 @@ body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
   text-align: center;
   font-size: .82rem;
 }
+.cache-notice {
+  position: fixed;
+  top: 5.25rem;
+  right: clamp(.75rem, 3vw, 2rem);
+  z-index: 35;
+  display: flex;
+  gap: .65rem;
+  align-items: flex-start;
+  width: min(25rem, calc(100vw - 1.5rem));
+  padding: .85rem 1rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--signal);
+  box-shadow: 6px 6px 0 var(--signal-subtle);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.cache-notice-mark { color: var(--signal); font-size: 1.15rem; line-height: 1; }
 .app-work-surface { width: min(100% - 2rem, 86rem); margin-inline: auto; padding: clamp(3rem, 8vw, 7rem) 0 6rem; }
 .workspace-heading {
   display: grid;
@@ -590,6 +608,7 @@ body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
   .app-brand small, .account-name { display: none; }
   .app-brand svg { width: 48px; }
   .connection-banner { top: 66px; }
+  .cache-notice { top: 5rem; right: .75rem; }
   .app-work-surface { width: min(100% - 1.25rem, 86rem); padding-top: 2.5rem; }
   .workspace-heading { display: block; padding-bottom: 2.5rem; }
   .workspace-heading > .eyebrow { width: max-content; margin-bottom: 2rem; }

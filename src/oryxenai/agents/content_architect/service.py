@@ -30,6 +30,7 @@ from oryxenai.agents.content_architect.state import (
     apply_start,
 )
 from oryxenai.agents.discovery.schemas import DiscoveryState, DiscoveryStatus
+from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
@@ -317,6 +318,15 @@ class ContentArchitectService:
         content_architect["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         content_architect["attempt"] = state.attempt
         content_architect["max_attempts"] = state.max_attempts
+        if state.run_id:
+            try:
+                run = await self._repository.get_run(UUID(state.run_id))
+            except Exception:
+                run = None
+            if run is not None and run.status == "succeeded":
+                receipt = frontend_cache_receipt(run.model_metadata, run_id=state.run_id)
+                if receipt:
+                    content_architect["cache_receipt"] = receipt
         return {
             "session_id": str(session_id),
             "session_revision": session.revision,

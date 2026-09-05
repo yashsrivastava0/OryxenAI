@@ -43,6 +43,11 @@ from oryxenai.agents.build_preparation.validators import (
     validate_visual_brief_output,
 )
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
+from oryxenai.agents.shared.model_cache import (
+    StructuredResultCache,
+    generate_with_cache,
+    prompt_cache_context,
+)
 from oryxenai.core.logging import get_logger
 
 logger = get_logger("oryxenai.agents.build_preparation")
@@ -172,6 +177,8 @@ class BuildPreparationAgent(Agent):
         live_providers: bool = True,
         profile_name: str = "",
         event_sink: Any = None,
+        result_cache: StructuredResultCache | None = None,
+        profile_fingerprint: str = "",
     ) -> None:
         self._model_client = model_client
         self._settings = settings
@@ -179,6 +186,8 @@ class BuildPreparationAgent(Agent):
         self._live_providers = live_providers
         self._profile_name = profile_name
         self._event_sink = event_sink
+        self._result_cache = result_cache
+        self._profile_fingerprint = profile_fingerprint
 
     async def run(self, context: AgentContext) -> AgentResult:
         agent_input = context.agent_input
@@ -232,7 +241,7 @@ class BuildPreparationAgent(Agent):
                 visual_design_director=visual_design_director,
                 discovery=discovery,
             )
-            model_calls = 1
+            model_calls = 0 if bool((metadata.get("cache") or {}).get("cache_hit")) else 1
         else:
             visual_output = _offline_visual_brief(
                 discovery.resource_index, discovery.component_index
@@ -357,20 +366,6 @@ class BuildPreparationAgent(Agent):
         }
         system_prompt, task_prompt, version, manifest = build_instructions(packet)
         assert self._model_client is not None
-        result = await self._model_client.generate_structured(
-            operation="compose_visual_brief",
-            system_prompt=system_prompt,
-            instructions=task_prompt,
-            input_payload=packet,
-            output_model=VisualBriefOutput,
-            model_profile=self._profile_name,
-        )
-        try:
-            output = VisualBriefOutput.model_validate(result.parsed_output)
-        except ValueError as exc:
-            raise BuildPreparationModelOutputError(
-                f"Model output failed the VisualBriefOutput contract: {exc}"
-            ) from exc
         need_ids = {need.need_id for need in stage0.resource_needs}
         candidate_counts = {
             entry.need_id: len(entry.candidates) for entry in discovery.resource_index
@@ -378,6 +373,42 @@ class BuildPreparationAgent(Agent):
         suggestion_counts = {
             entry.need_id: len(entry.suggestions) for entry in discovery.component_index
         }
+
+        def validate(parsed: dict[str, Any]) -> None:
+            try:
+                output = VisualBriefOutput.model_validate(parsed)
+            except ValueError as exc:
+                raise BuildPreparationModelOutputError(
+                    f"Model output failed the VisualBriefOutput contract: {exc}"
+                ) from exc
+            validate_visual_brief_output(
+                output,
+                need_ids=need_ids,
+                candidate_counts=candidate_counts,
+                suggestion_counts=suggestion_counts,
+            )
+
+        result = await generate_with_cache(
+            client=self._model_client,
+            result_cache=self._result_cache,
+            agent_key=self.key.value,
+            operation="compose_visual_brief",
+            system_prompt=system_prompt,
+            instructions=task_prompt,
+            input_payload=packet,
+            output_model=VisualBriefOutput,
+            model_profile=self._profile_name,
+            profile_fingerprint=self._profile_fingerprint,
+            request_context=prompt_cache_context(self.key.value, "compose_visual_brief", manifest),
+            strict_schema=False,
+            validator=validate,
+        )
+        try:
+            output = VisualBriefOutput.model_validate(result.parsed_output)
+        except ValueError as exc:
+            raise BuildPreparationModelOutputError(
+                f"Model output failed the VisualBriefOutput contract: {exc}"
+            ) from exc
         output = validate_visual_brief_output(
             output,
             need_ids=need_ids,
@@ -392,6 +423,8 @@ class BuildPreparationAgent(Agent):
             "latency_ms": result.latency_ms,
             "finish_reason": result.finish_reason,
             "prompt_modules": manifest,
+            "telemetry": result.telemetry,
+            "cache": result.cache_metadata,
         }
         return output, version, metadata
 

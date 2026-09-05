@@ -50,16 +50,22 @@ class TestBuildInstructions:
         assert "route_plan" in task
         assert "claim_grounding" in task
 
-    def test_user_input_included_as_cdata(self):
+    def test_dynamic_input_is_left_out_of_stable_task(self):
         _, task, _, _ = build_instructions("plan_content", {"approved_brief_title": "]] inside"})
-        assert "user_input" in task
-        assert "]]>]]<![CDATA[" in task
+        _, other_task, _, _ = build_instructions(
+            "plan_content", {"approved_brief_title": "different"}
+        )
+        assert "<untrusted_input>" in task
+        assert "]] inside" not in task
+        assert task == other_task
 
     def test_unknown_input_accepted(self):
         _system, task, _, _ = build_instructions(
-            "plan_content", {"approved_brief_title": "x", "unexpected": {"anything": True}}
+            "plan_content",
+            {"approved_brief_title": "x", "unexpected": {"unique_user_payload_marker": True}},
         )
-        assert "anything" in task
+        assert task
+        assert "unique_user_payload_marker" not in task
 
     def test_system_prompt_loaded_from_file(self):
         system, _task, _version, _manifest = build_instructions(

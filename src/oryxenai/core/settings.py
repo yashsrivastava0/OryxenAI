@@ -897,6 +897,43 @@ class ResourceProviderConfig(BaseModel):
         return value
 
 
+class ModelCacheConfig(BaseModel):
+    """Durable structured-result cache and local run-export policy."""
+
+    enabled: bool = True
+    # Keep validated results for six months. This is intentionally much
+    # longer than a provider prefix-cache TTL: database storage is cheap, and
+    # the key contains prompt/model fingerprints so prompt changes never
+    # reuse an incompatible result.
+    ttl_seconds: int = 180 * 24 * 60 * 60
+    lease_seconds: int = 15 * 60
+    wait_seconds: float = 60.0
+    output_root: str = "output"
+    export_enabled: bool = True
+
+    @field_validator("enabled", "export_enabled", mode="before")
+    @classmethod
+    def _coerce_bool(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
+class ModelPricing(BaseModel):
+    """Optional configured billing units for model-cost estimates.
+
+    Values are deliberately named as generic configured units rather than
+    dollars. Providers and account plans can differ; raw usage and character
+    telemetry remain authoritative when no complete rate card is configured.
+    """
+
+    unit: str = "configured_units_per_million_tokens"
+    input_per_million: float | None = None
+    cached_input_per_million: float | None = None
+    cache_write_per_million: float | None = None
+    output_per_million: float | None = None
+
+
 class ModelProfile(BaseModel):
     """A single provider-neutral model profile from config/models.toml."""
 
@@ -911,6 +948,7 @@ class ModelProfile(BaseModel):
     max_output_tokens: int = 4096
     reasoning_effort: str = ""
     prompt_cache_ttl: str = ""
+    pricing: ModelPricing | None = None
     store: bool = False
     capabilities: ModelCapabilities | None = None
 
@@ -988,6 +1026,7 @@ class Settings(BaseSettings):
     diagnostics: DiagnosticsConfig = Field(default_factory=DiagnosticsConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
     models: ModelConfig = Field(default_factory=ModelConfig)
+    model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     content_architect: ContentArchitectConfig = Field(default_factory=ContentArchitectConfig)
     visual_design_director: VisualDesignDirectorConfig = Field(
@@ -1047,6 +1086,8 @@ class Settings(BaseSettings):
             self.diagnostics = DiagnosticsConfig(**app_data["diagnostics"])
         if "auth" in app_data:
             self.auth = AuthConfig(**app_data["auth"])
+        if "model_cache" in app_data:
+            self.model_cache = ModelCacheConfig(**app_data["model_cache"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
         if "content_architect" in app_data:

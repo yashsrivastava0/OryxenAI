@@ -57,6 +57,14 @@ function jsonInit(method: string, body?: unknown, idempotencyKey?: string): Requ
 
 // Envelope shape is intentionally loose (docs/Frontend/05 §4.7): adapters
 // validate the stage-specific payload defensively, not this client.
+export interface CacheReceipt {
+  cache_hit?: boolean;
+  cached_stage_count?: number;
+  stage_count?: number;
+  saved_calls?: number;
+  run_id?: string;
+}
+
 export interface StageEnvelope {
   session_id: string;
   session_revision: number;

@@ -91,6 +91,17 @@ max_input_bytes = 262144       # 256 KB payload limit for request bodies
 # Heartbeat monitoring.
 heartbeat_staleness = 60.0     # seconds since last heartbeat before worker is stale
 
+[model_cache]
+# Durable, owner/session-scoped structured model-result cache. Six months is
+# intentional: storage is inexpensive compared with a repeated model call,
+# while prompt/model fingerprints prevent stale contracts from colliding.
+enabled = true
+ttl_seconds = 15552000         # 180 days
+lease_seconds = 900             # 15 minutes single-flight lease
+wait_seconds = 60.0             # bounded wait for another worker's result
+output_root = "output"
+export_enabled = true
+
 [auth]
 # Phase 1 Supabase/Google policy. Provider coordinates and admission lists
 # remain in .env; no secret is stored in committed configuration.

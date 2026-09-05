@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import { AppStoreContext, appReducer, initialAppState } from "./store";
-import { createApiClient, type AuthorizedFetch, type MeProjection } from "../data/api-client";
+import { createApiClient, type AuthorizedFetch, type CacheReceipt, type MeProjection, type StageEnvelope } from "../data/api-client";
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
@@ -8,6 +8,7 @@ import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "../data/idempote
 import { createInvalidationChannel, type InvalidationChannel } from "../data/invalidation";
 import { PollCoordinator } from "../data/polling";
 import { ConnectionBanner } from "../components/ConnectionBanner";
+import { CacheNotice } from "../components/CacheNotice";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { JourneyRail, type JourneyStageVM } from "../components/JourneyRail";
 import { LivingDraftMark } from "../components/LivingDraftMark";
@@ -58,6 +59,35 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const pollerRef = useRef<PollCoordinator | null>(null);
   const invalidationChannelRef = useRef<InvalidationChannel | null>(null);
   const initialNormalizationDone = useRef(false);
+  const seenCacheReceipts = useRef(new Set<string>());
+  const cacheNoticeId = useRef(0);
+  const [cacheNotice, setCacheNotice] = useState<{ id: number; message: string } | null>(null);
+
+  const inspectCacheReceipt = useCallback((stage: string, envelope: StageEnvelope) => {
+    const stageValue = envelope[stage];
+    if (!stageValue || typeof stageValue !== "object" || Array.isArray(stageValue)) return;
+    const receipt = (stageValue as { cache_receipt?: CacheReceipt }).cache_receipt;
+    if (!receipt || receipt.cache_hit !== true) return;
+    const receiptKey = `${stage}:${receipt.run_id ?? "unknown"}`;
+    if (seenCacheReceipts.current.has(receiptKey)) return;
+    seenCacheReceipts.current.add(receiptKey);
+    cacheNoticeId.current += 1;
+    const cachedStages = Number(receipt.cached_stage_count ?? 0);
+    const totalStages = Number(receipt.stage_count ?? 0);
+    const detail = cachedStages > 0 && totalStages > cachedStages
+      ? `${cachedStages} of ${totalStages} generation steps`
+      : "this response";
+    setCacheNotice({
+      id: cacheNoticeId.current,
+      message: `Served from cache — ${detail} was prepared earlier, so it arrived faster.`,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!cacheNotice) return;
+    const timer = window.setTimeout(() => setCacheNotice(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [cacheNotice]);
 
   const selectStage = useCallback((stage: JourneyStageId, replace = false) => {
     setActiveStage(stage);
@@ -90,6 +120,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
       let discoveryApproved = false;
       if (discoveryResult.status === "fulfilled") {
+        inspectCacheReceipt("discovery", discoveryResult.value);
         const view = adaptDiscovery(discoveryResult.value.discovery);
         discoveryApproved = view.state === "complete";
         dispatch({ type: "discovery/set", view });
@@ -97,12 +128,14 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
       let contentApproved = false;
       if (contentResult.status === "fulfilled") {
+        inspectCacheReceipt("content_architect", contentResult.value);
         const view = adaptContentArchitect(contentResult.value.content_architect, discoveryApproved);
         contentApproved = view.state === "complete";
         dispatch({ type: "content/set", view });
       }
 
       if (designResult.status === "fulfilled") {
+        inspectCacheReceipt("visual_design_director", designResult.value);
         dispatch({
           type: "design/set",
           view: adaptVisualDesignDirector(designResult.value.visual_design_director, contentApproved),
@@ -136,7 +169,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     } catch {
       dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
     }
-  }, [api, initialUrl.stage, selectStage, state.sessionId]);
+  }, [api, initialUrl.stage, inspectCacheReceipt, selectStage, state.sessionId]);
 
   useEffect(() => {
     const poller = new PollCoordinator();
@@ -188,6 +221,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       poller.subscribe("discovery", async () => {
         try {
           const result = await api.getDiscovery(sessionId);
+          inspectCacheReceipt("discovery", result);
           const view = adaptDiscovery(result.discovery);
           dispatch({ type: "discovery/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
@@ -206,6 +240,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       poller.subscribe("content_architect", async () => {
         try {
           const result = await api.getContentArchitect(sessionId);
+          inspectCacheReceipt("content_architect", result);
           const view = adaptContentArchitect(result.content_architect, state.discovery?.state === "complete");
           dispatch({ type: "content/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
@@ -224,6 +259,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       poller.subscribe("visual_design_director", async () => {
         try {
           const result = await api.getVisualDesignDirector(sessionId);
+          inspectCacheReceipt("visual_design_director", result);
           const view = adaptVisualDesignDirector(result.visual_design_director, state.content?.state === "complete");
           dispatch({ type: "design/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
@@ -243,7 +279,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       poller.unsubscribe("content_architect");
       poller.unsubscribe("visual_design_director");
     };
-  }, [api, state.content?.state, state.design?.state, state.discovery?.state, state.sessionId]);
+  }, [api, inspectCacheReceipt, state.content?.state, state.design?.state, state.discovery?.state, state.sessionId]);
 
   const journey = useMemo<JourneyStageVM[]>(() => {
     const discoveryState = state.discovery?.state ?? "available";
@@ -278,6 +314,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         getOrCreateIdempotencyKey(sessionId, action),
       );
       clearIdempotencyKey(sessionId, action);
+      inspectCacheReceipt("discovery", result);
       dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
       dispatch({ type: "announce", message: "Discovery started." });
       notifyMutation(sessionId);
@@ -297,6 +334,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       complete: isComplete,
       answers: [{ question_id: questionId, mode, value }],
     });
+    inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
     notifyMutation(state.sessionId);
@@ -305,6 +343,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const handleGenerateBrief = async () => {
     if (!state.sessionId) return;
     const result = await api.putDiscoveryAnswers(state.sessionId, { complete: true, answers: [] });
+    inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
     notifyMutation(state.sessionId);
   };
@@ -312,6 +351,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const handleReviseBrief = async (request: string) => {
     if (!state.sessionId) return;
     const result = await api.reviseDiscovery(state.sessionId, request);
+    inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
     dispatch({ type: "announce", message: "Brief revision requested." });
     notifyMutation(state.sessionId);
@@ -320,6 +360,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   const handleApproveBrief = async () => {
     if (!state.sessionId) return;
     const result = await api.approveDiscovery(state.sessionId);
+    inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery) });
     dispatch({ type: "announce", message: "Portfolio brief approved." });
     notifyMutation(state.sessionId);
@@ -344,6 +385,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           ? await api.approveContentArchitect(state.sessionId)
           : await api.reviseContentArchitect(state.sessionId, revisionRequest);
       if (operation === "start") clearIdempotencyKey(state.sessionId, action);
+      inspectCacheReceipt("content_architect", result);
       dispatch({ type: "content/set", view: adaptContentArchitect(result.content_architect, true) });
       dispatch({
         type: "announce",
@@ -377,6 +419,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
           ? await api.approveVisualDesignDirector(state.sessionId)
           : await api.reviseVisualDesignDirector(state.sessionId, revisionRequest);
       if (operation === "start") clearIdempotencyKey(state.sessionId, action);
+      inspectCacheReceipt("visual_design_director", result);
       dispatch({ type: "design/set", view: adaptVisualDesignDirector(result.visual_design_director, true) });
       dispatch({
         type: "announce",
@@ -431,6 +474,7 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
         </header>
 
         <ConnectionBanner state={state.connection} />
+        <CacheNotice key={cacheNotice?.id ?? "empty"} message={cacheNotice?.message ?? null} />
 
         <div className="app-work-surface">
           {state.sessionId ? (

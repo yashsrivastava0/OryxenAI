@@ -22,6 +22,11 @@ from oryxenai.agents.content_architect.prompt_builder import build_instructions
 from oryxenai.agents.content_architect.schemas import ContentArchitectOutput
 from oryxenai.agents.content_architect.validators import validate_stage_output
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
+from oryxenai.agents.shared.model_cache import (
+    StructuredResultCache,
+    generate_with_cache,
+    prompt_cache_context,
+)
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
@@ -46,12 +51,21 @@ class ContentArchitectAgent(Agent):
 
     key = AgentKey.CONTENT_ARCHITECT
 
-    def __init__(self, model_client: ModelClient, profile_name: str = "") -> None:
+    def __init__(
+        self,
+        model_client: ModelClient,
+        profile_name: str = "",
+        *,
+        result_cache: StructuredResultCache | None = None,
+        profile_fingerprint: str = "",
+    ) -> None:
         if model_client is None:
             raise ValueError("ContentArchitectAgent requires a model client")
         self._model_client = model_client
         self._config = get_settings().content_architect
         self._profile_name = profile_name
+        self._result_cache = result_cache
+        self._profile_fingerprint = profile_fingerprint
 
     async def run(self, context: AgentContext) -> AgentResult:
         operation = context.agent_input.get("operation", "build")
@@ -222,23 +236,33 @@ class ContentArchitectAgent(Agent):
             operation=operation,
             source_packet=source_packet,
         )
-        result = await self._model_client.generate_structured(
+
+        def validate(parsed: dict[str, Any]) -> None:
+            validation = validate_stage_output(
+                parsed,
+                operation,
+                known_route_plan=known_route_plan,
+                known_claim_grounding=known_claim_grounding,
+            )
+            if not validation.is_valid:
+                raise ContentArchitectModelOutputError(operation, validation.errors)
+
+        result = await generate_with_cache(
+            client=self._model_client,
+            result_cache=self._result_cache,
+            agent_key=self.key.value,
             operation=operation,
             system_prompt=system_prompt,
             instructions=task_prompt,
             input_payload=source_packet,
             output_model=ContentArchitectOutput,
             model_profile=self._profile_name,
+            profile_fingerprint=self._profile_fingerprint,
+            request_context=prompt_cache_context(self.key.value, operation, manifest),
+            strict_schema=False,
+            validator=validate,
         )
         parsed = _parsed_output(result)
-        validation = validate_stage_output(
-            parsed,
-            operation,
-            known_route_plan=known_route_plan,
-            known_claim_grounding=known_claim_grounding,
-        )
-        if not validation.is_valid:
-            raise ContentArchitectModelOutputError(operation, validation.errors)
         return parsed, version, _metadata(result, manifest, operation)
 
     @staticmethod
@@ -272,4 +296,6 @@ def _metadata(result: Any, manifest: dict[str, str], operation: str) -> dict[str
         "latency_ms": result.latency_ms,
         "finish_reason": result.finish_reason,
         "prompt_modules": manifest,
+        "telemetry": result.telemetry,
+        "cache": result.cache_metadata,
     }

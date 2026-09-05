@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { StatusAnnouncer } from "../components/StatusAnnouncer";
+import { CacheNotice } from "../components/CacheNotice";
 import { ProgressSurface } from "../components/ProgressSurface";
 import { JourneyRail, type JourneyStageVM } from "../components/JourneyRail";
 import { extractHeadings, SafeMarkdown } from "../components/SafeMarkdown";
@@ -12,6 +13,13 @@ describe("Phase 5 Accessibility Pass (docs/Frontend/05 §13, §18)", () => {
     expect(vnode.props.role).toBe("status");
     expect(vnode.props.className).toBe("visually-hidden");
     expect(vnode.props.children).toBe("Portfolio brief approved.");
+  });
+
+  it("CacheNotice explains a confirmed cached response accessibly", () => {
+    const vnode = CacheNotice({ message: "Served from cache — this response arrived faster." });
+    if (!vnode) throw new Error("CacheNotice should render for a cache receipt message");
+    expect(vnode.props["aria-live"]).toBe("polite");
+    expect(vnode.props.role).toBe("status");
   });
 
   it("ProgressSurface sets aria-busy and marks milestones cleanly", () => {

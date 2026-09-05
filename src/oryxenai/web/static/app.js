@@ -54,6 +54,8 @@
   var pipelineEpoch = 0;
   var requestControllers = new Set();
   var restartInFlight = false;
+  var cacheNoticeTimer = null;
+  var seenCacheReceipts = Object.create(null);
   var PIPELINE_SESSION_KEY = "oryxenai.pipeline.session_id";
   var PENDING_RESTART_KEY = "oryxenai.pipeline.pending_restart_session_id";
   var PENDING_RESTART_OLD_KEY = "oryxenai.pipeline.pending_restart_old_session_id";
@@ -177,6 +179,30 @@
 
   function clearElement(el) {
     while (el && el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  function inspectCacheReceipt(agent, envelope) {
+    var stage = envelope && envelope[agent];
+    var receipt = stage && stage.cache_receipt;
+    if (!receipt || receipt.cache_hit !== true) return;
+    var receiptKey = agent + ":" + String(receipt.run_id || "unknown");
+    if (seenCacheReceipts[receiptKey]) return;
+    var notice = document.getElementById("cache-notice");
+    if (!notice) return;
+    seenCacheReceipts[receiptKey] = true;
+    var cachedStages = Number(receipt.cached_stage_count || 0);
+    var totalStages = Number(receipt.stage_count || 0);
+    var detail = cachedStages > 0 && totalStages > cachedStages
+      ? cachedStages + " of " + totalStages + " generation steps"
+      : "this response";
+    notice.textContent = "Served from cache — " + detail + " was prepared earlier, so it arrived faster.";
+    notice.hidden = false;
+    if (cacheNoticeTimer) window.clearTimeout(cacheNoticeTimer);
+    cacheNoticeTimer = window.setTimeout(function () {
+      notice.hidden = true;
+      notice.textContent = "";
+      cacheNoticeTimer = null;
+    }, 6500);
   }
 
   function setText(id, text) {
@@ -576,6 +602,11 @@
       var msg = (body && body.error && body.error.message) || resp.statusText;
       var code = body && body.error && body.error.code;
       throw { status: resp.status, code: code || "", message: msg, body: body };
+    }
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      ["discovery", "content_architect", "visual_design_director", "build_preparation"].forEach(function (agent) {
+        inspectCacheReceipt(agent, body);
+      });
     }
     return body;
   }

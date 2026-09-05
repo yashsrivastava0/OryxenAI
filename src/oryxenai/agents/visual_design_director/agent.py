@@ -21,6 +21,11 @@ from __future__ import annotations
 from typing import Any
 
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
+from oryxenai.agents.shared.model_cache import (
+    StructuredResultCache,
+    generate_with_cache,
+    prompt_cache_context,
+)
 from oryxenai.agents.visual_design_director.prompt_builder import build_instructions
 from oryxenai.agents.visual_design_director.resource_catalogue import find_candidates
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorOutput
@@ -52,7 +57,14 @@ class VisualDesignDirectorAgent(Agent):
 
     key = AgentKey.VISUAL_DESIGN_DIRECTOR
 
-    def __init__(self, model_client: ModelClient, profile_name: str = "") -> None:
+    def __init__(
+        self,
+        model_client: ModelClient,
+        profile_name: str = "",
+        *,
+        result_cache: StructuredResultCache | None = None,
+        profile_fingerprint: str = "",
+    ) -> None:
         if model_client is None:
             raise ValueError("VisualDesignDirectorAgent requires a model client")
         self._model_client = model_client
@@ -60,6 +72,8 @@ class VisualDesignDirectorAgent(Agent):
         self._config = settings.visual_design_director
         self._resource_policy = settings.build_preparation
         self._profile_name = profile_name
+        self._result_cache = result_cache
+        self._profile_fingerprint = profile_fingerprint
 
     async def run(self, context: AgentContext) -> AgentResult:
         operation = context.agent_input.get("operation", "build")
@@ -412,23 +426,33 @@ class VisualDesignDirectorAgent(Agent):
             operation=operation,
             source_packet=source_packet,
         )
-        result = await self._model_client.generate_structured(
+
+        def validate(parsed: dict[str, Any]) -> None:
+            validation = validate_stage_output(
+                parsed,
+                operation,
+                known_route_plan=known_route_plan,
+                known_resource_ids=known_resource_ids,
+            )
+            if not validation.is_valid:
+                raise VisualDesignDirectorModelOutputError(operation, validation.errors)
+
+        result = await generate_with_cache(
+            client=self._model_client,
+            result_cache=self._result_cache,
+            agent_key=self.key.value,
             operation=operation,
             system_prompt=system_prompt,
             instructions=task_prompt,
             input_payload=source_packet,
             output_model=VisualDesignDirectorOutput,
             model_profile=self._profile_name,
+            profile_fingerprint=self._profile_fingerprint,
+            request_context=prompt_cache_context(self.key.value, operation, manifest),
+            strict_schema=False,
+            validator=validate,
         )
         parsed = _parsed_output(result)
-        validation = validate_stage_output(
-            parsed,
-            operation,
-            known_route_plan=known_route_plan,
-            known_resource_ids=known_resource_ids,
-        )
-        if not validation.is_valid:
-            raise VisualDesignDirectorModelOutputError(operation, validation.errors)
         return parsed, version, _metadata(result, manifest, operation)
 
     @staticmethod
@@ -650,4 +674,6 @@ def _metadata(result: Any, manifest: dict[str, str], operation: str) -> dict[str
         "latency_ms": result.latency_ms,
         "finish_reason": result.finish_reason,
         "prompt_modules": manifest,
+        "telemetry": result.telemetry,
+        "cache": result.cache_metadata,
     }

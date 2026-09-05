@@ -34,3 +34,20 @@ output/
    eligible.
 3. **Maintenance**: Stale, corrupted, or ephemeral test runs can be pruned at any
    time while retaining benchmark and latest eligible packs.
+
+## First-four agent exports
+
+Live durable runs also write pure result receipts under:
+
+```text
+output/
+├── discovery/<run-id>/result.json
+├── content_architect/<run-id>/result.json
+├── visual_design_director/<run-id>/result.json
+└── build_preparation/<run-id>/result.json
+```
+
+Each run includes `run-metadata.json`; Build Preparation also includes its two
+Markdown briefs. These files contain generated results and safe telemetry, not
+raw prompts, resumes, API keys, or database state. The six-month result-cache
+TTL and export root are configured in `[model_cache]` in `config/app.toml`.
