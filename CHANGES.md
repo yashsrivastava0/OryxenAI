@@ -11,13 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 01:08 +05:30 - Codex (GPT-5 / OpenAI) - [861e981] - discovery: recover stalled jobs and support stop
+
+Added foreground scheduling and stale-lease recovery so Discovery requests
+cannot remain behind an abandoned model-generation job, plus durable stop
+fencing at the Discovery API, state, run, and worker-result boundaries.
+
 ### 2026-09-06 01:06 +05:30 - Codex (GPT-5 / OpenAI) - [cdf7a18] - pipeline: cancellable stage jobs and safe trace export
 
 Added durable cancellation fencing for Content Architect and Visual Design
 Director, a reusable first-three-stage job projection, bounded client trace
-export/copy support, and regression coverage. The remaining Discovery-specific
-integration is still isolated in the dirty worktree because overlapping files
-belong to another contributor's in-progress changes.
+export/copy support, and regression coverage.
 
 ### 2026-09-05 23:08 +05:30 - Codex (GPT-5 / OpenAI) - [963375b] - deployment: record R2 readiness
 
