@@ -4,6 +4,7 @@
 // Strictly avoids percentages, ETAs, token streams, or fake spinners.
 
 import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 
 export interface ProgressMilestoneItem {
   id: string;
@@ -19,6 +20,42 @@ export interface ProgressSurfaceProps {
   elapsedSeconds?: number | null;
   leaveNote?: string;
   secondarySummary?: ComponentChildren;
+  onStop?: () => Promise<void>;
+  stopLabel?: string;
+}
+
+interface ProgressStopActionProps {
+  onStop: () => Promise<void>;
+  stopLabel: string;
+}
+
+function ProgressStopAction({ onStop, stopLabel }: ProgressStopActionProps) {
+  const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
+
+  const handleStop = async () => {
+    if (stopping) return;
+    setStopping(true);
+    setStopError(null);
+    try {
+      await onStop();
+    } catch (error) {
+      setStopError(error instanceof Error ? error.message : "Could not stop this process.");
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="question-actions">
+        <button type="button" className="btn-quiet stop-action" onClick={() => void handleStop()} disabled={stopping}>
+          {stopping ? "Stopping..." : stopLabel}
+        </button>
+      </div>
+      {stopError && <p className="error-copy" role="alert">{stopError}</p>}
+    </>
+  );
 }
 
 export function ProgressSurface({
@@ -29,6 +66,8 @@ export function ProgressSurface({
   elapsedSeconds = null,
   leaveNote = "You can safely navigate away or close this tab; work continues on the server.",
   secondarySummary,
+  onStop,
+  stopLabel = "Stop process",
 }: ProgressSurfaceProps) {
   const formattedElapsed =
     elapsedSeconds !== null && elapsedSeconds > 0
@@ -80,6 +119,10 @@ export function ProgressSurface({
         )}
 
         {leaveNote && <p className="progress-leave-note">{leaveNote}</p>}
+
+        {onStop && (
+          <ProgressStopAction onStop={onStop} stopLabel={stopLabel} />
+        )}
       </div>
 
       {secondarySummary && (

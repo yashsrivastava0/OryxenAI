@@ -73,7 +73,7 @@ async def _create_session(client) -> str:
     return resp.json()["id"]
 
 
-async def _run_job(client, job_id: str, handlers: dict) -> None:
+async def _run_job(client, job_id: str, handlers: dict, *, include_job_id: bool = False) -> None:
     from oryxenai.jobs.service import JobService
 
     app = client._transport.app
@@ -82,6 +82,8 @@ async def _run_job(client, job_id: str, handlers: dict) -> None:
         assert job is not None
         kind = job.job_kind
         payload = dict(job.payload)
+        if include_job_id:
+            payload["job_id"] = job_id
     handler = handlers.get(kind)
     assert handler is not None, f"no handler for {kind}"
     await handler.execute(payload, "test-worker")
@@ -268,6 +270,25 @@ class TestFullHttpFlow:
             )
             run_ids = result.all()
         assert len(run_ids) == 1
+
+    async def test_stop_cancels_build_and_fences_late_handler(self, client):
+        sid = await _approved_session(client)
+        started = await client.post(f"/api/v1/sessions/{sid}/visual-design-director/start", json={})
+        assert started.status_code == 202, started.text
+        job_id = started.json()["visual_design_director"]["job_id"]
+
+        stopped = await client.post(
+            f"/api/v1/sessions/{sid}/visual-design-director/stop", json={}
+        )
+        assert stopped.status_code == 200, stopped.text
+        body = stopped.json()
+        assert body["visual_design_director"]["status"] == "needs_attention"
+        assert body["visual_design_director"]["latest_error"]["code"] == "JOB_CANCELLED"
+        assert next(job for job in body["jobs"] if job["id"] == job_id)["status"] == "cancelled"
+
+        await _run_job(client, job_id, _VISUAL_DESIGN_DIRECTOR_HANDLERS, include_job_id=True)
+        current = (await client.get(f"/api/v1/sessions/{sid}/visual-design-director")).json()
+        assert current["visual_design_director"]["status"] == "needs_attention"
 
     async def test_duplicate_approve_is_idempotent(self, client):
         sid = await _approved_session(client)

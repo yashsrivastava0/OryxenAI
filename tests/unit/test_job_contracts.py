@@ -23,6 +23,7 @@ def test_job_status_values():
     assert JobStatus.RUNNING.value == "running"
     assert JobStatus.SUCCEEDED.value == "succeeded"
     assert JobStatus.FAILED.value == "failed"
+    assert JobStatus.CANCELLED.value == "cancelled"
 
 
 def test_is_valid_transition_valid():
@@ -31,6 +32,8 @@ def test_is_valid_transition_valid():
     assert is_valid_transition(JobStatus.RUNNING, JobStatus.SUCCEEDED) is True
     assert is_valid_transition(JobStatus.RUNNING, JobStatus.FAILED) is True
     assert is_valid_transition(JobStatus.RUNNING, JobStatus.QUEUED) is True
+    assert is_valid_transition(JobStatus.QUEUED, JobStatus.CANCELLED) is True
+    assert is_valid_transition(JobStatus.RUNNING, JobStatus.CANCELLED) is True
     assert is_valid_transition(JobStatus.FAILED, JobStatus.QUEUED) is True
 
 
@@ -41,6 +44,7 @@ def test_is_valid_transition_invalid():
     assert is_valid_transition(JobStatus.SUCCEEDED, JobStatus.QUEUED) is False
     assert is_valid_transition(JobStatus.SUCCEEDED, JobStatus.RUNNING) is False
     assert is_valid_transition(JobStatus.FAILED, JobStatus.RUNNING) is False
+    assert is_valid_transition(JobStatus.CANCELLED, JobStatus.QUEUED) is False
 
 
 def test_probe_payload_valid():
