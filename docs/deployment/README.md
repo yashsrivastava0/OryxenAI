@@ -86,6 +86,11 @@ For the live human/AI handoff, read the [current Azure deployment status](./04-c
 before continuing the VM wizard. It is a checkpoint, not a replacement for
 this general deployment plan.
 
+If the browser session has been lost or restarted, use the detailed [Chrome
+browser-agent Azure setup prompt](./05-chrome-browser-agent-azure-setup-prompt.md)
+from Azure Portal home. It includes the interaction protocol, pause points,
+exact portal values, and the post-creation stopping point.
+
 Follow the documents in this order:
 
 1. Read [the options research](./01-deployment-options-research.md) and claim

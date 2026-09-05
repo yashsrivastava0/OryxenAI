@@ -4,6 +4,11 @@
 the next step-by-step deployment assistant. Read it before touching the Azure
 VM wizard. Update it after each meaningful portal step.
 
+> **Browser reset note:** This was the previous interrupted wizard checkpoint.
+> The PC was powered off and the browser wizard state was lost. The target
+> values below remain useful, but start the fresh session from Azure Portal
+> home and follow [`05-chrome-browser-agent-azure-setup-prompt.md`](./05-chrome-browser-agent-azure-setup-prompt.md).
+
 **Last reported state:** Azure Portal → **Create a virtual machine** →
 **Networking** tab.
 
