@@ -32,7 +32,13 @@ Grounding and exact coverage:
   `destructive`, `border`, `input`, and `ring`. Each value must copy an exact
   `colors[*].name`; never put a CSS value, a provider name, or an invented
   component slot in this mapping. If no approved component needs a slot, the
-  mapping may omit that slot. Every token
+  mapping may omit that slot. None of `colors[*].name` may equal any of these
+  same slot keys (do not name a raw color `accent`, `primary`, `border`, and
+  so on) - a raw color token and a binding slot with the identical name
+  compile to the exact same CSS custom property, so the binding would
+  silently overwrite the raw color's real value with no error. Give the raw
+  color a distinct, concrete name instead (for example `coral` or `brand`
+  for the color an `accent` slot points at). Every token
   `name` (color, spacing, size, radius, motion) must start with a lowercase
   letter, followed only by lowercase letters, digits, or hyphens - a bare
   number like `"1"` or `"7"` is rejected. Use a semantic or letter-prefixed
