@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 23:08 +05:30 - Codex (GPT-5 / OpenAI) - [963375b] - deployment: record R2 readiness
+
+Recorded the user's report that R2 storage and credentials are already
+available, while distinguishing the VM-side configuration still pending and
+preserving the rule that no R2 secret values enter chat or source control.
+
 ### 2026-09-05 22:53 +05:30 - Codex (GPT-5 / OpenAI) - [caa8f33] - frontend: complete authenticated three-stage handoff
 
 Completed the authenticated Preact product handoff for the first three
