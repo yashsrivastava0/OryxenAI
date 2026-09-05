@@ -1,208 +1,351 @@
-# ARJUN MEHTA
+Absolutely — here’s the same format, but with a completely different identity, details, experience, projects, and **End User** role.
 
-### UI/UX Designer | Product Designer
+ End User Resume
 
-Bengaluru, Karnataka, India
-+91 98765 43120 | [arjun.mehta@designmail.in](mailto:arjun.mehta@designmail.in)
-Portfolio: https://arjunmehta.design
-LinkedIn: https://linkedin.com/in/arjunmehta-design
-Behance: https://behance.net/arjunmehta
-Dribbble: https://dribbble.com/arjunmehta
+# MAYA BENNETT
 
----
+ ### Senior End User Computing Specialist | Digital Workplace | IT Support & Endpoint Engineering
 
-## PROFESSIONAL SUMMARY
+ Bengaluru, Karnataka, India
 
-UI/UX Designer with **4+ years of experience** designing user-centered web and mobile products across fintech, SaaS, e-commerce, logistics, and healthcare. Skilled in the complete product design lifecycle—from research, information architecture, and user flows to wireframes, high-fidelity UI, prototyping, usability testing, design systems, and developer handoff.
+ +91 98765 21438 | maya.bennett@outlook.com
 
-Experienced in working with product managers, engineers, and business stakeholders to turn complex requirements into simple, accessible, and scalable digital experiences.
+ LinkedIn: https://linkedin.com/in/mayabennett-it
 
-## CORE SKILLS
+ GitHub: https://github.com/mayabennett-it
 
-**UX:** User Research, User Interviews, Personas, Journey Mapping, Information Architecture, User Flows, Wireframing, Prototyping, Usability Testing, Heuristic Evaluation
-
-**UI & Product Design:** Responsive Web Design, Mobile UI, Interaction Design, Visual Design, Design Systems, Design Tokens, Component Libraries, Accessibility, Data Visualization
-
-**Tools:** Figma, FigJam, Framer, ProtoPie, Miro, Maze, Hotjar, Mixpanel, Adobe Illustrator, Photoshop, Notion, Jira
-
-**Technical Understanding:** HTML/CSS, Responsive Design, WCAG, Component-Based UI, Git/GitHub, Design-to-Development Handoff
+ Portfolio: https://mayabennett.tech
 
 ---
 
-# EXPERIENCE
+ ## PROFESSIONAL SUMMARY
 
-## Senior UI/UX Designer — NovaPay Technologies
+ Senior End User Computing Specialist with **7+ years of experience** delivering enterprise IT support, endpoint management, digital workplace services, identity administration, and user-focused technology solutions across financial services, healthcare, retail, and enterprise environments.
 
-**Bengaluru, India | Jul 2024 – Present**
+ Experienced in Windows and macOS administration, Microsoft 365, Intune, Active Directory, Entra ID, endpoint security, device lifecycle management, application deployment, ITSM, troubleshooting, automation, and technical support operations.
 
-* Lead end-to-end product design for consumer payment and merchant products serving **450K+ registered users**.
-* Redesigned onboarding and KYC after analysing funnel data, support feedback, and usability sessions, reducing completion time by **34%**.
-* Simplified the core payment journey, contributing to a **17% increase in successful transaction completion**.
-* Conducted **30+ user interviews and usability tests** across consumers and merchants.
-* Designed merchant dashboards for transactions, settlements, refunds, disputes, and business analytics.
-* Built and maintained a Figma design system with **90+ reusable components**, variants, tokens, interaction states, and documentation.
-* Established accessibility standards covering contrast, typography, forms, keyboard navigation, focus states, and touch targets.
-* Collaborate with product and engineering teams from discovery through implementation and design QA.
-* Mentor junior designers and facilitate structured design critiques.
-
-**Impact:** 34% faster onboarding · 17% higher transaction completion · 90+ reusable components
-
-## UI/UX Designer — PixelCraft Labs
-
-**Gurugram, India | Jan 2022 – Jun 2024**
-
-* Designed **12+ web and mobile products** across SaaS, e-commerce, logistics, healthcare, and consumer technology.
-* Translated business and user requirements into information architecture, flows, wireframes, prototypes, and production-ready UI.
-* Redesigned a D2C checkout journey, reducing five steps to three and improving checkout completion by **21%**.
-* Conducted competitor research, stakeholder workshops, user interviews, and usability testing.
-* Designed complex dashboards involving analytics, inventory, order management, permissions, and reporting.
-* Created reusable component libraries and responsive specifications for development teams.
-* Worked closely with frontend and mobile engineers during implementation and design QA.
-* Presented research findings, prototypes, and design rationale to founders, product managers, and stakeholders.
-
-**Impact:** 12+ products delivered · 21% checkout improvement · Multiple production design systems
+ Currently based in Bengaluru, India, supporting globally distributed users and technology teams. Strong background in improving employee technology experiences, reducing recurring incidents, standardizing endpoint environments, and delivering reliable IT services across hybrid and remote workplaces.
 
 ---
 
-# SELECTED CASE STUDIES
+ ## CORE SKILLS
 
-## NovaPay — Payments & Onboarding Redesign
+ **End User Computing:** Desktop Support, Executive Support, Endpoint Management, Device Provisioning, Windows Administration, macOS Support, Hardware Troubleshooting, Software Deployment, Remote Support
 
-**Role:** Lead Product Designer | **Platform:** Android & iOS
-**Tools:** Figma, FigJam, Maze, Mixpanel
+ **Microsoft Ecosystem:** Microsoft 365, Intune, Entra ID, Active Directory, Exchange Online, Teams, SharePoint, OneDrive
 
-**Problem:** Users were abandoning onboarding and first-payment flows because of lengthy verification, unclear progress, and unnecessary interaction steps.
+ **Endpoint & Security:** Microsoft Defender, BitLocker, Group Policy, Endpoint Compliance, Patch Management, Application Packaging, Vulnerability Remediation
 
-**Process:** Analysed funnel data → interviewed 14 users → mapped friction points → redesigned user flows → created prototypes → conducted two usability-testing rounds → iterated before development.
+ **ITSM:** ServiceNow, Incident Management, Request Fulfillment, Problem Management, Change Management, Knowledge Management, SLA Management
 
-**Outcome:** **34% reduction in onboarding time** and **17% improvement in successful transaction completion**.
+ **Automation:** PowerShell, Python, Bash, Microsoft Graph API, Power Automate
 
-Case Study: https://arjunmehta.design/case-studies/novapay
+ **Infrastructure:** Windows Server, DNS, DHCP, VPN, Wi-Fi, TCP/IP, Azure, Virtual Desktop, VMware
 
-## Cartly — E-commerce Checkout Redesign
+ **Monitoring & Administration:** Microsoft Endpoint Manager, Lansweeper, SCCM/MECM, Azure Monitor, Event Viewer, Remote Management
 
-**Role:** UI/UX Designer | **Platform:** Responsive Web
-
-Used analytics, heatmaps, and usability testing to identify unnecessary fields, weak error handling, and confusing delivery choices. Redesigned the experience with progressive disclosure, improved hierarchy, clearer validation, and optimized mobile interactions.
-
-**Outcome:** **21% increase in checkout completion** and **18% reduction in checkout-related support queries**.
-
-Case Study: https://arjunmehta.design/case-studies/cartly
+ **Engineering Practices:** Root Cause Analysis, Documentation, ITIL, Process Improvement, Asset Management, Security Best Practices, User Training
 
 ---
 
-# PAGE 2
+ # PROFESSIONAL EXPERIENCE
 
-# FEATURED PROJECTS
+ ## Senior End User Computing Specialist — BluePeak Financial Services
 
-## FleetFlow — Logistics Operations Platform
+ **Bengaluru, India | Sep 2022 – Present**
 
-**Role:** Product Designer | **Platform:** Desktop Web
+ - Lead enterprise end-user computing services for more than **4,500 employees** across India, North America, and Europe.
+- Manage Windows and macOS endpoint environments using Microsoft Intune, Configuration Manager, and Entra ID.
+- Designed standardized device provisioning workflows that reduced average employee onboarding time by **52%**.
+- Implemented automated application deployment and update processes for more than **180 business applications**.
+- Developed PowerShell automation for device diagnostics, software remediation, account troubleshooting, and endpoint reporting.
+- Improved endpoint compliance by introducing standardized security baselines, BitLocker enforcement, patch-management policies, and configuration profiles.
+- Partner with information security teams to remediate endpoint vulnerabilities and investigate device-level security incidents.
+- Provide priority technical support for executives, senior leadership, and business-critical users.
+- Created service dashboards tracking incident trends, SLA performance, endpoint health, and recurring user issues.
+- Reduced repeat incidents by **39%** through root-cause analysis and self-service knowledge improvements.
+- Mentor six IT support engineers and coordinate escalations across infrastructure, security, networking, and application teams.
 
-Designed a high-density logistics dashboard for dispatch and operations teams managing shipments, drivers, routes, delivery exceptions, and performance.
-
-* Interviewed operations managers and dispatch users.
-* Mapped role-specific workflows and information architecture.
-* Designed advanced tables, filtering, tracking, and exception-management experiences.
-* Created reusable navigation, status, filter, table, and visualization components.
-* Validated key workflows through usability testing with operations users.
-
-**Outcome:** Reduced average time required to identify and investigate delayed shipments by **29%**.
-
-Case Study: https://arjunmehta.design/case-studies/fleetflow
-
-## MedEase — Healthcare Appointment Platform
-
-**Role:** UX Designer | **Platform:** Mobile + Responsive Web
-
-Designed an appointment experience for discovering doctors, comparing availability, selecting consultation types, booking appointments, and managing upcoming visits.
-
-Research identified confusion around appointment types, availability, and filtering. Redesigned the information architecture, search filters, availability indicators, booking flow, and accessibility patterns.
-
-**Outcome:** Prototype task-completion rate improved from **68% to 91%**.
-
-Case Study: https://arjunmehta.design/case-studies/medease
+ **Impact:** 4,500+ supported users · 52% faster onboarding · 39% fewer repeat incidents · 180+ managed applications
 
 ---
 
-# DESIGN SYSTEM EXPERIENCE
+ ## End User Computing Engineer — Horizon Retail Systems
 
-## Nova Design System
+ **Chicago, Illinois, USA | Mar 2019 – Aug 2022**
 
-Designed and maintained a scalable cross-platform system supporting consumer and merchant products.
+ - Supported approximately **3,000 employees** across corporate offices, retail locations, warehouses, and remote environments.
+- Administered Windows 10/11 desktops, laptops, Microsoft 365 applications, Active Directory, Group Policy, and enterprise endpoint tools.
+- Managed device deployment, refresh, replacement, imaging, software installation, and hardware lifecycle processes.
+- Built PowerShell scripts to automate common service-desk tasks and reduce manual administrative work.
+- Implemented Microsoft Intune policies for device configuration, compliance, application deployment, and remote management.
+- Supported Microsoft Teams, Outlook, OneDrive, SharePoint, VPN, printers, conferencing systems, and collaboration technologies.
+- Participated in migration from legacy endpoint management tooling to Microsoft Endpoint Manager.
+- Developed standardized troubleshooting procedures for recurring hardware, authentication, connectivity, and application issues.
+- Assisted security teams with endpoint patching and remediation campaigns.
+- Maintained IT asset records covering more than **7,500 devices and peripherals**.
 
-Included:
-
-* Color, typography, spacing, and semantic tokens
-* Buttons, forms, navigation, cards, modals, tables, and feedback states
-* Responsive component behavior
-* Accessibility specifications
-* Component variants and interaction states
-* Figma libraries and documentation
-* Developer handoff and implementation guidelines
-
-Worked with frontend engineers to align Figma components, naming conventions, states, and design tokens with the production component architecture.
-
----
-
-# DESIGN APPROACH
-
-**Discover:** User research, analytics, stakeholder interviews, competitive analysis
-**Define:** Problem framing, personas, journey maps, information architecture, user flows
-**Design:** Wireframes, visual exploration, responsive UI, interaction design, prototypes
-**Validate:** Usability testing, prototype testing, stakeholder reviews, iteration
-**Deliver:** Design systems, specifications, accessibility states, developer handoff, design QA
-**Measure:** Product analytics, user feedback, support insights, and post-release iteration
+ **Impact:** 3,000+ supported users · 7,500+ managed assets · 45% reduction in manual provisioning activities
 
 ---
 
-# EDUCATION
+ ## IT Support Specialist — Summit Healthcare Technologies
 
-## Bachelor of Design (B.Des) — Interaction Design
+ **Denver, Colorado, USA | Jul 2018 – Feb 2019**
 
-**MIT Institute of Design, Pune | 2017 – 2021**
-
-Interaction Design, Human-Computer Interaction, User Research, Information Architecture, Visual Communication, Typography, and Design Thinking.
-
----
-
-# CERTIFICATIONS
-
-**Google UX Design Professional Certificate — Google/Coursera | 2022**
-User research, wireframing, prototyping, usability testing, and responsive product design.
-
-**Accessibility for Designers — Interaction Design Foundation | 2023**
-Inclusive design, WCAG principles, accessible interactions, and visual accessibility.
-
-**Advanced Figma: Design Systems & Prototyping | 2024**
-Auto Layout, variables, component architecture, design tokens, variants, and interactive prototypes.
+ - Provided Level 1 and Level 2 technical support for employees across corporate and clinical technology environments.
+- Troubleshot Windows workstations, laptops, printers, mobile devices, network connectivity, VPN access, and business applications.
+- Managed Active Directory accounts, security groups, password resets, permissions, and workstation policies.
+- Assisted with Microsoft Office 365 administration and user onboarding.
+- Prepared and deployed employee workstations according to standardized configuration requirements.
+- Maintained accurate hardware and software inventory records.
+- Documented recurring issues and created internal knowledge-base articles for the service desk.
+- Escalated complex infrastructure and application incidents while maintaining ownership through resolution.
 
 ---
 
-# PROFESSIONAL HIGHLIGHTS
+ # SELECTED PROJECTS
 
-* Designed digital experiences serving **450K+ users**
-* Shipped **12+ web and mobile products**
-* Conducted **50+ research and usability sessions**
-* Built and maintained **90+ reusable design-system components**
-* Experience across fintech, SaaS, e-commerce, logistics, and healthcare
-* Strong collaboration with product, engineering, and business teams
-* Experienced in responsive, accessible, and developer-ready product design
+ ## WorkSpace360 — Digital Employee Experience Platform
+
+ **Role:** Lead End User Computing Engineer
+
+ **Technologies:** Microsoft Intune, Entra ID, PowerShell, Microsoft Graph, Power Automate, Windows 11
+
+ Designed a standardized endpoint management framework for a hybrid workforce.
+
+ ### Architecture
+
+ Employee → Entra ID → Intune → Device Compliance → Application Deployment → Monitoring & Support
+
+ ### Contributions
+
+ - Designed automated Windows device enrollment workflows.
+- Created standardized security and configuration profiles.
+- Developed PowerShell remediation scripts for common endpoint issues.
+- Automated application assignment based on employee roles and departments.
+- Implemented compliance reporting and device-health dashboards.
+- Created self-service workflows for common employee technology requests.
+
+ **Outcome:** Reduced average new-device deployment time from approximately **90 minutes to under 30 minutes**.
 
 ---
 
-# LANGUAGES
+ ## SecureEndpoint — Enterprise Device Compliance Program
 
-**English:** Professional proficiency
-**Hindi:** Native proficiency
+ **Role:** Senior EUC Engineer
+
+ **Technologies:** Intune, Microsoft Defender, Entra ID, PowerShell, BitLocker
+
+ Implemented a company-wide endpoint security and compliance program.
+
+ ### Contributions
+
+ - Standardized Windows security configuration policies.
+- Automated BitLocker encryption enforcement.
+- Implemented device compliance policies.
+- Improved patch-management visibility.
+- Created remediation workflows for non-compliant endpoints.
+- Collaborated with security teams on vulnerability remediation.
+
+ **Outcome:** Increased compliant managed endpoints from **81% to 97%** within two quarters.
 
 ---
 
-# LINKS
+ ## EmployeeConnect — Microsoft 365 Migration
 
-Portfolio: https://arjunmehta.design
-LinkedIn: https://linkedin.com/in/arjunmehta-design
-Behance: https://behance.net/arjunmehta
-Dribbble: https://dribbble.com/arjunmehta
-Figma: https://figma.com/@arjunmehta
-Resume: https://arjunmehta.design/resume
+ **Role:** End User Computing Engineer
+
+ **Technologies:** Microsoft 365, Exchange Online, Teams, OneDrive, SharePoint, PowerShell
+
+ Supported enterprise migration from legacy collaboration platforms to Microsoft 365.
+
+ ### Results
+
+ - Migrated more than **2,800 employee accounts**.
+- Automated account and license-assignment workflows.
+- Developed user communication and training materials.
+- Supported Teams, Outlook, OneDrive, and SharePoint adoption.
+- Created troubleshooting documentation for common migration issues.
+- Reduced post-migration support volume through proactive user education.
+
+---
+
+ # TECHNICAL ARCHITECTURE EXPERIENCE
+
+ ## End User Computing Architecture
+
+ Experienced designing and supporting environments involving:
+
+ - Windows and macOS endpoints
+- Microsoft Intune
+- Microsoft Configuration Manager
+- Active Directory
+- Entra ID
+- Microsoft 365
+- Endpoint security platforms
+- Identity and access management
+- VPN and remote-access solutions
+- Virtual desktop infrastructure
+- Enterprise application deployment
+- Hardware lifecycle management
+
+---
+
+ ## ENDPOINT MANAGEMENT
+
+ Experience managing:
+
+ - Windows 10/11
+- macOS
+- Corporate laptops and desktops
+- Mobile devices
+- Endpoint compliance
+- Application packaging
+- Software deployment
+- Patch management
+- Configuration profiles
+- Security baselines
+- Device enrollment
+- Hardware replacement programs
+- Asset inventories
+
+---
+
+ # END USER ENGINEERING PRACTICES
+
+ ## Reliability
+
+ - Incident management
+- Root-cause analysis
+- Proactive endpoint monitoring
+- Device health checks
+- SLA management
+- Escalation management
+- Disaster recovery support
+- Knowledge-base development
+
+ ## Security
+
+ - Endpoint compliance
+- BitLocker
+- Microsoft Defender
+- Patch management
+- Least-privilege administration
+- Identity lifecycle management
+- Vulnerability remediation
+- Conditional Access
+
+ ## Automation
+
+ - PowerShell scripting
+- Microsoft Graph automation
+- Automated device provisioning
+- Application deployment
+- Remediation scripts
+- Reporting automation
+- Service-request workflows
+
+---
+
+ # EDUCATION
+
+ ## Bachelor of Science in Information Technology
+
+ **University of Colorado Denver | Denver, Colorado, USA | 2014 – 2018**
+
+ Coursework included:
+
+ Operating Systems, Networking, Database Systems, Information Security, Systems Administration, Cloud Computing, Programming, IT Service Management, and Enterprise Infrastructure.
+
+---
+
+ # CERTIFICATIONS
+
+ ## Microsoft Certified: Endpoint Administrator Associate
+
+ **Microsoft | 2024**
+
+ Endpoint management, device configuration, application deployment, identity integration, compliance, and Microsoft Intune administration.
+
+ ## ITIL 4 Foundation
+
+ **PeopleCert | 2022**
+
+ IT service management, incident management, change management, service improvement, and ITIL practices.
+
+ ## Microsoft Certified: Azure Fundamentals
+
+ **Microsoft | 2021**
+
+ Fundamentals of Azure services, cloud concepts, security, identity, management, and governance.
+
+---
+
+ # PROFESSIONAL HIGHLIGHTS
+
+ - **7+ years** of professional end-user computing and IT support experience
+- Supported more than **4,500 enterprise users**
+- Managed environments containing **7,500+ endpoint assets**
+- Administered more than **180 enterprise applications**
+- Reduced employee onboarding time by **52%**
+- Reduced repeat support incidents by **39%**
+- Increased endpoint compliance from **81% to 97%**
+- Strong experience with Microsoft Intune, Entra ID, Active Directory, Microsoft 365, PowerShell, and endpoint security
+- Experienced supporting globally distributed employees across India, North America, and Europe
+
+---
+
+ # OPEN-SOURCE & TECHNICAL WORK
+
+ ## GitHub Projects
+
+ **EndpointHealth**
+
+ PowerShell toolkit for endpoint diagnostics, compliance checks, system health reporting, and automated remediation.
+
+ GitHub: https://github.com/mayabennett-it/endpointhealth
+
+ **M365AdminToolkit**
+
+ PowerShell utilities for Microsoft 365 administration, user provisioning, license reporting, and troubleshooting.
+
+ GitHub: https://github.com/mayabennett-it/m365-admin-toolkit
+
+ **DeviceProvisioningScripts**
+
+ Collection of automation scripts for Windows device setup, application installation, configuration, and employee onboarding.
+
+ GitHub: https://github.com/mayabennett-it/device-provisioning-scripts
+
+---
+
+ # ADDITIONAL INFORMATION
+
+ **Citizenship:** United States
+
+ **Current Location:** Bengaluru, Karnataka, India
+
+ **International Experience:** United States and India
+
+ **Work Environment:** Hybrid and globally distributed enterprise IT environments
+
+---
+
+ # LANGUAGES
+
+ **English:** Native proficiency
+
+ **French:** Conversational proficiency
+
+---
+
+ # LINKS
+
+ LinkedIn: https://linkedin.com/in/mayabennett-it
+
+ GitHub: https://github.com/mayabennett-it
+
+ Portfolio: https://mayabennett.tech
+
+ Technical Blog: https://mayabennett.tech/blog
