@@ -2,6 +2,12 @@
 
 Status: **Implemented locally; owner acceptance and production cloud deployment pending**. This document details environment configuration, settings schemas, diagnostic commands, hosting targets, and the owner acceptance checklist.
 
+> **Current deployment target:** the first working demo deployment is now
+> documented in [`docs/deployment/`](../deployment/README.md). It uses one
+> Azure VM with the existing Docker Compose topology, Supabase Auth, and
+> Cloudflare R2. The Render diagram below is retained as historical provider
+> research and is not the runbook to follow.
+
 ---
 
 ## Environment Variables Contract
@@ -63,10 +69,14 @@ The online check validates network reachability and provider configuration witho
 
 ---
 
-## Production Hosting Architecture
+## Historical Render Hosting Architecture
 
 > [!IMPORTANT]
-> The early exploratory AWS hosting scenario is **superseded**. The accepted deployment architecture is **Render + Cloudflare R2 + Supabase**, per `DECISIONS.md` (D-043, D-054) and `docs/code-generator-architecture/free-host-deployment.md`.
+> The early exploratory AWS hosting scenario and this Render topology are
+> historical provider research. The current first-deployment target is the
+> single-Azure-VM topology in [`docs/deployment/`](../deployment/README.md).
+> Keep the auth and configuration details in this document, but follow the
+> Azure runbook for hosting.
 
 ```text
                                  [ Cloudflare DNS ]
