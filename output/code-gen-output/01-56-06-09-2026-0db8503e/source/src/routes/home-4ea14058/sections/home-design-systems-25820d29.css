@@ -1,0 +1,16 @@
+.home-design-systems { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: var(--space-12); max-width: var(--container-content-max); margin-inline: auto; padding: var(--space-24) var(--container-content-padding); background: var(--color-surface-secondary); color: var(--color-ink-primary); }
+.home-design-systems__heading { align-self: start; }
+.home-design-systems__label, .home-design-systems__subhead, .home-design-systems__tools span { margin: 0; color: var(--color-ink-muted); font-size: clamp(var(--type-label-min), 1vw, var(--type-label-max)); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-tracking); text-transform: uppercase; }
+.home-design-systems h2 { max-width: 12ch; margin: var(--space-6) 0 0; font-size: clamp(var(--type-heading-min), 5vw, var(--type-heading-max)); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-tracking); }
+.home-design-systems__body { max-width: 54ch; margin: var(--space-8) 0 0; font-size: clamp(var(--type-body-min), 1.2vw, var(--type-body-max)); line-height: var(--type-body-line-height); }
+.home-design-systems__system { display: grid; grid-template-columns: minmax(6rem, 0.55fr) minmax(0, 1.45fr); gap: var(--space-8); align-items: end; min-height: var(--size-24); padding: var(--space-8); border: var(--border-subtle); background: var(--color-surface-panel); box-shadow: var(--shadow-editorial); }
+.home-design-systems__system-mark { display: grid; grid-template-columns: repeat(2, var(--size-4)); gap: var(--space-2); align-content: end; }
+.home-design-systems__system-mark span { display: block; aspect-ratio: 1; background: var(--color-accent-signal); }
+.home-design-systems__system-mark span:nth-child(2) { background: var(--color-surface-muted); }
+.home-design-systems__system-mark span:nth-child(3) { background: var(--color-ink-primary); }
+.home-design-systems__system-mark span:nth-child(4) { background: var(--color-accent-soft); }
+.home-design-systems__capabilities ul { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-6); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.home-design-systems__capabilities li { padding-block: var(--space-3); border-bottom: var(--border-subtle); font-size: 0.95rem; line-height: 1.35; }
+.home-design-systems__tools { grid-column: 1 / -1; max-width: 76ch; margin: 0; padding-top: var(--space-6); border-top: var(--border-subtle); color: var(--color-ink-muted); line-height: var(--type-body-line-height); }
+.home-design-systems__tools span { margin-right: var(--space-2); color: var(--color-ink-primary); }
+@media (max-width: 48rem) { .home-design-systems { grid-template-columns: 1fr; gap: var(--space-8); padding-block: var(--space-16); } .home-design-systems h2 { max-width: 16ch; } .home-design-systems__system { grid-template-columns: 1fr; min-height: 0; padding: var(--space-6); } .home-design-systems__system-mark { order: 2; } .home-design-systems__capabilities ul { grid-template-columns: 1fr; } }

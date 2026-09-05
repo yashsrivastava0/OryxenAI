@@ -67,9 +67,26 @@ scratch/
 .pytest-tmp*
 .uv-cache*
 
-# Agent outputs (disposable local exports and debug mirrors)
+# Agent outputs (disposable local exports and debug mirrors). Everything
+# under output/ is normally a disposable local courtesy export -- except a
+# small, explicitly-kept set needed to continue Code Generator work on a
+# fresh device without regenerating an eligible Build Preparation pack from
+# scratch: one known-good pack, and the two Code Generator runs referenced
+# in "code generator issues.md" (2026-09-06 handoff). Git will not re-include
+# a file whose parent directory is still excluded, so each kept path needs
+# its own ancestor chain un-ignored explicitly.
 output/*
 !output/README.md
+
+!output/build-preparation/
+output/build-preparation/*
+!output/build-preparation/01-31-04-09-94ae4a9c/
+
+!output/code-gen-output/
+output/code-gen-output/*
+!output/code-gen-output/01-56-06-09-2026-0db8503e/
+!output/code-gen-output/01-56-06-09-2026-0db8503e/dist/
+!output/code-gen-output/02-23-06-09-2026-fa31c124/
 
 # Generated Preact/Vite product bundle (frontend/, docs/Frontend/05 §16) —
 # built by CI/container packaging, never hand-edited or committed.

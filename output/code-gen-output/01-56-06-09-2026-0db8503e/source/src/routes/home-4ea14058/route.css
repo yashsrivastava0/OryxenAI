@@ -1,0 +1,102 @@
+.home-route-navigation {
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  max-inline-size: var(--container-content-max);
+  margin-inline: auto;
+  padding: var(--space-4) var(--container-content-padding);
+  border-bottom: var(--border-subtle);
+  background: var(--color-surface-canvas);
+  color: var(--color-ink-primary);
+  font-family: var(--font-body), sans-serif;
+}
+
+.home-route-navigation::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -1px;
+  block-size: 2px;
+  background: var(--color-accent-soft);
+}
+
+.home-route-navigation__marker {
+  position: absolute;
+  inset-inline-start: var(--container-content-padding);
+  inset-block-end: -1px;
+  z-index: 1;
+  inline-size: 3rem;
+  block-size: 2px;
+  background: var(--color-accent-signal);
+  transform: translateX(0);
+  transition: transform var(--motion-motion-state-duration) var(--motion-motion-state-easing), inline-size var(--motion-motion-state-duration) var(--motion-motion-state-easing);
+}
+
+.home-route-navigation[data-current-section="hero"] .home-route-navigation__marker { transform: translateX(0); }
+.home-route-navigation[data-current-section="selected-work"] .home-route-navigation__marker { transform: translateX(4.5rem); }
+.home-route-navigation[data-current-section="approach"] .home-route-navigation__marker { transform: translateX(14rem); }
+.home-route-navigation[data-current-section="experience"] .home-route-navigation__marker { transform: translateX(22rem); }
+.home-route-navigation[data-current-section="design-systems"] .home-route-navigation__marker { transform: translateX(31rem); }
+.home-route-navigation[data-current-section="about-connect"] .home-route-navigation__marker { transform: translateX(43rem); }
+
+.home-route-navigation a {
+  position: relative;
+  display: inline-flex;
+  min-block-size: var(--size-2);
+  align-items: center;
+  color: var(--color-ink-primary);
+  font-size: var(--type-label-min);
+  font-weight: 600;
+  letter-spacing: var(--type-label-tracking);
+  line-height: var(--type-label-line-height);
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color var(--motion-motion-state-duration) var(--motion-motion-state-easing), background-color var(--motion-motion-state-duration) var(--motion-motion-state-easing);
+}
+
+.home-route-navigation a[data-current="true"] {
+  color: var(--color-accent-signal);
+}
+
+.home-route-navigation a:hover {
+  background-color: var(--color-accent-soft);
+  color: var(--color-ink-primary);
+}
+
+.home-route-navigation a:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: var(--space-1);
+}
+
+@media (max-width: 48rem) {
+  .home-route-navigation {
+    gap: var(--space-2) var(--space-3);
+    padding-block: var(--space-3);
+  }
+
+  .home-route-navigation a {
+    min-block-size: var(--size-2);
+  }
+
+  .home-route-navigation__marker {
+    inset-inline-start: var(--container-content-padding);
+  }
+
+  .home-route-navigation[data-current-section="hero"] .home-route-navigation__marker { transform: translateX(0); }
+  .home-route-navigation[data-current-section="selected-work"] .home-route-navigation__marker { transform: translateX(3.5rem); }
+  .home-route-navigation[data-current-section="approach"] .home-route-navigation__marker { transform: translateX(9rem); }
+  .home-route-navigation[data-current-section="experience"] .home-route-navigation__marker { transform: translateX(14rem); }
+  .home-route-navigation[data-current-section="design-systems"] .home-route-navigation__marker { transform: translateX(20rem); }
+  .home-route-navigation[data-current-section="about-connect"] .home-route-navigation__marker { transform: translateX(27rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-route-navigation,
+  .home-route-navigation__marker,
+  .home-route-navigation a {
+    transition: none;
+  }
+}

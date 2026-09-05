@@ -1,0 +1,115 @@
+/* Generated from the admitted ExperienceBlueprintV4. Do not edit. */
+:root {
+  --color-action-accent: #b34f38;
+  --color-content-primary: #202522;
+  --color-content-secondary: #5d625d;
+  --color-content-tertiary: #858982;
+  --color-control-input: #fffdfa;
+  --color-focus-ring: #b34f38;
+  --color-line-subtle: #c9c3b9;
+  --color-on-action-accent: #fffdfa;
+  --color-shadow-soft: #2025221a;
+  --color-state-accent-soft: #f1d8ce;
+  --color-state-destructive: #a33232;
+  --color-surface-muted: #e2ddd4;
+  --color-surface-page: #f5f1eb;
+  --color-surface-panel: #fffdfa;
+  --color-surface-secondary: #ebe5dc;
+  --color-accent: var(--color-state-accent-soft);
+  --color-background: var(--color-surface-page);
+  --color-border: var(--color-line-subtle);
+  --color-card: var(--color-surface-panel);
+  --color-destructive: var(--color-state-destructive);
+  --color-foreground: var(--color-content-primary);
+  --color-input: var(--color-control-input);
+  --color-muted: var(--color-surface-muted);
+  --color-muted-foreground: var(--color-content-secondary);
+  --color-primary: var(--color-action-accent);
+  --color-primary-foreground: var(--color-on-action-accent);
+  --color-ring: var(--color-focus-ring);
+  --color-secondary: var(--color-surface-secondary);
+  --space-1: 0.25rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-2: 0.5rem;
+  --space-24: 6rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --size-1: 1rem;
+  --size-16: 16rem;
+  --size-2: 2rem;
+  --size-3: 3rem;
+  --size-4: 4rem;
+  --size-8: 8rem;
+  --radius-medium: 0.5rem;
+  --radius-small: 0.25rem;
+  --border-strong: 2px solid var(--color-content-primary);
+  --border-subtle: 1px solid var(--color-line-subtle);
+  --shadow-soft: 0px 0.5rem 2rem 0px var(--color-shadow-soft);
+  --container-content-container-max: 76rem;
+  --container-content-container-padding: 1.25rem;
+  --motion-motion-gentle-duration: 700ms;
+  --motion-motion-gentle-easing: ease-out;
+  --motion-motion-state-duration: 180ms;
+  --motion-motion-state-easing: ease-out;
+  --font-body: "Space Grotesk";
+  --font-display: "Space Grotesk";
+  --type-body-min: 1rem;
+  --type-body-max: 1.125rem;
+  --type-body-line-height: 1.55;
+  --type-body-tracking: 0em;
+  --type-display-min: 2.5rem;
+  --type-display-max: 5.5rem;
+  --type-display-line-height: 1.05;
+  --type-display-tracking: -0.03em;
+  --type-body-step-min: 1rem;
+  --type-body-step-max: 1.125rem;
+  --type-body-step-line-height: 1.55;
+  --type-body-step-tracking: 0em;
+  --type-display-step-min: 3rem;
+  --type-display-step-max: 5.5rem;
+  --type-display-step-line-height: 1.02;
+  --type-display-step-tracking: -0.04em;
+  --type-heading-step-min: 2rem;
+  --type-heading-step-max: 3.25rem;
+  --type-heading-step-line-height: 1.08;
+  --type-heading-step-tracking: -0.02em;
+  --type-label-step-min: 0.75rem;
+  --type-label-step-max: 0.875rem;
+  --type-label-step-line-height: 1.2;
+  --type-label-step-tracking: 0.08em;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/resources/pack/fonts/space-grotesk/400-normal.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  src: url("/resources/pack/fonts/space-grotesk/500-normal.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  src: url("/resources/pack/fonts/space-grotesk/600-normal.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/resources/pack/fonts/space-grotesk/700-normal.woff2") format("woff2");
+  font-display: swap;
+}
