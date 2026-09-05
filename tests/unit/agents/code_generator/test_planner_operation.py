@@ -38,6 +38,59 @@ async def test_planner_retries_structural_output_once() -> None:
     assert "plan_id" in planner.calls[1]
 
 
+class _TwiceFailingPlanner:
+    """Fails structural validation on its first two calls, succeeds on the
+    third -- regression test for the 2026-09-05 live-observed pattern where
+    a single corrective retry did not always land the fixed-vocabulary
+    color-collision check, even with the exact colliding tokens named in
+    the feedback."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def generate_structured(self, **kwargs: object) -> SimpleNamespace:
+        self.calls.append(str(kwargs["instructions"]))
+        if len(self.calls) < 3:
+            return SimpleNamespace(parsed_output={})
+        return SimpleNamespace(parsed_output={"plan_id": "plan-third-try", "routes": []})
+
+
+@pytest.mark.asyncio
+async def test_planner_gets_a_third_attempt_after_two_structural_failures() -> None:
+    planner = _TwiceFailingPlanner()
+
+    plan, _prompt_version, _receipt, _result = await run_planner_operation(
+        planner,  # type: ignore[arg-type]
+        context={"input_hashes": [], "owned_paths": []},
+        profile_name="code_generator_planner",
+    )
+
+    assert plan.plan_id == "plan-third-try"
+    assert len(planner.calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_planner_raises_after_exhausting_three_attempts() -> None:
+    class _AlwaysFailingPlanner:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        async def generate_structured(self, **kwargs: object) -> SimpleNamespace:
+            self.calls.append(str(kwargs["instructions"]))
+            return SimpleNamespace(parsed_output={})
+
+    planner = _AlwaysFailingPlanner()
+
+    with pytest.raises(planner_operation.PlannerOperationError):
+        await run_planner_operation(
+            planner,  # type: ignore[arg-type]
+            context={"input_hashes": [], "owned_paths": []},
+            profile_name="code_generator_planner",
+        )
+
+    assert len(planner.calls) == 3
+
+
 @pytest.mark.asyncio
 async def test_planner_retries_semantic_output_once(monkeypatch) -> None:
     class _SemanticRetryingPlanner:
