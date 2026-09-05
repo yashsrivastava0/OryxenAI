@@ -1200,6 +1200,24 @@ class DesignTokenSystemV4(BaseModel):
         }
         if invalid_shadcn_values:
             raise ValueError("shadcn_theme_bindings must reference an approved color token name")
+        # Live-discovered 2026-09-05: a slot name (e.g. "accent") and a raw
+        # color token literally named the same thing both compile to the
+        # identical "--color-<name>" CSS custom property (token_compiler.py).
+        # Raw colors are emitted first, the binding alias second, so the
+        # alias silently overwrites the raw color in the same :root block --
+        # every derived token referencing it (e.g. --color-primary) then
+        # resolves to the wrong value with no error, only surfacing much
+        # later as a whole-site quality-review finding after a full
+        # generation pass. Catching it here, right next to the sibling
+        # value check above, lets the planner's own local-validation retry
+        # correct it immediately instead of failing the whole run.
+        colliding_slots = set(normalized_shadcn_bindings) & color_names
+        if colliding_slots:
+            raise ValueError(
+                "shadcn_theme_bindings slot names must not collide with an existing color "
+                "token name, both compile to the same CSS custom property: "
+                + ", ".join(sorted(colliding_slots))
+            )
         self.shadcn_theme_bindings = normalized_shadcn_bindings
         bound_color_names = {item.color_token for item in self.borders} | {
             item.color_token for item in self.shadows

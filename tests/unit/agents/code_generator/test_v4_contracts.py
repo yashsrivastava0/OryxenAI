@@ -28,6 +28,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationChanges,
     GenerationContextReceipt,
     InteractionContract,
+    NamedColorTokenV4,
     QualityReviewDraftV1,
     ResourcePlacementV4,
     ResourceSearchIntentV2,
@@ -63,7 +64,10 @@ from oryxenai.agents.code_generator.core.source_manifest import (
     _public_runtime_data,
 )
 from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
-from oryxenai.agents.code_generator.core.token_compiler import compile_generated_tokens
+from oryxenai.agents.code_generator.core.token_compiler import (
+    TokenCompilationError,
+    compile_generated_tokens,
+)
 from oryxenai.agents.code_generator.core.typescript_ast_audit import (
     _selector_declarations,
     audit_typescript_source,
@@ -485,6 +489,22 @@ def test_v4_shadcn_theme_bindings_use_fixed_slots_and_approved_colors() -> None:
     with pytest.raises(ValidationError, match="approved color token"):
         DesignTokenSystemV4.model_validate(
             {**token_data, "shadcn_theme_bindings": {"primary": "missing"}}
+        )
+
+
+def test_v4_shadcn_theme_bindings_reject_slot_names_colliding_with_a_color_token() -> None:
+    """Regression test for the 2026-09-05 live-discovered bug: a raw color
+    token and a shadcn binding slot with the same literal name (e.g. both
+    named "accent") both compile to the identical --color-accent CSS custom
+    property; the alias silently overwrote the raw color with no error,
+    only surfacing as a whole-site quality-review finding after a full,
+    costly generation pass."""
+    token_data = _blueprint().tokens.model_dump(mode="python")
+    token_data["colors"] = [*token_data["colors"], {"name": "accent", "value": "#b84a32"}]
+
+    with pytest.raises(ValidationError, match="must not collide"):
+        DesignTokenSystemV4.model_validate(
+            {**token_data, "shadcn_theme_bindings": {"accent": "ink"}}
         )
 
 
@@ -1560,6 +1580,26 @@ def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
     assert "var(--token," not in css
     assert css.count("--type-body-min:") == 1
     assert css.count("--type-display-min:") == 1
+
+
+def test_v4_token_compiler_rejects_shadcn_slot_colliding_with_a_color_token() -> None:
+    """Defense-in-depth sibling of the schema-level collision test: even a
+    blueprint that reached the compiler without going back through
+    DesignTokenSystemV4's own validator (e.g. built via model_copy, which
+    does not re-validate) must not silently emit two --color-accent
+    declarations where the alias clobbers the real color."""
+    tokens = _blueprint().tokens.model_copy(
+        update={
+            "colors": [
+                *_blueprint().tokens.colors,
+                NamedColorTokenV4(name="accent", value="#b84a32"),
+            ],
+            "shadcn_theme_bindings": {"accent": "ink"},
+        }
+    )
+    blueprint = _blueprint().model_copy(update={"tokens": tokens})
+    with pytest.raises(TokenCompilationError, match="collide"):
+        compile_generated_tokens(blueprint)
 
 
 def test_v4_token_compiler_deduplicates_font_faces_shared_across_roles() -> None:
