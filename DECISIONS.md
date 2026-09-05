@@ -560,7 +560,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-09-05)
+## Summary (as of last update — 2026-09-06)
 
 - Total decisions logged: 74
 - Active decisions: 58
