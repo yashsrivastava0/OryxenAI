@@ -3,6 +3,7 @@ import { useMemo, useState } from "preact/hooks";
 export interface StartSurfaceProps {
   onStart: (intakeText: string) => Promise<void>;
   disabled?: boolean;
+  disabledReason?: string;
 }
 
 const PROMPTS = [
@@ -12,7 +13,7 @@ const PROMPTS = [
   "Constraints, gaps, or claims to avoid",
 ];
 
-export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
+export function StartSurface({ onStart, disabled = false, disabledReason }: StartSurfaceProps) {
   const [intakeText, setIntakeText] = useState("");
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export function StartSurface({ onStart, disabled = false }: StartSurfaceProps) {
           ))}
         </div>
         {error ? <p className="start-error" role="alert">{error}</p> : null}
+        {disabledReason ? <p className="start-error" role="alert">{disabledReason}</p> : null}
         <div className="intake-actions">
           <p>🔒 Private workspace · Explicit approval at each stage</p>
           <button className="btn-primary" type="submit" disabled={disabled || inFlight || !intakeText.trim()}>

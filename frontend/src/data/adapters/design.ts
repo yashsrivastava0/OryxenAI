@@ -152,7 +152,14 @@ export function adaptVisualDesignDirector(raw: unknown, contentApproved = false)
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const safeError =
     status === "needs_attention" && latestError
-      ? { summary: typeof latestError.message === "string" ? latestError.message : "Visual Design Director needs attention." }
+      ? {
+          summary:
+            typeof latestError.message === "string"
+              ? latestError.message
+              : typeof latestError.summary === "string"
+                ? latestError.summary
+                : "Visual Design Director needs attention.",
+        }
       : null;
 
   return {

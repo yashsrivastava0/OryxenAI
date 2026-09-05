@@ -9,6 +9,17 @@ export const PRIVATE_SESSION_KEYS = Object.freeze([
   "oryxenai.session_id",
   "oryxenai.discovery.session",
   "oryxenai.private",
+  "oryxenai.active_session_id",
+  "oryxenai.pipeline.session_id",
+  "oryxenai.pipeline.pending_restart_session_id",
+]);
+export const PRIVATE_SESSION_PREFIXES = Object.freeze([
+  "oryxenai.active_session_id:",
+  "oryxenai.draft.",
+  "oryxenai.revision_draft.",
+  "oryxenai.pipeline.",
+  "oryxenai.codegen.",
+  "oryxen:idempotency:",
 ]);
 
 export class AuthRequestError extends Error {
@@ -26,7 +37,15 @@ export function safeSession(result) {
 
 export function clearPrivateState(storage) {
   try {
-    for (const key of PRIVATE_SESSION_KEYS) storage?.removeItem?.(key);
+    const keys = new Set(PRIVATE_SESSION_KEYS);
+    const length = typeof storage?.length === "number" ? storage.length : 0;
+    for (let index = 0; index < length; index += 1) {
+      const key = storage.key?.(index);
+      if (typeof key === "string" && PRIVATE_SESSION_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+        keys.add(key);
+      }
+    }
+    for (const key of keys) storage?.removeItem?.(key);
   } catch {
     // Storage errors are reported by the session restore boundary.
   }

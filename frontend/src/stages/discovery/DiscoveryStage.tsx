@@ -13,6 +13,7 @@ export interface DiscoveryStageProps {
   onStartDiscovery: (notes: string) => Promise<void>;
   onSubmitAnswer: (questionId: string, mode: string, value: unknown, isComplete: boolean) => Promise<void>;
   onGenerateBriefNow: () => Promise<void>;
+  onRetryDiscovery: () => Promise<void>;
   onApproveBrief: () => Promise<void>;
   onReviseBrief: (revisionRequest: string) => Promise<void>;
   onContinueToContent: () => void;
@@ -25,6 +26,7 @@ export function DiscoveryStage({
   onStartDiscovery,
   onSubmitAnswer,
   onGenerateBriefNow,
+  onRetryDiscovery,
   onApproveBrief,
   onReviseBrief,
   onContinueToContent,
@@ -56,7 +58,7 @@ export function DiscoveryStage({
         summary={view.safeError?.summary || "An issue occurred while processing your discovery answers."}
         preservedWorkNote="All your answered questions and input notes are preserved."
         retryLabel="Retry Discovery"
-        onRetry={onGenerateBriefNow}
+        onRetry={onRetryDiscovery}
       />
     );
   }

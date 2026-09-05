@@ -45,6 +45,38 @@ function sessionAuth(session = { access_token: "access-token" }) {
   };
 }
 
+function documentProbe() {
+  const progress = {
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+  };
+  const main = {
+    children: [],
+    prepend(node) { this.children.unshift(node); },
+  };
+  const body = {
+    classList: {
+      removed: [],
+      remove(name) { this.removed.push(name); },
+    },
+  };
+  return {
+    main,
+    body,
+    progress,
+    getElementById(id) {
+      return id === "auth-bootstrap-progress" ? progress : null;
+    },
+    createElement() {
+      return {
+        setAttribute() {},
+        textContent: "",
+      };
+    },
+    querySelector(selector) { return selector === "main" ? main : null; },
+  };
+}
+
 test("signed-out product visit performs no protected fetch and routes to sign-in", async () => {
   const page = location("/app");
   const auth = sessionAuth(null);
@@ -99,6 +131,7 @@ test("persistent session resolves /me once before loading the product workspace"
 test("workspace bootstrap failure preserves a valid auth session and avoids a redirect loop", async () => {
   const page = location("/app");
   const auth = sessionAuth();
+  const documentRef = documentProbe();
   let signOutCalls = 0;
   auth.signOut = async () => { signOutCalls += 1; };
   const result = await bootProductShell({
@@ -115,11 +148,15 @@ test("workspace bootstrap failure preserves a valid auth session and avoids a re
       admin_available: false,
     }),
     loadWorkspace: async () => ({}),
+    globalRef: { document: documentRef },
   });
 
   assert.equal(result.kind, "workspace_error");
   assert.equal(signOutCalls, 0);
   assert.deepEqual(page.replacements, []);
+  assert.equal(documentRef.main.children[0].textContent, "Your session is active, but the workspace could not be initialized. Refresh to try again.");
+  assert.equal(documentRef.progress.attributes["aria-hidden"], "true");
+  assert.deepEqual(documentRef.body.classList.removed, ["auth-pending"]);
 });
 
 test("a transient provider outage keeps the session instead of signing out", async () => {

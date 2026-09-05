@@ -4,6 +4,7 @@ import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { AsyncActionButton } from "../../components/AsyncActionButton";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
@@ -44,14 +45,13 @@ export function ContentStage({
         <p className="stage-desc">
           Content Architect will consume your approved brief to define the site's route structure, positioning statements, and detailed section copy.
         </p>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={!canMutate || inFlight}
-          onClick={onStart}
-        >
-          {inFlight ? "Starting Content Architect..." : "Start Content Architect"}
-        </button>
+        <AsyncActionButton
+          label="Start Content Architect"
+          busyLabel="Starting Content Architect..."
+          onAction={onStart}
+          disabled={!canMutate}
+          inFlight={inFlight}
+        />
       </div>
     );
   }

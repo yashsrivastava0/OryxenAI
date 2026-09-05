@@ -26,12 +26,14 @@ export interface DiscoveryQuestionVM {
   allowSkip: boolean;
 }
 
+export type DiscoveryRetryOperation = "questions" | "brief";
+
 export interface DiscoveryViewModel extends StageViewModel {
   currentQuestions: DiscoveryQuestionVM[];
   answeredQuestionIds: string[];
   answeredTurns: Array<{ questionId: string; questionText: string; answerText: string }>;
   brief: { title: string; userSummary: string; approved: boolean } | null;
-  safeError: { summary: string } | null;
+  safeError: { summary: string; retryOperation: DiscoveryRetryOperation } | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -160,9 +162,22 @@ export function adaptDiscovery(raw: unknown): DiscoveryViewModel {
       : null;
 
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
+  const operation = typeof latestError?.operation === "string" ? latestError.operation : "";
+  const retryOperation: DiscoveryRetryOperation =
+    operation === "understand_and_question" || operation === "prepare_questions"
+      ? "questions"
+      : "brief";
   const safeError =
     status === "needs_attention" && latestError
-      ? { summary: typeof latestError.summary === "string" ? latestError.summary : "Discovery could not continue." }
+      ? {
+          summary:
+            typeof latestError.message === "string"
+              ? latestError.message
+              : typeof latestError.summary === "string"
+                ? latestError.summary
+                : "Discovery could not continue.",
+          retryOperation,
+        }
       : null;
 
   return {

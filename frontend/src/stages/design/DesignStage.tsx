@@ -4,6 +4,7 @@ import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { CompletionPanel } from "../../components/CompletionPanel";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { AsyncActionButton } from "../../components/AsyncActionButton";
 
 export interface DesignStageProps {
   view: DesignViewModel | null;
@@ -42,14 +43,13 @@ export function DesignStage({
         <p className="stage-desc">
           Visual Design Director will consume your approved content plan to derive the creative thesis, typography hierarchy, color intention, and page-by-page visual language.
         </p>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={!canMutate || inFlight}
-          onClick={onStart}
-        >
-          {inFlight ? "Starting Visual Design Director..." : "Start Visual Design Director"}
-        </button>
+        <AsyncActionButton
+          label="Start Visual Design Director"
+          busyLabel="Starting Visual Design Director..."
+          onAction={onStart}
+          disabled={!canMutate}
+          inFlight={inFlight}
+        />
       </div>
     );
   }
