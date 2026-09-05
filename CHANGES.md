@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 16:40 +05:30 - Codex (GPT-5 / OpenAI) - [8a2066a] - enforce a pre-call ceiling for explicitly capped live runs
+
+Added a provider-neutral `BudgetedModelClient` that serializes structured calls, reserves a conservative prompt plus maximum completion charge before transmission, releases unused reservation only after valid usage telemetry, and consumes the reservation on failures or unknown usage. Added focused tests for refusal-before-call, temporary output caps, profile restoration, and failure consumption. The authorized resume validation run completed Discovery at `0.256180` recorded configured credits, but Content Architect returned `MODEL_EMPTY_OUTPUT`; because an earlier interrupted attempt had no usage receipt, no later stage was retried against the hard ceiling. Records D-070.
+
 ### 2026-09-05 15:23 +05:30 - Codex (GPT-5 / OpenAI) - [5b86779] - add scoped long-lived model-result caching and cache receipts
 
 Added owner/session-scoped PostgreSQL caching for validated structured results across Discovery, Content Architect, Visual Design Director, and Build Preparation, with a six-month TTL, single-flight leases, provider prompt-cache hints, usage/character/cost telemetry, and redacted local exports. Added truthful cached-response notices to both frontend control surfaces; records D-069. Live execution of the supplied resume remains pending explicit authorization to send the document to the configured external provider.
@@ -277,6 +281,6 @@ The single-rendition fix (`5b4a33c`) stopped duplicate provider-side pre-renderi
 
 ## Summary (as of last compaction — 2026-09-05)
 
-- Recent detailed entries retained: 15
+- Recent detailed entries retained: 16
 - Compacted milestone bullets: 145
 - Last updated: 2026-09-05 15:23 +05:30 — Codex (GPT-5 / OpenAI)
