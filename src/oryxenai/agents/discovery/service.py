@@ -171,7 +171,10 @@ class DiscoveryService:
         }:
             self._not_ready("save answers", state.status.value)
 
-        answer_map: dict[str, DiscoveryAnswer] = {}
+        # The product composer submits one answer at a time.  Preserve the
+        # durable answer map and overlay the latest values so a refresh-safe
+        # multi-question conversation cannot discard earlier answers.
+        answer_map: dict[str, DiscoveryAnswer] = dict(state.answers.items)
         for answer in answers:
             if answer.question_id:
                 answer_map[answer.question_id] = answer

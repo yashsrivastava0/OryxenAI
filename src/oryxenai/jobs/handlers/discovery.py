@@ -75,7 +75,21 @@ async def _on_timeout_persisted(payload: dict[str, Any], error: dict[str, Any]) 
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
     max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
-    await _persist_failure(sessionmaker, session_id, run_id, payload, error, attempt, max_attempts)
+    operation = ""
+    async with sessionmaker() as db:
+        run = await DiscoveryRepository(db).get_run(run_id)
+        if run is not None:
+            operation = str(run.input_payload.get("operation", "") or "")
+    await _persist_failure(
+        sessionmaker,
+        session_id,
+        run_id,
+        payload,
+        error,
+        attempt,
+        max_attempts,
+        operation=operation,
+    )
 
 
 class DiscoveryUnderstandAndQuestionHandler:
@@ -228,7 +242,14 @@ async def _execute_persisted(
         result = await agent.run(context)
     except ProviderError as exc:
         await _persist_failure(
-            sessionmaker, session_id, run_id, payload, exc, attempt, max_attempts
+            sessionmaker,
+            session_id,
+            run_id,
+            payload,
+            exc,
+            attempt,
+            max_attempts,
+            operation=operation,
         )
         raise
     except DiscoveryModelOutputError as exc:
@@ -250,6 +271,7 @@ async def _execute_persisted(
             retry_error,
             attempt,
             max_attempts,
+            operation=operation,
         )
         raise retry_error from exc
     except Exception as exc:
@@ -266,6 +288,7 @@ async def _execute_persisted(
             ),
             attempt,
             max_attempts,
+            operation=operation,
         )
         raise
 
@@ -389,6 +412,8 @@ async def _persist_failure(
     error: Any,
     attempt: int,
     max_attempts: int,
+    *,
+    operation: str = "",
 ) -> None:
     """Record a failed attempt. Only surface it to the user once it's final.
 
@@ -416,6 +441,8 @@ async def _persist_failure(
                 else getattr(error, "retryable", False)
             ),
         }
+        if operation:
+            safe_error["operation"] = operation
         state = await repo.get_discovery_state(session_id)
         will_retry = bool(
             error.get("will_retry")

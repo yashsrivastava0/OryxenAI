@@ -14,21 +14,18 @@ function replace(location, destination) {
 }
 
 function showBootstrapError(documentRef, message) {
-  const progress = documentRef?.getElementById?.("auth-bootstrap-progress");
-  if (progress) {
-    progress.setAttribute("role", "alert");
-    progress.replaceChildren(message);
-    return;
-  }
   let node = documentRef?.getElementById?.("auth-bootstrap-error");
   if (!node && documentRef?.createElement) {
     node = documentRef.createElement("p");
     node.id = "auth-bootstrap-error";
     node.setAttribute("role", "alert");
-    node.className = "error-text";
-    documentRef.querySelector("main")?.prepend(node);
+    node.className = "error-text start-error";
+    const parent = documentRef.querySelector?.("main") || documentRef.body;
+    parent?.prepend?.(node);
   }
   if (node) node.textContent = message;
+  const progress = documentRef?.getElementById?.("auth-bootstrap-progress");
+  progress?.setAttribute?.("aria-hidden", "true");
 }
 
 function revealWorkspace(documentRef) {
@@ -214,6 +211,7 @@ export async function bootProductShell({
         globalRef.document,
         "Your session is active, but the workspace could not be loaded. Refresh to try again.",
       );
+      revealWorkspace(globalRef.document);
       return { ...context, kind: "workspace_error", error };
     }
     if (!appController?.boot) {
@@ -221,6 +219,7 @@ export async function bootProductShell({
         globalRef.document,
         "Your session is active, but the workspace could not be initialized. Refresh to try again.",
       );
+      revealWorkspace(globalRef.document);
       return { ...context, kind: "workspace_error" };
     }
     appController.boot({

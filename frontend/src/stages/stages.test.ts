@@ -17,6 +17,7 @@ const discoveryProps = {
   onStartDiscovery: async () => {},
   onSubmitAnswer: async () => {},
   onGenerateBriefNow: async () => {},
+  onRetryDiscovery: async () => {},
   onApproveBrief: async () => {},
   onReviseBrief: async () => {},
   onContinueToContent: () => {},
