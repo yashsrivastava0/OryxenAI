@@ -13,7 +13,12 @@ behavior, and avoidance of the blueprint's anti-patterns.
 Treat `trusted_build_runtime` as host authority. In this Vite scaffold, admitted
 `/resources/pack/` URLs in source CSS are deliberately root-public inputs and `base: "./"`
 rewrites them to mount-safe relative URLs in the built CSS. Build/runtime verification checks
-the resulting artifacts; do not lower `resource_fit` from the source prefix alone. Blocking
+the resulting artifacts; do not lower `resource_fit` from the source prefix alone. A resource
+placement whose `required` field is false and has no admitted local binding is working as
+designed when the section instead carries a tasteful, non-personal decorative or generated
+composition — do not raise a blocking finding, or lower `resource_fit`, solely because that
+placement has no photograph; judge what is actually rendered there on its own merits. Reserve
+a resource-missing blocking finding for a placement actually marked `required`. Blocking
 findings may target only non-terminal work units from `work_graph`; host-owned foundation and
 trusted-shell observations remain advisory.
 
