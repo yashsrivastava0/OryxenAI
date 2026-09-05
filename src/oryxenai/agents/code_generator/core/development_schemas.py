@@ -825,6 +825,30 @@ _EASING_RE = re.compile(
     r"^(?:linear|ease(?:-in|-out|-in-out)?|cubic-bezier\([^()]+\)|steps\([^()]+\))$",
     re.IGNORECASE,
 )
+_EASING_KEYWORD_ALIASES: dict[str, str] = {
+    "easeinout": "ease-in-out",
+    "easein": "ease-in",
+    "easeout": "ease-out",
+    "ease": "ease",
+    "linear": "linear",
+}
+
+
+def _normalize_easing(value: str) -> str:
+    """Map a spelled-together easing word to its valid CSS keyword before
+    the strict reject-check. This project's own planner.md prose describes
+    the 3 trusted motion patterns as "easeOutCubic-family"/"easeOutExpo-
+    family" -- a style family, not a literal value -- but it reads close
+    enough to one that the model sometimes copies it directly into
+    `easing`. Longest-prefix-first so "easeinout" matches before "easein"."""
+    stripped = value.strip()
+    if _EASING_RE.fullmatch(stripped):
+        return stripped
+    folded = re.sub(r"[\s_-]+", "", stripped).casefold()
+    for prefix in ("easeinout", "easein", "easeout", "ease", "linear"):
+        if folded.startswith(prefix):
+            return _EASING_KEYWORD_ALIASES[prefix]
+    return stripped
 
 
 def _balanced_parentheses(value: str) -> bool:
@@ -1091,7 +1115,7 @@ class MotionTokenV4(BaseModel):
     @field_validator("easing")
     @classmethod
     def _easing(cls, value: str) -> str:
-        normalized = " ".join(value.strip().split())
+        normalized = _normalize_easing(" ".join(value.strip().split()))
         if not _EASING_RE.fullmatch(normalized):
             raise ValueError("motion easing must be a validated CSS easing value")
         return normalized
@@ -1600,7 +1624,8 @@ class MotionBeatV4(BaseModel):
             or not self.target_selector.strip()
         ):
             raise ValueError("motion beats require a valid duration range and reduced-motion rule")
-        if not _EASING_RE.fullmatch(self.easing.strip()):
+        self.easing = _normalize_easing(self.easing.strip())
+        if not _EASING_RE.fullmatch(self.easing):
             raise ValueError("motion beats require a validated CSS easing value")
         if self.pattern_id and self.pattern_id not in MOTION_PATTERN_IDS:
             raise ValueError(
