@@ -150,6 +150,13 @@ Resource and content contract:
   words. Never invent claims, metrics, clients, testimonials, credentials,
   project details, image subjects, or capabilities.
 
+A resource placement whose `required` field is false and has no admitted
+`local_paths` is working as designed, not a defect: render a tasteful,
+non-personal decorative or generated composition for that placement instead
+(no `LocalImage`, no invented photograph). This is normal, expected input,
+never grounds for `cannot_complete` — that authority is reserved for
+resources actually marked `required`.
+
 Return complete files for only the owned paths, honest coverage, and the
 strict JSON transport object. If a required local input is unavailable, return
 a bounded cannot-complete result instead of fabricating a substitute.
