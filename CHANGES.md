@@ -35,6 +35,16 @@ per explicit user request; wired into the plan/acquire/generate and
 verification failure choke-points. 261 code_generator tests pass (up from
 232 at D-068); full evidence trail in D-074 and `code generator issues.md`.
 
+### 2026-09-06 02:13 +05:30 - Codex (GPT-5 / OpenAI) - [7c94916] - discovery: restore authenticated answer submission
+
+Corrected the product frontend to send Discovery's API action modes
+(`answered`/`skipped`) instead of question presentation kinds, which had
+caused every option click to fail validation. Added a typed answer boundary,
+consistent skip support, and regressions for all answer shapes. Unknown
+non-auth API failures now preserve their safe server message instead of being
+misreported as an expired authentication session; real HTTP 401 handling is
+unchanged.
+
 ### 2026-09-06 01:51 +05:30 - Codex (GPT-5 / OpenAI) - [ae89b61] - worker: release stale shared-lane blockers
 
 Allowed-handler workers now release an expired foreign job only when it
