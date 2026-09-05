@@ -11,6 +11,28 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 03:12 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [1956d58] - output/, .gitignore, README.md, .env.example, docs/run/run.md - device handoff: curate kept output, fix stale docs, document port override
+
+Final task of this engagement: prepared the branch for a fresh device to
+continue Code Generator work. Deleted all `output/build-preparation/` packs
+and `output/code-gen-output/` runs except the one pack and two runs
+referenced in `code generator issues.md`'s 2026-09-06 handoff, and fixed
+`.gitignore`'s nested-negation ancestor chain so those specific kept paths
+are actually tracked (a bare `output/*` rule silently blocks re-inclusion of
+anything under an already-excluded directory without an explicit
+`!dir/` + `dir/*` + `!dir/child/` chain). Corrected README.md's badly stale
+top banner and non-goals list (it still said Code Generator and Phases 3-4
+auth were "out of scope" — both have been implemented for weeks; see
+AGENTS.md), added Node/npm and browser prerequisites, and added a prominent
+pointer to `code generator issues.md` for whoever picks up the reliability
+work next. Documented the existing (but under-documented)
+`DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` settings in `.env.example`, README.md,
+and `docs/run/run.md` as the supported fix for native PostgreSQL's port
+`5432` colliding with another local install — the exact conflict hit
+repeatedly this session — rather than inventing a new override mechanism.
+No source code changed; all 261 code_generator tests and full lint/type
+checks were already green from the prior commit and are unaffected.
+
 ### 2026-09-06 02:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [83179f3 and 8 prior commits] - live-testing iteration closes 8 more real gaps; failed runs now export
 
 Continued live-testing (per the user's "keep going until fixed" instruction)

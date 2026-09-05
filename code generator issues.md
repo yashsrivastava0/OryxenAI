@@ -49,16 +49,51 @@ a clean `ready`/promoted state. Both are exported for direct inspection at:
   Postgres, and if it's not yet at a terminal status, re-invoke with
   `scratch/continue_live_generation.py <run_id>` rather than starting over
   (skips the already-completed stages, saving both time and API cost).
-- **DB connection**: use `OryxenAI_CONFIG_OVERLAY=config/app.native.toml`
-  before `uv run python ...` — that's the native dev Postgres (port 5545),
-  which is where all of tonight's real run data actually lives. The
-  hardcoded `127.0.0.1:5432` in old scratch scripts is stale; both
-  `scratch/run_live_generation.py` and `scratch/continue_live_generation.py`
-  were already fixed tonight to just call `get_settings()` plain.
+- **DB connection — correction (2026-09-06 03:12, added during final
+  handoff cleanup): the paragraph below is WRONG about the port, do not
+  follow it as originally written.** `config/app.native.toml` is committed
+  at port `5432`, not `5545` — checked directly on disk while preparing
+  this branch for device handoff. Tonight's actual Postgres data (the run
+  rows referenced above) lived at port `5545` only because *this specific
+  machine* had a pre-existing local PostgreSQL service already bound to
+  `5432` (the "dual PostgreSQL services" conflict), worked around ad hoc via
+  an untracked, git-ignored `.workspace/app.runtime-native.toml` that
+  nothing in the codebase loads automatically — it was never a supported
+  mechanism, just a same-session workaround. **On a new device, none of that
+  applies**: that Postgres data is local to this machine and does not
+  transfer — the portable evidence is the exported files already committed
+  under `output/code-gen-output/` and `output/build-preparation/`. Just use
+  `OryxenAI_CONFIG_OVERLAY=config/app.native.toml` normally (plain `5432`);
+  if the new machine's own local PostgreSQL is already using `5432`, set
+  `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` in `.env` instead of touching the
+  TOML — see `.env.example` and README.md's Troubleshooting section, both
+  updated with this mechanism during this same cleanup. Original note,
+  now superseded, kept for history: "use
+  `OryxenAI_CONFIG_OVERLAY=config/app.native.toml` before `uv run python
+  ...` — that's the native dev Postgres (port 5545), which is where all of
+  tonight's real run data actually lives." The hardcoded `127.0.0.1:5432` in
+  old scratch scripts is stale either way; both `scratch/run_live_generation.py`
+  and `scratch/continue_live_generation.py` were already fixed tonight to
+  just call `get_settings()` plain, which is correct regardless of this port
+  correction.
 - **Cost accounting**: `config/models.toml`'s pricing rates are an internal
   "configured credits" unit, not 1:1 with real USD (confirmed off by ~24x
   tonight) — never compute a dollar figure from them. If real spend needs
   checking, ask the user to look at their actual provider billing page.
+
+**Branch handoff housekeeping (done 2026-09-06 03:12, separate from the
+code-generator fixes above):** `output/` was trimmed to just the one
+Build Preparation pack and the two Code Generator runs referenced above
+(everything else predated tonight or was a minor early-stage export);
+`.gitignore` was fixed so those specific kept paths are actually tracked
+(git won't re-include a file under an already-excluded directory without
+an explicit ancestor-negation chain); README.md's stale "Code Generator
+out of scope" banner and non-goals were corrected and now point here
+first; and the `.env.example`/README.md/`docs/run/run.md` port-conflict
+docs were fixed (see the DB-connection correction above). All committed
+and pushed to `codex/code-generator-control-room`. This paragraph and the
+correction above are the only edits to this file from that pass — nothing
+about the code-generator investigation itself changed.
 
 **Suggested next steps, roughly in priority order:**
 1. Investigate `fa31c124`'s `SOURCE_CONTENT_KEY_MISSING` (fresh, unexplored).
