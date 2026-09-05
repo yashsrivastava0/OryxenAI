@@ -111,3 +111,56 @@ def test_safe_filename_collapses_journey_id_separators() -> None:
     assert _safe_filename("direct:home") == "direct_home"
     assert _safe_filename("interaction:hero-cta") == "interaction_hero-cta"
     assert _safe_filename("") == "journey"
+
+
+async def test_verify_deduplicates_identical_diagnostics_across_viewports(
+    static_site_url,
+) -> None:
+    """Regression test for the 2026-09-05 live-discovered pattern: the same
+    real defect was caught by more than one viewport's journey and reported
+    as 6 identically-fingerprinted diagnostics inside one already-large
+    bundle, adding no new information for a repair attempt. Two journeys
+    sharing the same journey_id/route_id (the fingerprint's own key,
+    alongside code/message) that both hit the same missing-content
+    assertion must collapse to exactly one diagnostic."""
+    step = VerificationStep(
+        step_id="load",
+        action="assert_content",
+        expected_text=["text that will never appear on this page"],
+    )
+    plan = VerificationPlan(
+        based_on_candidate_identity="test-identity",
+        runtime_journeys=[
+            VerificationJourney(
+                journey_id="direct:home",
+                route_id="home",
+                start_path="/",
+                viewport_profile="desktop",
+                steps=[step],
+            ),
+            VerificationJourney(
+                journey_id="direct:home",
+                route_id="home",
+                start_path="/",
+                viewport_profile="tablet",
+                steps=[step],
+            ),
+        ],
+        expected_route_paths=["/"],
+    )
+    profile = VerificationProfile(
+        profile_id="test-profile",
+        viewport_profiles={
+            "desktop": {"width": 1280, "height": 800},
+            "tablet": {"width": 768, "height": 1024},
+        },
+    )
+
+    _evidence, diagnostics = await RuntimeVerifier().verify(
+        static_site_url,
+        plan=plan,
+        profile=profile,
+    )
+
+    assertion_failures = [d for d in diagnostics if d.code == "RUNTIME_ASSERTION_FAILED"]
+    assert len(assertion_failures) == 1, diagnostics

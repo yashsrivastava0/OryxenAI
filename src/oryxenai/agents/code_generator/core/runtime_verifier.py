@@ -223,6 +223,22 @@ class RuntimeVerifier:
                     diagnostics.extend(journey_diagnostics)
             finally:
                 await browser.close()
+            # The same rendered defect (e.g. one nav link with a small touch
+            # target) is frequently caught by more than one journey/viewport
+            # combination -- confirmed live: 6 identically-fingerprinted
+            # RUNTIME_TOUCH_TARGET_TOO_SMALL entries for one real element,
+            # inside an already-large diagnostic bundle. Repeating the exact
+            # same fact adds no information for a repair attempt and only
+            # makes an already-hard multi-issue bundle look larger; keep the
+            # first occurrence of each fingerprint.
+            seen_fingerprints: set[str] = set()
+            deduplicated: list[Diagnostic] = []
+            for diagnostic in diagnostics:
+                if diagnostic.fingerprint in seen_fingerprints:
+                    continue
+                seen_fingerprints.add(diagnostic.fingerprint)
+                deduplicated.append(diagnostic)
+            diagnostics = deduplicated
         return evidence, diagnostics
 
     async def _run_journey(
