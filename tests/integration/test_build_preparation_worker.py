@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from uuid import UUID
 
 import pytest
@@ -95,8 +96,24 @@ async def test_start_requires_approved_visual_design_director(db_session) -> Non
     assert exc_info.value.code == "BUILD_PREPARATION_VISUAL_DESIGN_DIRECTOR_NOT_APPROVED"
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_phase_3_start_and_worker_flow_persist_blocked_visual_state(db_session) -> None:
+    """Discovered during an unrelated Code Generator session (2026-09-05):
+    this test builds no mock model client, unlike every other worker test
+    in this file/suite, so BuildPreparationHandler resolves and calls
+    whatever provider is actually live in config/models.toml -- it was
+    missing the @pytest.mark.live + explicit-opt-in skip every other real
+    live-model test in this repo already uses (see
+    tests/live/test_build_preparation_live.py), so a plain `uv run pytest`
+    silently spent real provider budget every run. Its own assertions
+    (needs_attention / handoff_eligible=False) depend on genuine live-model
+    behavior for compose_visual_brief, so it cannot simply be mocked
+    without losing what it actually verifies -- gating it to explicit
+    opt-in is the safe fix, matching this project's own stated intent that
+    live model calls are opt-in, not the default."""
+    if os.environ.get("RUN_LIVE_BUILD_PREPARATION") != "1":
+        pytest.skip("Set RUN_LIVE_BUILD_PREPARATION=1 to use configured live providers.")
     session = await PortfolioSessionRepository(db_session).create("Build Preparation worker")
     session_id = session.id
     session.current_state = _approved_upstream_state()

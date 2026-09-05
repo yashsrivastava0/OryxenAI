@@ -160,6 +160,7 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
 
     materialize_trusted_manifests(workspace, projections, plan)
     route_file = workspace.repo_dir / "src" / "routes" / "home-4ea140588150" / "index.tsx"
+    route_file.parent.mkdir(parents=True, exist_ok=True)
     route_file.write_text(
         'import "./route.css";\n'
         'import { publicRouteUrl } from "../../app/ResourceUrl";\n\n'
@@ -227,6 +228,14 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
     assert refreshed.active_preview is not None
     assert refreshed.pending_promotion is None
     assert refreshed.verification_projection["gate_results"][-1]["status"] == "passed"
+
+    # Fix D: DOM/runtime verification must also capture advisory screenshots
+    # for visual review -- zero marginal LLM cost, the browser context is
+    # already open for the structural checks above.
+    screenshot_dir = workspace.root / "verification-screenshots"
+    assert screenshot_dir.is_dir()
+    screenshots = list(screenshot_dir.glob("*.png"))
+    assert screenshots, "at least one verification screenshot must be captured"
 
 
 def _v4_blueprint() -> ExperienceBlueprintV4:
@@ -525,6 +534,437 @@ async def test_attempt_repair_persists_rejected_quality_review(
     assert refreshed.generation_projection["quality_review"]["accepted"] is False
     assert refreshed.generation_projection["quality_review"]["resource_fit_score"] == 2
     # The rejected repair must never be promoted to the run's accepted checkpoint.
+    assert refreshed.source_checkpoint == original_source_checkpoint
+
+
+async def test_attempt_repair_retries_once_after_quality_rejection_then_accepts(
+    db_session, test_engine, tmp_path, monkeypatch
+) -> None:
+    """Regression test for the QUALITY_REVIEW_REJECTED_AFTER_REPAIR
+    control-flow gap: a rejected post-repair whole-site re-review must get
+    exactly one bounded extra repair+re-review attempt before giving up.
+    Here the second re-review accepts, so the run must succeed."""
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_generation.max_repair_rounds_total = 6
+    settings.code_generator_generation.max_repair_rounds_per_unit = 3
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    plan = _plan().model_copy(update={"experience_blueprint": _v4_blueprint()})
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+
+    generation = GenerationProjection(
+        generation_id=f"generation-{run.id}",
+        input_receipt_hash=receipt.admitted_identity,
+        site_plan_hash="plan-hash",
+        phase="source_ready",
+        accepted_checkpoint=checkpoint,
+        source_ready=True,
+        work_units=[_unit_projection_dict(unit) for unit in plan.work_graph.units],
+    )
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={
+            "status": "repairing",
+            "plan": plan.model_dump(mode="json"),
+            "generation_projection": generation.model_dump(mode="json"),
+            "source_checkpoint": {"note": "pre-repair checkpoint"},
+        },
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    identity = CandidateIdentity(
+        input_receipt_hash="irh",
+        site_plan_hash="sph",
+        work_graph_hash="wgh",
+        source_checkpoint_hash=checkpoint.checkpoint_hash,
+        source_manifest_hash="smh",
+        scaffold_toolchain_profile_hash="stph",
+        verification_profile_hash="vph",
+    )
+    profile = VerificationProfile(profile_id="test-profile")
+    projection = VerificationProjection(
+        generation_id=f"generation-{run.id}",
+        candidate_identity=identity,
+        verification_profile=profile,
+        phase="repairing",
+        status="repairing",
+    )
+    diagnostics = [
+        Diagnostic(
+            diagnostic_id="diag-1",
+            group="source_contract",
+            code="TEST_DIAGNOSTIC",
+            phase="source_contract",
+            normalized_message="test diagnostic requiring a repair attempt",
+            fingerprint="fingerprint-1",
+        )
+    ]
+
+    rejected_findings = [
+        QualityFindingV2(
+            finding_id="finding-1",
+            severity="blocking",
+            owner_work_unit_id="route-home-compose",
+            code="MISSING_SECTION_HEADING",
+            file="src/routes/home/index.tsx",
+            line=12,
+            marker="aria-labelledby",
+            evidence="aria-labelledby points at a <p>, not a heading.",
+            requested_outcome="Point aria-labelledby at the section heading element.",
+        )
+    ]
+    score_evidence = [
+        QualityScoreEvidenceV1(
+            dimension=dimension,
+            score=4,
+            owner_work_unit_id="route-home-compose",
+            file="src/routes/home/index.tsx",
+            line=12,
+            marker="aria-labelledby",
+            evidence="Scored against the repaired route source.",
+        )
+        for dimension in ("hierarchy", "composition", "typography", "resource_fit", "motion")
+    ]
+    rejected_receipt = QualityReviewReceiptV2(
+        source_manifest_hash="smh-2",
+        plan_hash="plan-hash-2",
+        realization_hash="realization-hash",
+        review_context_hash="context-hash",
+        response_id="response-1",
+        review_hash="review-hash",
+        quality_gate_version="test-gate-v1",
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=rejected_findings,
+        accepted=False,
+    )
+    rejected_draft = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=rejected_findings,
+        review_summary="One fixable accessibility finding remains.",
+    )
+    accepted_receipt = QualityReviewReceiptV2(
+        source_manifest_hash="smh-3",
+        plan_hash="plan-hash-3",
+        realization_hash="realization-hash",
+        review_context_hash="context-hash",
+        response_id="response-2",
+        review_hash="review-hash-2",
+        quality_gate_version="test-gate-v1",
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=[],
+        accepted=True,
+    )
+    accepted_draft = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=[],
+        review_summary="Clean after the bounded retry.",
+    )
+
+    from oryxenai.agents.code_generator.core.final_repair import FinalRepairer
+
+    repair_call_count = 0
+    review_call_count = 0
+
+    async def fake_repair(self, **_kwargs):
+        nonlocal repair_call_count
+        repair_call_count += 1
+        receipt = RepairReceipt(
+            generation_id=f"generation-{run.id}",
+            diagnostic_fingerprints=[f"fingerprint-{repair_call_count}"],
+            strategy_summary="bounded-simplification",
+            based_on_checkpoint=checkpoint.checkpoint_hash,
+            context_receipt="context-receipt-hash",
+            corrected_checkpoint=checkpoint.checkpoint_hash,
+            accepted_at="2026-08-28T00:00:00Z",
+        )
+        return checkpoint, receipt
+
+    async def fake_integration_review(self, *, projection, **_kwargs):
+        nonlocal review_call_count
+        review_call_count += 1
+        if review_call_count == 1:
+            projection.quality_review = rejected_receipt
+            return rejected_draft
+        projection.quality_review = accepted_receipt
+        return accepted_draft
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+
+    monkeypatch.setattr(FinalRepairer, "repair", fake_repair)
+    monkeypatch.setattr(
+        CodeGeneratorGenerationOrchestrator, "_integration_review", fake_integration_review
+    )
+
+    result = await _attempt_repair(
+        sessionmaker=sessionmaker,
+        run_id=run.id,
+        settings=settings,
+        workspace=workspace,
+        checkpoint_store=CheckpointStore(workspace, generation_id=str(run.id)),
+        checkpoint=checkpoint,
+        identity=identity,
+        plan=plan,
+        projections=projections,
+        projection=projection,
+        diagnostics=diagnostics,
+        public_text=set(),
+        allowed_packages=set(),
+        model_factory=None,
+    )
+
+    assert result is True
+    assert repair_call_count == 2
+    assert review_call_count == 2
+
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert refreshed.generation_projection["quality_review"]["accepted"] is True
+    assert refreshed.source_checkpoint is not None
+    assert refreshed.source_checkpoint.get("checkpoint_hash") == checkpoint.checkpoint_hash
+
+
+async def test_attempt_repair_gives_up_after_one_quality_rejection_retry(
+    db_session, test_engine, tmp_path, monkeypatch
+) -> None:
+    """The bounded extra repair+re-review attempt fires at most once: if the
+    re-review still rejects afterward, the run must terminate with
+    QUALITY_REVIEW_REJECTED_AFTER_REPAIR rather than loop indefinitely, even
+    though plenty of numeric repair budget remains unused."""
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_generation.max_repair_rounds_total = 10
+    settings.code_generator_generation.max_repair_rounds_per_unit = 5
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    plan = _plan().model_copy(update={"experience_blueprint": _v4_blueprint()})
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+
+    generation = GenerationProjection(
+        generation_id=f"generation-{run.id}",
+        input_receipt_hash=receipt.admitted_identity,
+        site_plan_hash="plan-hash",
+        phase="source_ready",
+        accepted_checkpoint=checkpoint,
+        source_ready=True,
+        work_units=[_unit_projection_dict(unit) for unit in plan.work_graph.units],
+    )
+    original_source_checkpoint = {"note": "the run's accepted checkpoint before any repair"}
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={
+            "status": "repairing",
+            "plan": plan.model_dump(mode="json"),
+            "generation_projection": generation.model_dump(mode="json"),
+            "source_checkpoint": original_source_checkpoint,
+        },
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    identity = CandidateIdentity(
+        input_receipt_hash="irh",
+        site_plan_hash="sph",
+        work_graph_hash="wgh",
+        source_checkpoint_hash=checkpoint.checkpoint_hash,
+        source_manifest_hash="smh",
+        scaffold_toolchain_profile_hash="stph",
+        verification_profile_hash="vph",
+    )
+    profile = VerificationProfile(profile_id="test-profile")
+    projection = VerificationProjection(
+        generation_id=f"generation-{run.id}",
+        candidate_identity=identity,
+        verification_profile=profile,
+        phase="repairing",
+        status="repairing",
+    )
+    diagnostics = [
+        Diagnostic(
+            diagnostic_id="diag-1",
+            group="source_contract",
+            code="TEST_DIAGNOSTIC",
+            phase="source_contract",
+            normalized_message="test diagnostic requiring a repair attempt",
+            fingerprint="fingerprint-1",
+        )
+    ]
+
+    rejected_findings = [
+        QualityFindingV2(
+            finding_id="finding-1",
+            severity="blocking",
+            owner_work_unit_id="route-home-compose",
+            code="MISSING_SECTION_HEADING",
+            file="src/routes/home/index.tsx",
+            line=12,
+            marker="aria-labelledby",
+            evidence="aria-labelledby points at a <p>, not a heading.",
+            requested_outcome="Point aria-labelledby at the section heading element.",
+        )
+    ]
+    score_evidence = [
+        QualityScoreEvidenceV1(
+            dimension=dimension,
+            score=4,
+            owner_work_unit_id="route-home-compose",
+            file="src/routes/home/index.tsx",
+            line=12,
+            marker="aria-labelledby",
+            evidence="Scored against the repaired route source.",
+        )
+        for dimension in ("hierarchy", "composition", "typography", "resource_fit", "motion")
+    ]
+    rejected_receipt = QualityReviewReceiptV2(
+        source_manifest_hash="smh-2",
+        plan_hash="plan-hash-2",
+        realization_hash="realization-hash",
+        review_context_hash="context-hash",
+        response_id="response-1",
+        review_hash="review-hash",
+        quality_gate_version="test-gate-v1",
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=rejected_findings,
+        accepted=False,
+    )
+    rejected_draft = QualityReviewDraftV1(
+        hierarchy_score=4,
+        composition_score=4,
+        typography_score=4,
+        resource_fit_score=4,
+        motion_score=4,
+        score_evidence=score_evidence,
+        findings=rejected_findings,
+        review_summary="Still one fixable accessibility finding remains.",
+    )
+
+    from oryxenai.agents.code_generator.core.final_repair import FinalRepairer
+
+    repair_call_count = 0
+    review_call_count = 0
+
+    async def fake_repair(self, **_kwargs):
+        nonlocal repair_call_count
+        repair_call_count += 1
+        receipt = RepairReceipt(
+            generation_id=f"generation-{run.id}",
+            diagnostic_fingerprints=[f"fingerprint-{repair_call_count}"],
+            strategy_summary="bounded-simplification",
+            based_on_checkpoint=checkpoint.checkpoint_hash,
+            context_receipt="context-receipt-hash",
+            corrected_checkpoint=checkpoint.checkpoint_hash,
+            accepted_at="2026-08-28T00:00:00Z",
+        )
+        return checkpoint, receipt
+
+    async def fake_integration_review(self, *, projection, **_kwargs):
+        nonlocal review_call_count
+        review_call_count += 1
+        projection.quality_review = rejected_receipt
+        return rejected_draft
+
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+
+    monkeypatch.setattr(FinalRepairer, "repair", fake_repair)
+    monkeypatch.setattr(
+        CodeGeneratorGenerationOrchestrator, "_integration_review", fake_integration_review
+    )
+
+    with pytest.raises(VerificationFailure) as excinfo:
+        await _attempt_repair(
+            sessionmaker=sessionmaker,
+            run_id=run.id,
+            settings=settings,
+            workspace=workspace,
+            checkpoint_store=CheckpointStore(workspace, generation_id=str(run.id)),
+            checkpoint=checkpoint,
+            identity=identity,
+            plan=plan,
+            projections=projections,
+            projection=projection,
+            diagnostics=diagnostics,
+            public_text=set(),
+            allowed_packages=set(),
+            model_factory=None,
+        )
+
+    assert excinfo.value.code == "QUALITY_REVIEW_REJECTED_AFTER_REPAIR"
+    assert review_call_count == 2, (
+        "must re-review at most twice: the original post-repair check plus "
+        "exactly one bounded retry, never more"
+    )
+    assert repair_call_count == 2, (
+        "must attempt exactly one extra repair beyond the original, never more"
+    )
+
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
     assert refreshed.source_checkpoint == original_source_checkpoint
 
 

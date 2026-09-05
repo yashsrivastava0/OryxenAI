@@ -128,6 +128,7 @@ class FinalRepairer:
             if not is_v4
             else None
         )
+        raw: Any = None
         if deterministic_changes is not None:
             result = GenerationResult(
                 operation_id="code-generator.repair.deterministic-host-fallback",
@@ -267,6 +268,11 @@ class FinalRepairer:
         # rejected model response must never become the retry candidate for
         # the same checkpoint and diagnostic context.
         workspace.write_json(result_path, result.model_dump(mode="json"))
+        _raw_usage = {
+            str(key): int(value)
+            for key, value in dict(getattr(raw, "usage", {}) or {}).items()
+            if isinstance(value, int)
+        }
         receipt = RepairReceipt(
             generation_id=identity.identity_hash,
             diagnostic_fingerprints=sorted({item.fingerprint for item in diagnostics}),
@@ -284,6 +290,15 @@ class FinalRepairer:
             corrected_checkpoint=corrected.checkpoint_hash,
             checks_rerun=["source.paths", "source.policy", "source.typecheck"],
             accepted_at=datetime.now(UTC).isoformat(),
+            usage=_raw_usage,
+            # Matches GenerationCallReceipt's own convention
+            # (generation_orchestrator.py's shared _model_result) for
+            # summing whichever cache-hit key name the active provider
+            # actually returns.
+            cached_tokens=sum(
+                _raw_usage.get(key, 0)
+                for key in ("cached_tokens", "cache_read_input_tokens", "prompt_cache_hit_tokens")
+            ),
         )
         return corrected, receipt
 

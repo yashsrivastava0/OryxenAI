@@ -88,6 +88,33 @@ FINAL_REPAIR_KEY_ORDER: tuple[str, ...] = (
     "output_ceiling",
 )
 
+# The whole-site integration review is the one call site this ordering hint
+# was missing entirely (up to ~600,000 chars of context, up to ~8 calls in
+# one run -- the single most expensive, most frequently repeated call in
+# the pipeline). Order matters more here than for the tuples above: "round"
+# and "source_manifest" both change on virtually every call (a fresh round
+# number; a per-file hash list that changes whenever any file changes from
+# a repair), so either one placed early would break the shared byte-prefix
+# at that point on every single round, forfeiting the cache benefit for
+# everything placed after it -- including the large, run-invariant
+# creative_direction/experience_blueprint/work_graph/execution_bindings
+# content. Keep the always-changing scalars last, immediately before the
+# large assembled_source file-content dict (whose own internal ordering is
+# already lexicographically stable across rounds via the same directory
+# traversal source_manifest itself uses, so no extra sort is needed there).
+INTEGRATION_REVIEW_KEY_ORDER: tuple[str, ...] = (
+    "role_profile",
+    "trusted_build_runtime",
+    "creative_direction",
+    "experience_blueprint",
+    "work_graph",
+    "execution_bindings",
+    "design_realization_contracts",
+    "round",
+    "source_manifest",
+    "assembled_source",
+)
+
 
 def build_instructions(
     operation: str,

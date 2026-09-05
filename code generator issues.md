@@ -4,74 +4,66 @@ Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
 findings that help diagnose the next persistent failure.
 
-## Current state — 2026-09-04/05 (two passes)
+## Current state — 2026-09-05 (D-068)
 
-All 7 Code Generator model profiles now route through **direct OpenAI**
-(`provider = "openai"`, `api_key_env = OPENAI_API_KEY`, model `gpt-5.6-luna`)
-— the account was recharged and a corrected key confirmed live via a cheap
-preflight check (`ModelRuntime.preflight()`, a few dozen tokens, no
-portfolio content) before any paid generation ran. **ScaleMax** (`provider =
-"scalemax"`, same model, `SCALEMAX_API_KEY`/`SCALEMAX_BASE_URL`) was used for
-most of the first pass and is fully wired and confirmed working — kept as a
-config option (just flip `provider`/`base_url`/`api_key_env` on the 7
-`code_generator_*` profiles) if OpenAI credit/rate issues recur.
+All 7 Code Generator model profiles remain on direct OpenAI
+(`provider = "openai"`, `api_key_env = OPENAI_API_KEY`, model `gpt-5.6-luna`).
+ScaleMax remains wired as a config fallback (D-066) if OpenAI credit/rate
+issues recur.
 
-Live-verified against the supplied test pack
-`output/build-preparation/01-31-04-09-94ae4a9c/` (1 route, 6 sections, 7
-resource / 4 component candidates, all eligible) across 7 fresh live runs
-total this session (4 on ScaleMax, 3 on OpenAI), using a second, isolated
-native instance on port 8001 (the already-running port-8000 process was
-stale, pre-dating the D-062/D-064 Markdown-brief migration — do not assume
-port 8000 is current without checking `GET .../build-preparation-packs`
-returns `source_version: "build-preparation-brief-v1"` first).
+D-067's frontier blocker (`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` on run
+`6f4cd2e2-…`, a single `missing-section-heading` finding after final-gate
+repair) was root-caused to a genuine control-flow gap, not a capability or
+budget problem — see D-068. Fixed: `_attempt_repair` now gets exactly one
+bounded extra repair+re-review attempt before giving up. **Not yet
+confirmed live** — see "Current blocker" below.
 
-## Findings and fixes — pass 1 (ScaleMax switch)
+## Findings and fixes this session (D-068)
 
 | Area | Finding | Durable resolution |
 |---|---|---|
-| Provider rate limit | The prior blocker, `PROVIDER_RATE_LIMIT_ERROR` from direct OpenAI during route generation, was resolved (that session) by switching to ScaleMax; ScaleMax runs produced zero rate-limit errors. Pass 2 confirmed direct OpenAI itself is also clean once the account has real credit — the original 429s were plausibly credit-tier-related, not a hard capacity wall. | `providers/factory.py` gained a `"scalemax"` dispatch entry (reuses the existing generic `_openai_compatible` adapter — no new adapter class needed); `model_runtime.py`'s Anthropic-effort-on-OpenAI-transport guard extended to include `"scalemax"`. |
-| Director schema compliance (ScaleMax-specific) | ScaleMax returned HTTP 200 for a `strict: true` `json_schema` request, but the model's JSON did not conform — missing required fields, wrong-typed fields, a wrong `schema_version` literal, and an invented extra property (`motion` instead of `motion_vocabulary`). Direct evidence ScaleMax's gateway does not reliably enforce strict JSON-schema-constrained decoding the way real OpenAI does, despite accepting the request. | `opencode_go.py`'s `_generate_structured_impl`, whenever `strict_schema=True` (every Code Generator call, on any OpenAI-protocol provider), now *also* restates the exact strict schema as explicit prompt text in addition to the `response_format` request — a no-op for a gateway that already enforces it (confirmed: direct OpenAI never needed the repair-loop help this triggered), a real safety net for one that doesn't. `system.md` gained an explicit "never omit a required field, copy literal enum values exactly" rule. Also added a safe (loc+msg only) validation-summary log at the point of final failure, so this class of failure is diagnosable without spending another live call. |
-| Caching | `prompt_cache_ttl = "5m"` was dead config for the OpenAI-compatible path (only the Anthropic adapter read it). The untrusted-input wire payload was always `sort_keys=True`, interleaving each call's unique keys among content that repeats byte-for-byte across a run, defeating provider-side prefix caching before it could start. | Added an opt-in `request_context={"key_order": [...]}` hook riding on `ModelClient.generate_structured`'s previously-unused `request_context` parameter — Code Generator's call sites (director/planner, route batch/compose/integrate/repair, final repair) place invariant per-run content first; zero effect on any other agent, which never sets it. Also an optional `prompt_cache_key`, capability-gated (`supports_prompt_cache_key`). **Confirmed the code path works** (a direct-OpenAI preflight call returned `cached_prompt_tokens: 0`, correctly — those calls are ~280 tokens, under OpenAI's ~1024-token minimum for caching to engage); **real cache-hit savings on an actual generation call were not checked** (would need a temporary `result.usage` log during a live run — not done this session). |
-| Batch API | Rejected, consistent with D-040: Code Generator's stages are sequentially dependent within one durable job, which does not fit an asynchronous, delayed-turnaround batch API. |
+| `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` had no retry | `_attempt_repair`'s post-repair whole-site re-review rejection raised terminally from *outside* its own bounded retry loop, so it could never consume another round of the existing 6-total/3-per-unit budget — the one observed case had used only 1 of 6. | Refactored into `_run_bounded_repair`/`_rereview_after_repair`/`_diagnostics_from_quality_findings` helpers (`jobs/handlers/code_generator_verification.py`); one bounded extra repair+re-review attempt, never a third re-review regardless of remaining budget. 2 new regression tests prove the exact bound. |
+| `INTEGRATION_POLISH_INCOMPLETE` had no retry either | Live-discovered this session: the *mid-generation* whole-site polish loop's owner-scoped repair call (`_review_and_polish`) raised and killed the whole run the moment a repair attempt reported `cannot_complete`, even on the first attempt, even though the outer polish-round loop (5 rounds, D-067) exists precisely to give a different round another try. | Now logs a warning and `break`s (skipping that owner for the round) instead of raising; the pre-existing bounded polish-round loop keeps trying or converges to the pre-existing `INTEGRATION_REVIEW_UNRESOLVED` terminal state. 1 new regression test. |
+| Whole-site review had zero prefix-caching | The single most expensive, most-repeated call in the pipeline (up to 8x/run, up to ~600,000 chars) had no `request_context` at all, unlike 4 of the other 5 call sites. | Added `INTEGRATION_REVIEW_KEY_ORDER` + a stable `prompt_cache_key`, ordering run-invariant content before the two always-changing scalars (`round`, `source_manifest`) and the large `assembled_source` dict. **Confirmed live**: non-zero `cached_prompt_tokens` in persisted usage on the second live call onward. |
+| Motion was 100% free-form | Scaffold's `motion.css` was empty (reduced-motion safety net only); every beat's animation was invented from scratch, the one remaining unconstrained surface versus the deterministic catalogue-and-select pattern already used for images/fonts/components. | Added `core/motion_pattern_catalogue.py` (3 patterns) + optional `MotionBeatV4.pattern_id`; `generation_contract.py` instructs route_batch/route_compose to apply a named trusted `SharedSystems.tsx` component when set. **Confirmed live**: the planner set `pattern_id` on a real beat on the first live attempt. Required a companion fix — `route_batch.md`/`route_compose.md` previously explicitly forbade the `.reveal`/`.stagger` class names this introduces. |
+| No visual evidence anywhere | DOM/runtime verification never captured a screenshot; zero pixel-level evidence of a generated portfolio existed anywhere in this pipeline. | Added advisory screenshot capture to `runtime_verifier.py` (zero extra cost — the browser context is already open) plus export/report wiring. |
+| A Build Preparation test silently spent real budget | `tests/integration/test_build_preparation_worker.py`'s worker test built no mock model client, unlike every other test in the suite — a plain `pytest` run made a real live call every time. | Gated behind `@pytest.mark.live` + `RUN_LIVE_BUILD_PREPARATION=1`, matching this project's own existing live-test convention (`tests/live/`). |
 
-## Findings and fixes — pass 2 (direct OpenAI, duplicate-path fix, polish-round ceiling)
+## Current blocker
 
-| Area | Finding | Durable resolution |
-|---|---|---|
-| `SOURCE_DUPLICATE_PATH` gave the repair model nothing to act on | A live OpenAI run's `v4` source envelope had two entries for the same file path. The host-side check (`_validate_v4_generation_coverage` in `generation_orchestrator.py`) raised `SourceValidationError("SOURCE_DUPLICATE_PATH", ...)` **without** a `file=` value — unlike its sibling checks. The repair model, given a diagnostic with no file reference, correctly (if unhelpfully) reported it couldn't make a bounded fix rather than guess — exactly the project's own "honest cannot_complete over guessing" design working as intended, just starved of the one fact it needed. | The check now finds the actual duplicated path(s) and passes the first one as `file=`, plus a message naming it explicitly. New unit test: `test_v4_duplicate_path_identifies_the_offending_file` in `test_v4_contracts.py`. A follow-up run with this fix in place did not hit this diagnostic again. |
-| `max_integration_polish_rounds` ceiling (3) was too tight | **Two independent live runs — one on ScaleMax, one on direct OpenAI, same pack — both converged steadily each round and then ran out of budget while still making real progress**, not while stuck: ScaleMax run went from 3 blocking findings to 1 lone "bounded motion correction" per the reviewer's own words; OpenAI run (pass 2) similarly narrowed to one specific, well-described issue. This is real, reproducible, cross-provider evidence the ceiling itself — not model capability — was the limiter. | Raised `max_integration_polish_rounds` from `Field(default=3, ge=1, le=3)` to `Field(default=5, ge=1, le=6)` in `core/settings.py`, and `config/app.toml`'s value to match. **Confirmed live**: a repeat OpenAI run with the raised ceiling fully converged the integration-review loop and advanced past `generate` into `verify_and_preview` — the furthest any run has reached this session. |
-
-## Current blocker (run `6f4cd2e2-08d6-424f-9c5a-e76169578e30`, direct OpenAI, both fixes above applied)
-
-- With the polish-ceiling fix, a run reached **final verification** (clean
-  build + repair + whole-site re-review) for the first time this session —
-  past the previous universal bottleneck entirely. It landed in
-  `needs_attention` with `QUALITY_REVIEW_REJECTED_AFTER_REPAIR`: after one
-  repair round fixed the build/typecheck-level issues, the final whole-site
-  re-review scored the site well (hierarchy=4, composition=4, typography=4,
-  resource_fit=5, motion=4) but found **one** remaining blocking finding —
-  `missing-section-heading`: the Experience section's `aria-labelledby`
-  points at a `<p>` instead of a heading element, breaking the document
-  outline/assistive-tech navigation. A real, specific, easily-fixable
-  accessibility issue, not a structural failure.
-- This gate's repair budget is `max_repair_rounds_total`/
-  `max_repair_rounds_per_unit` (6/3), a **different, already-separately-
-  reasoned** budget (D-056, D-058) than the one just raised, and shared with
-  mid-generation repair. Only one data point exists for it being too tight
-  here (vs. two independent cross-provider data points that justified
-  raising the polish-round ceiling) — **do not raise it yet** without a
-  second confirming run; it may simply need a fresh attempt, since repair
-  calls are non-deterministic.
+- Not a code failure — a resource one. Two live end-to-end attempts against
+  the eligible pack (`output/build-preparation/01-31-04-09-94ae4a9c/`) this
+  session: the first reached `generate` and stopped at the *new*
+  `INTEGRATION_POLISH_INCOMPLETE` gap above (now fixed, not re-tested); a
+  second and a resume-of-that-run attempt were both killed by real system
+  memory pressure (~1.5GB free of 15.7GB on this machine) before reaching
+  `verify_and_preview` — not a logic bug. Fix A's exact retry path
+  (`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` → one bounded extra attempt) was
+  therefore **not directly witnessed live this session**; it is proven only
+  by `test_attempt_repair_retries_once_after_quality_rejection_then_accepts`
+  and `test_attempt_repair_gives_up_after_one_quality_rejection_retry`
+  (`tests/integration/test_code_generator_verification_worker.py`).
+- The original historical blocker run (`6f4cd2e2-…`) cannot be cheaply
+  resumed to test this fix directly: its `generation_projection.quality_review`
+  was already overwritten by the rejected repair attempt itself (by design —
+  a rejected repair must never become the accepted checkpoint), so a
+  verify-only resume immediately hits `QUALITY_SOURCE_STALE` before any
+  model call. A fresh full run is required to exercise Fix A live.
 
 ## Remaining external blocker
 
-- None from the provider/rate-limit/schema-compliance class — resolved this
-  pass, on both ScaleMax and direct OpenAI.
+- None from the provider/rate-limit/schema-compliance class.
+- System memory pressure on the development machine blocked completing a
+  live run past `generate` this session — retry once more memory is free.
 
 ## Next verification target
 
-- Re-run against the same pack with both fixes in place and check whether
-  `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` recurs on the same
-  `missing-section-heading`-shaped issue (→ a real gap in how the final
-  repair round is scoped/prompted, worth investigating) or resolves cleanly
-  (→ was ordinary non-determinism, no further fix needed).
+- Re-run a fresh full attempt (plan → acquire → generate → verify) against
+  the same eligible pack once system memory pressure eases. Confirm:
+  (a) `INTEGRATION_POLISH_INCOMPLETE`'s fix actually lets a `cannot_complete`
+  owner get skipped without killing the run; (b) a `QUALITY_REVIEW_REJECTED_AFTER_REPAIR`
+  case (if one recurs) actually gets the one bounded extra retry and either
+  resolves or cleanly terminates after exactly that; (c) inspect the
+  captured `verification-screenshots/` for real visual confirmation the
+  output looks like an advanced, animated, image-rich portfolio — the
+  actual test of "visually looking good," not just green checks.

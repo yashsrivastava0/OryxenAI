@@ -10,7 +10,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     IntegrationReviewV1,
     QualityReviewDraftV1,
 )
-from oryxenai.agents.code_generator.core.generation_prompt_builder import build_instructions
+from oryxenai.agents.code_generator.core.generation_prompt_builder import (
+    INTEGRATION_REVIEW_KEY_ORDER,
+    build_instructions,
+)
 from oryxenai.agents.code_generator.core.quality_review import (
     QualityReviewError,
     validate_quality_review_draft_evidence,
@@ -41,6 +44,7 @@ async def run_integration_review_operation(
     context: dict[str, Any],
     profile_name: str,
     output_version: str = "legacy",
+    cache_key: str | None = None,
 ) -> tuple[IntegrationReviewV1 | QualityReviewDraftV1, Any, Any]:
     operation_context = {**context, "role_profile": profile_name}
     output_model = QualityReviewDraftV1 if output_version == "v4" else IntegrationReviewV1
@@ -57,6 +61,9 @@ async def run_integration_review_operation(
                 f"semantic validation: {last_issue[:1200]}"
             )
         try:
+            request_context: dict[str, Any] = {"key_order": INTEGRATION_REVIEW_KEY_ORDER}
+            if cache_key:
+                request_context["prompt_cache_key"] = cache_key
             result = await model.generate_structured(
                 operation="code_generator.review_integration",
                 instructions=call_instructions,
@@ -65,6 +72,7 @@ async def run_integration_review_operation(
                 system_prompt=system,
                 model_profile=profile_name,
                 strict_schema=True,
+                request_context=request_context,
             )
             parsed = getattr(result, "parsed_output", result)
             review = output_model.model_validate(parsed)

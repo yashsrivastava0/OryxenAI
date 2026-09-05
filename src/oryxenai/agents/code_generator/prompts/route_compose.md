@@ -63,8 +63,9 @@ token to `--size-<name>`, a radius token to `--radius-<name>`, a border to
 prefix, even when it looks redundant with the token's own name (a spacing
 token already named `space-5` still compiles to `--space-5`, not
 `--space-space-5`). Do not assume or recreate a
-default palette, `.card`, `.surface`, `.grid`, `.reveal`, `.stagger`, or other
-generic scaffold primitive. The trusted `SharedSystems` signature supplies
+default palette, `.card`, `.surface`, `.grid`, or other generic scaffold
+primitive not named in the motion pattern catalogue or already exported by
+SharedSystems.tsx. The trusted `SharedSystems` signature supplies
 the one main landmark, skip link, navigation, disclosure behavior, focus
 return, and footer. Do not implement a second shell or modify `src/app/**`,
 `src/generated/**`, `src/content/**`, `src/main.tsx`, package files, or the
@@ -72,7 +73,9 @@ route registry.
 
 Keep the route coherent from mobile through desktop. Every interaction must
 remain keyboard accessible and every motion beat must have a fully visible
-reduced-motion equivalent. Use `publicRouteUrl` for same-site navigation and
-only approved external URLs. Return complete files for only the owned paths,
-with honest coverage and no arbitrary links, remote assets, or unapproved
-source content.
+reduced-motion equivalent. When a beat's instruction names a trusted motion
+pattern, use the named `SharedSystems.tsx` component or class exactly rather
+than hand-authoring new CSS/JS for it. Use `publicRouteUrl` for same-site
+navigation and only approved external URLs. Return complete files for only
+the owned paths, with honest coverage and no arbitrary links, remote
+assets, or unapproved source content.

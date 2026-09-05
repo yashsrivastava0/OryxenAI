@@ -1,10 +1,17 @@
-"""Text/DOM/runtime verification without visual or image evidence."""
+"""DOM/runtime verification, plus optional advisory screenshot capture.
+
+Pass/fail verdicts remain purely structural (DOM order, computed-style
+geometry, console/CSP/outbound-network checks) -- a screenshot, when
+`screenshot_dir` is supplied, is captured for human/visual review only and
+never affects a journey's `passed` outcome or diagnostics.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, cast
@@ -18,6 +25,19 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     VerificationPlan,
     VerificationProfile,
 )
+from oryxenai.core.logging import get_logger
+
+logger = get_logger("oryxenai.agents.code_generator.runtime_verifier")
+
+_UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
+
+
+def _safe_filename(value: str) -> str:
+    """Collapse a journey_id (e.g. "direct:home", "interaction:hero-cta")
+    into a filesystem-safe name -- ':' and other separators are not valid
+    in Windows filenames."""
+
+    return _UNSAFE_FILENAME_CHARS.sub("_", value).strip("_") or "journey"
 
 
 def _diagnostic(
@@ -120,6 +140,7 @@ class RuntimeVerifier:
         profile: VerificationProfile,
         timeout_ms: int = 15_000,
         verification_token: str = "",
+        screenshot_dir: Path | None = None,
     ) -> tuple[list[RuntimeEvidence], list[Diagnostic]]:
         try:
             from playwright.async_api import async_playwright
@@ -143,6 +164,8 @@ class RuntimeVerifier:
         evidence: list[RuntimeEvidence] = []
         diagnostics: list[Diagnostic] = []
         expected_runtime_paths = _mounted_route_paths(base_url, plan.expected_route_paths)
+        if screenshot_dir is not None:
+            screenshot_dir.mkdir(parents=True, exist_ok=True)
         async with async_playwright() as playwright:
             browser_type = getattr(playwright, profile.browser_name, None)
             if browser_type is None:
@@ -194,6 +217,7 @@ class RuntimeVerifier:
                         timeout_ms,
                         verification_token,
                         realization_contract,
+                        screenshot_dir,
                     )
                     evidence.append(journey_evidence)
                     diagnostics.extend(journey_diagnostics)
@@ -212,6 +236,7 @@ class RuntimeVerifier:
         timeout_ms: int,
         verification_token: str,
         realization_contract: DesignRealizationContract | None,
+        screenshot_dir: Path | None = None,
     ) -> tuple[RuntimeEvidence, list[Diagnostic]]:
         viewport = profile.viewport_profiles.get(journey.viewport_profile) or {
             "width": 1440,
@@ -323,6 +348,7 @@ class RuntimeVerifier:
         overflow_results: list[dict[str, str | int | bool]] = []
         geometry_results: list[dict[str, Any]] = []
         realization_results: list[dict[str, Any]] = []
+        screenshot_relative_path = ""
         try:
             for step in journey.steps:
                 await self._step(
@@ -336,6 +362,23 @@ class RuntimeVerifier:
                     geometry_results,
                     profile.geometry_thresholds,
                 )
+            if screenshot_dir is not None:
+                # Advisory only: a screenshot failure must never affect the
+                # journey's pass/fail outcome or raise past this block. This
+                # is the only place in the whole verification pipeline that
+                # captures any visual evidence of a generated portfolio.
+                try:
+                    screenshot_name = f"{_safe_filename(journey.journey_id)}.png"
+                    await page.screenshot(
+                        path=str(screenshot_dir / screenshot_name), full_page=True
+                    )
+                    screenshot_relative_path = screenshot_name
+                except Exception:
+                    logger.warning(
+                        "verification screenshot capture failed journey_id=%s",
+                        journey.journey_id,
+                        exc_info=True,
+                    )
             for result in geometry_results:
                 for violation in result.get("violations", []):
                     if not isinstance(violation, dict):
@@ -621,6 +664,7 @@ class RuntimeVerifier:
                 geometry_results=geometry_results,
                 realization_results=realization_results,
                 passed=passed,
+                screenshot_relative_path=screenshot_relative_path,
             ),
             diagnostics,
         )
