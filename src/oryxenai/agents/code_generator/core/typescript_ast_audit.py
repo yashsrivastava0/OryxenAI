@@ -741,14 +741,22 @@ _MOTION_STATE_QUALIFIER_RE = re.compile(
 
 
 def _selector_targets_contract(candidate: str, expected: str) -> bool:
-    """Allow runtime motion state qualifiers without changing the target."""
+    """Allow runtime motion state qualifiers without changing the target, and
+    allow the expected selector to be nested under an ancestor descendant/
+    child scope (e.g. "#hero [data-region-id=...]") -- a common, harmless
+    section-scoping pattern that still targets the same rendered element as
+    the bare expected selector would."""
 
     normalized_candidate = " ".join(candidate.strip().split())
     normalized_expected = " ".join(expected.strip().split())
-    if normalized_candidate == normalized_expected:
+    if _selector_matches_scoped(normalized_candidate, normalized_expected):
         return True
     without_runtime_state = _MOTION_STATE_QUALIFIER_RE.sub("", normalized_candidate)
-    return " ".join(without_runtime_state.split()) == normalized_expected
+    return _selector_matches_scoped(" ".join(without_runtime_state.split()), normalized_expected)
+
+
+def _selector_matches_scoped(candidate: str, expected: str) -> bool:
+    return candidate == expected or candidate.endswith(" " + expected)
 
 
 def _selector_has_reduced_motion(css: str, selector: str) -> bool:
