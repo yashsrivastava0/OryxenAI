@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-05 22:25 +05:30 - Codex (GPT-5 / OpenAI) - [7a0c68f] - deployment: record local environment audit findings
+
+Recorded the redacted local `.env` audit in the live deployment checkpoint:
+the file is Git-ignored and populated, but duplicate authorization variables
+and one malformed line must be cleaned before a separate production `.env` is
+created on the VM. No secret values were displayed or copied.
+
 ### 2026-09-05 22:19 +05:30 - Codex (GPT-5 / OpenAI) - [a2a8a60] - deployment: record live Azure VM and SSH checkpoint
 
 Recorded the completed Azure VM provisioning, final networking/NSG settings,
