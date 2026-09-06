@@ -548,6 +548,12 @@ body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
 .sec-header { display: flex; gap: 1rem; justify-content: space-between; align-items: start; }
 .sec-header h3 { margin-top: 0; }
 .sec-subtitle { color: var(--graphite); }
+.artifact-json-output { margin-top: 3rem; padding: 1.25rem 0; border-block: 1px solid var(--rule); }
+.artifact-json-output summary { font-weight: 700; cursor: pointer; }
+.artifact-json-output > p { max-width: 64ch; color: var(--graphite); line-height: 1.6; }
+.artifact-json-actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 1rem 0; }
+.artifact-json-actions span { color: var(--attention); font-size: .9rem; }
+.artifact-json-field { width: 100%; min-height: 18rem; padding: 1rem; color: #f7f5ee; background: var(--ink); border: 1px solid var(--ink); font-family: var(--font-mono); font-size: .78rem; line-height: 1.5; resize: vertical; }
 .artifact-review-actions { margin-top: 4rem; padding: 1.5rem 0; border-block: 1px solid var(--ink); }
 .approval-confirmation-box, .revision-composer { margin-top: 1rem; padding: clamp(1rem, 3vw, 2rem); background: var(--paper); border-left: 3px solid var(--signal); }
 .approval-confirmation-box h3, .revision-header h3 { margin-bottom: .5rem; }

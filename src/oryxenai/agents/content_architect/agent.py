@@ -7,11 +7,11 @@ three sequential model calls, adaptively:
                           optionally with full content inlined already.
   2. write_pages         (only if stage 1 deferred content): batched final
                           content for every route in one call.
-  3. integrate_content   (only if cross-route reconciliation is warranted):
-                          terminology/nav consistency pass.
+  3. integrate_content   (only if reconciliation or approval-readiness repair
+                          is warranted): consistency/safety pass.
 
 Never more than 3 model calls, never one call per page/section. The output
-contract is the only validation gate, enforced by validators.py.
+contract and deterministic approval-readiness gate are enforced before review.
 """
 
 from __future__ import annotations
@@ -19,7 +19,12 @@ from __future__ import annotations
 from typing import Any
 
 from oryxenai.agents.content_architect.prompt_builder import build_instructions
-from oryxenai.agents.content_architect.schemas import ContentArchitectOutput
+from oryxenai.agents.content_architect.schemas import (
+    ContentArchitectOutput,
+    ContentArchitectState,
+    PublicationStatus,
+)
+from oryxenai.agents.content_architect.state import public_scope_errors
 from oryxenai.agents.content_architect.validators import validate_stage_output
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
 from oryxenai.agents.shared.model_cache import (
@@ -194,6 +199,55 @@ class ContentArchitectAgent(Agent):
                 ],
             )
 
+        # Approval must be a formality after review, never the first place we
+        # discover that public content contradicts its own publication gates.
+        # Use one of the existing three bounded calls as a corrective
+        # integration pass when capacity remains; otherwise fail before the
+        # unapprovable output can be presented as ready for review.
+        readiness_errors = _approval_readiness_errors(
+            route_plan=route_plan,
+            claim_grounding=claim_grounding,
+            page_content_packs=page_content_packs,
+            public_content_manifest=public_content_manifest,
+            visual_director_handoff=visual_director_handoff,
+        )
+        if readiness_errors and len(stages_run) < 3:
+            repair_packet = {
+                "route_plan": route_plan,
+                "claim_grounding": claim_grounding,
+                "page_content_packs": page_content_packs,
+                "public_content_manifest": public_content_manifest,
+                "visual_director_handoff": visual_director_handoff,
+                "approval_readiness_errors": readiness_errors,
+            }
+            parsed_repair, version, meta_repair = await self._call_stage(
+                "integrate_content",
+                repair_packet,
+                known_route_plan=route_plan,
+                known_claim_grounding=claim_grounding,
+            )
+            stages_run.append("integrate_content")
+            stages_meta.append(meta_repair)
+            page_content_packs = list(parsed_repair.get("page_content_packs") or page_content_packs)
+            public_content_manifest = dict(
+                parsed_repair.get("public_content_manifest") or public_content_manifest
+            )
+            visual_director_handoff = dict(
+                parsed_repair.get("visual_director_handoff") or visual_director_handoff
+            )
+            warnings.extend(parsed_repair.get("warnings") or [])
+            decision_basis.extend(parsed_repair.get("decision_basis") or [])
+            memory_update.update(parsed_repair.get("memory_update") or {})
+            readiness_errors = _approval_readiness_errors(
+                route_plan=route_plan,
+                claim_grounding=claim_grounding,
+                page_content_packs=page_content_packs,
+                public_content_manifest=public_content_manifest,
+                visual_director_handoff=visual_director_handoff,
+            )
+        if readiness_errors:
+            raise ContentArchitectModelOutputError("approval_readiness", readiness_errors)
+
         logger.info(
             "content_architect build stages=%s routes=%d pages=%d",
             stages_run,
@@ -276,6 +330,33 @@ class ContentArchitectAgent(Agent):
             "profile": raw.get("profile", {}) or {},
             "open_items": raw.get("open_items", []) or [],
         }
+
+
+def _approval_readiness_errors(
+    *,
+    route_plan: list[dict[str, Any]],
+    claim_grounding: list[dict[str, Any]],
+    page_content_packs: list[dict[str, Any]],
+    public_content_manifest: dict[str, Any],
+    visual_director_handoff: dict[str, Any],
+) -> list[str]:
+    state = ContentArchitectState.model_validate(
+        {
+            "route_plan": route_plan,
+            "claim_grounding": claim_grounding,
+            "page_content_packs": page_content_packs,
+            "public_content_manifest": public_content_manifest,
+            "visual_director_handoff": visual_director_handoff,
+        }
+    )
+    public_routes = [
+        route
+        for route in state.route_plan
+        if route.publication_status == PublicationStatus.APPROVED
+    ]
+    if not public_routes:
+        return ["At least one route must be approved for publication"]
+    return public_scope_errors(state, public_routes)
 
 
 def _parsed_output(result: Any) -> dict[str, Any]:
