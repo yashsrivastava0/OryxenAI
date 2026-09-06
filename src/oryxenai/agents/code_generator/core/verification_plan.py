@@ -304,6 +304,8 @@ def derive_verification_plan(
                 plan.experience_blueprint,
                 route_id=route.route_id,
                 section_order=list(route.section_order or route.section_ids),
+                execution=projections.get("execution/contract.json"),
+                resource_ledger=resources,
             )
             for route in plan.routes
         ]

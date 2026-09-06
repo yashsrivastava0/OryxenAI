@@ -4,22 +4,73 @@ from __future__ import annotations
 
 import re
 
+# Characters after which a top-level "/" is division/regex-end, not a new
+# regex literal's opening slash: identifier/number tails, closers, and quote
+# ends. Anything else (operators, punctuation, start-of-file) is a position
+# where JavaScript itself would also parse "/" as starting a regex literal.
+# "<" is included even though a bare less-than operator would make a
+# following "/" a valid regex start in real JS: in this JSX/TSX source, "<"
+# immediately followed by "/" is overwhelmingly a closing tag ("</Foo>"),
+# never a regex literal, and misreading it as one can swallow an adjacent
+# real "//" comment.
+_REGEX_DIVISION_CONTEXT = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$)]\"'`<"
+)
+
+
+def _scan_regex_literal(value: str, start: int, length: int) -> int | None:
+    """Return the end index of a JS regex literal starting at ``start``, or None.
+
+    ``value[start]`` must be "/". Returns None (not a regex literal) for an
+    empty body (the invalid ``//``/``/*`` cases, left to comment handling),
+    an unterminated literal, or one that reaches a raw newline before closing
+    — JS regex literals cannot contain a literal line break.
+    """
+
+    index = start + 1
+    if index >= length or value[index] in ("/", "*"):
+        return None
+    in_class = False
+    while index < length:
+        character = value[index]
+        if character == "\\" and index + 1 < length:
+            index += 2
+            continue
+        if character in "\r\n":
+            return None
+        if character == "[":
+            in_class = True
+        elif character == "]":
+            in_class = False
+        elif character == "/" and not in_class:
+            index += 1
+            while index < length and value[index].isalpha():
+                index += 1
+            return index
+        index += 1
+    return None
+
 
 def strip_source_comments(value: str) -> str:
-    """Remove real source comments without truncating quoted URL strings.
+    """Remove real source comments without truncating quoted URL strings or regex literals.
 
     The Code Generator intentionally keeps its trusted source audits
     dependency-free.  A regular expression cannot distinguish ``//`` in a
     comment from ``//`` in a JavaScript string such as an HTTPS URL, so use a
-    small quote-aware scanner instead.  Removed characters become spaces and
-    line endings are preserved, which keeps later line/ordering diagnostics
-    stable.
+    small quote-aware scanner instead.  A JS regex literal (e.g.
+    ``/^\\/api\\//`` or ``.replace(/\\/+$/, "")``) can itself contain a bare
+    ``//`` outside any quote once its own backslash-escapes are consumed, so
+    regex literals are recognized and passed through verbatim using the same
+    start-of-expression heuristic real JS lexers use. Removed characters
+    become spaces and line endings are preserved, which keeps later
+    line/ordering diagnostics stable.
     """
 
     result: list[str] = []
     index = 0
     quote = ""
     length = len(value)
+    last_significant = ""
     while index < length:
         character = value[index]
         if quote:
@@ -29,12 +80,14 @@ def strip_source_comments(value: str) -> str:
                 result.append(value[index])
             elif character == quote:
                 quote = ""
+            last_significant = character
             index += 1
             continue
 
         if character in {'"', "'", "`"}:
             quote = character
             result.append(character)
+            last_significant = character
             index += 1
             continue
 
@@ -46,6 +99,14 @@ def strip_source_comments(value: str) -> str:
             )
             index = end
             continue
+
+        if character == "/" and last_significant not in _REGEX_DIVISION_CONTEXT:
+            regex_end = _scan_regex_literal(value, index, length)
+            if regex_end is not None:
+                result.append(value[index:regex_end])
+                last_significant = value[regex_end - 1]
+                index = regex_end
+                continue
 
         if value.startswith("/*", index):
             end = value.find("*/", index + 2)
@@ -65,6 +126,8 @@ def strip_source_comments(value: str) -> str:
             continue
 
         result.append(character)
+        if not character.isspace():
+            last_significant = character
         index += 1
     return "".join(result)
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from oryxenai.agents.code_generator.core.development_schemas import (
     DesignRealizationContract,
     DistinctiveMoveRuntimeCheckV1,
@@ -14,11 +16,69 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 )
 
 
+def _admitted_resource_slot_ids(
+    execution: dict[str, Any] | None, resource_ledger: dict[str, Any] | None
+) -> set[str] | None:
+    """Return the resource_slot_ids the runtime image checks should apply to.
+
+    Returns None when execution/resource_ledger projections are unavailable,
+    meaning "check every placement" (the prior, acquisition-blind behavior)
+    rather than silently excluding everything. A placement is included when
+    its execution slot marks it `required`, or when acquisition actually
+    materialized real local files for it -- resolved the same way
+    `final_source_validation.py` already resolves a slot's real local paths
+    (a `delegated-{resource_slot_id}` request lookup into the resource
+    ledger's active bindings, since acquisition only links a binding back to
+    a request/purpose string, not directly to a resource_slot_id). A
+    placement that is optional and never got a real local file is an honest,
+    approved fallback (route_batch.md/repair_source.md/integration_review.md
+    all instruct the model to render a decorative composition there instead
+    of a real image) and must not be held to the real-image runtime checks.
+    """
+
+    if not isinstance(execution, dict) or not isinstance(resource_ledger, dict):
+        return None
+    requests_by_id = {
+        str(item.get("request_id", "")): item
+        for item in resource_ledger.get("requests", [])
+        if isinstance(item, dict)
+    }
+    bindings_by_request_hash = {
+        str(item.get("request_id_or_pack_need_id", "")): item
+        for item in resource_ledger.get("active_bindings", [])
+        if isinstance(item, dict)
+    }
+    admitted: set[str] = set()
+    for slot in execution.get("slots", []):
+        if not isinstance(slot, dict):
+            continue
+        slot_id = str(slot.get("resource_slot_id", ""))
+        if not slot_id:
+            continue
+        if slot.get("required"):
+            admitted.add(slot_id)
+            continue
+        resolution = slot.get("resolution", {})
+        resolution_type = (
+            str(resolution.get("resolution_type", "")) if isinstance(resolution, dict) else ""
+        )
+        local_paths = resolution.get("local_paths", []) if isinstance(resolution, dict) else []
+        if resolution_type == "delegated_acquisition":
+            delegated_request = requests_by_id.get(f"delegated-{slot_id}", {})
+            request_hash = str(delegated_request.get("request_hash", ""))
+            local_paths = bindings_by_request_hash.get(request_hash, {}).get("local_paths", [])
+        if local_paths:
+            admitted.add(slot_id)
+    return admitted
+
+
 def compile_design_realization(
     blueprint: ExperienceBlueprintV4,
     *,
     route_id: str,
     section_order: list[str],
+    execution: dict[str, Any] | None = None,
+    resource_ledger: dict[str, Any] | None = None,
 ) -> DesignRealizationContract:
     shells = [item for item in blueprint.route_shells if item.route_id == route_id]
     if len(shells) != 1:
@@ -28,6 +88,7 @@ def compile_design_realization(
         raise ValueError("design realization section order does not match the trusted route")
     moves = [item for item in blueprint.distinctive_moves if item.route_id == route_id]
     regions = [item for item in blueprint.section_regions if item.route_id == route_id]
+    admitted_resource_slot_ids = _admitted_resource_slot_ids(execution, resource_ledger)
     return DesignRealizationContract(
         route_id=route_id,
         section_order=list(section_order),
@@ -78,6 +139,10 @@ def compile_design_realization(
             )
             for item in blueprint.resource_placements
             if item.route_id == route_id
+            and (
+                admitted_resource_slot_ids is None
+                or item.resource_slot_id in admitted_resource_slot_ids
+            )
         ],
         interaction_checks=[
             InteractionRuntimeCheckV1(
