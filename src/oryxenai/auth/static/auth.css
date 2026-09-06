@@ -321,6 +321,14 @@ body[data-page="sign-in"]::before {
   gap: 0.65rem;
 }
 
+.brand-logo-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
 .brand-logo-svg {
   flex-shrink: 0;
 }
@@ -607,7 +615,12 @@ body[data-page="sign-in"]::before {
 
 /* RIGHT COLUMN: INTERACTIVE SIX-STAGE PRODUCT SHOWCASE */
 .sign-in-right-col {
-  background: var(--paper);
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(to right, rgba(23, 26, 25, 0.038) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(23, 26, 25, 0.038) 1px, transparent 1px);
+  background-size: 38px 38px;
+  background-position: center top;
   padding: clamp(1.75rem, 2.8vw, 3rem) clamp(1.75rem, 3.2vw, 3.5rem);
   display: flex;
   flex-direction: column;
@@ -616,6 +629,45 @@ body[data-page="sign-in"]::before {
   position: relative;
   animation: fadeInUp 0.5s var(--ease-snappy) backwards;
   animation-delay: 0.28s;
+}
+
+/* ARCHITECTURAL DRAFTING MARKS & LIVING DRAFT HAIRLINE SWEEP */
+.drafting-mark {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--rule-active);
+  opacity: 0.38;
+  user-select: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.mark-tl { top: 1.25rem; left: 1.25rem; }
+.mark-tr { top: 1.25rem; right: 1.25rem; }
+.mark-bl { bottom: 1.25rem; left: 1.25rem; }
+.mark-br { bottom: 1.25rem; right: 1.25rem; }
+
+.drafting-sweep-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(49, 87, 231, 0.35) 25%, #60a5fa 50%, rgba(49, 87, 231, 0.35) 75%, transparent);
+  box-shadow: 0 0 12px rgba(49, 87, 231, 0.22);
+  pointer-events: none;
+  z-index: 1;
+  animation: sweepTravel 8.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes sweepTravel {
+  0% { transform: translateX(0); opacity: 0; }
+  8% { opacity: 0.35; }
+  72% { transform: translateX(calc(100vw * 0.58)); opacity: 0.35; }
+  85% { opacity: 0; }
+  100% { transform: translateX(calc(100vw * 0.58)); opacity: 0; }
 }
 
 .rail-header {
@@ -779,40 +831,44 @@ body[data-page="sign-in"]::before {
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 30px rgba(23, 26, 25, 0.07);
-  transition: transform 0.6s var(--ease-spring), opacity 0.5s ease, box-shadow 0.5s ease;
+  box-shadow: 0 4px 20px rgba(23, 26, 25, 0.05);
+  transition: transform 0.52s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.42s ease, box-shadow 0.42s ease, filter 0.42s ease;
   transform-origin: center bottom;
   user-select: none;
+  will-change: transform, opacity;
 }
 
 .showcase-card.card-active {
   z-index: 10;
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1) rotate(0deg) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-  box-shadow: 0 16px 40px rgba(23, 26, 25, 0.1), 0 2px 8px rgba(23, 26, 25, 0.04);
+  box-shadow: 0 18px 42px rgba(23, 26, 25, 0.09), 0 2px 8px rgba(23, 26, 25, 0.04);
+  filter: none;
 }
 
 .showcase-card.card-next {
   z-index: 5;
-  opacity: 0.85;
+  opacity: 0.88;
   pointer-events: none;
-  transform: translate3d(32%, 8px, -40px) scale(0.94) rotate(2deg);
-  filter: contrast(0.96);
+  transform: translate3d(30%, 8px, -36px) scale(0.94) rotate(1.8deg);
+  filter: contrast(0.97) brightness(0.99);
+  box-shadow: 0 10px 28px rgba(23, 26, 25, 0.06);
 }
 
 .showcase-card.card-prev {
   z-index: 5;
-  opacity: 0.85;
+  opacity: 0.88;
   pointer-events: none;
-  transform: translate3d(-32%, 8px, -40px) scale(0.94) rotate(-2deg);
-  filter: contrast(0.96);
+  transform: translate3d(-30%, 8px, -36px) scale(0.94) rotate(-1.8deg);
+  filter: contrast(0.97) brightness(0.99);
+  box-shadow: 0 10px 28px rgba(23, 26, 25, 0.06);
 }
 
 .showcase-card.card-back {
   z-index: 1;
   opacity: 0;
   pointer-events: none;
-  transform: translate3d(0, 16px, -80px) scale(0.88);
+  transform: translate3d(0, 16px, -70px) scale(0.88);
 }
 
 /* CARD 1: PORTFOLIO BRIEF */
@@ -821,6 +877,20 @@ body[data-page="sign-in"]::before {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.75rem;
+}
+
+.brief-brand-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.brief-brand-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
 }
 
 .brief-brand {

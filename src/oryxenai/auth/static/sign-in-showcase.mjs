@@ -93,7 +93,7 @@ export function initSignInShowcase() {
     if (prefersReducedMotion || isPaused || isHovered || isFocused || document.hidden) return;
     autoplayTimer = window.setInterval(() => {
       nextSlide();
-    }, 5400);
+    }, 3800);
   }
 
   function stopAutoplay() {
@@ -167,6 +167,7 @@ export function initSignInShowcase() {
     if (document.hidden) {
       stopAutoplay();
     } else {
+      resetGoogleCta();
       startAutoplay();
     }
   });
@@ -249,6 +250,9 @@ export function initSignInShowcase() {
     });
   }
 
+  // Ensure initial CTA state is clean
+  resetGoogleCta();
+
   // Google CTA instant feedback
   if (googleBtn) {
     googleBtn.addEventListener("click", () => {
@@ -257,12 +261,35 @@ export function initSignInShowcase() {
         label.textContent = "Opening Google…";
       }
       googleBtn.classList.add("cta-submitting");
+      // Safety fallback in case navigation is canceled or delayed
+      window.setTimeout(resetGoogleCta, 8000);
     });
   }
+
+  // Restore button state and autoplay on back-navigation (BFCache pageshow) or refocus
+  window.addEventListener("pageshow", () => {
+    resetGoogleCta();
+    startAutoplay();
+  });
+
+  window.addEventListener("focus", () => {
+    resetGoogleCta();
+  });
 
   // Initial render
   updateCards(1);
   startAutoplay();
+}
+
+export function resetGoogleCta() {
+  const googleBtn = document.getElementById("google-sign-in");
+  if (!googleBtn) return;
+  googleBtn.disabled = false;
+  googleBtn.classList.remove("cta-submitting");
+  const label = googleBtn.querySelector(".cta-label");
+  if (label) {
+    label.textContent = "Continue with Google";
+  }
 }
 
 // Auto-run if loaded in browser
