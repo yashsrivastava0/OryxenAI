@@ -221,7 +221,7 @@ def apply_approval(state: ContentArchitectState, content_hash: str) -> ContentAr
             },
             route_count=len(state.route_plan),
         )
-    scope_errors = _public_scope_errors(state, public_routes)
+    scope_errors = public_scope_errors(state, public_routes)
     if scope_errors:
         raise PublicScopeIncompleteError(
             route_ids=[route.route_id for route in public_routes], errors=scope_errors
@@ -258,7 +258,7 @@ def _merge_memory(current: dict[str, Any], update: dict[str, Any]) -> dict[str, 
     return merged
 
 
-def _public_scope_errors(
+def public_scope_errors(
     state: ContentArchitectState, public_routes: list[RoutePlanEntry]
 ) -> list[str]:
     """Return deterministic Build-Preparation-facing admission errors.

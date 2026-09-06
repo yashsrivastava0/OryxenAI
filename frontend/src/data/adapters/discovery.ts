@@ -90,7 +90,7 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
 
 function formatAnswer(answer: unknown, question: DiscoveryQuestionVM): string {
   if (!isRecord(answer)) return "Answer saved";
-  if (answer.mode === "skip") return "Skipped";
+  if (answer.mode === "skipped") return "Skipped";
   const value = answer.value;
   const labels = new Map(question.options.map((option) => [option.id, option.label]));
   if (Array.isArray(value)) {

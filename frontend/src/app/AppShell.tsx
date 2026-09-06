@@ -6,6 +6,7 @@ import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
 import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "../data/idempotency";
+import { ApiError } from "../data/errors";
 import { createInvalidationChannel, type InvalidationChannel } from "../data/invalidation";
 import { PollCoordinator } from "../data/polling";
 import { ConnectionBanner } from "../components/ConnectionBanner";
@@ -495,13 +496,45 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
   };
 
   const handleApproveBrief = async () => {
-    if (!state.sessionId) return;
-    const result = await api.approveDiscovery(state.sessionId);
-    inspectCacheReceipt("discovery", result);
-    dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
-    dispatch({ type: "announce", message: "Portfolio brief approved." });
-    notifyMutation(state.sessionId);
-    await refetchCurrentSession();
+    if (!state.sessionId || mutatingStage) return;
+    const sessionId = state.sessionId;
+    setMutatingStage("discover");
+    try {
+      const approved = await api.approveDiscovery(sessionId);
+      inspectCacheReceipt("discovery", approved);
+      dispatch({ type: "discovery/set", view: adaptDiscovery(approved.discovery, approved.jobs) });
+      dispatch({
+        type: "session/set",
+        sessionId: approved.session_id,
+        revision: approved.session_revision,
+      });
+
+      const action = "content-start";
+      const content = await api.startContentArchitect(
+        sessionId,
+        { preferences: {} },
+        getOrCreateIdempotencyKey(sessionId, action),
+      );
+      clearIdempotencyKey(sessionId, action);
+      inspectCacheReceipt("content_architect", content);
+      dispatch({
+        type: "content/set",
+        view: adaptContentArchitect(content.content_architect, true, content.jobs),
+      });
+      dispatch({
+        type: "session/set",
+        sessionId: content.session_id,
+        revision: content.session_revision,
+      });
+      dispatch({ type: "announce", message: "Brief approved. Content Architect started." });
+      notifyMutation(sessionId);
+      selectStage("content");
+    } catch (error) {
+      void refetchCurrentSession();
+      throw error;
+    } finally {
+      setMutatingStage(null);
+    }
   };
 
   const runContentMutation = async (
@@ -512,15 +545,32 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     setMutatingStage("content");
     try {
       const action = `content-${operation}`;
-      const result = operation === "start"
-        ? await api.startContentArchitect(
-            state.sessionId,
-            { preferences: {} },
-            getOrCreateIdempotencyKey(state.sessionId, action),
-          )
-        : operation === "approve"
-          ? await api.approveContentArchitect(state.sessionId)
-          : await api.reviseContentArchitect(state.sessionId, revisionRequest);
+      let completedOperation: "start" | "approve" | "revise" | "repair" = operation;
+      let result: StageEnvelope;
+      try {
+        result = operation === "start"
+          ? await api.startContentArchitect(
+              state.sessionId,
+              { preferences: {} },
+              getOrCreateIdempotencyKey(state.sessionId, action),
+            )
+          : operation === "approve"
+            ? await api.approveContentArchitect(state.sessionId)
+            : await api.reviseContentArchitect(state.sessionId, revisionRequest);
+      } catch (error) {
+        if (
+          operation !== "approve" ||
+          !(error instanceof ApiError) ||
+          error.code !== "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"
+        ) {
+          throw error;
+        }
+        completedOperation = "repair";
+        result = await api.reviseContentArchitect(
+          state.sessionId,
+          "Resolve every deterministic public-scope approval error. Preserve valid content and the approved route plan. Every approved route must contain complete visitor-facing copy and may reference only claims whose publication_status is approved. Safely rewrite or omit pending or blocked exact details instead of changing their publication status.",
+        );
+      }
       if (operation === "start") clearIdempotencyKey(state.sessionId, action);
       inspectCacheReceipt("content_architect", result);
       dispatch({
@@ -529,10 +579,16 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       });
       dispatch({
         type: "announce",
-        message: operation === "approve" ? "Content plan approved." : operation === "revise" ? "Content revision requested." : "Content Architect started.",
+        message: completedOperation === "approve"
+          ? "Content plan approved."
+          : completedOperation === "repair"
+            ? "Content safety revision started. Review the corrected plan when it is ready."
+            : completedOperation === "revise"
+              ? "Content revision requested."
+              : "Content Architect started.",
       });
       notifyMutation(state.sessionId);
-      if (operation === "approve") await refetchCurrentSession();
+      if (completedOperation === "approve") await refetchCurrentSession();
     } catch (error) {
       void refetchCurrentSession();
       throw error;
@@ -646,7 +702,12 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
                   onStopDiscovery={handleStopDiscovery}
                   onApproveBrief={handleApproveBrief}
                   onReviseBrief={handleReviseBrief}
-                  onContinueToContent={() => selectStage("content")}
+                  onContinueToContent={async () => {
+                    selectStage("content");
+                    if (state.content?.state === "available") {
+                      await runContentMutation("start");
+                    }
+                  }}
                 />
               ) : null}
 

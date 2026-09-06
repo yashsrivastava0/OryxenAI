@@ -1,5 +1,6 @@
 import type { DiscoveryViewModel } from "../../data/adapters/discovery";
 import type { DiscoveryAnswerSubmission } from "../../data/discovery-answer";
+import { finalAgentOutput } from "../../data/final-agent-output";
 import { ConversationSurface, type AnsweredTurn } from "../../components/ConversationSurface";
 import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { HandoffPanel } from "../../components/HandoffPanel";
@@ -18,7 +19,7 @@ export interface DiscoveryStageProps {
   onStopDiscovery?: () => Promise<void>;
   onApproveBrief: () => Promise<void>;
   onReviseBrief: (revisionRequest: string) => Promise<void>;
-  onContinueToContent: () => void;
+  onContinueToContent: () => void | Promise<void>;
 }
 
 export function DiscoveryStage({
@@ -82,6 +83,9 @@ export function DiscoveryStage({
           isApproved={isApproved}
           canMutate={canMutate}
           markdownContent={briefMarkdown}
+          finalJsonOutput={finalAgentOutput("discovery", view.raw)}
+          approvalActionLabel="Approve and start Content"
+          requireApprovalConfirmation={false}
           onApprove={onApproveBrief}
           onRevise={onReviseBrief}
         />

@@ -1,6 +1,6 @@
 <!--
   Operation: write_pages (only runs when plan_content set content_included=false)
-  Version: content_architect.write_pages.v2
+  Version: content_architect.write_pages.v3
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -37,6 +37,12 @@ Use only claims present in claim_grounding; do not introduce a new unsupported m
 achievement while writing content. A claim with ownership "team" or "unclear" must read as the
 team/project outcome it is, never as a first-person solo achievement.
 
+For every approved route, each claim_id used by a section MUST point to a claim whose
+publication_status is "approved". If a claim is pending or blocked, omit or safely generalize the
+exact detail in visitor-facing copy and remove that claim_id from the public section; preserve the
+reason only in internal_notes/unresolved_issues. Never promote a claim's publication_status just
+to make the content pass this check.
+
 Give each project or work-sample story only the structure the material actually supports — do not
 force every project into the same case-study template. A well-documented project may cover
 context/problem, the user's specific contribution, key decisions, technology, and a supported
@@ -69,6 +75,14 @@ Set integration_needed=true if, while writing multiple routes, you notice incons
 repeated phrasing across routes, or navigation labels that do not read as one coherent site —
 someone else will run a short reconciliation pass afterward. Otherwise leave it false.
 </integration_signal>
+
+<approval_readiness>
+Before returning, verify that every approved route has exactly one complete content pack, section
+IDs exactly match its section_sequence in order, every section contains real visitor-facing copy,
+no approved-route section references a pending/blocked claim, and both public_content_manifest and
+visual_director_handoff are populated. The output must be immediately approvable without another
+content-writing step.
+</approval_readiness>
 
 <format>
 Return ONE complete JSON object matching ContentArchitectOutput. NO Markdown outside the JSON.

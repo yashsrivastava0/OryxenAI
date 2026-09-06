@@ -1,4 +1,5 @@
 import type { ContentViewModel } from "../../data/adapters/content";
+import { finalAgentOutput } from "../../data/final-agent-output";
 import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
 import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
@@ -171,6 +172,7 @@ export function ContentStage({
         isApproved={isApproved}
         canMutate={canMutate}
         structuredSections={structuredSections}
+        finalJsonOutput={finalAgentOutput("content_architect", view.raw)}
         warnings={view.warnings}
         metadata={[
           { label: "Planned Routes", value: String(view.routePlan.length) },

@@ -1,6 +1,6 @@
 <!--
   Operation: plan_content (always runs first)
-  Version: content_architect.plan_content.v3
+  Version: content_architect.plan_content.v4
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -82,6 +82,21 @@ prompt's grounding rules for why they must stay separate:
 A claim with ownership "team" or "unclear" must not be phrased as "I achieved X" in any content you
 write — phrase it as the team/project outcome it actually is, or omit it.
 </claim_grounding>
+
+<approval_readiness>
+Before returning, self-check every route whose publication_status is "approved". Every claim_id
+referenced by one of that route's sections MUST identify a claim whose publication_status is also
+"approved". A pending or blocked claim must never appear in visitor-facing copy for an approved
+route and must never remain in that section's claim_ids. Rewrite or omit the unresolved exact
+detail while preserving useful safe content, and record the omission in internal_notes or
+unresolved_issues. Do not mark supplied credentials, metrics, names, links, or ownership approved
+merely to make this check pass; publication_status remains an independent safety decision.
+
+Also verify that every approved route has exactly one content pack, that its section IDs exactly
+match section_sequence in the same order, that every section has actual visitor-facing content,
+and that public_content_manifest and visual_director_handoff are both complete. Approval must be a
+formality after this response, not a later content-repair step.
+</approval_readiness>
 
 <coverage_guidance>
 Sparse or student profile: build the strongest honest single page from what exists; do not

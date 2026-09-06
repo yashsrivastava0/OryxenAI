@@ -21,6 +21,9 @@ export interface ArtifactSurfaceProps {
   metadata?: Array<{ label: string; value: string }>;
   warnings?: string[];
   artifactTypeName: string; // e.g. "brief", "content plan", "visual direction"
+  finalJsonOutput?: unknown;
+  approvalActionLabel?: string;
+  requireApprovalConfirmation?: boolean;
   onApprove?: () => Promise<void>;
   onRevise?: (revisionRequest: string) => Promise<void>;
 }
@@ -35,16 +38,28 @@ export function ArtifactSurface({
   metadata = [],
   warnings = [],
   artifactTypeName,
+  finalJsonOutput,
+  approvalActionLabel,
+  requireApprovalConfirmation = true,
   onApprove,
   onRevise,
 }: ArtifactSurfaceProps) {
   const [showRevisionComposer, setShowRevisionComposer] = useState(false);
   const [confirmingApproval, setConfirmingApproval] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "unavailable">("idle");
   const [error, setError] = useState<string | null>(null);
 
   // Extract headings from markdown if present
   const markdownHeadings = useMemo(() => extractHeadings(markdownContent), [markdownContent]);
+  const finalJson = useMemo(() => {
+    if (finalJsonOutput === undefined || finalJsonOutput === null) return "";
+    try {
+      return JSON.stringify(finalJsonOutput, null, 2);
+    } catch {
+      return "";
+    }
+  }, [finalJsonOutput]);
 
   const handleApprove = async () => {
     if (!onApprove || approving) return;
@@ -64,6 +79,21 @@ export function ArtifactSurface({
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleCopyJson = async () => {
+    if (!finalJson) return;
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setCopyStatus("unavailable");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(finalJson);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 1800);
+    } catch {
+      setCopyStatus("unavailable");
     }
   };
 
@@ -150,6 +180,32 @@ export function ArtifactSurface({
             </div>
           )}
 
+          {finalJson && (
+            <details className="artifact-json-output">
+              <summary>Final JSON output</summary>
+              <p>
+                This persisted agent artifact excludes intake, authentication, and job metadata.
+                Copy it for a temporary handoff or open the field below for manual copy.
+              </p>
+              <div className="artifact-json-actions">
+                <button type="button" className="btn-secondary" onClick={() => void handleCopyJson()}>
+                  {copyStatus === "copied" ? "JSON copied" : "Copy final JSON"}
+                </button>
+                {copyStatus === "unavailable" && (
+                  <span role="status">Clipboard unavailable — select and copy from the field.</span>
+                )}
+              </div>
+              <textarea
+                className="artifact-json-field"
+                readOnly
+                rows={14}
+                value={finalJson}
+                aria-label={`${artifactTypeName} final JSON output`}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </details>
+          )}
+
           {error && <p className="artifact-error" role="alert">{error}</p>}
 
           {/* Review actions when stage is in review and mutable */}
@@ -160,9 +216,12 @@ export function ArtifactSurface({
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => setConfirmingApproval(true)}
+                    disabled={approving}
+                    onClick={() => requireApprovalConfirmation
+                      ? setConfirmingApproval(true)
+                      : void handleApprove()}
                   >
-                    Approve {artifactTypeName}
+                    {approving ? "Approving..." : approvalActionLabel ?? `Approve ${artifactTypeName}`}
                   </button>
                   {onRevise && (
                     <button

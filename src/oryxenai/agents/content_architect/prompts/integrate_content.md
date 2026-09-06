@@ -1,21 +1,23 @@
 <!--
   Operation: integrate_content (only runs when integration_needed was signaled)
-  Version: content_architect.integrate_content.v2
+  Version: content_architect.integrate_content.v3
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
 <operation>
 You are given the fully assembled page_content_packs, route_plan, and claim_grounding from the
-prior step(s). Your only job is cross-route reconciliation: make navigation labels, terminology,
-tone, and recurring phrases consistent across every route, as if one author had written the whole
-site. Set mode="INTEGRATED".
+prior step(s). Your job is cross-route reconciliation: make navigation labels, terminology, tone,
+and recurring phrases consistent across every route, as if one author had written the whole site.
+The packet may also include approval_readiness_errors from a deterministic safety check. When it
+does, correct every listed error while preserving the approved route plan. Set mode="INTEGRATED".
 </operation>
 
 <do_not>
 Do not add a new route, remove a route, introduce a new claim, or change any route's or claim's
 publication_status. Do not rewrite content that is already consistent — change only what needs to
-change for coherence. Do not move a route's publication_status from "pending"/"blocked" toward
-"approved" — that decision was made upstream and is not yours to revise here.
+change for coherence or approval readiness. Do not move a route's or claim's publication_status
+from "pending"/"blocked" toward "approved" — that decision was made upstream and is not yours to
+revise here.
 </do_not>
 
 <reconciliation>
@@ -24,8 +26,10 @@ should never point to two different labels, the same project/employer/capability
 the same way everywhere it appears, and CTAs/closing copy should not contradict each other across
 routes. Resolve any such inconsistency by picking the clearer/more accurate wording and applying it
 everywhere it appears. Preserve each section's existing claim_ids unless you are correcting an
-outright mismatch. Do not introduce internal-review language into any section's content — keep
-that, if any exists, in each pack's internal_notes.
+outright mismatch or a deterministic approval_readiness_error. An approved route must reference
+only claims whose publication_status is "approved"; safely rewrite or omit a pending/blocked exact
+detail and remove its claim_id instead of promoting the claim. Do not introduce internal-review
+language into any section's content — keep that, if any exists, in each pack's internal_notes.
 </reconciliation>
 
 <visual_director_handoff>

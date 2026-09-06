@@ -42,7 +42,9 @@ def _route(route_id: str, *, publication_status: str = "approved") -> dict[str, 
     return {
         "route_id": route_id,
         "path": f"/{route_id}",
+        "title": f"Route {route_id}",
         "purpose": "p",
+        "section_sequence": ["hero"],
         "publication_status": publication_status,
     }
 
@@ -77,6 +79,7 @@ def _plan_payload(
     if content_included:
         payload["page_content_packs"] = [_pack(r["route_id"]) for r in routes]
         payload["public_content_manifest"] = {"nav": []}
+        payload["visual_director_handoff"] = {"content_hierarchy": ["hero"]}
     return payload
 
 
@@ -87,6 +90,7 @@ def _pages_payload(route_count: int, *, integration_needed: bool = False) -> dic
         "integration_needed": integration_needed,
         "page_content_packs": [_pack(f"r{i}") for i in range(route_count)],
         "public_content_manifest": {"nav": []},
+        "visual_director_handoff": {"content_hierarchy": ["hero"]},
     }
 
 
@@ -181,6 +185,52 @@ async def test_invalid_model_output_raises_content_architect_error():
 
     with pytest.raises(ContentArchitectModelOutputError):
         await agent.run(_context())
+
+
+async def test_pending_claim_in_approved_route_gets_one_bounded_corrective_pass():
+    plan = _plan_payload(content_included=True)
+    plan["claim_grounding"] = [
+        {
+            "claim_id": "claim:credentials",
+            "statement": "A supplied credential",
+            "source_reference": "profile.education",
+            "evidence_status": "verified",
+            "publication_status": "pending",
+        }
+    ]
+    plan["page_content_packs"][0] = _pack("r0", claim_ids=["claim:credentials"])
+    repaired = _integrate_payload(1)
+    client = _FakeModelClient({"plan_content": plan, "integrate_content": repaired})
+    agent = ContentArchitectAgent(model_client=client)
+
+    result = await agent.run(_context())
+
+    assert client.calls == ["plan_content", "integrate_content"]
+    assert result.output["stages_run"] == ["plan_content", "integrate_content"]
+    assert result.output["page_content_packs"][0]["sections"][0]["claim_ids"] == []
+
+
+async def test_unresolved_public_scope_never_reaches_review_output():
+    plan = _plan_payload(content_included=True)
+    plan["claim_grounding"] = [
+        {
+            "claim_id": "claim:credentials",
+            "statement": "A supplied credential",
+            "source_reference": "profile.education",
+            "evidence_status": "verified",
+            "publication_status": "pending",
+        }
+    ]
+    plan["page_content_packs"][0] = _pack("r0", claim_ids=["claim:credentials"])
+    still_invalid = _integrate_payload(1)
+    still_invalid["page_content_packs"][0] = _pack("r0", claim_ids=["claim:credentials"])
+    client = _FakeModelClient({"plan_content": plan, "integrate_content": still_invalid})
+    agent = ContentArchitectAgent(model_client=client)
+
+    with pytest.raises(ContentArchitectModelOutputError, match="approval_readiness"):
+        await agent.run(_context())
+
+    assert client.calls == ["plan_content", "integrate_content"]
 
 
 async def test_blocked_route_referenced_in_content_pack_is_rejected():
