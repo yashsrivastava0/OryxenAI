@@ -95,6 +95,38 @@ def make_diagnostic(
     )
 
 
+# DOM/runtime diagnostics (font load, region geometry, motion state,
+# disclosure/interaction checks — every finding runtime_verifier.py raises)
+# never set `.file`; they only carry a route/journey identity. Without this
+# expansion, `bounded_related_source` would stay empty for that entire
+# diagnostic class and the repair model would be asked to fix source it was
+# never shown. Bounded the same way explicit `.file` matches already are.
+_MAX_EXPANDED_SOURCE_FILES = 12
+_EXPANDABLE_SOURCE_SUFFIXES = {".tsx", ".ts", ".css"}
+
+
+def _expand_allowed_source_paths(allowed_paths: list[str], source_root: Path) -> list[str]:
+    resolved_root = source_root.resolve()
+    expanded: list[str] = []
+    for entry in allowed_paths:
+        normalized = entry.replace("\\", "/").strip("/")
+        if normalized.endswith("/**") or normalized.endswith("/*"):
+            directory = source_root / normalized.rsplit("/", 1)[0]
+            if not directory.is_dir():
+                continue
+            glob = directory.rglob("*") if normalized.endswith("/**") else directory.glob("*")
+            for found in sorted(glob):
+                if (
+                    found.is_file()
+                    and found.suffix in _EXPANDABLE_SOURCE_SUFFIXES
+                    and found.resolve().is_relative_to(resolved_root)
+                ):
+                    expanded.append(found.resolve().relative_to(resolved_root).as_posix())
+        else:
+            expanded.append(normalized)
+    return expanded
+
+
 def build_bundle(
     *,
     checkpoint_hash: str,
@@ -116,6 +148,18 @@ def build_bundle(
                 bounded[relative] = path.read_text(encoding="utf-8")[:12000]
             except (OSError, UnicodeDecodeError):
                 continue
+    for candidate in _expand_allowed_source_paths(allowed_paths, source_root):
+        if len(bounded) >= _MAX_EXPANDED_SOURCE_FILES:
+            break
+        if candidate in bounded:
+            continue
+        path = (source_root / candidate).resolve()
+        if not (path.is_file() and path.is_relative_to(source_root.resolve())):
+            continue
+        try:
+            bounded[candidate] = path.read_text(encoding="utf-8")[:12000]
+        except (OSError, UnicodeDecodeError):
+            continue
     group = next(
         (item.group for item in diagnostics if item.severity == "blocking"), "source_contract"
     )
@@ -127,7 +171,7 @@ def build_bundle(
         affected_plan_slice=plan_slice,
         affected_resource_bindings=list(resource_bindings or []),
         dependency_signatures=list(dependency_signatures or []),
-        implicated_source_files=implicated,
+        implicated_source_files=sorted(set(implicated) | set(bounded)),
         bounded_related_source=bounded,
         required_checks_after_change=required_checks,
         prior_repair_strategies=list(prior_strategies or []),

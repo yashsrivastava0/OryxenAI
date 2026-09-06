@@ -4,6 +4,74 @@ Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
 findings that help diagnose the next persistent failure.
 
+## 2026-09-06 (session continuing from an external plan review, Claude Code)
+
+Started from a reliability-repair plan authored by another model (Astra/Codex,
+handed to the user as `PLAN.MD`) that did NOT make live calls or repo changes
+— a pure static review. Cross-checked its "confirmed problems" against this
+file's own ground truth first: several of its claims line up almost exactly
+with the still-open "Not yet fixed" items below (the ~10 undiagnosed
+`DOM_RUNTIME_FAILED` codes: font load, resource decode, region geometry,
+motion state). Verifying each claim against actual code before acting on it,
+fixing confirmed ones surgically (same style as every prior entry in this
+file), and deliberately NOT adopting the plan's proposed `ResolvedExecutionContract`
+v6 rearchitecture — too large/risky for the current budget and unsupported by
+any DECISIONS.md entry; this project's actual history is ~40 targeted
+live-bugfix commits, not big-bang rewrites.
+
+| Area | Finding | Durable resolution |
+|---|---|---|
+| Comment stripper mistook JS regex literals for comments | `source_lexing.py::strip_source_comments` had zero regex-literal awareness. A regex containing an escaped slash (`.replace(/\/+$/, "")`, `/^\/api\//`) produces a bare `//` outside any quote once its own backslashes are consumed, which the scanner treated as a line-comment start — silently truncating the rest of that source line before `source_validation.py`/`typescript_ast_audit.py`/`final_source_validation.py`/`source_generation_adapter.py` (all 4 real call sites) ever see it. Confirmed real via direct code trace, not a live run. | Added a start-of-expression heuristic (same approach real JS lexers use) that recognizes and passes through a regex literal verbatim before the `//`/`/*` comment checks run. Had to special-case `<` as division-context too — an initial version broke `</a> // real comment` (JSX closing-tag slash misread as a regex opener, which then swallowed the real comment). 7 new tests (`test_source_lexing.py`), all existing `typescript_ast_audit` tests still pass. |
+| Final repair received no source code for any route/journey-scoped diagnostic | `diagnostics.py::build_bundle`'s `bounded_related_source` (the actual file content shown to the repair model) was only populated from diagnostics carrying an explicit `.file` — but `runtime_verifier.py::_diagnostic()` (every DOM/runtime finding: font load, region geometry, motion state, disclosure/interaction checks, ~30 call sites) never sets `.file`, only `route_id`. This is exactly the diagnostic class behind this file's own "Not yet fixed" `DOM_RUNTIME_FAILED` codes — the repair model was being asked to fix a route it had never been shown. `repair_source.md` itself already says "When rejected file bodies are supplied, return the complete corrected file," confirming source content was always meant to reach the model here. | `build_bundle` now expands the caller's already-scoped `allowed_paths` (concrete files or `<dir>/**` globs) into real on-disk `.tsx`/`.ts`/`.css` content when diagnostics under-supply `.file`, bounded to 12 files / 12000 chars each (same truncation explicit matches already used), and path-escape safe (verified via a `../` test). Separately, `final_repair.py::repair_allowed_paths`'s route-id branch previously fell back to a bare `src/routes/<route_id>/**` (unhashed) directory when the site-contract projection didn't resolve a route's storage key — a real prior export (`output/code-gen-output/18-03-06-09-2026-aff69ea1/source/src/routes/home/`) shows exactly this bare-directory shape existing alongside the real hashed one, consistent with (not conclusively proven as) a repair having once written to the wrong place. Now falls through to the existing generic `src/design/**`/`src/components/shared/**` default instead of fabricating an unhashed path. 5 new tests across `test_diagnostics_bundle.py` (new file) and `test_final_repair.py`. |
+
+Both fixes are free/deterministic (no live model call needed to verify), full
+`-k code_generator` suite: 260 passed, 17 skipped, 1 pre-existing unrelated
+failure (same one already tracked below), no new regressions. Not yet
+confirmed live — next live run should show whether route-scoped
+`DOM_RUNTIME_FAILED` findings can now actually get repaired instead of
+exhausting the repair budget with zero source visibility.
+
+Two more plan claims checked against actual code, both confirmed real:
+
+| Area | Finding | Durable resolution |
+|---|---|---|
+| Motion verification compared authored transforms against browser-computed matrix strings | `runtime_verifier.py::_assert_design_realization`'s `matches_after` check was `expected_after in str(after_value)` — a plain substring test. `getComputedStyle` always reports `transform` as a resolved `matrix(...)`/`matrix3d(...)` string, never in the author's own function notation (`translateY(24px)`, `scale(1.05)`) that a motion beat's `after_value` is written in, so a correct, working animation could never satisfy this check — directly the "motion state" code in the still-open list above. **Live-confirmed both ways**: reverting the fix and re-running the new test reproduces `RUNTIME_MOTION_STATE_MISMATCH` on a genuinely correct animation; with the fix, the same case passes and a deliberately wrong expected transform (`translateY(9999px)`) still correctly fails. | For `property_name == "transform"`, normalize the expected value through the browser's own CSS engine (a detached probe element gets `style.transform` set to the expected value, then reads its own `getComputedStyle().transform`) and compare against the observed computed matrix — exact match first, then a per-component numeric fallback (1px tolerance on the 3 translation terms, 0.02 on every other term) for cases where an extra composed transform (e.g. a GPU-acceleration `translateZ(0)`) makes the matrix vs matrix3d string forms differ. 2 new Playwright-driven tests, `test_runtime_verifier_motion.py`. |
+| Font verification treated an unrendered-but-declared font weight as broken | Same file, `contract.font_checks` loop: `document.fonts.check(weight, family)` only returns true for a face the browser has actually triggered a load for (rendered text using that exact weight somewhere, or an explicit `.load()`) — a weight declared valid for a role but not the one actually rendered anywhere on the page would always read as "failed to load" even though the face itself is fine. Matches the "font load" code in the still-open list. **Not live-tested**: faithfully reproducing the original failure needs a real custom `@font-face` binary (a system font like Georgia doesn't hit this path — `document.fonts.check()` resolves those immediately with no load to wait on), which felt like too much fixture weight for the signal; verified by code/spec reading instead. | Added `await document.fonts.load(weight, family)` (wrapped in try/catch — a rejection is itself real failure evidence, left for the following `.check()` to report) immediately before the existing `.check()` call. Purely additive: for an already-loaded or already-failing face this is a no-op, so it cannot make the existing check stricter than before, only less prone to this specific false positive. |
+
+**Update, same session, after finding the real join**: the `purpose`-string
+join really is unreliable, but `final_source_validation.py:383-410` already
+solves exactly this problem for a different check (`SOURCE_EXECUTION_SLOT_UNUSED`)
+using a *different*, deterministic mechanism I'd initially missed: for a
+`delegated_acquisition` slot, `execution/contract.json`'s
+`slots[].resource_slot_id` joins to the resource ledger via a fixed
+`f"delegated-{resource_slot_id}"` request-id convention, then
+`request_hash` → `active_bindings[].request_id_or_pack_need_id` gives the
+real, post-acquisition `local_paths`. The execution slot also carries
+`required` directly. Reused this exact pattern (new
+`_admitted_resource_slot_ids()` helper in `design_realization.py`, kept
+separate from `final_source_validation.py`'s working copy rather than
+risking a shared-helper refactor of already-verified logic) to filter
+`resource_checks` to placements that are either `required`, or that
+actually got a real local file — an optional placement with an honest,
+approved fallback (no real binding) is now excluded from the real-image
+runtime checks instead of being held to `RUNTIME_RESOURCE_DECODE` etc. A
+`required=true` placement with no local file is still always checked
+(never exempted, per the plan's own "never excuse an unmet required
+behavior" principle). Backward compatible: omitting `execution`/
+`resource_ledger` keeps the prior "check everything" behavior. Wired into
+the 2 call sites that gate a hard pass/fail (`verification_plan.py`,
+`code_generator_verification.py` — both already had `projections` in
+scope). Left `generation_orchestrator.py`'s `_integration_review` (mid-
+generation whole-site review context, advisory only, not a hard gate)
+unwired — it doesn't have `projections` in scope and threading it through
+would mean a signature change touching other callers; lower priority since
+a wrong value there only skews model-review context, not a pass/fail
+verdict. 4 new tests, `test_design_realization.py`.
+
+Both this fix and the motion/font ones above are now included in the 266
+passed / 17 skipped / 1 pre-existing-unrelated-failure suite total; `ruff`
+and `mypy` clean on every changed file.
+
 ## HANDOFF — read this first (2026-09-06, early morning, Claude Code session ending)
 
 **Overall status: substantially fixed, not fully fixed.** This session found

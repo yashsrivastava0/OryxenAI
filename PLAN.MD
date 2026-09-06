@@ -1,1103 +1,318 @@
-You are redesigning the authentication / sign-in experience of my application, OryxenAI.
+# Code Generator Reliability Repair Plan
 
-I am attaching:
+## 1. Objective and findings
 
-1. REFERENCE IMAGE — the new visual direction I want.
-2. OLD SCREENSHOTS — the current `/sign-in` implementation that must be replaced/redesigned.
+Make Code Generator consistently turn valid, approved Build Preparation briefs into complete, attractive portfolios that build, behave correctly, and pass verification before becoming the frontend preview.
 
-Treat the reference image as VISUAL DIRECTION, not something to blindly reproduce pixel-for-pixel.
+This is a targeted repair of the existing generator—not a replacement of the agent pipeline. Keep the durable jobs, approved-brief hashes, resource acquisition, progressive generation, provider-neutral model boundary, and atomic preview promotion.
 
-Your job is to understand the existing codebase first, preserve the real authentication architecture, and redesign the current sign-in experience into a polished, production-quality 2026 interface with strong frontend personality.
+The investigation confirmed problems in both generation and verification:
 
-==================================================
-PRODUCT CONTEXT
-==================================================
+| Confirmed problem | Consequence |
+|---|---|
+| The Python comment stripper mistakes JavaScript regular expressions for comments. | Valid content references disappear during validation and produce false “missing content” failures. |
+| Final repair can receive no source code and an incorrect directory such as `src/routes/home/**`. | The model cannot inspect or edit the actual hashed section files responsible for a failure. |
+| Runtime checks use planned resources without consistently accounting for acquisition fallbacks. | An intentional local substitute can fail an image requirement that no longer matches the implementation. |
+| Font verification treats an unused, unloaded font weight as broken. | A valid local font fails verification; explicitly loading the retained example resolved the reported failure. |
+| Motion verification compares authored transforms with browser-computed matrix strings. | Correct animations can fail because equivalent representations do not match textually. |
+| Responsive layout and navigation expectations disagree with generation instructions. | The generator and verifier enforce different contracts. |
+| Repair replaces the working source before all candidate checks finish. | A rejected repair can leave source and checkpoint records inconsistent. |
+| Several tests use outdated fixtures. | They fail before reaching the worker behavior they are supposed to test. |
 
-OryxenAI is NOT a generic chatbot and NOT a generic AI website builder.
+The focused baseline reproduced all five failures described in the handoff: one generator unit-test failure and four API/worker-flow failures. This was not a full-suite verification.
 
-It is an AGENTIC PORTFOLIO-GENERATION STUDIO.
+Visual quality is also not conclusively achieved. The retained screenshots show a coherent direction, but some imagery is unrelated to the portfolio and some controls are crowded. Preserve the stronger design work while testing this pillar independently.
 
-It transforms raw human experience — resumes, career history, achievements, project notes, etc. — into one bespoke, verified, deployable personal portfolio.
+No repository implementation changes or live OpenAI generations were made during this investigation.
 
-The user moves through a deliberate creative pipeline:
+## 2. Architecture and contract changes
 
-01 — DISCOVERY
-Clarify the person's story, goals, achievements, audience and positioning.
+### One executable contract for generation and verification
 
-02 — CONTENT
-Architect the portfolio structure, routes, sections and finished copy.
+Introduce a versioned `ResolvedExecutionContract`, compiled after resource acquisition from:
 
-03 — DESIGN
-Establish visual direction, typography, colors, layout and motion.
+- The immutable, hash-checked brief pair.
+- The validated experience blueprint.
+- The compiled work graph and actual file ownership.
+- The final resource ledger, including substitutions.
 
-04 — PREPARE
-Compile verified build briefs and required assets.
+This becomes the shared source for generation instructions, source audits, repair context, browser expectations, and quality review. These consumers must not independently reinterpret the same requirement.
 
-05 — BUILD
-Generate the actual portfolio code and verify the layouts.
+The contract will contain:
 
-06 — PREVIEW
-Inspect the completed portfolio in Desktop, Tablet and Mobile views.
+- Exact route, section, content, resource, interaction, and motion identities.
+- Actual generated file paths and ownership.
+- Required navigation edges, distinct from the set of allowed destinations.
+- Materialized resources or explicit fallback implementations.
+- Per-breakpoint physical layout expectations.
+- Observable browser evidence and the source owner responsible for it.
 
-This is ONE living portfolio, not a dashboard containing many projects.
+Preserve the original approved requirements separately. Resolving an implementation must never silently rewrite approved content or excuse an unmet required behavior.
 
-The core philosophy is:
+### Version the changed semantics
 
-"Where is my portfolio right now, and what is the next step?"
+Use a new blueprint schema for the responsive-layout changes and activate them under `code-generator-v6`.
 
-Every important stage has an explicit human approval handoff.
+- Centralize version dispatch in the existing pipeline-contract helpers.
+- Update planning schemas, provider preflight, source metadata, queue namespaces, worker-release fencing, and checkpoint compatibility together.
+- Retain historical readers for existing runs.
+- Never reinterpret a stored older blueprint using the new layout semantics.
+- Old workers must not claim new-contract jobs.
+- An older incompatible failed run requires an explicit fresh generation, not an invisible migration or another charged attempt.
 
-Nothing should feel like:
-- a chatbot wrapper
-- an AI template generator
-- a crypto landing page
-- a generic SaaS dashboard
-- an AI-generated Dribbble shot
+The Markdown Build Preparation input contract remains unchanged. No upstream agent redesign is required.
 
-==================================================
-CURRENT TECH STACK
-==================================================
+### Keep public APIs stable
 
-Do NOT unnecessarily replace or expand the stack.
+Keep the existing session start, retry, regenerate, and state endpoints.
 
-Frontend:
-- Preact 10
-- TypeScript
-- Vite
-- Vitest
-- Vanilla CSS
-- CSS custom properties / design tokens
-- Inline/code-native SVG icons
-- Self-hosted fonts where already available
-- No Tailwind
-- No heavy UI framework
-- No unnecessary animation library
+Add only safe, additive result information:
 
-Auth/server integration:
-- FastAPI
-- Jinja2 server templates
-- Vanilla JavaScript ES modules for auth bootstrap
-- Supabase JS
-- Google OAuth PKCE
+- Structured diagnostics with actionable ownership and browser evidence.
+- Recorded resource substitutions.
+- Accepted source/checkpoint identity.
+- Verification and preview-promotion receipts.
 
-IMPORTANT:
-Do NOT migrate the sign-in page to another framework just to accomplish the redesign.
+Keep internal prompts, private documents, credentials, and unrestricted source context out of public responses.
 
-Do NOT add Framer Motion, GSAP, Tailwind, shadcn, Material UI, Bootstrap or another dependency unless an existing dependency already provides something genuinely necessary.
+## 3. Implementation sequence
 
-Prefer:
-- CSS
-- CSS keyframes
-- transitions
-- inline SVG
-- a tiny amount of vanilla JS when needed
+### Step 1 — Establish regression fixtures and protect the remaining credit
 
-==================================================
-FIRST: INSPECT BEFORE EDITING
-==================================================
+First capture privacy-safe, minimal reproductions of the confirmed defects. Tests should initially demonstrate each failure before its fix.
 
-Before making changes, inspect the project and locate:
+Repair the stale tests without weakening production admission:
 
-- the `/sign-in` route
-- its Jinja/template markup
-- its current CSS
-- auth-related static JS
-- `app-auth-bootstrap.mjs` or equivalent
-- Supabase Google OAuth trigger
-- existing typography/font loading
-- existing CSS design tokens
-- existing responsive rules
-- any shared shell/header code
+- Generate current fixtures through the actual brief compiler so section IDs and ownership match production.
+- Make legacy compatibility tests explicitly use their legacy contract.
+- Update the resource-materialization test to assert the current receipt shape, actual file existence, and hash preservation.
+- Ensure worker tests reach their named checkpoint, redelivery, pause/resume, or promotion behavior.
 
-Understand the authentication flow BEFORE changing the UI.
+Before any live call, introduce a resumable evaluation campaign with a **$3 total ceiling**, leaving **$1 of the stated $4 untouched**.
 
-Do not rewrite working OAuth logic merely because the visual design changes.
+- Keep model selection in `config/models.toml`; use the configured OpenAI profiles.
+- Supply verified USD pricing for every role used by Code Generator. Existing “configured credits” must not be interpreted as dollars.
+- Reuse the existing budget wrapper, but calculate settlement from token usage and the campaign’s pricing snapshot.
+- Reserve conservative input cost plus the operation’s maximum output allowance before sending a request.
+- Include director, planner, resource-selection, generation, review, repair, and any necessary provider-preflight calls.
+- Disable hidden SDK retries for this campaign. An explicit retry needs a new reservation.
+- Treat missing usage or an interrupted request as consuming its full reservation.
+- Refuse a call whose full reservation does not fit; do not squeeze a source-generation response into an unusably small token allowance.
 
-The frontend redesign must remain compatible with the existing server-rendered authentication architecture.
+Use a single-writer campaign runner with a lock and atomically persisted ledger in the ignored workspace. It must invoke the real shared workflow through a role-aware budgeted model factory—not substitute fixtures for live output. Persist reservations before transmission so restarting the runner cannot reset spending.
 
-==================================================
-REAL AUTHENTICATION LOGIC — PRESERVE THIS
-==================================================
+This is an evaluation safeguard, not a new billing subsystem. Its ceiling covers this campaign, not unrelated activity using the same API account. Verify rates immediately before execution using [OpenAI’s official pricing](https://developers.openai.com/api/docs/pricing), and reconcile returned usage as recommended in [OpenAI’s production guidance](https://developers.openai.com/api/docs/guides/production-best-practices#text-generation).
 
-The real flow is approximately:
+### Step 2 — Correct source and content validation
 
-Visit `/`
-→ session checked
-→ unauthenticated user goes to `/sign-in`
-→ user presses "Continue with Google"
-→ Supabase Google OAuth PKCE
-→ `/auth/callback`
-→ user is resolved
-→ new user may be sent to `/onboarding`
-→ existing admitted user goes to `/app`
+Make the existing TypeScript compiler-based audit the authoritative parser for executable JS/TS/JSX/TSX evidence.
 
-There is therefore no need to invent a traditional:
-- email field
-- password field
-- "forgot password"
-- password signup form
+- Remove comment-stripped substring scanning as an authority for content-use and executable-marker checks.
+- Extend the existing AST audit to return structured findings with exact files and source locations.
+- Preserve import resolution, route reachability, alias handling, and rendered-component evidence.
+- Keep Python checks for filesystem safety, ownership, forbidden files, and other non-language concerns.
+- Do not upgrade the scaffold’s pinned TypeScript merely to implement this change. Its existing compiler APIs support the required parsing and traversal. [TypeScript compiler API documentation](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API)
 
-Google is the main authentication mechanism.
+Negative checks must remain meaningful: comments, orphan files, unused helpers, and decorative marker strings must not satisfy a requirement for rendered content.
 
-DO NOT add fake authentication features simply because other login pages have them.
+Strengthen the content boundary:
 
-For new users, the same Google authentication can eventually lead into onboarding.
+- Reject duplicate section headings and normalized-ID collisions instead of silently overwriting content.
+- Preserve Unicode, nested arrays/objects, numbers, booleans, and optional values in the typed content tree.
+- Compile a recursive inventory separating display copy, destinations, and structural metadata.
+- Use deterministic classification for fields defined by the brief format; have the existing planning operation classify otherwise ambiguous fields using exact source pointers.
+- Require complete inventory coverage. Do not silently omit nested project or experience content.
+- Verify display copy in rendered content and destinations in actual behavior; do not require internal values such as CTA kinds to appear as visible prose.
 
-Therefore do not add a fake separate signup form.
+Generate large repeated content from typed data rather than asking the model to transcribe every item repeatedly.
 
-If helpful, under the Google CTA use:
+### Step 3 — Resolve resources into honest, consistent implementations
 
-"New here? Your workspace is created after verification."
+Compile resource expectations from acquisition outcomes, not the original wish list alone.
 
-rather than inventing a second authentication system.
+For each placement, record one disposition:
 
-==================================================
-WHY THE CURRENT SCREEN MUST CHANGE
-==================================================
+1. Materialized local resource, with hash and provenance.
+2. Approved local substitute, with the reason and required visual/behavioral properties.
+3. Unresolved required resource, which blocks successful completion.
 
-Study the OLD screenshots.
+Apply the user-approved fallback policy:
 
-The current implementation has several problems:
+- Optional unavailable imagery may become a deliberate typographic or locally rendered composition.
+- Optional font failures may use a coherent local/system stack.
+- An unavailable reference component may become an accessible local implementation with the same required behavior.
+- Optional motion may use a simpler tested effect while preserving visibility and interactions.
 
-1. Authentication is buried below the fold.
+Do not use unrelated stock photography merely to fill a slot. Do not render empty gray placeholders as a “polished fallback.”
 
-2. The giant:
-   "Make the work legible before making it public."
-   headline consumes too much of the first viewport.
+Keep controlled acquisition, download limits, provenance, and the existing bounded stale-pin recovery. Never turn failures into an unrestricted research or retry loop.
 
-3. A user visiting `/sign-in` has to scroll before reaching the main action.
+Generation, token compilation, source auditing, and runtime verification must consume the same resolved disposition. An acquired image that remains selected must actually be rendered; a fallback must have its own affirmative checks rather than simply being exempted.
 
-4. The visual hierarchy prioritizes marketing copy above authentication.
+### Step 4 — Make layout, navigation, and motion contracts implementable
 
-5. There is excessive empty vertical space.
+Replace ambiguous layout requirements with physical, measurable ones:
 
-6. "IDENTITY PROOF" and the explanatory left panel feel technical and generic.
+- Specify columns, gap, and width bounds per breakpoint.
+- Distinguish an abstract design grid from actual CSS grid tracks.
+- Give text measure its own selector instead of measuring an entire image-and-text section.
+- Require unique targets for single-element relationships.
+- Define repeated collections explicitly; never silently select the first of several matches.
 
-7. The auth surface feels like documentation rather than entering a premium creative application.
+Use those same values in generated styles, prompts, and browser assertions. Do not lower thresholds merely to make the retained example pass.
 
-8. The current page does not visually communicate the OryxenAI agentic workflow.
+Compile one navigation manifest:
 
-9. The page feels static.
+- Allowed destinations are a safety boundary, not an instruction to display every possible link.
+- Required links come from approved navigation and CTA intent.
+- Include route navigation and section anchors.
+- Use the existing route/resource/section URL helpers for root and mounted previews.
+- Verify keyboard activation, hash navigation, back navigation, and direct route loading.
+- Never invent a contact backend, download, or destination absent from the approved inputs.
 
-10. The current layout is not using the application's unique product architecture as its visual identity.
+Keep creative freedom in composition, typography, imagery, and section structure. Use tested scaffold primitives for recurrent behavior such as disclosure navigation, focus handling, content reveals, and reduced-motion support. For disclosure controls, preserve the expected button behavior and expanded state. [WAI disclosure pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/)
 
-The redesign should solve these problems.
+Derive trusted motion-pattern expectations from their actual implementations. Do not let a separately authored expectation contradict the selected effect.
 
-==================================================
-PRIMARY UX OBJECTIVE
-==================================================
+### Step 5 — Repair browser verification and diagnostic evidence
 
-A first-time visitor should understand within approximately 3–5 seconds:
+Separate stable-layout inspection from motion observation.
 
-1. This is OryxenAI.
-2. It turns professional experience into a finished portfolio.
-3. The workflow is guided and staged.
-4. The user's work remains under their control.
-5. They can enter using Google.
-6. Authentication is the obvious primary action.
+For stable-layout checks:
 
-On normal desktop/laptop screens the Google authentication CTA MUST be visible WITHOUT SCROLLING.
+- Wait for application readiness, required fonts, and visible-image decoding.
+- Scroll lazy-loaded regions into view before judging their resources.
+- Sample geometry after it stabilizes.
+- Preserve real overflow, clipping, overlap, unreadable text, missing content, and unusable-control failures.
 
-This includes approximately:
+For fonts:
 
-1366×768
-1440×900
-1536×864
-1920×1080
+- Explicitly load the contracted local family/weight before testing availability.
+- Distinguish an unloaded face from a failed face.
+- Verify intended typography roles against their actual selectors.
+- Keep missing or corrupt font files as failures.
 
-Do not design only for a giant Figma artboard.
+For motion:
 
-==================================================
-VISUAL DIRECTION
-==================================================
+- Observe load animations from navigation start, rather than inspecting only their finished state.
+- Trigger viewport, hover, focus, and activation effects deliberately.
+- Account for duration and delay using bounded polling.
+- Compare numeric opacity and normalized transform matrices with documented tolerances.
+- Check reduced-motion behavior separately; content and controls must remain available.
 
-Use the attached new reference image as the main visual direction.
+Use browser readiness and stability conditions rather than arbitrary sleeps. Playwright’s documented actionability checks provide the baseline for visibility and stability. [Playwright actionability](https://playwright.dev/docs/actionability)
 
-The visual system is called:
+Every runtime diagnostic must include:
 
-"EDITORIAL SWISS — THE LIVING DRAFT"
+- Gate and stable diagnostic code.
+- Route and section/region identity.
+- Selector and match count.
+- Viewport.
+- Expected and observed values.
+- Responsible source owner and relevant files.
+- Candidate hash and available screenshot evidence.
 
-It should feel like:
+Aggregate repeated observations of the same defect, while retaining distinct elements and viewport evidence. A generic message about “an anchor” must not collapse unrelated failures.
 
-- a high-end editorial design studio
-- an architectural working document
-- a creative instrument
-- a serious professional product
-- deliberate modernist typography
-- a living system rather than a static landing page
+### Step 6 — Make repairs informed, transactional, and bounded
 
-It should NOT look like generic "AI software."
+Build repair targets from the compiled ownership graph.
 
-==================================================
-DESIGN TOKENS
-==================================================
+- Resolve hashed route directories and actual section files; never reconstruct paths from raw route IDs.
+- Include complete editable owner files, relevant styles, imported contracts, and shared-component interfaces.
+- Separate read-only context from authorized write paths.
+- Partition oversized work by owner; never silently truncate source at a character limit.
+- Detect missing source or nonexistent allowed paths before spending on a model call.
+- Route compiler/scaffold defects to deterministic host fixes, not model edits of generated route files.
 
-Respect the existing OryxenAI design language.
+Make each repair a transaction:
 
-Primary palette:
+1. Persist the attempt and parent checkpoint identity.
+2. Create an isolated candidate.
+3. Apply changes only within authorized paths.
+4. Run source, ownership, type, and affected behavior checks.
+5. Reject regressions or invalid candidates without changing the accepted workspace.
+6. Accept and atomically promote the candidate only after the relevant checks and worker fences pass.
 
-Canvas:
-#F3F0E8
+A failed candidate must leave the previous accepted source byte-for-byte unchanged.
 
-Paper:
-#FCFBF7
+Persist every attempted repair, including rejected and interrupted attempts—not just successful repairs. Record fresh diagnostics and rejection reasons so the next attempt does not receive the original stale problem repeatedly.
 
-Ink:
-#171A19
+Retain finite configured repair limits. Count failures and crash-interrupted attempts against those limits. Stop repeated no-progress proposals. Infrastructure failures, expired authorization, missing toolchains, and exhausted credit must not trigger source-repair prompts.
 
-Graphite:
-#626660
+### Step 7 — Reorder expensive review and preserve preview integrity
 
-Hairline rule:
-#D3CFC4
+For the new contract, use this order:
 
-OryxenAI signal / electric cobalt:
-#3157E7
+**Generate → cheap source/type checks → assemble → clean build → browser checks → quality review → bounded repair → affected checks again → final verification → preview promotion.**
 
-Positive:
-#287356
+Keep the existing quality floor. The change is to review a working candidate with useful evidence, rather than repeatedly reviewing broken source.
 
-Attention:
-#A9601E
+- Cache review results by source and resolved-contract hashes.
+- Send owner-focused context for targeted defects.
+- Invalidate downstream receipts whenever their input hash changes.
+- Require final build, browser, and quality receipts to describe the same accepted candidate.
+- Preserve the existing preview until its replacement has passed all gates.
+- Retrying artifact upload or preview promotion must reuse an already verified artifact without another model generation.
 
-Critical:
-#B33F3A
+Export real diagnostics, substitutions, repair outcomes, screenshots, and receipts. Failed-run exports must not replace the actual failure with placeholder messages or discard evidence needed to reproduce it.
 
-Use cobalt carefully.
+## 4. Verification and live acceptance
 
-It should feel valuable because it appears selectively.
+### Offline regression coverage
 
-Do NOT turn the entire UI blue.
+Complete these groups before spending on live generation:
 
-==================================================
-TYPOGRAPHY
-==================================================
+| Group | Required scenarios |
+|---|---|
+| Brief admission | Current approved brief pairs; Unicode; nested content; duplicate identities; malformed indexes; hash mismatch; configured scope limits. |
+| Source audit | Regex literals containing slashes; templates; JSX attributes; comments; imported aliases; orphan files; missing rendered content. |
+| Resources | Successful local assets; stale pins; unavailable optional media/fonts; corrupt required resources; recorded substitutions. |
+| Browser behavior | Single-page and multipage navigation; section links; mobile disclosure; keyboard use; reduced motion; lazy images; unloaded font weights; equivalent transform matrices. |
+| Repair | Correct hashed ownership; complete context; unauthorized writes rejected; candidate rollback; fresh feedback; no-progress stop; crash/redelivery accounting. |
+| Durability and preview | Checkpoint reuse; duplicate job delivery; stale-worker rejection; entitlement changes; failed regeneration preserving the previous preview; promotion retry without regeneration. |
 
-Use the application's editorial typography.
+Exercise the existing mobile, tablet, and desktop verification sizes, plus a 320-pixel narrow-screen case and a 1280-pixel laptop case.
 
-Display:
-Newsreader / existing editorial serif / Georgia fallback
+Test artifacts both at `/` and through the actual nested preview gateway. Include direct navigation to non-home routes and refresh. Existing Vite-relative asset handling must remain intact.
 
-Sans:
-system-ui / Inter where already available
+Run generator-focused tests first, followed by the canonical lint, format-check, type-check, and full test commands. Use only the dedicated test database for integration tests. Report unrelated failures accurately instead of changing unrelated systems.
 
-Mono:
-ui-monospace / SFMono / Consolas
+### Two fresh live acceptance runs
 
-The serif should provide personality.
+After offline gates pass, use the real OpenAI workflow under the shared $3 campaign ceiling:
 
-The sans typography should make the application functional and modern.
+1. A dense single-page portfolio based on the retained approved input, exercising its actual content, resources, navigation, and motion.
+2. A distinct privacy-safe multipage brief pair with nested project content, different visual direction, and an explicitly exercised optional-resource fallback.
 
-The mono typography should be used sparingly for:
+Do not manually patch the exported portfolios. Fix generator code, contracts, or prompts and rerun through the actual workflow.
 
-- stage numbers
-- status labels
-- tiny metadata
-- system-like annotations
+Each successful run must demonstrate:
 
-Do not turn everything into uppercase tracking.
+- Complete approved content and working destinations.
+- Clean build and passing source/runtime gates.
+- A promoted preview whose artifact matches the verified candidate.
+- No unexplained browser errors or missing local assets.
+- Desktop and mobile screenshots reviewed for hierarchy, relevant imagery, readable typography, usable controls, and coherent motion.
+- Recorded substitutions and actual campaign usage.
 
-==================================================
-CORE DESKTOP COMPOSITION
-==================================================
+Use human screenshot inspection for visual acceptance; an additional paid vision-model loop is unnecessary for this budget.
 
-Create an intentional asymmetric desktop composition.
+If the remaining reservation cannot fund another required call, stop the campaign safely and report incomplete live acceptance. Do not spend the $1 reserve or claim validation that did not happen.
 
-Approximate structure:
+## 5. Completion criteria and boundaries
 
-LEFT / PRODUCT STORY:
-~55–58%
+The repair is complete only when the regression fixes, transactional repair behavior, fresh end-to-end runs, and preview evidence above are verified—not merely when the existing tests pass.
 
-RIGHT / AUTHENTICATION:
-~42–45%
+During implementation:
 
-Do NOT mechanically use these percentages if another proportion works better.
+- Work alone and preserve other contributors’ frontend/auth changes.
+- Make task-scoped local commits at verified checkpoints.
+- Record completed units in `CHANGES.md`, including its compaction check.
+- Record the executable-contract and review-order changes in `DECISIONS.md`.
+- Update stale generator documentation to match the implemented Markdown-brief workflow.
+- Report commit hashes, verification results, preview references, spending, and remaining limitations. Do not push without authorization.
 
-The page should feel designed, not mathematically divided.
+Defaults are OpenAI through configuration, a $3 evaluation ceiling, polished optional-resource fallbacks, and no automatic chaining or public deployment.
 
-Use approximately 100svh / 100dvh as the first-screen composition where appropriate, while allowing natural height when required.
-
---------------------------------------------------
-A. TOP HEADER
---------------------------------------------------
-
-Create a slim architectural header.
-
-Left:
-
-ORYXENAI logo / wordmark
-
-Beside it, subtle descriptor:
-
-AGENTIC PORTFOLIO STUDIO
-FROM EXPERIENCE TO IMPACT
-
-Right side may contain only very restrained utility content if routes genuinely exist.
-
-Do NOT invent a giant navigation menu.
-
-Possible tiny items only if they already exist:
-About
-Docs
-Privacy
-Terms
-
-Otherwise leave it minimal.
-
-Use a thin hairline beneath the header.
-
---------------------------------------------------
-B. LEFT JOURNEY RAIL
---------------------------------------------------
-
-This is important.
-
-Instead of a meaningless illustration, use OryxenAI's REAL WORKFLOW as visual personality.
-
-Create a narrow vertical stage rail:
-
-01
-DISCOVERY
-Your story
-
-02
-CONTENT
-Your narrative
-
-03
-DESIGN
-Your look
-
-04
-PREPARE
-The brief
-
-05
-BUILD
-The site
-
-06
-PREVIEW
-Go live
-
-Connect stages with subtle hairlines.
-
-This rail is NOT actual logged-in user progress on `/sign-in`.
-
-It is a preview of the OryxenAI process.
-
-Do not falsely imply the unauthenticated user is currently in Discovery.
-
-Instead use a travelling cobalt "signal" animation through the rail to represent the product pipeline.
-
---------------------------------------------------
-C. MAIN LEFT HERO
---------------------------------------------------
-
-Do NOT restore the enormous old headline.
-
-Use a controlled editorial hero.
-
-Possible eyebrow:
-
-TRANSFORM YOUR EXPERIENCE
-
-Possible hero:
-
-"From experience
-to opportunity."
-
-or:
-
-"Turn experience
-into a portfolio
-worth reviewing."
-
-Use the final wording that works most naturally with the layout.
-
-Supporting copy should explain the product accurately:
-
-"OryxenAI turns your experience into a bespoke, verified portfolio through a guided creative pipeline — from discovery and content architecture to design, build and preview."
-
-Or refine this into concise, natural product copy.
-
-Keep it around 2–3 short lines.
-
-Below it use 3 compact value indicators.
-
-For example:
-
-GUIDED BY SPECIALIZED AGENTS
-Discovery → content → design → build.
-
-BUILT AROUND YOU
-One portfolio. One evolving narrative.
-
-YOU APPROVE EVERY HANDOFF
-Nothing moves forward without your review.
-
-These should look editorial, not like generic SaaS feature cards.
-
-Avoid three floating rounded cards.
-
-Use hairline dividers and typography.
-
-==================================================
-VISUAL / DECORATIVE SYSTEM
-==================================================
-
-The reference image includes strong visual texture.
-
-However, DO NOT simply insert random AI-generated mountains because they look impressive.
-
-The final implementation should preferably use CODE-NATIVE graphics.
-
-Create an abstract architectural / terrain / document-system composition using:
-
-- inline SVG
-- clipping masks
-- CSS gradients used VERY subtly
-- thin contour lines
-- grid geometry
-- paper texture
-- architectural forms
-- structured coordinates
-- rules and nodes
-
-It can evoke:
-- source material
-- transformation
-- structure
-- architecture
-- compilation
-- a living draft
-
-without looking like "AI galaxy art."
-
-If an existing approved brand image already exists, it may be integrated carefully.
-
-Otherwise prefer CSS/SVG rather than introducing a large random stock image.
-
-==================================================
-SIGNATURE ANIMATION — THE LIVING DRAFT
-==================================================
-
-This is the signature OryxenAI motion language.
-
-Build a thin cobalt signal line.
-
-It should feel like an editorial proofing mark or architectural drawing becoming active.
-
-On the sign-in page:
-
-A cobalt signal can slowly travel through:
-
-Discovery
-→ Content
-→ Design
-→ Prepare
-→ Build
-→ Preview
-
-Then rest before repeating.
-
-Suggested cycle:
-8–12 seconds
-
-Do NOT make it continuously frantic.
-
-Each stage node can receive:
-- subtle 1–2px expansion
-- temporary cobalt state
-- label opacity increase
-
-The connector activates briefly as the signal passes.
-
-No glowing neon cyberpunk effect.
-
-No large bloom.
-
-No particles.
-
-No sparkles.
-
-==================================================
-PAGE ENTRANCE ANIMATION
-==================================================
-
-On first load:
-
-0ms:
-canvas appears
-
-~80ms:
-header rules and structural lines resolve
-
-~140–350ms:
-small metadata / stage rail softly appears
-
-~180–600ms:
-hero text reveals using a restrained vertical clip or mask
-
-~250–650ms:
-supporting copy fades + translates approximately 8px
-
-~300–700ms:
-auth surface resolves
-
-Everything should feel finished within ~700–850ms.
-
-Do NOT create a 3-second intro animation.
-
-The user came here to sign in.
-
-==================================================
-AUTHENTICATION SURFACE
-==================================================
-
-The authentication area is the primary functional object.
-
-It should be above the fold.
-
-Use either:
-
-- a very subtle paper sheet/card
-
-OR
-
-- a bounded architectural panel
-
-Do NOT create an exaggerated floating glass panel.
-
-Recommended hierarchy:
-
-tiny cobalt dot / label:
-WELCOME TO ORYXENAI
-
-Headline:
-
-"Sign in to your
-private workspace."
-
-Supporting sentence:
-
-"Continue with Google to access your OryxenAI studio."
-
-Then the main CTA.
-
-[G] Continue with Google       →
-
-The button should be approximately 54–60px high on desktop.
-
-It should use:
-- deep carbon background
-- white text
-- proper Google mark if already available/allowed
-- restrained radius around 8–10px
-- strong focus state
-
-Not a gigantic pill.
-
-Below it include only useful trust information.
-
-For example:
-
-GOOGLE-SECURED ACCESS
-No additional password to remember.
-
-PRIVATE BY DEFAULT
-Your portfolio stays inside the workspace until you choose otherwise.
-
-HUMAN APPROVAL
-Nothing is published through a surprise automated handoff.
-
-And:
-
-"No credit card required."
-
-Do not overload this area.
-
-==================================================
-DO NOT USE FAKE SOCIAL PROOF
-==================================================
-
-The attached reference may visually contain testimonials, profile photos, creator counts, etc.
-
-DO NOT copy fake data from the reference.
-
-Do NOT invent:
-
-"Trusted by 10,000 creators"
-
-Do NOT invent user testimonials.
-
-Do NOT invent customer avatars.
-
-If genuine product metrics/testimonials do not exist, leave them out.
-
-Use real product principles instead.
-
-==================================================
-WHAT TO DO WITH THE OLD BRAND LINE
-==================================================
-
-Keep:
-
-"Make the work legible before making it public."
-
-But demote it.
-
-It should become a signature detail rather than the giant hero.
-
-Possible placements:
-
-- narrow right-side vertical annotation
-- lower-left editorial caption
-- footer statement
-- subtle line beside the journey rail
-
-It should NOT occupy half the screen anymore.
-
-==================================================
-GOOGLE CTA INTERACTION
-==================================================
-
-Hover:
-
-- background changes extremely subtly
-- arrow translates ~3–4px
-- border/shadow responds slightly
-- duration ~140–180ms
-
-Focus-visible:
-
-use a clear cobalt outline/focus treatment.
-
-Active:
-
-translate at most 1px.
-
-When clicked:
-
-DO NOT instantly create an unrelated spinner.
-
-Disable repeated activation.
-
-Show a state such as:
-
-"Opening Google…"
-
-Optionally animate a thin cobalt line across the lower edge of the button.
-
-Then allow the existing Supabase redirect to occur.
-
-If OAuth initialization fails:
-restore the CTA and show a concise inline error.
-
-==================================================
-MICROINTERACTIONS
-==================================================
-
-Add refined microinteractions without overdoing them.
-
-Examples:
-
-1. Small header metadata softly changes opacity on hover.
-
-2. Journey rail labels become slightly more legible as the Living Draft signal reaches them.
-
-3. Editorial rules may extend by 6–12px on relevant hover states.
-
-4. Arrow icons move 3–4px rather than bouncing.
-
-5. Auth sheet may react to pointer position by an EXTREMELY subtle 1–2px optical highlight shift.
-
-Do not create full-card 3D tilting.
-
-6. Tiny cobalt cursor/proofing mark may blink at a low frequency in one deliberate location.
-
-There should never be ten unrelated animations playing simultaneously.
-
-==================================================
-MOTION PERFORMANCE
-==================================================
-
-Prefer animating:
-
-transform
-opacity
-clip-path where reasonable
-
-Avoid repeatedly animating:
-
-width
-height
-top
-left
-large box shadows
-expensive filters
-
-The page should remain smooth on an ordinary laptop.
-
-Do not use a canvas/WebGL scene for something that can be accomplished through SVG/CSS.
-
-==================================================
-ACCESSIBILITY
-==================================================
-
-Implement:
-
-- semantic buttons and links
-- keyboard navigation
-- visible focus states
-- correct contrast
-- min ~44px interactive touch targets
-- sensible tab order
-- no information available exclusively through hover
-
-Respect:
-
-@media (prefers-reduced-motion: reduce)
-
-Reduced-motion behavior should:
-
-- stop the repeating Living Draft traversal
-- remove parallax
-- remove masked motion
-- retain simple short fades where appropriate
-- never block authentication
-
-==================================================
-RESPONSIVE DESIGN
-==================================================
-
-This redesign MUST be genuinely responsive.
-
-Do not merely shrink the desktop artboard.
-
---------------------------------------------------
-LARGE DESKTOP
---------------------------------------------------
-
-Use full split editorial composition.
-
-Journey rail + hero left.
-
-Authentication right.
-
-Everything important above fold.
-
---------------------------------------------------
-LAPTOP / MEDIUM DESKTOP
---------------------------------------------------
-
-Reduce:
-- hero font size
-- decorative geometry
-- outer padding
-- vertical gaps
-
-Do not push the auth CTA below the viewport.
-
-This is critical.
-
---------------------------------------------------
-TABLET
---------------------------------------------------
-
-Collapse the left visual complexity.
-
-Possible structure:
-
-header
-
-short hero + process indicator
-
-auth panel
-
-condensed stage rail
-
-Authentication still has stronger priority than decoration.
-
---------------------------------------------------
-MOBILE
---------------------------------------------------
-
-Do NOT use a miniature version of the desktop split layout.
-
-Recompose it.
-
-Recommended order:
-
-ORYXENAI
-
-small descriptor
-
-short headline
-
-1–2 lines explanation
-
-Continue with Google
-
-privacy / approval reassurance
-
-condensed horizontal or vertically collapsed process:
-
-01 Discover
-02 Content
-03 Design
-04 Prepare
-05 Build
-06 Preview
-
-Then optional brand line.
-
-The Google CTA should appear very early.
-
-Avoid forcing a mobile user to scroll through a giant marketing hero before authentication.
-
-Use:
-
-min-height: 100svh
-
-rather than relying only on 100vh where mobile browser chrome may interfere.
-
-No horizontal overflow at 375px.
-
-==================================================
-SPACING / GEOMETRY
-==================================================
-
-Follow a 4px rhythm:
-
-4
-8
-12
-16
-24
-32
-48
-64
-
-Control radius:
-~8px
-
-Paper/sheet radius:
-~12–16px
-
-Pills only where pills semantically make sense.
-
-Borders:
-1px solid design-token rule
-
-Use very restrained shadows.
-
-For example approximately:
-
-0 4px 20px -4px rgba(23, 26, 25, 0.06)
-
-Avoid huge blurred shadows.
-
-==================================================
-ANTI-"AI SLOP" RULES
-==================================================
-
-STRICTLY AVOID:
-
-- purple/blue gradient blobs
-- excessive glassmorphism
-- neon glowing borders
-- glowing AI orbs
-- robot icons
-- sparkles everywhere
-- generic stars
-- fake dashboards
-- fake analytics
-- fake AI-generated testimonials
-- giant pill buttons everywhere
-- infinite floating objects
-- random 3D chrome objects
-- excessive rounded cards
-- giant gradient typography
-- fake progress percentages
-- circular AI loading meters
-- "Ask AI anything" copy
-- generic "AI-powered future" slogans
-
-This should feel like ORYXENAI, not "AI SaaS Template #47."
-
-==================================================
-IMPORTANT PRODUCT LANGUAGE
-==================================================
-
-Use terminology that reinforces the actual product:
-
-Portfolio
-Discovery
-Content
-Design
-Prepare
-Build
-Preview
-Living Draft
-Review
-Approve
-Workspace
-Narrative
-Verified
-Handoff
-
-Use the word "agentic" sparingly.
-
-Don't repeatedly say "AI-powered."
-
-Show what the product does instead.
-
-==================================================
-DO NOT BREAK THESE THINGS
-==================================================
-
-Do not change:
-
-- Supabase OAuth behavior
-- PKCE flow
-- callback route
-- session logic
-- backend access/capacity decisions
-- `/onboarding`
-- `/access-not-approved`
-- `/account-unavailable`
-- existing `/app` routing
-- auth security logic
-
-This task is primarily a frontend/auth UX redesign.
-
-Do not use the redesign as an excuse for an unrelated architecture rewrite.
-
-==================================================
-IMPLEMENTATION QUALITY
-==================================================
-
-Refactor the existing sign-in markup/CSS when appropriate rather than stacking more styles on top of broken old styles.
-
-Remove obsolete sign-in CSS once the new version replaces it.
-
-Avoid:
-- duplicate media queries
-- conflicting selectors
-- !important everywhere
-- inline style clutter
-- magic absolute positioning that works only at 1920px
-
-Prefer:
-- named layout regions
-- CSS custom properties
-- grid/flex
-- clamp()
-- min()
-- max()
-- logical responsive rules
-
-Use absolute positioning only for genuinely decorative elements.
-
-==================================================
-TESTING
-==================================================
-
-After implementation, test the actual sign-in page at least at:
-
-1920×1080
-1536×864
-1440×900
-1366×768
-1024×768
-768×1024
-430×932
-390×844
-375×812
-
-Verify:
-
-- no horizontal overflow
-- Google CTA visible without scroll on common desktop/laptop screens
-- readable typography
-- nothing overlaps
-- hero does not dominate authentication
-- stage rail does not collide with content
-- navigation/header remains usable
-- OAuth CTA still works
-- focus-visible works
-- reduced motion works
-- no layout jump after fonts load
-- no JS console errors
-
-Run the project's relevant existing frontend/tests/build checks.
-
-==================================================
-FINAL RESULT I WANT
-==================================================
-
-I want the sign-in experience to feel like I entered a sophisticated creative studio before I even authenticate.
-
-The reference image should influence:
-
-- composition
-- editorial hierarchy
-- typography
-- architectural rules
-- restrained depth
-- process visualization
-- premium feel
-
-But the implementation should be MORE product-specific than the reference.
-
-The final result should communicate:
-
-"Your experience enters here.
-OryxenAI structures it through a deliberate agentic pipeline.
-You remain in control.
-Sign in and enter the studio."
-
-The primary user journey must remain extremely simple:
-
-ARRIVE
-→ understand what OryxenAI does
-→ see Google authentication immediately
-→ sign in
-→ continue through the existing auth/onboarding flow.
-
-Make the page memorable because of OryxenAI's own visual language, not because it has more effects.
-
-==================================================
-WORKFLOW FOR YOU
-==================================================
-
-Proceed autonomously:
-
-1. Inspect the relevant implementation.
-2. Identify what is currently causing the oversized/poor hierarchy.
-3. Preserve working auth logic.
-4. Redesign the markup.
-5. Rebuild the sign-in CSS cleanly.
-6. Add the restrained Living Draft animation.
-7. Implement responsive states.
-8. Add reduced-motion support.
-9. Test the route.
-10. Run build/tests.
-11. Fix any regression you find.
-
-Do not stop after producing a plan.
-
-Actually implement the redesign.
-
-When finished, give me a concise report containing:
-
-- files changed
-- major UX changes
-- animations added
-- responsive behavior
-- auth behavior preserved
-- tests/build run
-- anything that still needs manual verification
-
-Do not redesign unrelated OryxenAI application screens during this task.
+“Works correctly” means reliable handling of valid supported Build Preparation outputs, with complete content, verified behavior, and reviewed visual quality. It cannot honestly mean guaranteed success for unlimited input, unavailable infrastructure, or exhausted account credit. Those conditions must produce a truthful, recoverable state while preserving any existing working preview.

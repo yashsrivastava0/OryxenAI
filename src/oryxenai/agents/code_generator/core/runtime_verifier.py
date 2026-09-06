@@ -31,6 +31,45 @@ logger = get_logger("oryxenai.agents.code_generator.runtime_verifier")
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
 
+# Normalize an author-style expected transform (e.g. "translateY(0px)",
+# "scale(1.05)") against the browser's own always-resolved matrix()/
+# matrix3d() computed style, using a detached probe element so both sides
+# go through the identical CSS engine. Falls back to a per-component
+# numeric comparison (translation terms get a 1px tolerance; every other
+# linear/rotation/scale term gets a tight 0.02 tolerance) since equivalent
+# transforms composed differently (e.g. an extra translateZ(0) for GPU
+# acceleration) can normalize to matrix() vs matrix3d() and never compare
+# equal as text even though the transforms are the same.
+_TRANSFORM_MATCH_JS = """(element, expected) => {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;';
+  document.body.appendChild(probe);
+  probe.style.transform = expected;
+  const expectedMatrix = getComputedStyle(probe).transform;
+  probe.remove();
+  const observedMatrix = getComputedStyle(element).transform;
+  if (expectedMatrix === observedMatrix) return true;
+  if (expectedMatrix === 'none' || observedMatrix === 'none') return expectedMatrix === observedMatrix;
+  const toValues = (value) => {
+    const match = /^matrix(3d)?\\(([^)]+)\\)$/.exec(value);
+    if (!match) return null;
+    const parts = match[2].split(',').map(Number);
+    if (match[1]) return parts;
+    const [a, b, c, d, e, f] = parts;
+    return [a, b, 0, 0, c, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1];
+  };
+  const expectedValues = toValues(expectedMatrix);
+  const observedValues = toValues(observedMatrix);
+  if (!expectedValues || !observedValues || expectedValues.length !== observedValues.length) {
+    return expectedMatrix === observedMatrix;
+  }
+  const translationIndices = new Set([12, 13, 14]);
+  return expectedValues.every((value, index) => {
+    const tolerance = translationIndices.has(index) ? 1 : 0.02;
+    return Math.abs(value - observedValues[index]) <= tolerance;
+  });
+}"""
+
 
 def _safe_filename(value: str) -> str:
     """Collapse a journey_id (e.g. "direct:home", "interaction:hero-cta")
@@ -1146,6 +1185,18 @@ class RuntimeVerifier:
                   violations.push({code: 'RUNTIME_FONT_WEIGHT', message: `Font role ${item.role} computed weight ${style.fontWeight} is not one of ${item.weights.join(', ')}.`});
                 }
                 for (const weight of item.weights) {
+                  // document.fonts.check() only reports a face as loaded if
+                  // the browser has actually triggered a fetch for it --
+                  // rendered text using that exact weight, or an explicit
+                  // load. A weight declared valid for this role but not the
+                  // one actually rendered anywhere would otherwise always
+                  // read as "failed to load" even though the face is fine.
+                  try {
+                    await document.fonts.load(`${weight} 16px "${item.family}"`);
+                  } catch (error) {
+                    // A load rejection is itself real evidence of failure;
+                    // let the following check() report it.
+                  }
                   if (!document.fonts.check(`${weight} 16px "${item.family}"`)) {
                     violations.push({code: 'RUNTIME_FONT_LOAD_FAILED', message: `Font role ${item.role} weight ${weight} failed document.fonts.check.`});
                   }
@@ -1205,9 +1256,29 @@ class RuntimeVerifier:
                     expectation.property_name
                 )
                 expected_after = expectation.after_value.strip()
-                matches_after = not expected_after or expected_after in str(
-                    after.get(expectation.property_name, "")
-                )
+                if not expected_after:
+                    matches_after = True
+                elif expectation.property_name == "transform":
+                    # getComputedStyle always reports `transform` as a
+                    # resolved matrix()/matrix3d() string, never in the
+                    # author's own function notation (translateY(20px),
+                    # scale(1.05), ...) that a motion beat's after_value is
+                    # written in. A substring check against the matrix
+                    # string can never match a correct, working animation.
+                    # Let the browser's own CSS engine normalize the
+                    # expected value the same way (a detached probe
+                    # element), then compare numerically with a tolerance
+                    # instead of comparing text.
+                    matches_after = bool(
+                        await target.evaluate(
+                            _TRANSFORM_MATCH_JS,
+                            expected_after,
+                        )
+                    )
+                else:
+                    matches_after = expected_after in str(
+                        after.get(expectation.property_name, "")
+                    )
                 if not changed and motion.trigger not in {"load", "viewport"}:
                     result["violations"].append(
                         {

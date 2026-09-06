@@ -374,9 +374,19 @@ def repair_allowed_paths(
             if storage_key.startswith("routes/"):
                 storage_key = storage_key.removeprefix("routes/")
             storage_keys[route_id] = storage_key
-        return sorted(
-            f"src/routes/{storage_keys.get(route_id, route_id)}/**" for route_id in route_ids
+        # Only ever authorize a directory that is actually the resolved
+        # storage key. Falling back to the bare route id when the site
+        # contract projection is missing/stale for a route previously
+        # authorized a directory that does not exist on disk, which the
+        # model could then create as a new, wrong, duplicate route tree
+        # instead of touching the real hashed directory.
+        resolved = sorted(
+            f"src/routes/{storage_keys[route_id]}/**"
+            for route_id in route_ids
+            if route_id in storage_keys
         )
+        if resolved:
+            return resolved
     return ["src/design/**", "src/components/shared/**"]
 
 
