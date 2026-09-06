@@ -1,4 +1,5 @@
 import type { DesignViewModel } from "../../data/adapters/design";
+import { finalAgentOutput } from "../../data/final-agent-output";
 import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
@@ -152,6 +153,7 @@ export function DesignStage({
         isApproved={isApproved}
         canMutate={canMutate}
         structuredSections={structuredSections}
+        finalJsonOutput={finalAgentOutput("visual_design_director", view.raw)}
         warnings={view.warnings}
         metadata={[
           { label: "Styled Routes", value: String(view.pages.length) },
