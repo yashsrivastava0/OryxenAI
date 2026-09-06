@@ -23,6 +23,21 @@ result obvious.
 
 ## How to use this package
 
+### For a frontend replacement or major redesign
+
+Attach these three files to the coding agent first:
+
+1. [07 — frontend redesign context pack](07-frontend-redesign-context-pack.md)
+2. [08 — frontend contract ledger](08-frontend-contract-ledger.md)
+3. [09 — frontend replacement runbook](09-frontend-replacement-runbook.md)
+
+They are the migration-safety layer for this research package. `07` defines the
+replaceable visual boundary, `08` maps routes/auth/agents/states/actions, and
+`09` gives the search, screen-by-screen replacement, dual-run, rollback, and
+verification procedure. The detailed documents below remain useful as design
+and implementation evidence, but an agent should not start by treating a
+wireframe or CSS selector as the contract.
+
 | Document | Primary question |
 | --- | --- |
 | [Product experience and information architecture](01-product-experience-and-information-architecture.md) | What does the user see and where do they go? |
