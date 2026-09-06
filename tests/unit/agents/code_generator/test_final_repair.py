@@ -4,7 +4,7 @@ from oryxenai.agents.code_generator.core.development_schemas import Diagnostic, 
 from oryxenai.agents.code_generator.core.final_repair import repair_allowed_paths
 
 
-def _diagnostic(file: str) -> Diagnostic:
+def _diagnostic(file: str = "", route_id: str = "") -> Diagnostic:
     return Diagnostic(
         diagnostic_id="diagnostic-test",
         group="source_contract",
@@ -12,6 +12,7 @@ def _diagnostic(file: str) -> Diagnostic:
         phase="source_contract",
         normalized_message="The section CSS does not implement its compiler selector.",
         file=file,
+        route_id=route_id,
         fingerprint="test",
     )
 
@@ -50,3 +51,33 @@ def test_final_repair_includes_existing_route_stylesheet_for_composer(tmp_path) 
     )
 
     assert paths == ["src/routes/home/index.tsx", "src/routes/home/route.css"]
+
+
+def test_route_scoped_diagnostic_resolves_the_hashed_storage_key() -> None:
+    paths = repair_allowed_paths(
+        [_diagnostic(route_id="home")],
+        SitePlan(plan_id="test", routes=[]),
+        {
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "storage_key": "home-4ea140588150-4859f06d"}]
+            }
+        },
+    )
+
+    assert paths == ["src/routes/home-4ea140588150-4859f06d/**"]
+
+
+def test_route_scoped_diagnostic_never_guesses_a_bare_route_directory() -> None:
+    """A missing/stale site-contract projection must not fabricate a
+    src/routes/<bare-route-id>/** path — a real past export shows the model
+    creating a wrong, separate route tree there instead of touching the
+    actual hashed directory."""
+
+    paths = repair_allowed_paths(
+        [_diagnostic(route_id="home")],
+        SitePlan(plan_id="test", routes=[]),
+        {"site/contract.json": {"routes": []}},
+    )
+
+    assert paths == ["src/design/**", "src/components/shared/**"]
+    assert "src/routes/home/**" not in paths
