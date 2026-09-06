@@ -11,6 +11,45 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 21:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce] - code-generator: verify an external plan, then fix 10 real bugs across 5 live-tested runs
+
+Started from a reliability-repair plan authored by another model (no live
+calls or repo changes made by it) and verified every claim against actual
+code before acting — several matched the still-open frontier in `code
+generator issues.md` almost exactly, confirming the static review was
+grounded; its proposed `ResolvedExecutionContract` v6 rearchitecture was
+deliberately not adopted (unsupported by any DECISIONS.md entry, and this
+project's real history is targeted live-bugfix commits, not rewrites).
+Fixed and mostly live-verified: a JS regex-literal blind spot in the
+shared comment stripper; final repair receiving zero source content for
+every DOM/runtime diagnostic plus a wrong-directory fallback guess; a
+motion check comparing author-style transforms against browser-computed
+matrix strings via plain substring match; a font-weight check that never
+triggered a load for an unrendered-but-valid weight; runtime resource
+checks blind to acquisition fallback disposition; a self-inflicted
+realization-hash staleness regression from that same fix (caught by the
+very next live run); a fragment-only CTA href (`href="#section"`) crashing
+the entire generated page on render; a region column-count check treating
+an undocumented abstract "columns_*" design-grid span as a literal CSS
+track-count requirement; a distinctive-move CSS-property check blind to
+its own planner-assigned runtime marker; and — the highest-impact find —
+the region width/readable-measure checks measuring the CSS border box
+instead of the content box, which structurally guaranteed a 1.000 ratio
+for any region using the extremely common "full-bleed section, inset via
+padding" pattern regardless of design quality, very likely explaining a
+large share of this whole engagement's past "layout looks wrong"
+findings. Across 5 fresh live runs, the pipeline went from crashing before
+verification ever ran to reaching real DOM/runtime layout checks cleanly;
+the width-ratio false-positive is confirmed eliminated live. Logged one
+finding (runtime checks blind to acquisition disposition) that was
+investigated, initially deferred as unsafe to guess at, then fixed
+correctly once a reliable acquisition-ledger join was found — and one
+genuine architectural tension (the model's own reasonable responsive
+breakpoints not aligning with this project's 3 fixed checked viewport
+widths) deliberately left open rather than rushed. 272 code_generator
+tests pass (up from 255), same 1 pre-existing unrelated failure; full
+detail and the remaining frontier in `code generator issues.md`.
+
 ### 2026-09-06 17:15 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [5768ce7] - feat(discovery): revamp /app discovery workspace with editorial swiss living draft aesthetic
 
 Revamped the authenticated `/app` Discovery experience into an "Editorial Swiss — The Living Draft" studio workbench matching the approved design concept and `/sign-in` design system. Replaced the marketing hero with an input-first hierarchy (`PORTFOLIO STUDIO / DISCOVERY` / `Bring your work into focus.`), bringing the primary source textarea and Start Discovery CTA comfortably above the fold on all laptop viewports (1440x900, 1366x768, and 1280x720). Upgraded JourneyRail to a real 6-stage drafting rail (`01 Discover` through `06 Preview`) with active cobalt node sweep and locked milestones reflecting true server state. Built a single editorial workbench with live counters, status chips, 2x2 inline progressive disclosure rows, and continuous spatial morphing into `DISCOVERY / ANALYZING SOURCE` and focused single-question cards with collapsible prior answers. Preserved 100% of backend contracts, CAS revision concurrency, and durable job handlers. Verified with Vitest (72/72), Vite production build (177ms), pytest (9/9), ruff, and Playwright screenshot verification across all target viewports.
@@ -245,6 +284,6 @@ Closed repair control-flow gaps by allowing one bounded extra repair attempt and
 
 ## Summary (as of last compaction — 2026-09-06)
 
-- Recent detailed entries retained: 12
+- Recent detailed entries retained: 13
 - Compacted milestone bullets: 12
-- Last updated: 2026-09-06 01:32 +05:30 — Antigravity (Gemini 3.8 Flash / Google)
+- Last updated: 2026-09-06 21:15 +05:30 — Claude Code (Sonnet 5 / Anthropic)
