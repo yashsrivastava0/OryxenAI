@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 13:50 +05:30 - Codex (GPT-5 / OpenAI) - [ebfbc94] - docs(frontend): add redesign contract and replacement runbook
+
+Created an attachable frontend migration pack for future AI coding agents:
+the redesign context pack defines the replaceable visual boundary and protected
+runtime seams, the contract ledger maps routes/auth/stages/statuses/actions and
+proof obligations, and the replacement runbook defines the repository search,
+screen-by-screen migration, dual-run cutover, rollback, and verification gates.
+Linked the pack from `docs/Frontend/README.md`; no application source or backend
+behavior changed. Verification: frontend typecheck, Vitest, production Vite
+build, and browser/auth module tests all pass.
+
 ### 2026-09-06 13:15 +05:30 - Codex (GPT-5 / OpenAI) - [cdf8952] - pipeline: guarantee approval-ready Content and one-click handoff
 
 Traced the live Content approval 409 to an approved home route referencing a
