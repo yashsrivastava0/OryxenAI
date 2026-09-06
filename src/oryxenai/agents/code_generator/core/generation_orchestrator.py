@@ -1239,6 +1239,7 @@ class CodeGeneratorGenerationOrchestrator:
             settings=settings,
             run=run,
             plan=plan,
+            projections=projections,
             workspace=workspace,
             projection=projection,
             round_number=0,
@@ -1489,6 +1490,7 @@ class CodeGeneratorGenerationOrchestrator:
                 settings=settings,
                 run=run,
                 plan=plan,
+                projections=projections,
                 workspace=workspace,
                 projection=projection,
                 round_number=polish_round,
@@ -1508,6 +1510,7 @@ class CodeGeneratorGenerationOrchestrator:
         settings: Any,
         run: Any,
         plan: SitePlan,
+        projections: dict[str, dict[str, Any]],
         workspace: GenerationWorkspace,
         projection: GenerationProjection,
         round_number: int,
@@ -1544,6 +1547,8 @@ class CodeGeneratorGenerationOrchestrator:
                     plan.experience_blueprint,
                     route_id=route.route_id,
                     section_order=list(route.section_order or route.section_ids),
+                    execution=projections.get("execution/contract.json"),
+                    resource_ledger=projections.get("resources/ledger.json"),
                 )
                 for route in plan.routes
             ]
