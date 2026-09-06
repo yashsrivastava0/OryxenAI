@@ -265,9 +265,7 @@ export async function bootstrapAuthPage() {
   const openAdmission = config.admissionMode === "open";
   const signInGuidance = document.getElementById("sign-in-guidance");
   if (signInGuidance) {
-    signInGuidance.textContent = openAdmission
-      ? "Use any Google account. Normal-user access is available while capacity remains."
-      : "Use an approved Google identity. No password is stored by OryxenAI.";
+    signInGuidance.textContent = "Google confirms who you are. OryxenAI decides workspace access.";
   }
   const accessDetail = document.getElementById("access-detail");
   if (accessDetail && openAdmission) {

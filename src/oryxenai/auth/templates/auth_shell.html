@@ -26,6 +26,414 @@
   <a class="skip-link" href="#auth-root">Skip to access controls</a>
   <div class="auth-structure-line" aria-hidden="true"></div>
 
+{% if page == "sign-in" %}
+  <!-- SCREEN 1: APPROVED REDESIGNED /sign-in STUDIO SHELL -->
+  <header class="sign-in-header">
+    <div class="header-brand">
+      <svg class="brand-logo-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="5" cy="5" r="2.75" fill="var(--ink)"/>
+        <rect x="7.5" y="3.5" width="4" height="15" rx="2" transform="rotate(-30 7.5 3.5)" fill="var(--ink)"/>
+        <rect x="13.5" y="5.5" width="4" height="15" rx="2" transform="rotate(-30 13.5 5.5)" fill="var(--signal)"/>
+      </svg>
+      <span class="brand-wordmark">{{ app_name }}</span>
+      <span class="header-pipe" aria-hidden="true">|</span>
+      <span class="header-descriptor">private portfolio studio</span>
+    </div>
+    <div class="header-status-pill">
+      <span class="cobalt-dot" aria-hidden="true"></span>
+      <span class="status-label">Review before publish</span>
+    </div>
+  </header>
+
+  <main id="auth-root" class="sign-in-root" tabindex="-1">
+    <section id="sign-in-panel" class="sign-in-workspace" aria-labelledby="sign-in-title">
+      <!-- LEFT COLUMN: AUTHENTICATION, VALUE, TRUST -->
+      <div class="sign-in-left-col">
+        <div class="left-col-inner">
+          <div class="verified-eyebrow-row">
+            <span class="eyebrow">VERIFIED IDENTITY</span>
+            <span class="eyebrow-rule" aria-hidden="true"></span>
+          </div>
+
+          <h1 id="sign-in-title" class="sign-in-headline">Open your private portfolio workspace.</h1>
+
+          <p class="sign-in-lede">
+            Turn resumes, work history, and project notes into a reviewable portfolio. Discovery asks what is missing, structure follows, and nothing advances without your approval.
+          </p>
+
+          <div class="cta-block">
+            <button id="google-sign-in" class="google-auth-cta" type="button" aria-label="Continue with Google">
+              <span class="google-icon-badge" aria-hidden="true">
+                <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+                </svg>
+              </span>
+              <span class="cta-label">Continue with Google</span>
+              <svg class="cta-arrow" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="4" y1="10" x2="16" y2="10"/>
+                <polyline points="11 5 16 10 11 15"/>
+              </svg>
+            </button>
+
+            <p id="sign-in-error" class="error-text" role="alert" hidden></p>
+            <p id="sign-in-guidance" class="sign-in-guidance">Google confirms who you are. OryxenAI decides workspace access.</p>
+          </div>
+
+          <div class="trust-divider" aria-hidden="true"></div>
+
+          <div class="trust-features-row">
+            <div class="trust-item">
+              <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Private workspace</span>
+            </div>
+            <div class="trust-item">
+              <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <polyline points="9 12 11 14 15 10"/>
+              </svg>
+              <span>Explicit approval at every stage</span>
+            </div>
+            <div class="trust-item">
+              <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>No public publishing without approval</span>
+            </div>
+          </div>
+
+          <footer class="sign-in-left-footer">
+            <span class="brand-signature"><strong>{{ app_name }}</strong> The Living Draft.</span>
+            <span class="footer-pipe" aria-hidden="true">|</span>
+            <span class="footer-motto">From experience to opportunity.</span>
+          </footer>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: INTERACTIVE SIX-STAGE PRODUCT SHOWCASE -->
+      <div class="sign-in-right-col">
+        <div class="rail-header">
+          <span class="rail-title">SIX-STAGE PORTFOLIO STUDIO</span>
+          <span class="rail-motto">IDEAS IN, OPPORTUNITIES OUT.</span>
+        </div>
+
+        <!-- STAGE RAIL -->
+        <div class="stage-rail-wrap" aria-label="Studio workflow rail">
+          <div class="rail-track" aria-hidden="true">
+            <div id="rail-active-segment" class="rail-active-segment"></div>
+            <div id="rail-traveling-highlight" class="rail-traveling-highlight"></div>
+          </div>
+          <ol class="stage-rail-nodes">
+            <li class="stage-rail-node active" data-stage="discover">
+              <span class="node-badge">1</span>
+              <div class="node-meta">
+                <span class="node-name">Discover</span>
+                <span class="node-sub">UNDERSTAND YOUR STORY</span>
+              </div>
+            </li>
+            <li class="stage-rail-node" data-stage="content">
+              <span class="node-badge">2</span>
+              <div class="node-meta">
+                <span class="node-name">Content</span>
+                <span class="node-sub">SHAPE NARRATIVE</span>
+              </div>
+            </li>
+            <li class="stage-rail-node" data-stage="design">
+              <span class="node-badge">3</span>
+              <div class="node-meta">
+                <span class="node-name">Design</span>
+                <span class="node-sub">CRAFT PRESENTATION</span>
+              </div>
+            </li>
+            <li class="stage-rail-node" data-stage="prepare">
+              <span class="node-badge">4</span>
+              <div class="node-meta">
+                <span class="node-name">Prepare</span>
+                <span class="node-sub">FINALIZE DETAILS</span>
+              </div>
+            </li>
+            <li class="stage-rail-node" data-stage="generate">
+              <span class="node-badge">5</span>
+              <div class="node-meta">
+                <span class="node-name">Generate</span>
+                <span class="node-sub">BUILD PORTFOLIO</span>
+              </div>
+            </li>
+            <li class="stage-rail-node" data-stage="preview">
+              <span class="node-badge">6</span>
+              <div class="node-meta">
+                <span class="node-name">Preview</span>
+                <span class="node-sub">REVIEW AND APPROVE</span>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <!-- LAYERED DOCUMENT STACK CAROUSEL -->
+        <div class="sign-in-showcase" aria-label="Interactive portfolio transformation showcase">
+          <div class="showcase-deck">
+            <!-- CARD 0: DISCOVERY -->
+            <article class="showcase-card card-discovery" data-card-index="0" aria-label="Stage 1: Discovery sample">
+              <div class="card-header-line">
+                <span class="card-step-tag">01 Discovery</span>
+              </div>
+              <h2 class="card-headline">Let’s map your foundation.</h2>
+              <p class="card-subhead">We’ll look at your experience, projects, and goals — and ask what’s missing.</p>
+
+              <ul class="discovery-checklist" aria-label="Intake checklist">
+                <li class="checked">
+                  <span class="check-icon" aria-hidden="true">✓</span>
+                  <span>Work history</span>
+                </li>
+                <li>
+                  <span class="check-icon" aria-hidden="true">○</span>
+                  <span>Key projects</span>
+                </li>
+                <li>
+                  <span class="check-icon" aria-hidden="true">○</span>
+                  <span>Skills & impact</span>
+                </li>
+                <li>
+                  <span class="check-icon" aria-hidden="true">○</span>
+                  <span>What’s missing?</span>
+                </li>
+              </ul>
+
+              <div class="card-footer-note">
+                <span class="script-annotation">Your story, more opportunities.</span>
+              </div>
+            </article>
+
+            <!-- CARD 1: PORTFOLIO BRIEF (HERO CENTERPIECE) -->
+            <article class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 2: Portfolio brief sample">
+              <div class="brief-topbar">
+                <span class="brief-brand">{{ app_name }}</span>
+                <div class="brief-status-chip">
+                  <span class="cobalt-dot-pulsing" aria-hidden="true"></span>
+                  <span class="live-status-text">Discovery questions forming…</span>
+                </div>
+              </div>
+
+              <h2 class="brief-title">Portfolio Brief</h2>
+              <p class="brief-subtitle">A structured summary of your experience, ready for your review.</p>
+
+              <div class="brief-split-grid">
+                <div class="brief-visual-frame" aria-hidden="true">
+                  <svg class="brief-arch-svg" viewBox="0 0 160 120" width="100%" height="100%" fill="none">
+                    <defs>
+                      <linearGradient id="archGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#f8f6ef"/>
+                        <stop offset="60%" stop-color="#d8d3c5"/>
+                        <stop offset="100%" stop-color="#8f918c"/>
+                      </linearGradient>
+                      <linearGradient id="archGrad2" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#171a19"/>
+                        <stop offset="70%" stop-color="#353936"/>
+                        <stop offset="100%" stop-color="#626660"/>
+                      </linearGradient>
+                      <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#eae6dc"/>
+                        <stop offset="100%" stop-color="#f3f0e8"/>
+                      </linearGradient>
+                    </defs>
+                    <rect width="160" height="120" fill="url(#skyGrad)"/>
+                    <path d="M -10 130 Q 30 20 85 45 Q 125 65 170 130 Z" fill="url(#archGrad2)" opacity="0.95"/>
+                    <path d="M 10 130 Q 55 10 115 50 Q 145 75 170 130 Z" fill="url(#archGrad1)" opacity="0.98"/>
+                    <path d="M 40 130 Q 80 25 140 70 Q 155 85 170 130 Z" fill="#ffffff" opacity="0.92"/>
+                    <path d="M 65 130 Q 105 45 160 90 L 170 130 Z" fill="url(#archGrad1)"/>
+                    <path d="M 10 130 Q 55 10 115 50" stroke="#353936" stroke-width="0.75" opacity="0.4"/>
+                    <path d="M 40 130 Q 80 25 140 70" stroke="#353936" stroke-width="0.75" opacity="0.4"/>
+                  </svg>
+                </div>
+                <div class="brief-copy-block">
+                  <h3 class="brief-lede-heading">From complex problems to useful products.</h3>
+                  <p class="brief-body-text">
+                    I design and build software that connects people, systems, and opportunities. This portfolio showcases the work, impact, and lessons along the way.
+                  </p>
+                </div>
+              </div>
+
+              <div class="brief-metrics-row">
+                <div class="brief-metric">
+                  <span class="metric-label">EXPERIENCE</span>
+                  <span class="metric-value">8+ years</span>
+                </div>
+                <div class="brief-metric">
+                  <span class="metric-label">PROJECTS</span>
+                  <span class="metric-value">12 highlighted</span>
+                </div>
+                <div class="brief-metric">
+                  <span class="metric-label">FOCUS</span>
+                  <span class="metric-value">Applied AI, product, systems</span>
+                </div>
+              </div>
+
+              <div class="brief-action-bar">
+                <span class="script-annotation">Review. Refine. Move forward.</span>
+                <span class="brief-pill-btn">
+                  <span>Review this draft</span>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="8" x2="13" y2="8"/>
+                    <polyline points="9 4 13 8 9 12"/>
+                  </svg>
+                </span>
+              </div>
+            </article>
+
+            <!-- CARD 2: CONTENT STRUCTURE -->
+            <article class="showcase-card card-content" data-card-index="2" aria-label="Stage 2: Content structure sample">
+              <div class="card-header-line">
+                <span class="card-step-tag">02 Content</span>
+              </div>
+              <h2 class="card-headline">Narrative architecture & claims.</h2>
+              <p class="card-subhead">Grounding key achievements in structured, verified evidence.</p>
+              <div class="content-preview-routes">
+                <div class="route-item">
+                  <span class="route-slug">/</span>
+                  <span class="route-role">Core positioning & verified claims</span>
+                </div>
+                <div class="route-item">
+                  <span class="route-slug">/work</span>
+                  <span class="route-role">Case studies with metric backing</span>
+                </div>
+                <div class="route-item">
+                  <span class="route-slug">/about</span>
+                  <span class="route-role">Operating principles & trajectory</span>
+                </div>
+              </div>
+              <div class="card-footer-note">
+                <span class="script-annotation">Proof over generic marketing statements.</span>
+              </div>
+            </article>
+
+            <!-- CARD 3: VISUAL DIRECTION -->
+            <article class="showcase-card card-design" data-card-index="3" aria-label="Stage 3: Visual direction sample">
+              <div class="card-header-line">
+                <span class="card-step-tag">03 Design</span>
+              </div>
+              <h2 class="card-headline">Tailored editorial identity.</h2>
+              <p class="card-subhead">Custom palette, bespoke typography scale, and restrained motion tokens.</p>
+              <div class="design-tokens-sample">
+                <div class="swatch-cluster" aria-label="Color palette">
+                  <span class="swatch sw-paper" title="Paper ivory"></span>
+                  <span class="swatch sw-ink" title="Carbon ink"></span>
+                  <span class="swatch sw-cobalt" title="Electric cobalt"></span>
+                  <span class="swatch sw-graphite" title="Warm graphite"></span>
+                </div>
+                <div class="typography-token">
+                  <span class="token-title">Newsreader Display 600</span>
+                  <span class="token-meta">Optical sizing active · 1.02 line-height</span>
+                </div>
+              </div>
+              <div class="card-footer-note">
+                <span class="script-annotation">Crafted specifically for your practice.</span>
+              </div>
+            </article>
+
+            <!-- CARD 4: PREVIEW -->
+            <article class="showcase-card card-preview" data-card-index="4" aria-label="Stage 6: Preview sample">
+              <div class="card-header-line">
+                <span class="card-step-tag">06 Preview</span>
+              </div>
+              <h2 class="card-headline">Your portfolio. Your call.</h2>
+              <p class="card-subhead">Review everything before anything goes live. Nothing is published without your approval.</p>
+
+              <div class="preview-mini-canvas" aria-hidden="true">
+                <svg viewBox="0 0 180 80" width="100%" height="100%" fill="none">
+                  <rect width="180" height="80" fill="#eae6dc"/>
+                  <polygon points="10,80 50,30 90,80" fill="#7e817b"/>
+                  <polygon points="60,80 110,18 160,80" fill="#353936"/>
+                  <polygon points="120,80 150,42 180,80" fill="#626660"/>
+                  <line x1="0" y1="80" x2="180" y2="80" stroke="#171a19" stroke-width="1"/>
+                </svg>
+              </div>
+
+              <div class="preview-btn-row">
+                <span class="preview-cta-ghost">
+                  <span>Preview portfolio</span>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="8" x2="13" y2="8"/>
+                    <polyline points="9 4 13 8 9 12"/>
+                  </svg>
+                </span>
+              </div>
+            </article>
+          </div>
+
+          <!-- SHOWCASE CONTROLS -->
+          <div class="showcase-nav-row">
+            <button class="showcase-nav-btn showcase-nav-prev" type="button" aria-label="Previous showcase card" title="Previous">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="10 3 5 8 10 13"/>
+              </svg>
+            </button>
+
+            <div class="showcase-dots" role="tablist" aria-label="Showcase card selection">
+              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Discovery card" data-index="0" type="button"></button>
+              <button class="showcase-dot active" role="tab" aria-selected="true" aria-label="Portfolio Brief card" data-index="1" type="button"></button>
+              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Content structure card" data-index="2" type="button"></button>
+              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Visual design card" data-index="3" type="button"></button>
+              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Live preview card" data-index="4" type="button"></button>
+            </div>
+
+            <button class="showcase-nav-btn showcase-nav-next" type="button" aria-label="Next showcase card" title="Next">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 3 11 8 6 13"/>
+              </svg>
+            </button>
+
+            <button class="showcase-pause-btn" type="button" aria-label="Pause slideshow" title="Pause slideshow">
+              <svg class="icon-pause" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <rect x="3" y="2" width="3.5" height="12" rx="1"/>
+                <rect x="9.5" y="2" width="3.5" height="12" rx="1"/>
+              </svg>
+              <svg class="icon-play" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" hidden aria-hidden="true">
+                <polygon points="4 2 13 8 4 14"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="showcase-callout-annotation" aria-hidden="true">
+            <span class="callout-text">Ideas in, Opportunities out.</span>
+            <svg class="callout-arrow-svg" width="48" height="24" viewBox="0 0 48 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M 4 4 Q 28 6 38 18 M 32 18 L 39 19 L 41 12"/>
+            </svg>
+          </div>
+        </div>
+
+        <footer class="sign-in-right-footer">
+          <span>PRIVATE BY DESIGN. MORE WITH INTENTION.</span>
+        </footer>
+      </div>
+    </section>
+
+    <!-- HIDDEN PROGRESS PANEL (Kept for compatibility with auth-controller DOM hooks) -->
+    <section id="progress-panel" class="panel progress-panel" hidden aria-labelledby="progress-title">
+      <p class="panel-eyebrow">Secure access</p>
+      <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
+      <h2 id="progress-title">Restoring your session</h2>
+      <p id="progress-detail" class="muted" aria-live="polite">Checking browser credentials safely.</p>
+      <ol class="progress-steps" aria-label="Authentication progress">
+        <li data-progress-step="restore">Restoring your session</li>
+        <li data-progress-step="google">Completing Google sign-in</li>
+        <li data-progress-step="verify">Verifying OryxenAI access</li>
+        <li data-progress-step="workspace">Preparing your workspace</li>
+      </ol>
+    </section>
+
+    <p id="global-error" class="error-text" role="alert" hidden></p>
+  </main>
+
+{% else %}
+  <!-- EXISTING SHELL FOR /auth/callback, /access-not-approved, /onboarding, /admin, etc. -->
   <main id="auth-root" class="auth-shell" tabindex="-1">
     <header class="brand-block">
       <div class="auth-brand-badge">
@@ -170,9 +578,13 @@
       </div>
     </div>
   </main>
+{% endif %}
 
   <script src="/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   <script type="module" src="/auth-static/auth-page.mjs?v={{ auth_page_version }}"></script>
+  {% if page == "sign-in" %}
+  <script type="module" src="/auth-static/sign-in-showcase.mjs?v={{ sign_in_showcase_version }}"></script>
+  {% endif %}
   <script type="module" src="/auth-static/auth-admin.mjs?v={{ auth_admin_version }}"></script>
 </body>
 </html>

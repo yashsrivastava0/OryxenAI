@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 15:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [fa9be97] - feat(auth): redesign screen 1 sign-in with editorial swiss studio layout
+
+Redesigned Screen 1 (`/sign-in`) strictly according to the approved "Editorial Swiss — The Living Draft"
+visual target while preserving all backend/auth/business logic and leaving all other screens and stages
+unmodified. Transformed the old oversized, scroll-first layout into a 44/56 two-column editorial studio
+composition. The left column positions the Google OAuth CTA, value proposition, and trust signals comfortably
+above the fold across viewports (including short-height 1366x768 and 1280x720 laptops) with compliant Google
+branding and identity microcopy. The right column introduces an interactive 6-stage portfolio studio rail with
+a living draft traveling cobalt highlight and a 5-card layered editorial showcase carousel featuring subtle
+desktop pointer parallax, live status chip cross-fading, auto-advance with pause controls, keyboard navigation,
+and complete `prefers-reduced-motion` safety. Verified with Node test runner (16/16), pytest (5/5), mypy,
+ruff, and browser captures across desktop, laptop, and mobile viewports.
+
 ### 2026-09-06 14:06 +05:30 - Codex (GPT-5 / OpenAI) - [f208540] - docs(frontend): capture full agent behavior and output context
 
 Expanded the frontend redesign handoff with a state-complete context rule and
