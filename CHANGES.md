@@ -11,6 +11,24 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 13:15 +05:30 - Codex (GPT-5 / OpenAI) - [cdf8952] - pipeline: guarantee approval-ready Content and one-click handoff
+
+Traced the live Content approval 409 to an approved home route referencing a
+certification claim still marked `pending`. Content Architect now runs the same
+deterministic public-scope check before presenting review output and spends at
+most one remaining call from its existing three-call ceiling on a targeted
+integration correction; unresolved output fails before review and claim status
+is never promoted merely to pass. Existing invalid saved drafts route one
+approval click into a bounded revision, after which changed copy still requires
+review. Discovery approval and explicit Content start are now one frontend user
+action, while remaining two idempotent backend calls rather than background
+auto-chaining. Added safe copy-ready final JSON projections to Discovery,
+Content, and Design review surfaces (excluding intake/auth/job data), retained
+Build Preparation's existing diagnostic JSON control, and corrected skipped
+answer rendering. Verification: 143 Content unit/API tests, 71 frontend tests,
+full Python mypy, focused Ruff, frontend typecheck, and production Vite build.
+Records D-075.
+
 ### 2026-09-06 03:12 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [1956d58] - output/, .gitignore, README.md, .env.example, docs/run/run.md - device handoff: curate kept output, fix stale docs, document port override
 
 Final task of this engagement: prepared the branch for a fresh device to

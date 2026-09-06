@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-075 — Make Content review approvable and combine the explicit Discovery handoff
+
+- **Date & Time:** 2026-09-06 13:15 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** A live Content Architect result reached `content_review` even though its approved home route referenced a certification claim whose publication status was still `pending`; the approval endpoint therefore rejected the result only after the user had reviewed it. The authenticated UI also required a second confirmation after the user had already chosen to approve Discovery, and users needed a safe, copyable view of each persisted final agent artifact.
+- **Decision:** Reuse the approval endpoint's deterministic public-scope check inside Content Architect before a result can enter review. If the assembled result is incomplete and one of the existing maximum three calls remains, use that slot for one targeted `integrate_content` correction; never increase the call ceiling or promote pending/blocked claims merely to pass. If correction remains impossible, fail before review. For already-persisted legacy-invalid drafts, one Content approval click explicitly starts a targeted revision and requires review of the changed result before approval. One Discovery UI gesture now calls the existing Discovery approval endpoint and then the existing Content start endpoint in sequence; this remains user-triggered explicit orchestration, not background auto-chaining. Copy controls expose a field-whitelisted final-artifact projection and exclude intake, authentication, and job metadata.
+- **Rejected alternatives:** Removing the approval gate (would publish unsafe/incomplete content); marking the pending certification claim approved automatically (would conflate source presence with publication authorization); adding an unbounded repair loop or fourth call (higher cost and less predictable latency); auto-approving a corrected legacy draft (the user must review changed public copy); introducing a new combined backend endpoint (unnecessary duplication of already-idempotent explicit stage endpoints).
+- **Consequence:** New Content reviews are approval-ready by construction within the existing cost ceiling. Existing affected sessions self-route into one bounded safe revision instead of repeating the same 409. Discovery-to-Content needs one user decision while preserving explicit stage boundaries. Discovery, Content, and Design review surfaces provide copy-ready final JSON; the existing Build Preparation diagnostic retains its JSON copy control.
+
 ## D-074 — Live-testing iteration closes 8 more real gaps; failed runs now export their output
 
 - **Date & Time:** 2026-09-06 02:35 +05:30 — Claude Code (Sonnet 5 / Anthropic)
