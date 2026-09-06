@@ -132,8 +132,13 @@ Resource and content contract:
   props from `PLANNED LOCAL IMAGE BINDINGS`. Omit the `sources` prop: the
   component resolves exact responsive paths, hashes, dimensions, and formats
   from the immutable generated manifest. Never transcribe a rendition path or
-  substitute an acquisition-ledger path containing a run id. Same-site links
-  use `publicRouteUrl`; approved external URLs must exactly match the contract.
+  substitute an acquisition-ledger path containing a run id. A same-site link
+  whose approved href is an actual route path (starts with `/`) uses
+  `publicRouteUrl`; passing a fragment-only same-page anchor (starts with
+  `#`, e.g. `#selected-work`) into `publicRouteUrl` throws at render time and
+  crashes the whole page — render that href as a literal string instead
+  (`href={contentValue("...")}` or the equivalent variable), never wrapped in
+  `publicRouteUrl`. Approved external URLs must exactly match the contract.
 - A required component binding is used by importing its materialized local
   module and rendering it. A slot id, filename comment, or manifest mention is
   not usage. Never use remote imports, fetch, network URLs, or package changes.

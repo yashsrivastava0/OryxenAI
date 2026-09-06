@@ -640,20 +640,22 @@ class RuntimeVerifier:
             )
         if console_errors:
             passed = False
+            extra = f" (+{len(console_errors) - 1} more)" if len(console_errors) > 1 else ""
             diagnostics.append(
                 _diagnostic(
                     "RUNTIME_CONSOLE_ERROR",
-                    "The candidate emitted a blocking console error.",
+                    f"The candidate emitted a blocking console error: {console_errors[0]}{extra}",
                     journey_id=journey.journey_id,
                     route_id=journey.route_id,
                 )
             )
         if page_errors:
             passed = False
+            extra = f" (+{len(page_errors) - 1} more)" if len(page_errors) > 1 else ""
             diagnostics.append(
                 _diagnostic(
                     "RUNTIME_PAGE_ERROR",
-                    "The candidate raised an uncaught page error.",
+                    f"The candidate raised an uncaught page error: {page_errors[0]}{extra}",
                     journey_id=journey.journey_id,
                     route_id=journey.route_id,
                 )

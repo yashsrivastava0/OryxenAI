@@ -75,7 +75,10 @@ Keep the route coherent from mobile through desktop. Every interaction must
 remain keyboard accessible and every motion beat must have a fully visible
 reduced-motion equivalent. When a beat's instruction names a trusted motion
 pattern, use the named `SharedSystems.tsx` component or class exactly rather
-than hand-authoring new CSS/JS for it. Use `publicRouteUrl` for same-site
-navigation and only approved external URLs. Return complete files for only
-the owned paths, with honest coverage and no arbitrary links, remote
-assets, or unapproved source content.
+than hand-authoring new CSS/JS for it. Use `publicRouteUrl` only for an
+approved href that is an actual route path (starts with `/`); a
+fragment-only same-page anchor (starts with `#`) must render as a literal
+string href instead — passing it into `publicRouteUrl` throws at render
+time and crashes the whole page. Only approved external URLs otherwise.
+Return complete files for only the owned paths, with honest coverage and
+no arbitrary links, remote assets, or unapproved source content.

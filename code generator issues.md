@@ -1,5 +1,92 @@
 # Code Generator Issues
 
+## 2026-09-06 evening — live re-test surfaces a self-inflicted regression (Claude Code)
+
+First live run after today's 5 fixes (see the section below) reached
+`plan` → `acquire` → `generate` all `succeeded` — the deepest and cleanest
+this session's fresh run has gotten — then failed final verification with a
+**new** error, `QUALITY_REALIZATION_STALE` ("the quality review is for a
+different design-realization contract"). Traced immediately: the earlier
+resource-fallback fix (`compile_design_realization` now takes optional
+`execution`/`resource_ledger` and filters `resource_checks` accordingly) was
+wired into `verification_plan.py` and `code_generator_verification.py`'s
+final check, but `generation_orchestrator.py::_integration_review` — the
+call that actually stamps `quality_review.realization_hash` *during*
+generation — was deliberately left on the old unfiltered call (see that
+entry's own "left `_integration_review` unwired" note). Any run with at
+least one non-required placement lacking a real binding now got two
+different hashes for the same route: one stamped at generation time
+(unfiltered), one recomputed at verification time (filtered) — a real,
+live-confirmed regression from this session's own earlier work, not a
+pre-existing bug.
+
+**Fix**: added `projections` as a required parameter to `_integration_review`
+and `_rereview_after_repair`, threaded from all 3 real call sites (initial
+review, per-round polish-loop review, both post-repair re-review calls) —
+confirmed via `mypy` that no other caller was missed. Re-running the same
+live pack to confirm `QUALITY_REALIZATION_STALE` is actually gone now, not
+just plausible from code reading.
+
+**Lesson for future sessions**: when a fix introduces a new optional
+parameter to a function whose result gets hash-compared against a *different
+call site* of the same function, grep for every caller before deciding any
+one of them is "lower priority to wire up" — a mismatched default among
+call sites that must agree is a correctness bug, not a scope-reduction.
+
+## 2026-09-06 evening — second live re-test: a real, severe, fresh crash (Claude Code)
+
+With the staleness fix above landed, a second fresh live run got further
+still: `plan` → `acquire` → `generate` succeeded again, and verification got
+past the realization-hash check into the actual DOM/runtime browser gate —
+then failed with `DOM_RUNTIME_FAILED` (`RUNTIME_ASSERTION_FAILED` — the hero
+`[data-content-id="home:hero"]` never appeared within 15s — plus
+`RUNTIME_CONSOLE_ERROR`, across all 3 viewports). Final repair tried 3 times
+and produced no usable correction each time.
+
+**Root cause, found by reading the persisted `verification_projection`
+column directly** (the terminal diagnostic's message was a generic
+"blocking console error" with no actual text — see the fix below): the
+real browser console error was `Error: Unsafe local route path`, thrown
+from the scaffold's `ResourceUrl.ts::publicRouteUrl()`. The hero section
+(`home-hero-ecdc18c2.tsx`) called `publicRouteUrl(primaryHref)` where
+`primaryHref` resolved to the approved content value `"#selected-work"`
+(kind `"internal"` — a same-page anchor to the "selected work" section, not
+an actual route path). `publicRouteUrl` requires its input to start with
+`/`; a bare `"#..."` fails that check and throws **during the hero's own
+render**, crashing the whole page before anything mounts — exactly why the
+hero locator timed out and "Page not found" showed up in the screenshot (a
+render failure, not a routing miss). This is a genuinely severe, live-
+confirmed, fresh bug: it can crash the entire homepage on the single most
+common CTA pattern (a "see more" link scrolling to a section on the same
+page), and it starves final repair of any real information to act on — see
+the diagnostic-message fix below.
+
+**Fixes**: (1) `route_batch.md`/`route_compose.md`: added explicit guidance
+that a fragment-only approved href (`#section`, same-page anchor) must
+render as a literal string, never wrapped in `publicRouteUrl` — only an
+actual route path (starts with `/`) should go through it. (2) Defense in
+depth: `ResourceUrl.ts::publicRouteUrl` now passes a `#`-prefixed input
+through verbatim (a bare fragment has no path-traversal/origin risk and the
+browser resolves it correctly against the current mounted document on its
+own) instead of throwing — converts a full-page crash into simply "the link
+still works" even if a future generation round makes the same category
+mistake. (3) `runtime_verifier.py`: `RUNTIME_CONSOLE_ERROR`/
+`RUNTIME_PAGE_ERROR` diagnostic messages now include the actual captured
+error text (already collected in `RuntimeEvidence.console_errors`/
+`page_errors` but never surfaced past a generic placeholder) instead of a
+placeholder — this exact investigation needed a direct DB query to find the
+real error; the repair model never had DB access, so it was flying
+completely blind on both of tonight's `DOM_RUNTIME_FAILED` attempts before
+this fix.
+
+**Not yet confirmed live** — a third live run is the real test of whether
+this exact page now renders. `ruff`/`mypy`/full suite (266 passed, same 1
+pre-existing failure) are clean for the Python-side change; no Node/Vitest
+harness exists in this repo to unit-test the scaffold `.ts` file directly,
+so its correctness rests on direct code reading (a simple, low-risk early
+return) plus the next live run's actual build+browser result.
+
+
 Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
 findings that help diagnose the next persistent failure.
