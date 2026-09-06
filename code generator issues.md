@@ -167,6 +167,68 @@ unrelated failure; `ruff`/`mypy` clean.
 in the same run, likely a genuine model/token mismatch rather than a check
 bug, not yet traced.
 
+## 2026-09-06 evening — fifth live run: width_ratio fix confirmed eliminated; found a bigger architectural tension (Claude Code)
+
+Fifth live run (content-box fix above). **`RUNTIME_REGION_WIDTH_RATIO` is
+completely gone from this run's diagnostics** — direct live confirmation
+the fix works, not just the isolated Playwright test. Remaining dominant
+issue: `RUNTIME_REGION_COLUMN_COUNT` — every region collapsed to 1 column,
+but only at the `tablet` interaction id specifically.
+
+Traced to the actual generated CSS: `.approach`'s multi-column grid
+collapses via `@media (max-width: 60rem)` (960px) — a **reasonable,
+deliberate responsive breakpoint the model chose itself**, not a bug. This
+project's `tablet` viewport profile is fixed at exactly 768px
+(`config/app.toml`) — well below 960px — so the tablet check always lands
+inside the model's own "collapsed" media query. This is not a code defect
+to patch; it's a **genuine architectural tension**: `columns_mobile/tablet/
+desktop` implicitly assumes the model's CSS breakpoints align with this
+project's 3 fixed checked viewport widths, but real responsive design
+(correctly, by normal practice) picks its own breakpoint thresholds tuned
+to when a specific layout starts looking cramped, which will often not
+land exactly at 768px. Whether the fix belongs in the contract (tell the
+model explicitly which viewport widths must show which column count),
+the check (verify only that *some* breakpoint transition exists, not that
+a specific one applies at exactly 768px), or neither, is a real design
+decision — logged here rather than guessed at under session-end time
+pressure.
+
+**Also observed, not yet investigated**: `RUNTIME_ASSERTION_FAILED` (page
+horizontal overflow, desktop), `RUNTIME_TOUCH_TARGET_TOO_SMALL` (tablet nav
+link — note the D-072-era deterministic touch-target CSS repair only fires
+for legacy V3 source, `final_repair.py::_legacy_deterministic_repair` is
+gated `if not is_v4`; V4 source is intentionally "model owned" so this may
+be working as designed, not a gap), a distinctive-move ratio mismatch for
+a *different* move than previous runs (plans aren't deterministic across
+runs), and a navigation-journey timeout waiting for
+`[data-navigation-target="home"]`.
+
+## Session summary, 2026-09-06 (Claude Code)
+
+Ten real, confirmed, mostly live-verified bugs fixed in one session,
+starting from an externally-authored static-analysis plan whose claims
+were verified against actual code (and, in two cases, live behavior)
+before acting — never trusted blindly. Full list above, in order found:
+comment-stripper regex-literal blindness, final-repair source blindness +
+wrong-directory fallback guess, motion transform-matrix substring
+comparison, font-load check missing an explicit load, runtime resource
+checks blind to acquisition fallback, a self-inflicted realization-hash
+regression from that same fix, a fragment-only CTA href crashing the whole
+page, region column-count over-strictness, distinctive-move CSS property
+blindness to its own runtime marker, and region width/measure using the
+wrong CSS box model (border box instead of content box) — likely the
+single highest-impact false-positive this whole engagement has produced.
+
+**Net effect, live-confirmed across 5 fresh runs tonight**: the pipeline
+went from crashing on render (never reaching real verification) to
+reaching final DOM/runtime checks cleanly past both the crash and the
+resource/motion/font gates that blocked every previous session. The
+current frontier is real, substantive layout/responsive-design questions
+(the breakpoint-contract tension above, page overflow, touch targets) —
+a categorically different, more advanced class of problem than the
+crashes and false-positives fixed tonight. No run reached a clean `ready`/
+promoted state this session; that remains the next target.
+
 
 Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
