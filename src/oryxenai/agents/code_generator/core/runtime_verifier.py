@@ -1062,7 +1062,17 @@ class RuntimeVerifier:
                 const rect = region.getBoundingClientRect();
                 const style = getComputedStyle(region);
                 regionRecords.push({item, section: item.section_id, rect});
-                const widthRatio = rect.width / Math.max(1, mainRect.width);
+                // getBoundingClientRect() always reports the border box: an
+                // auto-width block-level region fills its containing
+                // block's full width regardless of how much inline padding
+                // it carries -- padding-based visual inset (the common
+                // "full-bleed section, inset via padding" pattern) would
+                // otherwise always measure a 1.000 ratio no matter how
+                // narrow the actual visible content is. Subtract the
+                // region's own inline padding to measure its content box.
+                const inlinePadding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+                const contentWidth = Math.max(0, rect.width - inlinePadding);
+                const widthRatio = contentWidth / Math.max(1, mainRect.width);
                 if (widthRatio + 0.01 < item.width_ratio_min || widthRatio - 0.01 > item.width_ratio_max) {
                   violations.push({code: 'RUNTIME_REGION_WIDTH_RATIO', message: `Region ${item.region_id} width ratio ${widthRatio.toFixed(3)} is outside ${item.width_ratio_min}-${item.width_ratio_max}.`});
                 }
@@ -1093,7 +1103,7 @@ class RuntimeVerifier:
                   violations.push({code: 'RUNTIME_REGION_STICKY_UNAUTHORIZED', message: `Region ${item.region_id} is sticky without blueprint authority.`});
                 }
                 const fontSize = Number.parseFloat(style.fontSize) || 16;
-                const estimatedMeasure = rect.width / Math.max(1, fontSize * 0.5);
+                const estimatedMeasure = contentWidth / Math.max(1, fontSize * 0.5);
                 if (estimatedMeasure > item.max_measure_ch * 1.2) {
                   violations.push({code: 'RUNTIME_REGION_MEASURE', message: `Region ${item.region_id} exceeds its readable measure.`});
                 }
