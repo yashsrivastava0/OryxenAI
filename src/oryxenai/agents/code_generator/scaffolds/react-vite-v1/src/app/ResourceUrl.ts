@@ -24,6 +24,16 @@ export function publicResourceUrl(path: string): string {
 }
 
 export function publicRouteUrl(path: string): string {
+  if (path.startsWith("#")) {
+    // A same-page anchor is resolved by the browser relative to the
+    // current document location, which already reflects any preview
+    // mount prefix. There is no route/base to resolve, and no path-
+    // traversal or origin risk in a bare fragment -- return it verbatim
+    // rather than throwing, since a route CTA whose approved href is a
+    // same-page anchor (kind "internal", href "#section") is valid input
+    // here, not an attack.
+    return path;
+  }
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("..")) {
     throw new Error("Unsafe local route path");
   }
