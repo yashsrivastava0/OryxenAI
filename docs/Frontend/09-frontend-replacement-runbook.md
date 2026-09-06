@@ -19,6 +19,9 @@ Before editing:
 - inspect `git status --short --branch` and protect unrelated work;
 - do not assume a UI document is current—verify backend routes, auth runtime,
   adapters, templates, and tests;
+- pass the complete raw state and agent-output context to the coding agent;
+  do not reduce the audit to whatever fields the current screen happens to
+  render;
 - do not change API/backend behavior as a side effect of a visual task; and
 - do not delete the legacy bundle, auth shell, fixtures, admin console, or
   developer harness until the cutover gate explicitly proves they are no longer
@@ -89,6 +92,20 @@ Keep or port the behavioral tests before deleting the old component. Add a test
 when the new screen changes a contract boundary; do not rely on visual snapshots
 to prove auth or durable state.
 
+### F. Build the complete state/output context packet
+
+```text
+rg -n "current_state|session_revision|operation_a|answers|brief|site_story_strategy|route_plan|page_content_packs|visual_language|shared_visual_systems|pages|scenes|asset_briefs|resource_candidates|compiler_handoff" frontend/src src/oryxenai/agents src/oryxenai/api
+rg -n "understand_and_question|build_or_revise_brief|plan_content|write_pages|integrate_content|establish_visual_language|direct_page_experience|integrate_site_experience|stages_run" src/oryxenai/agents frontend/src
+rg -n "finalAgentOutput|raw|structuredSections|ArtifactSurface|ClientTraceNotice|client-diagnostics|clipboard|Copy" frontend/src
+```
+
+Before design work, attach the raw `/api/v1/me`, session, Discovery, Content,
+and Visual Design Director envelopes (including jobs and revisions), the full
+agent state objects, checked-in samples, prompts, schemas, adapters, and tests.
+Do not pass only the normalized view model or a hand-written summary. If the
+packet is split for context size, keep each source path and JSON object intact.
+
 ## 2. Baseline before the first edit
 
 Capture a before-state packet in the task notes (not in source control if it
@@ -98,8 +115,9 @@ contains private data):
 2. `npm run typecheck`, `npm test`, and `npm run build` from `frontend/`;
 3. relevant backend/auth tests and the configured local health/doctor checks;
 4. screenshots or browser notes for auth resolving, sign-in, onboarding, empty
-   studio, Discovery question, Discovery review, Content review, Design review,
-   attention, admin, and each developer harness that must remain functional;
+   studio, each Discovery question posture, Discovery review, Content route and
+   section review, Design system/page/scene review, attention, admin, and each
+   developer harness that must remain functional;
 5. one trace of a refresh during a working job, one sign-out, one failed request,
    and one second-tab mutation; and
 6. the built asset path/manifest behavior and the current fallback behavior.
@@ -121,6 +139,12 @@ row that is missing or changed. At minimum, every screen must name:
 - error/recovery behavior;
 - private fields intentionally not rendered; and
 - automated plus browser proof.
+
+Also record the agent behavior behind the screen: what each operation produces,
+how many internal calls it may make, how questions/pages/scenes are batched,
+what the user sees first, what the final artifact contains, and what remains
+available for the full-JSON action. The redesign must preserve behavior even
+when the component tree is completely different.
 
 This is the mechanism that lets a new visual design correlate with the working
 frontend. The correlation key is not a CSS class. It is the tuple:
@@ -191,11 +215,21 @@ Port the Discovery adapter and current behaviors before polishing the visual
 conversation:
 
 - start from plain text intake;
+- preserve the two-operation shape: one adaptive question-generation call and
+  one brief-generation/revision call, never one model call per question;
 - question presentation by server `kind` and stable ID;
+- preserve the current question behavior: `NEEDS_DETAILS` has no questions,
+  `ASK_QUESTIONS` returns a small material batch, `READY_FOR_BRIEF` has no
+  questions, select questions have at most three concrete options, every
+  question can be skipped where allowed, and only presentation preferences may
+  be auto-chosen;
 - answer modes `answered` and `skipped`;
 - question-scoped draft persistence;
 - working/queued/stalled explanation and supported stop/check action;
 - brief review as a safe document;
+- preserve the complete output: `assistant_message`, question batch,
+  `memory_update`, brief Markdown, user summary, structured profile, open items,
+  and approval metadata;
 - revision keeping the old artifact until new durable state arrives; and
 - approval plus the existing explicit Content-start handoff.
 
@@ -205,7 +239,8 @@ Proof required:
 - refresh never submits an answer to the wrong question;
 - a failed request keeps the draft and allows retry;
 - an unknown Discovery status becomes unsupported, not complete; and
-- no raw intake/auth/job data leaks through artifact copy or diagnostics.
+- the full stage response remains available to the right-sidebar JSON action,
+  while credentials and unrelated transport wrappers remain outside it.
 
 ### Slice 4: Content Architect
 
@@ -214,6 +249,13 @@ the upstream Discovery gate, `content_review`/`approved` distinction, route and
 section IDs, revision behavior, approval, stop, and the explicit handoff to the
 Design start surface.
 
+The screen must reflect the bounded 1–3-call workflow: planning always runs,
+page writing is one batched operation when planning defers it, and integration
+is a bounded cross-route reconciliation pass. It must show the complete
+produced route/section/claim state—not only `user_summary`—including decision
+basis, publication status, omissions, unresolved issues, privacy notes, media
+status, warnings, and the Visual Design Director handoff.
+
 Proof required:
 
 - Content cannot start before approved Discovery;
@@ -221,7 +263,9 @@ Proof required:
 - Content approval does not silently start Design;
 - the known public-scope approval failure leads to the bounded safe revision
   path, not a false approval; and
-- warnings and unresolved issues remain visible when they change user action.
+- warnings and unresolved issues remain visible when they change user action;
+- the complete Content response can be copied without being reconstructed from
+  the visible route cards.
 
 ### Slice 5: Visual Design Director
 
@@ -229,13 +273,42 @@ Port visual direction as a reviewable artifact: creative thesis, visual language
 page directions, and safe adaptation notes. Preserve the Content gate, revision,
 approval, stop, and terminal creative-handoff posture.
 
+This slice is specifically not complete if it shows only the current thesis,
+page summary, and resource candidates. Build a structured reader for the full
+output: overview, visual language, shared systems, navigation, motion,
+interaction, accessibility/performance, every page, every scene, assets,
+resources, must-preserve rules, must-not-fabricate rules, conflicts, warnings,
+and `compiler_handoff`. Keep route/page/scene/asset/resource IDs exact and make
+long nested content readable through an index or progressive disclosure.
+
 Proof required:
 
 - Design cannot start before approved Content;
 - route IDs remain correlated with Content routes;
 - unknown resource/status data fails closed;
 - approval never calls Build Preparation; and
-- a complete Design state remains readable and read-only after refresh.
+- a complete Design state remains readable and read-only after refresh;
+- the complete Visual Design Director state can be copied from the right
+  sidebar, including nested scenes, assets, and resource candidates.
+
+### Slice 5A: additive diagnostics and copy affordances
+
+Implement these after the relevant stage surfaces work, without changing their
+server choreography:
+
+1. Add a temporary issue-tracing popup backed by the existing trace ID and
+   metadata-only event timeline. Trigger it for actionable failures and
+   unsupported/stalled states, show a short safe message plus trace ID, allow
+   copy/dismiss, deduplicate it, and auto-remove it after a short configurable
+   duration. The durable error/retry UI remains the source of truth.
+2. Add a right-hand “Copy full JSON response” control to each generated stage
+   artifact. Serialize the complete raw agent-owned stage response, not a
+   summary or field allowlist; preserve nested data and stable IDs. Use a
+   selectable fallback if the clipboard API is unavailable and make the action
+   read-only.
+3. Test both additions with timer cleanup, logout/unmount cleanup, clipboard
+   success/failure, unknown/malformed state, and full Visual Design Director
+   payload fixtures.
 
 ### Slice 6: developer/admin surfaces
 
@@ -260,8 +333,9 @@ Recommended cutover sequence:
 2. Keep the old bundle buildable and bootable.
 3. Migrate one posture or stage at a time; run old and new against the same
    deterministic fixture responses where possible.
-4. Compare contract events, not DOM structure: route, action ID, request path,
-   request body, resulting status, session revision, and safe error state.
+4. Compare state-complete contract events, not DOM structure: route, action ID,
+   request path, request body, resulting status, session revision, raw stage
+   payload shape, full agent-output availability, and safe error state.
 5. Browser-test the new path at desktop, mobile, keyboard-only, reduced-motion,
    offline/reconnect, and two-tab conditions.
 6. Switch the default only after the acceptance gates pass.
@@ -273,6 +347,11 @@ If a feature flag or alternate route is introduced for canarying, keep it
 server-configured and local/reviewed. Do not accept a client query parameter as
 an authorization or rollout decision.
 
+The old and new readers may arrange fields differently, but they must receive
+the same complete state packet. A visual comparison that passes while a nested
+scene, question, warning, claim, or handoff field disappears is a failed
+migration even if the page looks correct.
+
 ## 7. Verification gates
 
 ### Contract gate
@@ -282,6 +361,8 @@ an authorization or rollout decision.
   with a reason.
 - No new endpoint, backend status, or user action was invented silently.
 - Stable IDs, session revision, idempotency, and read-only behavior are preserved.
+- The redesign context packet includes complete raw state and output schemas;
+  no field was dropped merely because the old UI did not show it.
 
 ### Auth/security gate
 
@@ -300,6 +381,21 @@ an authorization or rollout decision.
 - Revision/approval actions reconcile server state instead of assuming success.
 - The existing Discovery-to-Content gesture and later explicit handoffs remain
   semantically unchanged.
+- Discovery question generation, internal call ceilings, batched page/scene
+  generation, and final artifact field availability match the agent contracts.
+
+### Requested enhancement gate
+
+- An issue popup is temporary, accessible, deduplicated, auto-dismissed, and
+  supplemental to durable error/retry UI.
+- Visual Design Director exposes its complete structured output, including
+  pages, scenes, assets, resources, systems, constraints, warnings, and
+  compiler handoff.
+- Each generated stage has a right-sidebar full-JSON action that copies the
+  complete raw agent-owned response, with a fallback when clipboard access is
+  unavailable.
+- Copying and tracing do not mutate the portfolio, create jobs, leak tokens, or
+  alter the existing stage gates.
 
 ### Resilience gate
 
@@ -343,11 +439,16 @@ Code Generator development surfaces separate. Keep boot(options), stop(),
 restart(options), #product-root, the auth-pending hide rule, authorizedFetch,
 one-refresh-on-401, server-authoritative state, stable IDs, session revision,
 idempotency, polling, cross-tab invalidation, read-only enforcement, and safe
-artifact rendering. Components must consume adapters, not raw backend statuses.
+artifact rendering. Pass the complete raw state and agent-output context to your
+own reasoning; do not restrict it to the old visible fields. Components must
+consume adapters, not raw backend statuses.
 
 Migrate in slices: auth -> app shell -> Discovery -> Content -> Design ->
-admin/developer surfaces. Keep the old fallback buildable. After each slice run
-typecheck/tests/build plus the relevant auth/state/browser proof. Do not invent
-endpoints, auto-chain stages, expose private/model/job/storage internals, or
-delete legacy/harness code until the cutover gate proves it is safe.
+tracing/full-JSON affordances -> admin/developer surfaces. Keep the old fallback
+buildable. After each slice run typecheck/tests/build plus the relevant
+auth/state/browser proof. Make Visual Design Director a complete structured
+reader, add the temporary issue popup, and add the right-sidebar full JSON copy
+action without changing server choreography. Do not invent endpoints, auto-chain
+stages, expose credentials, or delete legacy/harness code until the cutover gate
+proves it is safe.
 ```

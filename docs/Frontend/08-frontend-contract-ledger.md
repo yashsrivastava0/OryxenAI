@@ -21,6 +21,29 @@ do not replace a row with a screenshot.
   bootstrap hook, test hook, `data-*` contract, accessible name, or cross-module
   integration point.
 
+## 0. Full-state context packet
+
+The handoff to a coding agent must carry the state, not just a description of
+the state. Attach the complete raw JSON responses/fixtures and the executable
+sources named below. Do not create a smaller “UI state” packet by dropping
+fields that the current screen does not render. If the context must be split
+across messages, split it by labeled source/stage and retain the exact JSON.
+
+| Packet | Complete data to pass as context |
+| --- | --- |
+| Account/session | `/api/v1/me`; session `id`, `status`, `current_state`, and `revision`; auth route outcomes; `read_only`, role, entitlement, and owner session identity. |
+| Discovery raw state | `status`, `model_profile`, `intake`, `operation_a`, `answers`, `brief`, `memory`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
+| Content raw state | `status`, `model_profile`, `source_ref`, `intake`, `preferences`, `version`, `run_id`, `job_id`, `user_summary`, `site_story_strategy`, `decision_basis`, `route_plan`, `page_content_packs`, `public_content_manifest`, `claim_grounding`, `omissions`, `unresolved_issues`, `privacy_and_confidentiality`, `media_status`, `visual_director_handoff`, `warnings`, `stages_run`, `memory`, `revision_request`, `approved`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
+| Visual Design raw state | `status`, `model_profile`, `source_ref`, `intake`, `preferences`, `version`, `run_id`, `job_id`, `user_summary`, `meta`, `source_refs`, `visual_language`, `shared_visual_systems`, `navigation_direction`, `motion_system`, `interaction_system`, `pages`, `asset_briefs`, `resource_candidates`, `accessibility_and_performance`, `must_preserve`, `must_not_fabricate`, `conflicts`, `warnings`, `compiler_handoff`, `resource_policy`, `stages_run`, `memory`, `revision_request`, `approved`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
+| Production evidence | The three agent `schemas.py`, `state.py`, `service.py`, `agent.py`, prompt files, checked-in samples, frontend adapters, stage components, raw fixtures, and related tests. |
+
+The context packet is intentionally complete. The browser may still keep
+credentials and unrelated transport secrets out of user-facing output, but a
+coding agent must receive the full state needed to understand behavior. In
+particular, do not use `final-agent-output.ts` as the only context: it is a
+current presentation projection and its field allowlist is exactly what the
+new full-JSON requirement is meant to revisit.
+
 ## 1. Route and auth ledger
 
 | Route/surface | Entry source | Initial decision | Protected request rule | Success destination | Failure destination/proof |
@@ -53,6 +76,26 @@ validated to the local reviewed `/app` and `/admin` routes. Do not add a generic
 | Read-only | `/api/v1/me` and product mutations | `read_only` suppresses mutations in the UI, but the server remains authoritative. |
 | URL state | `frontend/src/app/url-state.ts` | Current safe values are `stage=discover|content|design` and `view=start|work|artifact|progress`; invalid values are ignored and locked stages fall back. |
 | Teardown | `main.tsx`, `AppShell.tsx`, poller/invalidation modules | Sign-out/session change/unmount stops polling, listeners, cross-tab channels, and private render state. |
+
+## 2A. Agent operation and complete-output ledger
+
+These rows record the small behaviors that are easy to lose during a visual
+rewrite. “Calls” are internal model operations in one durable job; they are not
+one call per question, page, or section.
+
+| Agent | Calls/tasks | How work is generated | Complete output that must remain available | Current human presentation |
+| --- | --- | --- | --- | --- |
+| Discovery | Up to 2 model operations: `understand_and_question`, then `build_or_revise_brief` when answers are complete. | Operation A reads raw intake plus prior memory and returns one adaptive question batch. The UI presents `questions[0]` one at a time; each answer/skip is keyed by stable `question_id`. Operation B turns the intake, answers, memory, and optional revision request into the brief. | Operation A: `mode`, `assistant_message`, `questions`, `memory_update`. Operation B: `brief_title`, `brief_markdown`, `user_summary`, structured `profile`, `open_items`, `memory_update`, plus persisted intake/answers/errors/approval state. | Conversation transcript and one active question; then readable brief review. Do not turn it into a generic form or show only the summary. |
+| Content Architect | 1–3 operations: `plan_content` always; `write_pages` only when content is deferred; `integrate_content` only for cross-route reconciliation, more than two routes, or bounded approval-readiness repair. | Planning chooses presentation mode, positioning, claims, routes, and whether complete content fits in the same call. Page writing covers every eligible route in one batch, never a separate page/section task. Integration reconciles terminology/navigation and preserves route/claim publication gates. | `user_summary`, `site_story_strategy`, `decision_basis`, `route_plan`, `claim_grounding`, `page_content_packs`, `public_content_manifest`, `omissions`, `unresolved_issues`, `privacy_and_confidentiality`, `media_status`, `visual_director_handoff`, `warnings`, `stages_run`, plus source/preferences/run/approval/error state. | Strategy, route count/details, section-level content packs, decisions, warnings, and unresolved issues. Preserve long route/section content and stable IDs. |
+| Visual Design Director | 1–3 operations: `establish_visual_language` always; `direct_page_experience` only when pages are deferred; `integrate_site_experience` only when cross-page reconciliation is warranted. | The resource shortlist is computed deterministically once. Global language may include all pages for small sites; otherwise one batched page-direction pass covers every approved public route, followed by optional site integration. Never create one task per page or scene. | `user_summary`, `meta`, `source_refs`, `visual_language`, `shared_visual_systems`, `navigation_direction`, `motion_system`, `interaction_system`, `pages` with nested scenes, `asset_briefs`, `resource_candidates`, `accessibility_and_performance`, `must_preserve`, `must_not_fabricate`, `conflicts`, `warnings`, `compiler_handoff`, `resource_policy`, `stages_run`, plus source/preferences/run/approval/error state. | Currently only a thesis, short page summaries, and resource candidates are shown. The replacement must expose the full structured direction using the presentation contract in §6A. |
+
+Discovery question details are part of the contract: the configured validation
+ceiling is currently `max_questions=8`, while the prompt's normal behavior asks
+for zero to seven formal questions. `NEEDS_DETAILS` and `READY_FOR_BRIEF` have
+no questions; `ASK_QUESTIONS` has a small non-empty batch. Questions are
+specific to the supplied material, may be skipped, may auto-select presentation
+preferences only, and select questions have at most three concrete options.
+Preserve this source behavior and verify any limit change explicitly.
 
 ## 3. Stage/action ledger: current authenticated product
 
@@ -201,11 +244,65 @@ Privacy rules:
 - never put tokens, resume text, raw intake, model prompts, raw job payloads, or
   complete private state into diagnostics, URLs, BroadcastChannel messages, or
   error copy;
-- final artifact copy controls are field-whitelisted and exclude intake/auth/job
-  data;
+- the coding-agent context must contain complete raw state and complete agent
+  output; the user-facing JSON action must serialize the selected stage's full
+  agent-owned response rather than relying on a convenience field allowlist;
+  only the explicit security/transport boundary may exclude credentials or
+  unrelated platform wrappers;
 - generated content is untrusted; render Markdown as safe text/allowed markup;
   never inject arbitrary HTML; and
 - keep provider/storage/path/hash details in developer-only surfaces.
+
+## 6A. Requested enhancement ledger
+
+These are additive targets for the current frontend. They do not authorize a
+backend rewrite, an auth replacement, a new agent chain, or a complete product
+restructure.
+
+### Temporary issue-tracing popup
+
+| Requirement | Contract |
+| --- | --- |
+| Source | Extend the existing `client-diagnostics.ts` trace ID/event timeline and `ClientTraceNotice`; do not create a second trace system. |
+| Trigger | API/mutation failure, `needs_attention`, worker-stalled condition, unsupported state, render/runtime error, or failed auth-bound product action. Do not show it for ordinary success/cache notices. |
+| Contents | Short safe explanation, stage/action when known, short trace ID, optional `Copy trace`, and dismiss. No bearer token, raw resume, prompt, job payload, or stack trace in the popup. |
+| Lifetime | Non-blocking toast/popup; deduplicate the same issue, auto-remove after a short configurable duration, allow manual dismissal, and clear timers during unmount/logout. |
+| Accessibility | `role="alert"` or an equivalent live-region announcement, keyboard reachable controls, readable at mobile width, and no motion dependency under reduced motion. |
+| Recovery | The durable stage error/AttentionPanel and its supported retry remain visible. The popup is a temporary tracing affordance, not the only error surface. |
+
+### Visual Design Director structured presentation
+
+The Design artifact must become a complete, polished reader with progressive
+disclosure, not a raw JSON wall and not another one-line summary. It must cover:
+
+1. overview and `user_summary`;
+2. creative thesis and `visual_language`;
+3. shared visual systems, navigation, motion, interaction, and accessibility;
+4. every approved route/page with route ID, path, purpose, takeaway, storyboard,
+   rhythm, emphasis, background, evidence/interaction moments, closing action,
+   navigation, responsive summary, publication status, and compilability;
+5. every scene with its stable ID, content refs, layout/proportion/layer intent,
+   assets/resources, motion, interaction states, transitions, responsive and
+   accessibility behavior, reduced-motion behavior, performance risk,
+   failure-safe static state, and acceptance criteria;
+6. complete asset briefs and resource candidates with source/fallback intent;
+7. `must_preserve`, `must_not_fabricate`, conflicts, warnings, and
+   `compiler_handoff` when the integrated pass produced it.
+
+Counts, IDs, route/scene navigation, long text, and nested details must remain
+readable. The screen may use accordions or a sidebar index, but collapsing a
+section must not delete it from state or the full-JSON copy.
+
+### Full JSON response in the right-hand sidebar
+
+| Requirement | Contract |
+| --- | --- |
+| Location | Contextual right sidebar of each generated stage artifact: Discovery, Content Architect, Visual Design Director, and any later stage surfaced in the product shell. |
+| Availability | Disabled before a generated response exists; available in review and approved states; also useful after refresh from a persisted state. |
+| Payload | Pretty-printed exact JSON from the selected stage's complete persisted agent response/state. Do not reconstruct it from visible cards or reuse the current field-only `finalAgentOutput` projection. Preserve all agent-owned fields, nested arrays, IDs, warnings, omissions, conflicts, handoffs, and empty-field shapes. |
+| Boundary | Exclude only bearer credentials and unrelated platform transport wrappers; do not apply arbitrary field restrictions to the agent output. |
+| Feedback | “JSON copied” confirmation, clipboard failure fallback with selectable read-only JSON or download, clear stage-specific accessible label, and no mutation/network request/idempotency key. |
+| Proof | Test that copied JSON equals the raw stage payload, including the complete Visual Design Director fields and nested scenes/assets/resources. |
 
 ## 7. Screen-to-contract map
 
@@ -226,6 +323,9 @@ until its row has a source anchor and a proof.
 | Content review/complete | Safe Content artifact | Revise, approve, continue to Design | Approval does not silently start Design. |
 | Design available/working | Design adapter/job | Start/stop | Upstream Content gate and semantic progress remain visible. |
 | Design review/complete | Safe Design artifact | Revise, approve | Approval is terminal for current `/app`; no Build Preparation call. |
+| Design structured detail | Full VDD state/output | Expand route, scene, asset, resource, system, warning, and handoff details; copy JSON | Every output field remains accessible and correlated by stable IDs. |
+| Issue tracing | Trace ID + safe diagnostic metadata | Copy trace, dismiss popup, follow existing recovery | Popup is temporary and supplemental; durable error state remains. |
+| Full JSON handoff | Selected stage's raw agent-owned response | Copy from right sidebar, fallback select/download | Copy is exact, read-only, and does not drop fields because they were not visible. |
 | Needs attention | Safe error + upstream preserved | Supported retry/refetch | Do not erase approved upstream work or invent a recovery action. |
 | Read-only portfolio | `/me.read_only`, approved artifacts | Read/copy/navigate | All mutation controls are absent or disabled with an honest reason. |
 | Admin console | `/me.role=admin`, paginated admin data | Bounded audited admin actions | Separate permissions, confirmation text, idempotency keys, and no normal-user exposure. |

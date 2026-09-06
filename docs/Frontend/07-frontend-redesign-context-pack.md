@@ -26,6 +26,35 @@ The visual layer is replaceable. The arrows, gates, IDs, request shapes, and
 reconciliation rules are not replaceable unless a separate backend change is
 explicitly requested and verified.
 
+## Full-state context handoff — do not summarize it away
+
+This pack is a safety mechanism for the coding agent, not a data-minimization
+policy for the coding agent. When this pack is attached to a future frontend
+task, pass the complete state context as well: raw API envelopes, complete
+stage projections, jobs, schemas, prompts, fixtures, adapters, and tests. Do
+not send only screenshots, a short product brief, or the currently visible
+card fields. If the context is too large for one message, split it into
+labeled stage packets and preserve every field; do not silently truncate or
+invent a reduced schema.
+
+The minimum context packet is:
+
+| Context packet | Include completely | Why it matters |
+| --- | --- | --- |
+| Auth/account | `/api/v1/me` projection, role, onboarding, entitlement, `read_only`, `portfolio_session_id`, and auth/bootstrap route behavior | Determines which shell and mutations are legal. |
+| Session | Session `id`, `status`, `current_state`, and `revision` | Establishes the server-authoritative owner/session identity and CAS behavior. |
+| Discovery | The full Discovery stage envelope, `current_state.discovery`, jobs, questions, answers, intake, memory, brief, errors, attempts, and approval snapshot | Preserves the exact conversation, question generation, answer recovery, and brief output. |
+| Content Architect | The full Content stage envelope, `current_state.content_architect`, jobs, source snapshot, preferences, route/section/claim data, handoff, warnings, errors, attempts, and approval snapshot | Preserves route count, section count, publication gates, and the complete content handoff. |
+| Visual Design Director | The full Design stage envelope, `current_state.visual_design_director`, jobs, source hashes, preferences, visual systems, pages, scenes, assets, resources, warnings, compiler handoff, errors, attempts, and approval snapshot | Prevents a redesign from collapsing the rich visual direction into the current short summary. |
+| Execution evidence | Agent schemas, prompts, `agent.py`, `state.py`, `service.py`, adapters, stage components, fixtures, and tests | Explains how every field is produced, changed, displayed, retried, or gated. |
+
+The current `frontend/src/data/final-agent-output.ts` is a user-facing artifact
+projection, not the complete context contract. A future coding agent must see
+the raw state and source contracts even if a screen chooses a more organized
+presentation. Context completeness and user-facing privacy are different
+decisions: never hide state from the coding agent, while still keeping bearer
+tokens, credentials, and unrelated transport secrets out of the browser UI.
+
 ## Read in this order
 
 1. `AGENTS.md`, `DECISIONS.md`, and the relevant recent entries in `CHANGES.md`.
@@ -91,6 +120,12 @@ The coding agent must not change implicitly:
 If a desired visual interaction needs a new capability—such as cancellation,
 streaming, file extraction, version history, publishing, or a new stage—record
 it as a separate proposal. Do not simulate it in the client.
+
+The requested tracing, Visual Design Director presentation, and full-JSON copy
+features below are intentionally incremental presentation/debug enhancements.
+They must fit inside the current boot, auth, adapter, polling, and durable
+state architecture. Do not use them as a reason to hard-restrict the context,
+replace the API client, or perform a complete frontend restructure.
 
 ## Non-negotiable runtime seams
 
@@ -160,6 +195,102 @@ locked | available | working | input | review | attention | complete | unsupport
 `unsupported` is a safe forward-compatibility state. It must never become
 `available` or `complete` merely because a new server status is unfamiliar.
 
+## Agent behavior and output detail that the redesign must preserve
+
+The agent is allowed to redesign how these details are grouped, but not to
+forget them. “Task count” below means internal model operations, not one model
+call per question, page, or section.
+
+### Discovery
+
+- Input is the user's `message`, optional `document_text`, and optional `goal`;
+  it is stored as-is and is not pre-normalized by the frontend.
+- Operation A, `understand_and_question`, is one model call. It returns one of
+  `NEEDS_DETAILS`, `ASK_QUESTIONS`, or `READY_FOR_BRIEF`, an
+  `assistant_message`, a `questions[]` batch, and `memory_update`.
+- The prompt asks for zero to seven formal questions; the active validation
+  ceiling is the configured `max_questions` value (currently `8` in settings).
+  Preserve the configured ceiling and the prompt behavior; do not turn the
+  questions into a fixed questionnaire. This source-level 7-versus-8 distinction
+  is intentional context for the next agent to verify, not a reason to invent a
+  new limit.
+- Questions are generated as one adaptive batch from the accumulated material
+  and prior memory, then shown one at a time in the conversation. A question
+  has a stable ID, text, optional help/reason, kind (`text`, `single_select`,
+  `multi_select`, or `boolean`), options, `allow_skip`, and `allow_auto`.
+  Select questions should have at most three concrete options; free text and a
+  separate Skip action remain available where the contract allows it.
+- The model must not re-ask supplied facts, must ask only material decisions,
+  may auto-select presentation preferences only, and must not invent facts.
+  A bare greeting or unusable material produces `NEEDS_DETAILS` with no formal
+  question; “no questions” or “use your judgment” produces `READY_FOR_BRIEF`.
+- When answers are complete, Operation B, `build_or_revise_brief`, is one more
+  model call. It produces `BRIEF_READY`, `assistant_message`, `brief_title`,
+  free Markdown `brief_markdown`, `user_summary`, a structured factual
+  `profile`, `open_items`, and `memory_update`. A revision is the same bounded
+  brief operation with a natural-language request and the existing brief.
+- The normal screen shows the conversation and then the brief as a readable
+  review artifact. The full brief/profile/open items must remain available to
+  the JSON-copy action; approval is explicit and the current gesture then
+  starts Content through the existing two idempotent endpoint calls.
+
+### Content Architect
+
+- Input is only the approved Discovery snapshot: brief title, `user_summary`,
+  structured profile, open items, approval hash/revision, and optional
+  preferences. It is not a new Discovery interview and it does not receive raw
+  resume text or the full Discovery Markdown brief.
+- It is one durable job with one to three sequential model calls, never one per
+  route or section:
+  `plan_content` always runs; `write_pages` runs only when the plan defers
+  content; `integrate_content` runs when cross-route reconciliation is needed
+  or the plan has more than two routes. Approval-readiness correction may use
+  the remaining bounded integration call.
+- The plan chooses positioning, narrative, presentation mode, route plan,
+  claim grounding, and either writes complete content in the same call or
+  defers to one batched page-writing call. Page writing covers every approved
+  or pending route in one response; it never asks for a separate call per
+  page/section.
+- The persisted output includes `user_summary`, `site_story_strategy`,
+  `decision_basis`, `route_plan`, `claim_grounding`, `page_content_packs`,
+  `public_content_manifest`, `omissions`, `unresolved_issues`,
+  `privacy_and_confidentiality`, `media_status`, `visual_director_handoff`,
+  `warnings`, and `stages_run`, plus state/source/approval metadata.
+- The normal screen shows positioning, route count and details, section-level
+  content packs, decision provenance, warnings, and unresolved issues. It must
+  not collapse the complete route/section/claim state into only the short
+  summary. Content approval is separate from the explicit Design start.
+
+### Visual Design Director
+
+- Input is the approved public Content Architect snapshot and optional visual
+  preferences, plus a deterministic local resource-catalogue shortlist. It
+  receives approved public route/page content and handoff guidance, not a new
+  raw-resume path.
+- It is one durable job with one to three sequential model calls, never one per
+  page or scene: `establish_visual_language` always runs; `direct_page_experience`
+  runs only when pages were deferred; `integrate_site_experience` runs for
+  cross-page reconciliation (more than two routes or an explicit conflict).
+- The complete output includes `user_summary`, `meta`, `source_refs`,
+  `visual_language`, `shared_visual_systems`, `navigation_direction`,
+  `motion_system`, `interaction_system`, `pages`, `asset_briefs`,
+  `resource_candidates`, `accessibility_and_performance`, `must_preserve`,
+  `must_not_fabricate`, `conflicts`, `warnings`, `compiler_handoff`,
+  `resource_policy`, `stages_run`, and the source/preferences/run/approval
+  state around that output.
+- Each page can contain route-level purpose, visitor takeaway, storyboard,
+  section rhythm, emphasis, background evolution, evidence/interaction moments,
+  closing action, navigation behavior, responsive summary, scenes, asset IDs,
+  resource IDs, and acceptance criteria. Each scene can contain stable IDs,
+  content refs, layout/proportion/layer intent, assets/resources, motion and
+  interaction states, transitions, responsive/accessibility behavior,
+  reduced-motion behavior, performance risk, failure-safe static state, and
+  acceptance criteria. Resource and asset IDs must remain exact.
+- The current screen exposes only a small thesis/page/resource slice. The
+  redesign must present the complete Visual Design Director output in a clean,
+  scannable hierarchy; the requested presentation specification is recorded in
+  the enhancement section below.
+
 ### Explicit handoffs
 
 No stage is silently auto-started by the backend or by background polling.
@@ -194,6 +325,74 @@ Normal users may see meaningful milestones, safe warnings, support references,
 and artifact content. They must not see exact percentages/ETAs, provider names,
 model profiles, storage vendors, prompt/reasoning traces, raw job payloads,
 temporary paths, hashes, or stack traces.
+
+This visibility rule does not reduce the context passed to the coding agent.
+The agent receives the full state data and complete output contracts. It only
+defines what the normal product chooses to render as user-facing UI.
+
+## Requested incremental enhancements
+
+These are additive requirements for the redesign, not permission to replace the
+working architecture.
+
+### 1. Temporary issue-tracing popup
+
+Use the existing `client-diagnostics.ts` trace timeline and trace ID as the
+source. Add a non-blocking, accessible popup/toast that appears when a real
+issue is detected: an API error, worker-stalled condition, `needs_attention`,
+unsupported state, render/runtime error, or failed mutation. It should show a
+short human explanation, the short trace ID, and optional `Copy trace`/dismiss
+actions. It must not replace the persistent stage error or recovery action.
+
+The popup is temporary: deduplicate the same issue, allow manual dismissal,
+auto-remove after a short configurable duration, clear its timer on unmount or
+logout, announce through `role="alert"`/live-region semantics, and respect
+reduced-motion settings. Successful responses and cache notices should not
+produce an issue popup. Keep trace payloads metadata-only and bounded; the
+complete state still goes to the coding agent as context.
+
+### 2. Complete Visual Design Director presentation
+
+Replace the current minimal Design artifact slice with a polished structured
+reader. Keep the existing adapter and raw state, but organize all output into:
+
+1. overview and `user_summary`;
+2. creative thesis and `visual_language`;
+3. shared visual systems, navigation, motion, interaction, and accessibility;
+4. a route/page storyboard for every page, with stable route IDs and counts;
+5. expandable scene cards with the full scene-level behavior and responsive/
+   reduced-motion/failure-safe fields;
+6. asset briefs and their source/fallback/accessibility intent;
+7. resource candidates with provenance, adaptation, priority, and fallback;
+8. must-preserve/must-not-fabricate rules, conflicts, warnings, and unresolved
+   constraints; and
+9. the final `compiler_handoff` when present.
+
+Do not make this a wall of raw JSON or hide fields behind a summary. Use clear
+headings, stable IDs, counts, route/scene navigation, readable long text, and
+progressive disclosure for deeply nested detail. Preserve approval/revision
+controls and do not add implementation code to this stage.
+
+### 3. Copy the complete agent JSON from the right sidebar
+
+Add a right-hand sidebar action for each generated stage artifact: Discovery,
+Content Architect, Visual Design Director, and any later stage that is surfaced
+in the same product shell. The action is disabled before that stage has a
+generated response and is available in review and approved states.
+
+The button must copy a pretty-printed, exact JSON object from the selected
+stage's complete persisted agent response/state—not a reconstruction from the
+visible cards and not the current convenience allowlist alone. Preserve every
+agent-produced field, nested array, stable ID, warning, omission, conflict,
+handoff, and empty-field shape that the stage response exposes. The universal
+security boundary still excludes bearer credentials and unrelated platform
+transport wrappers; this is not permission to drop agent output fields.
+
+Show a short success state such as “JSON copied,” a clear clipboard-unavailable
+fallback (selectable read-only text or download), and an accessible label naming
+the stage. Copying is read-only: it must not start a request, mutate state,
+advance a stage, or create an idempotency key. Add tests proving the copied JSON
+matches the raw stage payload, including the full Visual Design Director fields.
 
 ## Definition of a safe replacement
 
