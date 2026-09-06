@@ -126,6 +126,47 @@ default-collapsed state before any interaction, which may need the move's
 ratio checked post-interaction rather than on initial load. Both logged
 here rather than guessed at.
 
+## 2026-09-06 evening — fourth live run finds the session's highest-impact bug (Claude Code)
+
+Fourth live run (region/distinctive-move fixes above) got past the crash
+again and surfaced `RUNTIME_REGION_WIDTH_RATIO` failing at **exactly
+1.000** for nearly every region, on nearly every run tonight and — per a
+recheck of every prior run's diagnostics this session — apparently every
+run this whole engagement has ever reached this check. Root cause is
+unambiguous, standard, well-documented browser behavior, not something
+that needed empirical verification: `Element.getBoundingClientRect()`
+**always reports the border box**. An auto-width, block-level region (no
+explicit `width`) always renders at ~100% of its parent's width regardless
+of how much inline padding it carries — CSS padding shrinks the *content*
+area, not the element's own rendered footprint. `region.getBoundingClientRect().width / mainRect.width`
+can therefore only ever read below 1.0 for a region using an explicit
+`max-width`/`width` constraint; the extremely common "full-bleed section,
+visual inset via padding" pattern (confirmed in the actual generated CSS:
+`.approach { padding: var(--space-24) var(--container-page-padding); }`,
+no `max-width` at all) was **structurally guaranteed to fail** this check
+regardless of how good the design actually was. The same `rect.width` bug
+also fed `RUNTIME_REGION_MEASURE`'s readable-measure estimate, overstating
+it by the same padding amount.
+
+**This is very likely the single highest-impact false-positive found this
+entire engagement** — it plausibly explains a large fraction of every past
+session's "layout looks wrong" `DOM_RUNTIME_FAILED` findings that were
+never individually root-caused before now.
+
+**Fix**: both `widthRatio` and `estimatedMeasure` now measure the region's
+*content* box (`rect.width` minus its own computed inline padding) instead
+of the raw border box. Live-confirmed both ways with a real Playwright
+test: a region with no explicit width but 100px inline padding on each
+side inside a 1000px `<main>` (visible content 800px, ratio 0.8) failed a
+tight 0.75-0.85 contract before the fix (measuring exactly 1.000) and
+passes after it. 272 passed (up from 271), 17 skipped, same 1 pre-existing
+unrelated failure; `ruff`/`mypy` clean.
+
+**Not investigated this session, logged for later**: `RUNTIME_REGION_GAP`
+("gap 32px does not match the approved 24px") — a real, smaller deviation
+in the same run, likely a genuine model/token mismatch rather than a check
+bug, not yet traced.
+
 
 Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
