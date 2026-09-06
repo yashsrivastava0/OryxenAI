@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 15:50 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [618a038] - feat(auth): add official logo, fix back-button cta, and elevate living draft motion
+
+Refined Screen 1 (`/sign-in`) based on direct user review and brand assets. Replaced the temporary geometric icon with the official OryxenAI 3-layer isometric rounded hexagon logo (`brand-mark.png`) in the sticky top header and inside the Portfolio Brief hero card. Fixed the browser Back-button CTA stuck state by introducing BFCache/pageshow, focus, and visibilitychange reset handlers in both `auth-controller.mjs` and `sign-in-showcase.mjs`, ensuring "Continue with Google" immediately restores to enabled when returning from Google accounts. Elevated the Living Draft aesthetic by adding a 38px architectural drafting grid on the showcase column, 4 corner registration crosses (`+`), and a 1px traveling cobalt hairline sweep. Tuned carousel auto-advance pacing to 3.8s with smooth spring curves (`cubic-bezier(0.16, 1, 0.3, 1)`). Verified via Playwright real-browser navigation/back-button test, Node test runner (16/16), pytest (5/5), ruff, and mypy across desktop, laptop, and mobile viewports.
+
 ### 2026-09-06 15:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [fa9be97] - feat(auth): redesign screen 1 sign-in with editorial swiss studio layout
 
 Redesigned Screen 1 (`/sign-in`) strictly according to the approved "Editorial Swiss — The Living Draft"
