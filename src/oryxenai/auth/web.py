@@ -65,6 +65,7 @@ def create_auth_web_router() -> APIRouter:
                 "auth_controller_version": _asset_version("auth-controller.mjs"),
                 "auth_page_version": _asset_version("auth-page.mjs"),
                 "auth_admin_version": _asset_version("auth-admin.mjs"),
+                "sign_in_showcase_version": _asset_version("sign-in-showcase.mjs"),
             },
         )
         response.headers["Content-Security-Policy"] = auth_csp(settings.supabase_url)
