@@ -30,6 +30,7 @@ export function boot(options: BootOptions): void {
       me={options.me}
       serverSessionId={options.serverSessionId}
       readOnly={options.readOnly}
+      developer={options.developer}
     />,
     root,
   );

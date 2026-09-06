@@ -13,7 +13,6 @@ import { ConnectionBanner } from "../components/ConnectionBanner";
 import { CacheNotice } from "../components/CacheNotice";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { JourneyRail, type JourneyStageVM } from "../components/JourneyRail";
-import { LivingDraftMark } from "../components/LivingDraftMark";
 import { StartSurface } from "../components/StartSurface";
 import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { ContentStage } from "../stages/content/ContentStage";
@@ -29,6 +28,7 @@ export interface AppShellProps {
   me: MeProjection;
   serverSessionId: string | null;
   readOnly: boolean;
+  developer?: boolean;
 }
 
 function viewForStage(stage: JourneyStageId): "work" | "artifact" {
@@ -39,7 +39,13 @@ function activeSessionStorageKey(userId: string): string {
   return `oryxenai.active_session_id:${userId}`;
 }
 
-export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: AppShellProps) {
+export function AppShell({
+  authorizedFetch,
+  me,
+  serverSessionId,
+  readOnly,
+  developer = false,
+}: AppShellProps) {
   const initialUrl = useMemo(
     () => parseAppUrlState(typeof window === "undefined" ? "" : window.location.search),
     [],
@@ -314,9 +320,12 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
     const contentApproved = contentState === "complete";
     const designState = state.design?.state ?? (contentApproved ? "available" : "locked");
     return [
-      { id: "discover", ordinal: 1, label: "Discovery", state: discoveryState, isSelectable: true },
-      { id: "content", ordinal: 2, label: "Content", state: contentState, isSelectable: contentState !== "locked" },
-      { id: "design", ordinal: 3, label: "Direction", state: designState, isSelectable: designState !== "locked" },
+      { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: discoveryState, isSelectable: true },
+      { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: contentState, isSelectable: contentState !== "locked" },
+      { id: "design", ordinal: 3, label: "Design", sublabel: "CRAFT PRESENTATION", state: designState, isSelectable: designState !== "locked" },
+      { id: "prepare", ordinal: 4, label: "Prepare", sublabel: "FINALIZE DETAILS", state: "locked", isSelectable: false },
+      { id: "generate", ordinal: 5, label: "Generate", sublabel: "BUILD PORTFOLIO", state: "locked", isSelectable: false },
+      { id: "preview", ordinal: 6, label: "Preview", sublabel: "REVIEW AND APPROVE", state: "locked", isSelectable: false },
     ];
   }, [state.content, state.design, state.discovery]);
 
@@ -640,17 +649,22 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
       <div className="app-shell">
         <header className="app-topbar">
           <a className="app-brand" href="/app" aria-label="OryxenAI workspace">
-            <LivingDraftMark active={false} />
-            <span><strong>OryxenAI</strong><small>portfolio editorial room</small></span>
+            <img
+              className="brand-logo-img"
+              src="/auth-static/brand-mark.png"
+              width="24"
+              height="24"
+              alt="OryxenAI logo"
+            />
+            <span className="brand-wordmark">OryxenAI</span>
+            <span className="header-pipe" aria-hidden="true">|</span>
+            <span className="header-descriptor">portfolio editorial room</span>
           </a>
-          <div className="app-topbar-context" aria-label="Workspace status">
-            <span className="context-label">Current proof</span>
-            <strong>{journey.find((stage) => stage.id === activeStage)?.label ?? "Discovery"}</strong>
-          </div>
           <details className="account-menu">
             <summary aria-label="Open account menu">
               <span className="account-monogram" aria-hidden="true">{(me.username ?? "U").slice(0, 1).toUpperCase()}</span>
               <span className="account-name">{me.username ?? "Account"}</span>
+              <span className="account-chevron" aria-hidden="true">▾</span>
             </summary>
             <div className="account-popover">
               <p><strong>{me.username ?? "OryxenAI account"}</strong><span>{me.role === "admin" ? "Administrator" : "Portfolio owner"}</span></p>
@@ -663,22 +677,23 @@ export function AppShell({ authorizedFetch, me, serverSessionId, readOnly }: App
 
         <ConnectionBanner state={state.connection} />
         <CacheNotice key={cacheNotice?.id ?? "empty"} message={cacheNotice?.message ?? null} />
-        {typeof window !== "undefined" && ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname) ? (
+        {developer ? (
           <ClientTraceNotice traceId={getClientTraceId()} />
         ) : null}
 
         <div className="app-work-surface">
-          {state.sessionId ? (
-            <div className="workspace-heading compact">
-              <p className="eyebrow">Authenticated workspace</p>
-              <h1>Shape the evidence. Approve the story.</h1>
-              <p>Three deliberate passes turn your source material into an approved portfolio brief, content architecture, and visual direction.</p>
-            </div>
-          ) : null}
+          {/* Ambient registration marks and margin tags */}
+          <span className="reg-mark reg-tl" aria-hidden="true">+</span>
+          <span className="reg-mark reg-tr" aria-hidden="true">+</span>
+          <span className="reg-mark reg-bl" aria-hidden="true">+</span>
+          <span className="reg-mark reg-br" aria-hidden="true">+</span>
 
-          {state.sessionId ? (
-            <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
-          ) : null}
+          <span className="editorial-margin-label margin-tl" aria-hidden="true">PRIVATE BY DESIGN.</span>
+          <span className="editorial-margin-label margin-tr" aria-hidden="true">IDEAS IN, OPPORTUNITIES OUT.</span>
+          <span className="editorial-margin-label margin-bl" aria-hidden="true">FROM EXPERIENCE TO OPPORTUNITY.</span>
+          <span className="editorial-margin-label margin-br" aria-hidden="true">A MORE MEANINGFUL NEXT CHAPTER.</span>
+
+          <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
 
           <ErrorBoundary fallbackTitle="Unable to display this stage" onReset={refetchCurrentSession}>
             <section id="workspace-stage" className="stage-frame" data-stage={activeStage} tabIndex={-1}>
