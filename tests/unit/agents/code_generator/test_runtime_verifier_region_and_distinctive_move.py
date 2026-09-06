@@ -96,6 +96,39 @@ def collapsed_region_site_url(tmp_path: Path):
 
 
 @pytest.fixture
+def padded_region_site_url(tmp_path: Path):
+    """A region with no explicit width (auto, block-level, filling its
+    containing block) but real inline padding creating visual inset -- the
+    extremely common "full-bleed section, inset via padding" pattern.
+    getBoundingClientRect() always reports the border box, so before the
+    fix this always measured a 1.000 width ratio no matter how much
+    padding-based inset the design actually had."""
+
+    server, site_root = _serve(
+        tmp_path,
+        "<!doctype html><html><body style='margin:0;'>"
+        '<main data-route-id="home" style="margin:0; width:1000px; font-size:16px;">'
+        '<section id="hero" data-content-id="hero">'
+        '<div id="region" style="padding-inline:100px; box-sizing:border-box;">'
+        "<div>content</div>"
+        "</div></section></main></body></html>",
+    )
+    import os
+
+    original_cwd = Path.cwd()
+    os.chdir(site_root)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+        os.chdir(original_cwd)
+
+
+@pytest.fixture
 def marker_scoped_site_url(tmp_path: Path):
     """A distinctive move whose required CSS properties live on a nested
     marker-carrying element, not on source_selector's own outer wrapper --
@@ -126,7 +159,9 @@ def marker_scoped_site_url(tmp_path: Path):
         os.chdir(original_cwd)
 
 
-def _region_check(columns: int) -> RegionRuntimeCheckV1:
+def _region_check(
+    columns: int, *, width_ratio_min: float = 0.0, width_ratio_max: float = 1.0
+) -> RegionRuntimeCheckV1:
     return RegionRuntimeCheckV1(
         region_id="region-1",
         section_id="hero",
@@ -139,8 +174,8 @@ def _region_check(columns: int) -> RegionRuntimeCheckV1:
         columns_tablet=1,
         columns_desktop=columns,
         max_measure_ch=1000,
-        width_ratio_min=0.0,
-        width_ratio_max=1.0,
+        width_ratio_min=width_ratio_min,
+        width_ratio_max=width_ratio_max,
         overlap_ratio_max=1.0,
         sticky_allowed=True,
     )
@@ -207,6 +242,42 @@ async def test_asymmetric_two_track_grid_satisfies_an_abstract_multi_column_cont
     )
 
     assert not any(d.code == "RUNTIME_REGION_COLUMN_COUNT" for d in diagnostics), diagnostics
+
+
+async def test_padding_based_visual_inset_is_measured_as_narrower_than_border_box(
+    padded_region_site_url,
+) -> None:
+    """The real bug: a region with no explicit width but 100px inline
+    padding on each side, inside a 1000px main, renders a border box that
+    exactly fills main (ratio 1.000) even though its visible content is
+    only 800px (ratio 0.8). Before the fix this always failed a tight
+    0.75-0.85 contract; the fix must measure the content box instead."""
+
+    contract = DesignRealizationContract(
+        route_id="home",
+        section_order=["hero"],
+        region_checks=[_region_check(columns=1, width_ratio_min=0.75, width_ratio_max=0.85)],
+        distinctive_move_checks=[
+            DistinctiveMoveRuntimeCheckV1(
+                move_id="move-1",
+                section_id="hero",
+                source_selector="#region",
+                target_selector="#region",
+                relationship="width_ratio",
+                minimum_ratio=0.0,
+                maximum_ratio=10.0,
+                viewports=["desktop"],
+                required_css_properties=[],
+            )
+        ],
+        font_checks=[_font_check()],
+    )
+
+    _evidence, diagnostics = await RuntimeVerifier().verify(
+        padded_region_site_url, plan=_plan(contract), profile=_profile()
+    )
+
+    assert not any(d.code == "RUNTIME_REGION_WIDTH_RATIO" for d in diagnostics), diagnostics
 
 
 async def test_a_region_collapsed_to_one_column_is_still_caught(
