@@ -11,6 +11,18 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-06 14:06 +05:30 - Codex (GPT-5 / OpenAI) - [f208540] - docs(frontend): capture full agent behavior and output context
+
+Expanded the frontend redesign handoff with a state-complete context rule and
+an explicit ledger of Discovery question generation, internal agent operation
+counts, Content Architect batching, Visual Design Director output fields, and
+current final-result presentation. Added incremental requirements for a
+temporary issue-tracing popup, a complete structured Visual Design Director
+reader, and right-sidebar copying of each stage's full agent-owned JSON without
+changing the working auth, adapter, polling, or handoff architecture.
+No application source changed; the existing frontend verification remains the
+baseline for this documentation-only update.
+
 ### 2026-09-06 13:50 +05:30 - Codex (GPT-5 / OpenAI) - [ebfbc94] - docs(frontend): add redesign contract and replacement runbook
 
 Created an attachable frontend migration pack for future AI coding agents:
