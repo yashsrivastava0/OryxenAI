@@ -32,7 +32,7 @@ export function ConversationSurface({
   history,
   isWorking,
   job,
-  workingLabel = "Discovery is processing your saved material",
+  workingLabel = "Reading your source material and deciding what to ask next",
   disabled = false,
   onSubmitAnswer,
   onGenerateBriefNow,
@@ -74,7 +74,6 @@ export function ConversationSurface({
     return `${Math.floor(seconds / 60)} minutes`;
   };
 
-  // Restore draft when current question changes
   useEffect(() => {
     if (draftKey) {
       const saved = safeSessionStorage.getItem(draftKey);
@@ -98,6 +97,14 @@ export function ConversationSurface({
     setSelectedOptions([]);
   };
 
+  const executeAnswer = async (fn: () => Promise<void>) => {
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      (document as unknown as { startViewTransition: (cb: () => Promise<void>) => void }).startViewTransition(fn);
+    } else {
+      await fn();
+    }
+  };
+
   const handleTextSubmit = async () => {
     if (!currentQuestion || inFlight || disabled) return;
     const trimmed = textAnswer.trim();
@@ -107,8 +114,10 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, trimmed), isLast);
-      handleClearDraft();
+      await executeAnswer(async () => {
+        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, trimmed), isLast);
+        handleClearDraft();
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your answer. Please try again.");
     } finally {
@@ -122,8 +131,10 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, optionId), isLast);
-      handleClearDraft();
+      await executeAnswer(async () => {
+        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, optionId), isLast);
+        handleClearDraft();
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
     } finally {
@@ -137,11 +148,13 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(
-        answeredDiscoveryQuestion(currentQuestion.id, val ? "true" : "false"),
-        isLast,
-      );
-      handleClearDraft();
+      await executeAnswer(async () => {
+        await onSubmitAnswer(
+          answeredDiscoveryQuestion(currentQuestion.id, val ? "true" : "false"),
+          isLast,
+        );
+        handleClearDraft();
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
     } finally {
@@ -156,8 +169,10 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedOptions), isLast);
-      handleClearDraft();
+      await executeAnswer(async () => {
+        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedOptions), isLast);
+        handleClearDraft();
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your selections.");
     } finally {
@@ -171,8 +186,10 @@ export function ConversationSurface({
     setError(null);
     try {
       const isLast = questions.length <= 1;
-      await onSubmitAnswer(skippedDiscoveryQuestion(currentQuestion.id), isLast);
-      handleClearDraft();
+      await executeAnswer(async () => {
+        await onSubmitAnswer(skippedDiscoveryQuestion(currentQuestion.id), isLast);
+        handleClearDraft();
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not skip question.");
     } finally {
@@ -183,7 +200,7 @@ export function ConversationSurface({
   const handleKeyDown = (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
-      handleTextSubmit();
+      void handleTextSubmit();
     }
   };
 
@@ -200,218 +217,351 @@ export function ConversationSurface({
     }
   };
 
+  const currentQuestionOrdinal = history.length + 1;
+  const totalQuestionsInBatch = history.length + questions.length;
+  const questionNumberLabel = `QUESTION ${String(currentQuestionOrdinal).padStart(2, "0")}${
+    totalQuestionsInBatch > 0 ? ` OF ${String(totalQuestionsInBatch).padStart(2, "0")}` : ""
+  }`;
+
   return (
-    <section className="conversation-surface" aria-label="Discovery conversation">
-      {/* Transcript of prior answered turns */}
-      {history.length > 0 && (
-        <div className="transcript-flow" aria-label="Previous answers">
-          {history.map((turn, idx) => (
-            <div key={idx} className="transcript-turn">
-              <div className="transcript-bubble assistant">
-                <p className="turn-label">Discovery</p>
-                <p className="turn-text">{turn.questionText}</p>
+    <section className="conversation-surface" aria-label="Discovery interview">
+      {/* 1. Spatially Continuous Analysis State (when worker is processing) */}
+      {isWorking && (
+        <div
+          className={`discovery-workbench-card working-workbench-card ${workerStalled ? "worker-stalled" : ""}`}
+          role="status"
+          aria-live="polite"
+          aria-busy={!workerStalled}
+        >
+          <div className="workbench-top-rule" aria-hidden="true">
+            <span className="workbench-sweep active-sweep" />
+          </div>
+
+          <div className="workbench-header">
+            <span className="eyebrow">
+              DISCOVERY / {workerStalled ? "WORKER CHECK" : "ANALYZING SOURCE"}
+            </span>
+            <span className="status-chip chip-active">
+              <span className="status-dot pulsing" aria-hidden="true" />
+              {workerStalled ? "Waiting for worker" : "Reading material"}
+            </span>
+          </div>
+
+          <div className="working-body">
+            <h2 className="working-headline">
+              {workerStalled
+                ? "Discovery is waiting for the background worker"
+                : (workingLabel || "Reading your source material and deciding what to ask next.")}
+            </h2>
+
+            <div className="living-draft-activity-rail" aria-hidden="true">
+              <div className="activity-step step-done">
+                <span className="step-point">✓</span>
+                <span className="step-text">Source received</span>
               </div>
-              <div className="transcript-bubble user">
-                <p className="turn-label">You</p>
-                <p className="turn-text">{turn.answerText}</p>
+              <span className="activity-connector active" />
+              <div className="activity-step step-running">
+                <span className="step-point">●</span>
+                <span className="step-text">Understanding background & finding gaps</span>
+              </div>
+              <span className="activity-connector" />
+              <div className="activity-step step-pending">
+                <span className="step-point">○</span>
+                <span className="step-text">Formulating focused questions</span>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* Active working state */}
-      {isWorking && (
-        <div className={`agent-working-proof${workerStalled ? " worker-stalled" : ""}`} role="status" aria-live="polite" aria-busy={!workerStalled}>
-          <p className="eyebrow">Discovery / {workerStalled ? "worker check" : "in progress"}</p>
-          <h2>{workerStalled ? "Discovery is waiting for the worker" : workingLabel}</h2>
-          <div className="working-rule" aria-hidden="true"><span /></div>
-          {workerStalled ? (
-            <>
-              <p>
-                Your notes are saved. This run has been {job?.status === "queued" ? "queued" : "running"} for {formatDuration(job?.status === "queued" ? queuedAgeSeconds : heartbeatAgeSeconds)}, but the worker has not acknowledged a recent update.
-              </p>
-              <div className="question-actions">
-                <button type="button" className="btn-secondary" onClick={() => void onRetryStalled?.()} disabled={disabled || stopping || !onRetryStalled}>
-                  Check again
-                </button>
-                {onStop ? <button type="button" className="btn-quiet stop-action" onClick={() => void handleStop()} disabled={disabled || stopping}>{stopping ? "Stopping..." : "Stop Discovery"}</button> : null}
+            {workerStalled ? (
+              <div className="stalled-callout">
+                <p>
+                  Your notes are safely saved. This job has been{" "}
+                  {job?.status === "queued" ? "queued" : "running"} for{" "}
+                  {formatDuration(job?.status === "queued" ? queuedAgeSeconds : heartbeatAgeSeconds)}, but
+                  the worker has not reported recent progress.
+                </p>
+                <div className="question-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => void onRetryStalled?.()}
+                    disabled={disabled || stopping || !onRetryStalled}
+                  >
+                    Check again
+                  </button>
+                  {onStop && (
+                    <button
+                      type="button"
+                      className="btn-quiet stop-action"
+                      onClick={() => void handleStop()}
+                      disabled={disabled || stopping}
+                    >
+                      {stopping ? "Stopping..." : "Stop Discovery"}
+                    </button>
+                  )}
+                </div>
               </div>
-            </>
-          ) : (
-            <>
-              <p>The server has your input. You may leave this page; the durable job continues and this proof will update when its state changes.</p>
-              {onStop ? <div className="question-actions"><button type="button" className="btn-quiet stop-action" onClick={() => void handleStop()} disabled={disabled || stopping}>{stopping ? "Stopping..." : "Stop Discovery"}</button></div> : null}
-            </>
-          )}
+            ) : (
+              <div className="working-note">
+                <p>
+                  The server has your material. You may leave or refresh this page; the background job
+                  persists and this workbench will update as soon as questions are prepared.
+                </p>
+                {onStop && (
+                  <div className="question-actions">
+                    <button
+                      type="button"
+                      className="btn-quiet stop-action"
+                      onClick={() => void handleStop()}
+                      disabled={disabled || stopping}
+                    >
+                      {stopping ? "Stopping..." : "Stop Discovery"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Actionable current question */}
+      {/* 2. Compact Prior Answers Accordion (collapsible, keeps primary focus on active question) */}
+      {!isWorking && history.length > 0 && (
+        <details className="prior-answers-accordion" aria-label="Earlier answers history">
+          <summary className="prior-answers-summary">
+            <span className="prior-answers-count">
+              <span className="summary-chevron" aria-hidden="true">▾</span>
+              Earlier answers ({history.length})
+            </span>
+            <span className="prior-answers-hint">Click to expand previous responses</span>
+          </summary>
+          <div className="prior-answers-drawer">
+            {history.map((turn, idx) => (
+              <div key={idx} className="prior-answer-row">
+                <div className="prior-question">
+                  <span className="prior-label">Q{idx + 1}:</span>
+                  <span className="prior-text">{turn.questionText}</span>
+                </div>
+                <div className="prior-response">
+                  <span className="prior-label">Answer:</span>
+                  <span className="prior-value">{turn.answerText}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* 3. Actionable Focused Single-Question Card */}
       {!isWorking && currentQuestion && (
-        <div className="active-question-card" aria-live="polite">
-          <p className="eyebrow">Discovery / next question</p>
-          <h2 className="question-prompt">{currentQuestion.text}</h2>
-          {currentQuestion.helpText && (
-            <p className="question-help">{currentQuestion.helpText}</p>
-          )}
+        <div className="discovery-workbench-card active-question-card" aria-live="polite">
+          <div className="workbench-top-rule" aria-hidden="true">
+            <span className="workbench-sweep" />
+          </div>
 
-          {error && <p className="question-error" role="alert">{error}</p>}
+          <div className="workbench-header">
+            <span className="eyebrow">{questionNumberLabel}</span>
+            <span className="status-chip chip-ready">
+              <span className="status-dot" aria-hidden="true" />
+              Private draft
+            </span>
+          </div>
 
-          {/* Question Kind: Single Select */}
-          {currentQuestion.kind === "single_select" && (
-            <div className="options-grid">
-              {currentQuestion.options.map((opt) => (
+          <div className="question-content">
+            <p className="question-context-tag">Based on your source material</p>
+            <h2 className="question-prompt">{currentQuestion.text}</h2>
+            {currentQuestion.helpText && (
+              <p className="question-help">{currentQuestion.helpText}</p>
+            )}
+
+            {error && <p className="start-error" role="alert">{error}</p>}
+
+            {/* Single Select */}
+            {currentQuestion.kind === "single_select" && (
+              <div className="options-grid">
+                {currentQuestion.options.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className="btn-choice"
+                    disabled={inFlight || disabled}
+                    onClick={() => void handleSingleSelect(opt.id)}
+                  >
+                    <span className="choice-indicator" aria-hidden="true">○</span>
+                    <span className="choice-text">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Boolean */}
+            {currentQuestion.kind === "boolean" && (
+              <div className="options-grid boolean-grid">
                 <button
-                  key={opt.id}
                   type="button"
                   className="btn-choice"
                   disabled={inFlight || disabled}
-                  onClick={() => handleSingleSelect(opt.id)}
+                  onClick={() => void handleBooleanSelect(true)}
                 >
-                  {opt.label}
+                  <span className="choice-text">Yes</span>
                 </button>
-              ))}
-            </div>
-          )}
-
-          {/* Question Kind: Boolean */}
-          {currentQuestion.kind === "boolean" && (
-            <div className="options-grid boolean-grid">
-              <button
-                type="button"
-                className="btn-choice"
-                disabled={inFlight || disabled}
-                onClick={() => handleBooleanSelect(true)}
-              >
-                Yes
-              </button>
-              <button
-                type="button"
-                className="btn-choice"
-                disabled={inFlight || disabled}
-                onClick={() => handleBooleanSelect(false)}
-              >
-                No
-              </button>
-            </div>
-          )}
-
-          {/* Question Kind: Multi Select */}
-          {currentQuestion.kind === "multi_select" && (
-            <div className="multi-select-form">
-              <div className="checkbox-list">
-                {currentQuestion.options.map((opt) => {
-                  const checked = selectedOptions.includes(opt.id);
-                  return (
-                    <label key={opt.id} className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={inFlight || disabled}
-                        onChange={(e) => {
-                          const isChecked = (e.target as HTMLInputElement).checked;
-                          setSelectedOptions((prev) =>
-                            isChecked ? [...prev, opt.id] : prev.filter((id) => id !== opt.id),
-                          );
-                        }}
-                      />
-                      <span>{opt.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <div className="question-actions">
                 <button
                   type="button"
-                  className="btn-primary"
-                  disabled={inFlight || disabled || !selectedOptions.length}
-                  onClick={handleMultiSelectSubmit}
+                  className="btn-choice"
+                  disabled={inFlight || disabled}
+                  onClick={() => void handleBooleanSelect(false)}
                 >
-                  {inFlight ? "Saving..." : "Save answer"}
+                  <span className="choice-text">No</span>
                 </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Question Kind: Text */}
-          {currentQuestion.kind === "text" && (
-            <div className="text-composer">
-              <textarea
-                ref={composerRef}
-                className="composer-textarea"
-                rows={4}
-                placeholder="Add the detail that would make this answer accurate…"
-                value={textAnswer}
-                onInput={(e) => handleTextChange((e.target as HTMLTextAreaElement).value)}
-                onKeyDown={handleKeyDown}
-                disabled={inFlight || disabled}
-              />
-              <div className="question-actions">
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={inFlight || disabled || !textAnswer.trim()}
-                  onClick={handleTextSubmit}
-                >
-                  {inFlight ? "Saving..." : "Save and continue"}
-                </button>
-                {currentQuestion.allowSkip && (
+            {/* Multi Select */}
+            {currentQuestion.kind === "multi_select" && (
+              <div className="multi-select-form">
+                <div className="checkbox-list">
+                  {currentQuestion.options.map((opt) => {
+                    const checked = selectedOptions.includes(opt.id);
+                    return (
+                      <label key={opt.id} className={`checkbox-row ${checked ? "is-selected" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={inFlight || disabled}
+                          onChange={(e) => {
+                            const isChecked = (e.target as HTMLInputElement).checked;
+                            setSelectedOptions((prev) =>
+                              isChecked ? [...prev, opt.id] : prev.filter((id) => id !== opt.id),
+                            );
+                          }}
+                        />
+                        <span className="checkbox-label">{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="question-actions">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={inFlight || disabled || !selectedOptions.length}
+                    onClick={() => void handleMultiSelectSubmit()}
+                  >
+                    {inFlight ? "Saving..." : "Save answer"}
+                  </button>
+                  {currentQuestion.allowSkip && (
+                    <button
+                      type="button"
+                      className="btn-quiet"
+                      disabled={inFlight || disabled}
+                      onClick={() => void handleSkip()}
+                    >
+                      Skip question
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Text Composer */}
+            {currentQuestion.kind === "text" && (
+              <div className="text-composer">
+                <textarea
+                  ref={composerRef}
+                  className="workbench-textarea composer-textarea"
+                  rows={4}
+                  placeholder="Add the factual details or context that will make this section accurate…"
+                  value={textAnswer}
+                  onInput={(e) => handleTextChange((e.target as HTMLTextAreaElement).value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={inFlight || disabled}
+                />
+                <div className="question-actions">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={inFlight || disabled || !textAnswer.trim()}
+                    onClick={() => void handleTextSubmit()}
+                  >
+                    {inFlight ? "Saving..." : "Save and continue"}
+                  </button>
+                  {currentQuestion.allowSkip && (
+                    <button
+                      type="button"
+                      className="btn-quiet"
+                      disabled={inFlight || disabled}
+                      onClick={() => void handleSkip()}
+                    >
+                      Skip question
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Skip action for non-text/non-multiselect */}
+            {currentQuestion.kind !== "text" &&
+              currentQuestion.kind !== "multi_select" &&
+              currentQuestion.allowSkip && (
+                <div className="question-actions secondary-actions">
                   <button
                     type="button"
                     className="btn-quiet"
                     disabled={inFlight || disabled}
-                    onClick={handleSkip}
+                    onClick={() => void handleSkip()}
                   >
                     Skip question
                   </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {currentQuestion.kind !== "text" && currentQuestion.allowSkip && (
-            <div className="question-actions">
-              <button
-                type="button"
-                className="btn-quiet"
-                disabled={inFlight || disabled}
-                onClick={handleSkip}
-              >
-                Skip question
-              </button>
-            </div>
-          )}
+                </div>
+              )}
+          </div>
         </div>
       )}
 
-      {/* If all questions answered and brief can be generated */}
+      {/* 4. Ready for Brief Payoff Card */}
       {!isWorking && !currentQuestion && onGenerateBriefNow && (
-        <div className="ready-for-brief-card">
-          <p className="eyebrow">Discovery / answers saved</p>
-          <h2>We have enough detail to shape your brief.</h2>
-          <p className="ready-thesis">
-            Discovery is ready to synthesize your answers into a coherent portfolio brief.
-          </p>
-          {error && <p className="question-error" role="alert">{error}</p>}
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={inFlight || disabled}
-            onClick={async () => {
-              setInFlight(true);
-              setError(null);
-              try {
-                await onGenerateBriefNow();
-              } catch (reason) {
-                setError(reason instanceof Error ? reason.message : "The brief could not be started. Try again.");
-              } finally {
-                setInFlight(false);
-              }
-            }}
-          >
-            {inFlight ? "Creating brief..." : "Create my brief"}
-          </button>
+        <div className="discovery-workbench-card ready-for-brief-card" role="status" aria-live="polite">
+          <div className="workbench-top-rule" aria-hidden="true">
+            <span className="workbench-sweep" />
+          </div>
+
+          <div className="workbench-header">
+            <span className="eyebrow">DISCOVERY / ANSWERS COMPLETE</span>
+            <span className="status-chip chip-ready">
+              <span className="status-dot" aria-hidden="true" />
+              Ready to synthesize
+            </span>
+          </div>
+
+          <div className="ready-body">
+            <h2 className="ready-headline">We have enough detail to shape your brief.</h2>
+            <p className="ready-thesis">
+              Discovery has analyzed your career material and your answers. Review and generate your
+              structured Portfolio Discovery Brief to continue.
+            </p>
+            {error && <p className="start-error" role="alert">{error}</p>}
+            <div className="question-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={inFlight || disabled}
+                onClick={async () => {
+                  setInFlight(true);
+                  setError(null);
+                  try {
+                    await onGenerateBriefNow();
+                  } catch (reason) {
+                    setError(
+                      reason instanceof Error ? reason.message : "The brief could not be started. Try again.",
+                    );
+                  } finally {
+                    setInFlight(false);
+                  }
+                }}
+              >
+                {inFlight ? "Creating brief..." : "Create Portfolio Brief →"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>
