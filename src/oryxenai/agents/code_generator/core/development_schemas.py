@@ -1926,6 +1926,16 @@ class DistinctiveMoveRuntimeCheckV1(BaseModel):
     maximum_ratio: float
     viewports: list[str]
     required_css_properties: list[str]
+    # The attribute the model was told to render this move's own layout
+    # marker with (e.g. `data-distinctive="selected-work-index"`, no
+    # brackets). source_selector measures the width/positional
+    # relationship on the section's outer wrapper; a well-organized
+    # implementation reasonably scopes the actual layout CSS (grid,
+    # column-gap, ...) to a nested element carrying this marker instead of
+    # the outer wrapper itself. Optional: empty when the blueprint has no
+    # marker, in which case required_css_properties is checked on
+    # source_selector alone, unchanged from before this field existed.
+    runtime_marker: str = ""
 
 
 class ResourceRuntimeCheckV1(BaseModel):

@@ -108,6 +108,22 @@ def test_required_placement_is_never_excluded_even_without_a_real_file() -> None
     assert [item.resource_slot_id for item in realization.resource_checks] == [_RESOURCE_SLOT_ID]
 
 
+def test_distinctive_move_carries_its_runtime_marker_through() -> None:
+    """source_selector measures the width/positional relationship on a
+    move's outer wrapper, but required_css_properties can legitimately live
+    on a nested element carrying the move's own runtime_marker instead --
+    the runtime check needs that marker to look in the right place."""
+
+    realization = compile_design_realization(
+        _blueprint(), route_id="home", section_order=["hero"]
+    )
+
+    assert len(realization.distinctive_move_checks) == 1
+    assert realization.distinctive_move_checks[0].runtime_marker == (
+        'data-distinctive-move-id="move:hero-rail"'
+    )
+
+
 def test_optional_placement_with_a_real_materialized_file_is_kept() -> None:
     realization = compile_design_realization(
         _blueprint_with_resource_placement(),
