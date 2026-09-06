@@ -86,6 +86,46 @@ harness exists in this repo to unit-test the scaffold `.ts` file directly,
 so its correctness rests on direct code reading (a simple, low-risk early
 return) plus the next live run's actual build+browser result.
 
+## 2026-09-06 evening — third live run: the crash is fixed, exposing a genuinely new frontier (Claude Code)
+
+Confirmed live: the fragment-href fix above worked. A third fresh run
+reached `generate: succeeded` again and got past both the hero-render
+crash and the realization-hash check into real DOM/runtime layout
+diagnostics — the deepest and most informative point this run has ever
+reached. Two more real, root-caused bugs found and fixed from this run's
+diagnostics (both live-tested with real Playwright browser assertions, not
+just code reading):
+
+| Area | Finding | Durable resolution |
+|---|---|---|
+| Region column-count check treated an abstract design-grid span as a literal CSS track-count requirement | `RUNTIME_REGION_COLUMN_COUNT` demanded `computedColumns === columns_desktop` (e.g. exactly 8 or 12 grid-template-columns tracks). The model's actual CSS for `#design-systems` used a considered, good-looking 2-track asymmetric split (`minmax(0, 1.1fr) minmax(15rem, 0.9fr)`) for a heading+details layout — legitimate design, not a defect. `columns_desktop`/`columns_tablet` have **zero documented semantic anywhere** in this repo (no prompt guidance in any `.md`, no Pydantic `Field(description=...)`, no `DECISIONS.md` entry) — the only textual hint is the schema's own bound (`le=12`), matching the common "12-column design-grid" *planning* convention, not a literal implementation instruction. `RUNTIME_REGION_WIDTH_RATIO` already verifies the real visual-correctness signal (is the region appropriately narrower than main) independently. | Loosened the check to its actual catchable intent: fail only when "is multi-column" (`computedColumns > 1`) disagrees between observed and expected, in either direction — never demanding an exact track count. Proven both ways with real Playwright tests: a legitimate 2-track asymmetric grid against `columns_desktop=8` now passes; a region that collapsed to a single column when multi-column was contracted still correctly fails. |
+| Distinctive-move CSS-property check had no way to look at the move's own marked element | `RUNTIME_DISTINCTIVE_PROPERTY` reported `grid-template-columns`/`column-gap` "missing" for `move:home:selected-work:index` on 3 separate journeys, repair failed 3/3 rounds. Traced via the persisted `plan` column: `source_selector` (`[data-region-id="region:home:home:selected-work"]`) measures the *outer section's* width for the move's `width_ratio` relationship — correct, since that section also contains header/label content that shouldn't be forced into the grid. The model reasonably scoped the actual grid CSS to a *nested* element carrying the move's own `runtime_marker` (`data-distinctive="selected-work-index"`, itself planner-assigned, not invented) instead of the outer section — but `DistinctiveMoveRuntimeCheckV1` (the runtime-check schema `compile_design_realization` builds) never carried `runtime_marker` through from the blueprint at all, so the check had no way to find that nested element and could only ever look at `source_selector` itself, which legitimately never had those properties. | Added `runtime_marker: str = ""` to `DistinctiveMoveRuntimeCheckV1`, wired through in `design_realization.py`. The runtime check now looks for `required_css_properties` on the marker-scoped element (`source.matches(marker) ? source : source.querySelector(marker)`) when a marker is set, falling back to `source` itself otherwise (unchanged default, and unchanged when no marker is configured at all). Proven with real Playwright tests: properties on the marked nested element now pass; the same CSS without a marker configured still correctly fails (backward compatible), and a genuinely absent property still fails when the marker path is checked correctly.
+
+271 passed (up from 266), 17 skipped, same 1 pre-existing unrelated
+failure. Both fixes have real browser-driven regression tests (not fixture
+mocks) proving the exact before/after behavior, in
+`test_runtime_verifier_region_and_distinctive_move.py` and
+`test_design_realization.py`.
+
+**Not yet fixed, found in the same run** (deprioritized — genuinely deeper,
+not a quick fix): `RUNTIME_DISTINCTIVE_RELATIONSHIP` still measured 2.4375
+(expected 0.4-0.85) for the same selected-work move — its `source_selector`
+is the *outer section* (an ancestor of `target_selector`, the first
+project row), and an ancestor's rendered width is essentially always ≥ any
+descendant's, so a "source narrower than target" ratio contract for that
+specific selector pair looks topologically close to unsatisfiable as
+specified. This smells like a **planner-side selector/ratio semantic
+mistake** (possibly meant to compare two siblings, e.g. an accent/image
+column vs. a text column, not a region vs. one nested project), not a
+verification-side bug — fixing it safely needs understanding what the
+planner actually intended for `implementation_kind: "asymmetric_width"`
+moves, which is a bigger, separate investigation than tonight's scope.
+Also unresolved: `move:home:about-connect:close` measuring ratio `0`
+(expected 0.3-0.75) — plausibly a disclosure element measured in its
+default-collapsed state before any interaction, which may need the move's
+ratio checked post-interaction rather than on initial load. Both logged
+here rather than guessed at.
+
 
 Short, current issue log for the Code Generator / Build Preparation handoff.
 Replace stale campaign notes when the contract or root cause changes; keep only
