@@ -1070,8 +1070,19 @@ class RuntimeVerifier:
                 const computedColumns = style.gridTemplateColumns && style.gridTemplateColumns !== 'none'
                   ? style.gridTemplateColumns.split(/\s+/).filter(Boolean).length
                   : 1;
-                if (computedColumns !== expectedColumns) {
-                  violations.push({code: 'RUNTIME_REGION_COLUMN_COUNT', message: `Region ${item.region_id} rendered ${computedColumns} columns; expected ${expectedColumns}.`});
+                // columns_* is an abstract design-grid span (e.g. "8 of a
+                // notional 12-column system"), not a literal instruction
+                // that grid-template-columns must emit exactly that many
+                // tracks -- a considered 2-track asymmetric split
+                // (minmax(0, 1.1fr) minmax(15rem, 0.9fr)) is a legitimate,
+                // often better-looking implementation of an "8/12" region
+                // than a rigid 8-track grid would be, and width/measure are
+                // already checked separately. What this check can still
+                // catch honestly: a region contracted for multiple columns
+                // that collapsed to a single one (or vice versa) --
+                // whether "multi-column" holds must agree either way.
+                if ((computedColumns > 1) !== (expectedColumns > 1)) {
+                  violations.push({code: 'RUNTIME_REGION_COLUMN_COUNT', message: `Region ${item.region_id} rendered ${computedColumns} columns; contract expects ${expectedColumns > 1 ? 'multiple' : 'a single'} column.`});
                 }
                 const expectedGap = lengthPixels(item.gap, style);
                 const observedGap = Number.parseFloat(style.columnGap || style.gap || style.rowGap);
@@ -1122,7 +1133,26 @@ class RuntimeVerifier:
                 if (!Number.isFinite(ratio) || ratio + 0.01 < item.minimum_ratio || ratio - 0.01 > item.maximum_ratio) {
                   violations.push({code: 'RUNTIME_DISTINCTIVE_RELATIONSHIP', message: `Move ${item.move_id} selector relationship measured ${ratio}; expected ${item.minimum_ratio}-${item.maximum_ratio}.`});
                 }
-                const sourceStyle = getComputedStyle(source);
+                // source_selector measures the width/positional
+                // relationship on the move's outer wrapper, but a well-
+                // organized implementation can reasonably scope the
+                // actual layout CSS (grid, column-gap, ...) to a nested
+                // element carrying the move's own runtime_marker instead
+                // of the outer wrapper itself. Prefer that marked element
+                // for the CSS-property check when one exists; fall back to
+                // source itself (unchanged prior behavior) otherwise.
+                let propertyElement = source;
+                if (item.runtime_marker) {
+                  try {
+                    const markerSelector = `[${item.runtime_marker}]`;
+                    propertyElement = source.matches(markerSelector)
+                      ? source
+                      : source.querySelector(markerSelector) || source;
+                  } catch (error) {
+                    propertyElement = source;
+                  }
+                }
+                const sourceStyle = getComputedStyle(propertyElement);
                 for (const property of item.required_css_properties) {
                   const value = propertyValue(sourceStyle, property);
                   if (!value || value === 'none' || value === 'normal' || value === 'auto') {

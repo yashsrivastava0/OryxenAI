@@ -124,6 +124,7 @@ def compile_design_realization(
                 maximum_ratio=item.maximum_ratio,
                 viewports=list(item.viewports),
                 required_css_properties=list(item.required_css_properties),
+                runtime_marker=item.runtime_marker,
             )
             for item in moves
         ],
