@@ -30,11 +30,7 @@
   <!-- SCREEN 1: APPROVED REDESIGNED /sign-in STUDIO SHELL -->
   <header class="sign-in-header">
     <div class="header-brand">
-      <svg class="brand-logo-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="5" cy="5" r="2.75" fill="var(--ink)"/>
-        <rect x="7.5" y="3.5" width="4" height="15" rx="2" transform="rotate(-30 7.5 3.5)" fill="var(--ink)"/>
-        <rect x="13.5" y="5.5" width="4" height="15" rx="2" transform="rotate(-30 13.5 5.5)" fill="var(--signal)"/>
-      </svg>
+      <img class="brand-logo-img" src="/auth-static/brand-mark.png" width="24" height="24" alt="OryxenAI logo" />
       <span class="brand-wordmark">{{ app_name }}</span>
       <span class="header-pipe" aria-hidden="true">|</span>
       <span class="header-descriptor">private portfolio studio</span>
@@ -119,7 +115,13 @@
       </div>
 
       <!-- RIGHT COLUMN: INTERACTIVE SIX-STAGE PRODUCT SHOWCASE -->
-      <div class="sign-in-right-col">
+      <div class="sign-in-right-col" aria-label="Portfolio Transformation Stages">
+        <div class="drafting-mark mark-tl" aria-hidden="true">+</div>
+        <div class="drafting-mark mark-tr" aria-hidden="true">+</div>
+        <div class="drafting-mark mark-bl" aria-hidden="true">+</div>
+        <div class="drafting-mark mark-br" aria-hidden="true">+</div>
+        <div class="drafting-sweep-line" aria-hidden="true"></div>
+
         <div class="rail-header">
           <span class="rail-title">SIX-STAGE PORTFOLIO STUDIO</span>
           <span class="rail-motto">IDEAS IN, OPPORTUNITIES OUT.</span>
@@ -215,7 +217,10 @@
             <!-- CARD 1: PORTFOLIO BRIEF (HERO CENTERPIECE) -->
             <article class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 2: Portfolio brief sample">
               <div class="brief-topbar">
-                <span class="brief-brand">{{ app_name }}</span>
+                <div class="brief-brand-badge">
+                  <img class="brief-brand-icon" src="/auth-static/brand-mark.png" width="16" height="16" alt="" aria-hidden="true" />
+                  <span class="brief-brand">{{ app_name }}</span>
+                </div>
                 <div class="brief-status-chip">
                   <span class="cobalt-dot-pulsing" aria-hidden="true"></span>
                   <span class="live-status-text">Discovery questions forming…</span>

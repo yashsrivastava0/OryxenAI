@@ -311,6 +311,24 @@ export async function bootstrapAuthPage() {
     await bootstrapAdminConsole({ auth, me: result.me });
   }
   const signIn = document.getElementById("google-sign-in");
+  const resetSignInCta = () => {
+    if (!signIn) return;
+    signIn.disabled = false;
+    signIn.classList.remove("cta-submitting");
+    const label = signIn.querySelector(".cta-label");
+    if (label) {
+      label.textContent = "Continue with Google";
+    }
+  };
+
+  window.addEventListener("pageshow", resetSignInCta);
+  window.addEventListener("focus", resetSignInCta);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      resetSignInCta();
+    }
+  });
+
   signIn?.addEventListener("click", async () => {
     signIn.disabled = true;
     ui.error("");
@@ -327,7 +345,7 @@ export async function bootstrapAuthPage() {
       });
       if (response?.error) throw response.error;
     } catch {
-      signIn.disabled = false;
+      resetSignInCta();
       ui.error("Google sign-in could not start. Please try again shortly.");
     }
   });
