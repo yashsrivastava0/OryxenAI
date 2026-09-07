@@ -11,6 +11,52 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-07 16:10 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [5bef169, ac5543e] - code-generator: root-cause both prior live failures via real DB history, fix 3 more validator/prompt bugs, live-tested with 2 more runs
+
+Owner asked for the two prior live failures (`e624bd75`, `c8cd8f1c`) to be
+understood at their actual root cause, not just described, then re-verified
+before calling anything done. Read the real DB-persisted repair/review
+history (`code_generator_events`, `generation_projection`,
+`integration_review`) instead of only the terminal `SafeIssue` summary.
+Found and fixed: (1) `e624bd75` lost its entire route batch to a 3-round
+repair-budget exhaustion on a motion-beat check requiring the blueprint's
+exact double-quoted `[data-motion-target="..."]` literal verbatim --
+`[attr='value']`/`[attr=value]` are equally valid CSS the check couldn't
+recognize, the same class of naive-substring blind spot as several prior
+fixes, just for quote style. Added `_literal_present` (exact match first,
+quote-tolerant attribute-selector regex fallback) in `source_validation.py`,
+applied to the beat marker/selector checks and `_css_rule_contains`. (2)
+`c8cd8f1c`'s real defect (distinctive-move marker on a nested div while the
+actual grid/max-width lived on its parent) survived 5 polish rounds because
+the whole-site reviewer reports it under its own code
+(`distinctive-move-selector-mismatch`), not the structural code
+`repair_source.md` already had a dedicated bullet for -- extended that
+bullet to cover the review's own code. `uv run pytest`: 993 passed (+1),
+same 1 pre-existing unrelated failure.
+
+Live-verified with the 2 more runs the owner authorized (`e7784314`,
+`4dbcabae`). Neither of the 2 just-fixed defect classes recurred. `e7784314`
+got past generation cleanly this time but still hit
+`INTEGRATION_REVIEW_UNRESOLVED` on two different findings (a missing
+progressive-disclosure control, a hero frame missing an aspect-ratio) --
+logged, not chased. `4dbcabae` reached the deepest pipeline state this
+engagement has recorded on fully fresh content (`generate: succeeded` -> DOM
+verification -> one repair round -> whole-site re-review), ending
+`needs_attention` on one narrow new finding: a CSS `gap` shorthand
+partially overridden by `column-gap` alone left `row-gap` correctly
+cascading but never present as a literal property name, which a
+finding/check requiring that exact name couldn't recognize -- same
+blind-spot pattern, this time for CSS shorthand vs. longhand. Fixed with
+route_batch.md (avoid the shorthand-plus-partial-override pattern) and
+repair_source.md (split into explicit longhands when a finding names one)
+guidance. All 3 post-fix exports (`c8cd8f1c`, `e7784314`, `4dbcabae`)
+confirmed `build_attempt: success` with a real `dist/` -- the auto-build
+fix is proven across multiple runs now, not a one-off. Still zero `ready`
+outcomes across all 4 live runs this session; see `code generator
+issues.md` for the full evidence trail and one new unresolved observation
+(no verification screenshots captured on `4dbcabae`, cause not yet
+determined).
+
 ### 2026-09-07 14:48 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [3f5b2aa] - code-generator: auto-build failed exports, fix two live-confirmed generation defects
 
 Filtered an externally-authored output-analysis doc
