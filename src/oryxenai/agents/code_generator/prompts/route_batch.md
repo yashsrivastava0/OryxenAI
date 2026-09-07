@@ -108,6 +108,19 @@ Visual and implementation contract:
   (or `min-inline-size: 0`) on itself or its flex/grid item, plus
   `max-width: 100%`, so it can shrink to its available space instead of
   forcing an overflow.
+- A distinctive move's `required_css_properties` (and any similar contract
+  requirement) names exact longhand property names such as `row-gap` or
+  `column-gap`, never a shorthand. Declaring `gap: <value>` on a base rule
+  and then overriding only `column-gap` inside a breakpoint's media query
+  leaves `row-gap` cascading in correctly (the shorthand still applies to
+  it), but no rule anywhere ever declares the literal property name
+  `row-gap` -- a check requiring that name present cannot see a shorthand as
+  satisfying it (confirmed live: exactly this pattern -- `gap` on `.approach`
+  overridden by `column-gap` alone in its `min-width` media query -- read as
+  a missing `row-gap` and rejected). When a region needs different gap
+  behavior at different breakpoints, declare `row-gap` and `column-gap`
+  explicitly in every rule that sets either one for that selector; do not
+  rely on a `gap` shorthand plus a partial longhand override.
 - Use only custom properties that exist in the compiler-emitted token groups
   or that the owning JSX defines literally as runtime style state. Never emit
   `@font-face` in route CSS; local font faces and URLs are already emitted by
