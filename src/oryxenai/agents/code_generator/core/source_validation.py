@@ -893,7 +893,7 @@ def validate_route_batch_contract(
             ("target selector", beat.get("target_selector")),
         ):
             literal = str(value or "")
-            if literal and literal not in combined_source:
+            if literal and not _literal_present(literal, combined_source):
                 motion_missing.append(f"{label} {literal}")
                 if label == "target marker":
                     source_repair_needed = True
@@ -925,7 +925,7 @@ def validate_route_batch_contract(
                     continue
                 for label in ("property_name", "before_value", "after_value"):
                     literal = str(expectation.get(label, ""))
-                    if literal and literal not in combined_source:
+                    if literal and not _literal_present(literal, combined_source):
                         motion_missing.append(f"{label} {literal}")
                         css_repair_needed = True
             if "prefers-reduced-motion" not in combined_source:
@@ -1036,6 +1036,35 @@ def _exact_selector_declarations(
     }
 
 
+_ATTR_SELECTOR_LITERAL_RE = re.compile(r'^\[([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2\]$')
+
+
+def _literal_present(literal: str, source: str) -> bool:
+    """Presence check for a blueprint-supplied marker/selector literal.
+
+    A blueprint's `target_marker`/`target_selector` (and similar) literal is
+    always written as a double-quoted CSS attribute selector, e.g.
+    `[data-motion-target="approach-spine"]`. But `[attr="value"]`,
+    `[attr='value']`, and `[attr=value]` are all valid, functionally
+    identical CSS -- a model choosing a different (still correct) quote
+    style must not be indistinguishable from one that never wrote the
+    selector at all. Try the exact literal first (covers every non-selector
+    marker shape unchanged), then fall back to a quote-tolerant match only
+    for literals that are actually shaped like a single attribute selector.
+    """
+
+    if literal in source:
+        return True
+    match = _ATTR_SELECTOR_LITERAL_RE.match(literal)
+    if match is None:
+        return False
+    attr, _quote, value = match.groups()
+    tolerant = re.compile(
+        rf'\[\s*{re.escape(attr)}\s*=\s*(?:"{re.escape(value)}"|\'{re.escape(value)}\'|{re.escape(value)})\s*\]'
+    )
+    return bool(tolerant.search(source))
+
+
 def _css_rule_contains(
     source: str,
     *,
@@ -1049,7 +1078,9 @@ def _css_rule_contains(
     )
     for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", source):
         selector, body = match.groups()
-        if all(literal in selector for literal in selector_literals) and declaration.search(body):
+        if all(
+            _literal_present(literal, selector) for literal in selector_literals
+        ) and declaration.search(body):
             return True
     return False
 
