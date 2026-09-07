@@ -68,7 +68,21 @@ Grounding and exact coverage:
   declarations, not merely an ancestor section. For grid, asymmetric, rail,
   or alignment moves, copy the matching `section_regions[*].region_selector`
   into `source_selector`, put the exact `runtime_marker` on that same rendered
-  element, and use `target_selector` for the affected descendant or peer.
+  element, and use `target_selector` for the affected peer.
+  `source_selector` and `target_selector` must each resolve to exactly one
+  element and must be true peers (siblings, or elements at the same
+  structural level) -- never an ancestor/descendant pair, and never a
+  selector that matches more than one element. A `width_ratio` relationship
+  is defined as `source_selector width / target_selector width`: if the
+  ratio needs to move, narrow the source or widen the target, never the
+  reverse. Do not pair a region container against one of its own child rows
+  as a `width_ratio` -- a container is never narrower than its own content,
+  so that pairing can only ever measure at or above `1.0` regardless of
+  design intent. For `implementation_kind: framed_evidence_sequence` or any
+  move whose true target is a repeated set (multiple cards/rows sharing one
+  selector), use `relationship: shared_alignment_axis` on two specific named
+  peers instead of `width_ratio`; `width_ratio` is only for a single
+  source/target element pair.
 - Place each required resource once in its approved section. In every
   `resource_placements[*].resource_slot_id`, copy the exact
   `resource_bindings.slots[*].resource_slot_id` value (for example, a
@@ -101,10 +115,12 @@ Grounding and exact coverage:
   implementations instead of inventing its own trigger/before-after/easing
   values — a menu you may reach for per beat where it genuinely fits, never
   a default or blanket instruction, and every other required field is still
-  populated as normal:
+  populated as normal. Every one of these three implementations fires only
+  on a viewport (IntersectionObserver) trigger; none of them supports a
+  `load` trigger, so set `trigger: viewport` on any beat using one of them:
   - `reveal-fade-rise`: viewport trigger; opacity 0->1 and
     translateY(28px->0); a smooth deceleration curve, ~600-900ms, plays once.
-  - `reveal-clip-lines`: viewport/load trigger; text wrapped in an
+  - `reveal-clip-lines`: viewport trigger; text wrapped in an
     overflow:hidden clip box, inner span translateY(115%->0) and opacity
     0->1, staggered per line/word; a pronounced deceleration curve.
   - `stagger-group`: viewport trigger on a list; each child gets

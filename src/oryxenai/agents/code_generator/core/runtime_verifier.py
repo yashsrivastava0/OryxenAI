@@ -876,7 +876,7 @@ class RuntimeVerifier:
         elif step.action == "assert_geometry":
             thresholds = {
                 "minTextPx": float(geometry_thresholds.get("min_text_px", 12.0)),
-                "minTouchTargetPx": float(geometry_thresholds.get("min_touch_target_px", 36.0)),
+                "minTouchTargetPx": float(geometry_thresholds.get("min_touch_target_px", 44.0)),
                 "maxSectionGapVh": float(geometry_thresholds.get("max_section_gap_vh", 0.9)),
                 "maxSectionOverlapRatio": float(
                     geometry_thresholds.get("max_section_overlap_ratio", 0.2)

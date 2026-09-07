@@ -26,6 +26,24 @@ class MotionPattern(NamedTuple):
     pattern_id: str
     description: str
     trusted_binding: str
+    # The one trigger value this pattern's trusted component actually
+    # implements. All three current entries bind to SharedSystems.tsx's
+    # `useInView` (IntersectionObserver) unconditionally -- there is no
+    # "load" branch anywhere in that component -- so a beat that names this
+    # pattern_id must be treated as this trigger regardless of what a
+    # planning call put in its own independent `trigger` field. Live-
+    # discovered 2026-09: reveal-clip-lines's description used to say
+    # "Viewport/load trigger", which let the planner honestly believe
+    # "load" was a real option for a pattern that can never fire on load,
+    # producing beats generation could only satisfy by bolting extra
+    # hand-authored animation onto the trusted wrapper.
+    supported_trigger: str
+    # The trusted component's JSX tag name (no angle bracket), e.g. "Reveal".
+    # source_validation.py uses this to confirm the trusted component is
+    # actually rendered, instead of checking for animation/CSS/JS details
+    # that live entirely in motion.css/SharedSystems.tsx and can never
+    # appear in a section's own owned source.
+    jsx_tag: str
 
 
 MOTION_PATTERN_CATALOGUE: tuple[MotionPattern, ...] = (
@@ -36,11 +54,13 @@ MOTION_PATTERN_CATALOGUE: tuple[MotionPattern, ...] = (
             "easeOutCubic-family, ~600-900ms, plays once."
         ),
         trusted_binding="the trusted <Reveal> component from SharedSystems.tsx",
+        supported_trigger="viewport",
+        jsx_tag="Reveal",
     ),
     MotionPattern(
         pattern_id="reveal-clip-lines",
         description=(
-            "Viewport/load trigger; text wrapped in an overflow:hidden clip "
+            "Viewport trigger; text wrapped in an overflow:hidden clip "
             "box, inner span translateY(115%->0) and opacity 0->1, staggered "
             "per line/word; easeOutExpo-family."
         ),
@@ -48,6 +68,8 @@ MOTION_PATTERN_CATALOGUE: tuple[MotionPattern, ...] = (
             'the trusted <Reveal pattern="reveal-clip-lines"> component from '
             "SharedSystems.tsx (same component as reveal-fade-rise, different pattern prop)"
         ),
+        supported_trigger="viewport",
+        jsx_tag="Reveal",
     ),
     MotionPattern(
         pattern_id="stagger-group",
@@ -59,6 +81,8 @@ MOTION_PATTERN_CATALOGUE: tuple[MotionPattern, ...] = (
             "the trusted <StaggerGroup> component from SharedSystems.tsx, "
             "which sets --stagger-index on each child automatically"
         ),
+        supported_trigger="viewport",
+        jsx_tag="StaggerGroup",
     ),
 )
 

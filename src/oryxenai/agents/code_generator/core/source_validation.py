@@ -14,6 +14,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SourceDiagnostic,
     SourceFileChange,
 )
+from oryxenai.agents.code_generator.core.motion_pattern_catalogue import get_motion_pattern
 from oryxenai.agents.code_generator.core.source_lexing import (
     static_jsx_attribute_values,
     strip_source_comments,
@@ -575,7 +576,7 @@ def validate_route_batch_contract(
             if not re.search(
                 rf"\bcontentValue\s*\(\s*[\"']{re.escape(content_id)}[\"']\s*\)",
                 owner_text,
-            ):
+            ) and not _content_key_covered_by_mapped_array(content_id, owner_text):
                 message = (
                     f"The section owner must render its approved content key through "
                     f"a direct contentValue call: {content_id}"
@@ -898,54 +899,75 @@ def validate_route_batch_contract(
                     source_repair_needed = True
                 else:
                     css_repair_needed = True
-        for expectation in beat.get("changed_properties", []):
-            if not isinstance(expectation, dict):
-                continue
-            for label in ("property_name", "before_value", "after_value"):
-                literal = str(expectation.get(label, ""))
-                if literal and literal not in combined_source:
-                    motion_missing.append(f"{label} {literal}")
-                    css_repair_needed = True
-        if "prefers-reduced-motion" not in combined_source:
-            motion_missing.append("prefers-reduced-motion final state")
-            css_repair_needed = True
-        if str(beat.get("trigger", "")) == "viewport" and not re.search(
-            r"\bIntersectionObserver\b|\banimation-timeline\s*:\s*view\s*\(|\bview-timeline\b",
-            combined_source,
-        ):
-            motion_missing.append("viewport trigger implementation")
-            source_repair_needed = True
-        opacity_starts_hidden = any(
-            isinstance(expectation, dict)
-            and str(expectation.get("property_name", "")).strip() == "opacity"
-            and str(expectation.get("before_value", "")).strip() == "0"
-            for expectation in beat.get("changed_properties", [])
-        )
-        if str(beat.get("trigger", "")) == "viewport" and opacity_starts_hidden:
-            target_selector = str(beat.get("target_selector", "")).strip()
-            target_tail = target_selector.rsplit(" ", 1)[-1]
-            if not _css_rule_contains(
-                combined_source,
-                selector_literals=[target_selector],
-                property_name="opacity",
-                property_value="1",
-            ):
-                motion_missing.append(f"default-visible {target_selector} opacity: 1")
-                css_repair_needed = True
-            if not _css_rule_contains(
-                combined_source,
-                selector_literals=['[data-motion-ready="true"]', target_tail],
-                property_name="opacity",
-                property_value="0",
-            ):
-                motion_missing.append('guarded [data-motion-ready="true"] opacity: 0')
-                css_repair_needed = True
-            if not re.search(
-                r"setAttribute\(\s*[\"']data-motion-ready[\"']\s*,\s*[\"']true[\"']\s*\)",
-                combined_source,
-            ):
-                motion_missing.append('setAttribute("data-motion-ready", "true")')
+        trusted_pattern = get_motion_pattern(str(beat.get("pattern_id", "") or ""))
+        if trusted_pattern is not None:
+            # A beat bound to a catalogue pattern_id delegates its entire
+            # animation implementation -- opacity/transform states,
+            # reduced-motion handling, and the data-motion-ready wiring --
+            # to motion.css/SharedSystems.tsx, which are trusted,
+            # pipeline-owned files never included in a section's own
+            # `combined_source`. Checking for those literal implementation
+            # details here would always fail a correct, trusted-component
+            # usage (confirmed live: a valid Reveal-based hero was rejected
+            # this way) and pushes the model toward hand-authoring a second,
+            # redundant animation just to satisfy the checker. The only
+            # thing this unit's own source must prove is that the trusted
+            # component is actually rendered.
+            jsx_tag_pattern = re.compile(rf"<\s*{re.escape(trusted_pattern.jsx_tag)}\b")
+            if not jsx_tag_pattern.search(combined_source):
+                motion_missing.append(
+                    f"a rendered <{trusted_pattern.jsx_tag}> from SharedSystems.tsx"
+                )
                 source_repair_needed = True
+        else:
+            for expectation in beat.get("changed_properties", []):
+                if not isinstance(expectation, dict):
+                    continue
+                for label in ("property_name", "before_value", "after_value"):
+                    literal = str(expectation.get(label, ""))
+                    if literal and literal not in combined_source:
+                        motion_missing.append(f"{label} {literal}")
+                        css_repair_needed = True
+            if "prefers-reduced-motion" not in combined_source:
+                motion_missing.append("prefers-reduced-motion final state")
+                css_repair_needed = True
+            if str(beat.get("trigger", "")) == "viewport" and not re.search(
+                r"\bIntersectionObserver\b|\banimation-timeline\s*:\s*view\s*\(|\bview-timeline\b",
+                combined_source,
+            ):
+                motion_missing.append("viewport trigger implementation")
+                source_repair_needed = True
+            opacity_starts_hidden = any(
+                isinstance(expectation, dict)
+                and str(expectation.get("property_name", "")).strip() == "opacity"
+                and str(expectation.get("before_value", "")).strip() == "0"
+                for expectation in beat.get("changed_properties", [])
+            )
+            if str(beat.get("trigger", "")) == "viewport" and opacity_starts_hidden:
+                target_selector = str(beat.get("target_selector", "")).strip()
+                target_tail = target_selector.rsplit(" ", 1)[-1]
+                if not _css_rule_contains(
+                    combined_source,
+                    selector_literals=[target_selector],
+                    property_name="opacity",
+                    property_value="1",
+                ):
+                    motion_missing.append(f"default-visible {target_selector} opacity: 1")
+                    css_repair_needed = True
+                if not _css_rule_contains(
+                    combined_source,
+                    selector_literals=['[data-motion-ready="true"]', target_tail],
+                    property_name="opacity",
+                    property_value="0",
+                ):
+                    motion_missing.append('guarded [data-motion-ready="true"] opacity: 0')
+                    css_repair_needed = True
+                if not re.search(
+                    r"setAttribute\(\s*[\"']data-motion-ready[\"']\s*,\s*[\"']true[\"']\s*\)",
+                    combined_source,
+                ):
+                    motion_missing.append('setAttribute("data-motion-ready", "true")')
+                    source_repair_needed = True
         if motion_missing:
             repair_paths = list(dict.fromkeys([motion_source_relative, motion_style_relative]))
             diagnostic_relative = (
@@ -1727,6 +1749,45 @@ def _validate_imports(text: str, path: str, allowed_packages: set[str]) -> None:
                 f"The import '{package}' is not in the trusted dependency ledger.",
                 file=path,
             )
+
+
+_MAPPED_ARRAY_DECLARATION_RE = re.compile(
+    r"(?:const|let)\s+(?P<name>\w+)\s*(?::[^=\[\]]+)?=\s*\[(?P<items>[^\]]*)\]"
+)
+_QUOTED_ARRAY_ITEM_RE = re.compile(r"[\"']([^\"'\\]+)[\"']")
+
+
+def _content_key_covered_by_mapped_array(content_id: str, owner_text: str) -> bool:
+    """A bounded, statically-known alternative to a direct literal
+    contentValue("id") call: a top-level `const NAME = [...]` array whose
+    exact content_id is one of its literal string elements, mapped with
+    `NAME.map(param => ...)` where the callback body passes that same
+    param, unmodified, into contentValue(param).
+
+    No general JS interpreter -- the map parameter must flow into
+    contentValue verbatim, not through a template literal or other
+    transform. This mirrors the ts-morph-free but AST-based resolution
+    scripts/audit-source.mjs already performs for the same
+    array-of-literals + `.map(param => contentValue(param))` shape
+    (staticLiteralValue's identifier/mappedCollection branches); this
+    regex-based check exists only so the durable pipeline's pre-toolchain
+    gate does not reject a binding the real npm audit would accept.
+    """
+
+    for declaration in _MAPPED_ARRAY_DECLARATION_RE.finditer(owner_text):
+        items = set(_QUOTED_ARRAY_ITEM_RE.findall(declaration.group("items")))
+        if content_id not in items:
+            continue
+        array_name = declaration.group("name")
+        for map_call in re.finditer(
+            rf"\b{re.escape(array_name)}\s*\.\s*map\s*\(\s*\(?\s*(\w+)\s*\)?\s*=>",
+            owner_text,
+        ):
+            param = map_call.group(1)
+            window = owner_text[map_call.end() : map_call.end() + 4000]
+            if re.search(rf"\bcontentValue\s*\(\s*{re.escape(param)}\s*\)", window):
+                return True
+    return False
 
 
 _CONTENT_KEY_HASH_SUFFIX_RE = re.compile(r"^(?P<prefix>.*-)(?P<suffix>[0-9a-f]{6,10})$")

@@ -71,6 +71,14 @@ actually gone.
   region selector, move the marker and declarations onto that exact region;
   declarations on its section ancestor or a descendant do not satisfy the
   move.
+- A width-ratio distinctive-move diagnostic (source vs. `RUNTIME_DISTINCTIVE_`
+  runtime codes) is always `source_selector width / target_selector width`. If
+  the reported ratio is above the required range, narrow the source element or
+  widen the target element; if below, do the reverse. Do not narrow the
+  target when the diagnostic says the ratio is too high -- that moves the
+  ratio further from the required range, not into it. Verify the arithmetic
+  direction against the diagnostic's own reported ratio before choosing which
+  element to resize.
 - `SOURCE_ROUTE_BATCH_MOTION_INVALID` / `MOTION_BEATS_NOT_IMPLEMENTED` (this
   also covers a whole-site review finding naming a mismatch between a motion
   state attribute and another marker on a different element): implement
