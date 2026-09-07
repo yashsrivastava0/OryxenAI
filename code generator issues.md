@@ -1,6 +1,90 @@
 # Code Generator Issues
 
-## 2026-09-07 — Live-testing the PLAN.MD pass: deepest run yet, plus 3 new findings (Claude Code)
+## 2026-09-07 — Auto-build on export, two filtered fixes from an external output-analysis doc, live-tested with 2 fresh runs (Claude Code) [3f5b2aa]
+
+User asked for two things: portfolios should auto-build (`npm ci`/`npm run
+build`) without manual intervention, and a filtered pass over
+`docs/research/code-gen-output-analysis.md` (another AI's analysis of past
+generator output) — explicitly not trusted wholesale, only what's still
+open and necessary. Cross-referenced its findings against this file and
+`DECISIONS.md` D-077: almost everything it raised (fake typecheck,
+missing `@types/node`, nav data-target, 44px touch targets, mobile hero
+overflow, tablet breakpoints) was already fixed and correctly excluded.
+Two items were real and still open, plus a build-automation gap found by
+tracing the actual pipeline code:
+
+1. **Auto-build gap on the failure path.** `run_clean_build` (`npm ci` →
+   typecheck → `npm run build`) already ran automatically for every
+   *promoted* run and its `dist/` was already copied into the export — that
+   part of the "auto-build" ask was already done. But `export_failed_run`
+   (used for `needs_attention`/`failed` runs) never called it, so a failed
+   export always shipped source-only with a blank `not_recorded` report,
+   forcing exactly the manual `npm ci`/`npm run build` this session did by
+   hand last time just to look at a rejected run. Fixed:
+   `export_failed_run` now attempts a best-effort clean build first
+   (never fatal to the export) and records a real `build_attempt` status.
+2. **A second, bigger instance of the same gap, found live.** The
+   generation stage's own `needs_attention` path
+   (`generation_orchestrator.py::_fail`) never called `export_failed_run`
+   at all — an independent code path from the one already wired in
+   `code_generator_verification.py`. Since most runs this engagement has
+   ever produced fail *during* generation (repair budget exhausted,
+   integration review unresolved) rather than after it, this was the
+   majority-case export gap, not an edge case. Fixed the same way.
+3. **`blueprint-resource-role-mismatch` repairs were cosmetic, not
+   structural** (this is last session's own live rejection, confirmed via
+   this session's terminal-failure record: a resource specified as a
+   narrow "tactile edge accent" rendered as a square block, and 2 repair
+   rounds didn't fix the actual geometry). Added explicit repair guidance
+   in `repair_source.md`: drop the square `aspect-ratio`, constrain to a
+   narrow width, place as a flex/grid sidebar column — a mechanical target
+   instead of a vague verbal description.
+4. **Tab/selector content fully unmounted, not just hidden** — a genuinely
+   new defect, confirmed by directly reading last session's exported
+   source (`home-selected-work-2f0991ad.tsx`): 3 of 4 project detail
+   blocks were gated behind `{selectedProject === N && (...)}`, so they
+   were never in the DOM at all unless that exact tab was clicked. Not
+   previously reported anywhere in this file or PLAN.MD. Added guidance to
+   `route_batch.md`: keep every item's content mounted and toggle
+   visibility, or derive from a static array — never fully exclude it.
+
+**Live-tested with the 2 fresh full-pipeline runs the owner explicitly
+authorized** (real OpenAI calls, canonical brief pack
+`01-31-04-09-94ae4a9c`), both started clean (not resumed/retried):
+
+- Run 1 (`e624bd75`): `plan` → `acquire` succeeded, `generate` ended
+  `needs_attention` / `SOURCE_REPAIR_EXHAUSTED` on a motion beat
+  (`motion:home:approach-progress`, missing `[data-motion-target=
+  "approach-spine"]` opacity states) — a different, not-yet-investigated
+  motion-authoring defect, unrelated to anything in this session's scope.
+  **This run predates fix #2 above** (it's what surfaced the gap) — no
+  export exists for it at all, confirming the bug directly: nothing under
+  `output/code-gen-output/` for this run id.
+- Run 2 (`c8cd8f1c`, after fix #2 landed): `plan` → `acquire` succeeded,
+  `generate` ended `needs_attention` / `INTEGRATION_REVIEW_UNRESOLVED`
+  after 5 polish rounds (exact finding text not in the safe export, per
+  the still-deferred PLAN.MD problem #11/#12 — not pursued further this
+  pass). The export this time is real:
+  `output/code-gen-output/14-46-07-09-2026-c8cd8f1c/portfolio.json` shows
+  `"build_attempt": {"status": "success"}` and a real `dist/` sits next to
+  `source/` — the auto-build fix confirmed working end to end on an
+  actual failed run. Its `home-selected-work` section also came out
+  completely differently this time: a plain always-rendered `<ol>` list
+  with all 4 projects' content present unconditionally (no interactive
+  tab state at all), and its resource placement is a narrow
+  8rem–14rem grid sidebar column, not a square block — neither defect
+  class recurred, though with only one data point each this is supporting
+  evidence, not proof the prompt changes are what caused it.
+
+**Honest bottom line:** neither run reached `ready`. General pipeline
+reliability (a run reaching `ready` without manual intervention) remains
+unproven — every fresh run this engagement has recorded has ended in
+`needs_attention`, on a different finding each time. What's actually
+proven: the auto-build-on-export gap is fixed and directly confirmed live;
+the two filtered defect-class fixes did not recur in this session's two
+runs (weak but real evidence, not a guarantee). Run 1's `SOURCE_REPAIR_
+EXHAUSTED` / motion-beat finding is a new, real, not-yet-investigated
+issue for a future pass.
 
 Live-tested the fixes below (this file's next entry down) against the
 canonical brief pack (`01-31-04-09-94ae4a9c`). Result: `plan` -> `acquire`
