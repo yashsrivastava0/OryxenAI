@@ -91,6 +91,15 @@ actually gone.
   leaving the grid/width declarations on the old element (or vice versa) is
   the same defect restated, not a fix. Both the marker and the declarations
   that make the required width ratio true must land on the same one element.
+- A finding that names a specific CSS longhand property as missing (for
+  example `row-gap`, `column-gap`, `margin-top`, `border-width`) while a
+  shorthand (`gap`, `margin`, `padding`, `border`, `inset`, ...) is already
+  present is not satisfied by the shorthand, even when it happens to
+  produce the same computed value through the cascade -- the check looks
+  for the literal named property. Replace the shorthand with its full set
+  of explicit longhand declarations in that same rule (and in every other
+  rule for that selector that sets any part of the same shorthand) so the
+  exact required property name is textually present.
 - A width-ratio distinctive-move diagnostic (source vs. `RUNTIME_DISTINCTIVE_`
   runtime codes) is always `source_selector width / target_selector width`. If
   the reported ratio is above the required range, narrow the source element or
