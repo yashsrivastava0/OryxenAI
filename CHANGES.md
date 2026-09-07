@@ -11,6 +11,53 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-07 18:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [7f09506] - code-generator: unverified candidate preview for needs_attention runs; fix stale-job cost bug and uncommitted export_receipt write
+
+Switched from the scratch-script harness to the real `/dev/code-generator-
+development` control room (API + worker + preview gateway, driven by real
+browser clicks) at the owner's request, to watch a run and see a preview
+the way a real user would. Two real bugs surfaced by doing this live that
+neither code review nor unit tests had caught: (1) starting a real worker
+immediately began reprocessing 95 job rows the scratch script had left
+permanently `queued` since 2026-09-05 (it calls handlers directly and
+never marks the underlying row complete) -- real paid OpenAI calls against
+runs that already concluded days ago, with the new run stuck at the back
+of a 96-job queue; caught within seconds via the worker log, stopped,
+cancelled the 95 stale rows with a reason recorded, restarted clean --
+not a pipeline defect, an operational hazard from mixing the scratch
+harness with a real worker. (2) The new preview feature below silently
+didn't persist on first implementation: `compare_and_swap()` never commits
+internally, and none of its three call sites (nor a manual verification
+script) called `db.commit()` after it -- the write looked successful and
+raised nothing, but silently rolled back. Caught only by checking the
+actual API response after implementing, not by trusting a green test run;
+fixed all three call sites plus the script.
+
+Added the feature itself: a needs_attention run's own already-built
+`dist/` (real since the earlier auto-build fix) now shows in the dev
+harness's preview panel instead of "Preview unavailable," via a new
+dev-only route serving that run's export folder directly off disk
+(path-traversal-checked, reusing the existing `_safe_path`/
+`_inject_preview_base`/`_headers` helpers the promoted-preview and
+ephemeral candidate gateways already use). Clearly labeled "Unverified
+candidate · not promoted" (amber, distinct from both the mint "verified"
+and coral "error" states) so it can never be mistaken for a passed run.
+`export_failed_run`'s three call sites now also write an `export_receipt`
+onto the run row so the run-state API and Output tab can find the export
+at all -- previously only the promoted-success path populated this field.
+Live-verified end-to-end (not just unit tests): triggered a real run from
+the UI, watched it progress stage-by-stage, confirmed the candidate route
+serves real assets (JS/CSS/fonts/images, all 200), confirmed the embedded
+preview bridge handshake completes, watched the actual generated
+portfolio render in the frame, and confirmed the state survives a full
+page reload. `uv run pytest`: 996 passed, same 1 pre-existing unrelated
+failure; `node --test tests/frontend/code_generator_development.test.mjs`:
+17/17 passed. This run's own pipeline outcome (zero repair rounds needed
+at whole-site review -- a first this session -- then a new
+`RUNTIME_REGION_WIDTH_RATIO` finding affecting 3 regions identically,
+suggesting one shared systemic cause) is logged in `code generator
+issues.md`, not fixed this pass.
+
 ### 2026-09-07 16:10 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [5bef169, ac5543e] - code-generator: root-cause both prior live failures via real DB history, fix 3 more validator/prompt bugs, live-tested with 2 more runs
 
 Owner asked for the two prior live failures (`e624bd75`, `c8cd8f1c`) to be
@@ -311,24 +358,13 @@ blocks a shared execution lane needed by due work they can run. This fixes
 repeat Discovery stalls behind stale Code Generator leases and adds the
 restricted-worker regression missing from D-073.
 
-### 2026-09-06 01:19 +05:30 - Codex (GPT-5 / OpenAI) - [68f1cd1] - pipeline: make stalled agent runs observable and recoverable
-
-Added safe job lifecycle metadata, foreground scheduling and lease recovery,
-local metadata-only test traces, and deterministic Discovery questions for
-substantive long pastes. Identical completed starts now return the stored
-result without duplicate job/model work; records D-073.
-
-### 2026-09-06 01:08 +05:30 - Codex (GPT-5 / OpenAI) - [861e981] - discovery: recover stalled jobs and support stop
-
-Added foreground scheduling and stale-lease recovery so Discovery requests
-cannot remain behind an abandoned model-generation job, plus durable stop
-fencing at the Discovery API, state, run, and worker-result boundaries.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [68f1cd1] - Added safe job lifecycle metadata, foreground scheduling/lease recovery, and deterministic Discovery questions for long pastes; records D-073.
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [861e981] - Added foreground scheduling and stale-lease recovery for Discovery, plus durable stop fencing across the API/state/run/worker-result boundaries.
 - 2026-09-06 - Codex (GPT-5 / OpenAI) - [cdf7a18] - Added durable cancellation fencing for Content Architect/Visual Design Director, a reusable three-stage job projection, and bounded trace export/copy support.
 - 2026-09-05 - Codex (GPT-5 / OpenAI) - [963375b] - Recorded R2 storage/credentials readiness while VM-side configuration remained pending.
 - 2026-09-05 - Codex (GPT-5 / OpenAI) - [caa8f33] - Completed the authenticated three-stage Preact product handoff (Discovery/Content Architect/Visual Design Director) with retry/session fixes.
@@ -375,5 +411,5 @@ fencing at the Discovery API, state, run, and worker-result boundaries.
 ## Summary (as of last compaction — 2026-09-07)
 
 - Recent detailed entries retained: 15
-- Compacted milestone bullets: 22
-- Last updated: 2026-09-07 14:48 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Compacted milestone bullets: 24
+- Last updated: 2026-09-07 18:50 +05:30 — Claude Code (Sonnet 5 / Anthropic)
