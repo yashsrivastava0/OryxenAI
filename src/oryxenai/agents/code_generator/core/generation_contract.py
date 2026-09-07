@@ -137,6 +137,27 @@ def build_generation_contract(
         for item in site.get("public_content", [])
         if isinstance(item, dict)
     }
+    # Site-wide, not scoped to `unit` -- every route_compose unit renders the
+    # same complete nav bar, so each one needs the full approved edge list,
+    # not just edges touching its own route. Content Architect's approved
+    # public_content_manifest.nav is the only source of cross-route
+    # navigation destinations; nothing else in this contract ever exposed it
+    # to generation, which is why route_compose.md could only ever describe
+    # same-page section-fragment links, never real route-to-route nav.
+    public_content_manifest = site.get("public_content_manifest", {})
+    navigation_edges = [
+        {
+            "route_id": str(entry.get("target", "")),
+            "route_path": str(routes_by_id[str(entry.get("target", ""))].get("path", "")),
+            "label": str(entry.get("label", "")).strip() or str(entry.get("target", "")),
+        }
+        for entry in (
+            public_content_manifest.get("nav", [])
+            if isinstance(public_content_manifest, dict)
+            else []
+        )
+        if isinstance(entry, dict) and str(entry.get("target", "")) in routes_by_id
+    ]
     blueprint = plan.experience_blueprint
     v4_blueprint = blueprint if isinstance(blueprint, ExperienceBlueprintV4) else None
     v4 = v4_blueprint is not None
@@ -438,6 +459,7 @@ def build_generation_contract(
             ],
         },
         "routes": route_contracts,
+        "navigation_edges": navigation_edges,
         "acceptance_markers": markers,
         "interactions": interactions,
         # Echo contract for _validate_v4_generation_coverage. Keep these exact
@@ -569,17 +591,39 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         if section_ids and not route.get("section_anchors_required", True) and route_shell:
             lines.append(
                 "- the trusted RouteShell owns the navigation landmark, but this composer "
-                "must supply its navigation prop with one compact <nav> anchor for every "
-                "approved section selector below; use literal href values so the source "
-                "audit can prove the complete single-page navigation"
+                "must supply its navigation prop with one compact <nav> containing BOTH of "
+                "the following link groups, in this order, so the source audit can prove "
+                "the complete navigation"
+            )
+            lines.append(
+                "  1. one same-page section-fragment anchor for every approved section "
+                "selector below; use literal href values and a truthful label of at most "
+                "three words derived from the section id"
             )
             for section in route.get("sections", []):
                 selector = str(section.get("section_selector", ""))
                 if selector.startswith("#"):
+                    lines.append(f'     - {section.get("section_id")}: href="{selector}"')
+            navigation_edges = contract.get("navigation_edges", [])
+            if navigation_edges:
+                lines.append(
+                    "  2. one route link for EVERY entry below, rendered identically on "
+                    "every route so the whole site shares one consistent nav -- including "
+                    "an entry whose route_id equals this route's own route_id. Each link's "
+                    "opening tag MUST carry both attributes together: "
+                    'href={publicRouteUrl("<route_path>")} and '
+                    'data-navigation-target="<route_id>". Do not invent, omit, reorder, or '
+                    "relabel these entries; use each entry's given label verbatim."
+                )
+                for edge in navigation_edges:
                     lines.append(
-                        f'  - {section.get("section_id")}: href="{selector}"; '
-                        "use a truthful label of at most three words derived from the section id"
+                        f'     - {edge.get("route_id")}: label "{edge.get("label")}"; '
+                        f'route_path "{edge.get("route_path")}"'
                     )
+            lines.append(
+                "  Every link in both groups needs a visible keyboard focus state and at "
+                "least a 44px inline and block hit area."
+            )
         markers = [
             item["source_marker"]
             for item in contract.get("acceptance_markers", [])
@@ -771,13 +815,20 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         for beat in motion_beats:
             pattern = get_motion_pattern(str(beat.get("pattern_id", "") or ""))
             if pattern is not None:
+                # The trusted binding below implements exactly one trigger
+                # (pattern.supported_trigger). Show that value, not the
+                # beat's own independently-planned `trigger` field -- a
+                # mismatch there is a planning artifact this contract must
+                # not ask the model to satisfy; the trusted component wins.
                 lines.append(
                     f"- {beat.get('motion_id')}: marker {beat.get('target_marker')}; target "
-                    f"{beat.get('target_selector')}; trigger {beat.get('trigger')} at "
+                    f"{beat.get('target_selector')}; trigger {pattern.supported_trigger} at "
                     f"{beat.get('trigger_selector')}. Apply trusted motion pattern "
                     f"`{pattern.pattern_id}` exactly -- use {pattern.trusted_binding} rather than "
-                    "hand-authoring new CSS/JS for this beat. Keep the exact target marker on the "
-                    "rendered element and the reduced-motion rule below."
+                    "hand-authoring new CSS/JS for this beat. This trusted component only ever "
+                    f"fires on {pattern.supported_trigger}; do not add extra hand-authored code "
+                    "to satisfy any other trigger this beat may have been planned with. Keep the "
+                    "exact target marker on the rendered element and the reduced-motion rule below."
                 )
                 continue
             lines.append(

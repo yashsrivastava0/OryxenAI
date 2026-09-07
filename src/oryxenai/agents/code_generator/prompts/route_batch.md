@@ -118,7 +118,7 @@ Visual and implementation contract:
   DOM node than `data-motion-ready`, and a compound selector requiring both
   will never match either one.
 - Every visible link, button, and disclosure has a keyboard name, focus state,
-  and at least a 36px inline and block hit area.
+  and at least a 44px inline and block hit area.
 - Put every assigned interaction on the actual target element identified by
   its `target_selector`. That same JSX opening tag must carry both the exact
   `data-interaction-id` attribute and the blueprint `literal_marker`. An

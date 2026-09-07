@@ -384,7 +384,7 @@ desktop = { width = 1440, height = 900 }
 
 [code_generator_verification.geometry_thresholds]
 min_text_px = 12.0
-min_touch_target_px = 36.0
+min_touch_target_px = 44.0
 max_section_gap_vh = 0.9
 max_section_overlap_ratio = 0.2
 
