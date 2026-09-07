@@ -1,8 +1,3 @@
-import type { ComponentType } from "react";
+import type { RegisteredRoute } from "../types/generated-contracts";
 
-export const ROUTES = [] as const satisfies readonly {
-  routeId: string;
-  path: string;
-  title: string;
-  component: ComponentType;
-}[];
+export const ROUTES: readonly RegisteredRoute[] = [];

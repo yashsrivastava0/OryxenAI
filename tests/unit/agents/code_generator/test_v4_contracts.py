@@ -780,6 +780,83 @@ def test_v4_composer_contract_delegates_content_to_completed_batches() -> None:
     )
 
 
+def test_v4_composer_contract_exposes_approved_cross_route_navigation_edges() -> None:
+    """Live-discovered 2026-09: route_compose.md only ever told the model to
+    render same-page section-fragment links, never real route-to-route nav
+    -- because Content Architect's approved public_content_manifest.nav was
+    never threaded into the generation contract at all. The runtime
+    verifier's navigation journey (verification_plan.py) waits for
+    [data-navigation-target="<route_id>"], but nothing in generation ever
+    had a reason to emit it. This is the exact wiring that closes that gap."""
+
+    plan = SitePlan(
+        plan_id="composer-nav-contract",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="Readable at every viewport",
+                reduced_motion_outcome="Content remains visible without motion",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        experience_blueprint=_blueprint(),
+    )
+    composer = WorkUnit(
+        unit_id="route-home-compose",
+        kind="route_compose",
+        route_id="home",
+        route_ids=["home"],
+        owns_paths=["src/routes/home/index.tsx", "src/routes/home/route.css"],
+        depends_on=["foundation", "route-home-batch-1"],
+    )
+    contract = build_generation_contract(
+        unit=composer,
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [
+                    {"route_id": "home", "path": "/", "storage_key": "home"},
+                    {"route_id": "projects", "path": "/projects", "storage_key": "projects"},
+                ],
+                "public_content": [
+                    {
+                        "route_id": "home",
+                        "sections": [
+                            {"section_id": "hero", "content": {"headline": "Approved headline"}}
+                        ],
+                    }
+                ],
+                "public_content_manifest": {
+                    "nav": [
+                        {"label": "Home", "target": "home"},
+                        {"label": "Projects", "target": "projects"},
+                        {"label": "Unapproved", "target": "not-a-real-route"},
+                    ]
+                },
+                "facts": [],
+            },
+            "design/visual-direction.json": {
+                "global": {"must_preserve": ["Aarav Mehta", "Senior Architect"]}
+            },
+            "execution/contract.json": {"slots": []},
+        },
+        operation="route_compose",
+        owned_paths=composer.owns_paths,
+    )
+
+    assert contract["navigation_edges"] == [
+        {"route_id": "home", "route_path": "/", "label": "Home"},
+        {"route_id": "projects", "route_path": "/projects", "label": "Projects"},
+    ]
+    instructions = render_contract_instructions(contract)
+    assert '- home: label "Home"; route_path "/"' in instructions
+    assert '- projects: label "Projects"; route_path "/projects"' in instructions
+    assert "data-navigation-target" in instructions
+    assert "44px inline and block hit area" in instructions
+
+
 def test_v4_generation_contract_exposes_exact_unit_coverage_arrays() -> None:
     plan = SitePlan(
         plan_id="batch-coverage-contract",

@@ -504,6 +504,49 @@ export default function Hero() {
     )
 
 
+def test_route_batch_contract_accepts_content_ids_mapped_from_a_literal_array(tmp_path) -> None:
+    """Live-discovered 2026-09: an approved key rendered via a statically
+    known `const IDS = ["a", "b"]; IDS.map(id => contentValue(id))` array is
+    a genuine, safe binding -- scripts/audit-source.mjs's real TS-AST check
+    already resolves it (staticLiteralValue's mappedCollection branch), but
+    this Python-side pre-toolchain gate used to demand the literal call
+    verbatim and reject it before npm's real check ever ran."""
+
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    hero = section / "Hero.tsx"
+    hero.write_text(
+        """const contentValue = (key: string) => key;
+const CARD_IDS = ["content:home:hero:headline", "content:home:hero:kind"];
+export default function Hero() {
+  return <section id="hero" data-content-id="home:hero">
+    <a data-interaction-id="interaction:home:hero:contact"
+       data-interaction="hero-contact">
+      {CARD_IDS.map((id) => <span key={id}>{contentValue(id)}</span>)}
+    </a>
+  </section>;
+}
+""",
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        ["src/routes/home/sections/Hero.tsx"],
+        route_id="home",
+        section_ids=["home:hero"],
+        content_ids_by_section={
+            "home:hero": ["content:home:hero:headline", "content:home:hero:kind"]
+        },
+        section_selectors_by_section={"home:hero": "#hero"},
+        interaction_ids=["interaction:home:hero:contact"],
+        interaction_markers={"interaction:home:hero:contact": 'data-interaction="hero-contact"'},
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING" for item in diagnostics)
+
+
 def test_route_batch_contract_requires_materialized_images_motion_and_state(tmp_path) -> None:
     section = tmp_path / "src" / "routes" / "home" / "sections"
     section.mkdir(parents=True)
@@ -809,6 +852,62 @@ export default function SelectedWork() {
     assert diagnostics[0].code == "SOURCE_ROUTE_BATCH_MOTION_INVALID"
     assert diagnostics[0].file == "src/routes/home/sections/SelectedWork.css"
     assert 'guarded [data-motion-ready="true"] opacity: 0' in (diagnostics[0].normalized_message)
+
+
+def test_route_batch_contract_accepts_a_trusted_reveal_pattern_with_no_hand_authored_css(
+    tmp_path,
+) -> None:
+    """Live-discovered 2026-09: a beat bound to a catalogue pattern_id
+    delegates its entire animation (opacity/transform states, reduced
+    motion, data-motion-ready wiring) to motion.css/SharedSystems.tsx --
+    trusted files never included in a section's own owned source. The old
+    checker demanded those implementation details verbatim in the section's
+    own files regardless of pattern_id, so a correct, trusted <Reveal>
+    usage with no hand-authored animation was always rejected."""
+
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    hero = section / "Hero.tsx"
+    hero.write_text(
+        """import { Reveal } from "../../../components/generated/SharedSystems";
+export default function Hero() {
+  return <section id="hero" data-content-id="home:hero">
+    <Reveal data-motion-target="hero-copy">
+      <h1>Approved headline</h1>
+    </Reveal>
+  </section>;
+}
+""",
+        encoding="utf-8",
+    )
+    hero_css = section / "Hero.css"
+    hero_css.write_text(
+        '#hero [data-motion-target="hero-copy"] { max-width: 60ch; }\n', encoding="utf-8"
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        ["src/routes/home/sections/Hero.tsx", "src/routes/home/sections/Hero.css"],
+        route_id="home",
+        section_ids=["home:hero"],
+        section_selectors_by_section={"home:hero": "#hero"},
+        motion_beats=[
+            {
+                "motion_id": "motion:hero",
+                "section_id": "home:hero",
+                "target_marker": 'data-motion-target="hero-copy"',
+                "target_selector": '#hero [data-motion-target="hero-copy"]',
+                "trigger": "viewport",
+                "pattern_id": "reveal-fade-rise",
+                "changed_properties": [
+                    {"property_name": "opacity", "before_value": "0", "after_value": "1"}
+                ],
+            }
+        ],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
 
 
 def test_route_composer_contract_requires_complete_section_navigation(tmp_path) -> None:
