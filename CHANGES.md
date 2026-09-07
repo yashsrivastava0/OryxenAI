@@ -11,6 +11,50 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-07 14:48 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [3f5b2aa] - code-generator: auto-build failed exports, fix two live-confirmed generation defects
+
+Filtered an externally-authored output-analysis doc
+(`docs/research/code-gen-output-analysis.md`) against actual code state
+per the owner's explicit "don't trust it wholesale" instruction — most of
+its findings were already fixed (cross-referenced against D-077 and this
+file) and correctly left alone. Fixed what was still real: (1)
+`export_failed_run()` now attempts a best-effort clean build
+(`run_clean_build`) before exporting a needs_attention/failed run, so its
+`dist/` and an honest `build_attempt` status ship automatically instead of
+requiring a manual `npm ci`/`npm run build` to inspect it — the
+"auto-build" capability the owner asked for; it already existed for
+promoted runs, this closes the gap on the failure path. (2) Discovered
+live, mid-session: the generation stage's own needs_attention path
+(`generation_orchestrator.py::_fail`) never called `export_failed_run` at
+all — a second, independent gap, and the majority-case one, since most
+runs this engagement has recorded fail during generation rather than
+after it. Wired the same best-effort export into it. (3) Added explicit
+geometry-repair guidance to `repair_source.md` for
+`blueprint-resource-role-mismatch` findings (a resource rendered as a
+square block instead of its specified narrow edge-accent role survived 2
+repair rounds unfixed last session — the guidance now gives a mechanical
+target instead of a vague description). (4) Added guidance to
+`route_batch.md` against gating tab/selector content behind unmounting
+JSX conditionals, after confirming a live defect where 3 of 4 project
+detail blocks were never mounted in the DOM at all. `uv run pytest`: 992
+passed, 1 pre-existing unrelated failure (confirmed present on a clean
+tree, same as last pass).
+
+Live-verified with the 2 fresh full-pipeline runs the owner authorized
+(`e624bd75`, `c8cd8f1c`, canonical brief pack, real OpenAI calls). Neither
+reached `ready` — run 1 hit a new, unrelated motion-beat defect
+(`SOURCE_REPAIR_EXHAUSTED` on `motion:home:approach-progress`, logged for
+a future pass, not fixed here); run 2 hit `INTEGRATION_REVIEW_UNRESOLVED`
+after 5 polish rounds. What is directly confirmed: run 1 (before fix #2)
+produced zero export; run 2 (after fix #2) shipped a real `dist/` with
+`build_attempt: success` in its `portfolio.json` — the auto-build fix
+working end to end on an actual failed run. Neither run reproduced the
+resource-role-mismatch or content-unmounting defect classes, though with
+one data point each that's supporting evidence, not proof. See `code
+generator issues.md` for full evidence and the honest reliability
+caveat — general pipeline reliability (reaching `ready` unattended)
+remains unproven.
+
 ### 2026-09-07 12:10 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [78117e7] - code-generator: implement PLAN.MD Step 1 + 5 generation-time authoring fixes, live-verified as the deepest run yet
 
 Implemented a second externally authored reliability handoff (`PLAN.MD`)
@@ -234,47 +278,16 @@ Added foreground scheduling and stale-lease recovery so Discovery requests
 cannot remain behind an abandoned model-generation job, plus durable stop
 fencing at the Discovery API, state, run, and worker-result boundaries.
 
-### 2026-09-06 01:06 +05:30 - Codex (GPT-5 / OpenAI) - [cdf7a18] - pipeline: cancellable stage jobs and safe trace export
-
-Added durable cancellation fencing for Content Architect and Visual Design
-Director, a reusable first-three-stage job projection, bounded client trace
-export/copy support, and regression coverage.
-
-### 2026-09-05 23:08 +05:30 - Codex (GPT-5 / OpenAI) - [963375b] - deployment: record R2 readiness
-
-Recorded the user's report that R2 storage and credentials are already
-available, while distinguishing the VM-side configuration still pending and
-preserving the rule that no R2 secret values enter chat or source control.
-
-### 2026-09-05 22:53 +05:30 - Codex (GPT-5 / OpenAI) - [caa8f33] - frontend: complete authenticated three-stage handoff
-
-Completed the authenticated Preact product handoff for the first three
-explicit stages. Fixed progressive Discovery answer persistence and retry
-classification, surfaced stage-start failures, scoped admin session hints,
-cleared private drafts/idempotency state on logout, built the frontend bundle
-inside Docker, and extended the opt-in live smoke path through Content
-Architect and Visual Design Director with explicit approvals.
-
-### 2026-09-05 22:25 +05:30 - Codex (GPT-5 / OpenAI) - [7a0c68f] - deployment: record local environment audit findings
-
-Recorded the redacted local `.env` audit in the live deployment checkpoint:
-the file is Git-ignored and populated, but duplicate authorization variables
-and one malformed line must be cleaned before a separate production `.env` is
-created on the VM. No secret values were displayed or copied.
-
-### 2026-09-05 22:19 +05:30 - Codex (GPT-5 / OpenAI) - [a2a8a60] - deployment: record live Azure VM and SSH checkpoint
-
-Recorded the completed Azure VM provisioning, final networking/NSG settings,
-current public/private addresses, cross-device SSH handoff, completed Ubuntu
-package preparation, and the remaining Docker/application deployment gates.
-Marked the older wizard document as historical so future agents use the live
-post-creation checkpoint.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [cdf7a18] - Added durable cancellation fencing for Content Architect/Visual Design Director, a reusable three-stage job projection, and bounded trace export/copy support.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [963375b] - Recorded R2 storage/credentials readiness while VM-side configuration remained pending.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [caa8f33] - Completed the authenticated three-stage Preact product handoff (Discovery/Content Architect/Visual Design Director) with retry/session fixes.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [7a0c68f] - Recorded a redacted local `.env` audit ahead of production `.env` creation.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [a2a8a60] - Recorded completed Azure VM provisioning, networking, and SSH handoff checkpoint.
 - 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [d6cde91] - Added bounded live-search fallback for expired pinned Pixabay URLs during Code Generator acquisition and normalized mechanical token/CSS length mistakes; records D-072.
 - 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [34c638b] - Fixed a silent `--color-accent` token collision between raw colors and shadcn theme slots, enriched content-key/distinctive-move repair diagnostics; records D-071.
 - 2026-09-05 - Codex (GPT-5 / OpenAI) - [8a2066a] - Added provider-neutral `BudgetedModelClient` to reserve prompt/completion charges before transmission and stop at a session cost cap; records D-070.
@@ -315,6 +328,6 @@ post-creation checkpoint.
 
 ## Summary (as of last compaction — 2026-09-07)
 
-- Recent detailed entries retained: 19
-- Compacted milestone bullets: 17
-- Last updated: 2026-09-07 12:10 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Recent detailed entries retained: 15
+- Compacted milestone bullets: 22
+- Last updated: 2026-09-07 14:48 +05:30 — Claude Code (Sonnet 5 / Anthropic)
