@@ -11,6 +11,52 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-07 12:10 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [78117e7] - code-generator: implement PLAN.MD Step 1 + 5 generation-time authoring fixes, live-verified as the deepest run yet
+
+Implemented a second externally authored reliability handoff (`PLAN.MD`)
+in full for Step 1 (truthful scaffold toolchain) and the generation-side
+authoring fixes behind 5 of its 13 confirmed findings, deliberately
+deferring the Step 3 component rewrite (RegionLayout/ReadableCopy/
+MediaFrame) and Steps 5/7/8/9 (context reduction, candidate-isolation/
+export forensics, campaign budget persistence, dev-harness polish) as
+larger lifts the owner's own instructions said to deprioritize this pass —
+see D-077. Scaffold: `dev`/`preview`/`check` npm scripts added;
+`typecheck` now actually checks the app (it ran against the root
+`tsconfig.json`'s empty `files: []` before, checking nothing) via both
+project configs; `@types/node` fixed a real latent `ROUTES` typing bug the
+new typecheck immediately caught; README added. Generation-time fixes:
+threaded Content Architect's approved cross-route nav edges into
+generation (previously impossible for `data-navigation-target` to ever
+appear in output at all); accepted a statically-known `.map()` content
+binding the real TS-AST audit already resolved but a stricter Python
+pre-gate rejected first; stopped demanding trusted-motion-pattern
+implementation details that live entirely in files a section's own source
+never contains (unsatisfiable by construction for every correct trusted
+beat); clarified distinctive-move ratio direction and peer-selector
+requirements; paired every `aspect-ratio` with `min-width: 0`/`max-width:
+100%` and anchored responsive breakpoints at the exact configured
+768px/1440px verification widths; bumped touch target 36px -> 44px.
+`uv run pytest tests/unit/agents/code_generator/`: 260 passed, 1
+pre-existing unrelated failure (confirmed present on a clean tree).
+
+Live-verified via one fresh run (`7df7af45-bcf6-41ad-9d63-ce5271df9f0a`)
+against the canonical brief pack: reached `generate: succeeded`, DOM/
+runtime verification, one bounded repair round, and a full whole-site
+quality re-review — the deepest state this engagement has recorded — with
+zero navigation/content-binding/motion/touch-target diagnostics anywhere.
+Confirmed directly in the real generated source and by building and
+viewing it in a browser (see `code generator issues.md` for exact
+evidence: `data-navigation-target`, aspect-ratio pairing, 768/1440
+breakpoints, 44px control size, a real `<Reveal>` usage). The run still
+ended `needs_attention` on one genuine composition finding (an image's
+`aspect-ratio: 1/1` read as too prominent for its intended "narrow tactile
+edge accent" role) — a correct reviewer judgment, not a bug. Also surfaced
+and logged, not fixed this pass: a thematically unrelated hero fallback
+image from live resource search, and two Windows-specific operational
+notes (an offline-npm-cache warm-up this pass's own new dependency
+required once, and a directory-lock footgun from leaving a shell cd'd
+into a run's workspace).
+
 ### 2026-09-06 21:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce] - code-generator: verify an external plan, then fix 10 real bugs across 5 live-tested runs
 
 Started from a reliability-repair plan authored by another model (no live
@@ -224,31 +270,16 @@ package preparation, and the remaining Docker/application deployment gates.
 Marked the older wizard document as historical so future agents use the live
 post-creation checkpoint.
 
-### 2026-09-05 21:15 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [d6cde91] - code-generator: resource acquisition, generation orchestrator, development schemas
-
-Added bounded live-search fallback for expired pinned Pixabay URLs during Code Generator acquisition, avoided repeating structurally unfixable findings across mid-generation polish rounds, surfaced model refusal reasons, and normalized mechanical token/CSS length mistakes; records D-072.
-
-### 2026-09-05 19:30 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [34c638b] - code-generator: prevent token collision and sharpen repair diagnostics
-
-Fixed a silent `--color-accent` token collision between raw colors and shadcn theme slots at schema and compiler layers, enriched content-key and distinctive-move repair diagnostics with concrete near-miss/selector evidence, and added planner collision guidance; records D-071.
-
-### 2026-09-05 16:40 +05:30 - Codex (GPT-5 / OpenAI) - [8a2066a] - core: enforce pre-call budget ceiling for live runs
-
-Added provider-neutral `BudgetedModelClient` to serialize structured calls and reserve prompt plus maximum completion charges before transmission, stopping execution when a session cost cap is reached; records D-070.
-
-### 2026-09-05 15:23 +05:30 - Codex (GPT-5 / OpenAI) - [5b86779] - core: scoped model-result caching and receipts
-
-Added session-scoped PostgreSQL caching for validated structured model results across Discovery, Content Architect, Visual Design Director, and Build Preparation with single-flight leases, prompt-cache hints, and telemetry; records D-069.
-
-### 2026-09-05 14:30 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [aedf96c] - code-generator: repair control flow, review prefix caching, motion catalogue
-
-Closed repair control-flow gaps by allowing one bounded extra repair attempt and resilient polish round skips on cannot-complete, added prompt prefix-caching for whole-site integration review, and introduced deterministic motion pattern catalogue; records D-068.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [d6cde91] - Added bounded live-search fallback for expired pinned Pixabay URLs during Code Generator acquisition and normalized mechanical token/CSS length mistakes; records D-072.
+- 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [34c638b] - Fixed a silent `--color-accent` token collision between raw colors and shadcn theme slots, enriched content-key/distinctive-move repair diagnostics; records D-071.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [8a2066a] - Added provider-neutral `BudgetedModelClient` to reserve prompt/completion charges before transmission and stop at a session cost cap; records D-070.
+- 2026-09-05 - Codex (GPT-5 / OpenAI) - [5b86779] - Added session-scoped PostgreSQL caching for validated structured model results across Discovery/Content Architect/Visual Design Director/Build Preparation; records D-069.
+- 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [aedf96c] - Closed repair control-flow gaps, added review prompt prefix-caching, introduced the deterministic motion pattern catalogue; records D-068.
 - 2026-09-05 - Codex (GPT-5 / OpenAI) - [0ce8ecd] - Added canonical first-deployment path (Azure Linux VM, Docker Compose, Supabase auth, Cloudflare R2, Caddy HTTPS) with a production-overlay runbook.
 - 2026-09-05 - Codex (GPT-5 / OpenAI) - [903477a, e1173df] - Established Azure VM provisioning checkpoints and portal session recovery handoffs.
 - 2026-09-05 - Antigravity (Gemini 3.8 Flash / Google) - [9fabd58] - Consolidated all agent outputs under single canonical `output/` directory, purging obsolete prebuild artifacts.
@@ -282,8 +313,8 @@ Closed repair control-flow gaps by allowing one bounded extra repair attempt and
 
 ---
 
-## Summary (as of last compaction — 2026-09-06)
+## Summary (as of last compaction — 2026-09-07)
 
-- Recent detailed entries retained: 13
-- Compacted milestone bullets: 12
-- Last updated: 2026-09-06 21:15 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Recent detailed entries retained: 19
+- Compacted milestone bullets: 17
+- Last updated: 2026-09-07 12:10 +05:30 — Claude Code (Sonnet 5 / Anthropic)

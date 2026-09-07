@@ -1,5 +1,130 @@
 # Code Generator Issues
 
+## 2026-09-07 — Live-testing the PLAN.MD pass: deepest run yet, plus 3 new findings (Claude Code)
+
+Live-tested the fixes below (this file's next entry down) against the
+canonical brief pack (`01-31-04-09-94ae4a9c`). Result: `plan` -> `acquire`
+-> `generate: succeeded` -> verification's DOM/runtime checks -> one
+bounded repair round -> a full whole-site quality re-review — the deepest
+state this engagement has ever recorded, with zero navigation,
+content-binding, motion, or touch-target diagnostics anywhere in the run.
+Confirmed directly in the real generated output, not just by the run
+finishing: `data-navigation-target="home"` present with a resolved
+`publicRouteUrl(...)` href; every generated `aspect-ratio` rule paired with
+`min-width: 0; max-width: 100%`; breakpoints anchored at exactly
+`min-width: 768px`/`1440px` (not an invented round number); `--size-control:
+2.75rem` (44px); a `<Reveal>` trusted-pattern beat present with no
+hand-authored duplicate animation. Built the candidate locally (`npm ci`,
+`npm run build` — both clean) and viewed it in a real browser: clean
+editorial typography, working nav, no visible layout breakage at desktop
+width.
+
+The run still ended `needs_attention`, not `ready` — its sole blocking
+finding was a genuine, correct composition judgment from the whole-site
+reviewer (`.selected-work__image { aspect-ratio: 1/1 }` renders as "a
+prominent square block" instead of the blueprint's "narrow tactile edge
+accent"), unrelated to anything fixed this pass. That is the review stage
+working as intended, not a defect.
+
+**Three new findings surfaced, not fixed this pass:**
+
+1. **Hero fallback image was thematically unrelated** (out of this
+   session's scope — `resource_scout.py`'s live-search fallback, not
+   touched). The pinned hero image candidate 400'd from Pixabay; the live
+   fallback search then returned gold Oscar-statue trophies for a "Senior
+   UI/UX Designer" portfolio hero. The fallback mechanism worked (no
+   empty/broken image), but its search-query relevance is poor. Worth a
+   follow-up: either tighten the fallback query construction or fail
+   toward a safer neutral placeholder rather than an unrelated top hit.
+2. **Offline npm cache didn't have this pass's new dependency** (an
+   operational gap this pass's own change created, not a pre-existing
+   bug): adding `@types/node` to the scaffold pulled in a new transitive
+   `undici-types` package. This project's dependency pipeline is
+   deliberately `--offline` against a dedicated cache
+   (`.workspace/npm-cache`, config `code_generator_dependencies.
+   npm_cache_root` — separate from npm's own default global cache), so the
+   very first live run after this pass's scaffold change failed with
+   `TOOLCHAIN_INSTALL_FAILED` / `ENOTCACHED` until that cache was warmed
+   once (`npm_config_cache=<abs path> npm install` from a repo using the
+   updated `package.json`). This is a one-time environment step, not a
+   code fix, but it's exactly the kind of gap PLAN.MD's own Step 1 called
+   out ("an empty cache must produce a toolchain error before generation
+   spends money") — confirmed live: it did produce a clear, correctly
+   attributed error, it just needed a human/operator step to resolve, same
+   as any other scaffold dependency change would.
+3. **A Windows directory-lock footgun for whoever runs this live**, not a
+   pipeline bug: manually `cd`-ing a shell into a run's
+   `.workspace/code-generator-generation/<run_id>/repo/` directory to
+   inspect or test it, then leaving that shell there, blocks a subsequent
+   generation attempt's own directory swap (`GENERATION_SWAP_FAILED`,
+   "could not be swapped in under filesystem locks") — Windows locks a
+   directory against rename/delete while any process has it as its current
+   working directory. Fix was simply `cd`-ing back out. Noting this so a
+   future session doesn't mistake it for a real concurrency bug.
+
+Two transient, unrelated environment hiccups during this same session,
+also not code bugs: an `EPERM` on npm's own temp-directory cleanup
+(resolved on retry — a different, one-off Windows file-locking blip, not
+the `ENOTCACHED` cache-miss above), and one background process killed by
+the OS for low system memory (16GB machine, 3.3GB free at the time, with
+several other heavy apps open concurrently — not caused by anything this
+session started).
+
+## 2026-09-07 — PLAN.MD implementation pass: scaffold truthfulness + 5 generation-time authoring gaps (Claude Code)
+
+Given the Astra/Codex-authored `PLAN.MD` reliability handoff (commit
+`78117e7`), implemented Step 1 in full plus the generation-side authoring
+fixes for findings #2, #4, #7, #8, #9, deliberately deferring Step 3
+(RegionLayout/ReadableCopy/MediaFrame — the mobile-overflow root cause) and
+the distinctive-move schema rework as separate, larger lifts not rushed
+into this pass. Full rationale/diff is in commit `78117e7`; short version:
+
+- **Scaffold typecheck was checking nothing** (finding #1): root
+  `tsconfig.json` has `files: []` + project references, but the script ran
+  bare `tsc --noEmit` against it. Fixed to check both project configs; this
+  immediately caught a real latent bug (`ROUTES` array typed as `readonly
+  []`/`never` when empty). Added `dev`/`preview`/`check` scripts, `@types/
+  node`, and a README — live-verified `npm ci/check/build/dev/preview` all
+  work and a deliberate type error fails both typecheck and build.
+- **Navigation verification could never pass** (finding #4): Content
+  Architect's approved `public_content_manifest.nav` was never threaded
+  into generation at all — route_compose.md only ever taught same-page
+  section-fragment links. `data-navigation-target` literally never had a
+  reason to exist in generated output. Wired the approved nav edges into
+  `generation_contract.py` with an explicit `data-navigation-target` +
+  `publicRouteUrl(...)` instruction.
+- **A correct `.map()`-based content binding was rejected** (finding #9):
+  `source_validation.py`'s literal-only regex blocked a statically-known
+  `const IDS=[...]; IDS.map(id => contentValue(id))` pattern that
+  `scripts/audit-source.mjs`'s real TS-AST checker already resolves
+  correctly — the stricter Python pre-gate never let generation reach the
+  smarter check. Added a bounded (non-interpreting) fallback for exactly
+  this shape.
+- **Trusted motion patterns were unsatisfiable** (finding #8, the big one):
+  `source_validation.py` demanded `changed_properties`/reduced-motion/
+  `setAttribute` literal substrings for every beat, but a `pattern_id`-bound
+  beat's entire implementation lives in trusted `motion.css`/
+  `SharedSystems.tsx` — files never in a section's own owned source. This
+  guaranteed every correctly-implemented trusted-pattern beat failed.
+  Gated the whole check behind "no pattern_id"; a trusted beat now only
+  needs to prove the component is rendered. Also fixed `reveal-clip-lines`'s
+  own catalogue description, which falsely advertised a `load` trigger
+  alongside `viewport` when the bound component is IntersectionObserver-only.
+- **Distinctive-move ratio direction** (finding #7): `planner.md` told the
+  model to pair a region's own ancestor selector as `source_selector`
+  against a descendant row as `target_selector` for `width_ratio` — a
+  container can never be narrower than its own content, so that pairing
+  can only ever measure >= 1.0. Clarified peer-only selectors, ratio
+  direction, and that a repeated-row target needs `shared_alignment_axis`,
+  not `width_ratio`. Added the same direction reminder to `repair_source.md`.
+- Touch target bumped 36px -> 44px per the plan (config, runtime_verifier
+  fallback, prompt prose).
+
+`uv run pytest tests/unit/agents/code_generator/`: 260 passed, 1
+pre-existing failure (`test_v2_architecture.py`'s
+`materialize_acquisition_resources` "path"-key test) confirmed present on
+a clean `git stash` tree — unrelated to this pass, not touched.
+
 ## 2026-09-06 evening — live re-test surfaces a self-inflicted regression (Claude Code)
 
 First live run after today's 5 fixes (see the section below) reached
