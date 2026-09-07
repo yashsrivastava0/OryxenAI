@@ -8,7 +8,10 @@ from pathlib import Path
 
 import oryxenai.agents.code_generator.core.portfolio_export as portfolio_export
 import oryxenai.jobs.handlers.code_generator_verification as code_generator_verification
-from oryxenai.agents.code_generator.core.portfolio_export import export_failed_run
+from oryxenai.agents.code_generator.core.portfolio_export import (
+    build_export_receipt,
+    export_failed_run,
+)
 from oryxenai.core.settings import get_settings
 
 
@@ -110,6 +113,35 @@ async def test_export_failed_run_ships_a_real_dist_when_the_source_builds(
     assert '"status": "success"' in portfolio
     report = (result / "generation-report.md").read_text(encoding="utf-8")
     assert "Build attempt: `success`" in report
+
+
+def test_build_export_receipt_shapes_a_discoverable_receipt(tmp_path: Path) -> None:
+    """A needs_attention run's export previously existed only on disk, with
+    nothing in the run's own state pointing at it -- the frontend's Output
+    tab showed a blank folder/dist even though a real export existed. This
+    receipt is what the run-state API now surfaces so the UI (and a
+    candidate-preview route) can find it, mirroring the exact shape the
+    promoted-export success path already writes."""
+    exported = tmp_path / "export" / "16-43-07-09-2026-0ffd6cec"
+    (exported / "dist").mkdir(parents=True)
+    (exported / "source").mkdir(parents=True)
+
+    receipt = build_export_receipt(exported)
+
+    assert receipt["status"] == "exported"
+    assert receipt["folder"] == "16-43-07-09-2026-0ffd6cec"
+    assert receipt["dist_path"] == "dist"
+    assert receipt["source_path"] == "source"
+    assert receipt["relative_path"].endswith("16-43-07-09-2026-0ffd6cec")
+
+
+def test_build_export_receipt_reports_no_dist_when_the_build_failed(tmp_path: Path) -> None:
+    exported = tmp_path / "export" / "run-with-no-build"
+    (exported / "source").mkdir(parents=True)
+
+    receipt = build_export_receipt(exported)
+
+    assert receipt["dist_path"] == ""
 
 
 async def test_export_failed_run_stays_source_only_when_the_build_fails(

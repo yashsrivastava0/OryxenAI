@@ -317,9 +317,34 @@ async def export_failed_run(
     )
 
 
+def build_export_receipt(exported: Path) -> dict[str, Any]:
+    """Build the same compact receipt shape the promoted-export path already
+    writes onto a run's `export_receipt` field, from an export folder that
+    `export_failed_run` produced. Callers CAS-write the result themselves --
+    this only shapes the dict so a needs_attention run's export is as
+    discoverable through the run API/UI as a promoted run's export already
+    is, instead of only existing on disk with nothing pointing at it."""
+
+    try:
+        relative_export_path = exported.resolve().relative_to(repository_root().resolve()).as_posix()
+    except ValueError:
+        relative_export_path = exported.name
+    return {
+        "status": "exported",
+        "relative_path": relative_export_path,
+        "folder": exported.name,
+        "source_path": "source",
+        "dist_path": "dist" if (exported / "dist").is_dir() else "",
+        "metadata_path": "portfolio.json",
+        "report_path": "generation-report.md",
+        "exported_at": datetime.now(UTC).isoformat(),
+    }
+
+
 __all__ = [
     "DEFAULT_EXPORT_ROOT",
     "DEFAULT_EXPORT_TIMEZONE",
+    "build_export_receipt",
     "export_failed_run",
     "export_portfolio",
 ]

@@ -78,3 +78,48 @@ async def test_attached_development_shell_retains_future_auth_boundary() -> None
     assert "auth-client.js" in response.text
     assert "dev-auth-bootstrap.mjs" in response.text
     assert "code-generator-development-detached-bootstrap.mjs" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_candidate_preview_serves_a_needs_attention_runs_own_export(tmp_path) -> None:
+    """A needs_attention run's own already-built dist/ was previously
+    invisible to a human -- the run-state API had nothing pointing at it and
+    the dev harness only ever showed a promoted (ready) preview. This route
+    serves that dist/ directly, unauthenticated (this whole harness has no
+    auth boundary in detached mode already), for the frontend's unverified-
+    candidate fallback."""
+    settings = Settings()
+    settings.code_generator_development.enabled = True
+    settings.auth.development_harness_mode = "detached"
+    settings.code_generator_verification.export_root = str(tmp_path)
+    folder = "16-43-07-09-2026-0ffd6cec"
+    dist_dir = tmp_path / folder / "dist"
+    dist_dir.mkdir(parents=True)
+    (dist_dir / "index.html").write_text(
+        "<html><head><title>t</title></head><body>hi</body></html>", encoding="utf-8"
+    )
+    (dist_dir / "assets").mkdir()
+    (dist_dir / "assets" / "app.js").write_text("console.log('hi')", encoding="utf-8")
+    app = create_app(settings)
+    override_test_identity(app, role="admin")
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        index = await client.get(f"/dev/code-generator-development/candidate-preview/{folder}/")
+        asset = await client.get(
+            f"/dev/code-generator-development/candidate-preview/{folder}/assets/app.js"
+        )
+        traversal = await client.get(
+            "/dev/code-generator-development/candidate-preview/"
+            f"{folder}/assets/../../../../etc/passwd"
+        )
+        missing_folder = await client.get(
+            "/dev/code-generator-development/candidate-preview/does-not-exist/"
+        )
+    assert index.status_code == 200
+    assert "oryxenai-preview-base" in index.text
+    assert f"/candidate-preview/{folder}/" in index.text
+    assert asset.status_code == 200
+    assert asset.text == "console.log('hi')"
+    assert traversal.status_code == 404
+    assert missing_folder.status_code == 404

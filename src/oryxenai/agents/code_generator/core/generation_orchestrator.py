@@ -2253,15 +2253,31 @@ class CodeGeneratorGenerationOrchestrator:
         # such a run gets. Never allowed to affect the failure-reporting flow
         # above; a run that failed before any source existed exports nothing.
         try:
-            from oryxenai.agents.code_generator.core.portfolio_export import export_failed_run
+            from oryxenai.agents.code_generator.core.portfolio_export import (
+                build_export_receipt,
+                export_failed_run,
+            )
             from oryxenai.core.settings import get_settings
 
-            await export_failed_run(
-                settings=get_settings(),
+            settings = get_settings()
+            exported = await export_failed_run(
+                settings=settings,
                 run_id=str(run_id),
                 reason=issue.code,
                 issues=issues,
             )
+            if exported is not None:
+                receipt = build_export_receipt(exported)
+                async with sessionmaker() as db:
+                    repo = CodeGeneratorDevelopmentRepository(db)
+                    current = await repo.get(run_id)
+                    if current is not None:
+                        await repo.compare_and_swap(
+                            run_id,
+                            expected_revision=current.revision,
+                            values={"export_receipt": receipt},
+                        )
+                        await db.commit()
         except Exception:
             logger.warning(
                 "failed-run export could not be written run_id=%s", run_id, exc_info=True
