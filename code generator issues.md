@@ -1,5 +1,59 @@
 # Code Generator Issues
 
+## 2026-09-07 (evening) — Live dev-harness end-to-end test surfaces a stale-job cost bug and an uncommitted-write bug; adds unverified candidate preview (Claude Code) [7f09506]
+
+Owner asked to switch from the scratch script harness to the real `/dev/
+code-generator-development` control room (API + worker + preview gateway,
+driven by real browser clicks) so a run could actually be watched and
+previewed the way a real user would. Two real bugs found this way that
+no amount of code review or unit testing would have caught:
+
+1. **Starting a real worker immediately began burning money on stale
+   work.** The scratch script (`scratch/run_live_generation.py`) calls
+   job handlers directly and never marks the underlying `background_jobs`
+   row complete. 95 such rows had piled up since 2026-09-05 across this
+   whole engagement. The moment a real worker started, it began
+   reprocessing them oldest-first -- real paid OpenAI calls against runs
+   that already concluded days ago -- with the new run stuck at the back
+   of a 96-job queue. Caught within seconds by noticing the worker log
+   showed generation-stage operations when the new run was still on
+   `plan`. Stopped the worker, cancelled all 95 stale rows (recorded with
+   a reason, not deleted), restarted clean. Not a pipeline defect --
+   an operational hazard specific to mixing the scratch harness with a
+   real worker, now understood and documented.
+2. **The needs_attention preview feature (below) silently didn't
+   persist**, caught only by checking the actual API response after
+   implementing it, not by trusting a green test run. `compare_and_swap()`
+   never commits internally; none of the three `export_receipt`-writing
+   call sites (nor a manual verification script) called `db.commit()`
+   after it. The write looked like it succeeded and produced no error,
+   but silently rolled back. Fixed all three call sites plus the
+   verification script; confirmed persistence via a direct API check and
+   a full page reload before considering it done.
+
+**Feature added, live-verified end-to-end:** a needs_attention run's own
+already-built `dist/` (real since the auto-build fix earlier today) is
+now shown in the dev harness's preview panel instead of "Preview
+unavailable" -- clearly labeled "Unverified candidate · not promoted"
+(amber, distinct from the mint "Verified preview promoted" and the coral
+error state) so it can never be mistaken for a passed run. Verified live:
+triggered a real run from the UI, watched it progress through every
+stage via a Monitor loop, confirmed the candidate route serves real
+assets (JS/CSS/fonts/images, all 200), confirmed the embedded preview
+bridge handshake completes ("Embedded preview connected."), saw the
+actual generated portfolio render inside the frame, and confirmed the
+state survives a full page reload -- directly addressing the owner's own
+worry that a refresh would lose it.
+
+**This run's actual pipeline outcome, for the record:** reached the
+whole-site review with zero repair rounds needed (a first this session),
+then failed final DOM/runtime verification on `RUNTIME_REGION_WIDTH_RATIO`
+-- three different regions (`selected-work`, `approach`, `experience`)
+all measured the identical 0.877 ratio, each just outside its own
+individual allowed range, suggesting one shared systemic cause (likely a
+page-level container width) rather than three unrelated defects. Not
+investigated this pass -- logged for a future one.
+
 ## 2026-09-07 (later) — Root-caused both prior live failures from real DB history, fixed 3 more validator/prompt bugs, live-tested with 2 more fresh runs (Claude Code) [5bef169, ac5543e]
 
 User corrected a run-numbering mix-up: the run they saw succeed and produce
