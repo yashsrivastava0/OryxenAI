@@ -1982,7 +1982,7 @@ async def _needs_attention(
         from oryxenai.agents.code_generator.core.portfolio_export import export_failed_run
         from oryxenai.core.settings import get_settings
 
-        export_failed_run(
+        await export_failed_run(
             settings=get_settings(),
             run_id=str(run_id),
             reason=issue.code,

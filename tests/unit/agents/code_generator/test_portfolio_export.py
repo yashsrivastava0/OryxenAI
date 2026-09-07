@@ -19,10 +19,12 @@ def _settings_with_roots(tmp_path: Path):
     return settings
 
 
-def test_export_failed_run_returns_none_when_nothing_was_generated_yet(tmp_path: Path) -> None:
+async def test_export_failed_run_returns_none_when_nothing_was_generated_yet(
+    tmp_path: Path,
+) -> None:
     settings = _settings_with_roots(tmp_path)
 
-    result = export_failed_run(
+    result = await export_failed_run(
         settings=settings,
         run_id="00000000-0000-0000-0000-000000000000",
         reason="PLANNER_OUTPUT_INVALID",
@@ -31,7 +33,12 @@ def test_export_failed_run_returns_none_when_nothing_was_generated_yet(tmp_path:
     assert result is None
 
 
-def test_export_failed_run_exports_the_existing_source_tree(tmp_path: Path) -> None:
+async def test_export_failed_run_exports_the_existing_source_tree(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The build attempt is exercised separately below; here it's stubbed
+    out to keep this test a fast, hermetic unit test with no real npm/vite
+    subprocess."""
     settings = _settings_with_roots(tmp_path)
     run_id = "11111111-1111-1111-1111-111111111111"
     repo_dir = tmp_path / "workspace" / run_id / "repo"
@@ -43,7 +50,12 @@ def test_export_failed_run_exports_the_existing_source_tree(tmp_path: Path) -> N
     screenshots_dir.mkdir(parents=True)
     (screenshots_dir / "direct_home.png").write_bytes(b"not a real png, just bytes")
 
-    result = export_failed_run(
+    async def fake_build_attempt(**_kwargs):
+        return {"status": "skipped", "diagnostics": []}
+
+    monkeypatch.setattr(portfolio_export, "_attempt_best_effort_build", fake_build_attempt)
+
+    result = await export_failed_run(
         settings=settings,
         run_id=run_id,
         reason="DOM_RUNTIME_FAILED",
@@ -58,7 +70,79 @@ def test_export_failed_run_exports_the_existing_source_tree(tmp_path: Path) -> N
     assert '"export_reason": "DOM_RUNTIME_FAILED"' in portfolio
     assert '"status": "needs_attention"' in portfolio
     assert "RUNTIME_TOUCH_TARGET_TOO_SMALL" in portfolio
-    assert (result / "generation-report.md").is_file()
+    assert '"status": "skipped"' in portfolio
+    report = (result / "generation-report.md").read_text(encoding="utf-8")
+    assert "Build attempt: `skipped`" in report
+
+
+async def test_export_failed_run_ships_a_real_dist_when_the_source_builds(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression test for the auto-build-on-export fix: a needs_attention
+    export whose source is actually buildable must ship a real dist/ and an
+    honest 'success' build status, not force the reader to build it by hand."""
+    settings = _settings_with_roots(tmp_path)
+    run_id = "44444444-4444-4444-4444-444444444444"
+    repo_dir = tmp_path / "workspace" / run_id / "repo"
+    repo_dir.mkdir(parents=True)
+
+    class _FakeManifest:
+        pass
+
+    async def fake_run_clean_build(repo_dir_arg: Path, **_kwargs):
+        assert repo_dir_arg == repo_dir
+        dist_dir = repo_dir_arg / "dist"
+        dist_dir.mkdir(parents=True)
+        (dist_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+        return _FakeManifest(), []
+
+    monkeypatch.setattr(portfolio_export, "run_clean_build", fake_run_clean_build)
+
+    result = await export_failed_run(
+        settings=settings,
+        run_id=run_id,
+        reason="QUALITY_REVIEW_REJECTED_AFTER_REPAIR",
+    )
+
+    assert result is not None
+    assert (result / "dist" / "index.html").is_file()
+    portfolio = (result / "portfolio.json").read_text(encoding="utf-8")
+    assert '"status": "success"' in portfolio
+    report = (result / "generation-report.md").read_text(encoding="utf-8")
+    assert "Build attempt: `success`" in report
+
+
+async def test_export_failed_run_stays_source_only_when_the_build_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A build failure during the best-effort export attempt must never
+    break the export -- it stays source-only, same as before this change,
+    with the failure recorded instead of silently dropped."""
+    settings = _settings_with_roots(tmp_path)
+    run_id = "55555555-5555-5555-5555-555555555555"
+    repo_dir = tmp_path / "workspace" / run_id / "repo"
+    repo_dir.mkdir(parents=True)
+
+    from oryxenai.agents.code_generator.core.build_runner import diagnostic as make_diagnostic
+
+    async def fake_run_clean_build(repo_dir_arg: Path, **_kwargs):
+        return None, [make_diagnostic("INSTALL_FAILED", "no package.json", phase="install")]
+
+    monkeypatch.setattr(portfolio_export, "run_clean_build", fake_run_clean_build)
+
+    result = await export_failed_run(
+        settings=settings,
+        run_id=run_id,
+        reason="TOOLCHAIN_INSTALL_FAILED",
+    )
+
+    assert result is not None
+    assert not (result / "dist").exists()
+    portfolio = (result / "portfolio.json").read_text(encoding="utf-8")
+    assert '"status": "failed"' in portfolio
+    assert "INSTALL_FAILED" in portfolio
+    report = (result / "generation-report.md").read_text(encoding="utf-8")
+    assert "Build attempt: `failed`" in report
 
 
 async def test_verification_handler_exports_on_needs_attention(monkeypatch) -> None:
@@ -74,7 +158,7 @@ async def test_verification_handler_exports_on_needs_attention(monkeypatch) -> N
             "code": "DOM_RUNTIME_FAILED",
         }
 
-    def fake_export_failed_run(**kwargs):
+    async def fake_export_failed_run(**kwargs):
         calls.append(kwargs)
         return None
 
@@ -98,7 +182,7 @@ async def test_verification_handler_does_not_export_on_success(monkeypatch) -> N
     async def fake_execute(payload, **_kwargs):
         return {"status": "succeeded", "run_id": "33333333-3333-3333-3333-333333333333"}
 
-    def fake_export_failed_run(**kwargs):
+    async def fake_export_failed_run(**kwargs):
         calls.append(kwargs)
         return None
 

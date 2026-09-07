@@ -170,6 +170,19 @@ Resource and content contract:
   state value, transition, keyboard behavior, and focus behavior from the
   generation contract. A matching href alone is insufficient when the
   contract requires activated state or target focus.
+- When a section shows one of several equivalent content items through
+  interactive state (a project list with a detail panel, tabs, an
+  accordion), never gate each item's approved content in a separate
+  `{state === itemId && (...)}`-style JSX block — that fully unmounts every
+  non-active item's content from the DOM, so it renders nowhere until that
+  exact item is selected and is invisible to any check or reader that
+  doesn't interact first. Keep every item's approved content present in the
+  DOM at all times and toggle only its visibility, either with one block per
+  item using `hidden={state !== itemId}` (or the equivalent `aria-hidden` +
+  CSS pairing), or by deriving the active item's fields from a static
+  approved-content array (`ITEMS[state]`) rendered into one always-mounted
+  block. Either pattern keeps approved content real and present regardless
+  of which item the user currently has selected.
 - Copy the complete ordered `unit.resource_slot_ids` list exactly into the
   returned `resource_slot_ids` coverage array. Include optional package,
   recipe, and component slots even when the assigned section source does not

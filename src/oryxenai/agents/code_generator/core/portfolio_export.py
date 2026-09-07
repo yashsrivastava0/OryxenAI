@@ -8,6 +8,7 @@ logged as an event and never fails a promoted run.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from collections.abc import Callable
@@ -17,6 +18,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from oryxenai.agents.code_generator.core import fs_safe
+from oryxenai.agents.code_generator.core.build_runner import run_clean_build
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
 DEFAULT_EXPORT_ROOT = "output/code-gen-output"
@@ -189,6 +191,12 @@ def _generation_report(payload: dict[str, Any]) -> str:
     )
     handoff = payload.get("evaluator_handoff")
     screenshots_path = handoff.get("screenshots_path", "") if isinstance(handoff, dict) else ""
+    build_attempt = payload.get("build_attempt")
+    build_attempt_status = (
+        build_attempt.get("status", "not_recorded")
+        if isinstance(build_attempt, dict)
+        else "not_recorded"
+    )
     lines = [
         "# OryxenAI generation report",
         "",
@@ -215,6 +223,7 @@ def _generation_report(payload: dict[str, Any]) -> str:
         "## Pipeline evidence",
         f"- Quality review: `{quality_status}`",
         f"- Verification: `{verification_status}`",
+        f"- Build attempt: `{build_attempt_status}`",
         f"- Provenance: `{provenance_status}`",
         f"- Recorded model-call receipts: `{call_count}`",
         f"- Generation request rounds: `{request_rounds}`",
@@ -233,7 +242,37 @@ def _generation_report(payload: dict[str, Any]) -> str:
     return "\n".join(str(line) for line in lines) + "\n"
 
 
-def export_failed_run(
+async def _attempt_best_effort_build(
+    *, repo_dir: Path, settings: Any, run_id: str
+) -> dict[str, Any]:
+    """Try to produce a real `dist/` for a run that did not reach promotion,
+    so an evaluator (or a human) does not have to `npm ci`/`npm run build`
+    by hand just to look at a needs_attention/failed export. This reuses the
+    same clean-build gate the promoted path already runs
+    (`build_runner.run_clean_build`); a failure here is expected for many
+    exports (e.g. the run was rejected before source ever compiled) and is
+    only ever recorded, never allowed to interrupt the export itself. The
+    identity hash is a deterministic placeholder -- this manifest is for
+    export/inspection only and is never used for promotion."""
+
+    placeholder_identity = hashlib.sha256(f"failed-export:{run_id}".encode()).hexdigest()
+    try:
+        manifest, diagnostics = await run_clean_build(
+            repo_dir,
+            settings=settings,
+            candidate_identity_hash=placeholder_identity,
+        )
+    except Exception as exc:
+        return {"status": "error", "diagnostics": [str(exc)]}
+    if manifest is not None:
+        return {"status": "success", "diagnostics": []}
+    return {
+        "status": "failed",
+        "diagnostics": [d.model_dump(mode="json") for d in diagnostics],
+    }
+
+
+async def export_failed_run(
     *,
     settings: Any,
     run_id: str,
@@ -246,7 +285,12 @@ def export_failed_run(
     manifest, an active preview, a candidate identity) -- only a run id and
     whatever the generation/verification workspace already has on disk.
     Returns None (never raises) when there is nothing yet to export, e.g. a
-    run that failed before generation produced any source tree."""
+    run that failed before generation produced any source tree.
+
+    Before exporting, this also attempts a best-effort clean build so the
+    export gets a real `dist/` (and an honest build status in the report)
+    whenever the source is actually buildable, instead of always shipping
+    source-only and leaving the reader to build it themselves."""
 
     config = settings.code_generator_generation
     workspace_root = Path(str(getattr(config, "workspace_root", "")))
@@ -256,6 +300,9 @@ def export_failed_run(
     repo_dir = run_root / "repo"
     if not repo_dir.is_dir():
         return None
+    build_attempt = await _attempt_best_effort_build(
+        repo_dir=repo_dir, settings=settings, run_id=run_id
+    )
     return export_portfolio(
         settings=settings,
         run_id=run_id,
@@ -265,6 +312,7 @@ def export_failed_run(
             "status": "needs_attention",
             "export_reason": reason,
             "issues": issues or [],
+            "build_attempt": build_attempt,
         },
     )
 
