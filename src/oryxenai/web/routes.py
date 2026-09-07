@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -204,6 +205,58 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
                 },
             )
             return _set_shell_headers(response, settings)
+
+        @router.get("/dev/code-generator-development/candidate-preview/{folder}")
+        @router.get("/dev/code-generator-development/candidate-preview/{folder}/{path:path}")
+        async def code_generator_candidate_preview(
+            request: Request, folder: str, path: str = ""
+        ) -> Any:
+            """Serve a needs_attention/failed run's own already-built `dist/`
+            straight from its export folder, unauthenticated -- this whole
+            harness has no auth boundary in detached dev mode already. This
+            is deliberately NOT the promoted `PreviewGateway`: it carries no
+            verification claim. Every response is labeled as an unverified
+            candidate so it can never be mistaken for a passed run."""
+            from oryxenai.agents.code_generator.core.workspace import repository_root
+            from oryxenai.preview.gateway import _headers, _inject_preview_base, _safe_path
+
+            settings = request.app.state.settings
+            config = settings.code_generator_verification
+            export_root = Path(str(getattr(config, "export_root", "output/code-gen-output")))
+            if not export_root.is_absolute():
+                export_root = repository_root() / export_root
+            try:
+                safe_folder = _safe_path(folder)
+            except ValueError:
+                return Response("Not found", status_code=404)
+            if "/" in safe_folder:
+                return Response("Not found", status_code=404)
+            dist_dir = (export_root / safe_folder / "dist").resolve()
+            try:
+                dist_dir.relative_to(export_root.resolve())
+            except ValueError:
+                return Response("Not found", status_code=404)
+            if not dist_dir.is_dir():
+                return Response("Not found", status_code=404)
+            try:
+                relative = _safe_path(path) if path else "index.html"
+            except ValueError:
+                return Response("Not found", status_code=404)
+            target = (dist_dir / relative).resolve()
+            if not target.is_relative_to(dist_dir) or not target.is_file():
+                target = dist_dir / "index.html"
+            if not target.is_file():
+                return Response("Not found", status_code=404)
+            data = target.read_bytes()
+            is_index = target.relative_to(dist_dir).as_posix() == "index.html"
+            mount_prefix = f"/dev/code-generator-development/candidate-preview/{safe_folder}/"
+            if is_index:
+                data = _inject_preview_base(data, mount_prefix)
+            return Response(
+                content=b"" if request.method == "HEAD" else data,
+                media_type=mimetypes.guess_type(target.name)[0] or "application/octet-stream",
+                headers=_headers(embed_origins=("'self'",), asset=not is_index),
+            )
 
     router.mount("/static", app=StaticFiles(directory=str(_STATIC_DIR)), name="static")
     return router
