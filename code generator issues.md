@@ -1,5 +1,222 @@
 # Code Generator Issues
 
+## HANDOFF — 2026-09-08 00:xx +05:30 — Claude Code (Sonnet 5 / Anthropic) session ending, full state below
+
+This is a deliberate, complete handoff. This session's own work is finished
+and committed; the owner is ending this chat and another agent (possibly a
+different model/tool) will pick this up next with no memory of this
+conversation. Everything below is what that agent needs, in one place.
+Read this whole entry before touching anything.
+
+### Where the branch actually is
+
+Branch `codex/code-generator-control-room`, 28 commits ahead of
+`origin/codex/code-generator-control-room`, not pushed. This session's own
+commits, oldest to newest:
+
+```
+3f5b2aa feat(code-generator): auto-build failed exports, fix two live-confirmed generation defects
+06516b1 docs: record auto-build/export-gap fixes
+5bef169 fix(code-generator): quote-tolerant motion-selector check, distinctive-move repair guidance for review findings
+ac5543e fix(code-generator): explicit CSS longhand guidance for shorthand-vs-longhand distinctive-move findings
+dc01c75 docs: record root-cause fixes and 2 more live runs
+7f09506 feat(code-generator): unverified candidate preview for needs_attention runs, fix uncommitted export_receipt write
+f0760f0 docs: record candidate-preview feature, cost-leak catch, and commit-bug fix   <- HEAD
+```
+
+Working tree has pre-existing dirty state that is **not this session's
+work** and was deliberately left alone all session (per AGENTS.md's
+"treat every pre-existing change as another contributor's" rule) — do not
+assume these are yours to commit or discard without checking with the
+owner: `PLAN.MD` (modified), `docs/research/doc/api-usage-cost-cache-and-
+multi-provider-remediation-plan.md` (deleted) with two new untracked files
+in `docs/research/` in its place, `output/code-gen-output/02-23-06-09-2026-
+fa31c124/source/package.json` (modified), and a new untracked
+`tests/test_gemini_api_keys.py`.
+
+### What is actually proven true right now
+
+- **The code generator has never once reached `ready`** in any live run
+  this whole engagement, as far as this session's testing shows. Today
+  alone: 6 live runs, 6 `needs_attention` results, each on a genuinely
+  different finding. Do not let a clean-looking `dist/` fool you into
+  thinking a run "worked" — see the three specific runs below where the
+  build was perfect but the pipeline's own review correctly (or
+  incorrectly, case by case) rejected it anyway.
+- **It has only ever been tested against ONE Build Preparation input**:
+  `output/build-preparation/01-31-04-09-94ae4a9c/` ("Arjun Mehta — Senior
+  UI/UX Designer", real `content_architect_content_hash`). Every fix made
+  this session was diagnosed from that one brief's content and structure.
+  There is zero evidence any of it generalizes to a different portfolio.
+  `scratch/run_live_generation.py` hardcodes this exact pack id, which is
+  why every scratch-driven test this whole engagement used it — that is
+  the mechanical reason, not a deliberate choice. Testing genuine
+  generalization requires either a different real Build Preparation pack
+  (running Discovery → Content Architect → Visual Design Director → Build
+  Preparation for new input content first) or the front-end's own pack
+  selector once a second real pack exists.
+- **The auto-build-on-export capability the owner originally asked for is
+  proven working**, confirmed across 3+ independent runs — a
+  `needs_attention` export now reliably ships a real `dist/` with an
+  honest `build_attempt` status instead of source-only silence.
+- **The new "unverified candidate preview" dev-harness feature is proven
+  working end to end** — live-verified via real browser interaction, not
+  just unit tests, including surviving a full page reload.
+
+### The 6 live runs from today (2026-09-07), in order, with exact findings
+
+1. **`e624bd75`** — `needs_attention` / `SOURCE_REPAIR_EXHAUSTED`. Lost the
+   entire route batch (zero sections ever accepted — `repo_dir` held only
+   the bare foundation checkpoint). Root cause: a motion-beat check
+   required the blueprint's literal double-quoted
+   `[data-motion-target="approach-spine"]` verbatim; the model's
+   equally-valid single/unquoted form wasn't recognized. **Fixed** in
+   `5bef169` (`source_validation.py::_literal_present`). Ran before the
+   fix existed; no export exists for this run (also predates the
+   generation-stage export-gap fix in `3f5b2aa`).
+2. **`c8cd8f1c`** — `needs_attention` / `INTEGRATION_REVIEW_UNRESOLVED`
+   after 5 polish rounds. Real defect: a distinctive-move runtime marker
+   sat on `.selected-work__index` (nested div) while the actual grid/
+   max-width layout lived on the parent `.selected-work`. Repair kept
+   failing because the review reported it under its own code
+   (`distinctive-move-selector-mismatch`), not the structural code
+   `repair_source.md` already had a dedicated bullet for. **Fixed** in
+   `5bef169`. This run's export is the first confirmation the auto-build
+   fix works (`build_attempt: success`, real `dist/`).
+3. **`e7784314`** — `needs_attention` / `INTEGRATION_REVIEW_UNRESOLVED`
+   after 5 polish rounds, ran after the `5bef169`/`ac5543e` fixes. Two
+   **not-yet-investigated** findings: (a) `blueprint-distinctive-move-
+   missing` — the systems/capabilities section's blueprint calls for a
+   keyboard-accessible progressive-disclosure control; the model rendered
+   a plain static `<ul>` instead, entirely omitted. (b) `resource-frame-
+   aspect-mismatch` — the hero atmosphere frame has no explicit
+   `aspect-ratio` for a portrait-oriented admitted resource, so the
+   required wide framing never actually applies.
+4. **`4dbcabae`** — `needs_attention` / `QUALITY_REVIEW_REJECTED_AFTER_
+   REPAIR`. The deepest run before today's last one: `generate: succeeded`
+   → DOM/runtime verification → one repair round → whole-site re-review
+   → rejected on a CSS `gap` shorthand partially overridden by
+   `column-gap` alone, leaving `row-gap` correctly cascading but never
+   present as a literal property name. **Fixed** in `ac5543e` (this run
+   predates that fix).
+5. **`5819492d`** — `needs_attention` / `DOM_RUNTIME_FAILED`. Generation
+   succeeded, but DOM/runtime checks failed with FIVE diagnostics at once
+   (`RUNTIME_DISTINCTIVE_RELATIONSHIP`, `RUNTIME_REGION_COLUMN_COUNT`,
+   `RUNTIME_REGION_GAP`, `RUNTIME_REGION_MEASURE`,
+   `RUNTIME_REGION_WIDTH_RATIO`), and **the bounded final-repair mechanism
+   itself threw `FinalRepairError: The repair operation did not return a
+   bounded source correction`, three times in a row** (see
+   `src/oryxenai/agents/code_generator/core/final_repair.py:196` and its
+   caller `code_generator_verification.py::_run_bounded_repair` around
+   line 1533). This is qualitatively different from every other finding
+   this engagement — the repair *mechanism itself* is erroring, not just
+   producing a wrong fix. **Not investigated.** Highest-priority unknown.
+6. **`0ffd6cec`** (triggered from the real front-end, not the scratch
+   script) — `needs_attention` at the verify stage. Reached the whole-site
+   review with **zero repair rounds needed for the first time all
+   session**, then failed final DOM/runtime verification on
+   `RUNTIME_REGION_WIDTH_RATIO` — three *different* regions
+   (`home:selected-work`, `home:approach`, `home:experience`) all measured
+   the **identical 0.877 ratio**, each just outside its own individually
+   different allowed range. Three regions landing on the exact same
+   number is not three coincidental defects; it strongly smells like one
+   shared systemic cause (a page-level container width, most likely) —
+   exactly the shape of every other real bug found this engagement.
+   **Not investigated. Second-highest-priority unknown, and probably the
+   single best next lead** — see `source_validation.py`'s region
+   width-ratio measurement code and whatever computes the page's overall
+   content-container width for the generated route.
+
+### Two operational bugs found and fixed this session (read before running anything)
+
+1. **Never run `scratch/run_live_generation.py`-style direct handler
+   invocation and then start a real worker without cleaning up first.**
+   That script calls job handlers directly, bypassing the queue's claim/
+   complete mechanism entirely — every job row it touches stays `queued`
+   in `background_jobs` forever. Today, 95 such rows had piled up since
+   2026-09-05 across this whole engagement. The moment a real worker
+   started, it began reprocessing them oldest-first — **real paid OpenAI
+   calls against runs that had already concluded days earlier** — with
+   any new legitimate run stuck at the back of a 96-job queue. Caught
+   within seconds by noticing the worker log showed generation-stage
+   operations while the new run was still on `plan`. If you use that
+   script again, either avoid starting a real worker afterward, or query
+   `background_jobs` for `status IN ('queued','running','retrying')` and
+   cancel (`status='cancelled'`, with a reason recorded, never delete)
+   every row not belonging to the run you actually care about, *before*
+   starting any worker.
+2. **`CodeGeneratorDevelopmentRepository.compare_and_swap()` never commits
+   internally** (`src/oryxenai/db/repositories/code_generator_development.py`)
+   — it executes the UPDATE but the caller must call `await db.commit()`
+   inside the same `async with sessionmaker() as db:` block. The first
+   version of this session's `export_receipt` write (all three call sites,
+   plus a manual verification script) silently didn't persist because of
+   this — no exception, no error, just a write that quietly rolled back.
+   Caught only by checking the real API response after implementing, not
+   by trusting a clean test run. Fixed in `7f09506`. **Whenever you add a
+   new `compare_and_swap` call site, verify the write actually persisted
+   by reading it back through a fresh query or the real API — never trust
+   "no exception was raised."**
+
+### Environment state as this session ends
+
+- **Nothing is currently running.** The API server, worker, and preview
+  gateway I started for live browser testing were all auto-killed by the
+  harness's low-memory protection near the end of this session — the
+  machine has genuine memory pressure from the owner's other apps (3x
+  ChatGPT, an IDE, Chrome, Slack), not from anything this session left
+  running. To use the dev harness at `http://127.0.0.1:8000/dev/code-
+  generator-development`, you need all three running simultaneously:
+  `scripts/run-api.ps1` (port 8000), `scripts/run-worker.ps1`, and
+  `scripts/run-preview-gateway.ps1` (port 4174 — without it the page
+  reports "preview gateway is unreachable" and the new candidate-preview
+  route silently has nothing to embed). None of these auto-reload; after
+  editing `routes.py` or a job handler, kill and relaunch the affected
+  service manually.
+- **A real, minor, unfixed bug**: `output/build-preparation/` has 10
+  identical-content folders dated 2026-09-07 (`14-21-...` through
+  `17-13-...`), all titled generic "Portfolio" with an empty
+  `content_architect_content_hash`, timestamped almost exactly when this
+  session was navigating the dev-harness front-end. This looks like a
+  "local debug mirror" (mentioned in `AGENTS.md`'s Build Preparation
+  section) being rewritten on every front-end page load or readiness
+  poll, producing junk duplicate folders instead of one real mirror.
+  **Not investigated.** Whatever writes these should probably write once
+  per actual Build Preparation completion, not once per read. Do not
+  mistake these 10 folders for genuine alternate test inputs — they are
+  not real portfolios, just an empty placeholder repeated.
+
+### Recommended order of work for whoever picks this up
+
+1. Read this entry fully, then skim `DECISIONS.md` (D-077 onward) and the
+   `## Recent changes` head of `CHANGES.md` for the same period, before
+   touching code.
+2. Investigate finding #6 first (`RUNTIME_REGION_WIDTH_RATIO`, identical
+   0.877 across 3 regions) — the "same number in three unrelated places"
+   pattern is the strongest actionable lead left, and matches this whole
+   engagement's dominant bug class (a systemic measurement/generation
+   issue, not independent content noise).
+3. Then finding #5 (`FinalRepairError` — the repair mechanism itself
+   erroring) — read `final_repair.py` around its `repair()` method and
+   understand exactly what shape of model response it fails to parse into
+   "a bounded source correction," since this blocks repair entirely
+   rather than just producing a wrong result.
+4. Findings #3's two items (missing disclosure control, hero aspect-ratio)
+   are real but lower-severity and more contained — reasonable to defer.
+5. Before spending more live-test budget: confirm the real OpenAI balance
+   with the owner directly (this session's 3 runs with recorded receipts
+   alone totaled ~2.72M input / ~137K output tokens; a 4th run had none
+   recorded because it failed before any work unit was accepted, meaning
+   true spend today is higher than that number).
+6. Seriously consider whether testing against a second, genuinely
+   different Build Preparation input is worth prioritizing over continuing
+   to fix findings from the one input tested so far — single-input testing
+   has been this whole engagement's blind spot the entire time, not just
+   today.
+7. Continue this file's own logging convention: one entry per session/
+   investigation, chronological, most-recent on top, commit hash in the
+   header, honest about what's proven vs. not.
+
 ## 2026-09-07 (evening) — Live dev-harness end-to-end test surfaces a stale-job cost bug and an uncommitted-write bug; adds unverified candidate preview (Claude Code) [7f09506]
 
 Owner asked to switch from the scratch script harness to the real `/dev/
