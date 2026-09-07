@@ -118,6 +118,7 @@ class CodeGeneratorVerificationHandler:
             # nothing, silently.
             try:
                 from oryxenai.agents.code_generator.core.portfolio_export import (
+                    build_export_receipt,
                     export_failed_run,
                 )
                 from oryxenai.core.settings import get_settings
@@ -126,11 +127,25 @@ class CodeGeneratorVerificationHandler:
                     payload.get("code_generator_run_id") or payload.get("development_run_id", "")
                 )
                 if run_id:
-                    await export_failed_run(
-                        settings=get_settings(),
+                    settings = get_settings()
+                    exported = await export_failed_run(
+                        settings=settings,
                         run_id=run_id,
                         reason=str(result.get("code", result.get("status", ""))),
                     )
+                    if exported is not None:
+                        receipt = build_export_receipt(exported)
+                        sessionmaker = get_sessionmaker(settings)
+                        async with sessionmaker() as db:
+                            repo = CodeGeneratorDevelopmentRepository(db)
+                            current = await repo.get(UUID(run_id))
+                            if current is not None:
+                                await repo.compare_and_swap(
+                                    UUID(run_id),
+                                    expected_revision=current.revision,
+                                    values={"export_receipt": receipt},
+                                )
+                                await db.commit()
             except Exception:
                 logger.warning(
                     "failed-run export could not be written run_id=%s",

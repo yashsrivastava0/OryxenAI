@@ -63,6 +63,7 @@ button:disabled { cursor: not-allowed; opacity: .38; }
 .cg-dev__status-pill, .cg-dev__preview-state { border: 1px solid var(--cg-line); border-radius: 999px; color: var(--cg-muted); padding: 5px 8px; font: 10px 'DM Mono', monospace; white-space: nowrap; }
 .cg-dev__status-pill[data-state="ready"], .cg-dev__preview-state[data-state="ready"] { border-color: rgba(108, 224, 178, .45); color: var(--cg-mint); }
 .cg-dev__status-pill[data-state="error"], .cg-dev__preview-state[data-state="error"] { border-color: rgba(255, 133, 140, .45); color: var(--cg-coral); }
+.cg-dev__status-pill[data-state="warning"], .cg-dev__preview-state[data-state="warning"] { border-color: rgba(255, 202, 118, .45); color: var(--cg-amber); }
 .cg-dev__stages { position: relative; display: grid; gap: 0; margin: 34px 0 0; padding: 0; list-style: none; }
 .cg-dev__stages::before { position: absolute; top: 19px; bottom: 19px; left: 15px; width: 1px; background: var(--cg-line); content: ''; }
 .cg-dev__stages li { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 12px; min-height: 82px; color: var(--cg-muted); }

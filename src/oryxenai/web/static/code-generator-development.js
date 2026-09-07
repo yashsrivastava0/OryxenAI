@@ -74,6 +74,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   let selectedRoutePath = '';
   let selectedViewport = 'fit';
   let currentPreview = null;
+  let previewIsUnverifiedCandidate = false;
   let activeRunId = '';
   let previewLoadSequence = 0;
   let previewLoadTimer = 0;
@@ -323,7 +324,9 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     frame.hidden = false;
     empty.hidden = true;
     emptyMessage.textContent = '';
-    if (sourceChanged) embedStatus.textContent = 'Loading the embedded verified preview...';
+    if (sourceChanged) embedStatus.textContent = previewIsUnverifiedCandidate
+      ? 'Loading the unverified candidate build (not promoted, not passed review)...'
+      : 'Loading the embedded verified preview...';
     refresh.disabled = false;
     frame.style.width = viewportSizes[selectedViewport].width;
     frame.style.height = viewportSizes[selectedViewport].height;
@@ -333,7 +336,9 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     if (sourceChanged || (!previewBridgeReady && !previewLoadTimer)) {
       previewLoadTimer = window.setTimeout(() => {
         if (loadSequence !== previewLoadSequence || previewBridgeReady) return;
-        embedStatus.textContent = 'Embedded preview did not respond. Use Open preview to inspect the verified output.';
+        embedStatus.textContent = previewIsUnverifiedCandidate
+          ? 'Embedded preview did not respond. Use Open preview to inspect the unverified candidate build.'
+          : 'Embedded preview did not respond. Use Open preview to inspect the verified output.';
       }, 5000);
     }
   };
@@ -453,6 +458,17 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     renderDiagnostics(view('verification-diagnostics'), verification?.diagnostics || []);
 
     currentPreview = preview?.active_preview || run.active_preview;
+    previewIsUnverifiedCandidate = false;
+    // No promoted preview exists for a needs_attention run -- that only ever
+    // happens on `ready`. But since the auto-build fix, its own export
+    // folder still has a real, already-built dist/ that was just never
+    // handed to a human to look at. Fall back to showing THAT, clearly
+    // labeled as unverified, rather than leaving the panel empty when
+    // something viewable already exists on disk.
+    if (!currentPreview?.url && run.status === 'needs_attention' && run.export_receipt?.dist_path && run.export_receipt?.folder) {
+      currentPreview = { url: `${location.origin}/dev/code-generator-development/candidate-preview/${encodeURIComponent(run.export_receipt.folder)}/` };
+      previewIsUnverifiedCandidate = true;
+    }
     const routeSelect = view('preview-route');
     const routes = (plan?.routes || []).filter((route) => route.path);
     routeSelect.replaceChildren(...routes.map((route) => new Option(route.purpose || route.route_id, route.path)));
@@ -461,12 +477,13 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     routeSelect.value = selectedRoutePath;
     const latestIssue = issues[0];
     const previewStatus = view('preview-status');
-    if (currentPreview?.url && run.status === 'preview_pending') previewStatus.textContent = 'Previous preview retained · new publication pending';
+    if (previewIsUnverifiedCandidate) previewStatus.textContent = `Unverified candidate · not promoted${latestIssue?.code ? ` · ${latestIssue.code}` : ''}`;
+    else if (currentPreview?.url && run.status === 'preview_pending') previewStatus.textContent = 'Previous preview retained · new publication pending';
     else if (currentPreview?.url) previewStatus.textContent = 'Verified preview promoted';
     else if (run.status === 'preview_pending') previewStatus.textContent = 'Candidate retained · public read-back pending';
     else if (run.status === 'needs_attention') previewStatus.textContent = `Preview unavailable${latestIssue?.code ? ` · ${latestIssue.code}` : ''}`;
     else previewStatus.textContent = 'No preview yet';
-    previewStatus.dataset.state = currentPreview?.url ? 'ready' : run.status === 'needs_attention' ? 'error' : 'waiting';
+    previewStatus.dataset.state = previewIsUnverifiedCandidate ? 'warning' : currentPreview?.url ? 'ready' : run.status === 'needs_attention' ? 'error' : 'waiting';
     const emptyMessage = view('preview-empty-message');
     if (!currentPreview?.url && run.status === 'preview_pending') emptyMessage.textContent = 'The build passed local verification, but preview publication is pending.';
     else if (!currentPreview?.url && run.status === 'needs_attention') emptyMessage.textContent = latestIssue?.message || 'The verified preview is unavailable for this run.';
