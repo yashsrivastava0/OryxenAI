@@ -63,6 +63,19 @@ actually gone.
   the exact short `resourceId`, sizes, loading, fit, focal position, and alt
   policy supplied by `PLANNED LOCAL IMAGE BINDINGS`. The trusted component
   resolves immutable paths, hashes, dimensions, and formats from the manifest.
+- `blueprint-resource-role-mismatch` (an integration-review finding naming a
+  placement whose realized treatment does not match its blueprint role, for
+  example a resource specified as a narrow tactile edge accent that instead
+  renders as a large square or block-level image): this is a geometry
+  problem, not a cosmetic one -- a smaller `aspect-ratio` value alone does
+  not repair it. Remove any fixed 1:1 or near-square `aspect-ratio` on that
+  placement's element, constrain it to a narrow fixed or percentage width
+  (well under half the row/column it sits beside) with a tall aspect ratio
+  or `height: 100%`, and place it as a flex/grid sidebar column or edge
+  strip alongside the surrounding content rather than stacked inline above
+  or below it. Re-read the finding's exact quoted blueprint role before
+  choosing dimensions -- "edge accent"/"tactile strip" means narrow and
+  peripheral, not a resized copy of a full-width or square treatment.
 - `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID`: put the exact runtime marker
   on the rendered element matched by the move's `source_selector`, then define
   every required CSS property on that exact selector. The CSS selector may be

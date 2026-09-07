@@ -126,7 +126,7 @@ class CodeGeneratorVerificationHandler:
                     payload.get("code_generator_run_id") or payload.get("development_run_id", "")
                 )
                 if run_id:
-                    export_failed_run(
+                    await export_failed_run(
                         settings=get_settings(),
                         run_id=run_id,
                         reason=str(result.get("code", result.get("status", ""))),
