@@ -91,6 +91,23 @@ Visual and implementation contract:
   from the blueprint instead of arbitrary margins or a utility framework. CSS
   lengths are numeric or tokenized (`50ch`, not `fiftych`); never join a
   spelled-out number to a CSS unit.
+- The verification viewports are exactly 390px (mobile), 768px (tablet), and
+  1440px (desktop) -- these mirror `code_generator_verification.viewport_profiles`
+  in config/app.toml and must stay in sync with it. A region's
+  `columns_mobile`/`columns_tablet`/`columns_desktop` are checked AT those
+  exact widths, so anchor `min-width` media queries at `768px` and `1440px`
+  (not an arbitrary round number such as `960px`) so the layout that
+  actually renders at each verified width matches the column count planned
+  for it.
+- Never combine `aspect-ratio` with an unconstrained `min-height` on a flex
+  or grid child -- the automatic minimum size a browser computes for that
+  item can transfer the aspect ratio into a minimum WIDTH wider than its
+  available inline space, overflowing the viewport (confirmed live: a hero
+  media frame's aspect-ratio + min-height forced it to ~410px wide inside a
+  390px viewport). Any element carrying `aspect-ratio` needs `min-width: 0`
+  (or `min-inline-size: 0`) on itself or its flex/grid item, plus
+  `max-width: 100%`, so it can shrink to its available space instead of
+  forcing an overflow.
 - Use only custom properties that exist in the compiler-emitted token groups
   or that the owning JSX defines literally as runtime style state. Never emit
   `@font-face` in route CSS; local font faces and URLs are already emitted by
