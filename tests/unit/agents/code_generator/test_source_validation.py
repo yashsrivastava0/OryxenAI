@@ -910,6 +910,70 @@ export default function Hero() {
     assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
 
 
+def test_route_batch_contract_accepts_any_valid_css_attribute_selector_quote_style(
+    tmp_path,
+) -> None:
+    """Live-discovered 2026-09-07 (run e624bd75, motion:home:approach-progress):
+    a custom (non-catalogued) viewport-reveal beat exhausted its full repair
+    budget on `[data-motion-target="approach-spine"]` never being found,
+    even though the same attribute selector with single or no quotes --
+    `[data-motion-target='approach-spine']` / `[data-motion-target=approach-spine]`
+    -- is valid, functionally identical CSS. The checker required the exact
+    quote character the blueprint literal happened to use; a model choosing
+    a different (still correct) quote style was indistinguishable from one
+    that never wrote the selector at all, and had no way to diagnose why."""
+
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    approach = section / "Approach.tsx"
+    approach.write_text(
+        """const spine = document.querySelector("#approach");
+if (spine && "IntersectionObserver" in window) {
+  new IntersectionObserver(() => spine.setAttribute("data-motion-ready", "true"));
+}
+export default function Approach() {
+  return <section id="approach" data-content-id="home:approach">
+    <div data-motion-target="approach-spine" />
+  </section>;
+}
+""",
+        encoding="utf-8",
+    )
+    css = section / "Approach.css"
+    css.write_text(
+        """[data-motion-target='approach-spine'] { opacity: 1; }
+[data-motion-ready="true"][data-motion-target=approach-spine] { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  [data-motion-target='approach-spine'] { opacity: 1; }
+}
+""",
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        ["src/routes/home/sections/Approach.tsx", "src/routes/home/sections/Approach.css"],
+        route_id="home",
+        section_ids=["home:approach"],
+        section_selectors_by_section={"home:approach": "#approach"},
+        motion_beats=[
+            {
+                "motion_id": "motion:home:approach-progress",
+                "section_id": "home:approach",
+                "target_marker": 'data-motion-target="approach-spine"',
+                "target_selector": '[data-motion-target="approach-spine"]',
+                "trigger": "viewport",
+                "changed_properties": [
+                    {"property_name": "opacity", "before_value": "0", "after_value": "1"}
+                ],
+            }
+        ],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
+
+
 def test_route_composer_contract_requires_complete_section_navigation(tmp_path) -> None:
     route = tmp_path / "src" / "routes" / "home"
     route.mkdir(parents=True)

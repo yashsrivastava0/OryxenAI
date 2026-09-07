@@ -76,14 +76,21 @@ actually gone.
   or below it. Re-read the finding's exact quoted blueprint role before
   choosing dimensions -- "edge accent"/"tactile strip" means narrow and
   peripheral, not a resized copy of a full-width or square treatment.
-- `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID`: put the exact runtime marker
+- `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID` (this also covers an
+  integration-review finding coded `distinctive-move-selector-mismatch`, or
+  any finding whose evidence describes the region/distinctive-move runtime
+  marker sitting on a different element than the one carrying the actual
+  grid, `max-width`, or layout declarations): put the exact runtime marker
   on the rendered element matched by the move's `source_selector`, then define
   every required CSS property on that exact selector. The CSS selector may be
   qualified by the same runtime-marker attribute, but never replace its route
   and section scope with a shorter class selector. If the source selector is a
   region selector, move the marker and declarations onto that exact region;
   declarations on its section ancestor or a descendant do not satisfy the
-  move.
+  move -- moving only the marker attribute onto the correct element while
+  leaving the grid/width declarations on the old element (or vice versa) is
+  the same defect restated, not a fix. Both the marker and the declarations
+  that make the required width ratio true must land on the same one element.
 - A width-ratio distinctive-move diagnostic (source vs. `RUNTIME_DISTINCTIVE_`
   runtime codes) is always `source_selector width / target_selector width`. If
   the reported ratio is above the required range, narrow the source element or
