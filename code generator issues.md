@@ -1,5 +1,94 @@
 # Code Generator Issues
 
+## 2026-09-07 (later) — Root-caused both prior live failures from real DB history, fixed 3 more validator/prompt bugs, live-tested with 2 more fresh runs (Claude Code) [5bef169, ac5543e]
+
+User corrected a run-numbering mix-up: the run they saw succeed and produce
+visible output was `c8cd8f1c` (this session's earlier auto-build fix
+working); the run they never saw anything for was `e624bd75` (predates that
+fix -- the exact run that exposed the gap). Asked for both prior runs'
+actual generation failures to be understood deeply (not just described) and
+fixed, then re-verified with 2 more live runs before calling anything done.
+
+Investigated using the real DB-persisted history
+(`code_generator_events`, `generation_projection`, `integration_review` --
+not just the terminal `SafeIssue` text, which is deliberately compact) via
+a one-off inspection script. Two root causes found and fixed:
+
+1. **`e624bd75`** exhausted its full 3-round per-unit repair budget on
+   `SOURCE_ROUTE_BATCH_MOTION_INVALID` for `motion:home:approach-progress`
+   and lost the entire route batch (repo_dir held only the bare foundation
+   checkpoint -- confirmed via `repair_rounds: 0`/`repair_budget_used: 0`
+   in the persisted projection, meaning the whole batch never got
+   checkpointed even once). Root cause: the check required the blueprint's
+   literal `[data-motion-target="approach-spine"]` (double-quoted) to
+   appear verbatim; `[attr='value']` and `[attr=value]` are equally valid
+   CSS, so a model choosing either was indistinguishable from one that
+   never wrote the selector, with no way to diagnose why across all 3
+   attempts. The codebase already handles this quote-tolerance elsewhere
+   (`data-interaction-id`, `aria-label` regexes) -- this check used a naive
+   substring test instead. Fixed in `source_validation.py`
+   (`_literal_present`, applied to the marker/selector checks and
+   `_css_rule_contains`).
+2. **`c8cd8f1c`**'s whole-site review correctly caught a real defect
+   (distinctive-move marker on `.selected-work__index` while the actual
+   grid/max-width lived on the parent `.selected-work`) but 5 polish rounds
+   never fixed it. Root cause: the review reports this under its own code
+   (`distinctive-move-selector-mismatch`), not the structural
+   `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID` code `repair_source.md`
+   already had a dedicated, correct bullet for, so repair fell back to
+   generic guidance. Extended that bullet to cover the review's own code.
+
+**Live-tested with the 2 more runs the owner authorized** (`e7784314`,
+`4dbcabae`, fresh, canonical brief pack, real OpenAI calls):
+
+- `e7784314`: no recurrence of either fixed defect. Got past generation
+  entirely this time (no `SOURCE_REPAIR_EXHAUSTED`), but still hit
+  `INTEGRATION_REVIEW_UNRESOLVED` after 5 polish rounds -- on two entirely
+  different findings (`blueprint-distinctive-move-missing`: a required
+  progressive-disclosure control was never implemented at all;
+  `resource-frame-aspect-mismatch`: hero frame missing an explicit
+  aspect-ratio for a portrait-oriented resource). Logged, not
+  investigated -- confirms every run still tends to surface its own new
+  finding rather than converging.
+- `4dbcabae`: **the deepest run this whole engagement has recorded** --
+  `generate: succeeded`, DOM/runtime verification, one repair round, and a
+  full whole-site re-review, the same milestone as the prior session's best
+  run but from completely fresh generation-stage content, confirming the
+  quote-tolerance and export fixes hold up. Ended `needs_attention` /
+  `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` on one narrow, new finding:
+  `.approach`'s CSS sets `gap: var(--space-8)` on its base rule and
+  overrides only `column-gap` inside a `min-width` media query -- `row-gap`
+  cascades in correctly and the layout is functionally right, but the
+  literal property name `row-gap` never appears anywhere in the file, and
+  a check requiring that exact name can't recognize a shorthand as
+  satisfying it. Same naive-text-matching blind-spot pattern as every
+  other validator bug this engagement, just for CSS shorthand vs. longhand
+  this time. Fixed with route_batch.md (avoid the shorthand-plus-partial-
+  override pattern) and repair_source.md (split into explicit longhands
+  when a finding names one) guidance.
+
+**Confirmed working across all 3 post-fix exports** (`c8cd8f1c`,
+`e7784314`, `4dbcabae`): every one shipped `build_attempt: {"status":
+"success"}` with a real `dist/` -- the auto-build-on-export fix is now
+solidly proven, not a one-off.
+
+**New, not yet investigated:** `4dbcabae` (a run that went through real
+Playwright DOM/runtime verification) has no `verification-screenshots/`
+directory in its workspace at all, and the export's `screenshots_path` is
+empty. Unclear whether screenshots are only captured on an eventually-
+promoted candidate (reasonable) or a genuine regression from D-068's
+"screenshot capture on verification" fix -- worth checking before trusting
+screenshot evidence on a rejected-after-repair run.
+
+**Honest bottom line, unchanged in kind:** still zero `ready` outcomes
+across all 4 live runs this session. What's different this round: one run
+(`4dbcabae`) reached the deepest pipeline state on fully fresh content, and
+none of the 3 newly-fixed defect classes recurred in the 2 post-fix runs --
+but each run keeps surfacing a *different* new finding, which is itself
+informative: the whole-site reviewer is thorough enough to be genuinely
+hard to fully satisfy within its bounded polish/repair budget, not that
+there is one remaining bug to chase down.
+
 ## 2026-09-07 — Auto-build on export, two filtered fixes from an external output-analysis doc, live-tested with 2 fresh runs (Claude Code) [3f5b2aa]
 
 User asked for two things: portfolios should auto-build (`npm ci`/`npm run
