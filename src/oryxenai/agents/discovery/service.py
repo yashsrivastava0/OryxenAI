@@ -116,8 +116,21 @@ class DiscoveryService:
             and state.model_profile == resolved_profile
         ):
             return await self.get_discovery_state(session_id)
+        retry_nonce: int | str
         if state.status is DiscoveryStatus.NEEDS_ATTENTION:
-            retry_nonce = state.attempt
+            # ``attempt`` is the worker's per-job delivery counter and resets
+            # to one every time a user explicitly retries a failed run.  It
+            # therefore cannot identify a new logical retry on its own: a
+            # second manual retry would recreate the previous AgentRun's
+            # idempotency key and hit ``ux_agent_runs_idempotency``.  The
+            # previous Operation A run id advances whenever a retry is
+            # accepted, so use it as the stable nonce for this retry variant.
+            # Keep the numeric fallback for legacy/corrupt state with no run
+            # identity rather than making an otherwise recoverable retry
+            # fail during key construction.
+            retry_nonce = (
+                state.operation_a.run_id or state.brief.run_id or f"attempt-{state.attempt}"
+            )
         elif state.status is DiscoveryStatus.QUESTIONS_READY:
             retry_nonce = state.attempt + 1
         else:
@@ -207,7 +220,15 @@ class DiscoveryService:
         next_state.latest_error = None
 
         if complete:
-            retry_nonce = state.attempt if state.status is DiscoveryStatus.NEEDS_ATTENTION else 0
+            if state.status is DiscoveryStatus.NEEDS_ATTENTION:
+                # See the Operation A retry above.  Build/revise retries need
+                # their own prior failed run identity because the worker
+                # attempt counter is reset for every newly queued job.
+                retry_nonce: int | str = (
+                    state.brief.run_id or state.operation_a.run_id or f"attempt-{state.attempt}"
+                )
+            else:
+                retry_nonce = 0
             key = self._idempotency_key(
                 session_id,
                 "build_or_revise_brief",
@@ -470,7 +491,7 @@ class DiscoveryService:
         *,
         memory: dict[str, Any] | None = None,
         existing_brief: str = "",
-        retry_nonce: int = 0,
+        retry_nonce: int | str = 0,
     ) -> str:
         combined = json.dumps(
             {
