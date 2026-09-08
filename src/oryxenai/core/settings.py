@@ -990,6 +990,11 @@ class CapacitySourceConfig(BaseModel):
     credential_alias: str = ""
     api_key_env: str = ""
     base_url_env: str = ""
+    # Optional management-surface coordinates. Usage rollups may require an
+    # organization identifier; the environment-variable name keeps it out of
+    # provider and agent code.
+    management_base_url_env: str = ""
+    org_id_env: str = ""
     project_scope: str = ""
     quota_group: str = ""
     enabled: bool = True

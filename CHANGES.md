@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 16:05 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - telemetry: align Experiential management observations
+
+Aligned the Experiential usage reconciler with the documented management API
+host and its organization-scoped usage contract. The reconciler now derives
+the management host from the configured inference URL, reads non-secret key
+metadata and effective key limits without guessing identifiers, and only calls
+usage rollups when an optional EXPLABS_ORG_ID environment value is
+configured. This removes recurring invalid telemetry probes while preserving
+local attempt telemetry and provider-observed data when the account scope is
+available. Added bounded unit coverage for URL derivation and key-ID safety.
+
 ### 2026-09-08 15:10 +05:30 - Codex (GPT-5 / OpenAI) - [ddc2e77] - app: integrate Build Preparation, provider safety, and complete output rail
 
 Extended the authenticated `/app` journey through an explicit Build
