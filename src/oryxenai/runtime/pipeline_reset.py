@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -27,6 +29,9 @@ from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionReposito
 
 class PipelineResetError(Exception):
     """Safe, retryable cleanup failure for the API boundary."""
+
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineResetService:
@@ -147,6 +152,109 @@ class PipelineResetService:
         await self.db.flush()
         await self.db.refresh(replacement)
         return replacement
+
+    async def reset_admin_pipeline(
+        self,
+        session_id: UUID,
+        actor_id: UUID,
+        request_id: str = "",
+    ) -> PortfolioSession:
+        """Fence, clean external resources, purge stage runs/jobs, and reset pipeline state to zero."""
+        repo = PortfolioSessionRepository(self.db)
+        session = await repo.get_by_id_for_update(session_id)
+        if session is None:
+            raise LookupError("session not found")
+
+        state_snapshot = dict(session.current_state or {})
+        session.status = "deletion_pending"
+        session.revision += 1
+        session.updated_at = datetime.now(UTC)
+        await self.db.execute(
+            update(BackgroundJob)
+            .where(
+                BackgroundJob.portfolio_session_id == session_id,
+                BackgroundJob.status == "queued",
+            )
+            .values(
+                status="failed",
+                error_payload={
+                    "code": "PIPELINE_RESET",
+                    "message": "The pipeline was reset by an administrator.",
+                    "retryable": False,
+                },
+            )
+        )
+        await self.db.flush()
+        # Persist the fence before external cleanup.
+        await self.db.commit()
+
+        try:
+            cleanup = AdminService(
+                db=self.db,
+                provider=cast(AdminIdentityProvider, self.auth_admin_provider),
+                preview_storage=self.preview_storage,
+                artifact_store=self.artifact_store,
+                settings=self.settings,
+            )
+            await cleanup._cleanup_external(session_id)
+            self._cleanup_build_preparation_paths(state_snapshot)
+        except Exception as exc:
+            await self.db.rollback()
+            raise PipelineResetError() from exc
+
+        session = await repo.get_by_id_for_update(session_id)
+        if session is None:
+            raise LookupError("session not found")
+
+        run_ids = select(CodeGeneratorDevelopmentRun.id).where(
+            CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
+        )
+        await self.db.execute(
+            delete(BackgroundJob).where(BackgroundJob.portfolio_session_id == session_id)
+        )
+        await self.db.execute(delete(AgentRun).where(AgentRun.portfolio_session_id == session_id))
+        await self.db.execute(
+            delete(CodeGeneratorStageAttempt).where(CodeGeneratorStageAttempt.run_id.in_(run_ids))
+        )
+        await self.db.execute(
+            delete(CodeGeneratorDevelopmentEvent).where(
+                CodeGeneratorDevelopmentEvent.run_id.in_(run_ids)
+            )
+        )
+        await self.db.execute(
+            delete(CodeGeneratorDevelopmentRun).where(
+                CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
+            )
+        )
+
+        session.current_state = {}
+        session.status = "active"
+        session.revision += 1
+        session.updated_at = datetime.now(UTC)
+        await self.db.flush()
+
+        if self.auth_admin_provider is not None:
+            try:
+                from oryxenai.auth.admin.repository import AdminRepository
+
+                admin_repo = AdminRepository(self.db)
+                await admin_repo.add_audit(
+                    actor_id=actor_id,
+                    action="admin_pipeline_reset",
+                    target_type="project",
+                    target_id=session_id,
+                    operation_id=None,
+                    outcome="completed",
+                    request_id=request_id,
+                    safe_details={"message": "Pipeline reset to zero by admin."},
+                )
+                await self.db.flush()
+            except Exception as exc:
+                logger.warning("Failed to record admin reset audit: %s", exc)
+
+        await self.db.commit()
+        await self.db.refresh(session)
+        return session
 
     @staticmethod
     def _is_empty_detached(session: PortfolioSession | None) -> bool:

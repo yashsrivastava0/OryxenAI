@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 02:44 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [bc7b5a6] - feat(studio): add admin-only pipeline reset
+
+Added an administrator-only pipeline reset capability to allow resetting any active portfolio session completely back to zero (restarting from the Discovery agent) while preserving the administrator's authentication session:
+- Added `PipelineResetService.reset_admin_pipeline` in `src/oryxenai/runtime/pipeline_reset.py` to cancel pending jobs with `PIPELINE_RESET`, clean external preview/artifact stores, purge background jobs, agent runs, and code generator execution records, zero `current_state`, reset status to `active`, and record an admin audit log entry.
+- Added `POST /api/v1/sessions/{session_id}/reset` in `src/oryxenai/api/routes/sessions.py`, guarded by `require_admin` (returning 403 `ADMIN_REQUIRED` to non-admin users). Registered in authorization route inventory.
+- Added `pipeline/reset` action in `frontend/src/app/store.ts` and `api.resetSession` in `frontend/src/data/api-client.ts`.
+- Added topbar Reset button with `ADMIN` badge, account menu secondary link, and confirmation dialog modal in `frontend/src/app/AppShell.tsx` and styled in `frontend/src/styles/shell.css`.
+- Verified with integration tests in `tests/api/test_admin_pipeline_reset.py`, store unit tests, and production frontend build.
+
+
+
 ### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [66d8287] - docs(frontend): author comprehensive frontend and agent integration specifications
 
 Created an exhaustive 6-document technical reference suite under `docs/frontend/`

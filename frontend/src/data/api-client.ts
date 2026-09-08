@@ -211,6 +211,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         jsonInit("POST", name ? { name } : {}),
       ),
 
+    resetSession: (sessionId: string) =>
+      requestJson<{ id: string; name: string; status: string; current_state: Record<string, unknown>; revision: number }>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/reset`,
+        jsonInit("POST", {}),
+      ),
+
     getDiscovery: (sessionId: string) =>
       requestJson<StageEnvelope>(authorizedFetch, `/api/v1/sessions/${encodeURIComponent(sessionId)}/discovery`),
 
