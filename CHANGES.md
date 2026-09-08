@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 10:35 +05:30 - Codex (GPT-5 / OpenAI) - [7f2fbd0] - discovery retry/provider metadata fix
+Fixed repeated manual Discovery retries reusing the worker attempt number and colliding with the durable AgentRun idempotency constraint. Also keeps job-attempt tracing metadata internal to the OpenAI-compatible adapter; added regression coverage, and verified the live Experiential Luna browser flow reaches questions.
+
 ### 2026-09-08 05:25 +05:30 - Codex (GPT-5 / OpenAI) - [9d256f3] - model-routing: provider-neutral Experiential/Gemini routing, quota ledger, bounded recovery
 
 Implemented PLAN.MD's first-four provider strategy: Experiential GPT-5.6 Luna is the personal-input route, explicitly sanitized/synthetic lightweight work can use independently observed Gemini Free Tier capacity, and no normal first-four call uses `OPENAI_API_KEY`. Added operation-level routing profiles, one durable normal/recovery budget, zero SDK retries, route-aware cache identity, PostgreSQL usage/attempt/reservation/capacity telemetry, provider reconciliation hooks, safe attributable frontend errors, and the native Gemini adapter. Added the Windows `tzdata` runtime dependency required for Pacific daily quota windows, plus the compatibility receipt fix needed by the complete suite. Live probes succeeded on `EXPLABS`/`gpt-5.6-luna` and `GEMINI_1`/`gemini-3.5-flash-lite`; full verification: 1,002 passed, 169 skipped, mypy clean, migration `0022_model_usage_ledger` at head. Records D-078.
