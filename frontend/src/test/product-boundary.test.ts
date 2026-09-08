@@ -44,6 +44,7 @@ describe("authenticated product boundary", () => {
     expect(stageSource).toContain('approvalActionLabel="Approve brief"');
     expect(stageSource).toContain("requireApprovalConfirmation={false}");
     expect(stageSource).toContain("onContinueToContent");
+    expect(appSource).toContain('state.content.state === "locked"');
   });
 
   it("repairs a stale incomplete Content result instead of looping on approval", async () => {
