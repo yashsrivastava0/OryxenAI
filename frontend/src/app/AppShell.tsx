@@ -877,7 +877,12 @@ export function AppShell({
                   onStop={handleStopDesign}
                   onContinueToPreparation={async () => {
                     selectStage("prepare");
-                    if (!state.preparation || state.preparation.state === "available") {
+                    // A preparation projection can remain fail-closed
+                    // `locked` for one render when Design approval and the
+                    // session refresh race.  The explicit handoff is the
+                    // user's authorization to begin this stage, so start
+                    // from that stale projection as well as `available`.
+                    if (!state.preparation || state.preparation.state === "locked" || state.preparation.state === "available") {
                       await runPreparationMutation("start");
                     }
                   }}
