@@ -409,6 +409,45 @@ class TestInputAndErrors:
         resp = await client.get(f"/api/v1/sessions/{sid}/discovery")
         assert resp.json()["discovery"]["status"] == "questions_ready"
 
+    async def test_repeated_manual_retries_get_distinct_run_keys(self, client, monkeypatch):
+        """A failed job's worker attempt must not be reused as retry identity."""
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        max_attempts = started["discovery"]["max_attempts"]
+
+        def failing_agent(*args, **kwargs):
+            agent = DiscoveryAgent(model_client=_MockModelClient())
+
+            async def run(context):
+                raise ProviderTimeoutError("simulated timeout")
+
+            agent.run = run
+            return agent
+
+        monkeypatch.setattr(
+            "oryxenai.jobs.handlers.discovery._build_discovery_agent", failing_agent
+        )
+
+        with pytest.raises(ProviderTimeoutError):
+            await _run_worker_job(
+                client, started["discovery"]["operation_a"]["job_id"], attempt=max_attempts
+            )
+        first_retry = await _start(client, sid)
+
+        with pytest.raises(ProviderTimeoutError):
+            await _run_worker_job(
+                client,
+                first_retry["discovery"]["operation_a"]["job_id"],
+                attempt=max_attempts,
+            )
+        second_retry = await _start(client, sid)
+
+        assert second_retry["discovery"]["status"] == "questions_queued"
+        assert (
+            second_retry["discovery"]["operation_a"]["run_id"]
+            != first_retry["discovery"]["operation_a"]["run_id"]
+        )
+
     async def test_start_is_idempotent_while_running(self, client):
         sid = await _create_session(client)
         started = await _start(client, sid)
