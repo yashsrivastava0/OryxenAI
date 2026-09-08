@@ -10,6 +10,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
@@ -195,27 +196,47 @@ class ExperientialUsageClient:
     """Read-only Experiential usage/limits surfaces."""
 
     def __init__(
-        self, *, api_key: str, management_base_url: str = "https://platform.experientiallabs.ai"
+        self, *, api_key: str, management_base_url: str = "https://api.experientiallabs.ai"
     ) -> None:
         self._api_key = api_key
         self._base_url = management_base_url.rstrip("/")
 
-    async def get_usage_events(self, org_id: str = "") -> dict[str, Any]:
-        params = {"org_id": org_id} if org_id else {}
+    async def get_usage_events(
+        self, org_id: str = "", *, limit: int = 50, scope: str = "org"
+    ) -> dict[str, Any]:
+        params = {"org_id": org_id, "limit": str(max(1, min(100, int(limit))))} if org_id else {}
+        if org_id and scope:
+            params["scope"] = scope
         return await self._get("/api/gateway/usage/events", params=params)
 
     async def get_daily_usage(
-        self, org_id: str = "", group_by: str = "day_model"
+        self, org_id: str = "", group_by: str = "day_model", *, scope: str = "org"
     ) -> dict[str, Any]:
         params = {"group_by": group_by}
         if org_id:
             params["org_id"] = org_id
+            if scope:
+                params["scope"] = scope
         return await self._get("/api/gateway/usage/daily", params=params)
 
     async def get_key_limits(self, api_key_id: str) -> dict[str, Any]:
         return await self._get(f"/api/gateway/keys/{api_key_id}/limits")
 
+    async def list_keys(self) -> dict[str, Any]:
+        """Return the provider's non-secret key metadata in observation form."""
+
+        payload = await self._get_json("/api/keys")
+        if isinstance(payload, list):
+            return {"keys": [dict(item) for item in payload if isinstance(item, Mapping)]}
+        if isinstance(payload, Mapping):
+            return dict(payload)
+        return {}
+
     async def _get(self, path: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:
+        payload = await self._get_json(path, params=params)
+        return dict(payload) if isinstance(payload, Mapping) else {}
+
+    async def _get_json(self, path: str, *, params: dict[str, str] | None = None) -> Any:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(
                 f"{self._base_url}{path}",
@@ -223,8 +244,7 @@ class ExperientialUsageClient:
                 params=params,
             )
             response.raise_for_status()
-            payload = response.json()
-        return dict(payload) if isinstance(payload, dict) else {}
+            return response.json()
 
 
 class ModelUsageReconciler:
@@ -264,43 +284,78 @@ class ModelUsageReconciler:
                     sources += 1
                     try:
                         if source.provider.casefold() == "experiential":
-                            client = ExperientialUsageClient(api_key=api_key)
+                            client = ExperientialUsageClient(
+                                api_key=api_key,
+                                management_base_url=_management_base_url_for_source(source),
+                            )
                             provider_payloads: list[dict[str, Any]] = []
-                            # Usage events carry request identity, actual/free
-                            # consumption, and gateway attempt counts.  Daily
-                            # usage is retained separately because it is a
-                            # summary rather than a replacement for events.
-                            for kind, loader in (
-                                ("usage_events", client.get_usage_events),
-                                ("usage_daily", client.get_daily_usage),
-                            ):
-                                try:
-                                    payload = await loader()
-                                except Exception as exc:
-                                    logger.debug(
-                                        "experiential observation unavailable kind=%s error=%s",
-                                        kind,
-                                        type(exc).__name__,
+                            org_id = _configured_org_id(source)
+                            if org_id:
+                                # Usage events carry request identity, actual/free
+                                # consumption, and gateway attempt counts.  Daily
+                                # usage is retained separately because it is a
+                                # summary rather than a replacement for events.
+                                for kind in ("usage_events", "usage_daily"):
+                                    try:
+                                        payload = await (
+                                            client.get_usage_events(org_id=org_id)
+                                            if kind == "usage_events"
+                                            else client.get_daily_usage(org_id=org_id)
+                                        )
+                                    except Exception as exc:
+                                        logger.debug(
+                                            "experiential observation unavailable kind=%s error=%s",
+                                            kind,
+                                            type(exc).__name__,
+                                        )
+                                        continue
+                                    provider_payloads.append(payload)
+                                    await self._store_observation(
+                                        db,
+                                        provider="experiential",
+                                        source_id=source_id,
+                                        kind=kind,
+                                        payload=payload,
                                     )
-                                    continue
-                                provider_payloads.append(payload)
+                                    observations += 1
+                            else:
+                                # Hosted usage reads require an organization
+                                # identifier. Do not probe an invalid request
+                                # on every worker heartbeat when it is absent;
+                                # local attempt telemetry remains authoritative.
+                                logger.debug(
+                                    "experiential usage observation skipped source=%s reason=org_id_not_configured",
+                                    source_id,
+                                )
+
+                            # The key list does not require org_id and gives us
+                            # an unambiguous, non-secret key identifier for the
+                            # effective limits endpoint. Never infer an ID from
+                            # an event, request, or organization identifier.
+                            try:
+                                key_payload = await client.list_keys()
+                            except Exception as exc:
+                                logger.debug(
+                                    "experiential key list unavailable error=%s",
+                                    type(exc).__name__,
+                                )
+                            else:
+                                provider_payloads.append(key_payload)
                                 await self._store_observation(
                                     db,
                                     provider="experiential",
                                     source_id=source_id,
-                                    kind=kind,
-                                    payload=payload,
+                                    kind="keys",
+                                    payload=key_payload,
                                 )
                                 observations += 1
-                            # A key-limit request is made only when the
-                            # provider supplies a non-secret key identifier in
-                            # an observation.  Never guess an ID from the API
-                            # key itself or from an account email.
-                            # Only an explicitly named key identifier is safe
-                            # to pass to the key-limits endpoint.  Event IDs,
-                            # request IDs, and organization IDs are useful
-                            # observation cursors but are not API-key IDs.
-                            key_id = _extract_key_identifier(provider_payloads)
+
+                            key_id = _extract_listed_key_identifier(provider_payloads)
+                            if not key_id:
+                                # Preserve support for a future usage payload
+                                # that names the key explicitly; generic event
+                                # and request IDs remain rejected.
+                                key_id = _extract_key_identifier(provider_payloads)
                             if key_id:
                                 try:
                                     limits = await client.get_key_limits(key_id)
@@ -393,7 +448,7 @@ class ModelUsageReconciler:
         # catalog/usage response cannot become an unbounded application log.
         bounded = _bounded_metadata(payload)
         external_id = _extract_external_identifier([bounded]) or ""
-        if not external_id and kind in {"catalog", "usage_daily", "key_limits"}:
+        if not external_id and kind in {"catalog", "usage_daily", "key_limits", "keys"}:
             # Summary/catalog responses often have no provider cursor.  A
             # bounded-content fingerprint prevents the reconciler from
             # inserting an identical row on every refresh while still
@@ -531,6 +586,7 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         "rate_limits",
         "rateLimits",
         "rate_limit",
+        "keys",
     ):
         value = payload.get(key)
         if isinstance(value, list):
@@ -640,9 +696,7 @@ def _extract_usage_totals(payloads: Iterable[Mapping[str, Any]]) -> dict[str, in
         )
     if input_tokens is None:
         input_tokens = sum(
-            _first_number([item], token_keys) or 0
-            for item in records
-            if isinstance(item, Mapping)
+            _first_number([item], token_keys) or 0 for item in records if isinstance(item, Mapping)
         )
     return {"requests": max(0, requests or 0), "input_tokens": max(0, input_tokens or 0)}
 
@@ -694,3 +748,42 @@ def _extract_key_identifier(payloads: Iterable[Mapping[str, Any]]) -> str:
                 if isinstance(raw_value, (str, int)) and str(raw_value):
                     return str(raw_value)[:200]
     return ""
+
+
+def _extract_listed_key_identifier(payloads: Iterable[Mapping[str, Any]]) -> str:
+    """Read an API-key ID only from the provider's explicit key-list result."""
+
+    for payload in payloads:
+        listed = payload.get("keys") if isinstance(payload, Mapping) else None
+        if not isinstance(listed, list):
+            continue
+        for item in listed:
+            if not isinstance(item, Mapping):
+                continue
+            for raw_key in ("id", "api_key_id", "key_id"):
+                value = item.get(raw_key)
+                if isinstance(value, (str, int)) and str(value):
+                    return str(value)[:200]
+    return ""
+
+
+def _configured_org_id(source: Any) -> str:
+    env_name = str(getattr(source, "org_id_env", "") or "").strip()
+    return os.environ.get(env_name, "").strip() if env_name else ""
+
+
+def _management_base_url_for_source(source: Any) -> str:
+    """Resolve the Experiential management host from provider-neutral config."""
+
+    management_env = str(getattr(source, "management_base_url_env", "") or "").strip()
+    base_env = management_env or str(getattr(source, "base_url_env", "") or "").strip()
+    configured = os.environ.get(base_env, "").strip() if base_env else ""
+    if not configured:
+        return "https://api.experientiallabs.ai"
+    parsed = urlsplit(configured)
+    path = parsed.path.rstrip("/")
+    if path.casefold().endswith("/v1"):
+        path = path[:-3].rstrip("/")
+    return urlunsplit((parsed.scheme, parsed.netloc, path, "", "")).rstrip(
+        "/"
+    ) or configured.rstrip("/")
