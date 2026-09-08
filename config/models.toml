@@ -35,6 +35,159 @@ code_generator_route_composer = "code_generator_route_composer"
 code_generator_integrator = "code_generator_integrator"
 code_generator_repairer = "code_generator_repairer"
 
+[routing.policy]
+version = "precode_free_v1"
+input_policy = "personal_luna_only"
+utilization_ceiling = 0.8
+wallet_spend_enabled = false
+promotional_usage_enabled = true
+
+[routing.capacity.sources.EXPLABS]
+provider = "experiential"
+credential_alias = "EXPLABS"
+api_key_env = "EXPLABS_API_KEY"
+base_url_env = "EXPLABS_BASE_URL"
+project_scope = "organization"
+quota_group = "EXPLABS"
+enabled = true
+input_policy = "any"
+
+[routing.capacity.sources.GEMINI_1]
+provider = "gemini"
+credential_alias = "GEMINI_1"
+api_key_env = "GEMINI_API_KEY1"
+base_url_env = ""
+project_scope = "GEMINI_1"
+quota_group = "GEMINI_1"
+enabled = true
+input_policy = "sanitized"
+
+[routing.capacity.sources.GEMINI_2]
+provider = "gemini"
+credential_alias = "GEMINI_2"
+api_key_env = "GEMINI_API_KEY2"
+base_url_env = ""
+project_scope = "GEMINI_2"
+quota_group = "GEMINI_2"
+enabled = true
+input_policy = "sanitized"
+
+[routing.capacity.sources.GEMINI_3]
+provider = "gemini"
+credential_alias = "GEMINI_3"
+api_key_env = "GEMINI_API_KEY3"
+base_url_env = ""
+project_scope = "GEMINI_3"
+quota_group = "GEMINI_3"
+enabled = true
+input_policy = "sanitized"
+
+[routing.capacity]
+observation_refresh_seconds = 300
+reservation_ttl_seconds = 900
+unresolved_attempt_ttl_seconds = 3600
+
+[routing.operation_profiles.discovery.understand_and_question]
+primary_profile = "experiential_luna"
+sanitized_primary_profile = "gemini_flash_lite_1"
+fallback_profiles = ["gemini_flash_lite_1", "gemini_flash_lite_2", "gemini_flash_lite_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 1
+recovery_allowance = 1
+max_output_tokens = 4096
+input_limit_tokens = 64000
+timeout_seconds = 180
+reasoning_effort = "low"
+
+[routing.operation_profiles.discovery.build_or_revise_brief]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 1
+recovery_allowance = 1
+max_output_tokens = 12000
+input_limit_tokens = 64000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.content_architect.plan_content]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 3
+recovery_allowance = 1
+max_output_tokens = 16000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.content_architect.write_pages]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 3
+recovery_allowance = 1
+max_output_tokens = 16000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.content_architect.integrate_content]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 3
+recovery_allowance = 1
+max_output_tokens = 16000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.visual_design_director.establish_visual_language]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 3
+recovery_allowance = 1
+max_output_tokens = 24000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.visual_design_director.direct_page_experience]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 3
+recovery_allowance = 1
+max_output_tokens = 24000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.visual_design_director.integrate_site_experience]
+primary_profile = "experiential_luna"
+fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 3
+recovery_allowance = 1
+max_output_tokens = 24000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "medium"
+
+[routing.operation_profiles.build_preparation.compose_visual_brief]
+primary_profile = "experiential_luna"
+sanitized_primary_profile = "gemini_flash_lite_1"
+fallback_profiles = ["gemini_flash_lite_1", "gemini_flash_lite_2", "gemini_flash_lite_3", "experiential_luna"]
+allow_gemini = true
+normal_calls = 1
+recovery_allowance = 1
+max_output_tokens = 12000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "low"
+
 [profiles.default]
 provider = "anthropic"
 model = "claude-sonnet-5"
@@ -190,6 +343,244 @@ response_id = true
 context_cache_metadata = true
 supports_store_parameter = true
 uses_max_completion_tokens = true
+
+# Experiential Labs OpenAI-compatible Luna route used by the first four
+# portfolio stages.  The model slug is intentionally configured here rather
+# than in .env; EXPLABS_MODEL is not a supported setting.
+[profiles.experiential_luna]
+provider = "experiential"
+model = "gpt-5.6-luna"
+display_name = "Experiential Labs — GPT-5.6 Luna"
+base_url = ""
+base_url_env = "EXPLABS_BASE_URL"
+api_key_env = "EXPLABS_API_KEY"
+credential_alias = "EXPLABS"
+capacity_source_id = "EXPLABS"
+quota_group = "EXPLABS"
+context_limit_tokens = 1050000
+input_policy = "any"
+pricing_card_ref = "experiential:gpt-5.6-luna"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 24000
+reasoning_effort = "medium"
+prompt_cache_ttl = ""
+store = false
+pricing = { unit = "usd_per_million_tokens", input_per_million = 0.20, cached_input_per_million = 0.02, cache_write_per_million = 0.20, output_per_million = 1.20 }
+
+[profiles.experiential_luna.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = true
+structured_output_mode = "json_object"
+thinking_strategy = "adaptive"
+effort_parameter = "reasoning_effort"
+reasoning_content = false
+temperature_control = false
+usage_metadata = true
+response_id = true
+context_cache_metadata = true
+supports_store_parameter = false
+uses_max_completion_tokens = true
+supports_prompt_cache_key = false
+supports_prompt_cache_options = false
+supports_prompt_cache_breakpoint = false
+
+# Gemini Free Tier profiles are explicitly sanitized-input only.  The three
+# aliases are separate configured capacity sources; quota limits are observed
+# at runtime and are never hardcoded in agent code.
+[profiles.gemini_flash_lite_1]
+provider = "gemini"
+model = "gemini-3.5-flash-lite"
+display_name = "Gemini Flash-Lite (GEMINI_1)"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY1"
+credential_alias = "GEMINI_1"
+capacity_source_id = "GEMINI_1"
+quota_group = "GEMINI_1"
+context_limit_tokens = 1048576
+input_policy = "sanitized"
+pricing_card_ref = "google:free-tier"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 4096
+reasoning_effort = ""
+store = false
+
+[profiles.gemini_flash_lite_1.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = false
+context_cache_metadata = false
+supports_store_parameter = false
+uses_max_completion_tokens = false
+
+[profiles.gemini_flash_lite_2]
+provider = "gemini"
+model = "gemini-3.5-flash-lite"
+display_name = "Gemini Flash-Lite (GEMINI_2)"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY2"
+credential_alias = "GEMINI_2"
+capacity_source_id = "GEMINI_2"
+quota_group = "GEMINI_2"
+context_limit_tokens = 1048576
+input_policy = "sanitized"
+pricing_card_ref = "google:free-tier"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 4096
+store = false
+
+[profiles.gemini_flash_lite_2.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = false
+context_cache_metadata = false
+supports_store_parameter = false
+uses_max_completion_tokens = false
+
+[profiles.gemini_flash_lite_3]
+provider = "gemini"
+model = "gemini-3.5-flash-lite"
+display_name = "Gemini Flash-Lite (GEMINI_3)"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY3"
+credential_alias = "GEMINI_3"
+capacity_source_id = "GEMINI_3"
+quota_group = "GEMINI_3"
+context_limit_tokens = 1048576
+input_policy = "sanitized"
+pricing_card_ref = "google:free-tier"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 4096
+store = false
+
+[profiles.gemini_flash_lite_3.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = false
+context_cache_metadata = false
+supports_store_parameter = false
+uses_max_completion_tokens = false
+
+[profiles.gemini_flash_1]
+provider = "gemini"
+model = "gemini-3.8-flash"
+display_name = "Gemini Flash (GEMINI_1)"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY1"
+credential_alias = "GEMINI_1"
+capacity_source_id = "GEMINI_1"
+quota_group = "GEMINI_1"
+context_limit_tokens = 1048576
+input_policy = "sanitized"
+pricing_card_ref = "google:free-tier"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 16000
+store = false
+
+[profiles.gemini_flash_1.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = false
+context_cache_metadata = false
+supports_store_parameter = false
+uses_max_completion_tokens = false
+
+[profiles.gemini_flash_2]
+provider = "gemini"
+model = "gemini-3.8-flash"
+display_name = "Gemini Flash (GEMINI_2)"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY2"
+credential_alias = "GEMINI_2"
+capacity_source_id = "GEMINI_2"
+quota_group = "GEMINI_2"
+context_limit_tokens = 1048576
+input_policy = "sanitized"
+pricing_card_ref = "google:free-tier"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 16000
+store = false
+
+[profiles.gemini_flash_2.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = false
+context_cache_metadata = false
+supports_store_parameter = false
+uses_max_completion_tokens = false
+
+[profiles.gemini_flash_3]
+provider = "gemini"
+model = "gemini-3.8-flash"
+display_name = "Gemini Flash (GEMINI_3)"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY3"
+credential_alias = "GEMINI_3"
+capacity_source_id = "GEMINI_3"
+quota_group = "GEMINI_3"
+context_limit_tokens = 1048576
+input_policy = "sanitized"
+pricing_card_ref = "google:free-tier"
+timeout_seconds = 180
+max_retries = 0
+max_output_tokens = 16000
+store = false
+
+[profiles.gemini_flash_3.capabilities]
+json_object_mode = true
+json_schema_mode = false
+thinking_mode = false
+structured_output_mode = "json_object"
+thinking_strategy = "disabled"
+effort_parameter = "none"
+reasoning_content = false
+temperature_control = true
+usage_metadata = true
+response_id = false
+context_cache_metadata = false
+supports_store_parameter = false
+uses_max_completion_tokens = false
 
 [profiles.code_generator_director]
 # Direct OpenAI (D-067: new confirmed key).

@@ -240,6 +240,7 @@ class BuildPreparationAgent(Agent):
                 stage0=stage0,
                 visual_design_director=visual_design_director,
                 discovery=discovery,
+                context=context,
             )
             model_calls = 0 if bool((metadata.get("cache") or {}).get("cache_hit")) else 1
         else:
@@ -319,6 +320,7 @@ class BuildPreparationAgent(Agent):
         stage0: Stage0Result,
         visual_design_director: dict[str, Any],
         discovery: Any,
+        context: AgentContext,
     ) -> tuple[VisualBriefOutput, str, dict[str, Any]]:
         packet = {
             "visual_input_mode": stage0.visual_input_mode,
@@ -399,7 +401,9 @@ class BuildPreparationAgent(Agent):
             output_model=VisualBriefOutput,
             model_profile=self._profile_name,
             profile_fingerprint=self._profile_fingerprint,
-            request_context=prompt_cache_context(self.key.value, "compose_visual_brief", manifest),
+            request_context=prompt_cache_context(
+                self.key.value, "compose_visual_brief", manifest, context
+            ),
             strict_schema=False,
             validator=validate,
         )
@@ -416,7 +420,7 @@ class BuildPreparationAgent(Agent):
             suggestion_counts=suggestion_counts,
         )
         metadata = {
-            "provider": result.model,
+            "provider": str(result.telemetry.get("provider", "") or ""),
             "model": result.model,
             "response_id": result.response_id,
             "usage": result.usage,

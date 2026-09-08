@@ -34,7 +34,7 @@ from oryxenai.agents.shared.output_export import export_agent_result
 from oryxenai.agents.shared.providers.errors import (
     ModelOutputInvalidError,
     ProviderError,
-    stable_provider_failure,
+    safe_operation_failure,
 )
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
@@ -74,7 +74,9 @@ class ContentArchitectBuildHandler:
         settings = get_settings()
         sessionmaker = get_sessionmaker(settings)
         attempt = int(payload.get("attempt", 1))
-        max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+        max_attempts = int(
+            payload.get("max_attempts", settings.worker_retry.first_four_max_attempts)
+        )
         await _persist_failure(
             sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
         )
@@ -83,6 +85,7 @@ class ContentArchitectBuildHandler:
 def _build_content_architect_agent(
     override_profile_name: str = "",
     *,
+    input_classification: str = "unknown",
     result_cache: Any = None,
     profile_fingerprint: str = "",
 ) -> Any:
@@ -98,9 +101,13 @@ def _build_content_architect_agent(
 
     settings = get_settings()
     runtime = get_model_runtime(settings.models)
-    resolved_profile = runtime.resolve_profile_name("content_architect", override_profile_name)
+    resolved_profile = runtime.policy_profile_name("content_architect", "plan_content")
     return ContentArchitectAgent(
-        model_client=runtime.resolve("content_architect", override_profile_name),
+        model_client=runtime.routed_client(
+            "content_architect",
+            override_profile_name=override_profile_name,
+            input_classification=input_classification,
+        ),
         profile_name=resolved_profile,
         result_cache=result_cache,
         profile_fingerprint=profile_fingerprint,
@@ -116,7 +123,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
     raw_job_id = payload.get("job_id")
     job_id = UUID(str(raw_job_id)) if raw_job_id else None
 
@@ -149,7 +156,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         if job_id is not None and await _job_is_cancelled(db, job_id):
             return {"status": "cancelled", "job_id": str(job_id)}
     requested_profile = str(input_payload.get("model_profile", "") or "")
-    runtime_profile_id = runtime.resolve_profile_name("content_architect", requested_profile)
+    runtime_profile_id = runtime.policy_profile_name("content_architect", "plan_content")
     input_payload["runtime_profile_id"] = runtime_profile_id
     result_cache = build_result_cache(
         settings,
@@ -161,6 +168,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         await WorkerAuthorizationFence(db).validate_payload(payload)
     agent = _build_content_architect_agent(
         requested_profile,
+        input_classification=str(input_payload.get("input_classification", "unknown") or "unknown"),
         result_cache=result_cache,
         profile_fingerprint=runtime.profile_fingerprint(runtime_profile_id),
     )
@@ -170,6 +178,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         "preferences": input_payload.get("preferences", {}),
         "prior_output": input_payload.get("prior_output", {}),
         "revision_request": input_payload.get("revision_request", ""),
+        "routing_policy_snapshot": input_payload.get("routing_policy_snapshot", {}),
     }
     context = build_context(
         portfolio_session_id=session_id,
@@ -364,16 +373,7 @@ async def _persist_failure(
         session = await repo.get_session(session_id)
         if session is None:
             return
-        code, message = stable_provider_failure(error)
-        safe_error = {
-            "code": code,
-            "message": message,
-            "retryable": bool(
-                error.get("retryable", False)
-                if isinstance(error, dict)
-                else getattr(error, "retryable", False)
-            ),
-        }
+        safe_error = safe_operation_failure(error, operation="content_architect.build")
         state = await repo.get_content_architect_state(session_id)
         will_retry = bool(
             error.get("will_retry")

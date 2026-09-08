@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-078 — Route the first four agents through a provider-neutral free-tier policy
+
+- **Date & Time:** 2026-09-08 05:23 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The first four stages need Experiential Labs GPT-5.6 Luna as the safe default without normal calls falling back to `OPENAI_API_KEY`, while sanitized lightweight work may use three independent Gemini Free Tier projects. The prior retry/cost design could multiply transmissions across SDK, provider, worker, and agent layers, and there was no durable cross-user quota/attempt ledger.
+- **Decision:** Keep agent logic on the existing `ModelClient` boundary and resolve provider/model/profile from `config/models.toml` operation routes. Personal or otherwise unclassified first-four input is Luna-only through `EXPLABS`; explicitly sanitized/synthetic lightweight Discovery questions and Build Preparation may use Gemini 3.5 Flash Lite, while sanitized higher-complexity fallback uses the configured explicit Gemini Flash model. Every operation receives one durable normal/recovery budget (one normal plus one recovery for Discovery/Build Preparation; up to three normal plus one recovery for Content Architect/Visual Design Director), with SDK retries disabled and worker redelivery capped at two executions. Persist provider/model/alias/operation/attempt/fallback/token/cost/error/request-ID and quota-window records in PostgreSQL before transmission; reserve capacity at 80% of observed/configured ceilings, reconcile provider observations under an advisory lock, and leave unresolved reservations on acceptance-uncertain timeouts. Cache identity is resolved after the concrete route and policy snapshot, and a successful fallback is stored under its actual route identity. Frontend errors expose only safe provider/operation/support metadata.
+- **Rejected alternatives:** Directly replacing the current OpenAI adapter; using `OPENAI_API_KEY` as a hidden first-four fallback; blind Gemini key round-robin; provider SDK retries plus agent/worker retries; counting the `$1` card verification as wallet credit; and relying on model names or latest aliases in agent code. These either violate the privacy/cost boundary, bypass legitimate quota, or make attribution and replay safety impossible.
+- **Consequence:** Provider/model changes are configuration-only, Luna was live-verified through the configured Experiential endpoint with an `EXPLABS`-attributed request, and a sanitized live probe succeeded on `GEMINI_1` using the explicit configured model. The Windows runtime now declares `tzdata` so Pacific daily quota windows are durable on hosts without an IANA database. The policy is ready for future providers without changing stage business logic.
+
 ## D-077 — Implement PLAN.MD's Step 1 in full plus bounded generation-time authoring fixes; defer the Step 3 component rewrite and Steps 5/7/8/9
 
 - **Date & Time:** 2026-09-07 12:10 +05:30 — Claude Code (Sonnet 5 / Anthropic)
@@ -596,9 +605,9 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-09-06)
+## Summary (as of last update — 2026-09-08)
 
-- Total decisions logged: 75
-- Active decisions: 59
+- Total decisions logged: 76
+- Active decisions: 60
 - Compacted & superseded decisions: 16
-- Last updated: 2026-09-06 02:35 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Last updated: 2026-09-08 05:23 +05:30 — Codex (GPT-5 / OpenAI)

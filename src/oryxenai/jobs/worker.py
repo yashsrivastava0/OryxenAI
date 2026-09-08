@@ -122,19 +122,24 @@ class Worker:
         self._setup_signals()
         engine = get_engine(self._settings)
         self._sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        self._model_runtime.attach_sessionmaker(self._sessionmaker)
         logger.info("worker instance=%s starting", self._instance_id)
 
         await self._init_heartbeat()
 
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        usage_task = asyncio.create_task(self._usage_reconciliation_loop())
 
         try:
             await self._poll_loop()
         finally:
             self._running = False
             heartbeat_task.cancel()
+            usage_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
+            with contextlib.suppress(asyncio.CancelledError):
+                await usage_task
             await self._shutdown()
             await close_model_runtime(self._settings.models)
             await engine.dispose()
@@ -181,6 +186,20 @@ class Worker:
                 logger.warning("worker heartbeat transient error=%s", type(exc).__name__)
             await asyncio.sleep(interval)
 
+    async def _usage_reconciliation_loop(self) -> None:
+        """Periodically refresh provider usage without sending portfolio data."""
+
+        interval = max(
+            30.0,
+            float(self._settings.models.routing.capacity.observation_refresh_seconds),
+        )
+        while self._running:
+            try:
+                await self._model_runtime.reconcile_usage()
+            except Exception as exc:
+                logger.warning("model usage reconciliation failed error=%s", type(exc).__name__)
+            await asyncio.sleep(interval)
+
     # ── main poll loop ─────────────────────────────────────────────────────
 
     async def _poll_loop(self) -> None:
@@ -224,6 +243,10 @@ class Worker:
             return []
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
+            await repo.terminalize_exhausted_stale(
+                self._settings.worker_job.lease_duration,
+                allowed_job_kinds=list_kinds(),
+            )
             await repo.requeue_stale(
                 self._settings.worker_job.lease_duration,
                 min(

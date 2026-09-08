@@ -39,7 +39,7 @@ from oryxenai.agents.shared.output_export import export_agent_result
 from oryxenai.agents.shared.providers.errors import (
     ModelOutputInvalidError,
     ProviderError,
-    stable_provider_failure,
+    safe_operation_failure,
 )
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
@@ -76,7 +76,7 @@ async def _on_timeout_persisted(payload: dict[str, Any], error: dict[str, Any]) 
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
     operation = ""
     async with sessionmaker() as db:
         run = await DiscoveryRepository(db).get_run(run_id)
@@ -145,6 +145,7 @@ class DiscoveryBuildBriefHandler:
 def _build_discovery_agent(
     override_profile_name: str = "",
     *,
+    input_classification: str = "unknown",
     result_cache: Any = None,
     profile_fingerprint: str = "",
 ) -> Any:
@@ -160,9 +161,13 @@ def _build_discovery_agent(
 
     settings = get_settings()
     runtime = get_model_runtime(settings.models)
-    resolved_profile = runtime.resolve_profile_name("discovery", override_profile_name)
+    resolved_profile = runtime.policy_profile_name("discovery", "understand_and_question")
     return DiscoveryAgent(
-        model_client=runtime.resolve("discovery", override_profile_name),
+        model_client=runtime.routed_client(
+            "discovery",
+            override_profile_name=override_profile_name,
+            input_classification=input_classification,
+        ),
         profile_name=resolved_profile,
         result_cache=result_cache,
         profile_fingerprint=profile_fingerprint,
@@ -182,7 +187,7 @@ async def _execute_persisted(
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
     raw_job_id = payload.get("job_id")
     job_id = UUID(str(raw_job_id)) if raw_job_id else None
 
@@ -217,7 +222,10 @@ async def _execute_persisted(
         if job_id is not None and (job is None or job.status == JobStatus.CANCELLED.value):
             return {"status": "cancelled", "job_id": str(job_id)}
     requested_profile = str(input_payload.get("model_profile", "") or "")
-    runtime_profile_id = runtime.resolve_profile_name("discovery", requested_profile)
+    runtime_profile_id = runtime.policy_profile_name(
+        "discovery",
+        "understand_and_question" if operation in _QUESTIONS_OPS else "build_or_revise_brief",
+    )
     input_payload["runtime_profile_id"] = runtime_profile_id
     result_cache = build_result_cache(
         settings,
@@ -227,6 +235,7 @@ async def _execute_persisted(
 
     agent = _build_discovery_agent(
         requested_profile,
+        input_classification=str(input_payload.get("input_classification", "unknown") or "unknown"),
         result_cache=result_cache,
         profile_fingerprint=runtime.profile_fingerprint(runtime_profile_id),
     )
@@ -234,6 +243,7 @@ async def _execute_persisted(
         "operation": operation,
         "intake": input_payload.get("intake", {}),
         "prior_memory": input_payload.get("prior_memory", {}),
+        "routing_policy_snapshot": input_payload.get("routing_policy_snapshot", {}),
     }
     if operation in _BRIEF_OPS:
         agent_input["answers"] = input_payload.get("answers", {})
@@ -408,7 +418,9 @@ async def _apply_result(
         updated = await repo.save_discovery_state(session_id, next_state, session.revision)
         if updated is None:
             current_job = await JobRepository(db).get_by_id(job_id) if job_id is not None else None
-            if job_id is not None and (current_job is None or current_job.status == JobStatus.CANCELLED.value):
+            if job_id is not None and (
+                current_job is None or current_job.status == JobStatus.CANCELLED.value
+            ):
                 return {"status": "cancelled", "job_id": str(job_id)}
             raise ValueError("Discovery state changed while the job was running")
         state_after = dict(updated.current_state)
@@ -427,9 +439,7 @@ async def _apply_result(
         return {"status": "succeeded", "run_id": str(run_id), "operation": operation}
 
 
-def _job_owns_active_state(
-    state: Any, operation: str, run_id: UUID, job_id: UUID | None
-) -> bool:
+def _job_owns_active_state(state: Any, operation: str, run_id: UUID, job_id: UUID | None) -> bool:
     """Prevent a late worker result from reviving a stopped/restarted run."""
     if operation in _QUESTIONS_OPS:
         return (
@@ -471,16 +481,7 @@ async def _persist_failure(
         session = await repo.get_session(session_id)
         if session is None:
             return
-        code, message = stable_provider_failure(error)
-        safe_error = {
-            "code": code,
-            "message": message,
-            "retryable": bool(
-                error.get("retryable", False)
-                if isinstance(error, dict)
-                else getattr(error, "retryable", False)
-            ),
-        }
+        safe_error = safe_operation_failure(error, operation=operation or "discovery")
         if operation:
             safe_error["operation"] = operation
         state = await repo.get_discovery_state(session_id)

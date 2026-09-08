@@ -361,6 +361,8 @@ class VisualDesignDirectorState(BaseModel):
 
     status: VisualDesignDirectorStatus = VisualDesignDirectorStatus.NOT_STARTED
     model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
     source_ref: VisualDesignDirectorSourceRef = Field(default_factory=VisualDesignDirectorSourceRef)
     intake: VisualDesignDirectorIntake = Field(default_factory=VisualDesignDirectorIntake)
     preferences: VisualDesignDirectorPreferences = Field(

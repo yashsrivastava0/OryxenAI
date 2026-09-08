@@ -98,6 +98,9 @@ class DiscoveryService:
             return await self.get_discovery_state(session_id)
 
         resolved_profile = self._resolve_model_profile(model_profile, state.model_profile)
+        from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+        policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
 
         intake = DiscoveryIntake(message=message, document_text=document_text, goal=goal)
         intake_payload = intake.model_dump(mode="json")
@@ -137,6 +140,8 @@ class DiscoveryService:
                 "intake": intake_payload,
                 "prior_memory": state.memory,
                 "model_profile": resolved_profile,
+                "input_classification": "personal",
+                "routing_policy_snapshot": policy_snapshot,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -158,10 +163,12 @@ class DiscoveryService:
         queued = apply_start(state)
         queued.intake = intake
         queued.model_profile = resolved_profile
+        queued.routing_policy_version = str(policy_snapshot["version"])
+        queued.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
         queued.operation_a.run_id = str(run.id)
         queued.operation_a.job_id = str(job.id)
         queued.attempt = 0
-        queued.max_attempts = self._settings.worker_retry.max_attempts
+        queued.max_attempts = self._settings.worker_retry.first_four_max_attempts
         updated = await self._repository.save_discovery_state(session_id, queued, session.revision)
         if updated is None:
             self._revision_conflict(session.revision, session.revision + 1)

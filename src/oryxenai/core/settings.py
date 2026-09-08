@@ -161,6 +161,10 @@ class WorkerRetryConfig(BaseModel):
     """Retry scheduling settings from [worker.retry]."""
 
     max_attempts: int = 3
+    # New first-four pipeline jobs are intentionally limited to one initial
+    # worker execution plus one redelivery.  Code Generator and legacy jobs
+    # continue to use ``max_attempts`` until their own policy is migrated.
+    first_four_max_attempts: int = 2
     base_delay: float = 1.0
     max_delay: float = 60.0
     jitter: bool = True
@@ -966,6 +970,66 @@ class ModelProfile(BaseModel):
     pricing: ModelPricing | None = None
     store: bool = False
     capabilities: ModelCapabilities | None = None
+    # Provider-neutral attribution and capacity metadata.  These values are
+    # identifiers only; secrets remain in the environment referenced by
+    # ``api_key_env``.
+    credential_alias: str = ""
+    capacity_source_id: str = ""
+    quota_group: str = ""
+    base_url_env: str = ""
+    context_limit_tokens: int | None = None
+    pricing_card_ref: str = ""
+    input_policy: str = "any"
+    capability_policy: str = ""
+
+
+class CapacitySourceConfig(BaseModel):
+    """Configured provider capacity source (never contains a secret)."""
+
+    provider: str = ""
+    credential_alias: str = ""
+    api_key_env: str = ""
+    base_url_env: str = ""
+    project_scope: str = ""
+    quota_group: str = ""
+    enabled: bool = True
+    input_policy: str = "any"
+
+
+class OperationRouteConfig(BaseModel):
+    """One operation's provider-neutral route policy."""
+
+    primary_profile: str = ""
+    sanitized_primary_profile: str = ""
+    fallback_profiles: list[str] = Field(default_factory=list)
+    allow_gemini: bool = False
+    normal_calls: int = 1
+    recovery_allowance: int = 1
+    max_output_tokens: int | None = None
+    input_limit_tokens: int | None = None
+    timeout_seconds: float | None = None
+    reasoning_effort: str = ""
+    retry_same_provider: bool = False
+
+
+class ModelRoutingPolicy(BaseModel):
+    """Versioned routing policy snapshot source."""
+
+    version: str = "precode_free_v1"
+    input_policy: str = "personal_luna_only"
+    utilization_ceiling: float = 0.8
+    wallet_spend_enabled: bool = False
+    promotional_usage_enabled: bool = True
+    operation_routes: dict[str, OperationRouteConfig] = Field(default_factory=dict)
+
+
+class ModelCapacityConfig(BaseModel):
+    """All configured capacity sources and provider observation settings."""
+
+    sources: dict[str, CapacitySourceConfig] = Field(default_factory=dict)
+    observation_refresh_seconds: int = 300
+    reservation_ttl_seconds: int = 900
+    unresolved_attempt_ttl_seconds: int = 3600
 
 
 class ModelRoutingConfig(BaseModel):
@@ -974,6 +1038,18 @@ class ModelRoutingConfig(BaseModel):
     fallback_profile: str = "default"
     selectable_profiles: list[str] = Field(default_factory=list)
     engine_profiles: dict[str, str] = Field(default_factory=dict)
+    policy: ModelRoutingPolicy = Field(default_factory=ModelRoutingPolicy)
+    # Kept separately from ``engine_profiles`` so legacy callers can retain a
+    # concrete profile lock while new calls resolve per operation.
+    operation_profiles: dict[str, dict[str, OperationRouteConfig]] = Field(default_factory=dict)
+    capacity: ModelCapacityConfig = Field(default_factory=ModelCapacityConfig)
+
+    def operation_route(self, engine: str, operation: str) -> OperationRouteConfig | None:
+        engine_routes = self.operation_profiles.get(str(engine).strip(), {})
+        configured = engine_routes.get(str(operation).strip())
+        if configured is not None:
+            return configured
+        return self.policy.operation_routes.get(f"{str(engine).strip()}.{str(operation).strip()}")
 
 
 class ModelConfig(BaseModel):

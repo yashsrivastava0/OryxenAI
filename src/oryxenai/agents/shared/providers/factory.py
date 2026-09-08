@@ -25,12 +25,20 @@ def _anthropic(profile: ModelProfile) -> ModelClient:
     return AnthropicAdapter(profile)
 
 
+def _gemini(profile: ModelProfile) -> ModelClient:
+    from oryxenai.agents.shared.providers.gemini import GeminiAdapter
+
+    return GeminiAdapter(profile)
+
+
 _ADAPTER_BUILDERS: dict[str, AdapterBuilder] = {
     "opencode_go": _openai_compatible,
     "openai": _openai_compatible,
     "openai_compatible": _openai_compatible,
+    "experiential": _openai_compatible,
     "scalemax": _openai_compatible,
     "anthropic": _anthropic,
+    "gemini": _gemini,
 }
 
 

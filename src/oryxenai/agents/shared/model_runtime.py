@@ -14,8 +14,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from oryxenai.agents.shared.contracts import ModelClient
+from oryxenai.agents.shared.contracts import ModelClient, ResolvedModelRoute
+from oryxenai.agents.shared.model_execution import RoutedModelClient
+from oryxenai.agents.shared.model_quota import CapacityRegistry, ModelUsageReconciler
 from oryxenai.agents.shared.model_router import ModelRouter
+from oryxenai.agents.shared.model_usage import ModelUsageLedger, UsageTrackingModelClient
 from oryxenai.agents.shared.providers.errors import (
     ProviderConfigError,
     ProviderError,
@@ -28,6 +31,13 @@ if TYPE_CHECKING:
 
 _PREFLIGHT_PROTOCOL = "pipeline-model-preflight-v1"
 _PREFLIGHT_TTL_SECONDS = 300.0
+_PREFLIGHT_OPERATIONS = {
+    "discovery": "understand_and_question",
+    "content_architect": "plan_content",
+    "visual_design_director": "establish_visual_language",
+    "build_preparation": "compose_visual_brief",
+}
+_FIRST_FOUR = frozenset(_PREFLIGHT_OPERATIONS)
 
 
 class _PipelinePreflightEnvelope(BaseModel):
@@ -40,10 +50,14 @@ class _PipelinePreflightEnvelope(BaseModel):
 class ModelRuntime:
     """Resolve and reuse configured provider clients for one process."""
 
-    def __init__(self, model_config: ModelConfig) -> None:
+    def __init__(self, model_config: ModelConfig, sessionmaker: Any = None) -> None:
         self._config = model_config
         self._router = ModelRouter(model_config)
         self._clients: dict[str, ModelClient] = {}
+        self._tracked_clients: dict[str, ModelClient] = {}
+        utilization_ceiling = self._config.routing.policy.utilization_ceiling
+        self._usage_ledger = ModelUsageLedger(sessionmaker, utilization_ceiling)
+        self._capacity = CapacityRegistry(utilization_ceiling)
         self._preflight_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._closed = False
         self.validate_configuration()
@@ -51,6 +65,32 @@ class ModelRuntime:
     @property
     def router(self) -> ModelRouter:
         return self._router
+
+    @property
+    def config(self) -> ModelConfig:
+        return self._config
+
+    @property
+    def usage_ledger(self) -> ModelUsageLedger:
+        return self._usage_ledger
+
+    @property
+    def capacity_registry(self) -> CapacityRegistry:
+        return self._capacity
+
+    def attach_sessionmaker(self, sessionmaker: Any) -> None:
+        self._usage_ledger.sessionmaker = sessionmaker
+
+    async def reconcile_usage(self) -> dict[str, int]:
+        """Refresh provider usage/capability observations when a DB is attached."""
+
+        if self._usage_ledger.sessionmaker is None:
+            return {"observations": 0, "sources": 0}
+        return await ModelUsageReconciler(
+            sessionmaker=self._usage_ledger.sessionmaker,
+            model_config=self._config,
+            capacity_registry=self._capacity,
+        ).reconcile()
 
     def resolve_profile_name(self, engine: str, override: str = "") -> str:
         requested = str(override or "").strip()
@@ -89,7 +129,88 @@ class ModelRuntime:
                     "into explicit tests or development harnesses."
                 )
             self._clients[fingerprint] = client
+        if self._usage_ledger.sessionmaker is None:
+            return client
+        tracked = self._tracked_clients.get(fingerprint)
+        if tracked is None:
+            profile_route = ResolvedModelRoute(
+                profile_name=profile_name,
+                provider=profile.provider,
+                model=profile.model,
+                credential_alias=str(getattr(profile, "credential_alias", "") or ""),
+                capacity_source_id=str(getattr(profile, "capacity_source_id", "") or ""),
+                quota_group=str(getattr(profile, "quota_group", "") or ""),
+                profile_fingerprint=fingerprint,
+                policy_version=self._router.config.routing.policy.version,
+                input_policy=str(getattr(profile, "input_policy", "any") or "any"),
+                pricing_card_ref=str(getattr(profile, "pricing_card_ref", "") or ""),
+            )
+            tracked = UsageTrackingModelClient(client, profile_route, self._usage_ledger)
+            self._tracked_clients[fingerprint] = tracked
+        return tracked
+
+    def resolve_profile_client(self, profile_name: str) -> ModelClient:
+        """Resolve a concrete profile without reinterpreting its operation route."""
+
+        profile = self._require_profile(str(profile_name))
+        self._validate_profile(str(profile_name), profile)
+        fingerprint = self.profile_fingerprint(str(profile_name))
+        client = self._clients.get(fingerprint)
+        if client is None:
+            client = build_adapter(profile)
+            from oryxenai.agents.shared.model_client import MockModelClient
+
+            if isinstance(client, MockModelClient):
+                raise ProviderConfigError(
+                    "A live model runtime cannot use MockModelClient. Inject mocks only "
+                    "into explicit tests or development harnesses."
+                )
+            self._clients[fingerprint] = client
         return client
+
+    def resolve_operation_profile_name(
+        self,
+        engine: str,
+        operation: str,
+        *,
+        input_classification: str = "unknown",
+        override: str = "",
+    ) -> str:
+        try:
+            return self._router.resolve_operation_profile_name(
+                engine,
+                operation,
+                input_classification=input_classification,
+                override_profile_name=override,
+            )
+        except ValueError as exc:
+            raise ProviderConfigError(str(exc)) from exc
+
+    def policy_profile_name(self, engine: str, operation: str = "") -> str:
+        """Return the configured primary profile for safe metadata/readback."""
+
+        if operation:
+            return self.resolve_operation_profile_name(engine, operation)
+        routes = self._config.routing.operation_profiles.get(engine, {})
+        for route in routes.values():
+            if route.primary_profile:
+                return route.primary_profile
+        return self.resolve_profile_name(engine)
+
+    def routed_client(
+        self,
+        engine: str,
+        *,
+        override_profile_name: str = "",
+        input_classification: str = "unknown",
+    ) -> RoutedModelClient:
+        return RoutedModelClient(
+            self,
+            engine,
+            override_profile_name=override_profile_name,
+            usage_ledger=self._usage_ledger,
+            input_classification=input_classification,
+        )
 
     def profile_fingerprint_for(self, engine: str, override: str = "") -> str:
         return self.profile_fingerprint(self.resolve_profile_name(engine, override))
@@ -106,7 +227,7 @@ class ModelRuntime:
 
         distinct: dict[str, str] = {}
         for engine in engines:
-            profile_name = self.resolve_profile_name(engine, override)
+            profile_name = self._preflight_profile_name(engine, override)
             distinct.setdefault(self.profile_fingerprint(profile_name), profile_name)
 
         receipts: list[dict[str, Any]] = []
@@ -175,7 +296,7 @@ class ModelRuntime:
 
         distinct: dict[str, str] = {}
         for engine in engines:
-            profile_name = self.resolve_profile_name(engine, override)
+            profile_name = self._preflight_profile_name(engine, override)
             distinct.setdefault(self.profile_fingerprint(profile_name), profile_name)
         now = time.monotonic()
         missing = [
@@ -203,6 +324,7 @@ class ModelRuntime:
     async def aclose(self) -> None:
         clients = list(self._clients.values())
         self._clients.clear()
+        self._tracked_clients.clear()
         self._preflight_cache.clear()
         self._closed = True
         for client in clients:
@@ -213,12 +335,34 @@ class ModelRuntime:
     def clear_preflight_cache(self) -> None:
         self._preflight_cache.clear()
 
+    def _preflight_profile_name(self, engine: str, override: str = "") -> str:
+        operation = _PREFLIGHT_OPERATIONS.get(str(engine).strip())
+        if operation and self._router.operation_route(engine, operation) is not None:
+            return self.resolve_operation_profile_name(
+                engine,
+                operation,
+                input_classification="personal",
+                override=override if engine not in _FIRST_FOUR else "",
+            )
+        return self.resolve_profile_name(engine, override)
+
     def validate_configuration(self) -> None:
         referenced = {
             self._router.fallback_profile_name(),
             *self._config.routing.engine_profiles.values(),
             *self._router.selectable_profile_names(),
         }
+        for routes in self._config.routing.operation_profiles.values():
+            for route in routes.values():
+                referenced.update(
+                    name
+                    for name in (
+                        route.primary_profile,
+                        route.sanitized_primary_profile,
+                        *route.fallback_profiles,
+                    )
+                    if name
+                )
         for profile_name in sorted(str(item).strip() for item in referenced if str(item).strip()):
             self._validate_profile(profile_name, self._require_profile(profile_name))
 
@@ -277,9 +421,13 @@ class ModelRuntime:
             raise ProviderConfigError(
                 f"Model profile '{profile_name}' uses an OpenAI effort parameter on Anthropic."
             )
-        if provider in {"openai", "openai_compatible", "opencode_go", "scalemax"} and (
-            capabilities.effort_parameter == "output_config_effort"
-        ):
+        if provider in {
+            "openai",
+            "openai_compatible",
+            "experiential",
+            "opencode_go",
+            "scalemax",
+        } and (capabilities.effort_parameter == "output_config_effort"):
             raise ProviderConfigError(
                 f"Model profile '{profile_name}' uses an Anthropic effort parameter on an "
                 "OpenAI-compatible transport."
@@ -288,17 +436,23 @@ class ModelRuntime:
             raise ProviderConfigError(
                 f"Model profile '{profile_name}' enables storage but declares it unsupported."
             )
+        if profile.input_policy not in {"any", "sanitized", "synthetic", "personal_luna_only"}:
+            raise ProviderConfigError(
+                f"Model profile '{profile_name}' has an unsupported input_policy."
+            )
 
 
 _RUNTIMES: dict[int, tuple[ModelConfig, ModelRuntime]] = {}
 
 
-def get_model_runtime(model_config: ModelConfig) -> ModelRuntime:
+def get_model_runtime(model_config: ModelConfig, sessionmaker: Any = None) -> ModelRuntime:
     key = id(model_config)
     cached = _RUNTIMES.get(key)
     if cached is not None and cached[0] is model_config:
+        if sessionmaker is not None:
+            cached[1].attach_sessionmaker(sessionmaker)
         return cached[1]
-    runtime = ModelRuntime(model_config)
+    runtime = ModelRuntime(model_config, sessionmaker=sessionmaker)
     _RUNTIMES[key] = (model_config, runtime)
     return runtime
 
@@ -330,16 +484,32 @@ def validate_pipeline_job_timeouts(settings: Any) -> None:
         "discovery.build_brief": ("discovery", 1, 60.0),
         "content_architect.build": ("content_architect", 3, 120.0),
         "visual_design_director.build": ("visual_design_director", 3, 120.0),
-        "build_preparation.prepare": ("build_preparation", 5, 300.0),
+        "build_preparation.prepare": ("build_preparation", 1, 300.0),
     }
     runtime = get_model_runtime(settings.models)
     for job_kind, (engine, call_count, margin) in budgets.items():
-        profile_name = runtime.resolve_profile_name(engine)
+        operation = _PREFLIGHT_OPERATIONS.get(engine, "")
+        profile_name = (
+            runtime.resolve_operation_profile_name(
+                engine, operation, input_classification="personal"
+            )
+            if operation and runtime.router.operation_route(engine, operation) is not None
+            else runtime.resolve_profile_name(engine)
+        )
         profile = settings.models.get_profile(profile_name)
         if profile is None:
             continue
-        per_call_attempts = max(1, int(profile.max_retries) + 1)
-        minimum = profile.timeout_seconds * call_count * per_call_attempts + margin
+        # SDK/provider adapters never retry independently.  Recovery is owned
+        # by one shared operation budget and is represented below by one
+        # additional bounded transmission.
+        per_call_attempts = 1
+        route = runtime.router.operation_route(engine, operation) if operation else None
+        timeout = (
+            float(route.timeout_seconds)
+            if route and route.timeout_seconds
+            else profile.timeout_seconds
+        )
+        minimum = timeout * call_count * per_call_attempts + margin
         configured = settings.worker_job.timeout_for(job_kind)
         if configured < minimum:
             raise ProviderConfigError(

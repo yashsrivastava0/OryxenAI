@@ -93,6 +93,9 @@ class BuildPreparationService:
                 "Build Preparation must use the model profile selected in Discovery.",
             )
         resolved_profile = sticky_profile
+        from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+        policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
         key = self._idempotency_key(session_id, source_ref, resolved_profile, state.attempt)
         run = AgentRun(
             id=uuid4(),
@@ -100,6 +103,8 @@ class BuildPreparationService:
             status="pending",
             input_payload={
                 "model_profile": resolved_profile,
+                "input_classification": "personal",
+                "routing_policy_snapshot": policy_snapshot,
                 "max_routes": self._settings.build_preparation.max_routes,
                 "live_model": self._settings.build_preparation.reasoning_enabled,
                 "live_providers": self._settings.build_preparation.reasoning_enabled,
@@ -125,15 +130,17 @@ class BuildPreparationService:
             },
             idempotency_scope=f"{_AGENT_KEY}:{session_id}",
             idempotency_key=key,
-            max_attempts=self._settings.worker_retry.max_attempts,
+            max_attempts=self._settings.worker_retry.first_four_max_attempts,
         )
 
         running = apply_start(
             state,
             source_ref=source_ref,
             model_profile=resolved_profile,
-            max_attempts=self._settings.worker_retry.max_attempts,
+            max_attempts=self._settings.worker_retry.first_four_max_attempts,
         )
+        running.routing_policy_version = str(policy_snapshot["version"])
+        running.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
         running.run_id = str(run.id)
         running.job_id = str(job.id)
         running.attempt = 0

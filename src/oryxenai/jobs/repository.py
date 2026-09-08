@@ -184,6 +184,7 @@ class JobRepository:
             WITH due AS (
                 SELECT job.id FROM background_jobs AS job
                 WHERE job.status = :status AND job.available_at <= :now
+                  AND job.attempt < job.max_attempts
                   {kind_filter}
                   AND (
                     job.execution_lane IS NULL
@@ -298,6 +299,7 @@ class JobRepository:
             WITH stale AS (
                 SELECT job.id FROM background_jobs AS job
                 WHERE job.status = :status AND job.heartbeat_at <= :cutoff
+                  AND job.attempt < job.max_attempts
                   {kind_filter}
                   AND job.id NOT IN :exclude_job_ids
                   AND (
@@ -426,6 +428,7 @@ class JobRepository:
             WITH stale AS (
                 SELECT job.id FROM background_jobs AS job
                 WHERE job.status = :running_status AND job.heartbeat_at <= :cutoff
+                  AND job.attempt < job.max_attempts
                   {kind_filter}
                   AND job.id NOT IN :exclude_job_ids
                   AND (
@@ -499,6 +502,44 @@ class JobRepository:
             },
         )
         return len(result.fetchall())
+
+    async def terminalize_exhausted_stale(
+        self,
+        lease_seconds: float,
+        *,
+        allowed_job_kinds: Collection[str] | None = None,
+    ) -> int:
+        """Fence stale rows that have already consumed their job attempts."""
+
+        cutoff = datetime.now(UTC) - timedelta(seconds=lease_seconds)
+        conditions = [
+            BackgroundJob.status == JobStatus.RUNNING.value,
+            BackgroundJob.heartbeat_at <= cutoff,
+            BackgroundJob.attempt >= BackgroundJob.max_attempts,
+        ]
+        if allowed_job_kinds is not None:
+            if not allowed_job_kinds:
+                return 0
+            conditions.append(BackgroundJob.job_kind.in_(list(allowed_job_kinds)))
+        result = await self._session.execute(
+            update(BackgroundJob)
+            .where(*conditions)
+            .values(
+                status=JobStatus.FAILED.value,
+                error_payload={
+                    "code": "JOB_ATTEMPT_CEILING_REACHED",
+                    "message": "The stale job reached its configured attempt ceiling.",
+                    "retryable": False,
+                },
+                locked_by=None,
+                locked_at=None,
+                heartbeat_at=None,
+                lease_token=None,
+                finished_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
 
     async def mark_succeeded(
         self,
