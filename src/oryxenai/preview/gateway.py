@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import mimetypes
 import re
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
@@ -16,6 +19,8 @@ from starlette.routing import Route
 from oryxenai.storage.preview import PreviewStorage, PreviewStorageError
 
 _HOST_RE = re.compile(r"^[a-z2-7][a-z2-7-]{15,63}$")
+_CAPABILITY_RE = re.compile(r"^[A-Za-z0-9_-]{24,160}$")
+_IDENTITY_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,160}$")
 _ASSET_SUFFIXES = {
     ".js",
     ".mjs",
@@ -115,9 +120,11 @@ class PreviewGateway:
         *,
         parent_origin: str = "http://127.0.0.1:8000",
         embed_origins: list[str] | tuple[str, ...] | None = None,
+        route_prefix: str = "/preview",
     ) -> None:
         self.storage = storage
         self.embed_origins = _normalize_embed_origins(embed_origins, parent_origin)
+        self.route_prefix = "/" + route_prefix.strip("/") if route_prefix.strip("/") else ""
 
     async def serve(self, request: Request) -> Response:
         if request.method not in {"GET", "HEAD"}:
@@ -201,12 +208,88 @@ class PreviewGateway:
         )
         body = stored[1]
         if requested == "index.html":
-            body = _inject_preview_base(body, f"/preview/{host}/")
+            body = _inject_preview_base(body, f"{self.route_prefix}/{host}/")
         return Response(
             content=b"" if request.method == "HEAD" else body,
             media_type=str(entry.get("media_type", stored[0].content_type)),
             headers=headers,
         )
+
+    async def serve_candidate(self, request: Request) -> Response:
+        """Serve one buildable candidate through an opaque capability URL."""
+
+        if request.method not in {"GET", "HEAD"}:
+            return Response("Method not allowed", status_code=405, headers={"Allow": "GET, HEAD"})
+        token = str(request.path_params.get("token", ""))
+        candidate_id = str(request.path_params.get("candidate_id", ""))
+        build_hash = str(request.path_params.get("build_hash", ""))
+        if (
+            not _CAPABILITY_RE.fullmatch(token)
+            or not _IDENTITY_SEGMENT_RE.fullmatch(candidate_id)
+            or not re.fullmatch(r"[a-f0-9]{32,128}", build_hash)
+        ):
+            return Response("Not found", status_code=404)
+        raw_path = str(request.path_params.get("path", ""))
+        try:
+            requested = _safe_path(raw_path) if raw_path else "index.html"
+        except ValueError:
+            return Response("Not found", status_code=404)
+        prefix = f"preview/candidates/{candidate_id}/{build_hash}"
+        try:
+            stored_manifest = await self.storage.get(f"{prefix}/manifest.json")
+        except PreviewStorageError:
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        if stored_manifest is None:
+            return Response("Not found", status_code=404)
+        try:
+            payload = json.loads(stored_manifest[1].decode("utf-8"))
+            if payload.get("candidate_id") != candidate_id or payload.get("build_hash") != build_hash:
+                return Response("Not found", status_code=404)
+            if not hmac.compare_digest(
+                str(payload.get("token_sha256", "")),
+                hashlib.sha256(token.encode("utf-8")).hexdigest(),
+            ):
+                return Response("Not found", status_code=404)
+            expires_at = datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00"))
+            if expires_at <= datetime.now(UTC):
+                return Response("Not found", status_code=404)
+            manifest = payload["manifest"]
+            entries = {
+                str(item["path"]): item for item in manifest["entries"] if isinstance(item, dict)
+            }
+        except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        if requested not in entries:
+            if (
+                requested != "index.html"
+                and PurePosixPath(requested).suffix.casefold() in _ASSET_SUFFIXES
+            ):
+                return Response("Not found", status_code=404)
+            requested = "index.html"
+        entry = entries.get(requested)
+        if entry is None:
+            return Response("Not found", status_code=404)
+        try:
+            stored = await self.storage.get(f"{prefix}/dist/{requested}")
+        except PreviewStorageError:
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        if stored is None or stored[0].sha256 != str(entry.get("sha256", "")):
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        body = stored[1]
+        if requested == "index.html":
+            mount = self._candidate_mount(token, candidate_id, build_hash)
+            body = _inject_preview_base(body, mount)
+        return Response(
+            content=b"" if request.method == "HEAD" else body,
+            media_type=str(entry.get("media_type", stored[0].content_type)),
+            headers=_headers(
+                embed_origins=self.embed_origins,
+                asset=requested != "index.html",
+            ),
+        )
+
+    def _candidate_mount(self, token: str, candidate_id: str, build_hash: str) -> str:
+        return f"{self.route_prefix}/candidate/{token}/{candidate_id}/{build_hash}/"
 
 
 def create_preview_app(
@@ -220,10 +303,14 @@ def create_preview_app(
         storage,
         parent_origin=parent_origin,
         embed_origins=embed_origins,
+        route_prefix=route_prefix,
     )
 
     async def preview(request: Request) -> Response:
         return await gateway.serve(request)
+
+    async def candidate(request: Request) -> Response:
+        return await gateway.serve_candidate(request)
 
     async def health_live(_request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "service": "preview-gateway"})
@@ -250,6 +337,11 @@ def create_preview_app(
         routes=[
             Route("/health/live", health_live, methods=["GET"]),
             Route("/health/ready", health_ready, methods=["GET"]),
+            Route(
+                f"{route_prefix}/candidate/{{token}}/{{candidate_id}}/{{build_hash}}/{{path:path}}",
+                candidate,
+                methods=["GET", "HEAD"],
+            ),
             Route(f"{route_prefix}/{{host}}/{{path:path}}", preview, methods=["GET", "HEAD"]),
         ]
     )

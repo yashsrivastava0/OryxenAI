@@ -603,8 +603,9 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     # Build Preparation stage, each holding the two Markdown brief files.
     build_preparation_mirror_root: str = "output/build-preparation"
     pipeline_contract_version: str = "code-generator-v5"
-    worker_release_id: str = "oryxenai-code-generator-v5"
-    quality_gate_version: str = "quality-gate-v2"
+    worker_release_id: str = "oryxenai-code-generator-v5-quality-v3"
+    quality_gate_version: str = "quality-gate-v3"
+    planner_max_attempts: int = Field(default=2, ge=1, le=4)
     design_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
     design_similarity_history: int = Field(default=3, ge=1, le=10)
 

@@ -15,25 +15,63 @@ New-Item -ItemType Directory -Force -Path $cache | Out-Null
 
 Push-Location $scaffold
 try {
-    npm ci --cache $cache --ignore-scripts --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) { throw "npm ci failed while warming the offline cache." }
-
-    # Offline lockfile creation (npm install --package-lock-only --offline)
-    # needs each package's registry metadata, which npm ci never stores.
-    # Warm packuments for every scaffold dependency...
+    # Build a disposable manifest that contains the scaffold plus every
+    # configured, pinned package. A real install (not package-lock-only)
+    # hydrates tarballs and transitive/platform dependencies into the cache.
     $manifest = Get-Content "$scaffold\package.json" -Raw | ConvertFrom-Json
-    foreach ($group in @($manifest.dependencies, $manifest.devDependencies)) {
-        if ($null -eq $group) { continue }
-        foreach ($property in $group.PSObject.Properties) {
-            npm cache add "$($property.Name)@$($property.Value)" --cache $cache
-            if ($LASTEXITCODE -ne 0) { throw "npm cache add failed for $($property.Name)." }
+    $warm = "$REPO_ROOT\.workspace\npm-cache-warm"
+    if (Test-Path -LiteralPath $warm) {
+        Remove-Item -LiteralPath $warm -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $warm | Out-Null
+    Copy-Item -LiteralPath "$scaffold\package.json" -Destination "$warm\package.json"
+    Copy-Item -LiteralPath "$scaffold\package-lock.json" -Destination "$warm\package-lock.json"
+
+    # Keep package names/versions in TOML rather than copying a stale list into
+    # an operational script. Add them to devDependencies so the generated
+    # lockfile records the exact package graph without changing the scaffold.
+    if ($null -eq $manifest.devDependencies) {
+        $manifest | Add-Member -MemberType NoteProperty -Name devDependencies -Value ([pscustomobject]@{})
+    }
+    $configuredPackage = $null
+    foreach ($line in Get-Content "$REPO_ROOT\config\app.toml") {
+        if ($line -match '^\[code_generator_dependencies\.supported_packages\.([^\]]+)\]') {
+            $configuredPackage = $Matches[1].Trim('"')
+            continue
+        }
+        if ($null -ne $configuredPackage -and $line -match '^version_pin\s*=\s*"([^"]+)"') {
+            $manifest.devDependencies | Add-Member -MemberType NoteProperty -Name $configuredPackage -Value $Matches[1] -Force
+            $configuredPackage = $null
         }
     }
-    # ...and for admission-bound packages (config/app.toml
-    # [code_generator_dependencies.supported_packages]).
-    foreach ($package in @("lucide-react@0.500.0", "motion@12.0.0")) {
-        npm cache add $package --cache $cache
-        if ($LASTEXITCODE -ne 0) { throw "npm cache add failed for $package." }
+    $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath "$warm\package.json" -Encoding utf8
+    Push-Location $warm
+    try {
+        npm install --cache $cache --ignore-scripts --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw "npm install failed while warming the offline cache." }
+    }
+    finally {
+        Pop-Location
+    }
+
+    # A cache warm is useful only if a fresh workspace can consume it.  Keep
+    # this proof separate from the warm install's node_modules tree.
+    $proof = "$REPO_ROOT\.workspace\npm-cache-offline-proof"
+    if (Test-Path -LiteralPath $proof) {
+        Remove-Item -LiteralPath $proof -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $proof | Out-Null
+    Copy-Item -LiteralPath "$warm\package.json" -Destination "$proof\package.json"
+    Copy-Item -LiteralPath "$warm\package-lock.json" -Destination "$proof\package-lock.json"
+    Push-Location $proof
+    try {
+        npm ci --cache $cache --ignore-scripts --offline --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw "offline npm ci proof failed after warming the cache." }
+    }
+    finally {
+        Pop-Location
+        Remove-Item -LiteralPath $proof -Recurse -Force
+        Remove-Item -LiteralPath $warm -Recurse -Force
     }
     Write-Host "Offline npm cache warmed at $cache"
 }

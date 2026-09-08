@@ -888,6 +888,32 @@ export function AppShell({
     }
   };
 
+  const retryGeneration = async () => {
+    if (!state.sessionId || mutatingStage || state.preparation?.state !== "complete") return;
+    const sessionId = state.sessionId;
+    setMutatingStage("generate");
+    try {
+      const action = "code-generator-retry";
+      const idempotencyKey = getOrCreateIdempotencyKey(sessionId, action);
+      const result = await api.retryCodeGenerator(sessionId, idempotencyKey);
+      clearIdempotencyKey(sessionId, action);
+      inspectCacheReceipt("code_generator", result);
+      dispatch({
+        type: "generation/set",
+        view: adaptCodeGenerator(result.code_generator, true, result.jobs),
+      });
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+      dispatch({ type: "announce", message: "Portfolio retry started." });
+      notifyMutation(sessionId);
+      selectStage("generate");
+    } catch (error) {
+      void refetchCurrentSession();
+      throw error;
+    } finally {
+      setMutatingStage(null);
+    }
+  };
+
   return (
     <AppStoreContext.Provider value={{ state, dispatch }}>
       <a className="skip-link" href="#workspace-stage">Skip to current stage</a>
@@ -1068,6 +1094,7 @@ export function AppShell({
                     canMutate={!state.readOnly && mutatingStage === null}
                     inFlight={mutatingStage === "generate"}
                     onStart={() => runGenerationMutation("start")}
+                    onRetry={retryGeneration}
                     onRegenerate={() => runGenerationMutation("regenerate")}
                   />
                 ) : null}

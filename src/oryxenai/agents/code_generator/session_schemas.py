@@ -40,6 +40,7 @@ class CodeGeneratorSessionState(BaseModel):
     model_profile: str = ""
     source_ref: CodeGeneratorSourceRef | None = None
     active_preview: dict[str, Any] | None = None
+    candidate_preview: dict[str, Any] | None = None
     latest_error: dict[str, Any] | None = None
     stale: bool = False
     stale_reasons: list[str] = Field(default_factory=list)
@@ -52,6 +53,7 @@ class CodeGeneratorSessionState(BaseModel):
     stage_durations_ms: dict[str, float] = Field(default_factory=dict)
     worker_storage_readiness: dict[str, str | bool] = Field(default_factory=dict)
     advisories: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ProviderPreflightEnvelope(BaseModel):

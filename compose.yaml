@@ -61,6 +61,7 @@ services:
     volumes:
       - ./output:/app/output
       - ./Input-Output-Of-Engine:/app/Input-Output-Of-Engine:ro
+      - oryxen_codegen_inputs:/app/.workspace/code-generator-development
     command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')\""]
@@ -87,6 +88,13 @@ services:
     volumes:
       - oryxen_codegen_preview:/app/.workspace/code-generator-preview
       - oryxen_image_cache:/app/.workspace/image-search-cache
+      - oryxen_npm_cache:/app/.workspace/npm-cache
+      - oryxen_codegen_inputs:/app/.workspace/code-generator-development
+      - oryxen_codegen_materials:/app/.workspace/code-generator-materials
+      - oryxen_codegen_generation:/app/.workspace/code-generator-generation
+      - oryxen_codegen_checkpoints:/app/.workspace/code-generator-checkpoints
+      - oryxen_codegen_workspaces:/app/.workspace/code-generator-workspaces
+      - oryxen_codegen_artifacts:/app/.workspace/code-generator-artifacts
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
       interval: 15s
@@ -139,7 +147,30 @@ services:
       - oryxen_image_cache:/app/.workspace/image-search-cache
     command: ["python", "-m", "oryxenai.agents.build_preparation.cli"]
 
+  # Run once after image creation (and again after changing the scaffold
+  # lockfile) to prove the worker's shared offline npm cache is complete.
+  codegen-cache-warm:
+    profiles: ["codegen-cache"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      NPM_CACHE_ROOT: /app/.workspace/npm-cache
+    volumes:
+      - oryxen_npm_cache:/app/.workspace/npm-cache
+    command: ["bash", "/app/scripts/warm-npm-cache.sh"]
+    restart: "no"
+
 volumes:
   oryxen_pgdata:
   oryxen_codegen_preview:
   oryxen_image_cache:
+  oryxen_npm_cache:
+  oryxen_codegen_inputs:
+  oryxen_codegen_materials:
+  oryxen_codegen_generation:
+  oryxen_codegen_checkpoints:
+  oryxen_codegen_workspaces:
+  oryxen_codegen_artifacts:

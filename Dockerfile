@@ -51,7 +51,7 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 # an explicitly enabled development profile does not silently fall back to a
 # fake source check.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nodejs npm chromium \
+    && apt-get install -y --no-install-recommends chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user.
@@ -62,6 +62,12 @@ WORKDIR /app
 
 # Copy the fully-populated virtual environment from the builder.
 COPY --from=builder --chown=oryxen:oryxen /app/.venv /app/.venv
+# Use the exact Node 22/npm toolchain that built the product frontend.  The
+# verifier must not silently switch to a different distribution Node version.
+COPY --from=frontend-builder /usr/local/bin/node /usr/local/bin/node
+COPY --from=frontend-builder /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=frontend-builder /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=frontend-builder /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 
 # Copy runtime assets: source, config, migrations, entrypoint.
 COPY --chown=oryxen:oryxen src/ ./src/
@@ -72,14 +78,19 @@ COPY --chown=oryxen:oryxen config/ ./config/
 COPY --chown=oryxen:oryxen migrations/ ./migrations/
 COPY --chown=oryxen:oryxen alembic.ini ./
 COPY --chown=oryxen:oryxen scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY --chown=oryxen:oryxen scripts/warm-npm-cache.sh ./scripts/warm-npm-cache.sh
 
 # Named preview/image-cache volumes are mounted over these paths at runtime.
 # Seed them with the worker's ownership so Docker's first volume copy-up does
 # not leave the non-root worker unable to promote a verified candidate.
 RUN sed -i 's/\r$//' ./scripts/docker-entrypoint.sh \
     && mkdir -p /app/.workspace/code-generator-preview /app/.workspace/image-search-cache \
+        /app/.workspace/code-generator-development /app/.workspace/code-generator-materials \
+        /app/.workspace/code-generator-generation /app/.workspace/code-generator-checkpoints \
+        /app/.workspace/code-generator-workspaces /app/.workspace/code-generator-artifacts \
+        /app/.workspace/npm-cache \
     && chown -R oryxen:oryxen /app/.workspace \
-    && chmod +x ./scripts/docker-entrypoint.sh
+    && chmod +x ./scripts/docker-entrypoint.sh ./scripts/warm-npm-cache.sh
 
 USER oryxen
 

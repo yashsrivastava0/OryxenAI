@@ -19,6 +19,7 @@ from pydantic import (
     model_validator,
 )
 
+from oryxenai.agents.code_generator.core.finding_policy import has_blocking_findings
 from oryxenai.agents.code_generator.core.motion_pattern_catalogue import MOTION_PATTERN_IDS
 
 
@@ -97,6 +98,30 @@ class ContextReceipt(BaseModel):
     resource_slot_count: int
 
 
+class PlannerAttemptDiagnostic(BaseModel):
+    """Restricted telemetry for one planner response or validation attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: str = "code_generator.plan"
+    attempt: int = Field(ge=1)
+    context_hash: str
+    prompt_version: str = ""
+    response_id: str = ""
+    model: str = ""
+    usage: dict[str, int] = Field(default_factory=dict)
+    finish_reason: str = ""
+    duration_ms: float = Field(default=0.0, ge=0)
+    accepted: bool = False
+    error_code: str = ""
+    error_summary: str = ""
+    failure_field: str = ""
+    offending_id: str = ""
+    expected_identity_ids: list[str] = Field(default_factory=list)
+    response_payload_hash: str = ""
+    response_artifact_path: str = ""
+
+
 class PlannerCallReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -114,6 +139,8 @@ class PlannerCallReceipt(BaseModel):
     cached_tokens: int = Field(default=0, ge=0)
     operation: str = "code_generator.plan"
     prompt_receipt: dict[str, Any] = Field(default_factory=dict)
+    diagnostic_artifact_path: str = ""
+    attempt_diagnostics: list[PlannerAttemptDiagnostic] = Field(default_factory=list)
 
 
 class RequestBasis(BaseModel):
@@ -2222,19 +2249,8 @@ class QualityReviewReceiptV1(BaseModel):
             raise ValueError(
                 "quality receipts must bind source, plan, context, and reviewer identity"
             )
-        blocking = any(item.severity == "blocking" for item in self.findings)
-        scores_ok = (
-            min(
-                self.hierarchy_score,
-                self.composition_score,
-                self.typography_score,
-                self.resource_fit_score,
-                self.motion_score,
-            )
-            >= 4
-        )
-        if self.accepted and not (scores_ok and not blocking):
-            raise ValueError("accepted quality reviews require scores >=4 and no blocking findings")
+        if self.accepted and has_blocking_findings(list(self.findings)):
+            raise ValueError("accepted quality reviews cannot contain blocking findings")
         return self
 
     @property
@@ -2335,13 +2351,6 @@ class QualityReviewDraftV1(BaseModel):
 
     @model_validator(mode="after")
     def _score_evidence(self) -> QualityReviewDraftV1:
-        scores = (
-            self.hierarchy_score,
-            self.composition_score,
-            self.typography_score,
-            self.resource_fit_score,
-            self.motion_score,
-        )
         expected_scores = {
             "hierarchy": self.hierarchy_score,
             "composition": self.composition_score,
@@ -2356,8 +2365,6 @@ class QualityReviewDraftV1(BaseModel):
             raise ValueError(
                 "quality score evidence must cover each dimension with its exact score"
             )
-        if min(scores) < 4 and not any(item.severity == "blocking" for item in self.findings):
-            raise ValueError("every quality score below four requires a blocking finding")
         if not self.review_summary.strip():
             raise ValueError("quality review drafts require a concise review summary")
         return self
@@ -2400,13 +2407,7 @@ class QualityReviewReceiptV2(BaseModel):
         )
         if not all(value.strip() for value in bound):
             raise ValueError("quality review receipts require every final hash binding")
-        computed_acceptance = min(
-            self.hierarchy_score,
-            self.composition_score,
-            self.typography_score,
-            self.resource_fit_score,
-            self.motion_score,
-        ) >= 4 and not any(item.severity == "blocking" for item in self.findings)
+        computed_acceptance = not has_blocking_findings(list(self.findings))
         expected_scores = {
             "hierarchy": self.hierarchy_score,
             "composition": self.composition_score,
@@ -2732,17 +2733,6 @@ class IntegrationReviewV1(BaseModel):
     def validate_status(self) -> IntegrationReviewV1:
         if self.status == "accepted" and self.findings:
             raise ValueError("accepted integration review cannot contain findings")
-        scores = (
-            self.distinctiveness_score,
-            self.composition_score,
-            self.typography_score,
-            self.resource_fit_score,
-            self.motion_score,
-        )
-        if self.status == "accepted" and min(scores) < 4:
-            raise ValueError(
-                "accepted integration review requires every quality score to be at least 4"
-            )
         if self.status == "findings" and not self.findings:
             raise ValueError("findings integration review requires findings")
         return self
@@ -3172,6 +3162,25 @@ class CandidateArtifact(BaseModel):
     expires_at: str
 
 
+class CandidatePreview(BaseModel):
+    """Owner-scoped URL for a buildable but not fully verified candidate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-candidate-preview-v1"] = (
+        "code-generator-candidate-preview-v1"
+    )
+    url: str
+    candidate_id: str
+    candidate_identity_hash: str
+    build_hash: str
+    route_ids: list[str] = Field(default_factory=list)
+    route_paths: list[str] = Field(default_factory=list)
+    verification_status: Literal["unverified"] = "unverified"
+    created_at: str
+    expires_at: str
+
+
 class PromotionReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -3307,9 +3316,11 @@ class VerificationProjection(BaseModel):
     gate_results: list[GateResult] = Field(default_factory=list)
     runtime_evidence: list[RuntimeEvidence] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+    advisories: list[SafeIssue] = Field(default_factory=list)
     diagnostic_bundle: DiagnosticBundle | None = None
     repair_receipts: list[RepairReceipt] = Field(default_factory=list)
     candidate_artifact: CandidateArtifact | None = None
+    candidate_preview: CandidatePreview | None = None
     terminal_failure: TerminalFailureReport | None = None
     repair_rounds: int = 0
     status: Literal[
@@ -3398,6 +3409,7 @@ class DevelopmentRunProjection(BaseModel):
     verification_job_id: str = ""
     verification: VerificationProjection | None = None
     candidate_artifact: CandidateArtifact | None = None
+    candidate_preview: CandidatePreview | None = None
     pending_promotion: PendingPromotion | None = None
     active_preview: ActivePreview | None = None
     export_receipt: ExportReceipt | None = None

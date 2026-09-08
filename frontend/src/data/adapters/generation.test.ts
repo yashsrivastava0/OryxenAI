@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { adaptCodeGenerator } from "./generation";
 import {
   generationNeedsAttentionNoPreview,
+  generationNeedsAttentionWithCandidate,
   generationNeedsAttentionWithPreview,
   generationNotStarted,
   generationReady,
@@ -37,6 +38,14 @@ describe("adaptCodeGenerator", () => {
     const withoutPreview = adaptCodeGenerator(generationNeedsAttentionNoPreview, true);
     expect(withoutPreview.state).toBe("attention");
     expect(withoutPreview.preview).toBeNull();
+  });
+
+  it("exposes an unverified candidate separately from the active preview", () => {
+    const view = adaptCodeGenerator(generationNeedsAttentionWithCandidate, true);
+    expect(view.candidatePreview?.verificationStatus).toBe("unverified");
+    expect(view.candidatePreview?.routePaths).toEqual(["/", "/about"]);
+    expect(view.warnings).toEqual(["Optional composition spacing differs."]);
+    expect(view.preview).toBeNull();
   });
 
   it("fails closed on unknown status", () => {

@@ -2000,17 +2000,20 @@ def test_v4_quality_review_evidence_must_exist_and_make_low_scores_actionable() 
         review_summary="Motion remains below the acceptance floor.",
     )
 
-    with pytest.raises(QualityReviewError, match="no blocking finding"):
-        validate_quality_review_draft_evidence(
-            draft,
-            assembled_source={source_path: source},
-        )
+    canonical_unrelated = validate_quality_review_draft_evidence(
+        draft,
+        assembled_source={source_path: source},
+    )
+    # A low subjective score is not itself a release blocker; the unrelated
+    # functional/unknown finding remains visible and blocking under the host
+    # policy.
+    assert canonical_unrelated.findings[0].severity == "blocking"
 
     motion_blocker = {
         "finding_id": "finding-motion",
         "severity": "blocking",
         "owner_work_unit_id": "route-home-batch-1",
-        "code": "MOTION_DEFECT",
+        "code": "RUNTIME_MOTION_STATE_MISMATCH",
         "file": source_path,
         "line": 5,
         "marker": "data-quality-motion",
