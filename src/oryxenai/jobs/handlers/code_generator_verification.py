@@ -35,6 +35,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     VerificationProjection,
 )
 from oryxenai.agents.code_generator.core.final_repair import (
+    FinalRepairDeclined,
     FinalRepairer,
     FinalRepairError,
     repair_allowed_paths,
@@ -1532,6 +1533,7 @@ async def _run_bounded_repair(
 
     if not budget.can_attempt(diagnostics, unit_id=unit_id):
         return None
+    decline_count = 0
     while True:
         strategy = budget.consume(diagnostics, unit_id=unit_id)
         projection.status = "repairing"
@@ -1566,13 +1568,32 @@ async def _run_bounded_repair(
                 round_number=budget.total_used,
             )
             return corrected, receipt
+        except FinalRepairDeclined as decline_exc:
+            # An honest cannot_complete, not an infrastructure or parsing
+            # failure. Give it one retry (the budget's own recurrence
+            # detection already shifts consume()'s next strategy to
+            # "bounded-simplification" for this exact diagnostic set), but
+            # stop the instant the model declines the identical bundle a
+            # second time in this call -- repeating it a third time only
+            # burns budget for an answer we already have.
+            decline_count += 1
+            logger.warning(
+                "final repair round declined run_id=%s round=%s unit=%s decline_count=%s "
+                "safe_reason=%s",
+                run_id,
+                budget.total_used,
+                unit_id,
+                decline_count,
+                decline_exc.safe_reason,
+            )
+            projection.repair_rounds = budget.total_used
+            if decline_count >= 2 or not budget.can_attempt(diagnostics, unit_id=unit_id):
+                return None
+            continue
         except (FinalRepairError, SourceValidationError):
-            # The model honestly reported it could not produce a bounded
-            # correction this round (repair_source.md's cannot_complete
-            # escape hatch, a context-binding mismatch), or its response
-            # failed host-side content validation (e.g. duplicate paths in
-            # the returned file list). Both are a rejected model response,
-            # not an infrastructure failure — the budget exists to give a
+            # A context-binding mismatch or host-side content validation
+            # failure (e.g. duplicate paths in the returned file list) --
+            # not an infrastructure failure. The budget exists to give a
             # different round/strategy value another chance, so only give
             # up once the budget itself is exhausted.
             logger.warning(

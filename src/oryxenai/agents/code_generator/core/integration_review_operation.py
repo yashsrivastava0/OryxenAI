@@ -51,6 +51,15 @@ async def run_integration_review_operation(
     system, instructions, receipt = build_instructions(
         "integration_review", operation_context, output_model=output_model
     )
+    if cache_key is None:
+        # Stable role/operation/prompt-content key, not a per-generation
+        # one: the large system-prompt/schema prefix for this review
+        # operation is identical across runs and should share provider
+        # cache affinity instead of getting a fresh partition every time.
+        cache_key = (
+            f"codegen:{profile_name}:review:"
+            f"{receipt.prompt_versions.get('operation_hash', '')[:16]}"
+        )
     last_issue = ""
     result: Any = None
     for attempt in range(2):

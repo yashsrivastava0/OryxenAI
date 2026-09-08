@@ -45,6 +45,21 @@ class FinalRepairError(ValueError):
         super().__init__(message)
 
 
+class FinalRepairDeclined(FinalRepairError):
+    """The repair model returned an honest ``cannot_complete`` result.
+
+    Distinct from :class:`FinalRepairError` so the caller can recognize a
+    genuine model decline (with its stated reason) instead of treating it as
+    an undifferentiated failed attempt -- repeating the identical diagnostic
+    bundle at a model that has already declined it rarely produces a
+    different answer.
+    """
+
+    def __init__(self, message: str, *, safe_reason: str) -> None:
+        super().__init__("FINAL_REPAIR_DECLINED", message)
+        self.safe_reason = safe_reason
+
+
 class FinalRepairer:
     def __init__(self, model_factory: Callable[[str], Any] | None = None) -> None:
         self._model_factory = model_factory
@@ -157,7 +172,15 @@ class FinalRepairer:
                 strict_schema=True,
                 request_context={
                     "key_order": FINAL_REPAIR_KEY_ORDER,
-                    "prompt_cache_key": f"codegen:{identity.identity_hash}:repair",
+                    # Stable role/operation/prompt-content key, not
+                    # per-identity: the large system-prompt/schema prefix
+                    # for repair is identical across runs and should share
+                    # provider cache affinity instead of a fresh partition
+                    # for every candidate.
+                    "prompt_cache_key": (
+                        f"codegen:{settings.code_generator_generation.repair_profile}:repair:"
+                        f"{context_receipt.prompt_versions.get('operation_hash', '')[:16]}"
+                    ),
                 },
             )
             parsed = getattr(raw, "parsed_output", raw)
@@ -193,6 +216,17 @@ class FinalRepairer:
                 else None
             )
             if deterministic_changes is None:
+                if result.mode == "cannot_complete" and result.cannot_complete is not None:
+                    # An honest decline, not an unparseable or malformed
+                    # response. Surface it distinctly so the caller can stop
+                    # repeating the identical diagnostic bundle at a model
+                    # that has already declined it, instead of burning the
+                    # rest of the repair budget on the same answer.
+                    raise FinalRepairDeclined(
+                        "The repair model reported it could not produce a bounded "
+                        "correction for this diagnostic bundle.",
+                        safe_reason=result.cannot_complete.safe_reason,
+                    )
                 raise FinalRepairError(
                     "REPAIR_NO_SOURCE_CHANGE",
                     "The repair operation did not return a bounded source correction.",
