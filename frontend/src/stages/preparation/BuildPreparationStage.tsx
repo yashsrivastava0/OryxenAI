@@ -11,6 +11,7 @@ export interface BuildPreparationStageProps {
   inFlight?: boolean;
   onStart: () => Promise<void>;
   onRegenerate: () => Promise<void>;
+  onContinueToGenerate?: () => void;
 }
 
 function metric(label: string, value: string | number) {
@@ -28,6 +29,7 @@ export function BuildPreparationStage({
   inFlight = false,
   onStart,
   onRegenerate,
+  onContinueToGenerate,
 }: BuildPreparationStageProps) {
   if (!view || view.state === "locked") {
     return (
@@ -109,9 +111,17 @@ export function BuildPreparationStage({
         <p className="eyebrow">BUILD PREPARATION / HANDOFF READY</p>
         <h1 id="preparation-title">Your build handoff is ready.</h1>
         <p>
-          The approved narrative and visual direction are bound into a clean, generator-ready handoff. Generation and Preview remain separate later stages.
+          The approved narrative and visual direction are bound into a clean, generator-ready handoff.
         </p>
       </header>
+
+      {onContinueToGenerate && (
+        <div className="preparation-continue">
+          <button type="button" className="btn-primary" onClick={onContinueToGenerate}>
+            Continue to Generate &amp; Preview
+          </button>
+        </div>
+      )}
 
       <div className="preparation-metrics" aria-label="Build handoff summary">
         {metric("Routes", view.routes.length)}
