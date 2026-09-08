@@ -5,7 +5,7 @@ import { adaptVisualDesignDirector } from "../data/adapters/design";
 import { designFixtureReview } from "../data/adapters/design.fixtures";
 import { appReducer, initialAppState } from "./store";
 
-describe("four-stage app store", () => {
+describe("five-stage app store", () => {
   it("stores authenticated identity and read-only state", () => {
     const state = appReducer(initialAppState, {
       type: "me/set",
@@ -21,7 +21,7 @@ describe("four-stage app store", () => {
     expect(state.sessionRevision).toBe(4);
   });
 
-  it("holds the four product-stage projections without later generation state", () => {
+  it("holds the five product-stage projections, uninitialized until each stage responds", () => {
     const content = adaptContentArchitect(contentFixtureReview, true);
     const design = adaptVisualDesignDirector(designFixtureReview, true);
     let state = appReducer(initialAppState, { type: "content/set", view: content });
@@ -31,7 +31,29 @@ describe("four-stage app store", () => {
     expect(state.design?.state).toBe("review");
     expect(state.activeStage).toBe("content");
     expect(state.preparation).toBeNull();
-    expect(Object.keys(state)).not.toContain("generation");
+    expect(state.generation).toBeNull();
+    // "preview" was never a separate store field -- Generate & Preview (D-081)
+    // is one merged stage, keyed as "generation".
     expect(Object.keys(state)).not.toContain("preview");
+  });
+
+  it("sets the Generate & Preview projection (D-081)", () => {
+    const state = appReducer(initialAppState, {
+      type: "generation/set",
+      view: {
+        state: "available",
+        statusText: "Ready to generate the portfolio",
+        raw: {},
+        job: null,
+        agentOutput: null,
+        status: "not_started",
+        stale: false,
+        staleReasons: [],
+        currentMilestone: "",
+        preview: null,
+        safeError: null,
+      },
+    });
+    expect(state.generation?.state).toBe("available");
   });
 });

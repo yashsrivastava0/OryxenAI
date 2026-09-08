@@ -13,14 +13,14 @@ describe("authenticated product boundary", () => {
     expect(source).toContain('id="app-admin-link"');
   });
 
-  it("contains the explicit Build Preparation endpoint but no generator endpoint", async () => {
+  it("contains both the Build Preparation and Code Generator session endpoints (D-081 supersedes D-063's boundary)", async () => {
     // @ts-expect-error vitest runs this contract check in Node
     const fs = await import("node:fs");
     // @ts-expect-error vitest runs this contract check in Node
     const path = await import("node:path");
     const source = fs.readFileSync(path.resolve(process.cwd(), "src/data/api-client.ts"), "utf8");
     expect(source).toContain("/build-preparation");
-    expect(source).not.toContain("/code-generator");
+    expect(source).toContain("/code-generator");
   });
 
   it("keeps Discovery approval separate from the explicit Content start", async () => {
