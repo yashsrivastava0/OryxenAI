@@ -37,7 +37,10 @@ from oryxenai.agents.shared.contracts import Agent, AgentKey
 from oryxenai.agents.shared.model_cache import build_result_cache
 from oryxenai.agents.shared.observability import durable_model_metadata
 from oryxenai.agents.shared.output_export import export_agent_result
-from oryxenai.agents.shared.providers.errors import ProviderError, stable_provider_failure
+from oryxenai.agents.shared.providers.errors import (
+    ProviderError,
+    safe_operation_failure,
+)
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
@@ -68,6 +71,7 @@ class BuildPreparationJobError(Exception):
 def _build_build_preparation_agent(
     override_profile_name: str = "",
     *,
+    input_classification: str = "unknown",
     event_sink: Callable[[StageEvent], Awaitable[None]] | None = None,
     result_cache: Any = None,
     profile_fingerprint: str = "",
@@ -79,9 +83,13 @@ def _build_build_preparation_agent(
     settings = get_settings()
     runtime = get_model_runtime(settings.models)
     return BuildPreparationAgent(
-        model_client=runtime.resolve("build_preparation", override_profile_name),
+        model_client=runtime.routed_client(
+            "build_preparation",
+            override_profile_name=override_profile_name,
+            input_classification=input_classification,
+        ),
         settings=settings,
-        profile_name=runtime.resolve_profile_name("build_preparation", override_profile_name),
+        profile_name=runtime.policy_profile_name("build_preparation", "compose_visual_brief"),
         event_sink=event_sink,
         result_cache=result_cache,
         profile_fingerprint=profile_fingerprint,
@@ -113,7 +121,9 @@ class BuildPreparationHandler:
         settings = get_settings()
         sessionmaker = get_sessionmaker(settings)
         attempt = int(payload.get("attempt", 1))
-        max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+        max_attempts = int(
+            payload.get("max_attempts", settings.worker_retry.first_four_max_attempts)
+        )
         await _persist_failure(
             sessionmaker,
             session_id,
@@ -139,7 +149,7 @@ async def _execute_persisted(
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
 
     async with sessionmaker() as db:
         await WorkerAuthorizationFence(db).validate_payload(payload)
@@ -205,7 +215,7 @@ async def _execute_persisted(
 
     runtime = get_model_runtime(settings.models)
     requested_profile = str(input_payload.get("model_profile", "") or "")
-    runtime_profile_id = runtime.resolve_profile_name("build_preparation", requested_profile)
+    runtime_profile_id = runtime.policy_profile_name("build_preparation", "compose_visual_brief")
     input_payload["runtime_profile_id"] = runtime_profile_id
 
     try:
@@ -216,6 +226,9 @@ async def _execute_persisted(
             if agent_factory is not None
             else _build_build_preparation_agent(
                 requested_profile,
+                input_classification=str(
+                    input_payload.get("input_classification", "unknown") or "unknown"
+                ),
                 event_sink=persist_event,
                 result_cache=build_result_cache(
                     settings,
@@ -253,8 +266,7 @@ async def _execute_persisted(
         )
         raise BuildPreparationJobError(exc.code, exc.message, exc.details) from exc
     except ProviderError as exc:
-        code, message = stable_provider_failure(exc)
-        error = {"code": code, "message": message, "details": {}}
+        error = safe_operation_failure(exc, operation="build_preparation.compose_visual_brief")
         await _persist_failure(
             sessionmaker,
             session_id,
@@ -265,7 +277,9 @@ async def _execute_persisted(
             max_attempts,
             retryable=exc.retryable,
         )
-        raise BuildPreparationJobError(code, message, {}, retryable=exc.retryable) from exc
+        raise BuildPreparationJobError(
+            str(error["code"]), str(error["message"]), {}, retryable=exc.retryable
+        ) from exc
     except Exception as exc:
         # Everything with a known transient/classifiable shape is already
         # handled above. An exception that reaches here is unclassified —

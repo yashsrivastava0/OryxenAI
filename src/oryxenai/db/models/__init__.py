@@ -17,6 +17,13 @@ from oryxenai.db.models.code_generator_development import (
     CodeGeneratorStageAttempt,
 )
 from oryxenai.db.models.model_call_cache import ModelCallCache
+from oryxenai.db.models.model_usage import (
+    ModelBudgetReservation,
+    ModelCallAttempt,
+    ModelCapacityWindow,
+    ModelOperation,
+    ModelProviderObservation,
+)
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.models.service_heartbeat import ServiceHeartbeat
 
@@ -32,7 +39,12 @@ __all__ = [
     "CodeGeneratorStageAttempt",
     "DeletedIdentityTombstone",
     "DeletedPortfolioTombstone",
+    "ModelBudgetReservation",
+    "ModelCallAttempt",
     "ModelCallCache",
+    "ModelCapacityWindow",
+    "ModelOperation",
+    "ModelProviderObservation",
     "PortfolioEntitlement",
     "PortfolioSession",
     "ServiceHeartbeat",

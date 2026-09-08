@@ -49,6 +49,14 @@ class BaseProviderAdapter(ModelClient, ABC):
     def provider_name(self) -> str:
         return self._profile.provider
 
+    @property
+    def credential_alias(self) -> str:
+        return str(getattr(self._profile, "credential_alias", "") or "")
+
+    @property
+    def capacity_source_id(self) -> str:
+        return str(getattr(self._profile, "capacity_source_id", "") or "")
+
     # ── Public API ──────────────────────────────────────────────────────
 
     async def complete(
@@ -164,6 +172,14 @@ class BaseProviderAdapter(ModelClient, ABC):
         if not env_var:
             return ""
         return os.environ.get(env_var, "")
+
+    @staticmethod
+    def _resolve_value_from_env(env_var: str, fallback: str = "") -> str:
+        """Resolve a non-secret configuration value from an optional env ref."""
+
+        if not env_var:
+            return fallback
+        return os.environ.get(env_var, fallback)
 
     @staticmethod
     def _require_key(key: str, env_var: str, provider: str) -> str:

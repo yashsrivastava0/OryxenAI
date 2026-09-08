@@ -9,6 +9,7 @@ AgentResult. The executor handles persistence and state transitions.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
@@ -132,3 +133,95 @@ class ModelClient(Protocol):
         request_context: Any = None,
         strict_schema: bool = False,
     ) -> Any: ...
+
+
+@dataclass(frozen=True)
+class NormalizedUsage:
+    """Provider-neutral usage facts.  Unknown values remain ``None``."""
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    reasoning_tokens: int | None = None
+    total_tokens: int | None = None
+    actual_cost: float | None = None
+    estimated_cost: float | None = None
+    cost_unit: str = ""
+    provider_request_id: str = ""
+    gateway_attempt_count: int | None = None
+
+
+@dataclass(frozen=True)
+class ModelCallContext:
+    """Attribution context carried through one logical model operation."""
+
+    session_id: str = ""
+    run_id: str = ""
+    job_id: str = ""
+    owner_id_hash: str = ""
+    agent: str = ""
+    stage: str = ""
+    operation: str = ""
+    request_id: str = ""
+    routing_policy_version: str = ""
+    input_classification: str = "unknown"
+    job_attempt: int = 0
+    request_attempt: int = 0
+    fallback_attempt: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ResolvedModelRoute:
+    """Immutable route selected before a provider request is admitted."""
+
+    profile_name: str
+    provider: str
+    model: str
+    credential_alias: str
+    capacity_source_id: str
+    quota_group: str
+    profile_fingerprint: str = ""
+    policy_version: str = ""
+    input_policy: str = "any"
+    pricing_card_ref: str = ""
+    alternatives: tuple[str, ...] = ()
+
+
+@dataclass
+class OperationBudget:
+    """One shared normal/recovery budget for a stage invocation."""
+
+    normal_calls: int = 1
+    recovery_allowance: int = 1
+    deadline_monotonic: float | None = None
+    normal_used: int = 0
+    recovery_used: int = 0
+    transmissions: int = 0
+    max_transmissions: int | None = None
+    reservations: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def recovery_remaining(self) -> int:
+        return max(0, self.recovery_allowance - self.recovery_used)
+
+    @property
+    def normal_remaining(self) -> int:
+        return max(0, self.normal_calls - self.normal_used)
+
+    def admit_normal(self) -> None:
+        if self.normal_remaining <= 0:
+            raise RuntimeError("The logical model-call allowance is exhausted.")
+        self.normal_used += 1
+
+    def admit_recovery(self) -> None:
+        if self.recovery_remaining <= 0:
+            raise RuntimeError("The shared model recovery allowance is exhausted.")
+        self.recovery_used += 1
+
+    def record_transmission(self) -> None:
+        if self.max_transmissions is not None and self.transmissions >= self.max_transmissions:
+            raise RuntimeError("The application model-transmission ceiling is exhausted.")
+        self.transmissions += 1

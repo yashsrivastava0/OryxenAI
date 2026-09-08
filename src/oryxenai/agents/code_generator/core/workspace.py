@@ -365,6 +365,9 @@ class GenerationWorkspace:
                         ),
                         "source_path": local_path,
                         "local_path": destination.relative_to(self.repo_dir.resolve()).as_posix(),
+                        # ``path`` is the stable public materialization field
+                        # retained for the standalone harness contract.
+                        "path": destination.relative_to(self.repo_dir.resolve()).as_posix(),
                         "sha256": digest,
                         "media_type": str(material.get("media_type", "")),
                         "inspection": dict(material.get("inspection", {})),

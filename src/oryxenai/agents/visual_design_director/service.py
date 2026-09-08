@@ -187,6 +187,9 @@ class VisualDesignDirectorService:
                 "Visual Design Director must use the model profile selected in Discovery.",
             )
         resolved_profile = content_architect.model_profile
+        from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+        policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
 
         all_route_plan_dump = [
             route.model_dump(mode="json") for route in content_architect.route_plan
@@ -261,6 +264,8 @@ class VisualDesignDirectorService:
                 "prior_output": {},
                 "revision_request": "",
                 "model_profile": resolved_profile,
+                "input_classification": "personal",
+                "routing_policy_snapshot": policy_snapshot,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -281,10 +286,12 @@ class VisualDesignDirectorService:
 
         running = apply_start(state, source_ref=source_ref, intake=intake, preferences=prefs)
         running.model_profile = resolved_profile
+        running.routing_policy_version = str(policy_snapshot["version"])
+        running.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
         running.run_id = str(run.id)
         running.job_id = str(job.id)
         running.attempt = 0
-        running.max_attempts = self._settings.worker_retry.max_attempts
+        running.max_attempts = self._settings.worker_retry.first_four_max_attempts
         updated = await self._repository.save_visual_design_director_state(
             session_id, running, session.revision
         )

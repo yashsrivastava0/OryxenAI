@@ -98,7 +98,9 @@ class ContentArchitectAgent(Agent):
             "prior_output": prior_output,
             "revision_request": revision_request,
         }
-        parsed_plan, version, meta_plan = await self._call_stage("plan_content", plan_packet)
+        parsed_plan, version, meta_plan = await self._call_stage(
+            "plan_content", plan_packet, context=context
+        )
         stages_run.append("plan_content")
         stages_meta.append(meta_plan)
 
@@ -131,6 +133,7 @@ class ContentArchitectAgent(Agent):
             parsed_pages, version, meta_pages = await self._call_stage(
                 "write_pages",
                 pages_packet,
+                context=context,
                 known_route_plan=route_plan,
                 known_claim_grounding=claim_grounding,
             )
@@ -162,6 +165,7 @@ class ContentArchitectAgent(Agent):
             parsed_integrate, version, meta_integrate = await self._call_stage(
                 "integrate_content",
                 integrate_packet,
+                context=context,
                 known_route_plan=route_plan,
                 known_claim_grounding=claim_grounding,
             )
@@ -223,6 +227,7 @@ class ContentArchitectAgent(Agent):
             parsed_repair, version, meta_repair = await self._call_stage(
                 "integrate_content",
                 repair_packet,
+                context=context,
                 known_route_plan=route_plan,
                 known_claim_grounding=claim_grounding,
             )
@@ -282,6 +287,7 @@ class ContentArchitectAgent(Agent):
         operation: str,
         source_packet: dict[str, Any],
         *,
+        context: AgentContext,
         known_route_plan: list[dict[str, Any]] | None = None,
         known_claim_grounding: list[dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any], str, dict[str, Any]]:
@@ -312,7 +318,7 @@ class ContentArchitectAgent(Agent):
             output_model=ContentArchitectOutput,
             model_profile=self._profile_name,
             profile_fingerprint=self._profile_fingerprint,
-            request_context=prompt_cache_context(self.key.value, operation, manifest),
+            request_context=prompt_cache_context(self.key.value, operation, manifest, context),
             strict_schema=False,
             validator=validate,
         )
@@ -370,7 +376,7 @@ def _parsed_output(result: Any) -> dict[str, Any]:
 def _metadata(result: Any, manifest: dict[str, str], operation: str) -> dict[str, Any]:
     return {
         "operation": operation,
-        "provider": result.model,
+        "provider": str(result.telemetry.get("provider", "") or ""),
         "model": result.model,
         "response_id": result.response_id,
         "usage": result.usage,

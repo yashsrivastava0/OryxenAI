@@ -23,6 +23,12 @@ from oryxenai.db.models import (  # noqa: F401
     AppUser,
     AppUserCapacity,
     BackgroundJob,
+    ModelBudgetReservation,
+    ModelCallAttempt,
+    ModelCallCache,
+    ModelCapacityWindow,
+    ModelOperation,
+    ModelProviderObservation,
     PortfolioSession,
     ServiceHeartbeat,
 )

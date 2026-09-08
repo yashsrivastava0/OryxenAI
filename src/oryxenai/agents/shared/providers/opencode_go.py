@@ -116,13 +116,14 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             if self._capabilities.uses_max_completion_tokens
             else "max_tokens"
         )
+        token_limit, timeout_seconds = self._request_limits(request_params)
 
         try:
             response = await self._client.chat.completions.create(
                 model=self._profile.model,
                 messages=messages,
-                timeout=self._profile.timeout_seconds,
-                **{token_kwarg: self._profile.max_output_tokens},
+                timeout=timeout_seconds,
+                **{token_kwarg: token_limit},
                 **self._build_extra_params(request_params),
             )
         except Exception as exc:
@@ -180,7 +181,9 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 }
             )
 
-        extra = self._build_extra_params({})
+        extra = self._build_extra_params(
+            request_context if isinstance(request_context, Mapping) else None
+        )
         if self._capabilities.temperature_control:
             extra.setdefault("temperature", 0.0)
 
@@ -189,6 +192,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             if self._capabilities.uses_max_completion_tokens
             else "max_tokens"
         )
+        token_limit, timeout_seconds = self._request_limits(request_context)
 
         call_start = time.monotonic()
 
@@ -269,8 +273,8 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             response = await self._client.chat.completions.create(
                 model=self._profile.model,
                 messages=messages,
-                timeout=self._profile.timeout_seconds,
-                **{token_kwarg: self._profile.max_output_tokens},
+                timeout=timeout_seconds,
+                **{token_kwarg: token_limit},
                 **structured_kwargs,
                 **self._structured_call_kwargs(
                     prompt_cache_key,
@@ -290,7 +294,11 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             # performs full Pydantic/semantic validation. Auth, transport,
             # quota, and ordinary request failures remain fail-closed.
             if (
-                response_format is not None
+                not (
+                    isinstance(request_context, Mapping)
+                    and bool(request_context.get("global_attempt_budget"))
+                )
+                and response_format is not None
                 and response_format.get("type") == "json_schema"
                 and self._is_schema_rejection(exc)
             ):
@@ -323,8 +331,8 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                         model=self._profile.model,
                         messages=fallback_messages,
                         response_format={"type": "json_object"},
-                        timeout=self._profile.timeout_seconds,
-                        **{token_kwarg: self._profile.max_output_tokens},
+                        timeout=timeout_seconds,
+                        **{token_kwarg: token_limit},
                         **self._structured_call_kwargs(
                             prompt_cache_key,
                             prompt_cache_mode=prompt_cache_mode,
@@ -461,22 +469,55 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
     def _build_client(self) -> Any:
         import openai
 
-        base_url = self._profile.base_url
+        base_url = self._resolve_value_from_env(
+            str(getattr(self._profile, "base_url_env", "") or ""),
+            self._profile.base_url,
+        )
         if not base_url and self._profile.provider == "opencode_go":
             base_url = _OPENCODE_GO_BASE_URL
         return openai.AsyncOpenAI(
             api_key=self._api_key,
             base_url=base_url or None,
-            max_retries=self._profile.max_retries,
+            # Retry ownership belongs to the shared operation controller; the
+            # SDK must never create an invisible second transmission.
+            max_retries=0,
             timeout=self._profile.timeout_seconds,
         )
 
     # ── Helpers ─────────────────────────────────────────────────────────
 
-    def _build_extra_params(self, request_params: dict[str, Any] | None) -> dict[str, Any]:
+    def _build_extra_params(self, request_params: Mapping[str, Any] | None) -> dict[str, Any]:
         merged = dict(self._profile.request_params)
         if request_params:
             merged.update(request_params)
+        for key in (
+            "global_attempt_budget",
+            "route_profile",
+            "credential_alias",
+            "capacity_source_id",
+            "routing_policy_version",
+            "routing_policy_fingerprint",
+            "routing_policy_snapshot",
+            "input_classification",
+            "request_id",
+            "request_attempt",
+            "fallback_attempt",
+            "session_id",
+            "run_id",
+            "job_id",
+            "agent",
+            "stage",
+            "operation_id",
+            "support_reference",
+            "prompt_cache_key",
+            "prompt_cache_mode",
+            "prompt_cache_ttl",
+            "prompt_cache_breakpoint",
+            "key_order",
+            "timeout_seconds",
+            "max_output_tokens",
+        ):
+            merged.pop(key, None)
         merged.pop("max_tokens", None)
         merged.pop("max_completion_tokens", None)
         merged.pop("store", None)
@@ -485,8 +526,11 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 merged.pop(parameter, None)
         if self._capabilities.effort_parameter != "reasoning_effort":
             merged.pop("reasoning_effort", None)
+        requested_effort = str(
+            merged.get("reasoning_effort", "") or self._profile.reasoning_effort or ""
+        )
         if (
-            self._profile.reasoning_effort
+            requested_effort
             and self._capabilities.thinking_mode
             and self._capabilities.effort_parameter == "reasoning_effort"
         ):
@@ -494,8 +538,27 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             # models (confirmed live: none/low/medium/high/xhigh) — NOT the
             # nested {"reasoning": {"effort": ...}} shape, which the SDK
             # rejects outright as an unexpected keyword argument.
-            merged.setdefault("reasoning_effort", self._profile.reasoning_effort)
+            merged["reasoning_effort"] = requested_effort
         return merged
+
+    def _request_limits(self, request_context: Any) -> tuple[int, float]:
+        raw = request_context if isinstance(request_context, Mapping) else {}
+        raw_tokens = raw.get("max_output_tokens")
+        try:
+            requested_tokens = (
+                int(raw_tokens) if raw_tokens is not None else self._profile.max_output_tokens
+            )
+        except (TypeError, ValueError):
+            requested_tokens = self._profile.max_output_tokens
+        token_limit = max(1, min(int(self._profile.max_output_tokens), requested_tokens))
+        raw_timeout = raw.get("timeout_seconds")
+        try:
+            timeout_seconds = (
+                float(raw_timeout) if raw_timeout is not None else self._profile.timeout_seconds
+            )
+        except (TypeError, ValueError):
+            timeout_seconds = self._profile.timeout_seconds
+        return token_limit, max(1.0, timeout_seconds)
 
     def _structured_call_kwargs(
         self,
@@ -541,7 +604,13 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
         if isinstance(exc, openai.APIConnectionError):
             from oryxenai.agents.shared.providers.errors import ProviderConnectionError
 
-            endpoint = self._profile.base_url or _OPENCODE_GO_BASE_URL
+            endpoint = (
+                self._resolve_value_from_env(
+                    str(getattr(self._profile, "base_url_env", "") or ""),
+                    self._profile.base_url,
+                )
+                or _OPENCODE_GO_BASE_URL
+            )
             host = urlparse(endpoint).hostname or "configured model endpoint"
             return ProviderConnectionError(
                 "Could not connect to the configured model provider.",

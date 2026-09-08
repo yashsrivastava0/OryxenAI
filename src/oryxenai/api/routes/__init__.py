@@ -12,6 +12,7 @@ from oryxenai.api.routes import (
     discovery,
     health,
     model_profiles,
+    model_usage,
     runs,
     sessions,
     system,
@@ -43,6 +44,7 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     router.include_router(system.router)
     router.include_router(model_profiles.router)
     router.include_router(model_profiles.pipeline_router)
+    router.include_router(model_usage.router)
     router.include_router(discovery.router)
     router.include_router(content_architect.router)
     router.include_router(visual_design_director.router)

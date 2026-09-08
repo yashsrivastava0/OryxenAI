@@ -121,7 +121,7 @@ class DiscoveryAgent(Agent):
             model_profile=self._profile_name,
             profile_fingerprint=self._profile_fingerprint,
             request_context=prompt_cache_context(
-                self.key.value, "understand_and_question", manifest
+                self.key.value, "understand_and_question", manifest, context
             ),
             strict_schema=False,
             validator=validate,
@@ -203,7 +203,9 @@ class DiscoveryAgent(Agent):
             output_model=BriefOutput,
             model_profile=self._profile_name,
             profile_fingerprint=self._profile_fingerprint,
-            request_context=prompt_cache_context(self.key.value, "build_or_revise_brief", manifest),
+            request_context=prompt_cache_context(
+                self.key.value, "build_or_revise_brief", manifest, context
+            ),
             strict_schema=False,
             validator=validate,
         )
@@ -296,7 +298,7 @@ def _parsed_output(result: StructuredModelResult) -> dict[str, Any]:
 
 def _metadata(result: StructuredModelResult, manifest: dict[str, str]) -> dict[str, Any]:
     return {
-        "provider": result.model,
+        "provider": str(result.telemetry.get("provider", "") or ""),
         "model": result.model,
         "response_id": result.response_id,
         "usage": result.usage,
