@@ -38,7 +38,13 @@ Grounding and exact coverage:
   compile to the exact same CSS custom property, so the binding would
   silently overwrite the raw color's real value with no error. Give the raw
   color a distinct, concrete name instead (for example `coral` or `brand`
-  for the color an `accent` slot points at). Every token
+  for the color an `accent` slot points at). A visual brief that describes
+  "an accent color," "the primary action," "a muted background," or similar
+  design language is naming a *design concept*, not dictating the literal
+  `colors[*].name` string - reserve those exact words for the matching
+  `shadcn_theme_bindings` key only, and pick an unrelated concrete name (a
+  hue, material, or brand word) for the color token itself, even when the
+  brief's own prose uses the slot word repeatedly. Every token
   `name` (color, spacing, size, radius, motion) must start with a lowercase
   letter, followed only by lowercase letters, digits, or hyphens - a bare
   number like `"1"` or `"7"` is rejected. Use a semantic or letter-prefixed
