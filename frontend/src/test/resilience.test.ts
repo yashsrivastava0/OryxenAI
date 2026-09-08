@@ -41,6 +41,28 @@ describe("product resilience", () => {
     expect(String(error)).not.toContain("must-not-escape");
   });
 
+  it("uses safe copy for an approved-handoff identity mismatch", async () => {
+    const response = new Response(
+      JSON.stringify({
+        error: {
+          code: "PACK_VISUAL_IDENTITY_MISMATCH",
+          message: "internal validator detail",
+          details: {
+            approved_name: "Owner Name",
+            mismatched_names: "Other Name",
+          },
+        },
+      }),
+      { status: 409, headers: { "Content-Type": "application/json" } },
+    );
+    const error = await parseApiError(response);
+    expect(error.message).toBe(
+      "The visual direction needs an identity correction before the build handoff can start.",
+    );
+    expect(String(error)).not.toContain("Owner Name");
+    expect(String(error)).not.toContain("Other Name");
+  });
+
   it("preserves drafts when browser storage is available", () => {
     safeSessionStorage.setItem("resilience_key", "saved draft");
     safeLocalStorage.setItem("preference_key", "saved preference");

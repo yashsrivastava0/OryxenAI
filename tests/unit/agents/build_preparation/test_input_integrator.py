@@ -12,9 +12,13 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationState,
     BuildPreparationStatus,
 )
-from oryxenai.agents.build_preparation.service import BuildPreparationService
+from oryxenai.agents.build_preparation.service import (
+    BuildPreparationOperationError,
+    BuildPreparationService,
+)
 from oryxenai.agents.build_preparation.validators import (
     BuildPreparationValidationError,
+    VisualIdentityMismatchError,
     validate_content_visual_identity_consistency,
 )
 from oryxenai.agents.content_architect.schemas import (
@@ -138,6 +142,37 @@ def test_identity_validator_accepts_compiled_canonical_projection() -> None:
     )
 
 
+def test_identity_validator_prefers_explicit_owner_over_repeated_employer_name() -> None:
+    """A repeated organization in approved evidence is not the owner."""
+
+    content = {
+        "claim_grounding": [
+            {
+                "publication_status": "approved",
+                "statement": "Supported teams at Horizon Retail Systems.",
+            },
+            {
+                "publication_status": "approved",
+                "statement": "Reduced provisioning time at Horizon Retail Systems.",
+            },
+        ],
+        "public_content_manifest": {
+            "site_title": "Maya Bennett - Endpoint Engineering",
+        },
+        "visual_director_handoff": {
+            "must_preserve": ["Maya Bennett", "Senior endpoint specialist"],
+        },
+    }
+    visual = {
+        "must_preserve": ["Maya Bennett"],
+        "visual_language": {
+            "summary": "Maya's measured, technical approach",
+        },
+    }
+
+    validate_content_visual_identity_consistency(content, visual)
+
+
 class _DownloadRepository:
     def __init__(self, state: BuildPreparationState) -> None:
         self.state = state
@@ -197,3 +232,29 @@ async def test_session_brief_download_reads_persisted_markdown() -> None:
 
     data, content_type = await service.download_brief(service._repository.session_id, "visual")
     assert data == b"# Visual brief"
+
+
+@pytest.mark.asyncio
+async def test_start_translates_preflight_validation_into_safe_operation_error() -> None:
+    service = BuildPreparationService(
+        _DownloadRepository(BuildPreparationState()), JobService(None)
+    )
+
+    def fail_preflight(*args: object, **kwargs: object) -> object:
+        raise VisualIdentityMismatchError(
+            "internal validation detail",
+            details={"approved_name": "Owner Name", "mismatched_names": "Other Name"},
+        )
+
+    service._input_integrator.compose = fail_preflight  # type: ignore[method-assign]
+
+    with pytest.raises(BuildPreparationOperationError) as caught:
+        await service.start(service._repository.session_id)
+
+    assert caught.value.code == "PACK_VISUAL_IDENTITY_MISMATCH"
+    assert caught.value.status_code == 409
+    assert caught.value.message == (
+        "The approved visual direction needs an identity correction before the build handoff can start."
+    )
+    assert "approved_name" not in caught.value.details
+    assert "mismatched_names" not in caught.value.details

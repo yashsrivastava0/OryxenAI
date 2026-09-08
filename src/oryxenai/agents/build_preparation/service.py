@@ -16,6 +16,7 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationStatus,
 )
 from oryxenai.agents.build_preparation.state import apply_start, reset_for_regeneration
+from oryxenai.agents.build_preparation.validators import BuildPreparationValidationError
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
 from oryxenai.agents.shared.agent_output import public_output_for_run
 from oryxenai.agents.shared.job_status import public_job_status
@@ -78,12 +79,36 @@ class BuildPreparationService:
         )
         self._require_approved_upstream(content_architect, visual_design_director)
 
-        inputs = self._input_integrator.compose(
-            content_architect,
-            visual_design_director,
-            content_architect_session_revision=session.revision,
-            visual_design_director_session_revision=session.revision,
-        )
+        try:
+            inputs = self._input_integrator.compose(
+                content_architect,
+                visual_design_director,
+                content_architect_session_revision=session.revision,
+                visual_design_director_session_revision=session.revision,
+            )
+        except BuildPreparationValidationError as exc:
+            # Composition happens before a durable run exists, so do not let a
+            # malformed or contradictory approved handoff escape as an HTTP
+            # 500.  Keep the validator strict, but translate its reviewed code
+            # and a safe remediation hint for the product surface.
+            details: dict[str, Any] = {
+                "input": "approved_content_and_visual_handoffs",
+                "remediation": (
+                    "Review or regenerate the Visual Design handoff, then retry Build Preparation."
+                ),
+            }
+            if exc.code == "PACK_VISUAL_IDENTITY_MISMATCH":
+                message = "The approved visual direction needs an identity correction before the build handoff can start."
+            else:
+                message = (
+                    "The approved handoffs could not be validated before Build Preparation started."
+                )
+            raise BuildPreparationOperationError(
+                exc.code,
+                message,
+                status_code=409,
+                details=details,
+            ) from exc
         ca_payload = inputs.content_architect
         vdd_payload = inputs.visual_design_director
         source_ref = inputs.source_ref
