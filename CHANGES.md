@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-09 01:20 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - frontend: remove legacy static pipeline shell
+### 2026-09-09 01:20 +05:30 - Codex (GPT-5 / OpenAI) - [78a9c77] - frontend: remove legacy static pipeline shell
 
 Retired the temporary static Discovery/pipeline shell (`index.html`, `app.js`,
 and `app.css`) and removed its `/dev` route and `/app` fallback. `/app` now
