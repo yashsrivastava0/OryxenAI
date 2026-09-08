@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 05:25 +05:30 - Codex (GPT-5 / OpenAI) - [9d256f3] - model-routing: provider-neutral Experiential/Gemini routing, quota ledger, bounded recovery
+
+Implemented PLAN.MD's first-four provider strategy: Experiential GPT-5.6 Luna is the personal-input route, explicitly sanitized/synthetic lightweight work can use independently observed Gemini Free Tier capacity, and no normal first-four call uses `OPENAI_API_KEY`. Added operation-level routing profiles, one durable normal/recovery budget, zero SDK retries, route-aware cache identity, PostgreSQL usage/attempt/reservation/capacity telemetry, provider reconciliation hooks, safe attributable frontend errors, and the native Gemini adapter. Added the Windows `tzdata` runtime dependency required for Pacific daily quota windows, plus the compatibility receipt fix needed by the complete suite. Live probes succeeded on `EXPLABS`/`gpt-5.6-luna` and `GEMINI_1`/`gemini-3.5-flash-lite`; full verification: 1,002 passed, 169 skipped, mypy clean, migration `0022_model_usage_ledger` at head. Records D-078.
+
 ### 2026-09-07 18:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [7f09506] - code-generator: unverified candidate preview for needs_attention runs; fix stale-job cost bug and uncommitted export_receipt write
 
 Switched from the scratch-script harness to the real `/dev/code-generator-
@@ -408,8 +412,8 @@ restricted-worker regression missing from D-073.
 
 ---
 
-## Summary (as of last compaction — 2026-09-07)
+## Summary (as of last compaction — 2026-09-08)
 
-- Recent detailed entries retained: 15
+- Recent detailed entries retained: 16
 - Compacted milestone bullets: 24
-- Last updated: 2026-09-07 18:50 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Last updated: 2026-09-08 05:25 +05:30 — Codex (GPT-5 / OpenAI)
