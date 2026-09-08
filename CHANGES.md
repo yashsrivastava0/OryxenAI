@@ -11,6 +11,47 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 23:40 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [a2ae087] - deploy: check in Azure production Compose/Caddy/TOML overlays
+
+Added `config/app.production.toml`, `compose.production.yaml`, and a repo-root
+`Caddyfile` matching `docs/deployment/02-azure-vm-runbook.md`'s sections 5/6/8
+content exactly (every field verified against the current Settings model
+first), so the operator clones and edits placeholders on the VM instead of
+hand-authoring multi-line files over SSH. Caddy stays a native VM service per
+the existing runbook design, not a Docker container. Also fixed the runbook's
+own text to point at these checked-in files.
+
+### 2026-09-08 23:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [2790e9d] - app: release Generate & Preview stage, superseding D-063's boundary
+
+Added a fifth `/app` stage (D-081) that starts the previously-unexposed
+production Code Generator session API and embeds its promoted preview,
+gated on Build Preparation completion. Recovered and adapted a near-complete
+prior implementation from history (`f9e8eef`/`9c27a69`, removed at `389fa28`)
+to the current `ActivePreview`/`CodeGeneratorSessionStatus` field names.
+Generate and Preview are one merged stage; the rail's decorative
+permanently-locked "Preview" tile is removed. The preview panel (route
+selector, mobile/tablet/desktop/fit viewports, refresh, open-in-new-tab,
+sandboxed iframe) reuses the exact `postMessage` bridge already live-verified
+in the developer harness. `product-boundary.test.ts` now requires
+`/code-generator` instead of forbidding it.
+
+### 2026-09-08 23:00 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [44304ff] - code-generator: honor honest repair declines, reuse stable cache keys, tighten repair budgets
+
+Root-caused and fixed two open reliability bugs from the prior session's
+handoff: `FinalRepairError` had no escape hatch for a V4 plan's honest
+`cannot_complete` result, so the caller blindly retried an already-declined
+diagnostic bundle to budget exhaustion; now a distinct `FinalRepairDeclined`
+is retried once and stopped on a second identical decline.
+`RUNTIME_REGION_WIDTH_RATIO` findings sharing the same measured content width
+now get an explicit shared-cause note instead of looking like N independent
+defects. Separately, fixed all three Code Generator prompt-cache keys (they
+were scoped to `generation_id`/`identity_hash`, defeating reuse of the large
+stable system-prompt prefix across runs — the same pattern the cost
+research doc measured as ~73% of a day's spend), tightened repair-round
+ceilings to match this project's own observed 1-2-round real-fix depth, and
+gave Code Generator jobs their own `code_generator_max_attempts` config
+instead of sharing the more permissive general worker default.
+
 ### 2026-09-08 20:55 +05:30 - Codex (GPT-5 / OpenAI) - [d6b6777] - build-preparation: fix false identity rejection and safe preflight errors
 
 Build Preparation now takes the approved owner identity from the Content
@@ -336,115 +377,18 @@ desktop pointer parallax, live status chip cross-fading, auto-advance with pause
 and complete `prefers-reduced-motion` safety. Verified with Node test runner (16/16), pytest (5/5), mypy,
 ruff, and browser captures across desktop, laptop, and mobile viewports.
 
-### 2026-09-06 14:06 +05:30 - Codex (GPT-5 / OpenAI) - [f208540] - docs(frontend): capture full agent behavior and output context
-
-Expanded the frontend redesign handoff with a state-complete context rule and
-an explicit ledger of Discovery question generation, internal agent operation
-counts, Content Architect batching, Visual Design Director output fields, and
-current final-result presentation. Added incremental requirements for a
-temporary issue-tracing popup, a complete structured Visual Design Director
-reader, and right-sidebar copying of each stage's full agent-owned JSON without
-changing the working auth, adapter, polling, or handoff architecture.
-No application source changed; the existing frontend verification remains the
-baseline for this documentation-only update.
-
-### 2026-09-06 13:50 +05:30 - Codex (GPT-5 / OpenAI) - [ebfbc94] - docs(frontend): add redesign contract and replacement runbook
-
-Created an attachable frontend migration pack for future AI coding agents:
-the redesign context pack defines the replaceable visual boundary and protected
-runtime seams, the contract ledger maps routes/auth/stages/statuses/actions and
-proof obligations, and the replacement runbook defines the repository search,
-screen-by-screen migration, dual-run cutover, rollback, and verification gates.
-Linked the pack from `docs/Frontend/README.md`; no application source or backend
-behavior changed. Verification: frontend typecheck, Vitest, production Vite
-build, and browser/auth module tests all pass.
-
-### 2026-09-06 13:15 +05:30 - Codex (GPT-5 / OpenAI) - [cdf8952] - pipeline: guarantee approval-ready Content and one-click handoff
-
-Traced the live Content approval 409 to an approved home route referencing a
-certification claim still marked `pending`. Content Architect now runs the same
-deterministic public-scope check before presenting review output and spends at
-most one remaining call from its existing three-call ceiling on a targeted
-integration correction; unresolved output fails before review and claim status
-is never promoted merely to pass. Existing invalid saved drafts route one
-approval click into a bounded revision, after which changed copy still requires
-review. Discovery approval and explicit Content start are now one frontend user
-action, while remaining two idempotent backend calls rather than background
-auto-chaining. Added safe copy-ready final JSON projections to Discovery,
-Content, and Design review surfaces (excluding intake/auth/job data), retained
-Build Preparation's existing diagnostic JSON control, and corrected skipped
-answer rendering. Verification: 143 Content unit/API tests, 71 frontend tests,
-full Python mypy, focused Ruff, frontend typecheck, and production Vite build.
-Records D-075.
-
-### 2026-09-06 03:12 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [1956d58] - output/, .gitignore, README.md, .env.example, docs/run/run.md - device handoff: curate kept output, fix stale docs, document port override
-
-Final task of this engagement: prepared the branch for a fresh device to
-continue Code Generator work. Deleted all `output/build-preparation/` packs
-and `output/code-gen-output/` runs except the one pack and two runs
-referenced in `code generator issues.md`'s 2026-09-06 handoff, and fixed
-`.gitignore`'s nested-negation ancestor chain so those specific kept paths
-are actually tracked (a bare `output/*` rule silently blocks re-inclusion of
-anything under an already-excluded directory without an explicit
-`!dir/` + `dir/*` + `!dir/child/` chain). Corrected README.md's badly stale
-top banner and non-goals list (it still said Code Generator and Phases 3-4
-auth were "out of scope" — both have been implemented for weeks; see
-AGENTS.md), added Node/npm and browser prerequisites, and added a prominent
-pointer to `code generator issues.md` for whoever picks up the reliability
-work next. Documented the existing (but under-documented)
-`DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` settings in `.env.example`, README.md,
-and `docs/run/run.md` as the supported fix for native PostgreSQL's port
-`5432` colliding with another local install — the exact conflict hit
-repeatedly this session — rather than inventing a new override mechanism.
-No source code changed; all 261 code_generator tests and full lint/type
-checks were already green from the prior commit and are unaffected.
-
-### 2026-09-06 02:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [83179f3 and 8 prior commits] - live-testing iteration closes 8 more real gaps; failed runs now export
-
-Continued live-testing (per the user's "keep going until fixed" instruction)
-found and fixed 8 more real, distinct Code Generator bugs beyond D-072's
-five: non-required resources wrongly treated as blocking; a distinctive-move
-CSS selector check with zero tolerance for a legitimate ancestor-scoping
-prefix; the planner's collision retry widened from 2 to 3 bounded attempts;
-a duplicate-file-path response now canonicalizes (keeps the last entry)
-instead of rejecting; `repair_source.md` given the same section-file
-import-depth guidance `route_batch.md` already had; `Reveal`/`StaggerGroup`
-now forward marker attributes onto their own wrapper; a host-side easing
-normalizer plus a corrected `planner.md` prompt (its own prose read too
-close to a literal CSS value); and identical runtime diagnostics across
-viewports now dedupe by fingerprint before repair sees them. Two
-consecutive fresh live runs reached `generate: succeeded` -> final
-verification -- the deepest and most consistent this engagement has gone --
-and one produced this project's first real screenshots of a generated
-portfolio (genuinely good-looking; see D-074). Separately, added
-`export_failed_run()` so `output/code-gen-output/` preserves a run's
-source/build/screenshots even when it ends in `needs_attention`/`failed`,
-per explicit user request; wired into the plan/acquire/generate and
-verification failure choke-points. 261 code_generator tests pass (up from
-232 at D-068); full evidence trail in D-074 and `code generator issues.md`.
-
-### 2026-09-06 02:13 +05:30 - Codex (GPT-5 / OpenAI) - [7c94916] - discovery: restore authenticated answer submission
-
-Corrected the product frontend to send Discovery's API action modes
-(`answered`/`skipped`) instead of question presentation kinds, which had
-caused every option click to fail validation. Added a typed answer boundary,
-consistent skip support, and regressions for all answer shapes. Unknown
-non-auth API failures now preserve their safe server message instead of being
-misreported as an expired authentication session; real HTTP 401 handling is
-unchanged.
-
-### 2026-09-06 01:51 +05:30 - Codex (GPT-5 / OpenAI) - [ae89b61] - worker: release stale shared-lane blockers
-
-Allowed-handler workers now release an expired foreign job only when it
-blocks a shared execution lane needed by due work they can run. This fixes
-repeat Discovery stalls behind stale Code Generator leases and adds the
-restricted-worker regression missing from D-073.
-
 ---
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [f208540] - Documented a frontend context/output ledger and copy-controls requirements for future redesign agents; no application source changed.
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [ebfbc94] - Added a frontend redesign contract/replacement runbook pack (context, contract ledger, migration/rollback runbook) for future migration agents.
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [cdf8952] - Fixed a Content approval 409 on pending-claim routes, bounded a one-click Discovery-to-Content handoff, and added safe copy-ready JSON to review surfaces; records D-075.
+- 2026-09-06 - Claude Code (Sonnet 5 / Anthropic) - [1956d58] - Curated kept `output/` artifacts, fixed a `.gitignore` nested-negation bug, corrected stale README claims, and documented `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE`.
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [7c94916] - Fixed Discovery's frontend to send correct answer action modes instead of presentation kinds, restoring authenticated answer submission.
+- 2026-09-06 - Claude Code (Sonnet 5 / Anthropic) - [83179f3 and 8 prior commits] - Closed 8 more live-tested Code Generator bugs beyond D-072 and added failed-run export (`export_failed_run`); records D-074.
+- 2026-09-06 - Codex (GPT-5 / OpenAI) - [ae89b61] - Fixed stale shared-execution-lane blocking that stalled Discovery behind old Code Generator leases.
 - 2026-09-06 - Codex (GPT-5 / OpenAI) - [68f1cd1] - Added safe job lifecycle metadata, foreground scheduling/lease recovery, and deterministic Discovery questions for long pastes; records D-073.
 - 2026-09-06 - Codex (GPT-5 / OpenAI) - [861e981] - Added foreground scheduling and stale-lease recovery for Discovery, plus durable stop fencing across the API/state/run/worker-result boundaries.
 - 2026-09-06 - Codex (GPT-5 / OpenAI) - [cdf7a18] - Added durable cancellation fencing for Content Architect/Visual Design Director, a reusable three-stage job projection, and bounded trace export/copy support.
@@ -493,5 +437,5 @@ restricted-worker regression missing from D-073.
 ## Summary (as of last compaction — 2026-09-08)
 
 - Recent detailed entries retained: 20
-- Compacted milestone bullets: 24
-- Last updated: 2026-09-08 15:10 +05:30 — Codex (GPT-5 / OpenAI)
+- Compacted milestone bullets: 31
+- Last updated: 2026-09-08 23:40 +05:30 — Claude Code (Sonnet 5 / Anthropic)
