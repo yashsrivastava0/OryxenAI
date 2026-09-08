@@ -36,6 +36,7 @@ from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
+    detect_supported_import_dependencies,
 )
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_input import (
@@ -45,6 +46,8 @@ from oryxenai.agents.code_generator.core.development_input import (
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyLedger,
+    DependencyReceipt,
+    DependencyRequest,
     DevelopmentRunStatus,
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
@@ -1963,6 +1966,19 @@ class CodeGeneratorGenerationOrchestrator:
         materials_root = _resolve_config_path(
             settings.code_generator_acquisition.materials_root
         ) / str(run_id)
+        # Component candidates carry their own declared npm dependencies in
+        # dependency_metadata (see resource_adapters.py); the initial
+        # acquisition handler (_execute_acquisition) already auto-resolves
+        # these deterministically instead of waiting on the model to notice
+        # and separately request them. This emergent/mid-generation path
+        # previously only resolved requests.dependency_requests -- the
+        # model's own list -- so a builder that requested a component but
+        # never thought to also request its declared package (observed live:
+        # an acquired stepper component importing "motion/react" with no
+        # matching dependency_requests entry) left the dependency uninstalled
+        # and the generated source unbuildable. Auto-resolve here too, for
+        # the same reason _execute_acquisition does.
+        emergent_dependency_receipts: list[DependencyReceipt] = []
         for request in requests.resource_requests:
             if any(receipt.request_hash == request.request_hash for receipt in receipts):
                 continue
@@ -2047,9 +2063,27 @@ class CodeGeneratorGenerationOrchestrator:
                     # destination remains materializable; only an unbound
                     # suggestion is reference-only.
                     receipt_files = []
+                    detected_dependency_names: set[str] = set()
+                    supported_packages = set(
+                        getattr(settings.code_generator_dependencies, "supported_packages", {})
+                    )
                     if not component_reference_only:
                         for materialized in materialized_files:
                             source_file = materials_root / materialized.local_path
+                            if request.category == "component_source" and supported_packages:
+                                # See dependency_manager.detect_supported_import_
+                                # dependencies' docstring: a pinned component's
+                                # declared dependencies are rarely captured in
+                                # the admitted pack's resolution metadata, so
+                                # scan the fetched source itself as a
+                                # defense-in-depth fallback.
+                                try:
+                                    text = source_file.read_text(encoding="utf-8")
+                                except (OSError, UnicodeDecodeError):
+                                    text = ""
+                                detected_dependency_names |= detect_supported_import_dependencies(
+                                    text, supported_packages
+                                )
                             local_name = (
                                 f"{materialized.sha256}{Path(materialized.local_path).suffix}"
                             )
@@ -2089,7 +2123,9 @@ class CodeGeneratorGenerationOrchestrator:
                         attribution=candidate.attribution,
                         original_hash=materialized_files[0].sha256 if materialized_files else "",
                         materialized_files=receipt_files,
-                        dependencies=sorted(candidate.dependency_metadata),
+                        dependencies=sorted(
+                            set(candidate.dependency_metadata) | detected_dependency_names
+                        ),
                         satisfied_placements=[]
                         if component_reference_only
                         else [request.placement.purpose],
@@ -2103,6 +2139,38 @@ class CodeGeneratorGenerationOrchestrator:
                         ),
                         acquired_at=datetime.now(UTC).isoformat(),
                     )
+                    if receipt.dependencies:
+                        dependency_manager = DependencyManager([receipt])
+                        repo_dir = workspace.repo_dir
+                        prior_manifest = _read_json(repo_dir / "package.json")
+                        prior_lock = _read_json(repo_dir / "package-lock.json")
+                        for package_name in receipt.dependencies:
+                            dep_request = DependencyRequest(
+                                request_id=f"dep-{request.request_hash[:16]}-{package_name}",
+                                requesting_resource_receipt_hash=receipt.request_hash,
+                                package_name=package_name,
+                                required_api_or_exports=list(
+                                    candidate.dependency_metadata.get(package_name, [])
+                                ),
+                                compatibility_constraints="configured target runtime",
+                                reason_existing_stack_is_insufficient=(
+                                    "The admitted component declares this API."
+                                ),
+                                fallback_component_strategy=(
+                                    "vendor source without the package or use simple_dom"
+                                ),
+                            )
+                            dep_receipt = await dependency_manager.resolve(
+                                dep_request,
+                                repo_dir=repo_dir,
+                                prior_manifest=prior_manifest,
+                                prior_lock=prior_lock,
+                                settings=settings,
+                            )
+                            emergent_dependency_receipts.append(dep_receipt)
+                            if dep_receipt.decision == "admitted":
+                                prior_manifest = _read_json(repo_dir / "package.json")
+                                prior_lock = _read_json(repo_dir / "package-lock.json")
             except (ResourceProviderError, AcquisitionValidationError) as exc:
                 if request.requiredness == "required" and request.fallback.kind == "none":
                     raise GenerationError(
@@ -2137,12 +2205,12 @@ class CodeGeneratorGenerationOrchestrator:
         dependency_ledger = DependencyLedger.model_validate(
             run.dependency_ledger or {"receipts": []}
         )
+        dependency_receipts = list(dependency_ledger.receipts) + emergent_dependency_receipts
         if requests.dependency_requests:
             manager = DependencyManager(receipts)
             repo_dir = workspace.repo_dir
             prior_manifest = _read_json(repo_dir / "package.json")
             prior_lock = _read_json(repo_dir / "package-lock.json")
-            dependency_receipts = list(dependency_ledger.receipts)
             for request in requests.dependency_requests:
                 dependency_receipts.append(
                     await manager.resolve(
@@ -2153,6 +2221,7 @@ class CodeGeneratorGenerationOrchestrator:
                         settings=settings,
                     )
                 )
+        if emergent_dependency_receipts or requests.dependency_requests:
             dependency_ledger = build_dependency_ledger(dependency_receipts)
         run.resource_ledger = resource_ledger.model_dump(mode="json")
         run.dependency_ledger = dependency_ledger.model_dump(mode="json")
