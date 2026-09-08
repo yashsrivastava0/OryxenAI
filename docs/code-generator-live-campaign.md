@@ -31,6 +31,8 @@ negative rejection fixtures and must never be selected for a paid run.
 
 - `DevelopmentInputAdapter` compile probe: A and B accepted; malformed pairs
   rejected with `BRIEF_ROUTE_INVALID` before any model call.
+- Provider preflight at 2026-09-09 03:20 +05:30 returned `ready` for all six
+  configured Code Generator profiles; `private_context_sent=false`.
 - Npm cache warm: configured supported pins installed in a disposable project,
   then a separate offline `npm ci` succeeded.
 - Ruff, mypy, compileall, frontend TypeScript, and `docker compose config`
@@ -44,7 +46,7 @@ negative rejection fixtures and must never be selected for a paid run.
 
 | Slot | Reserved at (Asia/Kolkata) | Pack | Run ID | Terminal status | Earliest failure / success evidence | Preview or artifact | Usage / notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | pending | A | pending | pending | pending | pending | pending |
+| 1 | 2026-09-09 03:21 +05:30 | A | reserved | running/pending | pending | pending | Maya pack selected after ready provider preflight |
 | 2 | pending | B | pending | pending | pending | pending | pending |
 | 3 | unreserved | — | — | — | — | — | Stop after two successes; reserve only after root-cause fix if required. |
 | 4 | unreserved | — | — | — | — | — | Hard cap; reserve only after root-cause fix if required. |
