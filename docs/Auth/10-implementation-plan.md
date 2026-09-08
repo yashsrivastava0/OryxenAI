@@ -88,7 +88,7 @@ These do not require another planning choice:
   `src/oryxenai/auth/admin/`.
 - `web/routes.py` exposes product `/app` always and developer pages only under
   configured development flags.
-- `web/static/app.js` receives the shared authorized request boundary only
+- The Preact `/app` bundle receives the shared authorized request boundary only
   after Supabase session plus `/api/v1/me` resolution.
 - development-only fixture and Code Generator surfaces are conditionally
   mounted and must stay absent/admin-only in production.

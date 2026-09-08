@@ -326,18 +326,15 @@ All errors return a structured envelope:
 }
 ```
 
-## Temporary authentication and developer harness URLs
+## Authentication and diagnostic harness URLs
 
 Authentication starts at `http://127.0.0.1:8000/` (or
-`http://localhost:8000/` in Docker). The developer harness is explicitly
-development-only at `/dev`.
+`http://localhost:8000/` in Docker). The normal product workspace is at
+`/app`; the separate diagnostic harnesses are explicitly development-only.
 
-The harness allows you to:
-1. Check liveness and DB readiness
-2. Create test sessions and view recent ones
-3. Select a session and complete the Discovery intake
-4. Answer questions, review the brief, and click NEXT to approve
-5. Inspect stored output, state, jobs, and run history
+The diagnostic harnesses allow you to inspect Build Preparation at
+`/dev/build-preparation-fixture` or the Code Generator control room at
+`/dev/code-generator-development` when their feature flags are enabled.
 
 ## How mock agent runs work
 

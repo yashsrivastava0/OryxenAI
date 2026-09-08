@@ -73,19 +73,13 @@ export async function bootProductShell({
   globalRef = globalThis,
   loadWorkspace = async () => {
     // /product_shell.html renders this meta tag only when the Preact bundle
-    // (frontend/, docs/Frontend/05) is enabled and has actually been built;
-    // /dev and a not-yet-built /app both fall back to the legacy bundle,
-    // which still exports the same window.OryxenAIApp = {boot, stop, restart}
-    // shape the caller below expects either way.
+    // (frontend/, docs/Frontend/05) has actually been built. The legacy
+    // static workspace was retired; never silently load a second UI.
     const entry = globalRef?.document
       ?.querySelector?.('meta[name="oryxenai-product-entry"]')
       ?.content;
-    if (entry) return import(entry);
-    // The legacy bundle is mutable during local development and is served
-    // under a stable filename. Bust the browser's module cache so a refreshed
-    // workspace cannot keep an older output/copy-control implementation.
-    await import(`/static/app.js?v=${Date.now()}`);
-    return globalRef?.OryxenAIApp;
+    if (!entry) throw new Error("The Preact product bundle is unavailable.");
+    return import(entry);
   },
 } = {}) {
   const paths = config.paths || {};
@@ -97,8 +91,7 @@ export async function bootProductShell({
   );
   const onboarding = safeRelativePath(paths.onboarding || "/onboarding", "/onboarding");
   const appPath = safeRelativePath(paths.app || "/app", "/app");
-  const isDeveloperPage = location?.pathname === "/dev";
-  const isWorkspacePage = isDeveloperPage || location?.pathname === appPath;
+  const isWorkspacePage = location?.pathname === appPath;
   let appController = null;
   const onAuthFailure = async () => {
     await invalidateBrowserSession({
@@ -201,11 +194,6 @@ export async function bootProductShell({
     replace(location, onboarding);
     return { ...context, kind: "onboarding" };
   }
-  if (isDeveloperPage && context.me?.role !== "admin") {
-    replace(location, appPath);
-    return { ...context, kind: "not_admin" };
-  }
-
   if (isWorkspacePage) {
     try {
       appController = await loadWorkspace();
@@ -230,7 +218,7 @@ export async function bootProductShell({
       storage,
       me: context.me,
       role: context.me.role,
-      developer: isDeveloperPage,
+      developer: false,
       serverSessionId: context.me.portfolio_session_id || null,
       readOnly: Boolean(context.me.read_only),
     });
@@ -249,7 +237,7 @@ export async function bootProductShell({
   const adminLink = globalRef.document?.getElementById?.("app-admin-link");
   if (adminLink) adminLink.hidden = context.me.role !== "admin";
   revealWorkspace(globalRef.document);
-  return { ...context, kind: isDeveloperPage ? "developer" : "app" };
+  return { ...context, kind: "app" };
 }
 
 if (typeof document !== "undefined") {

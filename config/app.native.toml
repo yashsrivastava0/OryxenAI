@@ -7,6 +7,8 @@
 [app]
 host = "127.0.0.1"
 port = 8000
+# Keep the separate diagnostic/developer harnesses available in native runs.
+# The retired legacy pipeline shell is not mounted at /dev.
 enable_dev_ui = true
 
 [database]

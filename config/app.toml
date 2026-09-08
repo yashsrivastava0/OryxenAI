@@ -11,10 +11,9 @@ env = "local"          # local | staging | production
 host = "127.0.0.1"     # bind host for direct uv run
 port = 8000
 log_level = "INFO"     # DEBUG | INFO | WARNING | ERROR
-enable_dev_ui = true   # serve the developer testing harness at /dev
-# /app serves the new Preact studio (docs/Frontend/05) once its bundle is
-# built (frontend/, npm run build). Falls back to the legacy pipeline UI if
-# the bundle isn't present. /dev always uses the legacy UI regardless.
+enable_dev_ui = true   # enable the separate diagnostic/developer harnesses
+# /app serves the Preact studio (frontend/, npm run build). There is no legacy
+# static pipeline fallback: a missing bundle is a startup/deployment error.
 enable_product_preact_shell = true
 
 [database]

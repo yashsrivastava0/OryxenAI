@@ -197,34 +197,6 @@ test("exhausted generation credit keeps the session instead of signing out", asy
   assert.deepEqual(page.replacements, []);
 });
 
-test("normal users cannot initialize a developer shell", async () => {
-  const page = location("/dev");
-  const auth = sessionAuth();
-  let protectedPageLoads = 0;
-  const result = await bootProductShell({
-    auth,
-    config,
-    location: page,
-    storage: { removeItem() {} },
-    fetchImpl: async () => response(200, {
-      id: "app-user",
-      username: "normal",
-      role: "user",
-      status: "active",
-      onboarding_required: false,
-      admin_available: false,
-    }),
-    loadWorkspace: async () => {
-      protectedPageLoads += 1;
-      return { boot() {} };
-    },
-  });
-
-  assert.equal(result.kind, "not_admin");
-  assert.deepEqual(page.replacements, ["/app"]);
-  assert.equal(protectedPageLoads, 0);
-});
-
 test("admin developer boot resolves /me before loading the protected page", async () => {
   const page = location("/code-generator-development");
   const auth = sessionAuth();

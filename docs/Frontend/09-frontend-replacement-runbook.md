@@ -23,9 +23,9 @@ Before editing:
   do not reduce the audit to whatever fields the current screen happens to
   render;
 - do not change API/backend behavior as a side effect of a visual task; and
-- do not delete the legacy bundle, auth shell, fixtures, admin console, or
-  developer harness until the cutover gate explicitly proves they are no longer
-  needed.
+- the legacy static product bundle has already been removed; preserve the auth
+  shell, fixtures, admin console, Preact product bundle, and Code Generator
+  developer harness.
 
 When a requested design needs unsupported behavior, write the requirement as a
 separate proposal and continue with the closest honest existing behavior. Do not
@@ -312,8 +312,8 @@ server choreography:
 
 ### Slice 6: developer/admin surfaces
 
-Treat admin, Build Preparation fixture, legacy `/dev`, and Code Generator
-development as separate migrations. Their detailed controls are valuable for
+Treat admin, Build Preparation fixture, and Code Generator development as
+separate migrations. Their detailed controls are valuable for
 operators and evaluators but are not normal creator UX.
 
 For every such surface, preserve its own entry route, config gate, auth mode,
@@ -323,17 +323,16 @@ both contain a field named `status`.
 
 ## 6. Use a dual-run/cutover strategy
 
-The repository already has a useful safety shape: the server can serve a built
-product bundle, and the legacy product shell remains a fallback/legacy surface.
-Use that shape while migrating.
+The server serves a built Preact product bundle through the manifest-selected
+entry point. A missing bundle is reported clearly; it never silently selects a
+second legacy UI.
 
 Recommended cutover sequence:
 
 1. Add the new shell behind the existing product-entry/feature boundary.
-2. Keep the old bundle buildable and bootable.
-3. Migrate one posture or stage at a time; run old and new against the same
+2. Migrate one posture or stage at a time; run the product against the same
    deterministic fixture responses where possible.
-4. Compare state-complete contract events, not DOM structure: route, action ID,
+3. Compare state-complete contract events, not DOM structure: route, action ID,
    request path, request body, resulting status, session revision, raw stage
    payload shape, full agent-output availability, and safe error state.
 5. Browser-test the new path at desktop, mobile, keyboard-only, reduced-motion,
@@ -444,11 +443,11 @@ own reasoning; do not restrict it to the old visible fields. Components must
 consume adapters, not raw backend statuses.
 
 Migrate in slices: auth -> app shell -> Discovery -> Content -> Design ->
-tracing/full-JSON affordances -> admin/developer surfaces. Keep the old fallback
-buildable. After each slice run typecheck/tests/build plus the relevant
+tracing/full-JSON affordances -> admin/developer surfaces. The old static
+fallback is retired. After each slice run typecheck/tests/build plus the relevant
 auth/state/browser proof. Make Visual Design Director a complete structured
 reader, add the temporary issue popup, and add the right-sidebar full JSON copy
 action without changing server choreography. Do not invent endpoints, auto-chain
-stages, expose credentials, or delete legacy/harness code until the cutover gate
-proves it is safe.
+stages, expose credentials, or delete the auth/diagnostic/code-generator
+harnesses.
 ```

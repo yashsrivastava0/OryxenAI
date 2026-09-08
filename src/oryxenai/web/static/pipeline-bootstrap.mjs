@@ -57,11 +57,8 @@ export async function bootDetachedProductShell({
     const entry = globalRef?.document
       ?.querySelector?.('meta[name="oryxenai-product-entry"]')
       ?.content;
-    if (entry) return import(entry);
-    // The legacy bundle is mutable during local development and is served
-    // under a stable filename. Bust the browser's module cache on each boot.
-    await import(`/static/app.js?v=${Date.now()}`);
-    return globalRef?.OryxenAIApp;
+    if (!entry) throw new Error("The Preact product bundle is unavailable.");
+    return import(entry);
   },
 } = {}) {
   const storage = storageFor(globalRef);

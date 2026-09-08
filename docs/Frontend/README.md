@@ -261,9 +261,9 @@ The detailed palette, typography, spacing, motion, and component rules live in t
    state for stage and preview deep links. Do not add a client router.
 2. Preserve lightweight server-rendered authentication pages; use a small component
    client only for the stateful `/app` studio.
-3. Recommend Preact, TypeScript, and Vite for that studio. The existing single
-   `app.js` has outgrown a safe monolith, while a full application framework and
-   component ecosystem would add little value to this product model.
+3. Recommend Preact, TypeScript, and Vite for that studio. The former single
+   static shell had outgrown a safe monolith, while a full application framework
+   and component ecosystem would add little value to this product model.
 4. Normalize agent payloads through frontend adapters. Components consume a small
    journey vocabulary instead of branching on every backend status.
 5. Keep polling because it is the available contract. Make it visibility-aware,

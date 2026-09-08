@@ -81,7 +81,7 @@ class AppConfig(BaseModel):
     log_level: str = "INFO"
     enable_dev_ui: bool = True
     # /app serves the Preact studio (docs/Frontend/05) as the canonical
-    # normal product UI across all stages. /dev is unaffected either way.
+    # normal product UI across all stages. Legacy static pipeline UI is gone.
     enable_product_preact_shell: bool = True
 
     @field_validator("log_level", mode="before")

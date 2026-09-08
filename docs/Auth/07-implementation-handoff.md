@@ -148,7 +148,7 @@ for the current attempt.
 
 Phase 1-3 browser boot is integrated with the existing first-three-agent
 workspace: `/api/v1/me` resolves the server-selected session and safe
-entitlement projection before `app.js` loads; normal users receive read-only
+entitlement projection before the Preact product bundle loads; normal users receive read-only
 controls after success and no developer/regenerate controls. The temporary
 `/admin` shell is a safe, bounded Phase 4 admin console; it does not expose
 provider secrets or unbounded destructive controls.

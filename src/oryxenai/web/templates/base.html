@@ -19,9 +19,7 @@
   <meta name="oryxenai-admin-path" content="{{ auth_config.adminPath }}">
   {% endif %}
   <title>{% block title %}{{ app_name }} - Portfolio Pipeline{% endblock %}</title>
-  {% block base_stylesheet %}
-  <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/app.css?v={{ app_css_version }}">
-  {% endblock %}
+  {% block base_stylesheet %}{% endblock %}
   {% block head %}{% endblock %}
 </head>
 <body class="{% if pipeline_mode != "detached" %}auth-pending{% endif %}">

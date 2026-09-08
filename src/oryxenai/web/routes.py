@@ -71,10 +71,8 @@ def _shell_context(settings: Any, *, pipeline_mode: str | None = None) -> dict[s
         "pipeline_mode": effective_pipeline_mode,
         "tokens_css_version": _auth_asset_version("tokens.css"),
         "living_draft_mark_css_version": _auth_asset_version("living-draft-mark.css"),
-        "app_js_version": _asset_version("app.js"),
         "auth_css_version": _auth_asset_version("auth.css"),
         "auth_client_version": _auth_asset_version("auth-client.js"),
-        "app_css_version": _asset_version("app.css"),
         "auth_runtime_version": _asset_version("auth-runtime.mjs"),
         "app_auth_bootstrap_version": _asset_version("app-auth-bootstrap.mjs"),
         "pipeline_bootstrap_version": _asset_version("pipeline-bootstrap.mjs"),
@@ -89,7 +87,7 @@ def _development_auth_config(settings: Any) -> dict[str, object]:
     return config
 
 
-def _set_shell_headers(response: HTMLResponse, settings: Any) -> HTMLResponse:
+def _set_shell_headers(response: Response, settings: Any) -> Response:
     response.headers["Content-Security-Policy"] = auth_csp(settings.supabase_url)
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Frame-Options"] = "DENY"
@@ -99,7 +97,7 @@ def _set_shell_headers(response: HTMLResponse, settings: Any) -> HTMLResponse:
 
 
 def create_web_router(settings_override: Any | None = None) -> APIRouter:
-    """Return the always-mounted product shell plus optional dev routes."""
+    """Return the Preact product shell plus optional diagnostic routes."""
     router = APIRouter()
     dev_enabled = bool(getattr(settings_override, "is_dev_ui_enabled", False))
     fixture_enabled = bool(
@@ -112,39 +110,27 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
     @router.get("/app", response_class=HTMLResponse)
     async def product_app(request: Request) -> Any:
         settings = request.app.state.settings
-        product_entry = (
-            _resolve_product_entry() if settings.is_product_preact_shell_enabled else None
-        )
-        if product_entry is not None:
-            response = templates.TemplateResponse(
-                request=request,
-                name="product_shell.html",
-                context={**_shell_context(settings), "product_entry": product_entry},
+        if not settings.is_product_preact_shell_enabled:
+            response = Response(
+                "The product frontend is disabled.",
+                status_code=503,
+                media_type="text/plain",
             )
         else:
-            response = templates.TemplateResponse(
-                request=request,
-                # Legacy fallback: the flag is off, or the Preact bundle in
-                # frontend/ has not been built yet (npm run build).
-                name="index.html",
-                context=_shell_context(settings),
-            )
+            product_entry = _resolve_product_entry()
+            if product_entry is None:
+                response = Response(
+                    "The product frontend bundle is unavailable. Build the frontend before starting the app.",
+                    status_code=503,
+                    media_type="text/plain",
+                )
+            else:
+                response = templates.TemplateResponse(
+                    request=request,
+                    name="product_shell.html",
+                    context={**_shell_context(settings), "product_entry": product_entry},
+                )
         return _set_shell_headers(response, settings)
-
-    if dev_enabled:
-
-        @router.get("/dev", response_class=HTMLResponse)
-        async def developer_index(request: Request) -> Any:
-            settings = request.app.state.settings
-            response = templates.TemplateResponse(
-                request=request,
-                name="index.html",
-                # Follow the configured pipeline mode, same as /app, so local
-                # detached development doesn't force the full Supabase login
-                # flow just because /dev was used instead of /app.
-                context=_shell_context(settings),
-            )
-            return _set_shell_headers(response, settings)
 
     if dev_enabled and fixture_enabled:
 
