@@ -284,6 +284,9 @@ class TestOpenCodeGoAdapterStructured:
                     output_model=QuestionSetOutput,
                     request_context={
                         "request_id": "internal-request-id",
+                        "job_attempt": 2,
+                        "request_attempt": 1,
+                        "fallback_attempt": 0,
                         "global_attempt_budget": True,
                         "route_profile": "profile",
                     },
@@ -292,6 +295,9 @@ class TestOpenCodeGoAdapterStructured:
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert "request_id" not in call_kwargs
+        assert "job_attempt" not in call_kwargs
+        assert "request_attempt" not in call_kwargs
+        assert "fallback_attempt" not in call_kwargs
         assert "global_attempt_budget" not in call_kwargs
         assert "route_profile" not in call_kwargs
 

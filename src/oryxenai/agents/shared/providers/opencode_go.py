@@ -500,6 +500,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             "routing_policy_snapshot",
             "input_classification",
             "request_id",
+            "job_attempt",
             "request_attempt",
             "fallback_attempt",
             "session_id",
