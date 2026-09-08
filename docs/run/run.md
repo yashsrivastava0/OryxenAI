@@ -22,8 +22,7 @@ attached):
 - `/` — mode-aware entry controller
 - `/app` — login-free detached pipeline workspace in native mode, or the
   authenticated product workspace in attached mode
-- `/dev` — developer workspace when enabled
-- `/dev/build-preparation-fixture` — detached Build Preparation UI
+- `/dev/build-preparation-fixture` — detached Build Preparation diagnostic UI
 - `/dev/code-generator-development` — standalone Code Generator UI
 - `/health/live` and `/health/ready` — process and database checks
 - `/api/v1/*` — session, stage, job, and diagnostic APIs
@@ -251,10 +250,9 @@ Expected results:
   number in this document.
 - The worker terminal continues without a database or configuration exception.
 
-The detached four-stage workspace does not require authentication. `/dev`,
-administrator APIs, Code Generator surfaces, `/api/v1/system/status`, and
-other protected product/developer routes retain their attached authorization
-boundaries.
+The detached four-stage workspace does not require authentication. Administrator
+APIs, Code Generator surfaces, `/api/v1/system/status`, and other protected
+product/developer routes retain their attached authorization boundaries.
 
 ### Native change workflow
 

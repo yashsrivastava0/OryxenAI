@@ -1411,18 +1411,14 @@ downstream depends on auth staying correct:
   (`src/oryxenai/auth/static/auth-controller.mjs`). This is a real bug in the
   current implementation, not a redesign concern — see
   [06](06-cross-model-review-and-decisions.md) §3.2 for the full trace.
-- Point `src/oryxenai/web/static/app-auth-bootstrap.mjs`'s `loadWorkspace` at the
-  new Preact bundle's entry output instead of its current hardcoded
-  `import("/static/app.js")`. This one line is workspace-loader wiring, not auth
-  logic, and is in scope for this phase. Branch it on `isDeveloperPage`: `/dev`
-  keeps loading the legacy bundle until Phase 5 cutover, `/app` loads the new
-  one. The Preact entry must export the same `{ boot, stop, restart }` shape
-  `bootProductShell()` already calls, so `bootProductShell()` itself needs no
-  behavioral changes — see [06](06-cross-model-review-and-decisions.md) §3.3.
+- `src/oryxenai/web/static/app-auth-bootstrap.mjs` loads the manifest-selected
+  Preact bundle for `/app` and requires its `{ boot, stop, restart }` seam. The
+  former `/dev` legacy bundle and the silent `/app` fallback have been removed;
+  a missing Preact bundle now fails clearly instead of selecting another UI —
+  see [06](06-cross-model-review-and-decisions.md) §3.3.
 - Carry the structural
   `body.auth-pending > :not(#auth-bootstrap-progress) { visibility: hidden; }`
-  rule (currently in `src/oryxenai/web/static/app.css`) into the new stylesheet
-  layer (§15.1) before `app.css` is ever retired. This is what makes private
+  behavior into the Preact stylesheet layer (§15.1). This is what makes private
   content structurally unable to paint before auth resolves; it must always have
   a home, never a gap during the transition.
 

@@ -1,7 +1,4 @@
-"""/app serves the Preact studio only when enabled and actually built, and
-/dev never serves it regardless — see docs/Frontend/05 §19 Phase 1 and
-docs/Frontend/06-cross-model-review-and-decisions.md §3.3.
-"""
+"""The product shell is Preact-only; the retired legacy /dev shell is absent."""
 
 from __future__ import annotations
 
@@ -41,17 +38,16 @@ async def test_app_serves_preact_shell_when_enabled_and_built(client, monkeypatc
     assert 'id="chat-card"' not in resp.text
 
 
-async def test_app_falls_back_to_legacy_ui_when_bundle_not_built(client, monkeypatch):
+async def test_app_returns_a_clear_error_when_bundle_is_not_built(client, monkeypatch):
     c, app = client
     app.state.settings.app.enable_product_preact_shell = True
     monkeypatch.setattr(web_routes, "_resolve_product_entry", lambda: None)
     resp = await c.get("/app")
-    assert resp.status_code == 200
-    assert 'id="chat-card"' in resp.text
-    assert 'id="product-root"' not in resp.text
+    assert resp.status_code == 503
+    assert "product frontend bundle is unavailable" in resp.text
 
 
-async def test_app_falls_back_to_legacy_ui_when_flag_disabled(client, monkeypatch):
+async def test_app_returns_a_clear_error_when_preact_shell_is_disabled(client, monkeypatch):
     c, app = client
     app.state.settings.app.enable_product_preact_shell = False
     monkeypatch.setattr(
@@ -60,11 +56,11 @@ async def test_app_falls_back_to_legacy_ui_when_flag_disabled(client, monkeypatc
         lambda: {"script": "/static/product/assets/main-test.js", "styles": []},
     )
     resp = await c.get("/app")
-    assert resp.status_code == 200
-    assert 'id="chat-card"' in resp.text
+    assert resp.status_code == 503
+    assert "product frontend is disabled" in resp.text
 
 
-async def test_dev_never_serves_the_preact_shell(client, monkeypatch):
+async def test_legacy_dev_shell_is_removed(client, monkeypatch):
     c, app = client
     app.state.settings.app.enable_product_preact_shell = True
     monkeypatch.setattr(
@@ -73,6 +69,4 @@ async def test_dev_never_serves_the_preact_shell(client, monkeypatch):
         lambda: {"script": "/static/product/assets/main-test.js", "styles": []},
     )
     resp = await c.get("/dev")
-    assert resp.status_code == 200
-    assert 'id="chat-card"' in resp.text
-    assert 'id="product-root"' not in resp.text
+    assert resp.status_code == 404

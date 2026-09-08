@@ -28,11 +28,11 @@ Relevant source locations:
   fields from migration `0015_portfolio_ownership`.
 - `src/oryxenai/db/repositories/portfolio_sessions.py` exposes explicit owned
   and admin methods; only trusted internal callers retain global lookup.
-- `src/oryxenai/web/static/app.js` receives a shared authorized request
-  function and remembers only an opaque `oryxenai.session_id` navigation hint.
+- The Preact `/app` bundle receives a shared authorized request function and
+  remembers only an opaque `oryxenai.session_id` navigation hint.
 - `src/oryxenai/web/static/app-auth-bootstrap.mjs` resolves the Supabase
-  session and `/api/v1/me` before loading the workspace; `/dev` has a separate
-  admin-gated bootstrap.
+  session and `/api/v1/me` before loading the Preact workspace. Diagnostic
+  pages use their own admin-gated bootstrap.
 - `src/oryxenai/preview/gateway.py` intentionally serves an opaque preview host
   without app identity or cookies.
 
@@ -67,7 +67,7 @@ The Phase 1 controller order is:
 5. If the verified identity is not approved, show access-not-approved and do
    not create local user/project/job state.
 6. Complete username onboarding when required.
-7. Only then show the temporary `/app` or `/admin` shell. The Phase 2 product
+7. Only then show the Preact `/app` or `/admin` shell. The Phase 2 product
    workspace uses owner-scoped APIs; entitlement and worker fencing are later.
 8. A remembered session ID may improve navigation but never grants access.
 9. On sign-out, stop polling, clear rendered state and remembered session ID,

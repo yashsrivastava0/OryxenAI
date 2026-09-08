@@ -6,6 +6,7 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
+import oryxenai.web.routes as web_routes
 from oryxenai.api.dependencies import get_current_user
 from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
 from oryxenai.core.settings import Settings
@@ -41,8 +42,13 @@ async def test_me_requires_one_bearer_token_and_uses_structured_errors() -> None
 
 
 @pytest.mark.asyncio
-async def test_all_phase1_pages_are_direct_html_and_shell_is_safe() -> None:
+async def test_all_phase1_pages_are_direct_html_and_shell_is_safe(monkeypatch) -> None:
     settings = _settings()
+    monkeypatch.setattr(
+        web_routes,
+        "_resolve_product_entry",
+        lambda: {"script": "/static/product/assets/main-test.js", "styles": []},
+    )
     app = create_app(settings)
     paths = (
         "/",
@@ -53,15 +59,15 @@ async def test_all_phase1_pages_are_direct_html_and_shell_is_safe() -> None:
         "/onboarding",
         "/app",
         "/admin",
-        "/dev",
     )
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://localhost:8000"
     ) as client:
         responses = [await client.get(path) for path in paths]
+        dev_response = await client.get("/dev")
 
     assert all(response.status_code == 200 for response in responses)
-    for response in responses[:-1]:
+    for response in responses:
         assert "<html" in response.text
         assert response.headers["cache-control"] == "no-store"
         assert "Content-Security-Policy" in response.headers
@@ -72,8 +78,7 @@ async def test_all_phase1_pages_are_direct_html_and_shell_is_safe() -> None:
         assert "access_token" not in response.text
         assert "refresh_token" not in response.text
         assert "Bearer " not in response.text
-    assert responses[-1].status_code == 200
-    assert "Build your portfolio" in responses[-1].text
+    assert dev_response.status_code == 404
 
 
 @pytest.mark.asyncio

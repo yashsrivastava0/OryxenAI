@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-082 — Retire the legacy static pipeline shell
+
+- **Date & Time:** 2026-09-09 01:20 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The canonical Preact product frontend is now built and served at `/app`, while the former static Discovery/pipeline shell at `/dev` duplicated the product surface and could be selected as an `/app` fallback.
+- **Decision:** Remove the legacy `index.html`/`app.js`/`app.css` shell, its `/dev` route, and both bootstrap fallbacks that imported it. `/app` is Preact-only and returns a clear 503 when the Preact bundle is unavailable. Keep the separate Build Preparation diagnostic and Code Generator control-room routes/assets unchanged and independently gated.
+- **Rejected alternatives:** Keeping `/dev` as a compatibility alias (would leave the retired UI reachable); retaining the silent `/app` fallback (could hide a missing product build and reintroduce two competing frontends); deleting the shared static directory (would remove Preact build output and the Code Generator frontend).
+- **Consequence:** Native/local requests to `/dev` and the removed legacy assets return 404, while `/app` and the Code Generator control room continue to serve their intended frontends. A frontend build is now an explicit prerequisite for `/app`.
+
 ## D-081 — Release a merged Generate & Preview stage in `/app`, superseding D-063's boundary
 
 - **Date & Time:** 2026-09-08 23:00 +05:30 — Claude Code (Sonnet 5 / Anthropic)

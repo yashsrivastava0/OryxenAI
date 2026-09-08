@@ -51,36 +51,17 @@ def test_removed_endpoints_are_gone() -> None:
         assert removed not in paths
 
 
-def test_frontend_uses_safe_dom_rendering_and_chat_endpoints() -> None:
-    javascript = (
-        Path(__file__).resolve().parents[2] / "src" / "oryxenai" / "web" / "static" / "app.js"
-    ).read_text(encoding="utf-8")
-    assert "innerHTML" not in javascript
-    assert "demo-mode" not in javascript
-    assert "demoMode" not in javascript
-    assert "/discovery/start" in javascript
-    assert "/discovery/answers" in javascript
-    assert "/discovery/revise" in javascript
-    assert "/discovery/approve" in javascript
-    assert "oryxenai.session_id" in javascript
-    assert "textContent" in javascript
-    assert "/pipeline/model-profiles" in javascript
-    assert "/pipeline/model-profiles/preflight" in javascript
-    assert "ensureModelProfileReady" in javascript
-    assert "resetModelSelector" in javascript
-    assert "future Code Generation Engine" not in javascript
+def test_legacy_static_pipeline_shell_is_not_tracked() -> None:
+    root = Path(__file__).resolve().parents[2]
+    assert not (root / "src" / "oryxenai" / "web" / "static" / "app.js").exists()
+    assert not (root / "src" / "oryxenai" / "web" / "static" / "app.css").exists()
+    assert not (root / "src" / "oryxenai" / "web" / "templates" / "index.html").exists()
 
 
-def test_frontend_has_chat_page_elements() -> None:
-    template = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "oryxenai"
-        / "web"
-        / "templates"
-        / "index.html"
+def test_product_frontend_is_the_checked_in_preact_source() -> None:
+    source = (
+        Path(__file__).resolve().parents[2] / "frontend" / "src" / "main.tsx"
     ).read_text(encoding="utf-8")
-    for element in ("chat-messages", "composer", "btn-send", "btn-attach", "advanced"):
-        assert element in template
-    assert "demo-mode" not in template
-    assert "mode-bar" not in template
+    assert "export function boot" in source
+    assert "export function stop" in source
+    assert "export function restart" in source

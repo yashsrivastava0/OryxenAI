@@ -172,13 +172,12 @@ the 15 normal-user slots. Both identities require separate Google accounts.
 HTML shells contain no private state. APIs remain protected if JavaScript is
 disabled or a shell is loaded directly.
 
-Phase 2 owns `/app` from the product web router and keeps `/dev`, fixture
-pages, and the Code Generator development page conditional on development
-settings. The HTML remains public so direct refresh works, but product and
-development JavaScript must resolve the Supabase session and `/api/v1/me`
-before loading protected workspace code. A normal user opening `/dev` is
-replaced with `/app`; the underlying APIs independently require admin.
-Every product and development shell loads the pinned Supabase browser bundle
+Phase 2 owns `/app` from the product web router and keeps fixture pages and the
+Code Generator development page conditional on development settings. The
+retired root `/dev` shell is not a route. The HTML remains public so direct
+refresh works, but product and development JavaScript must resolve the Supabase
+session and `/api/v1/me` before loading protected workspace code. The underlying
+diagnostic APIs independently require admin. Every product and development shell loads the pinned Supabase browser bundle
 before its auth bootstrap module. Auth-shell styles remain isolated from the
 product stylesheet so generic panel/body rules cannot alter workspace layers.
 
