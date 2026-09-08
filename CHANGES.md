@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 11:14 +05:30 - Codex (GPT-5 / OpenAI) - [3a6cf25] - frontend: bust legacy bundle cache on bootstrap
+
+The legacy pipeline bootstrap now imports its mutable static bundle with a
+per-boot query string. This prevents browsers from retaining a pre-deployment
+`app.js` module after a normal workspace refresh, so the newly committed
+per-agent JSON copy controls are visible without a manual cache-clearing step.
+Verified with the two browser-bootstrap regression suites (10 tests).
+
 ### 2026-09-08 11:10 +05:30 - Codex (GPT-5 / OpenAI) - [b07582d] - frontend: per-agent full JSON copy controls
 
 Updated the development pipeline's Agent Workspace sidebar so each available
