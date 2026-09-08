@@ -23,6 +23,56 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
+_IMPORT_SPECIFIER_RE = re.compile(
+    r"""(?:from|import)\s+["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)"""
+)
+
+
+def _package_name_from_specifier(specifier: str) -> str | None:
+    """Return the installable package name a module specifier belongs to.
+
+    ``"motion/react"`` belongs to package ``"motion"``; ``"@radix-ui/react-id"``
+    belongs to scoped package ``"@radix-ui/react-id"`` is wrong -- a scoped
+    package name is exactly its first two ``/``-separated segments. A
+    relative (``./x``) or absolute (``/x``) specifier is never a package.
+    """
+
+    if not specifier or specifier.startswith((".", "/")):
+        return None
+    parts = specifier.split("/")
+    if specifier.startswith("@"):
+        return "/".join(parts[:2]) if len(parts) >= 2 else None
+    return parts[0]
+
+
+def detect_supported_import_dependencies(text: str, supported_packages: Iterable[str]) -> set[str]:
+    """Find imports of an already-vetted package that a component didn't declare.
+
+    Live-discovered 2026-09-08/09: a fetched component (a pinned Build
+    Preparation resource decision, D-060) can import a real npm package
+    (``motion/react``) with no corresponding entry anywhere in the admitted
+    pack's resolution metadata -- the current two-Markdown-brief handoff
+    format has no field for a pinned component's declared dependencies at
+    all, so ``dependency_metadata`` silently stays empty and the package is
+    never installed, only surfacing later as a foundation-stage typecheck
+    failure. This never installs an unvetted package: it only ever matches
+    names already present in ``code_generator_dependencies.supported_packages``
+    (config/app.toml), so a component importing something unsupported still
+    correctly falls through to the existing rejected_fallback/typecheck path
+    instead of silently gaining a new dependency.
+    """
+
+    supported = set(supported_packages)
+    if not supported:
+        return set()
+    found: set[str] = set()
+    for match in _IMPORT_SPECIFIER_RE.finditer(text):
+        specifier = match.group(1) or match.group(2) or ""
+        package = _package_name_from_specifier(specifier)
+        if package and package in supported:
+            found.add(package)
+    return found
+
 
 def _canonical_hash(value: Any) -> str:
     return hashlib.sha256(

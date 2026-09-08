@@ -8,6 +8,7 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
     _create_stage_dir,
+    detect_supported_import_dependencies,
 )
 from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyRequest,
@@ -111,3 +112,29 @@ def test_install_script_dependency_is_rejected_by_policy(tmp_path) -> None:
     )
     assert result.decision == "rejected_fallback"
     assert result.install_script_result == "blocked_per_policy"
+
+
+def test_detect_supported_import_dependencies_finds_subpath_and_scoped_imports() -> None:
+    # Live-confirmed 2026-09-08/09: a pinned component fetched via Build
+    # Preparation's resolution can import "motion/react" with no declared
+    # dependency anywhere in the admitted pack -- this is the source-scan
+    # fallback that catches it before the generated project ever fails
+    # typecheck on a missing module.
+    text = (
+        'import { AnimatePresence, motion } from "motion/react";\n'
+        'import { useId } from "react";\n'
+        'import { cn } from "@/lib/utils";\n'
+        'import Thing from "@radix-ui/react-id";\n'
+        'const x = require("lucide-react");\n'
+        'import "./local-styles.css";\n'
+    )
+    found = detect_supported_import_dependencies(
+        text, {"motion", "lucide-react", "@radix-ui/react-id"}
+    )
+    assert found == {"motion", "lucide-react", "@radix-ui/react-id"}
+
+
+def test_detect_supported_import_dependencies_ignores_unsupported_and_relative_imports() -> None:
+    text = 'import { z } from "zod";\nimport util from "../shared/util";\n'
+    assert detect_supported_import_dependencies(text, {"motion"}) == set()
+    assert detect_supported_import_dependencies(text, set()) == set()
