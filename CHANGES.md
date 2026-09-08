@@ -11,6 +11,42 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 00:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [f20779f] - code-generator: clarify planner guidance on design-language words vs literal color names
+
+Live-confirmed a reproducible planner failure specific to one pack's own
+visual brief: prose describing "one confident technical accent" pulled the
+model toward literally naming a raw color token "accent" too, colliding
+with the reserved `shadcn_theme_bindings` slot key (D-071's existing
+collision validator). Two independent full runs (6 total planner attempts
+across the existing 3-attempt budget) both still failed on this exact
+category despite the corrective retry already naming the collision — real
+model pressure from the brief's own wording, not noise. Added guidance that
+a brief's design-language words ("an accent color," "the primary action")
+name a concept, not the literal `colors[*].name` string. Live-verified: the
+next run's planning stage passed cleanly. Prompt-only; no code/test/worker
+changes needed.
+
+### 2026-09-09 00:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [051afa6] - code-generator: detect a pinned component's undeclared npm imports via source scan
+
+Live-confirmed root cause of "Cannot find module 'motion/react'" at
+foundation typecheck: the two-Markdown-brief handoff format has no field
+for a pinned/deferred component's own npm dependencies, so
+`dependency_metadata` stays empty end to end and the package is never
+requested — confirmed via direct DB inspection of the persisted dependency
+ledger (`receipts: []`), not guessed. The existing auto-resolution logic in
+both acquisition call sites was already correct; it simply had nothing to
+resolve. Added `detect_supported_import_dependencies()`
+(`dependency_manager.py`): scans a fetched component's actual source text
+for bare-specifier imports, matching only against the already-configured
+`supported_packages` allowlist, so an unvetted package can never be
+silently installed. Live-verified across three more runs: the fix correctly
+triggered dependency resolution for the first time, surfaced an unrelated
+one-time offline-npm-cache miss (same category as the earlier undici-types
+gap, not a code defect — fixed by warming `.workspace/npm-cache` with a
+real network install), and a further run cleared acquisition cleanly. New
+unit coverage for the scan helper. 267 passed (2 new), same 1 pre-existing
+unrelated failure. mypy/ruff clean.
+
 ### 2026-09-08 23:40 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [a2ae087] - deploy: check in Azure production Compose/Caddy/TOML overlays
 
 Added `config/app.production.toml`, `compose.production.yaml`, and a repo-root
@@ -436,6 +472,6 @@ ruff, and browser captures across desktop, laptop, and mobile viewports.
 
 ## Summary (as of last compaction — 2026-09-08)
 
-- Recent detailed entries retained: 20
+- Recent detailed entries retained: 22 (due for compaction to 15-20 on the next major entry)
 - Compacted milestone bullets: 31
-- Last updated: 2026-09-08 23:40 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Last updated: 2026-09-09 00:35 +05:30 — Claude Code (Sonnet 5 / Anthropic)
