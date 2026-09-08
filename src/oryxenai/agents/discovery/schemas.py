@@ -249,6 +249,8 @@ class DiscoveryState(BaseModel):
 
     status: DiscoveryStatus = DiscoveryStatus.NOT_STARTED
     model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
     intake: DiscoveryIntake = Field(default_factory=DiscoveryIntake)
     operation_a: OperationAState = Field(default_factory=OperationAState)
     answers: AnswersState = Field(default_factory=AnswersState)

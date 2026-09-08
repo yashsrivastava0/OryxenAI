@@ -80,6 +80,24 @@
     "build_preparation",
   ];
 
+  function formatModelError(error, fallback) {
+    error = error || {};
+    var message = String(error.message || fallback || "The model operation failed safely.");
+    var provider = String(error.provider_label || "");
+    var operation = String(error.operation_label || "");
+    if (provider || operation) {
+      message += " (" + [provider, operation].filter(Boolean).join(" · ") + ")";
+    }
+    var retryAfter = Number(error.retry_after_seconds);
+    if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+      message += " Try again after " + Math.ceil(retryAfter) + " seconds.";
+    }
+    if (error.support_reference) {
+      message += " Reference: " + String(error.support_reference);
+    }
+    return message;
+  }
+
   function stageApproved(agent, state) {
     if (!state) return false;
     return agent === "build_preparation"
@@ -134,7 +152,7 @@
       } else if (status === "needs_attention") {
         tone = "attention";
         label = "Attention";
-        detail = (state.latest_error && state.latest_error.message)
+        detail = formatModelError(state.latest_error, "Review the stage details and retry when ready.")
           || "Review the stage details and retry when ready.";
       } else if (stageWorking(agent, state)) {
         tone = "active";
@@ -314,7 +332,7 @@
     var error = state.latest_error || null;
     if (error && error.message) {
       var errorKey = "error|" + agent + "|" + String(error.code || "") + "|" + String(error.message);
-      recordActivity(agent, error.message, "error", errorKey);
+      recordActivity(agent, formatModelError(error, "The model operation failed safely."), "error", errorKey);
     }
 
     (Array.isArray(jobs) ? jobs : []).forEach(function (job) {
@@ -1148,7 +1166,7 @@
       stopElapsedTicker();
       clearAnalyzingBubble();
       var error = chatState.latest_error || {};
-      var message = error.message || "Discovery needs attention.";
+      var message = formatModelError(error, "Discovery needs attention.");
       if (chatState.attempt >= chatState.max_attempts && error.retryable) {
         message += " (all " + chatState.max_attempts + " attempts failed)";
       }
@@ -1850,7 +1868,7 @@
     rememberAgentState("content_architect", caState, stageJobs.content_architect);
     if (caState.status === "needs_attention") {
       var error = caState.latest_error || {};
-      chatError(error.message || "Content Architect needs attention.", "Try again", startContentArchitect);
+      chatError(formatModelError(error, "Content Architect needs attention."), "Try again", startContentArchitect);
       return;
     }
 
@@ -2095,7 +2113,7 @@
     rememberAgentState("visual_design_director", vddState, stageJobs.visual_design_director);
     if (vddState.status === "needs_attention") {
       var error = vddState.latest_error || {};
-      chatError(error.message || "Visual Design Director needs attention.", "Try again", startVisualDesignDirector);
+      chatError(formatModelError(error, "Visual Design Director needs attention."), "Try again", startVisualDesignDirector);
       return;
     }
 
@@ -2454,10 +2472,12 @@
       var error = buildPreparationState.latest_error || {};
       if (!document.getElementById("build-preparation-attention-bubble")) {
         var attention = textEl(
-          error.message
-            || (buildPreparationState.stale
+          formatModelError(
+            error,
+            buildPreparationState.stale
               ? "The package is stale because an approved upstream handoff changed."
-              : "Build Preparation needs attention.")
+              : "Build Preparation needs attention."
+          )
         );
         attention.className = "bubble-text bubble-error";
         if (!portfolioReadOnly) {

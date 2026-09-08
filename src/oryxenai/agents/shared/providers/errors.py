@@ -6,6 +6,7 @@ Callers never need to know which provider generated the error.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 MODEL_PROVIDER_CREDIT_EXHAUSTED = "MODEL_PROVIDER_CREDIT_EXHAUSTED"
@@ -43,6 +44,12 @@ _SAFE_FAILURE_MESSAGES = {
     "PROVIDER_CONTENT_FILTER_ERROR": "The model provider refused the request safely.",
     "PROVIDER_HTTP_ERROR": "The configured model provider returned an unexpected response.",
     "MODEL_OUTPUT_INVALID": "The model returned output that did not satisfy the required structure.",
+    "MODEL_CACHE_WAIT_TIMEOUT": "Another model operation is still producing this result; retry safely.",
+    "MODEL_CAPACITY_UNAVAILABLE": "No eligible free model capacity is available for this operation.",
+    "MODEL_INPUT_POLICY_BLOCKED": "This operation requires a provider approved for the supplied input.",
+    "MODEL_INPUT_TOO_LARGE": "The approved input is too large for this operation's configured limit.",
+    "MODEL_ROUTING_POLICY_CHANGED": "The saved routing policy changed before this operation ran; restart the stage safely.",
+    "MODEL_USAGE_PERSISTENCE_UNAVAILABLE": "Model usage accounting is temporarily unavailable; no provider request was sent.",
     "NETWORK_RETRY_EXHAUSTED": "The model provider network retry budget was exhausted.",
     "CODE_GENERATOR_PROVIDER_CREDENTIAL_MISSING": "The configured model provider credentials are missing.",
     "CODE_GENERATOR_PROVIDER_UNAVAILABLE": "The configured model provider is unavailable.",
@@ -224,6 +231,40 @@ class ModelCapabilityUnsupportedError(ProviderError):
         super().__init__(message, code="MODEL_CAPABILITY_UNSUPPORTED", retryable=False)
 
 
+class ModelInputTooLargeError(ProviderError):
+    """The application admission ceiling was exceeded before transmission."""
+
+    def __init__(
+        self, message: str = "The model input exceeds the configured operation limit"
+    ) -> None:
+        super().__init__(message, code="MODEL_INPUT_TOO_LARGE", retryable=False)
+
+
+class ModelUsagePersistenceError(ProviderError):
+    """The durable pre-send accounting transaction could not be committed."""
+
+    def __init__(self, message: str = "Model usage accounting is unavailable") -> None:
+        super().__init__(message, code="MODEL_USAGE_PERSISTENCE_UNAVAILABLE", retryable=True)
+
+
+class ModelCapacityUnavailableError(ProviderError):
+    """No observed free capacity remains for the selected source/window."""
+
+    def __init__(self, message: str = "No eligible free model capacity is available") -> None:
+        super().__init__(message, code="MODEL_CAPACITY_UNAVAILABLE", retryable=True)
+
+
+class ModelRoutingPolicyChangedError(ProviderError):
+    """The immutable operation snapshot no longer matches live config."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The saved model routing policy changed before this operation ran.",
+            code="MODEL_ROUTING_POLICY_CHANGED",
+            retryable=False,
+        )
+
+
 class NetworkRetryExhaustedError(ProviderError):
     """Transport retries were exhausted for a retryable network failure."""
 
@@ -374,3 +415,38 @@ def stable_provider_failure(error: Any) -> tuple[str, str]:
     # messages are never safe to echo because they may contain response bodies,
     # request metadata, or billing details.
     return safe_code, "The model operation failed safely."
+
+
+def safe_operation_failure(
+    error: Any,
+    *,
+    operation: str = "",
+    provider_label: str = "Configured model provider",
+    support_seed: str = "",
+) -> dict[str, Any]:
+    """Build the public error envelope without provider internals or secrets."""
+
+    code, message = stable_provider_failure(error)
+    details = error.get("details") if isinstance(error, dict) else getattr(error, "details", {})
+    if not isinstance(details, dict):
+        details = {}
+    retry_after = details.get("retry_after_seconds")
+    support_material = "|".join(
+        (str(code), str(operation), str(support_seed or details.get("provider_request_id", "")))
+    )
+    reference = hashlib.sha256(support_material.encode("utf-8")).hexdigest()[:12]
+    payload: dict[str, Any] = {
+        "code": code,
+        "message": message,
+        "provider_label": str(details.get("provider_label") or provider_label),
+        "operation_label": str(operation or "model operation"),
+        "support_reference": f"model-{reference}",
+        "retryable": bool(
+            error.get("retryable", False)
+            if isinstance(error, dict)
+            else getattr(error, "retryable", False)
+        ),
+    }
+    if isinstance(retry_after, (int, float)) and retry_after >= 0:
+        payload["retry_after_seconds"] = float(retry_after)
+    return payload

@@ -263,6 +263,38 @@ class TestOpenCodeGoAdapterStructured:
         assert messages[0]["role"] == "user"
         assert messages[0]["content"] == "Just the task"
 
+    def test_generate_structured_does_not_forward_trace_metadata_to_sdk(self, monkeypatch):
+        monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
+
+        mock_response = _mock_chat_response(json.dumps({"questions": []}))
+        mock_client = _make_mock_openai_client(mock_response)
+
+        from oryxenai.agents.shared.providers.opencode_go import OpenCodeGoAdapter
+
+        adapter = OpenCodeGoAdapter(_make_profile())
+
+        with patch.object(adapter, "_build_client", return_value=mock_client):
+            import asyncio
+
+            asyncio.run(
+                adapter.generate_structured(
+                    operation="test",
+                    instructions="Trace metadata must stay internal",
+                    input_payload={},
+                    output_model=QuestionSetOutput,
+                    request_context={
+                        "request_id": "internal-request-id",
+                        "global_attempt_budget": True,
+                        "route_profile": "profile",
+                    },
+                )
+            )
+
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "request_id" not in call_kwargs
+        assert "global_attempt_budget" not in call_kwargs
+        assert "route_profile" not in call_kwargs
+
     def test_raises_on_invalid_json_response(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
 

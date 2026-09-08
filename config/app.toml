@@ -79,6 +79,7 @@ lease_duration = 120.0         # seconds before a claimed job is considered stal
 [worker.retry]
 # Retry scheduling for transient failures.
 max_attempts = 3               # total attempts (1 initial + 2 retries)
+first_four_max_attempts = 2    # first-four stages: one initial execution + one redelivery
 base_delay = 1.0               # base delay in seconds (doubled each retry)
 max_delay = 60.0               # cap on exponential backoff
 jitter = true                  # add random jitter to retry delays

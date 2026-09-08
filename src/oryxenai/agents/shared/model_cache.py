@@ -22,6 +22,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 
 from oryxenai.agents.shared.contracts import ModelClient
+from oryxenai.agents.shared.providers.errors import ProviderError
 from oryxenai.db.models.model_call_cache import ModelCallCache
 
 MODEL_CACHE_VERSION = "structured-model-result-v1"
@@ -29,6 +30,18 @@ DEFAULT_RESULT_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
 DEFAULT_RESULT_CACHE_LEASE_SECONDS = 15 * 60
 DEFAULT_RESULT_CACHE_WAIT_SECONDS = 60.0
 DEFAULT_PROMPT_CACHE_TTL = "30m"
+
+
+class ProviderCacheWaitTimeout(ProviderError):
+    """The single-flight lease did not complete within the configured wait."""
+
+    def __init__(self, message: str = "Model result is still being produced") -> None:
+        super().__init__(
+            message,
+            code="MODEL_CACHE_WAIT_TIMEOUT",
+            retryable=True,
+        )
+
 
 Validator = Callable[[dict[str, Any]], None]
 Compute = Callable[[], Awaitable[Any]]
@@ -77,6 +90,7 @@ def prompt_cache_context(
     agent_key: str,
     operation: str,
     manifest: Mapping[str, str],
+    context: Any = None,
 ) -> dict[str, Any]:
     """Build a stable provider-prefix-cache hint for one prompt contract.
 
@@ -87,12 +101,40 @@ def prompt_cache_context(
     """
 
     fingerprint = prompt_manifest_fingerprint(manifest)
-    return {
+    result: dict[str, Any] = {
         "prompt_cache_key": f"oryxenai:{agent_key}:{operation}:{fingerprint}",
         "prompt_cache_mode": "explicit",
         "prompt_cache_breakpoint": True,
         "prompt_cache_ttl": DEFAULT_PROMPT_CACHE_TTL,
     }
+    # Keep identity in the application ledger without making it part of the
+    # provider prompt-cache namespace.  The operation id is stable across
+    # worker redelivery and lets durable accounting recognize one logical call.
+    if context is not None:
+        for key, value in (
+            ("session_id", getattr(context, "portfolio_session_id", "")),
+            ("run_id", getattr(context, "run_id", "")),
+            ("request_id", getattr(context, "request_id", "")),
+            ("job_attempt", getattr(context, "attempt", 0)),
+            ("agent", agent_key),
+            ("stage", agent_key),
+        ):
+            if value not in (None, ""):
+                result[key] = value
+        run_id = str(getattr(context, "run_id", "") or "")
+        if run_id:
+            # The durable budget is stage-scoped: Content Architect and VDD
+            # may enter up to three different sub-operations, while all of
+            # them share one recovery allowance for the invocation.
+            result["operation_id"] = f"{run_id}:{agent_key}"
+        snapshot = getattr(context, "agent_input", {}).get("routing_policy_snapshot", {})
+        if isinstance(snapshot, Mapping) and snapshot:
+            result["routing_policy_snapshot"] = dict(snapshot)
+            if snapshot.get("version"):
+                result["routing_policy_version"] = snapshot["version"]
+            if snapshot.get("fingerprint"):
+                result["routing_policy_fingerprint"] = snapshot["fingerprint"]
+    return result
 
 
 def estimate_model_cost(usage: Mapping[str, Any], pricing: Any) -> float | None:
@@ -204,6 +246,21 @@ class StructuredResultCache:
     ) -> Any:
         """Return a fresh or cached validated ``StructuredModelResult``."""
 
+        # Operation-aware clients resolve the concrete provider before cache
+        # admission.  This prevents a cache hit produced by one provider from
+        # being mistaken for a result from another provider/profile.
+        route_metadata = getattr(client, "resolve_route_metadata", None)
+        if callable(route_metadata):
+            try:
+                resolved = route_metadata(operation, request_context)
+            except Exception:
+                resolved = None
+            if isinstance(resolved, Mapping):
+                model_profile = str(resolved.get("profile_name", model_profile) or model_profile)
+                profile_fingerprint = str(
+                    resolved.get("profile_fingerprint", profile_fingerprint) or profile_fingerprint
+                )
+
         if compute is None:
 
             async def compute_default() -> Any:
@@ -271,18 +328,12 @@ class StructuredResultCache:
             if action == "owner":
                 break
             if time.monotonic() >= deadline:
-                result = await compute()
-                validator(dict(result.parsed_output))
-                return _with_cache_metadata(
-                    result,
-                    {
-                        "enabled": True,
-                        "cache_hit": False,
-                        "cache_key": cache_key,
-                        "scope": self.scope,
-                        "wait_timeout": True,
-                        "stored": False,
-                    },
+                # Computing after a single-flight timeout creates an
+                # unbounded duplicate provider request.  Defer to the caller
+                # so its durable job/recovery policy decides whether another
+                # attempt is admissible.
+                raise ProviderCacheWaitTimeout(
+                    "Another worker is producing this model result; retry the durable operation."
                 )
             await asyncio.sleep(0.25)
 
@@ -294,16 +345,41 @@ class StructuredResultCache:
             await self._release(cache_key, lease_token)
             raise
 
+        actual_telemetry = dict(getattr(result, "telemetry", {}) or {})
+        actual_profile = str(actual_telemetry.get("profile_name", "") or model_profile)
+        actual_fingerprint = str(
+            actual_telemetry.get("profile_fingerprint", "") or profile_fingerprint
+        )
+        actual_cache_key = cache_key
+        if actual_profile != model_profile or actual_fingerprint != profile_fingerprint:
+            actual_cache_key, _actual_prompt, _actual_input = build_model_call_key(
+                agent_key=agent_key,
+                operation=operation,
+                system_prompt=system_prompt,
+                instructions=instructions,
+                input_payload=input_payload,
+                output_model=output_model,
+                model_profile=actual_profile,
+                profile_fingerprint=actual_fingerprint,
+                request_context=request_context,
+                strict_schema=strict_schema,
+            )
         stored = await self._store(
-            cache_key=cache_key,
+            cache_key=actual_cache_key,
             lease_token=lease_token,
             result=result,
             agent_key=agent_key,
             operation=operation,
             prompt_fingerprint=prompt_fingerprint,
             input_fingerprint=input_fingerprint,
-            profile_fingerprint=profile_fingerprint,
+            profile_fingerprint=actual_fingerprint,
         )
+        if actual_cache_key != cache_key:
+            # The preferred route's producing lease must not remain visible
+            # after a bounded fallback succeeds. The accepted result lives in
+            # the fallback provider's namespace instead.
+            await self._release(cache_key, lease_token)
+            cache_key = actual_cache_key
         return _with_cache_metadata(
             result,
             {
@@ -440,8 +516,39 @@ class StructuredResultCache:
                 )
             )
             updated = await db.execute(statement)
+            if not updated.rowcount:
+                existing = await db.execute(
+                    select(ModelCallCache).where(
+                        self._scope_filter(), ModelCallCache.cache_key == cache_key
+                    )
+                )
+                if existing.scalar_one_or_none() is None:
+                    db.add(
+                        ModelCallCache(
+                            owner_user_id=self._owner_user_id,
+                            portfolio_session_id=self._portfolio_session_id,
+                            agent_key=agent_key,
+                            operation=operation,
+                            cache_key=cache_key,
+                            prompt_fingerprint=prompt_fingerprint,
+                            input_fingerprint=input_fingerprint,
+                            profile_fingerprint=profile_fingerprint,
+                            status="ready",
+                            output_payload=dict(result.parsed_output),
+                            provider_metadata=provider_metadata,
+                            lease_token=None,
+                            lease_until=None,
+                            created_at=now,
+                            expires_at=now + timedelta(seconds=self._ttl_seconds),
+                        )
+                    )
+                    updated_count = 1
+                else:
+                    updated_count = 0
+            else:
+                updated_count = int(updated.rowcount)
             await db.commit()
-            return bool(updated.rowcount)
+            return bool(updated_count)
 
     async def _release(self, cache_key: str, lease_token: str) -> None:
         async with self._sessionmaker() as db:

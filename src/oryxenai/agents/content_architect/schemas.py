@@ -283,6 +283,8 @@ class ContentArchitectState(BaseModel):
 
     status: ContentArchitectStatus = ContentArchitectStatus.NOT_STARTED
     model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
     source_ref: ContentArchitectSourceRef = Field(default_factory=ContentArchitectSourceRef)
     intake: ContentArchitectIntake = Field(default_factory=ContentArchitectIntake)
     preferences: ContentArchitectPreferences = Field(default_factory=ContentArchitectPreferences)

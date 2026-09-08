@@ -324,6 +324,8 @@ class BuildPreparationState(BaseModel):
 
     status: BuildPreparationStatus = BuildPreparationStatus.NOT_STARTED
     model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
     source_ref: BuildPreparationSourceRef = Field(default_factory=BuildPreparationSourceRef)
     version: str = "build-preparation-brief-v1"
     current_stage: str = "not_started"
