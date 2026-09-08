@@ -38,16 +38,16 @@ negative rejection fixtures and must never be selected for a paid run.
 - Ruff, mypy, compileall, frontend TypeScript, and `docker compose config`
   passed. The frontend Vite/Vitest process is blocked by Windows `spawn EPERM`;
   this does not affect the backend contract or TypeScript check.
-- Service processes must be restarted after commit `2f424e5`; an earlier
-  readiness response was from the old quality/release configuration and the
-  preview gateway was down.
+- Services were restarted from commits `2f424e5`/`45c38e3`; readiness reported
+  `quality-gate-v3`, worker release `oryxenai-code-generator-v5-quality-v3`,
+  reachable preview gateway, and provider preflight `ready`.
 
 ## Full pipeline slots
 
 | Slot | Reserved at (Asia/Kolkata) | Pack | Run ID | Terminal status | Earliest failure / success evidence | Preview or artifact | Usage / notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 2026-09-09 03:21 +05:30 | A | reserved | running/pending | pending | pending | Maya pack selected after ready provider preflight |
-| 2 | pending | B | pending | pending | pending | pending | pending |
+| 1 | 2026-09-09 03:21 +05:30 | A | `4d009f48-050e-48a7-9611-82f3a5eecd91` | **ready** | Initial restricted worker hit Node/Vite `spawn EPERM`; after tracing, an elevated worker rebuilt the same checkpoint, browser smoke tests passed, and all 43 runtime observations were advisory | Preview `http://127.0.0.1:4174/preview/preview-6esue4fssmj3unpkzxeclt6onwqnxdwazwrdptyikrbtashb/`; export `output/code-gen-output/03-34-09-09-2026-4d009f48`; build `a07ca2b24ed904431d377df474ba8a47a7adfec3b1942bfe8440eabf08622f10` | One full pipeline slot; verification retry reused the accepted source checkpoint and did not start another planner/generation pipeline |
+| 2 | **not reserved** | B | — | — | Stop after slot-1 success | — | Akash pack retained for future confirmation only |
 | 3 | unreserved | — | — | — | — | — | Stop after two successes; reserve only after root-cause fix if required. |
 | 4 | unreserved | — | — | — | — | — | Hard cap; reserve only after root-cause fix if required. |
 
