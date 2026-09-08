@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 20:55 +05:30 - Codex (GPT-5 / OpenAI) - [d6b6777] - build-preparation: fix false identity rejection and safe preflight errors
+
+Build Preparation now takes the approved owner identity from the Content
+Architect public manifest/visual handoff before inspecting factual evidence,
+so repeated employer or organization names cannot be mistaken for the
+portfolio owner. The strict visual-identity guard remains in place for real
+cross-person mismatches. Preflight validation failures are translated into a
+safe, attributable 409 response instead of an unhandled generic 500, with
+regression coverage for both the false-positive and error-sanitization paths.
+
 ### 2026-09-08 17:51 +05:30 - Codex (GPT-5 / OpenAI) - [bb7078b] - app: harden Design-to-Prepare handoff
 
 Applied the same stale-projection protection to the explicit Visual Design →
