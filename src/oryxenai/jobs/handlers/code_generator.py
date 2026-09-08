@@ -30,6 +30,7 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
     build_dependency_ledger,
+    detect_supported_import_dependencies,
 )
 from oryxenai.agents.code_generator.core.design_fingerprint import (
     compile_design_fingerprint,
@@ -963,6 +964,28 @@ async def _execute_acquisition(
                 materialized_files = (
                     list(materialized) if isinstance(materialized, list) else [materialized]
                 )
+                detected_dependency_names: set[str] = set()
+                if request.category == "component_source" and not component_reference_only:
+                    # The admitted pack's resolution metadata rarely declares a
+                    # pinned component's own npm dependencies (the current
+                    # two-Markdown-brief handoff format has no field for it —
+                    # live-confirmed 2026-09-09, see detect_supported_import_
+                    # dependencies' own docstring). Scan the fetched source
+                    # itself as a defense-in-depth fallback, never installing
+                    # anything outside the existing supported_packages
+                    # allowlist.
+                    supported_packages = set(
+                        getattr(settings.code_generator_dependencies, "supported_packages", {})
+                    )
+                    for item in materialized_files:
+                        candidate_path = run_material_root / item.local_path
+                        try:
+                            text = candidate_path.read_text(encoding="utf-8")
+                        except (OSError, UnicodeDecodeError):
+                            continue
+                        detected_dependency_names |= detect_supported_import_dependencies(
+                            text, supported_packages
+                        )
                 materialized_files = [
                     _prefix_materialized_file(item, str(run_id)) for item in materialized_files
                 ]
@@ -986,7 +1009,7 @@ async def _execute_acquisition(
                     materialized_files=[] if component_reference_only else materialized_files,
                     dependencies=[]
                     if component_reference_only
-                    else sorted(candidate.dependency_metadata),
+                    else sorted(set(candidate.dependency_metadata) | detected_dependency_names),
                     satisfied_placements=[]
                     if component_reference_only
                     else [request.placement.purpose],
