@@ -1,0 +1,27 @@
+# Azure VM production overlay -- matches docs/deployment/02-azure-vm-runbook.md
+# §6 exactly. Points migrate/app/worker/preview-gateway at the production
+# TOML overlay. Host ports are deliberately left published (unchanged from
+# compose.yaml): natively-installed Caddy (§2/§8 of the runbook) reaches
+# them at 127.0.0.1:8000 / 127.0.0.1:4174, and the Azure NSG -- not Docker
+# port removal -- is what keeps them unreachable from the public internet
+# (only 80, 443, and restricted SSH are allowed through).
+#
+# Usage on the VM:
+#   docker compose -f compose.yaml -f compose.production.yaml \
+#     build migrate app worker preview-gateway
+#   docker compose -f compose.yaml -f compose.production.yaml \
+#     up -d migrate app worker preview-gateway
+
+services:
+  migrate:
+    environment:
+      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+  app:
+    environment:
+      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+  worker:
+    environment:
+      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+  preview-gateway:
+    environment:
+      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
