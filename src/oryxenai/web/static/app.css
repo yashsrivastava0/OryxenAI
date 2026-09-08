@@ -711,12 +711,19 @@ body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
 
 .sidebar-output-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.45rem;
   margin-bottom: 1rem;
 }
 
+.sidebar-output-tab-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
 .sidebar-output-tab {
+  flex: 1;
   margin: 0;
   padding: 0.35rem 0.6rem;
   background: transparent;
@@ -733,6 +740,24 @@ body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
 
 .sidebar-output-tab.active { background: var(--card); }
 .sidebar-output-tab:disabled { opacity: 0.45; }
+
+.sidebar-output-copy-button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.sidebar-output-copy-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.sidebar-output-copy-button:disabled { opacity: 0.45; }
 
 .sidebar-output-preview {
   max-width: none;
