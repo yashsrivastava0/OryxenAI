@@ -87,6 +87,7 @@ export function ContentStage({
         preservedWorkNote="Your approved Discovery brief remains intact."
         retryLabel="Retry Content Architect"
         onRetry={onStart}
+        errorDetails={view.safeError ?? undefined}
       />
     );
   }

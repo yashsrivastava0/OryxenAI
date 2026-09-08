@@ -19,6 +19,7 @@ from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
 from oryxenai.agents.content_architect.schemas import ContentArchitectState, ContentArchitectStatus
+from oryxenai.agents.shared.agent_output import public_output_for_run
 from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.agents.visual_design_director.schemas import (
@@ -449,6 +450,10 @@ class VisualDesignDirectorService:
         visual_design_director["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         visual_design_director["attempt"] = state.attempt
         visual_design_director["max_attempts"] = state.max_attempts
+        visual_design_director["agent_output"] = await public_output_for_run(
+            getattr(self._repository, "get_run", None),
+            state.run_id,
+        )
         if state.run_id:
             try:
                 run = await self._repository.get_run(UUID(state.run_id))

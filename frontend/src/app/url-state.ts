@@ -1,7 +1,7 @@
-// Small URL codec for the authenticated three-stage product. Later-stage
-// developer harnesses have their own routes and never enter this state.
+// Small URL codec for the authenticated four-stage product. Generation and
+// Preview remain separate later-stage contracts and never enter this state.
 
-export type JourneyStageId = "discover" | "content" | "design";
+export type JourneyStageId = "discover" | "content" | "design" | "prepare";
 export type ViewId = "start" | "work" | "artifact" | "progress";
 
 export interface AppUrlState {
@@ -9,7 +9,7 @@ export interface AppUrlState {
   view: ViewId | null;
 }
 
-const STAGE_VALUES: readonly JourneyStageId[] = ["discover", "content", "design"];
+const STAGE_VALUES: readonly JourneyStageId[] = ["discover", "content", "design", "prepare"];
 const VIEW_VALUES: readonly ViewId[] = ["start", "work", "artifact", "progress"];
 
 function includesValue<T extends string>(values: readonly T[], candidate: string | null): candidate is T {

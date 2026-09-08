@@ -35,7 +35,8 @@ across messages, split it by labeled source/stage and retain the exact JSON.
 | Discovery raw state | `status`, `model_profile`, `intake`, `operation_a`, `answers`, `brief`, `memory`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
 | Content raw state | `status`, `model_profile`, `source_ref`, `intake`, `preferences`, `version`, `run_id`, `job_id`, `user_summary`, `site_story_strategy`, `decision_basis`, `route_plan`, `page_content_packs`, `public_content_manifest`, `claim_grounding`, `omissions`, `unresolved_issues`, `privacy_and_confidentiality`, `media_status`, `visual_director_handoff`, `warnings`, `stages_run`, `memory`, `revision_request`, `approved`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
 | Visual Design raw state | `status`, `model_profile`, `source_ref`, `intake`, `preferences`, `version`, `run_id`, `job_id`, `user_summary`, `meta`, `source_refs`, `visual_language`, `shared_visual_systems`, `navigation_direction`, `motion_system`, `interaction_system`, `pages`, `asset_briefs`, `resource_candidates`, `accessibility_and_performance`, `must_preserve`, `must_not_fabricate`, `conflicts`, `warnings`, `compiler_handoff`, `resource_policy`, `stages_run`, `memory`, `revision_request`, `approved`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
-| Production evidence | The three agent `schemas.py`, `state.py`, `service.py`, `agent.py`, prompt files, checked-in samples, frontend adapters, stage components, raw fixtures, and related tests. |
+| Build Preparation raw state | `status`, `model_profile`, `source_ref`, `run_id`, `job_id`, `scope_hash`, `routes`, `resource_needs`, `resource_index`, `component_index`, both Markdown briefs, their hashes, `target_contract`, dependencies, warnings, events, `stale_reasons`, `latest_error`, `attempt`, `max_attempts`, `started_at`, plus the stage envelope and jobs. |
+| Production evidence | The four agent `schemas.py`, `state.py`, `service.py`, `agent.py`, prompt files, checked-in samples, frontend adapters, stage components, raw fixtures, and related tests. |
 
 The context packet is intentionally complete. The browser may still keep
 credentials and unrelated transport secrets out of user-facing output, but a
@@ -74,7 +75,7 @@ validated to the local reviewed `/app` and `/admin` routes. Do not add a generic
 | Auth-pending hide | `base.html`, `frontend/src/styles/shell.css` | Private product content remains hidden until auth resolution; retain the structural `body.auth-pending` rule in the replacement stylesheet. |
 | Session identity | `MeProjection.portfolio_session_id` | Normal users use the server-provided owner session. Admin session hints are account-scoped and not an authorization mechanism. |
 | Read-only | `/api/v1/me` and product mutations | `read_only` suppresses mutations in the UI, but the server remains authoritative. |
-| URL state | `frontend/src/app/url-state.ts` | Current safe values are `stage=discover|content|design` and `view=start|work|artifact|progress`; invalid values are ignored and locked stages fall back. |
+| URL state | `frontend/src/app/url-state.ts` | Current safe values are `stage=discover|content|design|prepare` and `view=start|work|artifact|progress`; invalid values are ignored and locked stages fall back. |
 | Teardown | `main.tsx`, `AppShell.tsx`, poller/invalidation modules | Sign-out/session change/unmount stops polling, listeners, cross-tab channels, and private render state. |
 
 ## 2A. Agent operation and complete-output ledger
@@ -176,7 +177,7 @@ catalogue mechanics, job metadata, and raw response envelopes.
 | `not_started` and Content approved | `available` | Explicit Start Design action. |
 | `build_running` | `working` | Semantic progress plus supported Stop action. |
 | `design_review` | `review` | Visual-direction artifact, revision, approval. |
-| `approved` | `complete` | Read-only creative handoff; current product ends here. |
+| `approved` | `complete` | Read-only upstream handoff; Build Preparation becomes available when both Content and Design are approved. |
 | `needs_attention` or failed/cancelled job | `attention` | Safe error and supported retry/start. |
 | unknown/malformed required shape | `unsupported` | Refetch/recovery only. |
 
@@ -200,7 +201,7 @@ later agents. They are not permission to add controls to the current product.
 
 | Agent | Production/session API | Safe gate | Durable output | Current frontend home |
 | --- | --- | --- | --- | --- |
-| Build Preparation | `GET/POST /api/v1/sessions/{id}/build-preparation`, `.../start`, `.../regenerate`, `.../download` | Approved Content + approved Design; input hashes/staleness matter | `content-and-narrative-brief.md` and `visual-and-build-brief.md` with checked JSON indexes | Legacy product/development surfaces and backend; no normal `/app` control. |
+| Build Preparation | `GET/POST /api/v1/sessions/{id}/build-preparation`, `.../start`, `.../regenerate`, `.../download` | Approved Content + approved Design; input hashes/staleness matter | `content-and-narrative-brief.md` and `visual-and-build-brief.md` with checked JSON indexes | `/app` Prepare stage plus technical download outside normal product. |
 | Code Generator | `GET/POST /api/v1/sessions/{id}/code-generator`, `.../start`, `.../retry`, `.../regenerate` | Immutable approved brief pair, entitlement, worker release/contract, mutable/read-only policy | Durable generation state and only an atomically promoted verified Preview | Production API/admin/development harness; no normal `/app` control in the current release. |
 | Code Generator development | `/api/v1/development/code-generator/...` | Development harness configuration; detached/admin mode | Detailed events, plans, acquisition, generation, verification, source files, preview | `code-generator-development.html` + `code-generator-development.js`. |
 
@@ -322,7 +323,7 @@ until its row has a source anchor and a proof.
 | Content available/working | Content adapter/job | Start/stop | Upstream Discovery gate and semantic progress remain visible. |
 | Content review/complete | Safe Content artifact | Revise, approve, continue to Design | Approval does not silently start Design. |
 | Design available/working | Design adapter/job | Start/stop | Upstream Content gate and semantic progress remain visible. |
-| Design review/complete | Safe Design artifact | Revise, approve | Approval is terminal for current `/app`; no Build Preparation call. |
+| Design review/complete | Safe Design artifact | Revise, approve, continue to Prepare | Approval is server-backed; Prepare starts only on an explicit user action. |
 | Design structured detail | Full VDD state/output | Expand route, scene, asset, resource, system, warning, and handoff details; copy JSON | Every output field remains accessible and correlated by stable IDs. |
 | Issue tracing | Trace ID + safe diagnostic metadata | Copy trace, dismiss popup, follow existing recovery | Popup is temporary and supplemental; durable error state remains. |
 | Full JSON handoff | Selected stage's raw agent-owned response | Copy from right sidebar, fallback select/download | Copy is exact, read-only, and does not drop fields because they were not visible. |

@@ -58,7 +58,7 @@ def test_model_profiles_loaded():
     assert profile.api_key_env == "ANTHROPIC_API_KEY"
     assert profile.prompt_cache_ttl == "5m"
     assert s.models.routing.fallback_profile == "default"
-    pipeline_profile_id = "openai_luna"
+    pipeline_profile_id = "experiential_luna"
     assert s.models.routing.engine_profiles["discovery"] == pipeline_profile_id
     pipeline_profile = s.models.get_profile(pipeline_profile_id)
     assert pipeline_profile is not None

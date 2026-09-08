@@ -9,6 +9,9 @@ import { approved, briefReview, questionsReady, unknownFutureStatus } from "../d
 import { ContentStage } from "./content/ContentStage";
 import { DesignStage } from "./design/DesignStage";
 import { DiscoveryStage } from "./discovery/DiscoveryStage";
+import { BuildPreparationStage } from "./preparation/BuildPreparationStage";
+import { adaptBuildPreparation } from "../data/adapters/preparation";
+import { preparationNotStarted, preparationReady, preparationRunning } from "../data/adapters/preparation.fixtures";
 
 const className = (node: VNode<{ className?: string }>) => node.props.className;
 const discoveryProps = {
@@ -39,12 +42,30 @@ describe("authenticated product stages", () => {
     expect(className(ContentStage({ ...props, view: adaptContentArchitect(contentFixtureApproved, true) }))).toBe("content-stage-view");
   });
 
-  it("ends the product at an approved Visual Direction", () => {
-    const props = { canMutate: true, onStart: async () => {}, onApprove: async () => {}, onRevise: async () => {} };
+  it("renders the approved Visual Direction without auto-starting later stages", () => {
+    const props = {
+      canMutate: true,
+      onStart: async () => {},
+      onApprove: async () => {},
+      onRevise: async () => {},
+      onContinueToPreparation: () => {},
+    };
     expect(className(DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureNotStarted, false) }))).toBe("stage-locked-panel");
     expect(className(DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureReview, true) }))).toBe("design-stage-view");
     const approvedNode = DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureApproved, true) });
     expect(className(approvedNode)).toBe("design-stage-view");
-    expect(JSON.stringify(approvedNode)).not.toContain("Prepare the build");
+    expect(JSON.stringify(approvedNode)).toContain("Continue to Prepare");
+  });
+
+  it("renders Build Preparation as an explicit fourth stage", () => {
+    const props = {
+      canMutate: true,
+      onStart: async () => {},
+      onRegenerate: async () => {},
+    };
+    expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationNotStarted, true, false) }))).toBe("stage-locked-panel");
+    expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationNotStarted, true, true) }))).toBe("stage-available-panel");
+    expect(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationRunning, true, true) })).toBeDefined();
+    expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationReady, true, true) }))).toBe("preparation-stage-view");
   });
 });

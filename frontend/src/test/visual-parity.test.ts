@@ -7,7 +7,7 @@ import { adaptDiscovery } from "../data/adapters/discovery";
 import { approved, briefReview, questionsReady } from "../data/adapters/discovery.fixtures";
 import { JourneyRail } from "../components/JourneyRail";
 
-describe("three-stage contract parity", () => {
+describe("four-stage contract parity", () => {
   it("covers the Discovery input, review, and approved lifecycle", () => {
     expect(adaptDiscovery(questionsReady).state).toBe("input");
     expect(adaptDiscovery(briefReview).state).toBe("review");

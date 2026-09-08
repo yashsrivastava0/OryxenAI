@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -79,6 +82,25 @@ class CapacityRegistry:
         self._failures: dict[str, tuple[int, float]] = {}
 
     def observe(self, snapshot: CapacitySnapshot) -> None:
+        previous = self._snapshots.get(snapshot.source_id)
+        if previous is not None:
+            # Provider reconciliation is a read-only observation and may not
+            # know about in-flight reservations made by this process. Keep
+            # those reservations (and any active cooldown) when replacing the
+            # observed counters, otherwise a refresh could make the selector
+            # dispatch an unaccounted duplicate.
+            snapshot.reserved_requests = max(
+                int(snapshot.reserved_requests), int(previous.reserved_requests)
+            )
+            snapshot.reserved_input_tokens = max(
+                int(snapshot.reserved_input_tokens), int(previous.reserved_input_tokens)
+            )
+            if previous.cooldown_until is not None:
+                snapshot.cooldown_until = max(
+                    float(snapshot.cooldown_until or 0.0), float(previous.cooldown_until)
+                )
+            if snapshot.reset_at is None:
+                snapshot.reset_at = previous.reset_at
         self._snapshots[snapshot.source_id] = snapshot
 
     def snapshot(self, source_id: str) -> CapacitySnapshot | None:
@@ -242,39 +264,105 @@ class ModelUsageReconciler:
                     sources += 1
                     try:
                         if source.provider.casefold() == "experiential":
-                            payload = await ExperientialUsageClient(
-                                api_key=api_key
-                            ).get_daily_usage()
-                            await self._store_observation(
-                                db,
+                            client = ExperientialUsageClient(api_key=api_key)
+                            provider_payloads: list[dict[str, Any]] = []
+                            # Usage events carry request identity, actual/free
+                            # consumption, and gateway attempt counts.  Daily
+                            # usage is retained separately because it is a
+                            # summary rather than a replacement for events.
+                            for kind, loader in (
+                                ("usage_events", client.get_usage_events),
+                                ("usage_daily", client.get_daily_usage),
+                            ):
+                                try:
+                                    payload = await loader()
+                                except Exception as exc:
+                                    logger.debug(
+                                        "experiential observation unavailable kind=%s error=%s",
+                                        kind,
+                                        type(exc).__name__,
+                                    )
+                                    continue
+                                provider_payloads.append(payload)
+                                await self._store_observation(
+                                    db,
+                                    provider="experiential",
+                                    source_id=source_id,
+                                    kind=kind,
+                                    payload=payload,
+                                )
+                                observations += 1
+                            # A key-limit request is made only when the
+                            # provider supplies a non-secret key identifier in
+                            # an observation.  Never guess an ID from the API
+                            # key itself or from an account email.
+                            # Only an explicitly named key identifier is safe
+                            # to pass to the key-limits endpoint.  Event IDs,
+                            # request IDs, and organization IDs are useful
+                            # observation cursors but are not API-key IDs.
+                            key_id = _extract_key_identifier(provider_payloads)
+                            if key_id:
+                                try:
+                                    limits = await client.get_key_limits(key_id)
+                                except Exception as exc:
+                                    logger.debug(
+                                        "experiential key limits unavailable error=%s",
+                                        type(exc).__name__,
+                                    )
+                                else:
+                                    provider_payloads.append(limits)
+                                    await self._store_observation(
+                                        db,
+                                        provider="experiential",
+                                        source_id=source_id,
+                                        kind="key_limits",
+                                        payload=limits,
+                                    )
+                                    observations += 1
+                            self._observe_capacity(
                                 provider="experiential",
                                 source_id=source_id,
-                                kind="usage_daily",
-                                payload=payload,
+                                models=_models_for_source(self._config, source_id),
+                                payloads=provider_payloads,
                             )
-                            observations += 1
                         elif source.provider.casefold() == "gemini":
                             models = await GeminiCatalogClient(api_key=api_key).list_models()
+                            catalog_payload = {
+                                "models": [
+                                    {
+                                        "name": item.get("name"),
+                                        "supported_generation_methods": item.get(
+                                            "supportedGenerationMethods", []
+                                        ),
+                                        # These are model context/output
+                                        # capabilities, not RPM/TPM/RPD.
+                                        # Keep them in the observation but do
+                                        # not promote them to quota limits.
+                                        "input_token_limit": item.get("inputTokenLimit"),
+                                        "output_token_limit": item.get("outputTokenLimit"),
+                                    }
+                                    for item in models
+                                ]
+                            }
                             await self._store_observation(
                                 db,
                                 provider="gemini",
                                 source_id=source_id,
                                 kind="catalog",
-                                payload={
-                                    "models": [
-                                        {
-                                            "name": item.get("name"),
-                                            "supported_generation_methods": item.get(
-                                                "supportedGenerationMethods", []
-                                            ),
-                                            "input_token_limit": item.get("inputTokenLimit"),
-                                            "output_token_limit": item.get("outputTokenLimit"),
-                                        }
-                                        for item in models
-                                    ]
-                                },
+                                payload=catalog_payload,
                             )
                             observations += 1
+                            # Gemini's model catalog does not publish project
+                            # RPM/TPM/RPD.  Keep the capacity snapshot unknown
+                            # until a quota response or a configured provider
+                            # observation supplies an explicit limit; never
+                            # reintroduce dated hardcoded free-tier numbers.
+                            self._observe_capacity(
+                                provider="gemini",
+                                source_id=source_id,
+                                models=_models_for_source(self._config, source_id),
+                                payloads=[],
+                            )
                     except Exception as exc:
                         # Provider observation failures must not stop model
                         # work; the last known capacity remains in place.
@@ -303,14 +391,306 @@ class ModelUsageReconciler:
 
         # Keep only response metadata and cap the JSON payload so a provider
         # catalog/usage response cannot become an unbounded application log.
-        bounded = dict(payload)
+        bounded = _bounded_metadata(payload)
+        external_id = _extract_external_identifier([bounded]) or ""
+        if not external_id and kind in {"catalog", "usage_daily", "key_limits"}:
+            # Summary/catalog responses often have no provider cursor.  A
+            # bounded-content fingerprint prevents the reconciler from
+            # inserting an identical row on every refresh while still
+            # retaining a new observation whenever the provider changes it.
+            material = json.dumps(bounded, ensure_ascii=False, sort_keys=True, default=str)
+            external_id = hashlib.sha256(material.encode("utf-8")).hexdigest()[:64]
+        if external_id:
+            from sqlalchemy import select
+
+            existing = await db.execute(
+                select(ModelProviderObservation.id).where(
+                    ModelProviderObservation.provider == provider,
+                    ModelProviderObservation.capacity_source_id == source_id,
+                    ModelProviderObservation.observation_kind == kind,
+                    ModelProviderObservation.external_id == external_id,
+                )
+            )
+            if existing.scalar_one_or_none() is not None:
+                return
         db.add(
             ModelProviderObservation(
                 provider=provider,
                 capacity_source_id=source_id,
                 observation_kind=kind,
-                external_id="",
+                external_id=external_id,
                 observed_at=datetime.now(UTC),
                 payload=bounded,
             )
         )
+
+    def _observe_capacity(
+        self,
+        *,
+        provider: str,
+        source_id: str,
+        models: list[str],
+        payloads: Iterable[Mapping[str, Any]],
+    ) -> None:
+        """Mirror only explicitly reported limits/usage into the selector.
+
+        A missing provider limit remains ``None``.  In particular, Gemini's
+        model context window is never mistaken for a project RPM/TPM/RPD
+        quota, and dated dashboard observations are not baked into code.
+        """
+
+        payload_list = [dict(payload) for payload in payloads if isinstance(payload, Mapping)]
+        limits = _extract_capacity_limits(payload_list)
+        usage = _extract_usage_totals(payload_list)
+        reset_at = _extract_reset_at(payload_list)
+        selected_model = models[0] if models else ""
+        confidence = "observed" if limits or usage or reset_at is not None else "unknown"
+        snapshot = CapacitySnapshot(
+            provider=provider,
+            source_id=source_id,
+            model=selected_model,
+            request_limit=limits.get("request_limit"),
+            input_token_limit=limits.get("input_token_limit"),
+            daily_request_limit=limits.get("daily_request_limit"),
+            observed_requests=usage.get("requests", 0),
+            observed_input_tokens=usage.get("input_tokens", 0),
+            reset_at=reset_at,
+            confidence=confidence,
+        )
+        self._registry.observe(snapshot)
+
+
+_SENSITIVE_METADATA_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "access_token",
+        "refresh_token",
+        "client_secret",
+        "secret_key",
+        "password",
+        "prompt",
+        "input",
+        "output",
+        "content",
+        "body",
+    }
+)
+
+
+def _bounded_metadata(value: Any, *, depth: int = 0) -> Any:
+    """Redact credentials/prompts and bound provider observation JSON."""
+
+    if depth > 5:
+        return "…"
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for raw_key, raw_value in list(value.items())[:100]:
+            key = str(raw_key)
+            if key.casefold() in _SENSITIVE_METADATA_KEYS:
+                continue
+            result[key] = _bounded_metadata(raw_value, depth=depth + 1)
+        return result
+    if isinstance(value, list):
+        return [_bounded_metadata(item, depth=depth + 1) for item in value[:100]]
+    if isinstance(value, tuple):
+        return [_bounded_metadata(item, depth=depth + 1) for item in value[:100]]
+    if isinstance(value, str):
+        return value[:2000]
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return str(value)[:2000]
+
+
+def _models_for_source(config: Any, source_id: str) -> list[str]:
+    models: list[str] = []
+    for profile in getattr(config, "profiles", {}).values():
+        if str(getattr(profile, "capacity_source_id", "") or "") != source_id:
+            continue
+        model = str(getattr(profile, "model", "") or "")
+        if model and model not in models:
+            models.append(model)
+    return models
+
+
+def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    records: list[Mapping[str, Any]] = [payload]
+    for key in (
+        "events",
+        "data",
+        "items",
+        "results",
+        "usage",
+        "daily",
+        "rows",
+        "limits",
+        "limit",
+        "quotas",
+        "quota",
+        "rate_limits",
+        "rateLimits",
+        "rate_limit",
+    ):
+        value = payload.get(key)
+        if isinstance(value, list):
+            records.extend(item for item in value if isinstance(item, Mapping))
+        elif isinstance(value, Mapping):
+            records.append(value)
+    return records
+
+
+def _number(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float) and value.is_integer() and value >= 0:
+        return int(value)
+    if isinstance(value, str):
+        try:
+            parsed = int(float(value.strip()))
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed >= 0 else None
+    return None
+
+
+def _first_number(records: Iterable[Mapping[str, Any]], keys: set[str]) -> int | None:
+    for record in records:
+        for raw_key, raw_value in record.items():
+            if str(raw_key).casefold().replace("-", "_") in keys:
+                value = _number(raw_value)
+                if value is not None:
+                    return value
+    return None
+
+
+def _extract_capacity_limits(payloads: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+    records = [record for payload in payloads for record in _records(payload)]
+    result: dict[str, int] = {}
+    aliases = {
+        "request_limit": {
+            "rpm",
+            "requests_per_minute",
+            "request_limit",
+            "requests_limit",
+            "rate_limit_rpm",
+            "requestsperminute",
+        },
+        "input_token_limit": {
+            "tpm",
+            "tokens_per_minute",
+            "input_token_limit",
+            "input_tokens_per_minute",
+            "rate_limit_tpm",
+        },
+        "daily_request_limit": {
+            "rpd",
+            "requests_per_day",
+            "daily_request_limit",
+            "daily_requests",
+            "rate_limit_rpd",
+        },
+    }
+    for target, keys in aliases.items():
+        value = _first_number(records, keys)
+        if value is not None and value > 0:
+            result[target] = value
+    return result
+
+
+def _extract_usage_totals(payloads: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+    payload_list = [dict(payload) for payload in payloads if isinstance(payload, Mapping)]
+    records = [record for payload in payload_list for record in _records(payload)]
+    request_keys = {
+        "requests",
+        "request_count",
+        "requests_used",
+        "total_requests",
+        "inference_count",
+    }
+    token_keys = {
+        "input_tokens",
+        "input_token_count",
+        "prompt_tokens",
+        "prompt_token_count",
+        "tokens_in",
+    }
+
+    def direct_total(keys: set[str]) -> int | None:
+        for payload in payload_list:
+            for raw_key, raw_value in payload.items():
+                if str(raw_key).casefold().replace("-", "_") in keys:
+                    parsed = _number(raw_value)
+                    if parsed is not None:
+                        return parsed
+        return None
+
+    requests = direct_total(request_keys)
+    input_tokens = direct_total(token_keys)
+    # Event streams are often arrays. Sum per-event values only when the
+    # response did not provide a summary, avoiding double counting a daily
+    # summary alongside its event rows.
+    if requests is None:
+        requests = sum(
+            _first_number([item], request_keys) or 0
+            for item in records
+            if isinstance(item, Mapping)
+        )
+    if input_tokens is None:
+        input_tokens = sum(
+            _first_number([item], token_keys) or 0
+            for item in records
+            if isinstance(item, Mapping)
+        )
+    return {"requests": max(0, requests or 0), "input_tokens": max(0, input_tokens or 0)}
+
+
+def _extract_reset_at(payloads: Iterable[Mapping[str, Any]]) -> float | None:
+    keys = {"reset_at", "resetat", "resets_at", "reset_time", "window_end", "period_end"}
+    for payload in payloads:
+        for record in _records(payload):
+            for raw_key, raw_value in record.items():
+                if str(raw_key).casefold().replace("-", "_") not in keys:
+                    continue
+                if isinstance(raw_value, (int, float)) and raw_value >= 0:
+                    return float(raw_value)
+                if isinstance(raw_value, str):
+                    try:
+                        return datetime.fromisoformat(raw_value.replace("Z", "+00:00")).timestamp()
+                    except ValueError:
+                        continue
+    return None
+
+
+def _extract_external_identifier(payloads: Iterable[Mapping[str, Any]]) -> str:
+    keys = {"event_id", "id", "request_id", "requestid", "api_key_id", "key_id"}
+    for payload in payloads:
+        for record in _records(payload):
+            for raw_key, raw_value in record.items():
+                if str(raw_key).casefold().replace("-", "_") not in keys:
+                    continue
+                if isinstance(raw_value, (str, int)) and str(raw_value):
+                    return str(raw_value)[:200]
+    return ""
+
+
+def _extract_key_identifier(payloads: Iterable[Mapping[str, Any]]) -> str:
+    """Find only an explicit provider API-key identifier.
+
+    The usage/events and usage/daily responses can contain generic ``id`` or
+    request identifiers.  Treating one of those as a key ID would issue a
+    misleading limits request, so this helper intentionally accepts only
+    unambiguous key-field spellings.
+    """
+
+    keys = {"api_key_id", "apikey_id", "key_id", "keyid"}
+    for payload in payloads:
+        for record in _records(payload):
+            for raw_key, raw_value in record.items():
+                if str(raw_key).casefold().replace("-", "_") not in keys:
+                    continue
+                if isinstance(raw_value, (str, int)) and str(raw_value):
+                    return str(raw_value)[:200]
+    return ""

@@ -1,20 +1,20 @@
 # OryxenAI frontend research
 
-> Status: implemented for the authenticated three-agent release (2026-09-04).
-> The current `/app` boundary is Discovery, Content Architect, and Visual Design
-> Director only; Build Preparation, Code Generator, and Preview remain deferred
-> product phases while their backend and development surfaces continue separately.
-> See `DECISIONS.md` D-063 and
-> [06-cross-model-review-log](06-cross-model-review-and-decisions.md) for the review
-> record and implementation-safety corrections. The later-stage material in this
-> package is retained as deferred research, not current `/app` scope.
+> Status: implemented for the authenticated four-stage release (2026-09-08).
+> The current `/app` boundary is Discovery, Content Architect, Visual Design
+> Director, and the explicit Build Preparation handoff. Code Generator and Preview
+> remain separate later stages while their backend and development surfaces
+> continue independently. See `DECISIONS.md` D-078 and the current source under
+> `frontend/src/` for the provider-neutral routing, durable stage adapters, and
+> safety boundaries. Historical later-stage material in this package remains
+> research unless a section explicitly names the current `/app` contract.
 
 ## Recommendation in one sentence
 
 Build OryxenAI as a light, single-portfolio **studio that changes posture as the
 portfolio advances**: conversational during Discovery, document-oriented during
-Content and Design review, and explicit about ending this release at an approved
-creative handoff.
+Content and Design review, and explicit about the generator-ready Build
+Preparation handoff without pretending generation or Preview has already run.
 
 This is deliberately not a chatbot wrapped around a dashboard and not a browser
 IDE. The user is producing one portfolio through a sequence of explicit decisions.
@@ -55,7 +55,7 @@ wireframe or CSS selector as the contract.
 | Agent sequence and explicit handoffs | 01 | 02 state maps; 05 adapters/actions |
 | Discovery conversation and brief | 01 | 02 edge cases; 05 endpoint/component contract |
 | Content and Design artifact review | 01 | 02 state maps; 05 artifact/revision contract |
-| Deferred Build Preparation product work | 02 | 04 evidence; 05 historical compatibility proposal |
+| Build Preparation handoff and recovery | 02 | 04 evidence; 05 current endpoint/adapter contract |
 | Deferred Code Generator product work | 02 | 04 evidence; 05 historical endpoint/adapter proposal |
 | Deferred Preview product work | 01, 02 | 03 architecture; 05 historical validation proposal |
 | Visual identity, theme, imagery, and motion | 03 | 04 style comparison and asset strategy |
@@ -106,7 +106,7 @@ system does not have.
 The current authenticated product sequence is:
 
 ```text
-Discover -> Content -> Design -> Creative handoff saved
+Discover -> Content -> Design -> Prepare (generator-ready handoff)
 ```
 
 The user-facing names are intentionally shorter than the implementation names:
@@ -116,16 +116,20 @@ The user-facing names are intentionally shorter than the implementation names:
 | Discover | Discovery | Approved brief |
 | Content | Content Architect | Approved content plan |
 | Design | Visual Design Director | Approved visual direction |
+| Prepare | Build Preparation | Ready, hash-bound Markdown briefs |
 
 Every agent begins through an explicit call. Approval of one stage must reveal a
 clear continuation action; it must not imply that the next stage started
-automatically. Approval of Design is terminal in `/app`: it records a creative
-handoff and does not call Build Preparation or Code Generator.
+automatically. Build Preparation is an explicit final handoff in the current
+`/app`: it records the two generator briefs but does not start Code Generator or
+Preview.
 
-Build Preparation, Code Generator, and Preview remain implemented or researched
-outside this release boundary. Their production APIs retain server authorization,
-and their existing developer harnesses remain available for development. They must
-not appear in the authenticated product until a later release decision explicitly
+Code Generator and Preview remain implemented or researched outside this release
+boundary. Build Preparation's production API retains server authorization and its
+technical download surface remains available separately; the new `/app` handoff
+only exposes the approved-input preparation workflow. Existing developer
+harnesses remain available for development. Code Generator and Preview must not
+appear in the authenticated product until a later release decision explicitly
 adds them.
 
 Authoritative source areas:
@@ -272,18 +276,20 @@ The detailed palette, typography, spacing, motion, and component rules live in t
    code-native construction-line SVG, editorial composition, and the generated
    portfolio itself as the primary visual material.
 
-9. End the current normal-product UI after approved Visual Design Direction.
-   Preserve later-stage backend authorization and keep development-harness auth
-   independently configurable; see `DECISIONS.md` D-063.
+9. End the current normal-product UI after the explicit Build Preparation
+   handoff. Preserve later-stage backend authorization and keep
+   development-harness auth independently configurable; see `DECISIONS.md`
+   D-078.
 10. Target Render-style free web hosting plus the existing Cloudflare R2 artifact
    storage for the deployed product, per
    `docs/code-generator-architecture/free-host-deployment.md`. Treat the early AWS
    contingency in `docs/Auth/04-deployment-and-operations.md` as superseded
    unless explicitly revisited.
 
-These recommendations were reviewed on 2026-09-02 (see
+These recommendations were reviewed on 2026-09-02 and the four-stage extension
+was implemented on 2026-09-08 (see
 [06-cross-model-review-log](06-cross-model-review-and-decisions.md)); the current
-three-agent release boundary is recorded in `DECISIONS.md` D-063.
+release boundary is recorded in `DECISIONS.md` D-078.
 
 ## Explicit non-goals
 
@@ -298,8 +304,7 @@ The product frontend must not imply support for:
 - arbitrary downloads from generated content;
 - user-visible version history or rollback;
 - public portfolio deployment or custom domains;
-- Build Preparation, Code Generator, or Preview controls in the current
-  authenticated product;
+- Code Generator or Preview controls in the current authenticated product;
 - exact progress percentages or time remaining; or
 - raw internal logs, provider names, storage vendors, hashes, or stack traces.
 

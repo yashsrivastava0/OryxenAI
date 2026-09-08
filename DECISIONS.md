@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-079 - Integrate Build Preparation and expose complete stage outputs in `/app`
+
+- **Date & Time:** 2026-09-08 14:20 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The authenticated Preact product stopped after Visual Design even though the durable Build Preparation service and its explicit start/regenerate APIs were already implemented. The review cards also presented only selected fields, making it impossible to copy the complete persisted response for Discovery, Content Architect, Visual Design Director, or Build Preparation.
+- **Decision:** Extend the provider-neutral `/app` journey with a fourth, explicit Prepare stage. The stage reads the existing Build Preparation GET/start/regenerate contract, requires approved Content and Visual Design, polls only while the durable job is working, maps unknown/stale/failed states to safe UI states, renders the two Markdown briefs and bounded scope/resource summaries, and never starts Code Generator or Preview. Each stage response now carries a safe `agent_output` projection loaded from the successful `AgentRun.output_payload`; the projection preserves unknown nested agent fields while removing only explicit transport/security wrappers. A contextual right rail provides selectable, clipboard-backed `Copy JSON` controls for all four stages, including a DOM fallback when Clipboard API permissions are unavailable.
+- **Rejected alternatives:** Auto-starting Build Preparation on Design approval; exposing Code Generator or Preview controls before their separate product release; reconstructing copied JSON from visible cards or a field allowlist; adding a download button to the normal creator flow; and replacing the existing auth/bootstrap or API client.
+- **Consequence:** `/app` now ends at a truthful generator-ready handoff with no hidden downstream request. The output rail remains read-only and refresh-safe, preserves complete future agent fields, and keeps provider/model/job internals out of the copyable public projection. The existing `/dev`/technical Build Preparation and Code Generator surfaces remain separate.
+
 ## D-078 — Route the first four agents through a provider-neutral free-tier policy
 
 - **Date & Time:** 2026-09-08 05:23 +05:30 — Codex (GPT-5 / OpenAI)
@@ -607,7 +616,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Summary (as of last update — 2026-09-08)
 
-- Total decisions logged: 76
+- Total decisions logged: 77
 - Active decisions: 60
 - Compacted & superseded decisions: 16
-- Last updated: 2026-09-08 05:23 +05:30 — Codex (GPT-5 / OpenAI)
+- Last updated: 2026-09-08 14:20 +05:30 — Codex (GPT-5 / OpenAI)

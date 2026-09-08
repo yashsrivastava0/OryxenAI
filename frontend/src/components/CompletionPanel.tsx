@@ -12,7 +12,7 @@ export function CompletionPanel() {
         <div><dt>Content</dt><dd>approved</dd></div>
         <div><dt>Direction</dt><dd>approved</dd></div>
       </dl>
-      <p className="completion-boundary">Build Preparation and code generation are not part of this authenticated release. No later stage has started.</p>
+      <p className="completion-boundary">Build Preparation is available as a separate explicit handoff. Code generation and Preview remain later stages and will not start automatically.</p>
     </aside>
   );
 }

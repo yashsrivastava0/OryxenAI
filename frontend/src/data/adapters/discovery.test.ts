@@ -53,6 +53,7 @@ describe("adaptDiscovery", () => {
     });
     expect(vm.safeError).toEqual({
       summary: "Question generation timed out.",
+      operationLabel: "understand_and_question",
       retryOperation: "questions",
     });
   });
