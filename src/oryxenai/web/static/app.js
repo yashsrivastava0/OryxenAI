@@ -384,28 +384,87 @@
           items: (state.operation_a && state.operation_a.items) || [],
           memory_update: (state.operation_a && state.operation_a.memory_update) || {},
         },
-        brief_title: brief.title || "",
-        brief_markdown: brief.markdown || "",
-        user_summary: brief.user_summary || "",
-        profile: brief.profile || {},
-        open_items: brief.open_items || [],
-        memory_update: brief.memory_update || {},
+        brief: {
+          title: brief.title || "",
+          markdown: brief.markdown || "",
+          user_summary: brief.user_summary || "",
+          profile: brief.profile || {},
+          open_items: brief.open_items || [],
+          memory_update: brief.memory_update || {},
+        },
       };
     }
-    return state || {};
+
+    // Keep the copy surface complete for the agent-owned artifact while
+    // excluding raw intake, source snapshots, preferences, run/job metadata,
+    // and error/worker state. This mirrors the safe final-output contract used
+    // by the authenticated product surface.
+    var fields = {
+      content_architect: [
+        "user_summary", "site_story_strategy", "decision_basis", "route_plan",
+        "claim_grounding", "page_content_packs", "public_content_manifest",
+        "omissions", "unresolved_issues", "privacy_and_confidentiality",
+        "media_status", "visual_director_handoff", "warnings", "stages_run",
+      ],
+      visual_design_director: [
+        "user_summary", "meta", "source_refs", "visual_language",
+        "shared_visual_systems", "navigation_direction", "motion_system",
+        "interaction_system", "pages", "asset_briefs", "resource_candidates",
+        "accessibility_and_performance", "must_preserve", "must_not_fabricate",
+        "conflicts", "warnings", "compiler_handoff", "resource_policy", "stages_run",
+      ],
+      build_preparation: [
+        "scope_hash", "routes", "resource_needs", "resource_index", "component_index",
+        "content_brief_markdown", "visual_brief_markdown", "target_contract",
+        "recommended_dependencies", "warnings", "model_calls", "provider_calls",
+      ],
+    }[agent] || [];
+    var payload = {};
+    fields.forEach(function (field) {
+      if (state && Object.prototype.hasOwnProperty.call(state, field)) payload[field] = state[field];
+    });
+    return payload;
   }
 
   function outputCopyText(agent, state) {
-    var payload = outputPayload(agent, state);
-    if (agent === "discovery") {
-      var markdown = String(payload.brief_markdown || "").trim();
-      var profile = prettyJson(payload.profile || {});
-      var interaction = payload.operation_a && payload.operation_a.mode
-        ? "## Discovery interaction\n\n```json\n" + prettyJson(payload.operation_a) + "\n```\n\n"
-        : "";
-      return interaction + (markdown || "# Portfolio Discovery Brief") + "\n\n---\n\n## Structured profile\n\n```json\n" + profile + "\n```";
+    return prettyJson(outputPayload(agent, state));
+  }
+
+  async function copyTextToClipboard(text, source) {
+    if (!text) return false;
+    var copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch (e) {
+      copied = false;
     }
-    return prettyJson(payload);
+    if (!copied && source) {
+      source.focus();
+      source.select();
+      try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
+    }
+    return copied;
+  }
+
+  function setSidebarCopyStatus(message) {
+    var status = document.getElementById("sidebar-copy-status");
+    if (!status) return;
+    status.textContent = message || "";
+    window.setTimeout(function () {
+      if (status.textContent === message) status.textContent = "";
+    }, 2200);
+  }
+
+  async function copyAgentOutput(agent) {
+    var state = agentStates[agent];
+    if (!outputIsAvailable(agent, state)) return;
+    var text = outputCopyText(agent, state);
+    var source = document.getElementById("sidebar-output-source");
+    var copied = await copyTextToClipboard(text, source);
+    setSidebarCopyStatus(copied ? "Copied " + STAGE_LABELS[agent] + " JSON" : "Select the JSON below to copy it.");
   }
 
   function renderSidebarOutputTabs() {
@@ -416,6 +475,11 @@
     STAGE_ORDER.forEach(function (agent) {
       var available = outputIsAvailable(agent, agentStates[agent]);
       if (available && !firstAvailable) firstAvailable = agent;
+      var row = document.createElement("div");
+      row.className = "sidebar-output-tab-row";
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", STAGE_LABELS[agent] + " output controls");
+
       var button = document.createElement("button");
       button.type = "button";
       button.className = "sidebar-output-tab" + (activeSidebarOutput === agent ? " active" : "");
@@ -429,7 +493,22 @@
           renderSidebarOutput();
         });
       }
-      tabs.appendChild(button);
+      row.appendChild(button);
+
+      var copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = "sidebar-output-copy-button";
+      copyButton.textContent = "Copy JSON";
+      copyButton.disabled = !available;
+      copyButton.setAttribute("aria-label", "Copy full JSON output from " + STAGE_LABELS[agent]);
+      copyButton.title = available ? "Copy full JSON output" : "Output is not available yet";
+      if (available) {
+        copyButton.addEventListener("click", function () {
+          void copyAgentOutput(agent);
+        });
+      }
+      row.appendChild(copyButton);
+      tabs.appendChild(row);
     });
     if (!outputIsAvailable(activeSidebarOutput, agentStates[activeSidebarOutput]) && firstAvailable) {
       activeSidebarOutput = firstAvailable;
@@ -467,17 +546,17 @@
     var copyText = outputCopyText(agent, state);
     title.textContent = STAGE_LABELS[agent] + " output";
     agentLabel.textContent = STAGE_LABELS[agent];
-    meta.textContent = agent === "discovery" && payload.brief_markdown
-      ? "Complete brief Markdown plus the structured profile."
+    meta.textContent = agent === "discovery" && payload.brief && payload.brief.markdown
+      ? "Complete Discovery agent JSON, including the brief and structured profile."
       : agent === "discovery"
-        ? "Complete Discovery interaction output, ready to copy."
-      : "Complete structured stage payload, ready to paste into the next AI or review tool.";
+        ? "Complete Discovery interaction JSON, ready to copy."
+      : "Complete safe agent-owned JSON, ready to paste into the next AI or review tool.";
     source.value = copyText;
     copyButton.disabled = false;
 
     if (agent === "discovery") {
-      if (payload.brief_markdown) {
-        preview.appendChild(renderMarkdownToNodes(payload.brief_markdown));
+      if (payload.brief && payload.brief.markdown) {
+        preview.appendChild(renderMarkdownToNodes(payload.brief.markdown));
       } else if (payload.operation_a && payload.operation_a.mode) {
         var interactionHeading = document.createElement("h3");
         interactionHeading.textContent = "Discovery questions";
@@ -489,13 +568,13 @@
       } else {
         preview.appendChild(renderMarkdownToNodes("(no brief content yet)"));
       }
-      if (payload.profile && Object.keys(payload.profile).length) {
+      if (payload.brief && payload.brief.profile && Object.keys(payload.brief.profile).length) {
         var profileHeading = document.createElement("h3");
         profileHeading.textContent = "Structured profile";
         preview.appendChild(profileHeading);
         var profilePre = document.createElement("pre");
         profilePre.className = "json-view";
-        profilePre.textContent = prettyJson(payload.profile);
+        profilePre.textContent = prettyJson(payload.brief.profile);
         preview.appendChild(profilePre);
       }
     } else {
@@ -538,26 +617,9 @@
 
   async function copySidebarOutput() {
     var source = document.getElementById("sidebar-output-source");
-    var status = document.getElementById("sidebar-copy-status");
     if (!source || !source.value) return;
-    var copied = false;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(source.value);
-        copied = true;
-      }
-    } catch (e) {
-      copied = false;
-    }
-    if (!copied) {
-      source.focus();
-      source.select();
-      try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
-    }
-    if (status) {
-      status.textContent = copied ? "Copied" : "Select the text above to copy it.";
-      window.setTimeout(function () { status.textContent = ""; }, 2200);
-    }
+    var copied = await copyTextToClipboard(source.value, source);
+    setSidebarCopyStatus(copied ? "Copied " + STAGE_LABELS[activeSidebarOutput] + " JSON" : "Select the JSON below to copy it.");
   }
 
   async function fetchJson(url, opts) {
