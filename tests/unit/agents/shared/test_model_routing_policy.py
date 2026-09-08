@@ -31,6 +31,32 @@ def test_first_four_routes_keep_personal_input_on_experiential() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("engine", "operation"),
+    [
+        ("discovery", "understand_and_question"),
+        ("discovery", "build_or_revise_brief"),
+        ("content_architect", "plan_content"),
+        ("content_architect", "write_pages"),
+        ("content_architect", "integrate_content"),
+        ("visual_design_director", "establish_visual_language"),
+        ("visual_design_director", "direct_page_experience"),
+        ("visual_design_director", "integrate_site_experience"),
+        ("build_preparation", "compose_visual_brief"),
+    ],
+)
+def test_all_first_four_personal_operations_use_only_experiential(
+    engine: str, operation: str
+) -> None:
+    settings = get_settings()
+    router = ModelRouter(settings.models)
+    names = router.operation_profile_names(engine, operation, input_classification="personal")
+    assert names
+    assert settings.models.get_profile(names[0]).provider == "experiential"
+    assert settings.models.get_profile(names[0]).model == "gpt-5.6-luna"
+    assert all(settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in names)
+
+
 def test_capacity_registry_uses_remaining_capacity_and_cooldown() -> None:
     registry = CapacityRegistry(0.8)
     registry.observe(

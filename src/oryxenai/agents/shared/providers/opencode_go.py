@@ -32,6 +32,7 @@ from oryxenai.agents.shared.providers.errors import (
     ModelOutputTruncatedError,
     ProviderBadResponseError,
     ProviderConfigError,
+    ProviderError,
     map_http_error,
 )
 from oryxenai.core.logging import get_logger
@@ -343,9 +344,22 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                 except Exception as retry_exc:
                     raise self._map_sdk_error(retry_exc) from retry_exc
             else:
+                # First-four pipeline calls always set global_attempt_budget;
+                # schema compatibility must therefore not create a hidden
+                # second transmission inside the adapter.  For legacy
+                # non-global callers, only the narrowly classified schema
+                # rejection above may use the compatibility request.  All
+                # transport, auth, quota, and ordinary request failures map
+                # to one application-visible attempt.
                 raise self._map_sdk_error(exc) from exc
 
         latency_ms = (time.monotonic() - call_start) * 1000.0
+
+        # Normalize provider usage immediately after the transport returns.
+        # Keeping it before content parsing means malformed JSON, truncation,
+        # and local contract failures can still be reconciled as billed or
+        # quota-consuming attempts.
+        usage_dict = _normalize_openai_usage(response, self._capabilities)
 
         message = response.choices[0].message
         # reasoning_content must never be captured, persisted, or logged.
@@ -354,52 +368,31 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
         finish_reason = response.choices[0].finish_reason or "unknown"
 
         if not raw.strip():
-            raise ModelEmptyOutputError(
+            error: ProviderError = ModelEmptyOutputError(
                 f"Model returned {'empty' if not raw else 'whitespace-only'} content"
             )
+            _annotate_provider_error(error, usage_dict, response)
+            raise error
         if finish_reason == "length":
-            raise ModelOutputTruncatedError(
+            error = ModelOutputTruncatedError(
                 "Model output was truncated by the provider (finish_reason=length)"
             )
+            _annotate_provider_error(error, usage_dict, response)
+            raise error
 
         try:
             parsed_output: dict[str, Any] = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise ModelJsonInvalidError(f"Model returned invalid JSON: {exc!s}") from exc
+            error = ModelJsonInvalidError(f"Model returned invalid JSON: {exc!s}")
+            _annotate_provider_error(error, usage_dict, response)
+            raise error from exc
 
         if not isinstance(parsed_output, dict):
-            raise ProviderBadResponseError(
+            error = ProviderBadResponseError(
                 f"Model returned non-object JSON: {type(parsed_output).__name__}"
             )
-
-        usage_dict: dict[str, Any] = {}
-        if self._capabilities.usage_metadata and response.usage:
-            usage_dict = {
-                "prompt_tokens": response.usage.prompt_tokens or 0,
-                "completion_tokens": response.usage.completion_tokens or 0,
-                "total_tokens": response.usage.total_tokens or 0,
-            }
-            # Best-effort cache-hit evidence. Real OpenAI (and OpenAI-protocol
-            # gateways that pass usage through unmodified) report this nested
-            # field only when prefix caching actually hit; absent on gateways
-            # that don't support/forward it, so this must never be required.
-            details = getattr(response.usage, "prompt_tokens_details", None)
-            cached = getattr(details, "cached_tokens", None) if details is not None else None
-            if isinstance(cached, int):
-                usage_dict["cached_prompt_tokens"] = cached
-            cache_write = (
-                getattr(details, "cache_write_tokens", None) if details is not None else None
-            )
-            if isinstance(cache_write, int):
-                usage_dict["cache_write_tokens"] = cache_write
-            completion_details = getattr(response.usage, "completion_tokens_details", None)
-            reasoning = (
-                getattr(completion_details, "reasoning_tokens", None)
-                if completion_details is not None
-                else None
-            )
-            if isinstance(reasoning, int):
-                usage_dict["reasoning_tokens"] = reasoning
+            _annotate_provider_error(error, usage_dict, response)
+            raise error
 
         input_characters = _message_characters(messages)
         output_characters = len(raw)
@@ -418,6 +411,17 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             ),
             "charged_output_characters": output_characters,
         }
+        provider_request_id = _response_scalar(response, "provider_request_id", "request_id", "_request_id")
+        if not provider_request_id:
+            provider_request_id = str(getattr(response, "id", "") or "")
+        if provider_request_id:
+            telemetry["provider_request_id"] = provider_request_id
+        gateway_attempt_count = _response_int(
+            response, "gateway_attempt_count", "attempt_count", "upstream_attempt_count"
+        )
+        if gateway_attempt_count is not None:
+            telemetry["gateway_attempt_count"] = gateway_attempt_count
+        _add_response_cost_telemetry(telemetry, response)
         if estimated_cost is not None:
             telemetry["estimated_cost"] = estimated_cost
             if pricing is not None:
@@ -716,6 +720,168 @@ def _scale_characters(characters: int, source_tokens: int, target_tokens: int) -
     if characters <= 0 or source_tokens <= 0:
         return characters if target_tokens else 0
     return max(0, round(characters * target_tokens / source_tokens))
+
+
+def _normalize_openai_usage(response: Any, capabilities: ModelCapabilities) -> dict[str, Any]:
+    """Normalize the provider usage object without assuming an SDK version."""
+
+    if not capabilities.usage_metadata:
+        return {}
+    raw = getattr(response, "usage", None)
+    if raw is None:
+        return {}
+
+    def number(value: Any) -> int | None:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return None
+
+    def value(name: str) -> Any:
+        if isinstance(raw, Mapping):
+            return raw.get(name)
+        return getattr(raw, name, None)
+
+    result: dict[str, Any] = {}
+    for sources, target in (
+        (("prompt_tokens", "input_tokens"), "prompt_tokens"),
+        (("completion_tokens", "output_tokens"), "completion_tokens"),
+        (("total_tokens",), "total_tokens"),
+    ):
+        for source in sources:
+            parsed = number(value(source))
+            if parsed is not None:
+                result[target] = parsed
+                break
+    details = value("prompt_tokens_details")
+
+    def nested(source: Any, name: str) -> Any:
+        if isinstance(source, Mapping):
+            return source.get(name)
+        return getattr(source, name, None)
+
+    for source, target in (
+        (
+            nested(details, "cached_tokens")
+            if nested(details, "cached_tokens") is not None
+            else value("cached_input_tokens"),
+            "cached_prompt_tokens",
+        ),
+        (
+            nested(details, "cache_write_tokens")
+            if nested(details, "cache_write_tokens") is not None
+            else value("cache_write_tokens"),
+            "cache_write_tokens",
+        ),
+        (
+            nested(value("completion_tokens_details"), "reasoning_tokens")
+            if nested(value("completion_tokens_details"), "reasoning_tokens") is not None
+            else value("reasoning_tokens"),
+            "reasoning_tokens",
+        ),
+    ):
+        parsed = number(source)
+        if parsed is not None:
+            result[target] = parsed
+    if "prompt_tokens" in result:
+        result["input_tokens"] = result["prompt_tokens"]
+    if "completion_tokens" in result:
+        result["output_tokens"] = result["completion_tokens"]
+    return result
+
+
+def _response_dump(response: Any) -> Mapping[str, Any]:
+    extra = getattr(response, "model_extra", None)
+    if isinstance(extra, Mapping):
+        return extra
+    model_dump = getattr(response, "model_dump", None)
+    if callable(model_dump):
+        try:
+            value = model_dump(mode="json")
+        except TypeError:
+            value = model_dump()
+        except Exception:
+            value = None
+        if isinstance(value, Mapping):
+            return value
+    return {}
+
+
+def _response_scalar(response: Any, *names: str) -> str:
+    dump = _response_dump(response)
+    for name in names:
+        value = getattr(response, name, None)
+        if value in (None, ""):
+            value = dump.get(name)
+        if isinstance(value, (str, int, float)) and str(value):
+            return str(value)
+    return ""
+
+
+def _response_int(response: Any, *names: str) -> int | None:
+    raw = _response_scalar(response, *names)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+def _add_response_cost_telemetry(telemetry: dict[str, Any], response: Any) -> None:
+    """Copy only explicit provider cost fields into the safe telemetry map."""
+
+    dump = _response_dump(response)
+    values: dict[str, Any] = {}
+    for name in (
+        "actual_cost",
+        "cost_micro_usd",
+        "free_micro_usd",
+        "promotional_micro_usd",
+        "wallet_micro_usd",
+    ):
+        value = getattr(response, name, None)
+        if value is None:
+            value = dump.get(name)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values[name] = value
+    if "cost_micro_usd" in values:
+        telemetry["cost_micro_usd"] = values["cost_micro_usd"]
+        telemetry.setdefault("actual_cost", float(values["cost_micro_usd"]) / 1_000_000.0)
+    if "actual_cost" in values:
+        telemetry["actual_cost"] = values["actual_cost"]
+    for name in ("free_micro_usd", "promotional_micro_usd", "wallet_micro_usd"):
+        if name in values:
+            telemetry[name] = values[name]
+    if "free_micro_usd" in values and "promotional_micro_usd" not in telemetry:
+        telemetry["promotional_micro_usd"] = values["free_micro_usd"]
+
+
+def _annotate_provider_error(
+    error: ProviderError,
+    usage: Mapping[str, Any],
+    response: Any,
+) -> None:
+    """Attach normalized post-response facts to a safe provider error."""
+
+    if usage:
+        error.details["usage"] = dict(usage)
+    provider_request_id = _response_scalar(response, "provider_request_id", "request_id", "_request_id")
+    if not provider_request_id:
+        provider_request_id = str(getattr(response, "id", "") or "")
+    if provider_request_id:
+        error.details["provider_request_id"] = provider_request_id
+    gateway_attempt_count = _response_int(
+        response, "gateway_attempt_count", "attempt_count", "upstream_attempt_count"
+    )
+    if gateway_attempt_count is not None:
+        error.details["gateway_attempt_count"] = gateway_attempt_count
+    cost_telemetry: dict[str, Any] = {}
+    _add_response_cost_telemetry(cost_telemetry, response)
+    if cost_telemetry:
+        error.details["telemetry"] = cost_telemetry
 
 
 def _serialize_structured_input(

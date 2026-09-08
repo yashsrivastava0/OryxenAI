@@ -17,6 +17,7 @@ from oryxenai.agents.build_preparation.schemas import (
 )
 from oryxenai.agents.build_preparation.state import apply_start, reset_for_regeneration
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
+from oryxenai.agents.shared.agent_output import public_output_for_run
 from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorStatus
@@ -219,6 +220,10 @@ class BuildPreparationService:
         payload["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         payload["stale"] = stale
         payload["stale_reasons"] = list(dict.fromkeys(stale_reasons))
+        payload["agent_output"] = await public_output_for_run(
+            getattr(self._repository, "get_run", None),
+            state.run_id,
+        )
         if current_source_ref is not None:
             payload["current_source_ref"] = current_source_ref.model_dump(mode="json")
         if state.run_id:

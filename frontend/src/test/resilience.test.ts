@@ -13,6 +13,34 @@ describe("product resilience", () => {
     expect(error.message).toBe("This portfolio has a verified success and is now read-only.");
   });
 
+  it("keeps only safe provider attribution and retry guidance", async () => {
+    const response = new Response(
+      JSON.stringify({
+        error: {
+          code: "PROVIDER_RATE_LIMIT_ERROR",
+          message: "internal provider body",
+          request_id: "request-123",
+          details: {
+            provider_label: "Google Gemini",
+            operation_label: "discovery.understand_and_question",
+            retry_after_seconds: 12,
+            support_reference: "model-abcdef123456",
+            credential_alias: "GEMINI_2",
+            api_key: "must-not-escape",
+          },
+        },
+      }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    );
+    const error = await parseApiError(response);
+    expect(error.providerLabel).toBe("Google Gemini");
+    expect(error.operationLabel).toBe("discovery.understand_and_question");
+    expect(error.retryAfterSeconds).toBe(12);
+    expect(error.supportReference).toBe("model-abcdef123456");
+    expect(String(error)).not.toContain("GEMINI_2");
+    expect(String(error)).not.toContain("must-not-escape");
+  });
+
   it("preserves drafts when browser storage is available", () => {
     safeSessionStorage.setItem("resilience_key", "saved draft");
     safeLocalStorage.setItem("preference_key", "saved preference");

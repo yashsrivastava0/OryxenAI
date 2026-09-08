@@ -3,7 +3,13 @@
 // Follows the same fail-closed, defensive pattern established by discovery.ts.
 
 import { selectStageJob } from "./job";
-import type { StageState, StageViewModel } from "./types";
+import {
+  readAgentOutput,
+  readSafeStageError,
+  type SafeStageError,
+  type StageState,
+  type StageViewModel,
+} from "./types";
 
 export interface RoutePlanVM {
   routeId: string;
@@ -43,7 +49,7 @@ export interface ContentViewModel extends StageViewModel {
   decisionBasis: DecisionRecordVM[];
   unresolvedIssues: string[];
   warnings: string[];
-  safeError: { summary: string } | null;
+  safeError: SafeStageError | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -128,6 +134,7 @@ export function adaptContentArchitect(
       statusText: "Content Architect returned an unrecognised state. Refresh to continue.",
       raw,
       job: selectStageJob(jobs),
+      agentOutput: null,
       userSummary: "",
       positioning: "",
       routePlan: [],
@@ -176,14 +183,14 @@ export function adaptContentArchitect(
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const safeError =
     (status === "needs_attention" && latestError) || failedJob
-      ? {
-          summary:
-            typeof latestError?.message === "string"
-              ? latestError.message
-              : typeof latestError?.summary === "string"
-                ? latestError.summary
-                : job?.error?.message ?? "Content Architect needs attention.",
-        }
+      ? readSafeStageError(
+          latestError,
+          typeof latestError?.message === "string"
+            ? latestError.message
+            : typeof latestError?.summary === "string"
+              ? latestError.summary
+              : job?.error?.message ?? "Content Architect needs attention.",
+        )
       : null;
 
   return {
@@ -193,6 +200,7 @@ export function adaptContentArchitect(
       : STATUS_TEXT[status] ?? "Working on Content",
     raw,
     job,
+    agentOutput: readAgentOutput(raw),
     userSummary,
     positioning,
     routePlan,

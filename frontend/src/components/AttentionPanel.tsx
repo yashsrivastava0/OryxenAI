@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import type { SafeStageError } from "../data/adapters/types";
 
 export interface AttentionPanelProps {
   title?: string;
@@ -7,6 +8,7 @@ export interface AttentionPanelProps {
   retryLabel?: string;
   onRetry?: () => void | Promise<void>;
   technicalDetails?: string | null;
+  errorDetails?: Pick<SafeStageError, "providerLabel" | "operationLabel" | "retryAfterSeconds" | "supportReference">;
   inFlight?: boolean;
 }
 
@@ -17,6 +19,7 @@ export function AttentionPanel({
   retryLabel = "Try again",
   onRetry,
   technicalDetails = null,
+  errorDetails,
   inFlight = false,
 }: AttentionPanelProps) {
   const [retrying, setRetrying] = useState(false);
@@ -44,6 +47,21 @@ export function AttentionPanel({
 
       <p className="attention-summary">{summary}</p>
       {preservedWorkNote && <p className="attention-preserved">{preservedWorkNote}</p>}
+      {errorDetails?.providerLabel || errorDetails?.operationLabel ? (
+        <p className="attention-attribution">
+          {errorDetails.providerLabel ? `Provider: ${errorDetails.providerLabel}` : null}
+          {errorDetails.providerLabel && errorDetails.operationLabel ? " · " : null}
+          {errorDetails.operationLabel ? `Operation: ${errorDetails.operationLabel}` : null}
+        </p>
+      ) : null}
+      {errorDetails?.retryAfterSeconds !== undefined ? (
+        <p className="attention-retry-after" role="status">
+          Retry after approximately {Math.max(1, Math.ceil(errorDetails.retryAfterSeconds))} seconds.
+        </p>
+      ) : null}
+      {errorDetails?.supportReference ? (
+        <p className="attention-reference">Reference: {errorDetails.supportReference}</p>
+      ) : null}
       {retryError ? <p className="attention-retry-error" role="alert">{retryError}</p> : null}
 
       {onRetry && (

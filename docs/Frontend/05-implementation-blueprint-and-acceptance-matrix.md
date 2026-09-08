@@ -1,19 +1,18 @@
 # Frontend implementation blueprint and acceptance matrix
 
-> Status: implemented through the authenticated three-agent release; reviewed
-> 2026-09-02 and scoped for release on 2026-09-04 (see
-> [06-cross-model-review-and-decisions](06-cross-model-review-and-decisions.md)).
-> The current `/app` scope ends after approved Visual Design Direction. Sections
-> describing Build Preparation, Code Generator, and Preview are retained as
-> deferred research and do not authorize exposing them in the product. See
-> `DECISIONS.md` D-063.
+> Status: implemented through the authenticated four-stage release; reviewed
+> 2026-09-08. The current `/app` scope ends after an explicit, approved-input
+> Build Preparation handoff. Code Generator and Preview remain separate later
+> stages and are not started by this product flow. See `DECISIONS.md` D-078 and
+> the source-level contract in `frontend/src/`.
 
 ## 0. How to implement this document
 
-For the current release, implement Phase 1, Phase 2, and the applicable hardening
-work from Phase 5. Phases 3 and 4 are deferred and must not be represented by
-normal-product controls, routes, or API calls. Sections describing those phases
-remain design research for a later, separately approved release.
+For the current release, implement the authenticated Discovery, Content,
+Visual Design, and Build Preparation stages plus the applicable hardening work
+from Phase 5. Code Generator and Preview remain deferred and must not be
+represented by normal-product controls, routes, or API calls. Sections describing
+those later stages remain design research for a separately approved release.
 
 **Non-negotiables, true in every phase:**
 
@@ -66,16 +65,16 @@ references it by name.
 ## 1. Outcome and boundaries
 
 The implementation should deliver one coherent normal-user journey from sign-in to
-an approved Visual Design Direction while keeping the current backend behavior
-intact.
+a generator-ready Build Preparation handoff while keeping the current backend
+behavior intact.
 
 The frontend must:
 
 - resolve authentication without exposing private content;
 - place first-time and returning users in the correct `/app` posture;
-- support the explicit Discover -> Content -> Design flow;
+- support the explicit Discover -> Content -> Design -> Prepare flow;
 - make review, revision, approval, handoff, progress, attention, and recovery clear;
-- end with a saved creative handoff without starting a later stage;
+- end with saved, hash-bound preparation briefs without starting Code Generator;
 - remain useful after refresh, navigation, tab switching, and temporary network loss;
 - be lightweight enough for low-cost hosting and ordinary laptops/phones; and
 - express the Editorial Swiss / Living Draft visual system consistently.
@@ -86,8 +85,7 @@ It must not:
 - change authentication or entitlement rules;
 - replace the Preview runtime/gateway;
 - merge development fixtures into the product;
-- expose Build Preparation, Code Generator, or Preview in the current `/app`
-  bundle;
+- expose Code Generator or Preview in the current `/app` bundle;
 - expose model/provider/storage internals;
 - invent percentages, ETAs, logs, reasoning, versioning, publishing, or unsupported
   agent controls; or
@@ -1445,15 +1443,26 @@ provider/credit-unavailable behavior above.
 Stop gate: refresh-safe Discovery parity, accessibility pass, and a realistic
 long-artifact review on desktop and mobile.
 
-### Phase 3: Build Preparation and Code Generator integration (deferred)
+### Phase 3: Build Preparation handoff (implemented)
+
+- Add the durable Build Preparation adapter and progress/attention states.
+- Keep the handoff explicit: approved Content and Design are required before
+  start, and no Code Generator request is issued automatically.
+- Present the two hash-bound Markdown briefs and safe scope/resource summaries;
+  keep download and generator controls outside the normal product.
+
+Stop gate: state/entitlement/error matrix, stale-source regeneration, and a
+long-running session test.
+
+### Phase 3A: Code Generator integration (deferred)
 
 Do not implement this phase in the current authenticated product release.
 
-- Add volatile Build Preparation adapter and progress/attention states.
-- Add only production Code Generator session endpoints.
+- Add only production Code Generator session endpoints when separately approved.
 - Keep the development harness unchanged.
 
-Stop gate: state/entitlement/error matrix and long-running session test.
+Stop gate: immutable brief admission, entitlement/read-only behavior, and the
+long-running generation session matrix.
 
 ### Phase 4: verified Preview (deferred)
 
@@ -1480,16 +1489,17 @@ cleanup.
 
 ## 20. Definition of implementation complete
 
-The current three-agent implementation is complete only when:
+The current four-stage implementation is complete only when:
 
-- auth through approved Visual Design Direction is one visually coherent journey;
+- auth through a ready Build Preparation handoff is one visually coherent journey;
 - every current durable state has a tested presentation and every unknown state
   fails safely;
-- first-time, returning, attention, active-run, and Design-approved users land
+- first-time, returning, attention, active-run, and preparation-ready users land
   correctly;
 - no stage auto-starts and no unsupported control is visible;
 - user drafts and last confirmed state survive realistic conflicts/network loss;
-- no Build Preparation, Code Generator, or Preview request is shipped in the
+- Build Preparation is reachable only through its explicit approved-input
+  handoff, while no Code Generator or Preview request is shipped in the
   normal-product client;
 - desktop, tablet, and mobile support their intended jobs;
 - keyboard, screen-reader, zoom, contrast, and reduced-motion acceptance passes;

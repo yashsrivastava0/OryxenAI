@@ -85,6 +85,7 @@ class ModelCallAttempt(Base):
     actual_cost_micro_usd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     estimated_cost_micro_usd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     promotional_micro_usd: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    wallet_micro_usd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rate_limit_seconds: Mapped[float | None] = mapped_column(nullable=True)
     details: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     started_at: Mapped[datetime] = mapped_column(

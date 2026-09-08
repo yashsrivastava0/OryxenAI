@@ -6,8 +6,8 @@
 // re-maps that into product-facing ApiError copy (errors.ts) rather than
 // re-implementing the fetch boundary.
 //
-// The authenticated product intentionally ends after Visual Design Director.
-// Later stages keep separate development harnesses and are not callable here.
+// The authenticated product ends after the explicit Build Preparation handoff.
+// Code Generator and Preview keep separate production/development contracts.
 
 import { ApiError } from "./errors";
 import { recordClientEvent } from "./client-diagnostics";
@@ -19,6 +19,8 @@ interface DuckTypedAuthError {
   code?: unknown;
   status?: unknown;
   message?: unknown;
+  details?: unknown;
+  requestId?: unknown;
 }
 
 function isDuckTypedAuthError(value: unknown): value is DuckTypedAuthError {
@@ -32,7 +34,18 @@ function remapAuthorizedFetchError(error: unknown): ApiError {
     const code = typeof error.code === "string" ? error.code : "REQUEST_FAILED";
     const status = typeof error.status === "number" ? error.status : 0;
     const message = typeof error.message === "string" ? error.message : "The request could not be completed.";
-    return new ApiError(message, { code, status });
+    return new ApiError(message, {
+      code,
+      status,
+      requestId: typeof error.requestId === "string" ? error.requestId : null,
+      details: isRecord(error.details) ? {
+        provider_label: typeof error.details.provider_label === "string" ? error.details.provider_label : undefined,
+        operation_label: typeof error.details.operation_label === "string" ? error.details.operation_label : undefined,
+        retry_after_seconds: typeof error.details.retry_after_seconds === "number" ? error.details.retry_after_seconds : undefined,
+        support_reference: typeof error.details.support_reference === "string" ? error.details.support_reference : undefined,
+        retryable: error.details.retryable === true,
+      } : null,
+    });
   }
   return new ApiError("The request could not be completed.", { code: "REQUEST_FAILED", status: 0 });
 }
@@ -52,7 +65,7 @@ function summarizeApiPayload(path: string, payload: unknown): Record<string, unk
   if (typeof payload.session_id === "string") summary.session_id = payload.session_id;
   if (typeof payload.session_revision === "number") summary.session_revision = payload.session_revision;
 
-  for (const stage of ["discovery", "content_architect", "visual_design_director"]) {
+  for (const stage of ["discovery", "content_architect", "visual_design_director", "build_preparation"]) {
     const value = payload[stage];
     if (!isRecord(value)) continue;
     if (typeof value.status === "string") summary[`${stage}_status`] = value.status;
@@ -318,6 +331,34 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         authorizedFetch,
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/stop`,
         jsonInit("POST", {}),
+      ),
+
+    getBuildPreparation: (sessionId: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation`,
+      ),
+
+    startBuildPreparation: (
+      sessionId: string,
+      body: { model_profile?: string } = {},
+      idempotencyKey?: string,
+    ) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/start`,
+        jsonInit("POST", body, idempotencyKey),
+      ),
+
+    regenerateBuildPreparation: (
+      sessionId: string,
+      body: { model_profile?: string } = {},
+      idempotencyKey?: string,
+    ) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/regenerate`,
+        jsonInit("POST", body, idempotencyKey),
       ),
 
   };

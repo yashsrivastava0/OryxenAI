@@ -79,15 +79,16 @@ Keep their routes, auth modes, vocabulary, and API clients separate.
 | Surface | Routes | Current entry boundary | Access model | Redesign rule |
 | --- | --- | --- | --- | --- |
 | Auth and account shell | `/`, `/sign-in`, `/auth/callback`, `/access-not-approved`, `/account-unavailable`, `/onboarding`, `/admin` | `auth_shell.html` -> `auth-page.mjs` -> `auth-controller.mjs` / `auth-runtime.mjs`; `/admin` additionally loads `auth-admin.mjs` | Supabase Google/PKCE plus server-authoritative `/api/v1/me` | May be restyled, but preserve every route outcome, redirect allowlist, no-private-flash rule, and logout cleanup. |
-| Authenticated product | `/app` | `product_shell.html` -> `app-auth-bootstrap.mjs` -> built `frontend/` bundle; legacy `app.js` is the fallback/legacy shell | Attached bearer session; owner/admin server authorization | This is the normal-user redesign target. Keep the bootstrap seam and three-stage boundary. |
+| Authenticated product | `/app` | `product_shell.html` -> `app-auth-bootstrap.mjs` -> built `frontend/` bundle; legacy `app.js` is the fallback/legacy shell | Attached bearer session; owner/admin server authorization | This is the normal-user redesign target. Keep the bootstrap seam and four-stage boundary through Build Preparation. |
 | Detached product/developer shell | Detached `/app` plus `/dev` when configured | Detached `/app` uses `pipeline-bootstrap.mjs`; `/dev` uses the developer branch of `app-auth-bootstrap.mjs` and the same compatible product bundle | Anonymous same-origin requests in configured detached mode | Keep detached behavior isolated. Never use it to justify weakening attached auth. |
 | Build Preparation diagnostic | `/dev/build-preparation-fixture`, `/build-preparation-fixture`, and `/.../progress` | Jinja shell plus `build-preparation-fixture.js` / `build-preparation-progress.js` | Feature/config gated; detached or admin depending on mode | Preserve as an operational diagnostic. Do not fold it into normal `/app` accidentally. |
 | Code Generator development control room | `/dev/code-generator-development`, `/code-generator-development` | Jinja shell plus `code-generator-development.js` and controller/bootstrap modules | Development harness mode; attached admin or detached according to config | Preserve its durable run/plan/acquire/generate/verify/preview controls separately from creator UX. |
 | Generated preview | Exposed by Code Generator/preview gateway, not a normal `/app` screen in the current release | Generated-site runtime and, in the development harness, a sandboxed iframe | Verified promoted artifact only | Never show an unpromoted candidate or treat Preview as public publishing. |
 
-The current normal product ends at approved Visual Design Direction. Build
-Preparation and Code Generator are implemented backend/development capabilities,
-but their controls must remain outside normal `/app` until a separate release
+The current normal product ends at a ready Build Preparation handoff. Build
+Preparation's controls are integrated in `/app` only after approved Content and
+Design; Code Generator and Preview remain implemented backend/development
+capabilities whose controls stay outside normal `/app` until a separate release
 decision adds them.
 
 ## What the redesign may change

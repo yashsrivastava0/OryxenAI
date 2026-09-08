@@ -4,6 +4,7 @@ import { ArtifactSurface, type ArtifactSectionItem } from "../../components/Arti
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { CompletionPanel } from "../../components/CompletionPanel";
+import { HandoffPanel } from "../../components/HandoffPanel";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
 
@@ -13,6 +14,7 @@ export interface DesignStageProps {
   onStart: () => Promise<void>;
   onApprove: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
+  onContinueToPreparation: () => void | Promise<void>;
   onStop?: () => Promise<void>;
   inFlight?: boolean;
 }
@@ -23,6 +25,7 @@ export function DesignStage({
   onStart,
   onApprove,
   onRevise,
+  onContinueToPreparation,
   onStop,
   inFlight = false,
 }: DesignStageProps) {
@@ -85,6 +88,7 @@ export function DesignStage({
         preservedWorkNote="Your approved Content Plan remains safe."
         retryLabel="Retry Visual Design Director"
         onRetry={onStart}
+        errorDetails={view.safeError ?? undefined}
       />
     );
   }
@@ -164,7 +168,17 @@ export function DesignStage({
       />
 
       {isApproved && (
-        <CompletionPanel />
+        <>
+          <CompletionPanel />
+          <HandoffPanel
+            completedStageName="Visual Direction"
+            nextStageName="Build Preparation"
+            summary="Your approved visual direction is saved. Build Preparation will bind it to the approved content scope and write the generator-ready briefs."
+            nextDescription="Compile the approved narrative and visual systems into two hash-checked Markdown briefs. This handoff prepares the build without starting code generation."
+            actionLabel="Continue to Prepare"
+            onContinue={onContinueToPreparation}
+          />
+        </>
       )}
     </div>
   );
