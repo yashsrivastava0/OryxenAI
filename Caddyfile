@@ -1,0 +1,21 @@
+# Template for /etc/caddy/Caddyfile on the Azure VM -- matches
+# docs/deployment/02-azure-vm-runbook.md §8 exactly. Caddy runs natively on
+# the VM (installed in §2, not a Docker container) and reverse-proxies to
+# the app/preview-gateway containers' published host ports.
+#
+# Replace <DOMAIN> below, then:
+#   sudo cp Caddyfile /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Caddy requests and renews its own certificates automatically (Let's
+# Encrypt) once both hostnames' DNS A records point at this VM's public
+# IPv4 and ports 80/443 are reachable.
+
+app.<DOMAIN> {
+	reverse_proxy 127.0.0.1:8000
+}
+
+preview.<DOMAIN> {
+	reverse_proxy 127.0.0.1:4174
+}

@@ -155,9 +155,10 @@ do not guess a model name or provider key name.
 ## 5. Create the production TOML overlay
 
 The checked-in `config/app.docker.toml` is Docker-shaped but still contains
-localhost preview values and disables final Code Generator verification. Create
-an uncommitted VM-local file at `config/app.production.toml` with this content,
-replacing the domain and R2 values:
+localhost preview values and disables final Code Generator verification.
+`config/app.production.toml` is checked into the repository with exactly
+this content already — edit the cloned copy on the VM (do not commit
+account-specific values back) and replace the domain and R2 placeholders:
 
 ```toml
 [app]
@@ -206,12 +207,13 @@ preview_public_readback_required = true
 ```
 
 This file is deployment configuration, not a secret store. Keep real
-credentials in `.env`; do not commit this VM-local file if it contains
-account-specific values.
+credentials in `.env`; edit the placeholders locally on the VM and never
+commit the account-specific values back to the repository.
 
 ## 6. Make Compose use the production overlay
 
-Create an uncommitted `compose.production.yaml` on the VM:
+`compose.production.yaml` is also checked into the repository with exactly
+this content already — no VM-local file to create:
 
 ```yaml
 services:
@@ -264,7 +266,9 @@ docker compose -f compose.yaml -f compose.production.yaml \
 
 ## 8. Configure Caddy
 
-Edit `/etc/caddy/Caddyfile`:
+The repository's checked-in `Caddyfile` at the repo root already has exactly
+this content — replace its `<DOMAIN>` placeholders on the cloned copy, then
+copy it into place instead of hand-editing `/etc/caddy/Caddyfile` directly:
 
 ```caddyfile
 app.<DOMAIN> {
@@ -274,6 +278,10 @@ app.<DOMAIN> {
 preview.<DOMAIN> {
     reverse_proxy 127.0.0.1:4174
 }
+```
+
+```bash
+sudo cp Caddyfile /etc/caddy/Caddyfile
 ```
 
 Validate and reload:
