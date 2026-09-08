@@ -37,6 +37,7 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     build_dependency_ledger,
     detect_supported_import_dependencies,
+    detect_unsupported_import_dependencies,
 )
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_input import (
@@ -58,6 +59,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationResult,
     GenerationWorkUnitProjection,
     IntegrationReviewV1,
+    LocalMaterialFile,
     PlanDelta,
     QualityReviewDraftV1,
     ResourceBinding,
@@ -69,6 +71,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SourceDiagnostic,
     SourceGenerationEnvelopeV2,
     WorkUnit,
+)
+from oryxenai.agents.code_generator.core.finding_policy import (
+    has_blocking_findings,
+    normalize_findings,
 )
 from oryxenai.agents.code_generator.core.generation_contract import build_generation_contract
 from oryxenai.agents.code_generator.core.generation_prompt_builder import (
@@ -146,6 +152,14 @@ class GenerationError(ValueError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+class _OptionalComponentFallback(Exception):
+    """Internal control flow for an optional unusable component candidate."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
 
 
 def _reset_generation_attempt_projection(projection: GenerationProjection) -> None:
@@ -2026,6 +2040,51 @@ class CodeGeneratorGenerationOrchestrator:
                     candidate = next(
                         item for item in candidates if item.candidate_id == candidate_id
                     )
+                    # A component is copied into the generated source only
+                    # when every bare package import is already in the
+                    # scaffold or in the configured supported-package set.
+                    # Optional components get their declared semantic fallback
+                    # before any source is copied; required components fail
+                    # closed with an operationally actionable diagnostic.
+                    configured_supported = set(
+                        getattr(settings.code_generator_dependencies, "supported_packages", {})
+                    )
+                    scaffold_manifest = _read_json(workspace.repo_dir / "package.json")
+                    scaffold_packages = {
+                        *dict(scaffold_manifest.get("dependencies", {})),
+                        *dict(scaffold_manifest.get("devDependencies", {})),
+                    }
+                    declared_dependencies = set(candidate.dependency_metadata)
+                    unsupported_declared = declared_dependencies - (
+                        scaffold_packages | configured_supported
+                    )
+                    if unsupported_declared:
+                        reason = (
+                            "The selected component requires unsupported package imports: "
+                            + ", ".join(sorted(unsupported_declared)[:8])
+                        )
+                        if request.requiredness == "required" and request.fallback.kind == "none":
+                            raise GenerationError("COMPONENT_DEPENDENCY_UNSUPPORTED", reason)
+                        receipt = _fallback_receipt(request, reason)
+                        receipts.append(receipt)
+                        binding = ResourceBinding(
+                            binding_id=f"binding-{request.request_hash[:20]}",
+                            request_id_or_pack_need_id=request.request_hash,
+                            local_paths=[],
+                            placement_ids=[request.placement.purpose],
+                            disposition="fallback",
+                        )
+                        bindings.append(binding)
+                        delta = PlanDelta(
+                            delta_id=f"delta-{binding.binding_id}",
+                            based_on_plan_hash=str(
+                                (run.planner_receipt or {}).get("plan_hash", "")
+                            ),
+                            binding_changes=[binding],
+                        )
+                        validate_plan_delta(delta, plan=plan)
+                        deltas.append(delta)
+                        continue
                     intended_paths = _intended_paths_for_candidate(
                         projections.get("execution/contract.json", {}), candidate
                     )
@@ -2062,7 +2121,7 @@ class CodeGeneratorGenerationOrchestrator:
                     # explicitly planned component with an executable local
                     # destination remains materializable; only an unbound
                     # suggestion is reference-only.
-                    receipt_files = []
+                    receipt_files: list[LocalMaterialFile] = []
                     detected_dependency_names: set[str] = set()
                     supported_packages = set(
                         getattr(settings.code_generator_dependencies, "supported_packages", {})
@@ -2070,7 +2129,7 @@ class CodeGeneratorGenerationOrchestrator:
                     if not component_reference_only:
                         for materialized in materialized_files:
                             source_file = materials_root / materialized.local_path
-                            if request.category == "component_source" and supported_packages:
+                            if request.category == "component_source":
                                 # See dependency_manager.detect_supported_import_
                                 # dependencies' docstring: a pinned component's
                                 # declared dependencies are rarely captured in
@@ -2084,6 +2143,28 @@ class CodeGeneratorGenerationOrchestrator:
                                 detected_dependency_names |= detect_supported_import_dependencies(
                                     text, supported_packages
                                 )
+                                unsupported_imports = detect_unsupported_import_dependencies(
+                                    text,
+                                    installed_packages=scaffold_packages,
+                                    supported_packages=supported_packages,
+                                )
+                                if unsupported_imports:
+                                    reason = (
+                                        "The selected component imports unsupported packages: "
+                                        + ", ".join(sorted(unsupported_imports)[:8])
+                                    )
+                                    if (
+                                        request.requiredness == "required"
+                                        and request.fallback.kind == "none"
+                                    ):
+                                        raise GenerationError(
+                                            "COMPONENT_DEPENDENCY_UNSUPPORTED", reason
+                                        )
+                                    # Do not materialize an unusable file into
+                                    # the generated tree.  The outer request is
+                                    # converted to the approved fallback below.
+                                    receipt_files = []
+                                    raise _OptionalComponentFallback(reason)
                             local_name = (
                                 f"{materialized.sha256}{Path(materialized.local_path).suffix}"
                             )
@@ -2171,6 +2252,8 @@ class CodeGeneratorGenerationOrchestrator:
                             if dep_receipt.decision == "admitted":
                                 prior_manifest = _read_json(repo_dir / "package.json")
                                 prior_lock = _read_json(repo_dir / "package-lock.json")
+            except _OptionalComponentFallback as exc:
+                receipt = _fallback_receipt(request, exc.reason)
             except (ResourceProviderError, AcquisitionValidationError) as exc:
                 if request.requiredness == "required" and request.fallback.kind == "none":
                     raise GenerationError(
@@ -3679,13 +3762,7 @@ def _context_uses_v4_contract(context: dict[str, Any]) -> bool:
 def _review_accepted(review: IntegrationReviewV1 | QualityReviewDraftV1) -> bool:
     if isinstance(review, IntegrationReviewV1):
         return review.status == "accepted"
-    return min(
-        review.hierarchy_score,
-        review.composition_score,
-        review.typography_score,
-        review.resource_fit_score,
-        review.motion_score,
-    ) >= 4 and not any(item.severity == "blocking" for item in review.findings)
+    return not has_blocking_findings(normalize_findings(list(review.findings)))
 
 
 def _canonicalize_review_owners(

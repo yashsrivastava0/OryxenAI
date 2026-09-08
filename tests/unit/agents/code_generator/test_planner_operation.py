@@ -5,7 +5,9 @@ import pytest
 import oryxenai.agents.code_generator.core.planner_operation as planner_operation
 from oryxenai.agents.code_generator.core.development_planner import SitePlanValidationError
 from oryxenai.agents.code_generator.core.planner_operation import (
+    _canonicalize_v4_blueprint_identities,
     _canonicalize_v4_distinctive_move_ratios,
+    _canonicalize_v4_reserved_color_tokens,
     _canonicalize_v4_typography_bindings,
     run_planner_operation,
 )
@@ -26,7 +28,7 @@ class _RetryingPlanner:
 async def test_planner_retries_structural_output_once() -> None:
     planner = _RetryingPlanner()
 
-    plan, _prompt_version, _receipt, _result = await run_planner_operation(
+    plan, _prompt_version, _receipt, result = await run_planner_operation(
         planner,  # type: ignore[arg-type]
         context={"input_hashes": [], "owned_paths": []},
         profile_name="code_generator_planner",
@@ -36,14 +38,15 @@ async def test_planner_retries_structural_output_once() -> None:
     assert len(planner.calls) == 2
     assert "previous planner response" in planner.calls[1]
     assert "plan_id" in planner.calls[1]
+    diagnostics = result.telemetry["planner_attempt_diagnostics"]
+    assert [item["attempt"] for item in diagnostics] == [1, 2]
+    assert diagnostics[0]["accepted"] is False
+    assert diagnostics[1]["accepted"] is True
 
 
 class _TwiceFailingPlanner:
     """Fails structural validation on its first two calls, succeeds on the
-    third -- regression test for the 2026-09-05 live-observed pattern where
-    a single corrective retry did not always land the fixed-vocabulary
-    color-collision check, even with the exact colliding tokens named in
-    the feedback."""
+    third when a caller explicitly opts into the larger compatibility budget."""
 
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -56,13 +59,14 @@ class _TwiceFailingPlanner:
 
 
 @pytest.mark.asyncio
-async def test_planner_gets_a_third_attempt_after_two_structural_failures() -> None:
+async def test_planner_can_opt_into_a_third_attempt_after_two_failures() -> None:
     planner = _TwiceFailingPlanner()
 
     plan, _prompt_version, _receipt, _result = await run_planner_operation(
         planner,  # type: ignore[arg-type]
         context={"input_hashes": [], "owned_paths": []},
         profile_name="code_generator_planner",
+        max_attempts=3,
     )
 
     assert plan.plan_id == "plan-third-try"
@@ -70,7 +74,7 @@ async def test_planner_gets_a_third_attempt_after_two_structural_failures() -> N
 
 
 @pytest.mark.asyncio
-async def test_planner_raises_after_exhausting_three_attempts() -> None:
+async def test_planner_raises_after_exhausting_two_attempts() -> None:
     class _AlwaysFailingPlanner:
         def __init__(self) -> None:
             self.calls: list[str] = []
@@ -81,14 +85,16 @@ async def test_planner_raises_after_exhausting_three_attempts() -> None:
 
     planner = _AlwaysFailingPlanner()
 
-    with pytest.raises(planner_operation.PlannerOperationError):
+    with pytest.raises(planner_operation.PlannerOperationError) as caught:
         await run_planner_operation(
             planner,  # type: ignore[arg-type]
             context={"input_hashes": [], "owned_paths": []},
             profile_name="code_generator_planner",
         )
 
-    assert len(planner.calls) == 3
+    assert len(planner.calls) == 2
+    assert len(caught.value.attempt_diagnostics) == 2
+    assert all(item["error_code"] == "PLANNER_OUTPUT_INVALID" for item in caught.value.attempt_diagnostics)
 
 
 @pytest.mark.asyncio
@@ -229,3 +235,71 @@ def test_v4_typography_canonicalization_uses_deferred_font_binding() -> None:
         role["local_files"]
         == projections["execution/contract.json"]["slots"][0]["resolution"]["local_paths"]
     )
+
+
+def test_v4_identity_canonicalization_rebinds_known_regions_and_moves() -> None:
+    payload = {
+        "section_regions": [
+            {
+                "route_id": "home",
+                "section_id": "home:hero",
+                "region_id": "provider-invented-region",
+                "owner_id": "provider-invented-owner",
+                "section_selector": "#wrong",
+                "region_selector": "[data-wrong]",
+            }
+        ],
+        "distinctive_moves": [
+            {
+                "route_id": "home",
+                "section_id": "home:hero",
+                "region_id": "provider-invented-region",
+            }
+        ],
+    }
+    context = {
+        "blueprint_identity_manifest": [
+            {
+                "route_id": "home",
+                "section_id": "home:hero",
+                "region_id": "region:home:home:hero",
+                "owner_id": "owner:home:home:hero",
+            }
+        ],
+        "blueprint_selector_manifest": [
+            {
+                "route_id": "home",
+                "section_id": "home:hero",
+                "section_selector": "#home-hero",
+                "region_selector": '[data-region-id="region:home:home:hero"]',
+            }
+        ],
+    }
+
+    canonical = _canonicalize_v4_blueprint_identities(payload, context)
+
+    region = canonical["section_regions"][0]
+    assert region["region_id"] == "region:home:home:hero"
+    assert region["owner_id"] == "owner:home:home:hero"
+    assert region["section_selector"] == "#home-hero"
+    assert canonical["distinctive_moves"][0]["region_id"] == "region:home:home:hero"
+
+
+def test_v4_reserved_color_canonicalization_preserves_binding_value() -> None:
+    payload = {
+        "tokens": {
+            "colors": [
+                {"name": "accent", "value": "#ff6b35"},
+                {"name": "ink", "value": "#111111"},
+            ],
+            "shadcn_theme_bindings": {"accent": "accent", "foreground": "ink"},
+            "borders": [{"name": "hairline", "color_token": "accent"}],
+            "shadows": [],
+        }
+    }
+
+    canonical = _canonicalize_v4_reserved_color_tokens(payload)
+
+    assert canonical["tokens"]["colors"][0]["name"] == "palette-accent"
+    assert canonical["tokens"]["shadcn_theme_bindings"]["accent"] == "palette-accent"
+    assert canonical["tokens"]["borders"][0]["color_token"] == "palette-accent"  # noqa: S105

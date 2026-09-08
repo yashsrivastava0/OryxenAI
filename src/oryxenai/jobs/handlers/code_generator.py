@@ -62,6 +62,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     GenerationContextReceipt,
     PlanDelta,
+    PlannerAttemptDiagnostic,
     PlannerCallReceipt,
     RequestBasis,
     RequestOrigin,
@@ -215,6 +216,79 @@ def _planner_failure_issue(exc: Exception) -> SafeIssue:
         ),
         details=details,
     )
+
+
+def _planner_attempt_records(result: Any) -> list[dict[str, Any]]:
+    telemetry = getattr(result, "telemetry", {})
+    raw = telemetry.get("planner_attempt_diagnostics", []) if isinstance(telemetry, dict) else []
+    return [dict(item) for item in raw if isinstance(item, dict)]
+
+
+def _write_planner_attempt_artifact(
+    settings: Any,
+    run_id: UUID,
+    records: list[dict[str, Any]],
+) -> str:
+    """Persist planner response JSON in the restricted input workspace."""
+
+    if not records:
+        return ""
+    from oryxenai.agents.code_generator.core import fs_safe
+
+    configured_root = Path(settings.code_generator_development.input_root)
+    root = (
+        configured_root
+        if configured_root.is_absolute()
+        else (repository_root() / configured_root).resolve()
+    )
+    payload = {
+        "schema_version": "code-generator-planner-diagnostics-v1",
+        "run_id": str(run_id),
+        "attempts": records,
+    }
+    data = canonical_json(payload)
+    digest = hashlib.sha256(data).hexdigest()
+    relative = Path("diagnostics") / "planner" / f"{run_id}-{digest[:20]}.json"
+    target = (root / relative).resolve()
+    if not target.is_relative_to(root):
+        raise RuntimeError("planner diagnostic artifact path is unsafe")
+    fs_safe.write_text_atomic(target, data.decode("utf-8"))
+    if target.read_bytes() != data:
+        raise RuntimeError("planner diagnostic artifact read-back failed")
+    return relative.as_posix()
+
+
+def _public_planner_attempts(
+    records: list[dict[str, Any]], artifact_path: str
+) -> list[PlannerAttemptDiagnostic]:
+    """Strip restricted response bodies before receipt persistence."""
+
+    public: list[PlannerAttemptDiagnostic] = []
+    for raw in records:
+        values = {key: value for key, value in raw.items() if not key.startswith("_")}
+        if "_response_payload" in raw:
+            values["response_artifact_path"] = artifact_path
+        try:
+            public.append(PlannerAttemptDiagnostic.model_validate(values))
+        except ValidationError:
+            # Telemetry must never make an otherwise valid plan fail to persist.
+            continue
+    return public
+
+
+def _planner_issue_with_artifact(settings: Any, run_id: UUID, exc: Exception) -> SafeIssue:
+    records = [dict(item) for item in getattr(exc, "attempt_diagnostics", []) if isinstance(item, dict)]
+    try:
+        artifact_path = _write_planner_attempt_artifact(settings, run_id, records)
+    except Exception:
+        logger.warning("planner diagnostics artifact could not be written run_id=%s", run_id, exc_info=True)
+        artifact_path = ""
+    issue = _planner_failure_issue(exc)
+    if records:
+        issue.details["attempt_count"] = len(records)
+    if artifact_path:
+        issue.details["diagnostic_artifact_path"] = artifact_path
+    return issue
 
 
 class CodeGeneratorPlanningHandler:
@@ -503,9 +577,10 @@ async def _execute(
             max_sections_per_unit=int(settings.code_generator_generation.max_route_batch_sections),
             require_blueprint=require_blueprint,
             pipeline_contract_version=pipeline_contract_version,
+            max_attempts=int(settings.code_generator_development.planner_max_attempts),
         )
     except Exception as exc:
-        issue = _planner_failure_issue(exc)
+        issue = _planner_issue_with_artifact(settings, run_id, exc)
         await _needs_attention(sessionmaker, run_id, issue)
         return {"status": "needs_attention", "run_id": str(run_id), "code": issue.code}
 
@@ -589,6 +664,7 @@ async def _execute(
                     ),
                     require_blueprint=True,
                     pipeline_contract_version=pipeline_contract_version,
+                    max_attempts=int(settings.code_generator_development.planner_max_attempts),
                 )
                 planner_attempt = 2
                 if not isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
@@ -628,11 +704,24 @@ async def _execute(
                     }
                 )
             except Exception as exc:
-                issue = _planner_failure_issue(exc)
+                issue = _planner_issue_with_artifact(settings, run_id, exc)
                 await _needs_attention(sessionmaker, run_id, issue)
                 return {"status": "needs_attention", "run_id": str(run_id), "code": issue.code}
         creative_payload["design_fingerprint"] = design_fingerprint.model_dump(mode="json")
 
+    planner_attempt_records = _planner_attempt_records(result)
+    try:
+        planner_diagnostic_artifact = _write_planner_attempt_artifact(
+            settings, run_id, planner_attempt_records
+        )
+    except Exception:
+        logger.warning("planner diagnostics artifact could not be written run_id=%s", run_id, exc_info=True)
+        planner_diagnostic_artifact = ""
+    planner_attempt_receipts = _public_planner_attempts(
+        planner_attempt_records, planner_diagnostic_artifact
+    )
+    if planner_attempt_records:
+        planner_attempt = max(int(item.get("attempt", 1)) for item in planner_attempt_records)
     plan_digest = hashlib.sha256(canonical_json(plan.model_dump(mode="json"))).hexdigest()
     usage = {
         str(key): int(value)
@@ -655,6 +744,8 @@ async def _execute(
             for key in ("cached_tokens", "cache_read_input_tokens", "prompt_cache_hit_tokens")
         ),
         prompt_receipt=prompt_receipt.model_dump(mode="json"),
+        diagnostic_artifact_path=planner_diagnostic_artifact,
+        attempt_diagnostics=planner_attempt_receipts,
     )
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)

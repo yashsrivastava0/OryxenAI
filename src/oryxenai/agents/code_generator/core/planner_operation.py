@@ -10,17 +10,21 @@ projections are supplied) full host-side plan validation.  The legacy
 
 from __future__ import annotations
 
+import hashlib
 import math
+import time
 from typing import Any
 
 from pydantic import ValidationError
 
 from oryxenai.agents.code_generator.core.blueprint_compiler import compile_blueprint_site_plan
 from oryxenai.agents.code_generator.core.development_planner import (
+    canonical_json,
     validate_site_plan,
     validate_v4_blueprint_identities,
 )
 from oryxenai.agents.code_generator.core.development_schemas import (
+    SHADCN_THEME_SLOTS,
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
     SitePlan,
@@ -73,9 +77,16 @@ def _canonicalize_work_graph(plan: SitePlan) -> SitePlan:
 class PlannerOperationError(ValueError):
     """A safe, code-carrying failure of the structured planner call."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        attempt_diagnostics: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.code = code
         self.message = message
+        self.attempt_diagnostics = list(attempt_diagnostics or [])
         super().__init__(message)
 
 
@@ -89,6 +100,7 @@ async def run_planner_operation(
     max_sections_per_unit: int = 3,
     require_blueprint: bool = False,
     pipeline_contract_version: str = "code-generator-v3",
+    max_attempts: int = 2,
 ) -> tuple[SitePlan, str, Any, Any]:
     """Run the structured planner call.
 
@@ -123,15 +135,13 @@ async def run_planner_operation(
     last_issue = ""
     result: Any = None
     plan: SitePlan | None = None
-    # 3 attempts, not 2: live-observed 2026-09-05 (three separate runs) that a
-    # single corrective retry does not always land the fixed-vocabulary/color
-    # collision check (development_schemas.py's shadcn_theme_bindings
-    # validator) on the second try, even though the safe validator summary
-    # already names the exact colliding tokens. Still bounded and cheap --
-    # this only costs an extra planner-stage call, never touches the more
-    # expensive acquire/generate/verify stages.
-    max_attempts = 3
-    for attempt in range(max_attempts):
+    attempt_diagnostics: list[dict[str, Any]] = []
+    expected_identity_ids = _expected_identity_ids(context)
+    # One initial call and one evidence-backed correction is the default.  A
+    # caller may lower this for a dry-run, but no caller can accidentally turn
+    # a malformed planner response into an unbounded paid loop.
+    attempts = max(1, int(max_attempts))
+    for attempt in range(attempts):
         call_instructions = instructions
         if last_issue:
             call_instructions += (
@@ -144,6 +154,8 @@ async def run_planner_operation(
                 f"{last_issue}. Do not omit required fields, use null for required "
                 "values, or include commentary."
             )
+        result = None
+        started_at = time.perf_counter()
         try:
             result = await planner.generate_structured(
                 operation=PLANNER_OPERATION,
@@ -157,9 +169,52 @@ async def run_planner_operation(
             )
         except (ModelJsonInvalidError, ModelOutputTruncatedError) as exc:
             last_issue = _safe_planner_issue(exc)
-            if attempt < max_attempts - 1:
+            attempt_diagnostics.append(
+                _planner_attempt_record(
+                    attempt=attempt + 1,
+                    context_hash=receipt.context_hash,
+                    prompt_version=prompt_version,
+                    result=None,
+                    duration_ms=(time.perf_counter() - started_at) * 1000.0,
+                    error_code="PLANNER_OUTPUT_INVALID",
+                    error_summary=last_issue,
+                    expected_identity_ids=expected_identity_ids,
+                )
+            )
+            if attempt < attempts - 1:
                 continue
-            raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
+            raise PlannerOperationError(
+                "PLANNER_OUTPUT_INVALID",
+                last_issue,
+                attempt_diagnostics=attempt_diagnostics,
+            ) from exc
+        except Exception as exc:
+            last_issue = _safe_planner_issue(exc)
+            attempt_diagnostics.append(
+                _planner_attempt_record(
+                    attempt=attempt + 1,
+                    context_hash=receipt.context_hash,
+                    prompt_version=prompt_version,
+                    result=None,
+                    duration_ms=(time.perf_counter() - started_at) * 1000.0,
+                    error_code=type(exc).__name__,
+                    error_summary=last_issue,
+                    expected_identity_ids=expected_identity_ids,
+                )
+            )
+            if hasattr(exc, "__dict__"):
+                exc.__dict__["attempt_diagnostics"] = list(attempt_diagnostics)
+            raise
+
+        attempt_record = _planner_attempt_record(
+            attempt=attempt + 1,
+            context_hash=receipt.context_hash,
+            prompt_version=prompt_version,
+            result=result,
+            duration_ms=(time.perf_counter() - started_at) * 1000.0,
+            expected_identity_ids=expected_identity_ids,
+        )
+        attempt_diagnostics.append(attempt_record)
 
         parsed = getattr(result, "parsed_output", result)
         if uses_v4:
@@ -174,6 +229,8 @@ async def run_planner_operation(
             # being rejected on a cosmetic numeric boundary.
             parsed = _canonicalize_v4_distinctive_move_ratios(parsed)
             parsed = _canonicalize_v4_typography_bindings(parsed, projections)
+            parsed = _canonicalize_v4_blueprint_identities(parsed, context)
+            parsed = _canonicalize_v4_reserved_color_tokens(parsed)
         try:
             if uses_v4:
                 blueprint = ExperienceBlueprintV4.model_validate(parsed)
@@ -196,13 +253,25 @@ async def run_planner_operation(
                 if isinstance(exc, ValidationError)
                 else str(exc)[:500]
             )
-            if attempt < max_attempts - 1:
+            if attempt < attempts - 1:
+                _mark_planner_attempt_failure(attempt_record, "PLANNER_OUTPUT_INVALID", last_issue)
                 continue
-            raise PlannerOperationError("PLANNER_OUTPUT_INVALID", last_issue) from exc
+            _mark_planner_attempt_failure(attempt_record, "PLANNER_OUTPUT_INVALID", last_issue)
+            raise PlannerOperationError(
+                "PLANNER_OUTPUT_INVALID",
+                last_issue,
+                attempt_diagnostics=attempt_diagnostics,
+            ) from exc
         if plan is None:
+            _mark_planner_attempt_failure(
+                attempt_record,
+                "PLANNER_OUTPUT_INVALID",
+                last_issue or "The planner output failed SitePlan schema validation.",
+            )
             raise PlannerOperationError(
                 "PLANNER_OUTPUT_INVALID",
                 last_issue or "The planner output failed SitePlan schema validation.",
+                attempt_diagnostics=attempt_diagnostics,
             )
         if projections is not None:
             try:
@@ -238,8 +307,10 @@ async def run_planner_operation(
                 )
             except PlannerOperationError as exc:
                 last_issue = _safe_semantic_issue(exc)
-                if attempt < max_attempts - 1:
+                _mark_planner_attempt_failure(attempt_record, exc.code, last_issue)
+                if attempt < attempts - 1:
                     continue
+                exc.attempt_diagnostics = list(attempt_diagnostics)
                 raise
             except Exception as exc:
                 code = str(getattr(exc, "code", "") or "PLANNER_PLAN_INVALID")
@@ -253,16 +324,271 @@ async def run_planner_operation(
                     message,
                 )
                 last_issue = _safe_semantic_issue(semantic_error)
-                if attempt < max_attempts - 1:
+                _mark_planner_attempt_failure(attempt_record, code, last_issue)
+                if attempt < attempts - 1:
                     continue
+                semantic_error.attempt_diagnostics = list(attempt_diagnostics)
                 raise semantic_error from exc
         else:
             plan = _canonicalize_work_graph(plan)
+        attempt_record["accepted"] = True
+        _attach_planner_telemetry(result, attempt_diagnostics)
         return plan, prompt_version, receipt, result
     raise PlannerOperationError(
         "PLANNER_OUTPUT_INVALID",
         last_issue or "The planner output failed SitePlan validation.",
+        attempt_diagnostics=attempt_diagnostics,
     )
+
+
+def _expected_identity_ids(context: dict[str, Any]) -> list[str]:
+    manifest = context.get("blueprint_identity_manifest")
+    if not isinstance(manifest, list):
+        return []
+    return sorted(
+        {
+            str(item.get("region_id", "")).strip()
+            for item in manifest
+            if isinstance(item, dict) and str(item.get("region_id", "")).strip()
+        }
+    )[:128]
+
+
+def _planner_attempt_record(
+    *,
+    attempt: int,
+    context_hash: str,
+    prompt_version: str,
+    result: Any,
+    duration_ms: float,
+    error_code: str = "",
+    error_summary: str = "",
+    expected_identity_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    usage = {
+        str(key): int(value)
+        for key, value in dict(getattr(result, "usage", {}) or {}).items()
+        if isinstance(value, int) and not isinstance(value, bool)
+    }
+    payload = getattr(result, "parsed_output", None)
+    record: dict[str, Any] = {
+        "operation": PLANNER_OPERATION,
+        "attempt": attempt,
+        "context_hash": context_hash,
+        "prompt_version": prompt_version,
+        "response_id": str(getattr(result, "response_id", "") or ""),
+        "model": str(getattr(result, "model", "") or ""),
+        "usage": usage,
+        "finish_reason": str(getattr(result, "finish_reason", "") or ""),
+        "duration_ms": round(max(0.0, duration_ms), 3),
+        "accepted": False,
+        "error_code": error_code,
+        "error_summary": error_summary[:500],
+        "failure_field": error_summary.split(":", 1)[0][:120] if ":" in error_summary else "",
+        "offending_id": "",
+        "expected_identity_ids": list(expected_identity_ids or []),
+    }
+    if isinstance(payload, dict):
+        record["response_payload_hash"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+        # Kept only for the restricted diagnostic artifact writer.  This key
+        # is removed before the receipt is persisted or exposed to clients.
+        record["_response_payload"] = payload
+    return record
+
+
+def _mark_planner_attempt_failure(record: dict[str, Any], code: str, summary: str) -> None:
+    record.update(
+        {
+            "error_code": code[:120],
+            "error_summary": summary[:500],
+            "failure_field": summary.split(":", 1)[0][:120] if ":" in summary else "",
+        }
+    )
+
+
+def _attach_planner_telemetry(result: Any, diagnostics: list[dict[str, Any]]) -> None:
+    safe_copy = [dict(item) for item in diagnostics]
+    telemetry = getattr(result, "telemetry", None)
+    if isinstance(telemetry, dict):
+        telemetry["planner_attempt_diagnostics"] = safe_copy
+        return
+    try:
+        result.telemetry = {"planner_attempt_diagnostics": safe_copy}
+    except Exception:
+        # Test doubles may expose an immutable result object. The validated
+        # plan remains usable; the handler still records the final receipt.
+        return
+
+
+def _canonicalize_v4_blueprint_identities(parsed: Any, context: dict[str, Any]) -> Any:
+    """Rebind model aliases to the host-owned route/section identity map.
+
+    The model still chooses composition, ranges, and selectors.  It does not
+    own the IDs that connect those choices to approved content, however.  A
+    known, unique ``(route_id, section_id)`` pair therefore gets the exact
+    region/owner/section-selector values from the manifest *before* Pydantic's
+    cross-reference validator runs.  Unknown pairs are intentionally left
+    untouched so the normal validator reports a precise scope error rather
+    than silently inventing a section.
+    """
+
+    if not isinstance(parsed, dict):
+        return parsed
+    raw_manifest = context.get("blueprint_identity_manifest")
+    if not isinstance(raw_manifest, list):
+        return parsed
+    identities: dict[tuple[str, str], dict[str, str]] = {}
+    ambiguous: set[tuple[str, str]] = set()
+    for raw in raw_manifest:
+        if not isinstance(raw, dict):
+            continue
+        key = (str(raw.get("route_id", "")).strip(), str(raw.get("section_id", "")).strip())
+        if not all(key):
+            continue
+        if key in identities:
+            ambiguous.add(key)
+        else:
+            identities[key] = {
+                "region_id": str(raw.get("region_id", "")).strip(),
+                "owner_id": str(raw.get("owner_id", "")).strip(),
+            }
+    for key in ambiguous:
+        identities.pop(key, None)
+
+    selector_manifest: dict[tuple[str, str], dict[str, str]] = {}
+    raw_selectors = context.get("blueprint_selector_manifest")
+    if isinstance(raw_selectors, list):
+        for raw in raw_selectors:
+            if not isinstance(raw, dict):
+                continue
+            key = (str(raw.get("route_id", "")).strip(), str(raw.get("section_id", "")).strip())
+            if key in identities and key not in selector_manifest:
+                selector_manifest[key] = {
+                    name: str(raw.get(name, "")).strip()
+                    for name in ("section_selector", "region_selector")
+                    if str(raw.get(name, "")).strip()
+                }
+
+    changed = False
+    result = dict(parsed)
+    raw_regions = parsed.get("section_regions", parsed.get("regions"))
+    if isinstance(raw_regions, list):
+        regions: list[Any] = []
+        for raw_region in raw_regions:
+            if not isinstance(raw_region, dict):
+                regions.append(raw_region)
+                continue
+            route_id = str(raw_region.get("route_id", "")).strip()
+            section_id = str(raw_region.get("section_id", "")).strip()
+            identity = identities.get((route_id, section_id))
+            if identity is None:
+                regions.append(raw_region)
+                continue
+            updated = dict(raw_region)
+            for name in ("region_id", "owner_id"):
+                value = identity.get(name, "")
+                if value and updated.get(name) != value:
+                    updated[name] = value
+                    changed = True
+            for name, value in selector_manifest.get((route_id, section_id), {}).items():
+                if updated.get(name) != value:
+                    updated[name] = value
+                    changed = True
+            regions.append(updated)
+        if changed or "section_regions" in parsed:
+            result["section_regions"] = regions
+        elif "regions" in parsed:
+            result["regions"] = regions
+
+    raw_moves = parsed.get("distinctive_moves")
+    if isinstance(raw_moves, list):
+        moves: list[Any] = []
+        for raw_move in raw_moves:
+            if not isinstance(raw_move, dict):
+                moves.append(raw_move)
+                continue
+            key = (
+                str(raw_move.get("route_id", "")).strip(),
+                str(raw_move.get("section_id", "")).strip(),
+            )
+            identity = identities.get(key)
+            if identity is None or raw_move.get("region_id") == identity.get("region_id"):
+                moves.append(raw_move)
+                continue
+            updated = dict(raw_move)
+            updated["region_id"] = identity["region_id"]
+            moves.append(updated)
+            changed = True
+        result["distinctive_moves"] = moves
+    return result if changed else parsed
+
+
+def _canonicalize_v4_reserved_color_tokens(parsed: Any) -> Any:
+    """Rename raw colors that would collide with fixed shadcn slot aliases.
+
+    The schema keeps its collision guard as a final safety net.  This
+    pre-validation pass only renames the provider's raw token and rewrites
+    typed references, preserving both the concrete color value and the
+    semantic binding (for example ``accent`` -> ``palette-accent``).
+    """
+
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("tokens"), dict):
+        return parsed
+    tokens = parsed["tokens"]
+    colors = tokens.get("colors")
+    bindings = tokens.get("shadcn_theme_bindings")
+    if not isinstance(colors, list) or not isinstance(bindings, dict):
+        return parsed
+    reserved = set(SHADCN_THEME_SLOTS)
+    existing = {
+        str(item.get("name", ""))
+        for item in colors
+        if isinstance(item, dict) and str(item.get("name", ""))
+    }
+    rename: dict[str, str] = {}
+    for raw_color in colors:
+        if not isinstance(raw_color, dict):
+            continue
+        name = str(raw_color.get("name", "")).strip()
+        if name not in reserved or name not in bindings:
+            continue
+        candidate = f"palette-{name}"
+        suffix = 2
+        while candidate in existing or candidate in reserved:
+            candidate = f"palette-{name}-{suffix}"
+            suffix += 1
+        rename[name] = candidate
+        existing.add(candidate)
+    if not rename:
+        return parsed
+
+    result = dict(parsed)
+    result_tokens = dict(tokens)
+    result_tokens["colors"] = [
+        {**item, "name": rename.get(str(item.get("name", "")), item.get("name"))}
+        if isinstance(item, dict)
+        else item
+        for item in colors
+    ]
+    result_tokens["shadcn_theme_bindings"] = {
+        slot: rename.get(str(value), value) for slot, value in bindings.items()
+    }
+    for field_name in ("borders", "shadows"):
+        values = result_tokens.get(field_name)
+        if isinstance(values, list):
+            result_tokens[field_name] = [
+                {
+                    **item,
+                    "color_token": rename.get(
+                        str(item.get("color_token")), item.get("color_token")
+                    ),
+                }
+                if isinstance(item, dict)
+                else item
+                for item in values
+            ]
+    result["tokens"] = result_tokens
+    return result
 
 
 def _canonicalize_v4_distinctive_move_ratios(parsed: Any) -> Any:

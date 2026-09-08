@@ -44,11 +44,32 @@ def test_creative_direction_requires_exactly_two_grounded_concepts() -> None:
         )
 
 
-def test_integration_acceptance_requires_all_quality_scores_at_least_four() -> None:
+def test_integration_acceptance_keeps_low_subjective_scores_advisory() -> None:
+    review = IntegrationReviewV1(
+        status="accepted",
+        distinctiveness_score=3,
+        composition_score=5,
+        typography_score=5,
+        resource_fit_score=5,
+        motion_score=5,
+    )
+
+    assert review.status == "accepted"
+
     with pytest.raises(ValidationError):
         IntegrationReviewV1(
             status="accepted",
-            distinctiveness_score=3,
+            findings=[
+                {
+                    "finding_id": "functional-gap",
+                    "severity": "blocking",
+                    "owner_work_unit_id": "route-home",
+                    "code": "RUNTIME_NAVIGATION_FAILED",
+                    "evidence": "The required route did not load.",
+                    "requested_outcome": "Restore the route.",
+                }
+            ],
+            distinctiveness_score=5,
             composition_score=5,
             typography_score=5,
             resource_fit_score=5,

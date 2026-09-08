@@ -8,7 +8,9 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
     _create_stage_dir,
+    detect_import_dependencies,
     detect_supported_import_dependencies,
+    detect_unsupported_import_dependencies,
 )
 from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyRequest,
@@ -138,3 +140,17 @@ def test_detect_supported_import_dependencies_ignores_unsupported_and_relative_i
     text = 'import { z } from "zod";\nimport util from "../shared/util";\n'
     assert detect_supported_import_dependencies(text, {"motion"}) == set()
     assert detect_supported_import_dependencies(text, set()) == set()
+
+
+def test_dependency_scan_covers_dynamic_imports_and_reexports() -> None:
+    text = (
+        'export { motion } from "motion/react";\n'
+        'const lazy = import("lucide-react/icons");\n'
+        'const helper = require("@radix-ui/react-id");\n'
+    )
+    assert detect_import_dependencies(text) == {"motion", "lucide-react", "@radix-ui/react-id"}
+    assert detect_unsupported_import_dependencies(
+        text,
+        installed_packages={"react"},
+        supported_packages={"motion", "lucide-react"},
+    ) == {"@radix-ui/react-id"}

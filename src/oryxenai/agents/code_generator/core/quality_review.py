@@ -11,6 +11,10 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     QualityReviewReceiptV1,
     QualityReviewReceiptV2,
 )
+from oryxenai.agents.code_generator.core.finding_policy import (
+    has_blocking_findings,
+    normalize_findings,
+)
 
 
 class QualityReviewError(ValueError):
@@ -52,9 +56,8 @@ def validate_quality_review_draft_evidence(
     """Require every V4 review claim to point at exact assembled source.
 
     The provider is allowed to assess quality, but it cannot create evidence
-    paths, line numbers, or markers. A score below the acceptance floor also
-    needs a blocking finding on the same owner/file so the bounded polish pass
-    receives an actionable defect for that dimension.
+    paths, line numbers, or markers.  Effective severity is derived by the
+    host-owned finding policy so subjective visual scores remain advisory.
     """
 
     def validate_record(record: Any, *, label: str) -> Any:
@@ -111,9 +114,14 @@ def validate_quality_review_draft_evidence(
         validate_record(finding, label=f"finding {finding.finding_id}")
         for finding in draft.findings
     ]
-    canonical = draft.model_copy(update={"score_evidence": score_evidence, "findings": findings})
+    canonical = draft.model_copy(
+        update={
+            "score_evidence": score_evidence,
+            "findings": normalize_findings(findings),
+        }
+    )
 
-    blocking = [item for item in canonical.findings if item.severity == "blocking"]
+    blocking = [item for item in canonical.findings if has_blocking_findings([item])]
     if repairable_owner_ids is not None:
         for finding in blocking:
             owner = finding.owner_work_unit_id
@@ -125,20 +133,6 @@ def validate_quality_review_draft_evidence(
                     "QUALITY_FINDING_OWNER_INVALID",
                     f"Blocking finding {finding.finding_id} targets non-repairable owner {owner}.",
                 )
-    for evidence in canonical.score_evidence:
-        if evidence.score >= 4:
-            continue
-        if not any(
-            finding.owner_work_unit_id == evidence.owner_work_unit_id
-            and finding.file.replace("\\", "/").strip("/")
-            == evidence.file.replace("\\", "/").strip("/")
-            for finding in blocking
-        ):
-            raise QualityReviewError(
-                "QUALITY_SCORE_FINDING_MISSING",
-                f"The {evidence.dimension} score is below four but has no blocking "
-                "finding on the same owned source file.",
-            )
     return canonical
 
 
@@ -221,13 +215,8 @@ def stamp_quality_review_receipt(
 ) -> QualityReviewReceiptV2:
     """Compute acceptance and bind the provider draft to immutable host evidence."""
 
-    accepted = min(
-        draft.hierarchy_score,
-        draft.composition_score,
-        draft.typography_score,
-        draft.resource_fit_score,
-        draft.motion_score,
-    ) >= 4 and not any(item.severity == "blocking" for item in draft.findings)
+    normalized_findings = normalize_findings(list(draft.findings))
+    accepted = not has_blocking_findings(normalized_findings)
     return QualityReviewReceiptV2(
         source_manifest_hash=source_manifest_hash,
         plan_hash=plan_hash,
@@ -249,7 +238,7 @@ def stamp_quality_review_receipt(
         resource_fit_score=draft.resource_fit_score,
         motion_score=draft.motion_score,
         score_evidence=list(draft.score_evidence),
-        findings=list(draft.findings),
+        findings=normalized_findings,
         advisory_observations=list(draft.advisory_observations),
         accepted=accepted,
     )

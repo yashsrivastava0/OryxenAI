@@ -433,6 +433,20 @@ def _validate_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
         raise BriefContractError(
             "BRIEF_INDEX_KIND_INVALID", "The two brief indexes have invalid kind discriminators."
         )
+    for label, index in (("content", content), ("visual", visual)):
+        # The original Build Preparation index deliberately omitted a
+        # contract-version field.  Keep that format valid, but fail closed
+        # when a producer opts into an explicit version we do not understand.
+        for key in ("contract_version", "brief_contract_version", "schema_version"):
+            if key in index and str(index.get(key, "")).strip() not in {
+                "",
+                BRIEF_CONTRACT_VERSION,
+            }:
+                raise BriefContractError(
+                    "BRIEF_VERSION_UNSUPPORTED",
+                    f"The {label} brief declares unsupported {key} "
+                    f"{str(index.get(key, ''))[:80]!r}; expected {BRIEF_CONTRACT_VERSION!r}.",
+                )
     run_id = str(content.get("run_id", "")).strip()
     if not run_id or run_id != str(visual.get("run_id", "")).strip():
         raise BriefContractError(
@@ -444,26 +458,34 @@ def _validate_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
     route_ids: list[str] = []
     section_ids: list[str] = []
     paths: list[str] = []
-    for route in routes:
+    for route_index, route in enumerate(routes):
         if not isinstance(route, dict):
-            raise BriefContractError("BRIEF_ROUTE_INVALID", "A route index entry is malformed.")
+            raise BriefContractError(
+                "BRIEF_ROUTE_INVALID", f"Route {route_index} is not a JSON object."
+            )
         route_id = str(route.get("route_id", "")).strip()
         path = str(route.get("path", "")).strip()
         title = str(route.get("title", "")).strip()
         sections = route.get("sections")
-        if (
-            not route_id
-            or not title
-            or not _safe_route_path(path)
-            or not isinstance(sections, list)
-            or not sections
-        ):
+        section_values = sections if isinstance(sections, list) else []
+        missing: list[str] = []
+        if not route_id:
+            missing.append("route_id")
+        if not title:
+            missing.append("title")
+        if not _safe_route_path(path):
+            missing.append("safe path")
+        if not section_values:
+            missing.append("approved sections")
+        if missing:
+            route_label = route_id or f"route[{route_index}]"
             raise BriefContractError(
-                "BRIEF_ROUTE_INVALID", "Every route needs an ID, safe path, title, and sections."
+                "BRIEF_ROUTE_INVALID",
+                f"{route_label} is missing or has invalid {', '.join(missing)}.",
             )
         route_ids.append(route_id)
         paths.append(path)
-        for section in sections:
+        for section in section_values:
             section_id = str(section).strip()
             if not section_id or not section_id.startswith(f"{route_id}:"):
                 raise BriefContractError(

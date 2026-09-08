@@ -33,3 +33,14 @@ export const generationNeedsAttentionNoPreview = {
   status: "needs_attention",
   latest_error: { message: "The generated portfolio failed final verification.", retryable: true },
 };
+
+export const generationNeedsAttentionWithCandidate = {
+  ...generationNeedsAttentionNoPreview,
+  candidate_preview: {
+    url: "https://preview.example.test/preview/candidate/token/candidate-a/build-a/",
+    route_ids: ["home"],
+    route_paths: ["/", "/about"],
+    verification_status: "unverified",
+  },
+  warnings: [{ code: "RUNTIME_REGION_GAP", message: "Optional composition spacing differs." }],
+};

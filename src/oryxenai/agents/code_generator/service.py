@@ -414,6 +414,7 @@ class CodeGeneratorService:
             model_profile=profile,
             source_ref=source_ref,
             active_preview=retained_preview,
+            candidate_preview=state.candidate_preview,
             started_at=datetime.now(UTC).isoformat(),
             pipeline_contract_version=pipeline_contract_version,
             trace_id=trace_id,
@@ -686,6 +687,7 @@ class CodeGeneratorService:
                 "retry_status": f"queued:{stage}",
                 "trace_id": str(getattr(run, "trace_id", "") or state.trace_id),
                 "active_preview": run.active_preview or state.active_preview,
+                "candidate_preview": state.candidate_preview,
             }
         )
         saved = await self._repo.save_state(session_id, next_state, session.revision)
@@ -763,17 +765,26 @@ class CodeGeneratorService:
             payload["active_attempt_id"] = str(getattr(run, "active_attempt_id", "") or "")
             payload["issues"] = list(run.issues or [])
             payload["active_preview"] = run.active_preview or state.active_preview
+            verification_payload = getattr(run, "verification_projection", None) or {}
+            payload["candidate_preview"] = (
+                verification_payload.get("candidate_preview")
+                if isinstance(verification_payload, dict)
+                else None
+            )
+            payload["warnings"] = (
+                verification_payload.get("advisories", [])
+                if isinstance(verification_payload, dict)
+                else []
+            )
             payload["creative_direction"] = run.creative_direction or {}
             creative = run.creative_direction or {}
             payload["design_variant"] = creative.get("variant_receipt")
             payload["design_fingerprint"] = creative.get("design_fingerprint")
             generation_projection = getattr(run, "generation_projection", None) or {}
             payload["quality_review"] = generation_projection.get("quality_review")
-            payload["realization_contracts"] = (
-                (getattr(run, "verification_projection", None) or {})
-                .get("verification_plan", {})
-                .get("realization_contracts", [])
-            )
+            payload["realization_contracts"] = verification_payload.get(
+                "verification_plan", {}
+            ).get("realization_contracts", [])
             payload["progress"] = {
                 "coordinator_stage": run.coordinator_stage,
                 "current_attempt": run.current_attempt,

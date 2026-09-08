@@ -936,10 +936,20 @@ class CodeGeneratorDevelopmentService:
             raise DevelopmentRunError(
                 "RUN_NOT_FOUND", "Development run was not found.", status_code=404
             )
+        candidate_preview = (
+            run.verification_projection.get("candidate_preview")
+            if isinstance(run.verification_projection, dict)
+            else None
+        )
         return {
             "status": run.status,
             "active_preview": dict(run.active_preview) if run.active_preview else None,
             "candidate": dict(run.candidate_artifact) if run.candidate_artifact else None,
+            "candidate_preview": (
+                dict(cast(dict[str, Any], candidate_preview))
+                if isinstance(candidate_preview, dict)
+                else None
+            ),
             "pending_promotion": dict(run.pending_promotion) if run.pending_promotion else None,
         }
 
@@ -1208,6 +1218,11 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "verification_job_id": str(run.verification_job_id or ""),
             "verification": run.verification_projection,
             "candidate_artifact": run.candidate_artifact,
+            "candidate_preview": (
+                run.verification_projection.get("candidate_preview")
+                if isinstance(run.verification_projection, dict)
+                else None
+            ),
             "pending_promotion": run.pending_promotion,
             "active_preview": run.active_preview,
             "export_receipt": getattr(run, "export_receipt", None),

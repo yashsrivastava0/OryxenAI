@@ -24,6 +24,13 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
+# Build Preparation has emitted both the production contract filenames and a
+# short-lived local debug spelling.  They are the same immutable Markdown
+# pair; accepting the latter here keeps the development harness aligned with
+# the actual output directory without weakening the envelope contract.
+_LEGACY_CONTENT_FILENAME = "content_brief.md"
+_LEGACY_VISUAL_FILENAME = "visual_brief.md"
+
 
 class DevelopmentInputError(ValueError):
     def __init__(
@@ -269,6 +276,11 @@ class DevelopmentInputAdapter:
     def _mirror_entries(self) -> list[Path]:
         configured = _resolve_config_path(self._config.build_preparation_mirror_root)
         roots = [configured]
+        # The Build Preparation worker's current local export uses an
+        # underscore in its directory name, while older configuration uses
+        # ``build-preparation``.  Probe both roots deliberately; the pair is
+        # still admitted through the exact same Markdown compiler below.
+        roots.append(_resolve_config_path("output/build_preparation"))
         # Build Preparation's own fixture/debug output is the canonical local
         # handoff when a deployment overlays the legacy development setting.
         prep_config = getattr(self._settings, "build_preparation", None)
@@ -280,21 +292,72 @@ class DevelopmentInputAdapter:
             if not root.is_dir():
                 continue
             for entry in root.iterdir():
-                if (
-                    entry.is_dir()
-                    and (entry / CONTENT_FILENAME).is_file()
-                    and (entry / VISUAL_FILENAME).is_file()
-                ):
+                if entry.is_dir() and self._has_brief_source(entry):
                     entries.setdefault(entry.name, entry)
         return sorted(entries.values(), key=lambda entry: entry.name)
+
+    @classmethod
+    def _has_brief_source(cls, root: Path) -> bool:
+        """Recognize either Markdown pair spelling or a result.json pair.
+
+        Build Preparation's worker writes the two named Markdown files.  A
+        few local exports instead retain those exact strings in ``result.json``
+        while a copy step is still in progress; admitting that representation
+        is safe because ``_read_brief_pair`` wraps it in the same immutable
+        envelope and runs the same compiler before storage.
+        """
+
+        if cls._brief_paths(root) is not None:
+            return True
+        result_path = root / "result.json"
+        if not result_path.is_file():
+            return False
+        try:
+            payload = json.loads(result_path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return False
+        return isinstance(payload, dict) and all(
+            isinstance(payload.get(key), str) and bool(payload[key].strip())
+            for key in ("content_brief_markdown", "visual_brief_markdown")
+        )
+
+    @staticmethod
+    def _brief_paths(root: Path) -> tuple[Path, Path] | None:
+        """Return the complete pair of supported filenames, if present."""
+
+        standard = (root / CONTENT_FILENAME, root / VISUAL_FILENAME)
+        if all(path.is_file() for path in standard):
+            return standard
+        legacy = (root / _LEGACY_CONTENT_FILENAME, root / _LEGACY_VISUAL_FILENAME)
+        if all(path.is_file() for path in legacy):
+            return legacy
+        return None
 
     def _mirror_pack_info(self, entry: Path) -> dict[str, Any]:
         """Return a non-secret validation summary for one mirrored brief pair."""
 
-        content_path = entry / CONTENT_FILENAME
-        visual_path = entry / VISUAL_FILENAME
-        modified = max(content_path.stat().st_mtime, visual_path.stat().st_mtime)
-        size_bytes = content_path.stat().st_size + visual_path.stat().st_size
+        paths = self._brief_paths(entry)
+        if not self._has_brief_source(entry):
+            return {
+                "brief_dir": entry.name,
+                "pack_dir": entry.name,
+                "source_version": BRIEF_CONTRACT_VERSION,
+                "schema_version": BRIEF_ENVELOPE_VERSION,
+                "eligible": False,
+                "issue": (
+                    f"BRIEF_PAIR_INCOMPLETE: a pair must contain {CONTENT_FILENAME}/"
+                    f"{VISUAL_FILENAME} or {_LEGACY_CONTENT_FILENAME}/{_LEGACY_VISUAL_FILENAME}."
+                ),
+                "selection_rank": (0, 0, 0, 0, 0, 0),
+            }
+        if paths is None:
+            result_path = entry / "result.json"
+            modified = result_path.stat().st_mtime
+            size_bytes = result_path.stat().st_size
+        else:
+            content_path, visual_path = paths
+            modified = max(content_path.stat().st_mtime, visual_path.stat().st_mtime)
+            size_bytes = content_path.stat().st_size + visual_path.stat().st_size
         issue = ""
         summary: dict[str, Any] = {}
         try:
@@ -440,10 +503,24 @@ class DevelopmentInputAdapter:
 
     def _read_brief_pair(self, root: Path) -> bytes:
         try:
-            content = (root / CONTENT_FILENAME).read_text(encoding="utf-8-sig")
-            visual = (root / VISUAL_FILENAME).read_text(encoding="utf-8-sig")
+            paths = self._brief_paths(root)
+            if paths is None:
+                # Some Build Preparation exports keep the Markdown only in
+                # result.json.  This remains an immutable source pair; no
+                # generated or provider-owned content is inferred here.
+                result_path = root / "result.json"
+                if result_path.is_file():
+                    payload = json.loads(result_path.read_text(encoding="utf-8-sig"))
+                    content_value = payload.get("content_brief_markdown")
+                    visual_value = payload.get("visual_brief_markdown")
+                    if isinstance(content_value, str) and isinstance(visual_value, str):
+                        return make_brief_envelope(content_value, visual_value)
+                raise FileNotFoundError(CONTENT_FILENAME)
+            content_path, visual_path = paths
+            content = content_path.read_text(encoding="utf-8-sig")
+            visual = visual_path.read_text(encoding="utf-8-sig")
             return make_brief_envelope(content, visual)
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
             raise DevelopmentInputError(
                 "BRIEF_PAIR_INCOMPLETE",
                 f"A brief source must contain {CONTENT_FILENAME} and {VISUAL_FILENAME}.",

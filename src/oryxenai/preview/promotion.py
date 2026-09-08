@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import secrets
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -83,6 +84,8 @@ class PreviewPromoter:
             )
         build_hash = manifest.build_hash
         prefix = f"preview/candidates/{candidate_id}/{build_hash}"
+        capability_token = secrets.token_urlsafe(32)
+        expires = expires_at or (datetime.now(UTC) + timedelta(days=3)).isoformat()
         for entry in manifest.entries:
             path = dist_dir / entry.path
             if not path.is_file():
@@ -136,7 +139,35 @@ class PreviewPromoter:
                 )
         except PreviewStorageError as exc:
             raise PromotionError(exc.code, exc.message) from exc
-        expires = expires_at or (datetime.now(UTC) + timedelta(days=3)).isoformat()
+        # The gateway never trusts a URL path alone.  It reads this immutable
+        # manifest, checks the hash of the opaque capability token and then
+        # serves only files listed by the build manifest.
+        manifest_data = _canonical(
+            {
+                "schema_version": "code-generator-candidate-manifest-v1",
+                "candidate_id": candidate_id,
+                "candidate_identity_hash": identity.identity_hash,
+                "build_hash": build_hash,
+                "token_sha256": hashlib.sha256(capability_token.encode("utf-8")).hexdigest(),
+                "expires_at": expires,
+                "manifest": manifest.model_dump(mode="json"),
+            }
+        )
+        manifest_key = f"{prefix}/manifest.json"
+        try:
+            await self.storage.put_immutable(
+                key=manifest_key,
+                data=manifest_data,
+                content_type="application/json",
+            )
+            stored_manifest = await self.storage.get(manifest_key)
+            if stored_manifest is None or stored_manifest[1] != manifest_data:
+                raise PromotionError(
+                    "CANDIDATE_STORAGE_READBACK_FAILED",
+                    "The candidate capability manifest failed storage read-back verification.",
+                )
+        except PreviewStorageError as exc:
+            raise PromotionError(exc.code, exc.message) from exc
         artifact = CandidateArtifact(
             candidate_id=candidate_id,
             candidate_identity_hash=identity.identity_hash,
@@ -153,6 +184,10 @@ class PreviewPromoter:
             expires_at=expires,
         )
         pointer_manifest = manifest.model_dump(mode="json")
+        candidate_url = (
+            f"{self.preview_base_url}/candidate/{quote(capability_token, safe='')}/"
+            f"{quote(candidate_id, safe='')}/{quote(build_hash, safe='')}/"
+        )
         return (
             artifact,
             report_hash,
@@ -161,6 +196,8 @@ class PreviewPromoter:
                 "manifest": pointer_manifest,
                 "verification_report_hash": report_hash,
                 "host": host,
+                "candidate_manifest_key": manifest_key,
+                "candidate_url": candidate_url,
             },
         )
 
