@@ -68,6 +68,8 @@ export function AppShell({
   const initialStage = initialUrl.stage ?? "discover";
   const [activeStage, setActiveStage] = useState<JourneyStageId>(initialStage);
   const [mutatingStage, setMutatingStage] = useState<JourneyStageId | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Normal users receive their single owner-scoped session from /me. Admins
   // can work across explicitly created sessions, so retain only an
@@ -515,6 +517,38 @@ export function AppShell({
     }
   };
 
+  const handleResetPipeline = async () => {
+    if (!state.sessionId || isResetting) return;
+    setIsResetting(true);
+    recordClientEvent({
+      kind: "user_action",
+      stage: activeStage,
+      action: "admin_pipeline_reset",
+    });
+    try {
+      const sessionId = state.sessionId;
+      const reset = await api.resetSession(sessionId);
+      seenCacheReceipts.current.clear();
+      dispatch({ type: "pipeline/reset", sessionId: reset.id, revision: reset.revision });
+      selectStage("discover", true);
+      notifyMutation(sessionId);
+      await refetchCurrentSession();
+      dispatch({
+        type: "announce",
+        message: "Pipeline has been reset to zero. You can now start fresh with a new resume.",
+      });
+      setShowResetModal(false);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to reset pipeline.";
+      dispatch({
+        type: "announce",
+        message: `Reset failed: ${msg}`,
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const handleSubmitDiscoveryAnswer = async (
     answer: DiscoveryAnswerSubmission,
     isComplete: boolean,
@@ -871,19 +905,48 @@ export function AppShell({
             <span className="header-pipe" aria-hidden="true">|</span>
             <span className="header-descriptor">portfolio editorial room</span>
           </a>
-          <details className="account-menu">
-            <summary aria-label="Open account menu">
-              <span className="account-monogram" aria-hidden="true">{(me.username ?? "U").slice(0, 1).toUpperCase()}</span>
-              <span className="account-name">{me.username ?? "Account"}</span>
-              <span className="account-chevron" aria-hidden="true">▾</span>
-            </summary>
-            <div className="account-popover">
-              <p><strong>{me.username ?? "OryxenAI account"}</strong><span>{me.role === "admin" ? "Administrator" : "Portfolio owner"}</span></p>
-              {state.readOnly ? <span className="read-only-tag">Read-only workspace</span> : null}
-              {me.role === "admin" ? <a id="app-admin-link" href="/admin">Administration</a> : null}
-              <button id="app-logout" type="button">Sign out</button>
-            </div>
-          </details>
+          <div className="app-topbar-actions">
+            {me.role === "admin" && state.sessionId ? (
+              <button
+                id="admin-reset-pipeline-btn"
+                type="button"
+                className="admin-reset-btn"
+                onClick={() => setShowResetModal(true)}
+                disabled={mutatingStage !== null || isResetting}
+                title="Admin only: Reset entire pipeline back to zero"
+                aria-haspopup="dialog"
+              >
+                <span className="admin-reset-badge">ADMIN</span>
+                <span className="admin-reset-label">
+                  {isResetting ? "Resetting…" : "Reset Pipeline"}
+                </span>
+              </button>
+            ) : null}
+            <details className="account-menu">
+              <summary aria-label="Open account menu">
+                <span className="account-monogram" aria-hidden="true">{(me.username ?? "U").slice(0, 1).toUpperCase()}</span>
+                <span className="account-name">{me.username ?? "Account"}</span>
+                <span className="account-chevron" aria-hidden="true">▾</span>
+              </summary>
+              <div className="account-popover">
+                <p><strong>{me.username ?? "OryxenAI account"}</strong><span>{me.role === "admin" ? "Administrator" : "Portfolio owner"}</span></p>
+                {state.readOnly ? <span className="read-only-tag">Read-only workspace</span> : null}
+                {me.role === "admin" ? <a id="app-admin-link" href="/admin">Administration</a> : null}
+                {me.role === "admin" && state.sessionId ? (
+                  <button
+                    id="account-reset-pipeline-btn"
+                    type="button"
+                    className="account-popover-reset-btn"
+                    onClick={() => setShowResetModal(true)}
+                    disabled={mutatingStage !== null || isResetting}
+                  >
+                    Reset pipeline to zero
+                  </button>
+                ) : null}
+                <button id="app-logout" type="button">Sign out</button>
+              </div>
+            </details>
+          </div>
         </header>
 
         <ConnectionBanner state={state.connection} />
@@ -1015,6 +1078,63 @@ export function AppShell({
         </div>
         <footer className="app-footer"><span>Private working space</span><span>Nothing advances without approval</span></footer>
         <StatusAnnouncer message={state.announcement} />
+
+        {showResetModal ? (
+          <div
+            className="admin-reset-modal-backdrop"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isResetting) setShowResetModal(false);
+            }}
+          >
+            <div
+              className="admin-reset-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reset-modal-title"
+            >
+              <div className="admin-reset-modal-header">
+                <div className="admin-reset-modal-title-row">
+                  <span className="admin-reset-badge">ADMIN ACTION</span>
+                  <h2 id="reset-modal-title">Reset Pipeline to Zero</h2>
+                </div>
+                <p className="admin-reset-modal-subtitle">
+                  This will permanently clear all Discovery answers, approved brief, content architecture, visual direction, and generated drafts for this portfolio.
+                </p>
+              </div>
+              <div className="admin-reset-modal-body">
+                <div className="admin-reset-warning-box">
+                  <strong>What will happen:</strong>
+                  <ul>
+                    <li>The entire agent pipeline restarts from turn 1.</li>
+                    <li>The Discovery agent will ask for your resume and goals again.</li>
+                    <li>All queued and background agent jobs will be cancelled.</li>
+                    <li>You will remain signed in as <strong>{me.username || "admin"}</strong>.</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="admin-reset-modal-actions">
+                <button
+                  type="button"
+                  className="admin-reset-cancel-btn"
+                  onClick={() => setShowResetModal(false)}
+                  disabled={isResetting}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="confirm-reset-pipeline-btn"
+                  type="button"
+                  className="admin-reset-confirm-btn"
+                  onClick={handleResetPipeline}
+                  disabled={isResetting}
+                >
+                  {isResetting ? "Resetting pipeline…" : "Confirm & Reset Pipeline"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </AppStoreContext.Provider>
   );

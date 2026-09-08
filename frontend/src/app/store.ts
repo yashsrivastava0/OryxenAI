@@ -38,6 +38,7 @@ export type AppAction =
   | { type: "design/set"; view: DesignViewModel }
   | { type: "preparation/set"; view: BuildPreparationViewModel }
   | { type: "generation/set"; view: GenerationViewModel }
+  | { type: "pipeline/reset"; sessionId: string; revision: number }
   | { type: "connection/set"; state: ConnectionState }
   | { type: "announce"; message: string };
 
@@ -62,6 +63,18 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, me: action.me, readOnly: Boolean(action.me.read_only) };
     case "session/set":
       return { ...state, sessionId: action.sessionId, sessionRevision: action.revision };
+    case "pipeline/reset":
+      return {
+        ...state,
+        sessionId: action.sessionId,
+        sessionRevision: action.revision,
+        activeStage: "discover",
+        discovery: null,
+        content: null,
+        design: null,
+        preparation: null,
+        generation: null,
+      };
     case "stage/select":
       return { ...state, activeStage: action.stage };
     case "discovery/set":

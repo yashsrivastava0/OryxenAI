@@ -13,6 +13,7 @@ from oryxenai.api.dependencies import (
     get_pipeline_user,
     get_session_repo,
     is_detached_pipeline,
+    require_admin,
     require_detached_pipeline_mode,
     require_onboarded_user,
     require_pipeline_session,
@@ -142,6 +143,37 @@ async def restart_session(
     )
     try:
         return _to_response(await service.restart(old_id, replacement_id))
+    except PipelineResetError as exc:
+        raise PipelineRestartCleanupError() from exc
+    except LookupError as exc:
+        raise SessionNotFoundError(session_id) from exc
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+
+
+@router.post("/{session_id}/reset", response_model=SessionResponse)
+async def reset_session(
+    request: Request,
+    session_id: str,
+    admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db_session),
+) -> SessionResponse:
+    try:
+        sid = UUID(session_id)
+    except ValueError as exc:
+        raise ValidationError("Session ID must be a valid UUID.") from exc
+    service = PipelineResetService(
+        db,
+        settings=request.app.state.settings,
+        artifact_store=getattr(request.app.state, "artifact_store", None),
+        preview_storage=getattr(request.app.state, "preview_storage", None),
+        auth_admin_provider=getattr(request.app.state, "auth_admin_provider", None),
+    )
+    try:
+        request_id = str(getattr(request.state, "request_id", ""))
+        return _to_response(
+            await service.reset_admin_pipeline(sid, actor_id=admin.id, request_id=request_id)
+        )
     except PipelineResetError as exc:
         raise PipelineRestartCleanupError() from exc
     except LookupError as exc:

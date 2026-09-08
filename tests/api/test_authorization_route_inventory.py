@@ -77,6 +77,7 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/sessions/{session_id}/build-preparation/start"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/build-preparation/regenerate"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/restart"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/reset"): "admin_session_mutation",
     ("POST", "/api/v1/sessions/{session_id}/code-generator/start"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/code-generator/regenerate"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/code-generator/retry"): "portfolio_mutation",
@@ -152,6 +153,9 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
             continue
         if path == "/api/v1/sessions/{session_id}/restart":
             _require(route, require_detached_pipeline_mode)
+            continue
+        if path == "/api/v1/sessions/{session_id}/reset":
+            _require(route, require_admin)
             continue
         if path.startswith("/api/v1/pipeline/model-profiles"):
             if method != "GET":

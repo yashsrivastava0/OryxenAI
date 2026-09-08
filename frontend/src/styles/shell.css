@@ -196,6 +196,205 @@ body:not(.auth-pending) > .auth-bootstrap-progress { display: none; }
 .account-popover a:hover, .account-popover button:hover { color: var(--signal); background: var(--signal-subtle); }
 .read-only-tag { margin: 0 .4rem .6rem; color: var(--attention); font-size: .75rem; }
 
+/* Admin Topbar Action & Reset Button */
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.admin-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 38px;
+  padding: 0.35rem 0.75rem 0.35rem 0.45rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule-subtle);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all var(--duration-fast);
+}
+.admin-reset-btn:hover:not(:disabled) {
+  background: #fff;
+  border-color: #c93b2b;
+  color: #c93b2b;
+  box-shadow: 2px 2px 0 rgba(201, 59, 43, 0.15);
+}
+.admin-reset-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-reset-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: #962d22;
+  border-radius: 2px;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.admin-reset-label {
+  white-space: nowrap;
+}
+
+.account-popover-reset-btn {
+  color: #962d22 !important;
+  font-weight: 500;
+}
+.account-popover-reset-btn:hover {
+  background: rgba(201, 59, 43, 0.08) !important;
+  color: #c93b2b !important;
+}
+
+/* Admin Reset Confirmation Modal */
+.admin-reset-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(23, 26, 25, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn var(--duration-fast) ease-out;
+}
+
+.admin-reset-modal {
+  position: relative;
+  width: min(32rem, 100%);
+  background: var(--paper-elevated, #fff);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-control, 4px);
+  box-shadow: 8px 8px 0 rgba(23, 26, 25, 0.18);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  animation: scaleUp var(--duration-fast) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-reset-modal-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-reset-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.admin-reset-modal-title-row h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.admin-reset-modal-subtitle {
+  margin: 0;
+  color: var(--graphite);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.admin-reset-warning-box {
+  padding: 0.95rem 1.15rem;
+  background: rgba(243, 240, 232, 0.7);
+  border: 1px solid var(--rule);
+  border-left: 3px solid #962d22;
+  border-radius: 2px;
+  font-size: 0.85rem;
+}
+
+.admin-reset-warning-box strong {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--ink);
+}
+
+.admin-reset-warning-box ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--graphite);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-reset-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule-subtle);
+}
+
+.admin-reset-cancel-btn {
+  min-height: 38px;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 500;
+  transition: background var(--duration-fast);
+}
+.admin-reset-cancel-btn:hover:not(:disabled) {
+  background: var(--paper);
+}
+
+.admin-reset-confirm-btn {
+  min-height: 38px;
+  padding: 0.5rem 1.25rem;
+  background: #962d22;
+  border: 1px solid #731e15;
+  border-radius: var(--radius-control);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 2px 2px 0 rgba(23, 26, 25, 0.15);
+  transition: all var(--duration-fast);
+}
+.admin-reset-confirm-btn:hover:not(:disabled) {
+  background: #b53526;
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 rgba(23, 26, 25, 0.2);
+}
+.admin-reset-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 /* Banners */
 .connection-banner {
   position: sticky;
