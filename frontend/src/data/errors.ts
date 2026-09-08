@@ -99,6 +99,8 @@ const KNOWN_MESSAGES: Record<string, string> = {
   ENTITLEMENT_BINDING_CONFLICT: "The portfolio authorization binding could not be changed safely.",
   AUTHORIZATION_FENCE_REJECTED: "This operation is no longer authorized. Refresh the workspace before trying again.",
   PORTFOLIO_SESSION_STALE: "This portfolio changed in another tab. Refresh to see the latest state.",
+  PACK_VISUAL_IDENTITY_MISMATCH: "The visual direction needs an identity correction before the build handoff can start.",
+  BUILD_PREPARATION_INPUT_INVALID: "The approved handoffs could not be validated. Review the visual direction and try again.",
 };
 
 export async function parseApiError(response: Response): Promise<ApiError> {
