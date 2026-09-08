@@ -11,6 +11,18 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 11:10 +05:30 - Codex (GPT-5 / OpenAI) - [b07582d] - frontend: per-agent full JSON copy controls
+
+Updated the development pipeline's Agent Workspace sidebar so each available
+agent has its own Copy JSON control, while the selected-output control remains
+available in the header. Discovery now copies JSON instead of a Markdown-only
+summary, and Content Architect, Visual Design Director, and Build Preparation
+copy the complete safe agent-owned projections while excluding raw intake,
+source snapshots, credentials, run/job metadata, and worker errors. Added the
+clipboard API with a select-and-copy fallback and explicit copy status text.
+Verified with static JavaScript syntax checking, focused web/API tests, and the
+frontend Vitest suite (72 tests).
+
 ### 2026-09-08 10:35 +05:30 - Codex (GPT-5 / OpenAI) - [7f2fbd0] - discovery retry/provider metadata fix
 Fixed repeated manual Discovery retries reusing the worker attempt number and colliding with the durable AgentRun idempotency constraint. Also keeps job-attempt tracing metadata internal to the OpenAI-compatible adapter; added regression coverage, and verified the live Experiential Luna browser flow reaches questions.
 
