@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 03:00 +05:30 - Codex (GPT-5 / OpenAI) - [2f424e5] - fix(code-generator): harden brief-driven generation and previews
+
+Implemented the Code Generator reliability handoff for variable Build Preparation output:
+
+- admitted the canonical and current underscore/legacy brief mirrors through one immutable compiler, including result-only Markdown pairs, while rejecting incomplete or malformed route/section indexes before model calls;
+- added exact host-side planner identity/token canonicalization, a configuration-bounded planner retry, and restricted per-attempt diagnostics so `PLANNER_OUTPUT_INVALID` failures are actionable without persisting raw model payloads in receipts;
+- added source scans for static, re-export, and literal dynamic npm imports so optional components fall back safely and required unsupported packages fail with a clear dependency issue;
+- replaced score-only quality acceptance with one host-owned finding policy: functional/safety/approved-requirement findings block while visual geometry/polish findings remain explicit advisories;
+- preserved clean-build candidates as capability-scoped unverified previews, kept separate from active verified promotion, and wired candidate/warning/retry state through the development API and `/app` generation UI;
+- made the npm cache warmer install configured pins into a disposable project and prove a real offline `npm ci`, and added the production Docker/Compose/config wiring required for the Azure VM layout.
+
+Verification: Ruff, mypy, compileall, Docker Compose configuration, and the frontend TypeScript contract pass. The focused Code Generator tests report 63 passes; nine temp-directory tests cannot create pytest's Windows `.lock` file in this environment and are recorded as an environment ACL limitation. Live campaign inputs and outcomes are tracked in `docs/code-generator-live-campaign.md`.
+
 ### 2026-09-09 02:44 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [bc7b5a6] - feat(studio): add admin-only pipeline reset
 
 Added an administrator-only pipeline reset capability to allow resetting any active portfolio session completely back to zero (restarting from the Discovery agent) while preserving the administrator's authentication session:

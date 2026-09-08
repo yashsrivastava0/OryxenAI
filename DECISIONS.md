@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-083 — Make brief-driven Code Generator completion host-owned and evidence-bounded
+
+- **Date & Time:** 2026-09-09 03:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Build Preparation emits variable, valid Markdown brief pairs, while model-authored planner identities, color tokens, and visual-review severities can vary between otherwise equivalent inputs. A planner response that is structurally close must not either fail on host-known aliases or turn subjective visual polish into an endless paid repair loop. A buildable export also needs a safe diagnostic preview when final browser verification is incomplete.
+- **Decision:** Admit both the canonical and current local Build Preparation mirror shapes through one immutable brief compiler, including result-only Markdown mirrors, and validate route/section/index contracts before any model call. Canonicalize only exact host-known `(route_id, section_id)` planner identities and reserved color-token aliases; unknown or ambiguous identities remain hard validation errors. Planner attempts are bounded by configuration and record redacted telemetry plus restricted response artifacts. Effective finding severity is host-owned: functional, safety, accessibility, asset, navigation, and explicit approved-requirement failures block; geometry/polish observations remain visible advisories. After a clean build and network-safe runtime evidence, store a capability-scoped unverified candidate preview without promoting it as the active verified preview or consuming success entitlement. Keep candidate and active preview contracts separate through the API and frontend.
+- **Rejected alternatives:** Trusting model-declared severity (would let cosmetic wording consume repairs or hide functional failures); fuzzy planner identity repair (could silently move content to the wrong section); accepting malformed briefs or fabricating missing sections (would violate the immutable Build Preparation handoff); treating an unverified candidate as the active preview (would misrepresent runtime evidence); and adding an unbounded planner/repair loop (would violate the live-call budget).
+- **Consequence:** The development harness can consume the two current valid packs and older canonical pairs without format-specific code paths, while malformed packs are rejected deterministically. The release decision is based on blocking evidence rather than subjective score thresholds, planner failures retain traceable diagnostics without persisting raw responses in durable receipts, and users can inspect a buildable but explicitly unverified candidate separately from the last verified preview. The configured planner and repair limits remain the upper bound for live calls.
+
 ## D-082 — Retire the legacy static pipeline shell
 
 - **Date & Time:** 2026-09-09 01:20 +05:30 — Codex (GPT-5 / OpenAI)

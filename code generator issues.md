@@ -1,5 +1,41 @@
 # Code Generator Issues
 
+## 2026-09-09 03:00 +05:30 — Variable Build Preparation reliability pass (Codex) [2f424e5]
+
+This entry records the implementation checkpoint that follows the previous
+`PLANNER_OUTPUT_INVALID`/`needs_attention` handoff. The supplied current
+Build Preparation mirror has two valid pairs under `output/build_preparation`:
+
+- `5f144f04-2789-48c6-9b1c-6bd11c87abdb` — Maya Bennett; 1 route, 7 sections,
+  8 resources, 3 components; content hash
+  `a839ee313e9786e3e77d60a4fa6bdce5a1f55dccff5f92349ac46e88419c5210`; visual
+  hash `389ce59c85baafce6b734b105bff05bbbb7454d68a6a84f9848429e691cd0427`.
+- `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` — Akash Ojha; 1 route, 7 sections,
+  8 resources, 3 components; content hash
+  `db560919f26b359ce7836c40339c887b3faa001637452c2d672d1193b9155435`; visual
+  hash `ff324462dc980bf29deb05bc4533716e55940babb40497170d668d8492f21f74`.
+
+Both compile through the same brief contract. The two empty-title/section
+pairs in the mirror are retained as negative validation fixtures only; they
+are not eligible live inputs. The older four-route canonical pair remains
+available for regression comparison but is not substituted for the owner's two
+current inputs.
+
+The implementation now normalizes only exact host-known planner identities and
+reserved color aliases, bounds planner retries, writes restricted planner
+attempt evidence, detects undeclared supported imports before foundation
+typecheck, and applies one host-owned blocking/advisory finding policy. A
+clean build with network-safe runtime evidence can produce an unverified
+candidate preview; it never replaces the active verified preview. The npm
+cache warmer now proves an offline install from a disposable project.
+
+Static verification is complete. The authorized live campaign is deliberately
+limited to four full pipeline slots and stops after the first one or two
+successful `ready` runs; each reservation, run ID, failure trace, artifact,
+preview, and model usage is recorded in
+`docs/code-generator-live-campaign.md`. No live outcome is claimed here until
+the standard API/worker/preview services are restarted on this commit.
+
 ## 2026-09-09 00:xx +05:30 — Reliability/cost fix pass + new bundle validation + live-test phase, still zero `ready` (Claude Code) [44304ff, 2790e9d, a2ae087, 051afa6, f20779f]
 
 Owner asked for a final pre-Azure pass on Code Generator: tighten the
