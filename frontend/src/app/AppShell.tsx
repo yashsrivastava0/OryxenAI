@@ -840,7 +840,13 @@ export function AppShell({
                   onReviseBrief={handleReviseBrief}
                   onContinueToContent={async () => {
                     selectStage("content");
-                    if (!state.content || state.content.state === "available") {
+                    // The Content projection can still be the fail-closed
+                    // `locked` view captured before Discovery approval was
+                    // persisted.  This button is the explicit user handoff,
+                    // so treat both `locked` and `available` as startable
+                    // states.  Otherwise the UI would navigate to Content
+                    // while never enqueueing its durable job.
+                    if (!state.content || state.content.state === "locked" || state.content.state === "available") {
                       await runContentMutation("start");
                     }
                   }}
