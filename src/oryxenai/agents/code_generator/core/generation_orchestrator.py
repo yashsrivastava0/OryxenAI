@@ -1595,7 +1595,10 @@ class CodeGeneratorGenerationOrchestrator:
             output_version=(
                 "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
             ),
-            cache_key=f"codegen:{projection.generation_id}:review",
+            # Leave cache_key unset: run_integration_review_operation derives
+            # a stable role/operation/prompt-content key itself so this
+            # review's cache partition is shared across runs instead of
+            # scoped to one generation_id.
         )
         review = _canonicalize_review_owners(
             review,
@@ -1838,7 +1841,17 @@ class CodeGeneratorGenerationOrchestrator:
                     strict_schema=True,
                     request_context={
                         "key_order": ROUTE_UNIT_KEY_ORDER,
-                        "prompt_cache_key": f"codegen:{generation_id}:{role_profile}",
+                        # Keyed by role/operation/prompt content, not
+                        # generation_id: the large stable system-prompt and
+                        # schema prefix for a given role is identical across
+                        # every run and should share provider cache affinity
+                        # instead of getting a fresh partition per run. Only
+                        # the dynamic request body (context/input_payload)
+                        # varies per generation.
+                        "prompt_cache_key": (
+                            f"codegen:{role_profile}:{operation}:"
+                            f"{context_receipt.prompt_versions.get('operation_hash', '')[:16]}"
+                        ),
                     },
                 )
                 parsed = getattr(raw, "parsed_output", raw)

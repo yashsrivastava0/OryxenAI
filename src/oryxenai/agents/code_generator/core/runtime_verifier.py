@@ -98,6 +98,41 @@ def _diagnostic(
     )
 
 
+def _annotate_shared_width_ratio_cause(violations: list[dict[str, Any]]) -> None:
+    """Flag ``RUNTIME_REGION_WIDTH_RATIO`` findings that share one cause.
+
+    Independent regions with independently-configured ratio contracts
+    cannot legitimately land on the identical measured content width by
+    coincidence -- it means one shared CSS container/utility class is
+    overriding each region's own intended width. Left as three separately-
+    worded findings, repair burns a round attacking each region on its own
+    instead of the one real defect underneath them; this appends the
+    concrete evidence needed to fix it in one pass.
+    """
+
+    groups: dict[int, list[dict[str, Any]]] = {}
+    for violation in violations:
+        if violation.get("code") != "RUNTIME_REGION_WIDTH_RATIO":
+            continue
+        content_width = violation.get("contentWidthPx")
+        if not isinstance(content_width, int):
+            continue
+        groups.setdefault(content_width, []).append(violation)
+    for content_width, group in groups.items():
+        if len(group) < 2:
+            continue
+        region_ids = [str(item.get("regionId", "")) for item in group]
+        main_width = group[0].get("mainWidthPx", "?")
+        note = (
+            f" {len(group)} regions ({', '.join(region_ids)}) all measured the identical "
+            f"content width of {content_width}px against main's {main_width}px -- check for "
+            "one shared max-width/container class overriding these regions' individual "
+            "width contracts, rather than fixing each region separately."
+        )
+        for item in group:
+            item["message"] = str(item.get("message", "")) + note
+
+
 def _mounted_route_paths(base_url: str, route_paths: list[str]) -> list[str]:
     """Accept logical route paths and their nested preview mount paths.
 
@@ -457,9 +492,11 @@ class RuntimeVerifier:
                     reduced_motion=journey.motion_profile == "reduce",
                 )
                 realization_results.append(realization_result)
-                for violation in realization_result.get("violations", []):
-                    if not isinstance(violation, dict):
-                        continue
+                violations = [
+                    v for v in realization_result.get("violations", []) if isinstance(v, dict)
+                ]
+                _annotate_shared_width_ratio_cause(violations)
+                for violation in violations:
                     passed = False
                     diagnostics.append(
                         _diagnostic(
@@ -1074,7 +1111,7 @@ class RuntimeVerifier:
                 const contentWidth = Math.max(0, rect.width - inlinePadding);
                 const widthRatio = contentWidth / Math.max(1, mainRect.width);
                 if (widthRatio + 0.01 < item.width_ratio_min || widthRatio - 0.01 > item.width_ratio_max) {
-                  violations.push({code: 'RUNTIME_REGION_WIDTH_RATIO', message: `Region ${item.region_id} width ratio ${widthRatio.toFixed(3)} is outside ${item.width_ratio_min}-${item.width_ratio_max}.`});
+                  violations.push({code: 'RUNTIME_REGION_WIDTH_RATIO', message: `Region ${item.region_id} width ratio ${widthRatio.toFixed(3)} is outside ${item.width_ratio_min}-${item.width_ratio_max}.`, regionId: item.region_id, contentWidthPx: Math.round(contentWidth), mainWidthPx: Math.round(mainRect.width)});
                 }
                 const expectedColumns = Number(expectedField('columns', item));
                 const computedColumns = style.gridTemplateColumns && style.gridTemplateColumns !== 'none'
