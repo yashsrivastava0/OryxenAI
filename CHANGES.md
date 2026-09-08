@@ -11,6 +11,37 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [pending] - docs(frontend): author comprehensive frontend and agent integration specifications
+
+Created an exhaustive 6-document technical reference suite under `docs/frontend/`
+to serve as the unambiguous source of truth for downstream AI coding agents
+executing the major frontend revamp:
+- `01-architecture-routing-and-auth-runtime.md`: Preact/Vite build boundary,
+  FastAPI manifest resolution, Google Supabase auth runtime, /api/v1/me
+  entitlement invariants, URL codec, visibility-aware polling, BroadcastChannel
+  multi-tab sync, error envelope, and tokens.
+- `02-agent-pipeline-and-data-contracts.md`: Authoritative domain schemas,
+  state machines, Pydantic models, JSONB storage, and route tables for all 5
+  agents (Discovery, Content Architect, Visual Design Director, Build Preparation,
+  Code Generator).
+- `03-current-frontend-implementation-audit.md`: Line-level audit of all 20+
+  components in `frontend/src/components/`, stage views, and data adapters.
+- `04-agent-by-agent-deep-dive-and-flaw-analysis.md`: Detailed comparison of
+  backend agent outputs vs. current UI presentation, documenting root causes
+  of why Build Preparation, Visual Design Director, and Content Architect
+  currently appear uncurated or broken (e.g. raw 300KB+ Markdown dumping with
+  fenced JSON, loss of structured profiles, and lack of visual design tokens).
+- `05-refactor-blueprint-and-component-architecture.md`: Target revamp
+  specification with custom hooks decomposition (`useSessionState`,
+  `useStagePolling`, etc.), two-column Discovery studio, visual Content
+  sitemap, interactive Design moodboard, Build Preparation command center,
+  and multi-device Portfolio Theater sandbox.
+- `06-api-reference-and-integration-cookbook.md`: Machine-readable route
+  catalog, exact JSON payloads, copy-paste recipes, and step-by-step refactoring
+  quality checklist.
+85 frontend vitest unit tests passing; Vite production build verified clean.
+
+
 ### 2026-09-09 01:20 +05:30 - Codex (GPT-5 / OpenAI) - [78a9c77] - frontend: remove legacy static pipeline shell
 
 Retired the temporary static Discovery/pipeline shell (`index.html`, `app.js`,
