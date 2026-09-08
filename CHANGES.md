@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 17:28 +05:30 - Codex (GPT-5 / OpenAI) - [5731cf5] - app: repair stale Discovery-to-Content handoff
+
+Fixed the `/app` Continue to Content handoff when the browser still holds
+Content Architect's fail-closed `locked` projection from before Discovery was
+approved. The explicit handoff now starts Content for both stale `locked` and
+fresh `available` projections, and the frontend boundary test protects the
+regression path. Verified with the complete frontend typecheck, Vitest suite,
+and production build.
+
 ### 2026-09-08 16:05 +05:30 - Codex (GPT-5 / OpenAI) - [78eacc7] - telemetry: align Experiential management observations
 
 Aligned the Experiential usage reconciler with the documented management API
