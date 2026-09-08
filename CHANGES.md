@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [pending] - docs(frontend): author comprehensive frontend and agent integration specifications
+### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [66d8287] - docs(frontend): author comprehensive frontend and agent integration specifications
 
 Created an exhaustive 6-document technical reference suite under `docs/frontend/`
 to serve as the unambiguous source of truth for downstream AI coding agents
