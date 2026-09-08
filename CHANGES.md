@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-08 16:05 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - telemetry: align Experiential management observations
+### 2026-09-08 16:05 +05:30 - Codex (GPT-5 / OpenAI) - [78eacc7] - telemetry: align Experiential management observations
 
 Aligned the Experiential usage reconciler with the documented management API
 host and its organization-scoped usage contract. The reconciler now derives
