@@ -148,3 +148,77 @@ async def test_candidate_gateway_serves_assets_under_the_exact_nested_mount(tmp_
     assert 'content="/preview/host-abcdefghijklmnop/"' in page.text
     assert asset.status_code == 200
     assert asset.text == "console.log('ok')"
+
+
+@pytest.mark.asyncio
+async def test_public_candidate_gateway_requires_capability_and_supports_nested_routes() -> None:
+    storage = MemoryPreviewStorage()
+    token = "A" * 32
+    candidate_id = "candidate-test"
+    build_hash = "a" * 64
+    html = b"<!doctype html><html><head></head><body>candidate</body></html>"
+    javascript = b"console.log('candidate')"
+    manifest = {
+        "schema_version": "code-generator-build-manifest-v1",
+        "candidate_identity_hash": "identity-test",
+        "entry_paths": ["index.html", "assets/app.js"],
+        "entries": [
+            {
+                "path": "index.html",
+                "media_type": "text/html",
+                "size_bytes": len(html),
+                "sha256": hashlib.sha256(html).hexdigest(),
+            },
+            {
+                "path": "assets/app.js",
+                "media_type": "text/javascript",
+                "size_bytes": len(javascript),
+                "sha256": hashlib.sha256(javascript).hexdigest(),
+            },
+        ],
+        "total_bytes": len(html) + len(javascript),
+    }
+    prefix = f"preview/candidates/{candidate_id}/{build_hash}"
+    await storage.put_immutable(
+        key=f"{prefix}/dist/index.html", data=html, content_type="text/html"
+    )
+    await storage.put_immutable(
+        key=f"{prefix}/dist/assets/app.js", data=javascript, content_type="text/javascript"
+    )
+    manifest_bytes = (
+        json.dumps(
+            {
+                "schema_version": "code-generator-candidate-manifest-v1",
+                "candidate_id": candidate_id,
+                "candidate_identity_hash": "identity-test",
+                "build_hash": build_hash,
+                "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+                "expires_at": "2099-01-01T00:00:00+00:00",
+                "manifest": manifest,
+            },
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode()
+    await storage.put_immutable(
+        key=f"{prefix}/manifest.json", data=manifest_bytes, content_type="application/json"
+    )
+    app = create_preview_app(
+        storage,
+        route_prefix="/candidate-preview",
+        embed_origins=["https://app.example"],
+    )
+    base = f"/candidate-preview/candidate/{token}/{candidate_id}/{build_hash}"
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        page = await client.get(f"{base}/")
+        nested = await client.get(f"{base}/about")
+        asset = await client.get(f"{base}/assets/app.js")
+        denied = await client.get(f"/candidate-preview/candidate/{'B' * 32}/{candidate_id}/{build_hash}/")
+    assert page.status_code == 200
+    assert 'content="/candidate-preview/candidate/' in page.text
+    assert nested.status_code == 200
+    assert asset.status_code == 200
+    assert asset.text == "console.log('candidate')"
+    assert denied.status_code == 404

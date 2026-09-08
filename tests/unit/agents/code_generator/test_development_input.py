@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,8 @@ import pytest
 from oryxenai.agents.code_generator.core.brief_ingestion import (
     CONTENT_FILENAME,
     VISUAL_FILENAME,
+    BriefContractError,
+    _validate_indexes,
 )
 from oryxenai.agents.code_generator.core.development_input import (
     DevelopmentInputAdapter,
@@ -55,12 +58,13 @@ def test_fixture_markdown_pair_is_admitted_and_compiled(tmp_path) -> None:
 
 def test_build_preparation_markdown_uploads_are_wrapped_and_admitted(tmp_path) -> None:
     adapter = _adapter(tmp_path)
-    output = Path("output/build-preparation/01-31-04-09-94ae4a9c")
+    fixture_reference = adapter.from_fixture("privacy-safe-v3")
+    fixture_payload = json.loads(adapter.read(fixture_reference))
     reference = adapter.from_brief_uploads(
         content_filename=CONTENT_FILENAME,
-        content_data=(output / CONTENT_FILENAME).read_bytes(),
+        content_data=fixture_payload["content_brief_markdown"].encode("utf-8"),
         visual_filename=VISUAL_FILENAME,
-        visual_data=(output / VISUAL_FILENAME).read_bytes(),
+        visual_data=fixture_payload["visual_brief_markdown"].encode("utf-8"),
     )
     receipt, _projections = adapter.admit(reference)
 
@@ -78,6 +82,23 @@ def test_build_preparation_markdown_uploads_are_wrapped_and_admitted(tmp_path) -
     # the immutable source itself remains content-addressed under inputs/.
     assert admitted_copy.is_file()
     assert admitted_copy.read_bytes() == adapter.read(reference)
+
+
+def test_result_json_markdown_pair_is_admitted_from_the_mirror(tmp_path) -> None:
+    adapter = _adapter(tmp_path)
+    fixture_reference = adapter.from_fixture("privacy-safe-v3")
+    fixture_payload = json.loads(adapter.read(fixture_reference))
+    mirror = tmp_path / "mirror" / "result-only"
+    mirror.mkdir(parents=True)
+    (mirror / "result.json").write_text(json.dumps(fixture_payload), encoding="utf-8")
+    adapter._config.build_preparation_mirror_root = str(tmp_path / "mirror")
+
+    packs = adapter.list_build_preparation_packs()
+    assert packs[0]["brief_dir"] == "result-only"
+    assert packs[0]["eligible"] is True
+    reference = adapter.from_build_preparation_mirror("result-only")
+    receipt, _projections = adapter.admit(reference)
+    assert receipt.route_ids == ["home"]
 
 
 def test_upload_mime_and_filename_are_rejected_before_storage(tmp_path) -> None:
@@ -119,3 +140,15 @@ def test_markdown_upload_names_and_encoding_are_closed(tmp_path) -> None:
             visual_filename=VISUAL_FILENAME,
             visual_data=b"# visual",
         )
+
+
+def test_invalid_route_reports_the_specific_missing_approved_sections() -> None:
+    content = {
+        "kind": "content_index",
+        "run_id": "run-1",
+        "routes": [{"route_id": "home", "path": "/", "title": "Home", "sections": []}],
+    }
+    visual = {"kind": "visual_index", "run_id": "run-1"}
+
+    with pytest.raises(BriefContractError, match=r"home.*approved sections"):
+        _validate_indexes(content, visual)

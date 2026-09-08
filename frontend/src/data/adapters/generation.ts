@@ -17,6 +17,7 @@ export interface GenerationPreviewVM {
   url: string;
   routeIds: string[];
   routePaths: string[];
+  verificationStatus?: "verified" | "unverified";
 }
 
 export interface GenerationViewModel extends StageViewModel {
@@ -25,6 +26,8 @@ export interface GenerationViewModel extends StageViewModel {
   staleReasons: string[];
   currentMilestone: string;
   preview: GenerationPreviewVM | null;
+  candidatePreview?: GenerationPreviewVM | null;
+  warnings?: string[];
   safeError: (SafeStageError & { retryable: boolean }) | null;
 }
 
@@ -63,7 +66,17 @@ function adaptPreview(value: unknown): GenerationPreviewVM | null {
     url: value.url,
     routeIds: strings(value.route_ids),
     routePaths: strings(value.route_paths),
+    verificationStatus: value.verification_status === "unverified" ? "unverified" : "verified",
   };
+}
+
+function warningMessages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item === "string") return [item];
+    if (isRecord(item) && typeof item.message === "string") return [item.message];
+    return [];
+  });
 }
 
 function safeError(raw: Record<string, unknown>, failedJob: boolean): GenerationViewModel["safeError"] {
@@ -99,6 +112,8 @@ export function adaptCodeGenerator(
       staleReasons: [],
       currentMilestone: "",
       preview: null,
+      candidatePreview: null,
+      warnings: [],
       safeError: null,
     };
   }
@@ -108,6 +123,7 @@ export function adaptCodeGenerator(
   const failedJob = job?.status === "failed" || job?.status === "cancelled";
   const stale = raw.stale === true;
   const preview = adaptPreview(raw.active_preview);
+  const candidatePreview = adaptPreview(raw.candidate_preview);
 
   let state: StageState =
     WORKING_STATUSES.has(status)
@@ -145,6 +161,8 @@ export function adaptCodeGenerator(
       ? raw.progress.coordinator_stage
       : statusText,
     preview,
+    candidatePreview,
+    warnings: warningMessages(raw.warnings ?? raw.advisories),
     safeError: safeError(raw, failedJob),
   };
 }

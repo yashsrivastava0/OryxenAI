@@ -10,6 +10,7 @@ export interface GenerationStageProps {
   canMutate: boolean;
   inFlight?: boolean;
   onStart: () => Promise<void>;
+  onRetry: () => Promise<void>;
   onRegenerate: () => Promise<void>;
 }
 
@@ -36,6 +37,7 @@ function PreviewPanel({ preview, unverified }: { preview: GenerationPreviewVM; u
   const [routePath, setRoutePath] = useState(routeOptions[0] ?? "/");
   const [viewport, setViewport] = useState<(typeof VIEWPORTS)[number]["id"]>("desktop");
   const [bridgeStatus, setBridgeStatus] = useState("Loading the embedded preview...");
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
 
   const frameSrc = resolveRouteUrl(preview, routePath);
@@ -107,7 +109,7 @@ function PreviewPanel({ preview, unverified }: { preview: GenerationPreviewVM; u
           <button
             type="button"
             className="btn-quiet"
-            onClick={() => frameRef.current?.contentWindow?.location.reload()}
+            onClick={() => setRefreshNonce((value) => value + 1)}
           >
             Refresh
           </button>
@@ -124,6 +126,7 @@ function PreviewPanel({ preview, unverified }: { preview: GenerationPreviewVM; u
 
       <div className="generation-preview-frame-shell" data-viewport={activeViewport.id}>
         <iframe
+          key={`${frameSrc}:${refreshNonce}`}
           ref={frameRef}
           className="generation-preview-frame"
           title="Generated portfolio preview"
@@ -142,6 +145,7 @@ export function GenerationStage({
   canMutate,
   inFlight = false,
   onStart,
+  onRetry,
   onRegenerate,
 }: GenerationStageProps) {
   if (!view || view.state === "locked") {
@@ -209,12 +213,15 @@ export function GenerationStage({
           }
           preservedWorkNote="Your approved build handoff and any previously verified preview remain unchanged."
           retryLabel={view.stale ? "Regenerate portfolio" : "Retry generation"}
-          onRetry={view.stale ? onRegenerate : onStart}
+          onRetry={view.stale ? onRegenerate : onRetry}
           inFlight={inFlight}
           errorDetails={view.safeError ?? undefined}
           technicalDetails={view.staleReasons.length > 0 ? view.staleReasons.join("\n") : null}
         />
-        {view.preview ? <PreviewPanel preview={view.preview} unverified /> : null}
+        {view.candidatePreview ? (
+          <PreviewPanel preview={view.candidatePreview} unverified />
+        ) : null}
+        {view.preview ? <PreviewPanel preview={view.preview} unverified={false} /> : null}
       </>
     );
   }
@@ -228,6 +235,15 @@ export function GenerationStage({
       </header>
 
       {view.preview ? <PreviewPanel preview={view.preview} unverified={false} /> : null}
+
+      {(view.warnings ?? []).length > 0 ? (
+        <aside className="generation-warnings" aria-label="Generation warnings">
+          <p className="metadata-label">Non-blocking notes</p>
+          <ul>
+            {(view.warnings ?? []).map((warning) => <li key={warning}>{warning}</li>)}
+          </ul>
+        </aside>
+      ) : null}
 
       {canMutate && (
         <div className="generation-actions">

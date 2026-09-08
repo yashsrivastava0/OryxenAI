@@ -19,6 +19,7 @@ from oryxenai.agents.code_generator.core.design_realization import compile_desig
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
 from oryxenai.agents.code_generator.core.development_planner import validate_site_plan
 from oryxenai.agents.code_generator.core.development_schemas import (
+    CandidatePreview,
     DevelopmentRunStatus,
     Diagnostic,
     ExperienceBlueprintV3,
@@ -41,6 +42,10 @@ from oryxenai.agents.code_generator.core.final_repair import (
     repair_allowed_paths,
 )
 from oryxenai.agents.code_generator.core.final_source_validation import validate_final_source
+from oryxenai.agents.code_generator.core.finding_policy import (
+    effective_finding_severity,
+    normalize_findings,
+)
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
     CodeGeneratorGenerationOrchestrator,
     _allowed_packages,
@@ -464,6 +469,14 @@ async def _execute(
         if prior_projection is not None:
             projection.repair_rounds = prior_projection.repair_rounds
             projection.repair_receipts = list(prior_projection.repair_receipts)
+            # A successful build may already have an unverified candidate
+            # before a later repair attempt fails. Keep that capability-scoped
+            # pointer visible across recursive verification retries; a new
+            # verified promotion replaces it atomically, while a failed retry
+            # must not strand the last buildable artifact.
+            projection.candidate_artifact = prior_projection.candidate_artifact
+            projection.candidate_preview = prior_projection.candidate_preview
+            projection.advisories = list(prior_projection.advisories)
         await _persist_projection(
             sessionmaker, run_id, projection, DevelopmentRunStatus.BUILDING.value
         )
@@ -688,6 +701,19 @@ async def _execute(
                     fingerprint=hashlib.sha256(b"runtime-evidence-empty").hexdigest()[:24],
                 )
             )
+        runtime_diagnostics = normalize_findings(runtime_diagnostics)
+        blocking_runtime_diagnostics = [
+            item for item in runtime_diagnostics if effective_finding_severity(item) == "blocking"
+        ]
+        for advisory in runtime_diagnostics:
+            if effective_finding_severity(advisory) == "advisory":
+                projection.advisories.append(
+                    SafeIssue(
+                        code=advisory.code,
+                        message=advisory.normalized_message[:500],
+                        next_action="Optional visual polish; it does not block this preview.",
+                    )
+                )
         evidence_hash = hashlib.sha256(
             _canonical([item.model_dump(mode="json") for item in evidence])
         ).hexdigest()
@@ -696,7 +722,7 @@ async def _execute(
         projection.gate_results.append(
             GateResult(
                 gate_id="dom_runtime",
-                status="failed" if runtime_diagnostics else "passed",
+                status="failed" if blocking_runtime_diagnostics else "passed",
                 candidate_identity_hash=identity.identity_hash,
                 build_hash=manifest.build_hash,
                 expected_check_ids=expected_runtime_check_ids,
@@ -705,7 +731,7 @@ async def _execute(
                 evidence_hash=evidence_hash,
             )
         )
-        if runtime_diagnostics:
+        if blocking_runtime_diagnostics:
             logger.warning(
                 "code_generator runtime gate failed run_id=%s codes=%s",
                 run_id,
@@ -714,15 +740,41 @@ async def _execute(
             if server is not None:
                 await server.close()
                 server = None
-            if _has_infrastructure_diagnostic(runtime_diagnostics):
+            if _has_infrastructure_diagnostic(blocking_runtime_diagnostics):
                 return await _terminal(
                     sessionmaker,
                     run_id,
                     projection,
-                    code=_first_infrastructure_code(runtime_diagnostics),
+                    code=_first_infrastructure_code(blocking_runtime_diagnostics),
                     summary="The verification environment could not complete the browser smoke test.",
                     next_action="Check the local preview gateway and browser runtime, then retry verification.",
                 )
+            if _candidate_runtime_safe(blocking_runtime_diagnostics):
+                try:
+                    (
+                        projection.candidate_artifact,
+                        projection.candidate_preview,
+                        projection.verification_report_hash,
+                    ) = await _store_unverified_candidate(
+                        settings=settings,
+                        run_id=run_id,
+                        host=host,
+                        identity=identity,
+                        manifest=manifest,
+                        plan=plan,
+                        workspace=workspace,
+                        projection=projection,
+                        storage_factory=storage_factory,
+                    )
+                except Exception as exc:
+                    # Candidate publication is additive.  A storage failure
+                    # must not turn a traceable runtime finding into a false
+                    # success or erase the normal retry path.
+                    logger.warning(
+                        "unverified candidate storage failed run_id=%s error_type=%s",
+                        run_id,
+                        type(exc).__name__,
+                    )
             repaired = await _attempt_repair(
                 sessionmaker=sessionmaker,
                 run_id=run_id,
@@ -734,7 +786,7 @@ async def _execute(
                 plan=plan,
                 projections=projections,
                 projection=projection,
-                diagnostics=runtime_diagnostics,
+                diagnostics=blocking_runtime_diagnostics,
                 public_text=public_text,
                 allowed_packages=allowed_packages,
                 model_factory=model_factory,
@@ -1030,8 +1082,77 @@ def _materialized_manifest_matches(dist_dir: Path, manifest: Any) -> bool:
     return True
 
 
+async def _store_unverified_candidate(
+    *,
+    settings: Any,
+    run_id: UUID,
+    host: str,
+    identity: Any,
+    manifest: Any,
+    plan: SitePlan,
+    workspace: GenerationWorkspace,
+    projection: VerificationProjection,
+    storage_factory: Any | None,
+) -> tuple[Any, CandidatePreview, str]:
+    """Persist a successful build for an explicitly unverified preview.
+
+    This path is intentionally after the clean build and the static/runtime
+    network safety checks.  It never promotes an active preview and never
+    touches the success entitlement.
+    """
+
+    storage = (
+        storage_factory(settings)
+        if storage_factory is not None
+        else create_preview_storage(settings)
+    )
+    promoter = PreviewPromoter(
+        storage,
+        preview_base_url=str(settings.code_generator_verification.preview_base_url),
+        require_readback=False,
+    )
+    candidate_id = f"candidate-{identity.identity_hash[:24]}"
+    report = projection.model_dump(mode="json")
+    report_hash = hashlib.sha256(_canonical(report)).hexdigest()
+    artifact, stored_report_hash, pointer = await promoter.store_candidate(
+        candidate_id=candidate_id,
+        host=host,
+        identity=identity,
+        manifest=manifest,
+        dist_dir=workspace.repo_dir / "dist",
+        verification_report={**report, "verification_report_hash": report_hash},
+    )
+    routes = [route.route_id for route in plan.routes]
+    paths = [route.path for route in plan.routes]
+    artifact = artifact.model_copy(update={"route_ids": routes, "route_paths": paths})
+    preview = CandidatePreview(
+        url=str(pointer.get("candidate_url", "")),
+        candidate_id=artifact.candidate_id,
+        candidate_identity_hash=artifact.candidate_identity_hash,
+        build_hash=artifact.build_hash,
+        route_ids=routes,
+        route_paths=paths,
+        created_at=artifact.created_at,
+        expires_at=artifact.expires_at,
+    )
+    return artifact, preview, stored_report_hash
+
+
 def _has_infrastructure_diagnostic(diagnostics: list[Diagnostic]) -> bool:
     return any(item.owner == "infrastructure" for item in diagnostics)
+
+
+def _candidate_runtime_safe(diagnostics: list[Diagnostic]) -> bool:
+    """Allow candidate links only when static/network safety was proven."""
+
+    unsafe = {
+        "RUNTIME_OUTBOUND_REQUEST",
+        "RUNTIME_CSP_VIOLATION",
+        "RUNTIME_ASSET_FAILED",
+        "RUNTIME_IMAGE_DECODE_FAILED",
+        "RUNTIME_FONT_LOAD_FAILED",
+    }
+    return not any(item.code in unsafe for item in diagnostics)
 
 
 def _first_infrastructure_code(diagnostics: list[Diagnostic]) -> str:
@@ -1392,6 +1513,11 @@ async def _terminal(
         values={
             "terminal_failure": report.model_dump(mode="json"),
             "pending_promotion": None,
+            "candidate_artifact": (
+                projection.candidate_artifact.model_dump(mode="json")
+                if projection.candidate_artifact is not None
+                else None
+            ),
             # A terminal verification job is no longer active. Clearing the
             # identifier keeps same-run retries and the frontend action state
             # aligned with the durable job lifecycle.

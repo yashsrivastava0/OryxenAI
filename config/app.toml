@@ -235,8 +235,9 @@ max_events_page_size = 100
 # is a deliberate queue boundary for the migrated two-brief contract.
 build_preparation_mirror_root = "output/build-preparation"
 pipeline_contract_version = "code-generator-v5"
-worker_release_id = "oryxenai-code-generator-v5"
-quality_gate_version = "quality-gate-v2"
+worker_release_id = "oryxenai-code-generator-v5-quality-v3"
+quality_gate_version = "quality-gate-v3"
+planner_max_attempts = 2
 design_similarity_threshold = 0.82
 design_similarity_history = 3
 

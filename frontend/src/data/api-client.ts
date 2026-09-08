@@ -390,6 +390,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         jsonInit("POST", {}, idempotencyKey),
       ),
 
+    retryCodeGenerator: (sessionId: string, idempotencyKey?: string) =>
+      requestJson<StageEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/retry`,
+        jsonInit("POST", {}, idempotencyKey),
+      ),
+
   };
 }
 

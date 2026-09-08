@@ -24,7 +24,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
 _IMPORT_SPECIFIER_RE = re.compile(
-    r"""(?:from|import)\s+["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)"""
+    r"""(?:\bfrom|\bimport)\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|\brequire\(\s*["']([^"']+)["']\s*\)"""
 )
 
 
@@ -67,11 +67,41 @@ def detect_supported_import_dependencies(text: str, supported_packages: Iterable
         return set()
     found: set[str] = set()
     for match in _IMPORT_SPECIFIER_RE.finditer(text):
-        specifier = match.group(1) or match.group(2) or ""
+        specifier = match.group(1) or match.group(2) or match.group(3) or ""
         package = _package_name_from_specifier(specifier)
         if package and package in supported:
             found.add(package)
     return found
+
+
+def detect_import_dependencies(text: str) -> set[str]:
+    """Return all bare package names referenced by a source file.
+
+    This is intentionally a lexical admission check, not a JavaScript
+    resolver.  Relative/absolute paths and the project alias ``@/`` are
+    excluded; package subpaths and scoped packages are reduced by the same
+    rules used for supported-package detection.
+    """
+
+    found: set[str] = set()
+    for match in _IMPORT_SPECIFIER_RE.finditer(text):
+        specifier = match.group(1) or match.group(2) or match.group(3) or ""
+        package = _package_name_from_specifier(specifier)
+        if package and not package.startswith("@/"):
+            found.add(package)
+    return found
+
+
+def detect_unsupported_import_dependencies(
+    text: str,
+    *,
+    installed_packages: Iterable[str],
+    supported_packages: Iterable[str],
+) -> set[str]:
+    """Return imports that cannot be satisfied by the admitted toolchain."""
+
+    allowed = set(installed_packages) | set(supported_packages)
+    return detect_import_dependencies(text) - allowed
 
 
 def _canonical_hash(value: Any) -> str:
