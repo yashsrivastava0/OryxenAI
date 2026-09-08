@@ -11,6 +11,23 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 15:10 +05:30 - Codex (GPT-5 / OpenAI) - [ddc2e77] - app: integrate Build Preparation, provider safety, and complete output rail
+
+Extended the authenticated `/app` journey through an explicit Build
+Preparation handoff after approved Content and Visual Design. Added durable
+state adaptation, progress/attention/stale recovery UI, and a safe right rail
+with exact persisted full-JSON copy controls for Discovery, Content Architect,
+Visual Design Director, and Build Preparation. Kept Code Generator/Preview
+outside the product flow and preserved explicit handoffs.
+
+Completed the provider-neutral free-tier hardening from PLAN.MD: post-response
+usage/cost/request telemetry (including wallet vs promotional consumption),
+safe attributable provider errors, quota observation/redaction, in-flight
+capacity preservation, and terminal accounting failure behavior, with the
+wallet column migration and admin date/model filters. Verified with `uv run
+pytest -q` (1,024 passed, 170 skipped), Ruff, mypy, frontend typecheck/Vitest,
+Vite production build, browser-auth tests, and migration-head checks.
+
 ### 2026-09-08 11:14 +05:30 - Codex (GPT-5 / OpenAI) - [3a6cf25] - frontend: bust legacy bundle cache on bootstrap
 
 The legacy pipeline bootstrap now imports its mutable static bundle with a
@@ -437,6 +454,6 @@ restricted-worker regression missing from D-073.
 
 ## Summary (as of last compaction — 2026-09-08)
 
-- Recent detailed entries retained: 16
+- Recent detailed entries retained: 20
 - Compacted milestone bullets: 24
-- Last updated: 2026-09-08 05:25 +05:30 — Codex (GPT-5 / OpenAI)
+- Last updated: 2026-09-08 15:10 +05:30 — Codex (GPT-5 / OpenAI)
