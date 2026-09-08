@@ -115,6 +115,45 @@ def _approved_fact_statements(content_architect: dict[str, Any]) -> list[str]:
     return statements
 
 
+def _approved_owner_names(content_architect: dict[str, Any]) -> list[str]:
+    """Return names from Content Architect's explicit public identity fields.
+
+    ``claim_grounding`` is intentionally factual, but its statements can also
+    contain employer, product, certification, or geography names.  Treating
+    the most frequent capitalized phrase there as the portfolio owner makes a
+    valid handoff fail as soon as an organization is mentioned repeatedly.
+    Content Architect's ``public_content_manifest.site_title`` and
+    ``visual_director_handoff.must_preserve`` are the approved public identity
+    surfaces consumed by Visual Design Director, so prefer those before the
+    conservative fact-statement fallback.
+    """
+
+    names: list[str] = []
+    manifest = content_architect.get("public_content_manifest")
+    if isinstance(manifest, dict):
+        names.extend(_person_name_candidates(manifest.get("site_title")))
+
+    handoff = content_architect.get("visual_director_handoff")
+    if isinstance(handoff, dict):
+        preserve = handoff.get("must_preserve")
+        if isinstance(preserve, list):
+            for value in preserve:
+                names.extend(_person_name_candidates(value))
+
+    # Keep the first occurrence order: these fields are authored as an
+    # identity-preserving handoff, and the title/first must-preserve entry is
+    # the canonical owner in the normal portfolio shape.  De-duplicate while
+    # retaining that deterministic order.
+    unique: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        key = name.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(name)
+    return unique
+
+
 def _visual_identity_texts(visual_design_director: dict[str, Any]) -> list[str]:
     scope = visual_design_director.get("global")
     if not isinstance(scope, dict):
@@ -161,13 +200,21 @@ def validate_content_visual_identity_consistency(
 
     if not isinstance(content_architect, dict) or not isinstance(visual_design_director, dict):
         return
-    content_counts, content_display_names = _count_person_names(
-        _approved_fact_statements(content_architect)
-    )
-    if not content_counts:
-        return
-    approved_key, approved_count = content_counts.most_common(1)[0]
-    if approved_count < 1:
+    explicit_owner_names = _approved_owner_names(content_architect)
+    if explicit_owner_names:
+        approved_keys = {name.casefold() for name in explicit_owner_names}
+        content_display_names = {name.casefold(): name for name in explicit_owner_names}
+        approved_key_for_error = explicit_owner_names[0].casefold()
+    else:
+        # Older or minimal approved snapshots may not have the public
+        # identity fields.  Preserve the original fact-based guard for those
+        # inputs, while keeping it as a fallback rather than the authority.
+        content_counts, content_display_names = _count_person_names(
+            _approved_fact_statements(content_architect)
+        )
+        approved_keys = {content_counts.most_common(1)[0][0]} if content_counts else set()
+        approved_key_for_error = next(iter(approved_keys), "")
+    if not approved_keys:
         return
     visual_texts = _visual_identity_texts(visual_design_director)
     visual_counts, visual_display_names = _count_person_names(visual_texts)
@@ -175,13 +222,14 @@ def validate_content_visual_identity_consistency(
     mismatches = sorted(
         visual_display_names[key]
         for key, count in visual_counts.items()
-        if key != approved_key and (count > 1 or visual_first_token_counts.get(key, 0) > 1)
+        if key not in approved_keys and (count > 1 or visual_first_token_counts.get(key, 0) > 1)
     )
     if mismatches:
+        approved_name = content_display_names[approved_key_for_error]
         raise VisualIdentityMismatchError(
             "Visual direction repeatedly names a person other than the approved content owner.",
             details={
-                "approved_name": content_display_names[approved_key],
+                "approved_name": approved_name,
                 "mismatched_names": ", ".join(mismatches),
             },
         )
