@@ -81,7 +81,10 @@ export async function bootProductShell({
       ?.querySelector?.('meta[name="oryxenai-product-entry"]')
       ?.content;
     if (entry) return import(entry);
-    await import("/static/app.js");
+    // The legacy bundle is mutable during local development and is served
+    // under a stable filename. Bust the browser's module cache so a refreshed
+    // workspace cannot keep an older output/copy-control implementation.
+    await import(`/static/app.js?v=${Date.now()}`);
     return globalRef?.OryxenAIApp;
   },
 } = {}) {
