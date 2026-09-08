@@ -51,9 +51,36 @@ describe("five-stage app store", () => {
         staleReasons: [],
         currentMilestone: "",
         preview: null,
+        candidatePreview: null,
+        warnings: [],
         safeError: null,
       },
     });
     expect(state.generation?.state).toBe("available");
+  });
+
+  it("resets all stages and returns to discover on pipeline/reset", () => {
+    const populatedState = {
+      ...initialAppState,
+      sessionId: "session-123",
+      sessionRevision: 5,
+      activeStage: "design" as const,
+      discovery: { state: "complete" } as any,
+      content: { state: "complete" } as any,
+      design: { state: "working" } as any,
+    };
+    const reset = appReducer(populatedState, {
+      type: "pipeline/reset",
+      sessionId: "session-123",
+      revision: 6,
+    });
+    expect(reset.sessionId).toBe("session-123");
+    expect(reset.sessionRevision).toBe(6);
+    expect(reset.activeStage).toBe("discover");
+    expect(reset.discovery).toBeNull();
+    expect(reset.content).toBeNull();
+    expect(reset.design).toBeNull();
+    expect(reset.preparation).toBeNull();
+    expect(reset.generation).toBeNull();
   });
 });
