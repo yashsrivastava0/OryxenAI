@@ -19,8 +19,8 @@ sections), consistent with its own stated role as evidentiary backing for `01`-`
 Cross-checked directly against the running implementation, not just the research
 package's own citations: `src/oryxenai/web/static/app-auth-bootstrap.mjs`,
 `src/oryxenai/auth/static/auth-controller.mjs`, `src/oryxenai/auth/static/auth-runtime.mjs`,
-`src/oryxenai/web/templates/base.html`, `src/oryxenai/web/static/app.css`
-(the structural auth-hide rule), and `src/oryxenai/web/routes.py`. This mattered
+`src/oryxenai/web/templates/product_shell.html`, and `src/oryxenai/web/routes.py`.
+This mattered
 because the package becomes build guidance for a smaller implementing model —
 precision against real source beats a restated summary.
 
@@ -43,8 +43,8 @@ integrated below.
 | Six open review questions, each resolved | `README.md` "Review resolutions" |
 | Render + Cloudflare R2 confirmed as hosting target; AWS section in `docs/Auth/04` marked superseded | `README.md` decision 9; `03` §9; `05` §16 "Deployment target"; pointer documented in `docs/Auth/04-deployment-and-operations.md` |
 | Bug: `resolveAuthenticatedContext()` (gates `/app`) force-signs-out on `AUTH_PROVIDER_UNAVAILABLE`/`MODEL_PROVIDER_CREDIT_EXHAUSTED` instead of the safe in-place message `routeController()` already shows for the same codes | `05` §19 Phase 1 (fix first, independently); `02` §6 auth edge-case table (new row) |
-| `app-auth-bootstrap.mjs`'s hardcoded `import("/static/app.js")` must change to the new bundle, branched on `isDeveloperPage`; `bootProductShell()` itself needs no behavioral change if the Preact entry keeps the `{ boot, stop, restart }` shape | `05` §19 Phase 1 |
-| `body.auth-pending` structural hide rule (`app.css:354`) must get an explicit home in the new stylesheet layer before `app.css` is retired | `05` §19 Phase 1 |
+| `app-auth-bootstrap.mjs` now loads the manifest-selected Preact entry and fails clearly if the bundle is unavailable; the retired legacy static workspace is not a fallback | `05` §19 Phase 1 |
+| `body.auth-pending` structural hide behavior belongs to the Preact stylesheet layer now that the legacy `app.css` shell is retired | `05` §19 Phase 1 |
 | Preview container-sizing recipe: reserve the box via `aspect-ratio`/fixed size before load (CLS); letterbox via a fixed-size wrapper plus `transform: scale()`, never by resizing the iframe outside the four verified profiles | `02` §8 "Route and viewport controls"; `05` §8.10 `PreviewSurface`; `05` §19 Phase 4 stop gate |
 | Preview-gateway cold-start copy should mirror the auth loader's two-second acknowledgment, since it's a separate Render service that sleeps independently | `03` §5 "Preview load" |
 | Vite manifest resolution guidance (`manifest: true` + a small Python resolver) | `05` §16 |

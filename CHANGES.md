@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 01:20 +05:30 - Codex (GPT-5 / OpenAI) - [pending] - frontend: remove legacy static pipeline shell
+
+Retired the temporary static Discovery/pipeline shell (`index.html`, `app.js`,
+and `app.css`) and removed its `/dev` route and `/app` fallback. `/app` now
+requires the manifest-selected Preact bundle and reports a clear 503 when it is
+not built. The separate Build Preparation diagnostic and Code Generator
+development control room remain intact.
+
 ### 2026-09-09 00:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [f20779f] - code-generator: clarify planner guidance on design-language words vs literal color names
 
 Live-confirmed a reproducible planner failure specific to one pack's own

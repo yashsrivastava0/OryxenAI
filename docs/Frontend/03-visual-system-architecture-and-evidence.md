@@ -535,8 +535,9 @@ the repository contracts remain authoritative for what OryxenAI can safely expos
 
 ### Source evidence
 
-- `src/oryxenai/web/templates/index.html` and
-  `src/oryxenai/web/static/app.js` form the main temporary product/development shell.
+- `frontend/src/main.tsx` and the built `src/oryxenai/web/static/product/` bundle
+  form the canonical `/app` product shell; the former temporary static shell has
+  been removed.
 - `src/oryxenai/web/templates/code_generator_development.html` and its dedicated
   scripts form a separate Code Generator development control room.
 - Build Preparation fixture templates expose diagnostic inputs, internal events, and
