@@ -36,6 +36,25 @@ preview, and model usage is recorded in
 `docs/code-generator-live-campaign.md`. No live outcome is claimed here until
 the standard API/worker/preview services are restarted on this commit.
 
+Live slot 1 completed successfully after that restart. Run
+`4d009f48-050e-48a7-9611-82f3a5eecd91` used pack A, validated one route and six
+work units, produced an accepted 109-file source checkpoint, and reached
+`ready` with build hash
+`a07ca2b24ed904431d377df474ba8a47a7adfec3b1942bfe8440eabf08622f10`. The
+first verification worker was subject to this Windows execution sandbox's
+Node child-process restriction (`spawn EPERM` in Vite/esbuild); `npm run check`
+passed and an elevated worker rebuilt the identical checkpoint successfully.
+The browser smoke gate then passed and promoted the active preview at
+`http://127.0.0.1:4174/preview/preview-6esue4fssmj3unpkzxeclt6onwqnxdwazwrdptyikrbtashb/`.
+The export is `output/code-gen-output/03-34-09-09-2026-4d009f48` with a real
+`dist/` (66 files). Runtime verification retained 43 geometry/visual
+observations as advisories and no blocking findings. The verification retry
+reused the accepted checkpoint; it was not a second full pipeline slot.
+
+Per the campaign guardrail, the live campaign stopped after this first
+successful `ready` result. Pack B remains unrun and available for a future
+cross-pack confirmation; no slot 2–4 calls were made.
+
 ## 2026-09-09 00:xx +05:30 — Reliability/cost fix pass + new bundle validation + live-test phase, still zero `ready` (Claude Code) [44304ff, 2790e9d, a2ae087, 051afa6, f20779f]
 
 Owner asked for a final pre-Azure pass on Code Generator: tighten the
