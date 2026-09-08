@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-08 17:51 +05:30 - Codex (GPT-5 / OpenAI) - [bb7078b] - app: harden Design-to-Prepare handoff
+
+Applied the same stale-projection protection to the explicit Visual Design →
+Build Preparation handoff. If the browser still has a fail-closed `locked`
+projection while upstream approval is already durable, the handoff now starts
+the preparation job instead of opening a permanently locked screen. The
+frontend boundary regression check covers this path.
+
 ### 2026-09-08 17:28 +05:30 - Codex (GPT-5 / OpenAI) - [5731cf5] - app: repair stale Discovery-to-Content handoff
 
 Fixed the `/app` Continue to Content handoff when the browser still holds
