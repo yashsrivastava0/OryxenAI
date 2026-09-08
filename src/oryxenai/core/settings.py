@@ -162,9 +162,14 @@ class WorkerRetryConfig(BaseModel):
 
     max_attempts: int = 3
     # New first-four pipeline jobs are intentionally limited to one initial
-    # worker execution plus one redelivery.  Code Generator and legacy jobs
-    # continue to use ``max_attempts`` until their own policy is migrated.
+    # worker execution plus one redelivery.  Legacy jobs continue to use
+    # ``max_attempts`` until their own policy is migrated.
     first_four_max_attempts: int = 2
+    # Code Generator jobs are long-running and expensive; give them their
+    # own named ceiling (one initial execution plus one redelivery) instead
+    # of sharing the more permissive general ``max_attempts`` default with
+    # other, unrelated job kinds.
+    code_generator_max_attempts: int = 2
     base_delay: float = 1.0
     max_delay: float = 60.0
     jitter: bool = True

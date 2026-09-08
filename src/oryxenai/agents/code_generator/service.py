@@ -381,7 +381,7 @@ class CodeGeneratorService:
         job = await self._jobs.enqueue(
             plan_kind,
             job_payload,
-            max_attempts=int(self._settings.worker_retry.max_attempts),
+            max_attempts=int(self._settings.worker_retry.code_generator_max_attempts),
             idempotency_scope=stage_scope("plan", pipeline_contract_version),
             idempotency_key=f"{run.id}:{reference.source_sha256}",
         )
@@ -647,7 +647,7 @@ class CodeGeneratorService:
         job = await self._jobs.enqueue(
             job_kind,
             payload,
-            max_attempts=int(self._settings.worker_retry.max_attempts),
+            max_attempts=int(self._settings.worker_retry.code_generator_max_attempts),
             idempotency_scope=retry_scope,
             idempotency_key=retry_key,
         )
