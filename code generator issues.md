@@ -1,5 +1,139 @@
 # Code Generator Issues
 
+## 2026-09-09 00:xx +05:30 — Reliability/cost fix pass + new bundle validation + live-test phase, still zero `ready` (Claude Code) [44304ff, 2790e9d, a2ae087, 051afa6, f20779f]
+
+Owner asked for a final pre-Azure pass on Code Generator: tighten the
+repair/generation/review loop, investigate a suspected billing/retry-loop
+issue, restore a production "Generate & Preview" `/app` stage, prep Azure
+Compose/Caddy overlays, and validate + live-test the new Build Preparation
+bundle (`20-46-08-09-6b899b90`, "Maya Bennett") before spending more money
+on it.
+
+**Fixed, all root-caused from real code/DB evidence, none guessed:**
+
+1. **`FinalRepairError` had no escape hatch for an honest
+   `cannot_complete` repair response** — `final_repair.py` raised the same
+   generic error for a genuinely declined repair as for any other failure,
+   so `_run_bounded_repair` kept retrying to budget exhaustion instead of
+   stopping early. Added `FinalRepairDeclined` with a `safe_reason`, and a
+   dedup: two identical declines in a row now stop immediately instead of
+   burning a third model call. [44304ff]
+2. **`RUNTIME_REGION_WIDTH_RATIO` reported one shared defect as N
+   unrelated findings** when multiple regions measured the identical
+   content width against `main` — added explicit shared-cause correlation
+   text to the diagnostic bundle instead of N independently-worded
+   findings. [44304ff]
+3. **Code Generator's prompt-cache keys were scoped per-generation**
+   (`codegen:{generation_id}:{role_profile}`), defeating cross-run reuse of
+   the large stable system-prompt/schema prefix — the exact waste pattern
+   `docs/research/api-usage-cost-cache-and-multi-provider-remediation-plan.md`
+   measured as most of a day's spend. Rekeyed to
+   `codegen:{role_profile}:{operation}:{operation_hash[:16]}` in
+   `generation_orchestrator.py`, `integration_review_operation.py`, and
+   `final_repair.py`. [44304ff]
+4. **Round/attempt budgets tightened** (evidence-balanced, not the research
+   doc's more aggressive default): `max_repair_rounds_per_unit` 3→2,
+   `max_repair_rounds_total` 6→4, `max_integration_polish_rounds` 5→3, plus
+   a dedicated `code_generator_max_attempts = 2` job-retry override
+   (previously shared the general `max_attempts = 3`). [44304ff]
+5. **A pinned component's undeclared npm import was never resolved as a
+   dependency** — root cause: the two-Markdown-brief handoff format has no
+   field for a pinned component's own npm dependencies at all (confirmed:
+   zero `dependencies`/`registry_dependencies`/`resolution_type` mentions
+   anywhere in the new bundle's fenced JSON index), so
+   `candidate.dependency_metadata` is always empty and
+   `Cannot find module 'motion/react'` failed typecheck with nothing to act
+   on. Added `detect_supported_import_dependencies()` — a source-scan
+   against the configured allowlist only, never an arbitrary install — wired
+   into both the actually-exercised `_execute_acquisition` path and the
+   emergent `_resolve_requests` path. Live-confirmed: the next run correctly
+   triggered dependency resolution for the first time this engagement. [051afa6]
+6. **Planner accent/color-token collision, root-caused to the bundle's own
+   prose** — the new bundle's visual brief says "one confident technical
+   accent," and the model kept naming its literal `colors[*].name` token
+   `"accent"`, colliding with the reserved `shadcn_theme_bindings` slot key.
+   Added explicit guidance to `planner.md`: design-language words like
+   "accent"/"primary action"/"muted background" name a *concept*, not a
+   literal token string — pick an unrelated concrete name for the token
+   itself. Live-confirmed: planning passed cleanly on the next run. [f20779f]
+
+**Also shipped this pass, not reliability fixes:**
+
+- Restored and adapted a production "Generate & Preview" stage in `/app`
+  (merged into one stage, not two), superseding D-063's dev-only boundary —
+  new `DECISIONS.md` D-081. [2790e9d]
+- Checked in Azure production Compose/Caddy/TOML overlays matching the
+  existing runbook exactly, including fixing `preview_base_url` so it no
+  longer bakes in `localhost` for a real browser hitting the VM's domain.
+  [a2ae087]
+
+**Bundle validation (free, no model calls):** the new bundle
+(`20-46-08-09-6b899b90`) was checked directly against
+`brief_ingestion.py::compile_briefs()` before any live spend — compiles
+cleanly, 4 routes, 22 sections, 23 resources, 13 components, target
+`react-vite-v1`, contract hash `05db2d1b…`. Structurally good going in.
+
+**Live-testing phase, in order, real OpenAI calls, all against the new
+bundle (`20-46-08-09-6b899b90`) unless noted:**
+
+1. Two consecutive runs failed outright on `OPENAI_API_KEY` auth (401) —
+   not a pipeline bug. First was a genuinely invalid/expired key; second
+   was the already-running API/worker processes still holding the *old*
+   key in memory after the owner rotated it (pydantic-settings reads
+   `.env` once at process start). Fixed by restarting both processes clean.
+2. `FOUNDATION_SOURCE_CHECK_FAILED` — `Cannot find module 'motion/react'`
+   — this is fix #5 above, root-caused and fixed from this exact failure.
+3. Two runs hit `PLANNER_OUTPUT_INVALID` on the accent/color-token
+   collision (fix #6) — first on `destructive, input`, then specifically on
+   `accent`. Fixed by the `planner.md` guidance; the next run's planning
+   passed cleanly.
+4. One run reached `acquiring` for the first time (dependency-scan fix #5
+   correctly triggered) and failed `DEPENDENCY_INSTALL_FAILED` /
+   `ENOTCACHED` — the offline npm cache
+   (`.workspace/npm-cache`) had never cached `motion`/`framer-motion`/
+   `motion-utils`. Not a code bug: a `--package-lock-only` warm attempt was
+   insufficient (metadata only, not tarballs); a full `npm install` with
+   `npm_config_cache` pointed at the real cache path fixed it, confirmed via
+   a clean `npm ci --offline` afterward.
+5. **Final run, `fca37030-09bb-43a9-8c42-ff0e9410dd3d`, with every fix
+   above in place together for the first time** (accent-collision guidance +
+   dependency-scan + warmed cache): `needs_attention` again, but on a
+   **brand-new, not-yet-investigated** failure, and earlier than any prior
+   step — it failed during **planning itself** (`coordinator_stage: "plan"`),
+   before acquire/generate ever started:
+   ```
+   PLANNER_OUTPUT_INVALID: root: Value error, distinctive move references an unknown region
+   ```
+   Source: `development_schemas.py:1866` —
+   `ExperienceBlueprintV4`'s own cross-reference validator rejects a
+   `distinctive_moves` entry whose `region_id` doesn't match any
+   `region_id` the same planner response declared in `section_regions`.
+   This is the model referencing a region it never declared, in the same
+   structured response — a different validator, a different route/root
+   cause category from anything fixed tonight. **Not root-caused past the
+   validator message itself**: no `planner_receipt`/`plan_summary` was
+   persisted for this attempt (the response never validated far enough to
+   be stored), so there is no artifact showing which region/route the model
+   invented, unlike every other fix tonight which had a real payload to
+   inspect. A plausible next step (unverified) is the same style of fix as
+   #6 — explicit planner guidance to double-check every `distinctive_move`'s
+   `region_id` against its own `section_regions` list before returning — but
+   that is a hypothesis, not a confirmed root cause.
+
+**Honest bottom line, unchanged in kind from every prior session:** zero
+`ready` outcomes tonight, across every attempt. Every genuinely reproducible
+bug found this session (auth/env, missing dependency, accent collision, npm
+cache) was root-caused and fixed, and each fix was live-confirmed to clear
+its own specific failure on the very next attempt — but the pipeline keeps
+surfacing a new, different structural non-determinism each time it clears
+the previous one, exactly this project's dominant pattern across its whole
+history. The last run of the night got further in *category* (all the way
+to a fresh planner-only validation miss, past every previously-fixed gate)
+but not further in *pipeline stage* than several earlier runs this
+engagement — it failed at planning, before acquire/generate ever ran, so it
+produced no export, no `dist/`, nothing new to hand the owner to run
+manually. No portfolio from tonight's testing is ready to preview.
+
 ## HANDOFF — 2026-09-08 00:xx +05:30 — Claude Code (Sonnet 5 / Anthropic) session ending, full state below
 
 This is a deliberate, complete handoff. This session's own work is finished
