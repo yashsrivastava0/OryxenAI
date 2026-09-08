@@ -23,11 +23,13 @@ export const PRIVATE_SESSION_PREFIXES = Object.freeze([
 ]);
 
 export class AuthRequestError extends Error {
-  constructor(message, { status = 0, code = "AUTH_INVALID" } = {}) {
+  constructor(message, { status = 0, code = "AUTH_INVALID", details = null, requestId = null } = {}) {
     super(message);
     this.name = "AuthRequestError";
     this.status = status;
     this.code = code;
+    this.details = details && typeof details === "object" ? details : null;
+    this.requestId = typeof requestId === "string" && requestId.length <= 200 ? requestId : null;
   }
 }
 
@@ -175,6 +177,26 @@ function errorMessage(code, serverMessage = "") {
   }
 }
 
+function safeProductErrorDetails(value) {
+  if (!value || typeof value !== "object") return null;
+  const details = {};
+  if (["Experiential Labs", "Google Gemini", "Configured model provider"].includes(value.provider_label)) {
+    details.provider_label = value.provider_label;
+  }
+  if (typeof value.operation_label === "string" && value.operation_label.length <= 160 && value.operation_label.trim()) {
+    details.operation_label = value.operation_label.trim();
+  }
+  const retryAfter = Number(value.retry_after_seconds);
+  if (Number.isFinite(retryAfter) && retryAfter >= 0 && retryAfter <= 86400) {
+    details.retry_after_seconds = retryAfter;
+  }
+  if (typeof value.support_reference === "string" && /^model-[a-f0-9]{12}$/i.test(value.support_reference)) {
+    details.support_reference = value.support_reference;
+  }
+  if (value.retryable === true) details.retryable = true;
+  return Object.keys(details).length ? details : null;
+}
+
 export async function responseError(response) {
   let body = null;
   try {
@@ -184,7 +206,14 @@ export async function responseError(response) {
   }
   const code = body?.error?.code || (response.status === 401 ? "AUTH_INVALID" : "REQUEST_FAILED");
   const serverMessage = typeof body?.error?.message === "string" ? body.error.message : "";
-  return new AuthRequestError(errorMessage(code, serverMessage), { status: response.status, code });
+  const details = safeProductErrorDetails(body?.error?.details);
+  const requestId = typeof body?.error?.request_id === "string" ? body.error.request_id : null;
+  return new AuthRequestError(errorMessage(code, serverMessage), {
+    status: response.status,
+    code,
+    details,
+    requestId,
+  });
 }
 
 export function createAuthorizedFetch({

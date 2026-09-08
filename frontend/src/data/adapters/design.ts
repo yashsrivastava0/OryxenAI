@@ -3,7 +3,13 @@
 // Follows the same fail-closed, defensive pattern established by discovery.ts and content.ts.
 
 import { selectStageJob } from "./job";
-import type { StageState, StageViewModel } from "./types";
+import {
+  readAgentOutput,
+  readSafeStageError,
+  type SafeStageError,
+  type StageState,
+  type StageViewModel,
+} from "./types";
 
 export interface VisualLanguageVM {
   creativeThesis: string;
@@ -38,7 +44,7 @@ export interface DesignViewModel extends StageViewModel {
   resources: ResourceCandidateVM[];
   conflicts: string[];
   warnings: string[];
-  safeError: { summary: string } | null;
+  safeError: SafeStageError | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -99,6 +105,7 @@ export function adaptVisualDesignDirector(
       statusText: "Visual Design Director returned an unrecognised state. Refresh to continue.",
       raw,
       job: selectStageJob(jobs),
+      agentOutput: null,
       userSummary: "",
       creativeThesis: "",
       visualLanguage: {
@@ -160,14 +167,14 @@ export function adaptVisualDesignDirector(
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const safeError =
     (status === "needs_attention" && latestError) || failedJob
-      ? {
-          summary:
-            typeof latestError?.message === "string"
-              ? latestError.message
-              : typeof latestError?.summary === "string"
-                ? latestError.summary
-                : job?.error?.message ?? "Visual Design Director needs attention.",
-        }
+      ? readSafeStageError(
+          latestError,
+          typeof latestError?.message === "string"
+            ? latestError.message
+            : typeof latestError?.summary === "string"
+              ? latestError.summary
+              : job?.error?.message ?? "Visual Design Director needs attention.",
+        )
       : null;
 
   return {
@@ -177,6 +184,7 @@ export function adaptVisualDesignDirector(
       : STATUS_TEXT[status] ?? "Working on Design",
     raw,
     job,
+    agentOutput: readAgentOutput(raw),
     userSummary,
     creativeThesis,
     visualLanguage,

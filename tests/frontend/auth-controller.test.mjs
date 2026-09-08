@@ -346,6 +346,37 @@ test("non-auth API errors preserve their safe server message without invalidatin
   assert.equal(failures, 0);
 });
 
+test("non-auth API errors retain only safe model diagnostics", async () => {
+  const request = createAuthorizedFetch({
+    auth: authWithSession(),
+    fetchImpl: async () => response(429, {
+      error: {
+        code: "PROVIDER_RATE_LIMIT_ERROR",
+        message: "The model provider is rate limited.",
+        request_id: "req-123",
+        details: {
+          provider_label: "Experiential Labs",
+          operation_label: "discovery.build_or_revise_brief",
+          retry_after_seconds: 8,
+          support_reference: "model-abcdef123456",
+          credential_alias: "EXPLABS",
+        },
+      },
+    }),
+  });
+
+  await assert.rejects(request("/api/v1/sessions/session-id/discovery/answers"), (error) => {
+    assert.equal(error.code, "PROVIDER_RATE_LIMIT_ERROR");
+    assert.equal(error.details.provider_label, "Experiential Labs");
+    assert.equal(error.details.operation_label, "discovery.build_or_revise_brief");
+    assert.equal(error.details.retry_after_seconds, 8);
+    assert.equal(error.details.support_reference, "model-abcdef123456");
+    assert.equal(error.details.credential_alias, undefined);
+    assert.equal(error.requestId, "req-123");
+    return true;
+  });
+});
+
 test("logout stops activity, clears private UI, signs out, and replaces the page", async () => {
   const location = fakeLocation("/app");
   const ui = uiProbe();

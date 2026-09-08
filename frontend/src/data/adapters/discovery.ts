@@ -9,7 +9,13 @@
 // response is { session_id, session_revision, discovery: <dict>, jobs: [] }.
 
 import { selectStageJob, type StageJobViewModel } from "./job";
-import type { StageState, StageViewModel } from "./types";
+import {
+  readAgentOutput,
+  readSafeStageError,
+  type SafeStageError,
+  type StageState,
+  type StageViewModel,
+} from "./types";
 
 export type DiscoveryQuestionKind = "text" | "single_select" | "multi_select" | "boolean";
 
@@ -34,7 +40,7 @@ export interface DiscoveryViewModel extends StageViewModel {
   answeredQuestionIds: string[];
   answeredTurns: Array<{ questionId: string; questionText: string; answerText: string }>;
   brief: { title: string; userSummary: string; approved: boolean } | null;
-  safeError: { summary: string; retryOperation: DiscoveryRetryOperation } | null;
+  safeError: (SafeStageError & { retryOperation: DiscoveryRetryOperation }) | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -119,6 +125,7 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
       statusText: "This stage returned a newer state. Refresh to continue.",
       raw,
       job: selectStageJob(jobs),
+      agentOutput: null,
       currentQuestions: [],
       answeredQuestionIds: [],
       answeredTurns: [],
@@ -186,12 +193,14 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
   const safeError =
     (status === "needs_attention" && latestError) || failedJob
       ? {
-          summary:
+          ...readSafeStageError(
+            latestError,
             typeof latestError?.message === "string"
               ? latestError.message
               : typeof latestError?.summary === "string"
                 ? latestError.summary
                 : job?.error?.message ?? "Discovery could not continue.",
+          ),
           retryOperation,
         }
       : null;
@@ -201,6 +210,7 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
     statusText: STATUS_TEXT[status] ?? "Working on Discovery",
     raw,
     job,
+    agentOutput: readAgentOutput(raw),
     currentQuestions,
     answeredQuestionIds: answeredIds,
     answeredTurns,

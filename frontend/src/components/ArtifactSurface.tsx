@@ -1,6 +1,7 @@
 import { useState, useMemo } from "preact/hooks";
 import { SafeMarkdown, extractHeadings } from "./SafeMarkdown";
 import { RevisionComposer } from "./RevisionComposer";
+import { copyJson, formatJson, type CopyJsonResult } from "../data/clipboard";
 
 export interface ArtifactSectionItem {
   id: string;
@@ -47,18 +48,14 @@ export function ArtifactSurface({
   const [showRevisionComposer, setShowRevisionComposer] = useState(false);
   const [confirmingApproval, setConfirmingApproval] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "unavailable">("idle");
+  const [copyStatus, setCopyStatus] = useState<"idle" | CopyJsonResult>("idle");
   const [error, setError] = useState<string | null>(null);
 
   // Extract headings from markdown if present
   const markdownHeadings = useMemo(() => extractHeadings(markdownContent), [markdownContent]);
   const finalJson = useMemo(() => {
     if (finalJsonOutput === undefined || finalJsonOutput === null) return "";
-    try {
-      return JSON.stringify(finalJsonOutput, null, 2);
-    } catch {
-      return "";
-    }
+    return formatJson(finalJsonOutput);
   }, [finalJsonOutput]);
 
   const handleApprove = async () => {
@@ -84,17 +81,9 @@ export function ArtifactSurface({
 
   const handleCopyJson = async () => {
     if (!finalJson) return;
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-      setCopyStatus("unavailable");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(finalJson);
-      setCopyStatus("copied");
-      window.setTimeout(() => setCopyStatus("idle"), 1800);
-    } catch {
-      setCopyStatus("unavailable");
-    }
+    const result = await copyJson(finalJson);
+    setCopyStatus(result);
+    window.setTimeout(() => setCopyStatus("idle"), 1800);
   };
 
   return (
@@ -189,7 +178,7 @@ export function ArtifactSurface({
               </p>
               <div className="artifact-json-actions">
                 <button type="button" className="btn-secondary" onClick={() => void handleCopyJson()}>
-                  {copyStatus === "copied" ? "JSON copied" : "Copy final JSON"}
+                  {copyStatus === "copied" || copyStatus === "fallback" ? "JSON copied" : "Copy final JSON"}
                 </button>
                 {copyStatus === "unavailable" && (
                   <span role="status">Clipboard unavailable — select and copy from the field.</span>

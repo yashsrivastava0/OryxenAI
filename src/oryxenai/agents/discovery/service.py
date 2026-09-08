@@ -25,6 +25,7 @@ from oryxenai.agents.discovery.state import (
     apply_needs_attention,
     apply_start,
 )
+from oryxenai.agents.shared.agent_output import public_discovery_outputs
 from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.model_router import ModelRouter
 from oryxenai.agents.shared.observability import frontend_cache_receipt
@@ -252,6 +253,11 @@ class DiscoveryService:
                     "existing_brief": next_state.brief.markdown,
                     "revision_request": "",
                     "model_profile": next_state.model_profile,
+                    "input_classification": "personal",
+                    "routing_policy_snapshot": {
+                        "version": next_state.routing_policy_version,
+                        "fingerprint": next_state.routing_policy_fingerprint,
+                    },
                 },
                 state_before=dict(session.current_state),
                 idempotency_key=key,
@@ -325,6 +331,11 @@ class DiscoveryService:
                 "existing_brief": state.brief.markdown,
                 "revision_request": revision_request,
                 "model_profile": state.model_profile,
+                "input_classification": "personal",
+                "routing_policy_snapshot": {
+                    "version": state.routing_policy_version,
+                    "fingerprint": state.routing_policy_fingerprint,
+                },
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -432,6 +443,11 @@ class DiscoveryService:
         discovery["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         discovery["attempt"] = state.attempt
         discovery["max_attempts"] = state.max_attempts
+        discovery["agent_output"] = await public_discovery_outputs(
+            getattr(self._repository, "get_run", None),
+            questions_run_id=state.operation_a.run_id,
+            brief_run_id=state.brief.run_id,
+        )
         run_id = state.brief.run_id or state.operation_a.run_id
         if run_id:
             try:

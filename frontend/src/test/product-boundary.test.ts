@@ -13,17 +13,17 @@ describe("authenticated product boundary", () => {
     expect(source).toContain('id="app-admin-link"');
   });
 
-  it("contains no later-stage endpoint in the product API client", async () => {
+  it("contains the explicit Build Preparation endpoint but no generator endpoint", async () => {
     // @ts-expect-error vitest runs this contract check in Node
     const fs = await import("node:fs");
     // @ts-expect-error vitest runs this contract check in Node
     const path = await import("node:path");
     const source = fs.readFileSync(path.resolve(process.cwd(), "src/data/api-client.ts"), "utf8");
-    expect(source).not.toContain("/build-preparation");
+    expect(source).toContain("/build-preparation");
     expect(source).not.toContain("/code-generator");
   });
 
-  it("uses one explicit Discovery approval action to start Content", async () => {
+  it("keeps Discovery approval separate from the explicit Content start", async () => {
     // @ts-expect-error vitest runs this contract check in Node
     const fs = await import("node:fs");
     // @ts-expect-error vitest runs this contract check in Node
@@ -39,9 +39,11 @@ describe("authenticated product boundary", () => {
       appSource.indexOf("const runContentMutation"),
     );
     expect(handler).toContain("approveDiscovery");
-    expect(handler).toContain("startContentArchitect");
-    expect(stageSource).toContain('approvalActionLabel="Approve and start Content"');
+    expect(handler).not.toContain("startContentArchitect");
+    expect(handler).toContain("Continue when you are ready to start Content Architect");
+    expect(stageSource).toContain('approvalActionLabel="Approve brief"');
     expect(stageSource).toContain("requireApprovalConfirmation={false}");
+    expect(stageSource).toContain("onContinueToContent");
   });
 
   it("repairs a stale incomplete Content result instead of looping on approval", async () => {

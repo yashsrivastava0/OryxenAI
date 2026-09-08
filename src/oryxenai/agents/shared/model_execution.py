@@ -11,8 +11,10 @@ from typing import TYPE_CHECKING, Any
 from oryxenai.agents.shared.contracts import ModelClient, OperationBudget, ResolvedModelRoute
 from oryxenai.agents.shared.model_usage import ModelUsageLedger, context_from_request
 from oryxenai.agents.shared.providers.errors import (
+    ModelCapacityUnavailableError,
     ModelInputTooLargeError,
     ModelRoutingPolicyChangedError,
+    ModelUsagePersistenceError,
     ProviderConfigError,
     ProviderCreditError,
     ProviderError,
@@ -106,7 +108,6 @@ class RoutedModelClient(ModelClient):
         # uses the same route/budget controller and never invokes SDK retries.
         route = self.route_for("complete", request_context=request_params)
         self._admit_normal()
-        self._budget.record_transmission()
         client = self._runtime.resolve_profile_client(route.profile_name)
         context = context_from_request(
             engine=self._engine,
@@ -121,6 +122,10 @@ class RoutedModelClient(ModelClient):
             request_attempt=self._budget.transmissions,
             fallback_attempt=0,
         )
+        # A transmission is counted only after the durable reservation commits.
+        # If admission fails, no provider request has been sent and no retry
+        # layer may silently manufacture one.
+        self._budget.record_transmission()
         started = time.monotonic()
         try:
             result = await client.complete(system_prompt, task_prompt, request_params)
@@ -193,7 +198,6 @@ class RoutedModelClient(ModelClient):
                 if self._budget.recovery_remaining <= 0:
                     break
                 self._budget.admit_recovery()
-            self._budget.record_transmission()
             profile = self._runtime.config.get_profile(profile_name)
             if profile is None:
                 continue
@@ -226,14 +230,45 @@ class RoutedModelClient(ModelClient):
                     ).hexdigest(),
                 }
             )
-            attempt_id = await self._usage.reserve(
-                route=route,
-                context=call_context,
-                attempt_kind="normal" if index == 0 else "fallback",
-                request_attempt=self._budget.transmissions,
-                fallback_attempt=index,
-                input_tokens_reserved=estimated_input_tokens,
-            )
+            try:
+                attempt_id = await self._usage.reserve(
+                    route=route,
+                    context=call_context,
+                    attempt_kind="normal" if index == 0 else "fallback",
+                    request_attempt=self._budget.transmissions + 1,
+                    fallback_attempt=index,
+                    input_tokens_reserved=estimated_input_tokens,
+                )
+            except ModelCapacityUnavailableError as exc:
+                # Capacity rejection happens before a provider transmission.
+                # It is still attributable to the attempted source and may
+                # consume the one shared recovery slot when another configured
+                # source is eligible.  Never let the exception bypass the
+                # remaining Gemini capacity sources.
+                exc.details.update(
+                    {
+                        "provider_label": _provider_label(route.provider),
+                        "provider": route.provider,
+                        "model": route.model,
+                        "credential_alias": route.credential_alias,
+                        "capacity_source_id": route.capacity_source_id,
+                        "fallback_attempt": index,
+                    }
+                )
+                last_error = exc
+                self._runtime.capacity_registry.mark_failure(route.capacity_source_id)
+                if not self._can_recover(exc, index, names, route):
+                    raise
+                continue
+            except ModelUsagePersistenceError:
+                # A committed accounting record is a precondition for every
+                # provider call.  Falling through to a different provider
+                # while the ledger is unavailable would make usage
+                # attribution and the global budget unverifiable.
+                raise
+            # Count the application transmission only after reservation.  The
+            # provider adapters themselves have retries disabled.
+            self._budget.record_transmission()
             started = time.monotonic()
             provider_context = dict(request_context) if isinstance(request_context, Mapping) else {}
             provider_context.update(

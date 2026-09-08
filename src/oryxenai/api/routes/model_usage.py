@@ -27,6 +27,12 @@ async def list_attempts(
     agent: str | None = Query(default=None),
     operation: str | None = Query(default=None),
     alias: str | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    # Explicit names are useful to API clients that prefer the column's
+    # meaning; date_from/date_to remain the documented compact aliases.
+    started_after: datetime | None = Query(default=None, include_in_schema=False),
+    started_before: datetime | None = Query(default=None, include_in_schema=False),
     limit: int = Query(default=100, ge=1, le=500),
     _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db_session),
@@ -42,6 +48,12 @@ async def list_attempts(
     ):
         if value:
             filters.append(column == value)
+    lower = _utc_bound(date_from or started_after)
+    upper = _utc_bound(date_to or started_before)
+    if lower is not None:
+        filters.append(ModelCallAttempt.started_at >= lower)
+    if upper is not None:
+        filters.append(ModelCallAttempt.started_at <= upper)
     rows = list(
         (
             await db.execute(
@@ -62,6 +74,11 @@ async def list_attempts(
 async def list_capacity(
     provider: str | None = Query(default=None),
     source_id: str | None = Query(default=None),
+    model: str | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    observed_after: datetime | None = Query(default=None, include_in_schema=False),
+    observed_before: datetime | None = Query(default=None, include_in_schema=False),
     limit: int = Query(default=100, ge=1, le=500),
     _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db_session),
@@ -72,6 +89,14 @@ async def list_capacity(
         filters.append(ModelCapacityWindow.provider == provider)
     if source_id:
         filters.append(ModelCapacityWindow.capacity_source_id == source_id)
+    if model:
+        filters.append(ModelCapacityWindow.model == model)
+    lower = _utc_bound(date_from or observed_after)
+    upper = _utc_bound(date_to or observed_before)
+    if lower is not None:
+        filters.append(ModelCapacityWindow.observed_at >= lower)
+    if upper is not None:
+        filters.append(ModelCapacityWindow.observed_at <= upper)
     rows = list(
         (
             await db.execute(
@@ -86,6 +111,16 @@ async def list_capacity(
         "items": [_capacity_payload(row) for row in rows],
         "generated_at": datetime.now(UTC).isoformat(),
     }
+
+
+def _utc_bound(value: datetime | None) -> datetime | None:
+    """Normalize admin filter bounds before comparing timezone-aware columns."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _attempt_payload(row: ModelCallAttempt) -> dict[str, Any]:
@@ -119,6 +154,7 @@ def _attempt_payload(row: ModelCallAttempt) -> dict[str, Any]:
         "estimated_cost_micro_usd": row.estimated_cost_micro_usd,
         "actual_cost_micro_usd": row.actual_cost_micro_usd,
         "promotional_micro_usd": row.promotional_micro_usd,
+        "wallet_micro_usd": row.wallet_micro_usd,
         "started_at": row.started_at.isoformat(),
         "finished_at": row.finished_at.isoformat() if row.finished_at else None,
         "details": dict(row.details or {}),

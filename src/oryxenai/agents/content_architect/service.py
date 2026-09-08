@@ -32,6 +32,7 @@ from oryxenai.agents.content_architect.state import (
     apply_start,
 )
 from oryxenai.agents.discovery.schemas import DiscoveryState, DiscoveryStatus
+from oryxenai.agents.shared.agent_output import public_output_for_run
 from oryxenai.agents.shared.job_status import public_job_status
 from oryxenai.agents.shared.observability import frontend_cache_receipt
 from oryxenai.auth.authorization import durable_snapshot_for_session
@@ -346,6 +347,10 @@ class ContentArchitectService:
         content_architect["elapsed_seconds"] = _elapsed_seconds(state.started_at)
         content_architect["attempt"] = state.attempt
         content_architect["max_attempts"] = state.max_attempts
+        content_architect["agent_output"] = await public_output_for_run(
+            getattr(self._repository, "get_run", None),
+            state.run_id,
+        )
         if state.run_id:
             try:
                 run = await self._repository.get_run(UUID(state.run_id))

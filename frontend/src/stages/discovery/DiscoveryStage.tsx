@@ -63,6 +63,7 @@ export function DiscoveryStage({
         preservedWorkNote="All your answered questions and input notes are preserved."
         retryLabel="Retry Discovery"
         onRetry={onRetryDiscovery}
+        errorDetails={view.safeError ?? undefined}
       />
     );
   }
@@ -84,7 +85,7 @@ export function DiscoveryStage({
           canMutate={canMutate}
           markdownContent={briefMarkdown}
           finalJsonOutput={finalAgentOutput("discovery", view.raw)}
-          approvalActionLabel="Approve and start Content"
+          approvalActionLabel="Approve brief"
           requireApprovalConfirmation={false}
           onApprove={onApproveBrief}
           onRevise={onReviseBrief}

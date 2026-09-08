@@ -27,6 +27,7 @@ from oryxenai.agents.shared.providers.errors import (
     ProviderBadResponseError,
     ProviderConfigError,
     ProviderConnectionError,
+    ProviderError,
     ProviderTimeoutError,
     map_http_error,
 )
@@ -128,16 +129,24 @@ class GeminiAdapter(BaseProviderAdapter):
             request_params=request_context if isinstance(request_context, Mapping) else None,
         )
         if not raw.strip():
-            raise ModelEmptyOutputError("Gemini returned empty content")
+            error: ProviderError = ModelEmptyOutputError("Gemini returned empty content")
+            _annotate_gemini_error(error, usage, response)
+            raise error
         finish_reason = self._finish_reason(response)
         if finish_reason in {"MAX_TOKENS", "LENGTH"}:
-            raise ModelOutputTruncatedError("Gemini output was truncated by the provider")
+            error = ModelOutputTruncatedError("Gemini output was truncated by the provider")
+            _annotate_gemini_error(error, usage, response)
+            raise error
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise ModelJsonInvalidError("Gemini returned invalid JSON") from exc
+            error = ModelJsonInvalidError("Gemini returned invalid JSON")
+            _annotate_gemini_error(error, usage, response)
+            raise error from exc
         if not isinstance(parsed, dict):
-            raise ProviderBadResponseError("Gemini returned non-object JSON")
+            error = ProviderBadResponseError("Gemini returned non-object JSON")
+            _annotate_gemini_error(error, usage, response)
+            raise error
 
         from oryxenai.agents.discovery.schemas import StructuredModelResult
 
@@ -345,3 +354,19 @@ class GeminiAdapter(BaseProviderAdapter):
         if candidates and isinstance(candidates[0], Mapping):
             return str(candidates[0].get("finishReason", "STOP") or "STOP")
         return "STOP"
+
+
+def _annotate_gemini_error(
+    error: ProviderError,
+    usage: Mapping[str, Any],
+    response: Mapping[str, Any],
+) -> None:
+    """Keep post-response usage/request identity on parse and validation errors."""
+
+    if usage:
+        error.details["usage"] = dict(usage)
+    provider_request_id = str(
+        response.get("_provider_request_id") or response.get("responseId") or ""
+    )
+    if provider_request_id:
+        error.details["provider_request_id"] = provider_request_id

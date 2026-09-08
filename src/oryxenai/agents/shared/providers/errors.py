@@ -281,20 +281,35 @@ def map_http_error(status_code: int, body: dict[str, Any] | None = None) -> Prov
     Never logs the raw body — only the error type/code.
     """
     message = _extract_message(body)
+    error: ProviderError
 
     if status_code == 401:
-        return ProviderAuthError(message or "Invalid or missing API key")
+        error = ProviderAuthError(message or "Invalid or missing API key")
+        error.details.update(_safe_error_details(body))
+        return error
     if _is_credit_exhausted(body) or status_code == 402:
-        return ProviderCreditError(message or "Provider credit or quota is exhausted")
+        error = ProviderCreditError(message or "Provider credit or quota is exhausted")
+        error.details.update(_safe_error_details(body))
+        return error
     if status_code == 403:
-        return ProviderAuthError(message or "Access denied")
+        error = ProviderAuthError(message or "Access denied")
+        error.details.update(_safe_error_details(body))
+        return error
     if status_code == 429:
         retry_after = _extract_retry_after(body)
-        return ProviderRateLimitError(message or "Rate limited", retry_after_seconds=retry_after)
+        error = ProviderRateLimitError(
+            message or "Rate limited", retry_after_seconds=retry_after
+        )
+        error.details.update(_safe_error_details(body))
+        return error
     if status_code == 408:
-        return ProviderTimeoutError(message or "Request timed out")
+        error = ProviderTimeoutError(message or "Request timed out")
+        error.details.update(_safe_error_details(body))
+        return error
     if 500 <= status_code < 600:
-        return ProviderServerError(message or "Provider server error", status_code=status_code)
+        error = ProviderServerError(message or "Provider server error", status_code=status_code)
+        error.details.update(_safe_error_details(body))
+        return error
     if 400 <= status_code < 500 and status_code not in {401, 402, 403, 408, 429}:
         if _is_content_filter(body):
             return ProviderContentFilterError(message or "Content refused")
@@ -343,16 +358,105 @@ def _safe_error_details(body: dict[str, Any] | None) -> dict[str, Any]:
     request_id = body.get("request_id") or body.get("requestId")
     if isinstance(request_id, (str, int, float, bool)) and str(request_id):
         details["provider_request_id"] = request_id
+    retry_after = _extract_retry_after(body)
+    if retry_after is not None:
+        details["retry_after_seconds"] = retry_after
+    quota = _extract_quota_details(body)
+    if quota:
+        details.update(quota)
     return details
 
 
 def _extract_retry_after(body: dict[str, Any] | None) -> float | None:
+    """Extract a provider retry delay without retaining the raw error body.
+
+    OpenAI-compatible gateways commonly put the delay at the top level,
+    while Gemini returns ``google.rpc.RetryInfo`` in ``error.details`` as a
+    duration such as ``"12s"``.  The parser is deliberately recursive and
+    accepts only scalar duration fields; it never returns provider text.
+    """
+
     if not body:
         return None
-    try:
-        return float(body.get("retry_after", body.get("retry_after_seconds", "")))
-    except (ValueError, TypeError):
+
+    keys = {
+        "retry_after",
+        "retry_after_seconds",
+        "retryafter",
+        "retry_after_ms",
+        "retry_delay",
+        "retrydelay",
+    }
+
+    def parse(value: Any, *, key: str = "") -> float | None:
+        normalized = key.casefold().replace("-", "_")
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            number = float(value)
+            if number < 0:
+                return None
+            return number / 1000.0 if normalized.endswith("_ms") else number
+        if isinstance(value, str):
+            raw = value.strip().casefold()
+            if not raw:
+                return None
+            multiplier = 1.0
+            if raw.endswith("ms"):
+                multiplier = 0.001
+                raw = raw[:-2].strip()
+            elif raw.endswith("s"):
+                raw = raw[:-1].strip()
+            try:
+                number = float(raw)
+            except ValueError:
+                return None
+            return number * multiplier if number >= 0 else None
+        if isinstance(value, dict):
+            for child_key, child_value in value.items():
+                normalized_child = str(child_key).casefold().replace("-", "_")
+                if normalized_child in keys or isinstance(child_value, (dict, list)):
+                    found = parse(child_value, key=normalized_child)
+                    if found is not None:
+                        return found
+        elif isinstance(value, list):
+            for child in value:
+                found = parse(child)
+                if found is not None:
+                    return found
         return None
+
+    return parse(body)
+
+
+def _extract_quota_details(body: dict[str, Any] | None) -> dict[str, Any]:
+    """Return small, provider-neutral quota diagnostics from a safe body."""
+
+    if not body:
+        return {}
+    result: dict[str, Any] = {}
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            metric = value.get("quotaMetric") or value.get("quota_metric")
+            limit = value.get("quotaLimit") or value.get("quota_limit")
+            location = value.get("quotaLocation") or value.get("quota_location")
+            if isinstance(metric, str) and metric:
+                result.setdefault("quota_metric", metric[:200])
+            if isinstance(limit, str) and limit:
+                result.setdefault("quota_limit", limit[:200])
+            if isinstance(location, str) and location:
+                result.setdefault("quota_location", location[:200])
+            for child in value.values():
+                if isinstance(child, (dict, list)):
+                    visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    error = body.get("error") if isinstance(body, dict) else None
+    visit(error if isinstance(error, (dict, list)) else body)
+    return result
 
 
 def _is_content_filter(body: dict[str, Any] | None) -> bool:

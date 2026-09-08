@@ -15,18 +15,66 @@ export interface ApiErrorEnvelope {
   };
 }
 
+export interface ApiErrorDetails {
+  provider_label?: string;
+  operation_label?: string;
+  retry_after_seconds?: number;
+  support_reference?: string;
+  retryable?: boolean;
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly requestId: string | null;
+  readonly providerLabel: string | null;
+  readonly operationLabel: string | null;
+  readonly retryAfterSeconds: number | null;
+  readonly supportReference: string | null;
 
-  constructor(message: string, options: { code: string; status: number; requestId?: string | null }) {
+  constructor(
+    message: string,
+    options: {
+      code: string;
+      status: number;
+      requestId?: string | null;
+      details?: ApiErrorDetails | null;
+    },
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = options.code;
     this.status = options.status;
     this.requestId = options.requestId ?? null;
+    this.providerLabel = options.details?.provider_label ?? null;
+    this.operationLabel = options.details?.operation_label ?? null;
+    this.retryAfterSeconds = options.details?.retry_after_seconds ?? null;
+    this.supportReference = options.details?.support_reference ?? null;
   }
+}
+
+function readSafeDetails(value: unknown): ApiErrorDetails | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  const result: ApiErrorDetails = {};
+  if (
+    raw.provider_label === "Experiential Labs" ||
+    raw.provider_label === "Google Gemini" ||
+    raw.provider_label === "Configured model provider"
+  ) {
+    result.provider_label = raw.provider_label;
+  }
+  if (typeof raw.operation_label === "string" && raw.operation_label.trim() && raw.operation_label.length <= 160) {
+    result.operation_label = raw.operation_label.trim();
+  }
+  if (typeof raw.retry_after_seconds === "number" && Number.isFinite(raw.retry_after_seconds) && raw.retry_after_seconds >= 0 && raw.retry_after_seconds <= 86400) {
+    result.retry_after_seconds = raw.retry_after_seconds;
+  }
+  if (typeof raw.support_reference === "string" && /^model-[a-f0-9]{12}$/i.test(raw.support_reference)) {
+    result.support_reference = raw.support_reference;
+  }
+  if (raw.retryable === true) result.retryable = true;
+  return Object.keys(result).length ? result : null;
 }
 
 function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
@@ -64,5 +112,6 @@ export async function parseApiError(response: Response): Promise<ApiError> {
   const requestId = isApiErrorEnvelope(body) ? (body.error.request_id ?? null) : null;
   const serverMessage = isApiErrorEnvelope(body) ? body.error.message : null;
   const message = KNOWN_MESSAGES[code] ?? serverMessage ?? "The request could not be completed.";
-  return new ApiError(message, { code, status: response.status, requestId });
+  const details = isApiErrorEnvelope(body) ? readSafeDetails(body.error.details) : null;
+  return new ApiError(message, { code, status: response.status, requestId, details });
 }

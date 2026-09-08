@@ -220,6 +220,15 @@ class ModelUsageLedger:
     ) -> None:
         usage = dict(getattr(result, "usage", {}) or {}) if result is not None else {}
         telemetry = dict(getattr(result, "telemetry", {}) or {}) if result is not None else {}
+        error_details = getattr(error, "details", {}) if error is not None else {}
+        if isinstance(error_details, Mapping):
+            # Provider adapters attach usage before raising for malformed JSON,
+            # truncation, or an empty response.  Preserve those facts instead
+            # of recording a failed attempt as if the provider sent nothing.
+            if not usage and isinstance(error_details.get("usage"), Mapping):
+                usage = dict(error_details["usage"])
+            if isinstance(error_details.get("telemetry"), Mapping):
+                telemetry.update(dict(error_details["telemetry"]))
         provider_request_id = str(
             telemetry.get("provider_request_id") or getattr(result, "response_id", "") or ""
         )
@@ -228,7 +237,11 @@ class ModelUsageLedger:
         if actual_cost is None and isinstance(telemetry.get("cost_micro_usd"), (int, float)):
             actual_cost = float(telemetry["cost_micro_usd"]) / 1_000_000
         promotional_cost = telemetry.get("promotional_micro_usd")
+        wallet_cost = telemetry.get("wallet_micro_usd")
         gateway_attempt_count = _int_or_none(telemetry.get("gateway_attempt_count"))
+        retry_after_seconds = telemetry.get("retry_after_seconds")
+        if retry_after_seconds is None and error is not None:
+            retry_after_seconds = getattr(error, "details", {}).get("retry_after_seconds")
         payload: dict[str, Any] = {
             "status": "succeeded" if error is None else "failed",
             "provider_request_id": provider_request_id,
@@ -249,7 +262,15 @@ class ModelUsageLedger:
             "promotional_micro_usd": (
                 int(promotional_cost) if isinstance(promotional_cost, (int, float)) else None
             ),
+            "wallet_micro_usd": (
+                int(wallet_cost) if isinstance(wallet_cost, (int, float)) else None
+            ),
             "gateway_attempt_count": gateway_attempt_count,
+            "retry_after_seconds": (
+                float(retry_after_seconds)
+                if isinstance(retry_after_seconds, (int, float)) and retry_after_seconds >= 0
+                else None
+            ),
             "latency_ms": elapsed_ms,
             "finished_at": datetime.now(UTC).isoformat(),
             "accepted_result_ref": (
@@ -492,9 +513,15 @@ class ModelUsageLedger:
                 promotional = payload.get("promotional_micro_usd")
                 if isinstance(promotional, int):
                     row.promotional_micro_usd = promotional
+                wallet = payload.get("wallet_micro_usd")
+                if isinstance(wallet, int):
+                    row.wallet_micro_usd = wallet
                 gateway_attempts = payload.get("gateway_attempt_count")
                 if isinstance(gateway_attempts, int):
                     row.gateway_attempt_count = gateway_attempts
+                retry_after = payload.get("retry_after_seconds")
+                if isinstance(retry_after, (int, float)) and retry_after >= 0:
+                    row.rate_limit_seconds = float(retry_after)
                 row.details = _safe_details(
                     {
                         "telemetry": payload.get("telemetry", {}),
@@ -525,6 +552,13 @@ class ModelUsageLedger:
                             .where(
                                 ModelCapacityWindow.capacity_source_id
                                 == reservation.capacity_source_id,
+                                # A Gemini key can legitimately serve more
+                                # than one configured model.  Reservations
+                                # predate the model column, so use the
+                                # authoritative attempt row to settle the
+                                # matching model window rather than whichever
+                                # same-source window happens to be returned.
+                                ModelCapacityWindow.model == row.model,
                                 ModelCapacityWindow.window_kind == reservation.window_kind,
                                 ModelCapacityWindow.window_start == reservation.window_start,
                             )
@@ -570,8 +604,16 @@ class ModelUsageLedger:
                         .values(**operation_values)
                     )
                 await db.commit()
+        except ModelUsagePersistenceError:
+            raise
         except Exception as exc:  # pragma: no cover - exercised with DB faults
+            # A response whose settlement cannot be recorded must not be
+            # treated as a clean failure that is eligible for provider
+            # fallback.  The worker can redeliver safely: the durable
+            # operation reservation remains authoritative and prevents an
+            # unaccounted extra transmission when it exists.
             logger.warning("model usage completion persistence failed error=%s", type(exc).__name__)
+            raise ModelUsagePersistenceError() from exc
 
 
 def _safe_details(value: Any) -> dict[str, Any]:

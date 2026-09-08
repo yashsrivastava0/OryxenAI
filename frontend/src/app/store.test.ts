@@ -5,7 +5,7 @@ import { adaptVisualDesignDirector } from "../data/adapters/design";
 import { designFixtureReview } from "../data/adapters/design.fixtures";
 import { appReducer, initialAppState } from "./store";
 
-describe("three-stage app store", () => {
+describe("four-stage app store", () => {
   it("stores authenticated identity and read-only state", () => {
     const state = appReducer(initialAppState, {
       type: "me/set",
@@ -21,7 +21,7 @@ describe("three-stage app store", () => {
     expect(state.sessionRevision).toBe(4);
   });
 
-  it("holds only Discovery, Content, and Design projections", () => {
+  it("holds the four product-stage projections without later generation state", () => {
     const content = adaptContentArchitect(contentFixtureReview, true);
     const design = adaptVisualDesignDirector(designFixtureReview, true);
     let state = appReducer(initialAppState, { type: "content/set", view: content });
@@ -30,7 +30,7 @@ describe("three-stage app store", () => {
     expect(state.content?.state).toBe("review");
     expect(state.design?.state).toBe("review");
     expect(state.activeStage).toBe("content");
-    expect(Object.keys(state)).not.toContain("preparation");
+    expect(state.preparation).toBeNull();
     expect(Object.keys(state)).not.toContain("generation");
     expect(Object.keys(state)).not.toContain("preview");
   });
