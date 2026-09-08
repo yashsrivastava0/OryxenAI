@@ -7,7 +7,9 @@ from oryxenai.agents.shared.model_quota import (
     _extract_capacity_limits,
     _extract_external_identifier,
     _extract_key_identifier,
+    _extract_listed_key_identifier,
     _extract_usage_totals,
+    _management_base_url_for_source,
 )
 
 
@@ -38,6 +40,31 @@ def test_experiential_key_limit_lookup_ignores_generic_event_ids() -> None:
     assert _extract_key_identifier([{"key_id": "key-789"}]) == "key-789"
 
 
+def test_experiential_key_list_is_the_only_place_generic_id_is_a_key_id() -> None:
+    assert _extract_listed_key_identifier([{"keys": [{"id": "key-789"}]}]) == "key-789"
+    assert _extract_listed_key_identifier([{"events": [{"id": "event-123"}]}]) == ""
+
+
+def test_experiential_management_url_derives_from_inference_url(monkeypatch) -> None:
+    monkeypatch.setenv("EXPLABS_BASE_URL", "https://gateway.example.test/v1/")
+
+    class Source:
+        base_url_env = "EXPLABS_BASE_URL"
+        management_base_url_env = ""
+
+    assert _management_base_url_for_source(Source()) == "https://gateway.example.test"
+
+
+def test_experiential_management_url_uses_default_without_configured_host(monkeypatch) -> None:
+    monkeypatch.delenv("MISSING_EXPLABS_BASE_URL", raising=False)
+
+    class Source:
+        base_url_env = "MISSING_EXPLABS_BASE_URL"
+        management_base_url_env = ""
+
+    assert _management_base_url_for_source(Source()) == "https://api.experientiallabs.ai"
+
+
 def test_observation_metadata_redacts_credentials_and_bounds_text() -> None:
     value = _bounded_metadata(
         {"api_key": "secret", "nested": {"authorization": "Bearer secret"}, "text": "x" * 3000}
@@ -47,7 +74,9 @@ def test_observation_metadata_redacts_credentials_and_bounds_text() -> None:
 
 def test_capacity_registry_does_not_select_a_cooldown_source() -> None:
     registry = CapacityRegistry()
-    registry.observe(CapacitySnapshot(provider="gemini", source_id="GEMINI_1", cooldown_until=10**12))
+    registry.observe(
+        CapacitySnapshot(provider="gemini", source_id="GEMINI_1", cooldown_until=10**12)
+    )
     registry.observe(CapacitySnapshot(provider="gemini", source_id="GEMINI_2"))
     assert registry.order_profiles([("one", "GEMINI_1"), ("two", "GEMINI_2")]) == ["two"]
 

@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-080 - Make Experiential organization telemetry explicitly scoped
+
+- **Date & Time:** 2026-09-08 16:05 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The live inference lane was healthy, but the usage reconciler was probing the hosted web origin and omitting the organization identifier required by Experiential's management usage endpoints. The resulting 401/422 responses added noise and could never produce authoritative wallet or daily usage observations.
+- **Decision:** Resolve the management host from provider-neutral capacity configuration (the configured inference URL with /v1 removed, defaulting to the documented API host). Make organization-scoped usage reads conditional on an optional org_id_env; when absent, skip those calls rather than inventing an identifier. Always use the authenticated non-secret key list when available, and pass only an explicit listed key ID to the effective-limits endpoint. Keep local PostgreSQL attempt/cost telemetry authoritative until an org ID is supplied.
+- **Rejected alternatives:** Reusing the platform web origin (wrong management surface); passing project_scope = "organization" as if it were a real identifier (not an org ID); guessing an org from a key prefix or generic event/request ID (unsafe attribution); and treating failed usage reads as zero usage (would under-report spend/quota).
+- **Consequence:** A deployment can opt into provider usage rollups by setting the non-secret EXPLABS_ORG_ID value without changing agent code or exposing credentials. Missing account scope is observable through bounded debug logging, while key limits and all locally persisted request telemetry continue to work.
+
 ## D-079 - Integrate Build Preparation and expose complete stage outputs in `/app`
 
 - **Date & Time:** 2026-09-08 14:20 +05:30 - Codex (GPT-5 / OpenAI)

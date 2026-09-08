@@ -47,6 +47,10 @@ provider = "experiential"
 credential_alias = "EXPLABS"
 api_key_env = "EXPLABS_API_KEY"
 base_url_env = "EXPLABS_BASE_URL"
+# Optional non-secret organization identifier for Experiential usage rollups.
+# Leave the environment variable unset to skip org-scoped reads while still
+# reconciling the non-secret key list and effective key limits.
+org_id_env = "EXPLABS_ORG_ID"
 project_scope = "organization"
 quota_group = "EXPLABS"
 enabled = true
