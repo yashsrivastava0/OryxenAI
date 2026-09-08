@@ -57,5 +57,6 @@ describe("authenticated product boundary", () => {
     expect(source).toContain('error.code !== "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"');
     expect(source).toContain("Content safety revision started");
     expect(source).toContain("Safely rewrite or omit pending or blocked exact details");
+    expect(source).toContain('state.preparation.state === "locked"');
   });
 });
