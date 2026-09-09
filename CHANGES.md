@@ -11,6 +11,23 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 20:31 +05:30 — Codex — [a503a4a] — fix(code-generator): enforce reliable generation lifecycle
+
+Implemented the reliability plan through the offline verification boundary:
+complete pending source proposals and restricted rejected evidence, durable
+serial attempt accounting with stop-on-failure, optional component admission,
+hashed image obligations with browser evidence, marker-bound layout recipes,
+toolchain preflight, and truthful atomic exports. Added focused regressions,
+aligned stale integration fixtures with canonical host identities, and recorded
+the adopted contract in `DECISIONS.md` plus R01–R12 dispositions in
+`code generator issues.md`. No new live portfolio pipeline call was made in
+this implementation commit; the new five-slot campaign starts at 0/5.
+
+Verification: focused reliability/admission/image/export tests pass (24), the
+full Code Generator unit suite passes (299), Ruff, mypy, and compileall pass.
+The repository-wide baseline still contains unrelated/stale integration and
+mock-path failures documented in `code generator issues.md`.
+
 ### 2026-09-09 14:40 +05:30 — Codex — [e99ed55] — Code Generator reliability investigation and implementation handoff
 
 Traced the five failed runs, compiled the three current briefs, and replayed the
@@ -276,6 +293,6 @@ available. Added bounded unit coverage for URL derivation and key-ID safety.
 
 ## Summary (as of last compaction — 2026-09-09)
 
-- Recent detailed entries retained: 16
+- Recent detailed entries retained: 17
 - Compacted milestone bullets: 29
 - Last updated: 2026-09-09 14:40 +05:30 — Codex

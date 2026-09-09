@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-085 — Bound reliability release to serial attempts, tested layout recipes, and browser evidence
+
+- **Date & Time:** 2026-09-09 20:31 +05:30 — Codex (GPT-6 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Variable brief output exposed repair-state loss, cloned generation accounting, optional component compatibility gaps, and a mismatch between model-selected layout/CSS claims and browser evidence. The authorized reliability campaign needs a bounded execution contract that can be resumed and audited.
+- **Decision:** Production generation uses one authoritative, durable attempt ledger and a true serial route-batch lane; a failed batch is persisted before later siblings are considered. Pending source proposals retain the complete owned inventory, while invalid bodies stay restricted evidence until a validated candidate is accepted. The host compiler exposes three typed layout recipes with marker-bound CSS floors, and final verification independently enforces the immutable image policy through local-path, decode, visibility, frame, ancestor, and route-scoped observations. Reports consume these durable facts and distinguish source reference from browser proof.
+- **Rejected alternatives:** Using a semaphore around a pre-scheduled gather (does not stop siblings or preserve failure accounting); replacing pending proposals with the latest response (loses untouched files); allowing arbitrary model CSS/templates (reintroduces selector/property drift); treating source regex matches as rendered media; and adding an unbounded repair or acquisition loop.
+- **Consequence:** Route concurrency above one is fail-closed for the production lane, repair retries remain finite and resumable, optional component fallbacks cannot contaminate the trusted foundation, and a candidate cannot be promoted without evidence for the declared policy. The three recipes are additive and legacy regions keep their deterministic default.
+
 ## D-084 — Reconcile stale file-operation tags only inside bounded repairs
 
 - **Date & Time:** 2026-09-09 13:45 +05:30 — Codex (GPT-5 / OpenAI)

@@ -5,6 +5,38 @@ This is the durable handoff record for the reliability campaign authorized on
 Code session can resume without guessing which Build Preparation output or
 which live-call budget remains.
 
+## Reliability-plan implementation campaign — five-run cap (2026-09-09)
+
+This is a new campaign after reliability commit `a503a4a`. It is separate from
+the historical campaigns below and begins before any new full pipeline call.
+
+- Maximum full pipeline calls: **5**.
+- Used: **0/5**.
+- Accepted cross-pack portfolios: **0/2**.
+- Code revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
+- State: local preflight and service readiness pending; no slot is reserved.
+- Execution rule: one full pipeline at a time; stop at two accepted results or
+  after slot 5, whichever comes first. A verification-only retry that reuses
+  an accepted source is recorded separately and does not consume a full source
+  generation slot.
+
+### Planned slot order
+
+| Slot | Pack | Reason | Status |
+| --- | --- | --- | --- |
+| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | pending preflight |
+| 2 | `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | B provides a structurally different seven-section brief after slot 1 is diagnosed. | unreserved |
+| 3 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | A provides the remaining current seven-section variation. | unreserved |
+| 4 | choose after the preceding result | Only if fewer than two accepted results remain and the run adds evidence. | unreserved |
+| 5 | choose after the preceding result | Final authorized slot under the cap. | unreserved |
+
+### Preflight record
+
+The effective non-secret settings, scaffold/dependency/prompt identities,
+input hashes, toolchain facts, gateway reachability, and provider readiness
+will be written here before slot 1 is reserved. This section intentionally
+contains no credentials, signed URLs, raw prompts, or private brief content.
+
 ## Current continuation campaign — five-run cap (2026-09-09)
 
 This section supersedes the earlier four-slot campaign table below. The owner
