@@ -123,6 +123,19 @@ Grounding and exact coverage:
   requirement with a component slot, a CSS-only ornament, or an invented
   resource ID. If the policy has no approved image slots, preserve the
   text-led direction and do not fabricate one.
+- Select exactly one of the typed layout recipes for every section region:
+  `text-with-supporting-media`, `work-detail-list`, or `timeline-list`. The
+  exact `[data-region-id="..."]` element owns the direct children described by
+  the recipe. `text-with-supporting-media` requires two real wide-screen
+  children and stacks them into one `minmax(0, 1fr)` column on small screens;
+  if the approved scope has no usable image, choose a single-column recipe or
+  keep the supporting media as an honest optional fallback without an empty
+  track. `work-detail-list` keeps repeated detail items in normal flow and
+  `timeline-list` keeps dates and entries in an ordered list with a visible
+  spine. All three recipes require `min-width: 0`, readable text measure,
+  explicit row/column gaps, and a complete reduced-motion state. Do not
+  invent a fourth recipe or add a wrapper that moves the region marker away
+  from the element owning these direct children.
 - Assign every approved interaction exactly once with selector, literal
   marker, keyboard behavior, focus result, state transition, state attribute,
   and same-app navigation outcome when applicable.

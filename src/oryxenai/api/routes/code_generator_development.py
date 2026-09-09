@@ -84,6 +84,16 @@ async def provider_preflight(
         _error(exc)
 
 
+@router.post("/toolchain-preflight")
+@detached_router.post("/toolchain-preflight")
+async def toolchain_preflight(
+    service: CodeGeneratorDevelopmentService = Depends(get_code_generator_development_service),
+) -> dict[str, Any]:
+    """Run the disposable model-free toolchain proof before paid planning."""
+
+    return await service.toolchain_preflight()
+
+
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
 @detached_router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
 async def create_fixture_run(

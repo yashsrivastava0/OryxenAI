@@ -22,6 +22,11 @@ from oryxenai.agents.code_generator.core.acquisition_validators import (
     validate_plan_delta,
     validate_resource_request,
 )
+from oryxenai.agents.code_generator.core.component_admission import (
+    ComponentAdmissionError,
+    run_component_toolchain_admission,
+    validate_component_candidate,
+)
 from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.creative_operation import (
     run_creative_direction_operation,
@@ -80,6 +85,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SafeIssue,
     SitePlan,
 )
+from oryxenai.agents.code_generator.core.image_policy import build_image_policy_snapshot
 from oryxenai.agents.code_generator.core.pipeline_contract import (
     PIPELINE_V5,
     stage_job_kind,
@@ -364,20 +370,11 @@ async def _execute(
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
 
+    image_policy = build_image_policy_snapshot(settings, projections=projections)
     context = build_planner_context(
         projections,
         receipt.model_dump(mode="json"),
-        image_policy={
-            "minimum_visible_images": int(
-                getattr(settings.code_generator_development, "minimum_visible_images", 1)
-            ),
-            "preferred_visible_images": int(
-                getattr(settings.code_generator_development, "preferred_visible_images", 2)
-            ),
-            "require_primary_route_image": bool(
-                getattr(settings.code_generator_development, "require_primary_route_image", True)
-            ),
-        },
+        image_policy=image_policy.model_dump(mode="json"),
     )
     context_digest = context_hash(context)
     context_path = _write_context(settings, receipt.admitted_identity, context_digest, context)
@@ -988,9 +985,14 @@ async def _execute_acquisition(
                     "CATEGORY_UNSUPPORTED", f"No trusted adapter exists for {request.category}."
                 )
             pinned_candidate = pinned_candidates.get(request.request_id)
+            request_prior_manifest = json.loads(json.dumps(prior_manifest))
+            request_prior_lock = json.loads(json.dumps(prior_lock))
+            request_resource_receipt_count = len(resource_receipts)
+            request_binding_count = len(bindings)
+            request_dependency_receipt_count = len(dependency_receipts)
+            candidate: ResourceCandidate | None = None
             try:
                 await _validate_worker_payload(sessionmaker, payload)
-                candidate = None
                 materialized: Any = None
                 if pinned_candidate is not None:
                     # Build Preparation already searched, ranked, and picked
@@ -1072,6 +1074,11 @@ async def _execute_acquisition(
                         storage_root=run_material_root,
                         settings=settings,
                     )
+                if candidate is None:
+                    raise AcquisitionValidationError(
+                        "COMPONENT_CANDIDATE_MISSING",
+                        "The selected component did not produce an admitted candidate identity.",
+                    )
                 component_reference_only = (
                     request.category == "component_source"
                     and request.request_id.startswith("deferred-")
@@ -1120,6 +1127,18 @@ async def _execute_acquisition(
                                 "The selected component imports unsupported packages: "
                                 + ", ".join(sorted(unsupported_imports)[:8]),
                             )
+                    try:
+                        validate_component_candidate(
+                            materialized_files,
+                            storage_root=run_material_root,
+                            candidate=candidate,
+                            request=request,
+                            repo_dir=repo_dir,
+                            settings=settings,
+                        )
+                    except ComponentAdmissionError as exc:
+                        raise AcquisitionValidationError(exc.code, exc.message) from exc
+                admission_materialized_files = list(materialized_files)
                 materialized_files = [
                     _prefix_materialized_file(item, str(run_id)) for item in materialized_files
                 ]
@@ -1184,7 +1203,35 @@ async def _execute_acquisition(
                         if dep_receipt.decision == "admitted":
                             prior_manifest = _read_json(repo_dir / "package.json", prior_manifest)
                             prior_lock = _read_json(repo_dir / "package-lock.json", prior_lock)
+                if request.category == "component_source" and not component_reference_only:
+                    try:
+                        await run_component_toolchain_admission(
+                            admission_materialized_files,
+                            storage_root=run_material_root,
+                            candidate=candidate,
+                            request=request,
+                            repo_dir=repo_dir,
+                            settings=settings,
+                        )
+                    except ComponentAdmissionError as exc:
+                        raise AcquisitionValidationError(exc.code, exc.message) from exc
             except (ResourceProviderError, AcquisitionValidationError) as exc:
+                if request.category == "component_source":
+                    # A component is only admitted after its disposable
+                    # typecheck succeeds. Remove the provisional receipt,
+                    # binding, and dependency receipts before recording the
+                    # fallback so one failed admission cannot leave a second
+                    # executable obligation in the ledger.
+                    del resource_receipts[request_resource_receipt_count:]
+                    del bindings[request_binding_count:]
+                    del dependency_receipts[request_dependency_receipt_count:]
+                    _restore_dependency_workspace(
+                        repo_dir,
+                        request_prior_manifest,
+                        request_prior_lock,
+                    )
+                    prior_manifest = request_prior_manifest
+                    prior_lock = request_prior_lock
                 if request.requiredness == "required" and request.fallback.kind == "none":
                     rejected = _rejected_receipt(request, str(exc))
                     resource_receipts.append(rejected)
@@ -1199,9 +1246,23 @@ async def _execute_acquisition(
                     )
                     raise AcquisitionValidationError(
                         "REQ_REQUIRED_PROVIDER_UNAVAILABLE",
-                        "The required resource provider is unavailable and no fallback exists.",
+                        "The required resource could not pass admission and no fallback exists: "
+                        + str(exc)[:300],
                     ) from exc
                 receipt = _fallback_receipt(request, str(exc))
+                if candidate is not None:
+                    receipt = receipt.model_copy(
+                        update={
+                            "selected_candidate_id": candidate.candidate_id,
+                            "provider_key": candidate.provider_key,
+                            "canonical_source": candidate.canonical_source,
+                            "fallback": {
+                                **receipt.fallback,
+                                "candidate_reference": candidate.candidate_id,
+                                "admission_code": str(getattr(exc, "code", "ADMISSION_FAILED")),
+                            },
+                        }
+                    )
                 resource_receipts.append(receipt)
                 bindings.append(_binding_for(request, receipt))
 
@@ -1426,6 +1487,25 @@ def _seed_dependency_workspace(settings: Any, repo_dir: Path) -> None:
     repo_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(manifest, repo_dir / "package.json")
     shutil.copyfile(lock, repo_dir / "package-lock.json")
+
+
+def _restore_dependency_workspace(
+    repo_dir: Path, manifest: dict[str, Any], lock: dict[str, Any]
+) -> None:
+    """Remove optional component dependency side effects after admission failure."""
+
+    node_modules = repo_dir / "node_modules"
+    if node_modules.exists():
+        shutil.rmtree(node_modules, ignore_errors=True)
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "package.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (repo_dir / "package-lock.json").write_text(
+        json.dumps(lock, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _execution_resolved_slot_ids(projections: dict[str, dict[str, Any]]) -> set[str]:
@@ -2204,7 +2284,8 @@ async def _needs_attention(
     # Best-effort: preserve whatever source tree exists for inspection even
     # though this run did not reach a promoted READY state. Never allowed to
     # affect the actual failure-reporting flow above; a run that failed
-    # before generation produced any files exports nothing, silently.
+    # before generation produced any files receives a metadata-only safe
+    # failure receipt.
     try:
         from oryxenai.agents.code_generator.core.portfolio_export import (
             build_export_receipt,

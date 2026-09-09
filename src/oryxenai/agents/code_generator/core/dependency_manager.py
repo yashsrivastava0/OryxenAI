@@ -21,6 +21,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DependencyRequest,
     ResourceReceipt,
 )
+from oryxenai.agents.code_generator.core.process_runner import resolve_npm_executable
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
 _IMPORT_SPECIFIER_RE = re.compile(
@@ -358,7 +359,7 @@ class DependencyManager:
 
 
 def _npm_executable(settings: Any) -> str:
-    executable = str(getattr(settings.code_generator_dependencies, "npm_executable", "") or "")
+    executable = resolve_npm_executable(settings)
     if not executable:
         raise DependencyPolicyError(
             "DEPENDENCY_INSTALL_UNAVAILABLE",

@@ -78,6 +78,7 @@ def derive_verification_plan(
     plan: SitePlan,
     projections: dict[str, dict[str, Any]],
     profile: VerificationProfile,
+    image_policy: dict[str, Any] | None = None,
 ) -> VerificationPlan:
     site = projections.get("site/contract.json", {})
     routes = [item for item in site.get("routes", []) if isinstance(item, dict)]
@@ -306,6 +307,7 @@ def derive_verification_plan(
                 section_order=list(route.section_order or route.section_ids),
                 execution=projections.get("execution/contract.json"),
                 resource_ledger=resources,
+                image_policy=image_policy,
             )
             for route in plan.routes
         ]

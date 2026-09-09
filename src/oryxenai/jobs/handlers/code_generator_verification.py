@@ -120,8 +120,8 @@ class CodeGeneratorVerificationHandler:
             # Best-effort: preserve whatever source/build tree exists even
             # though this run did not reach a promoted READY state. Never
             # allowed to affect the actual result above; a run with nothing
-            # on disk yet (e.g. rejected before a workspace existed) exports
-            # nothing, silently.
+            # on disk yet (e.g. rejected before a workspace existed) still
+            # receives a metadata-only safe failure receipt.
             try:
                 from oryxenai.agents.code_generator.core.portfolio_export import (
                     build_export_receipt,
@@ -134,14 +134,41 @@ class CodeGeneratorVerificationHandler:
                 )
                 if run_id:
                     settings = get_settings()
+                    sessionmaker = get_sessionmaker(settings)
+                    failure_issues: list[dict[str, Any]] = []
+                    failure_projection: dict[str, Any] | None = None
+                    failure_terminal: dict[str, Any] | None = None
+                    async with sessionmaker() as db:
+                        repo = CodeGeneratorDevelopmentRepository(db)
+                        current = await repo.get(UUID(run_id))
+                        if current is not None:
+                            failure_issues = [
+                                item.model_dump(mode="json")
+                                if hasattr(item, "model_dump")
+                                else dict(item)
+                                for item in (current.issues or [])
+                                if isinstance(item, dict) or hasattr(item, "model_dump")
+                            ]
+                            failure_projection = (
+                                dict(current.generation_projection)
+                                if isinstance(current.generation_projection, dict)
+                                else None
+                            )
+                            failure_terminal = (
+                                dict(current.terminal_failure)
+                                if isinstance(current.terminal_failure, dict)
+                                else None
+                            )
                     exported = await export_failed_run(
                         settings=settings,
                         run_id=run_id,
                         reason=str(result.get("code", result.get("status", ""))),
+                        issues=failure_issues,
+                        generation_projection=failure_projection,
+                        terminal_failure=failure_terminal,
                     )
                     if exported is not None:
                         receipt = build_export_receipt(exported)
-                        sessionmaker = get_sessionmaker(settings)
                         async with sessionmaker() as db:
                             repo = CodeGeneratorDevelopmentRepository(db)
                             current = await repo.get(UUID(run_id))
@@ -383,6 +410,10 @@ async def _execute(
         generation_projection_payload = (
             run.generation_projection if isinstance(run.generation_projection, dict) else {}
         )
+        image_policy_payload = generation_projection_payload.get("image_policy")
+        image_policy_payload = (
+            dict(image_policy_payload) if isinstance(image_policy_payload, dict) else None
+        )
         if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
             realization_contracts = [
                 compile_design_realization(
@@ -391,6 +422,7 @@ async def _execute(
                     section_order=list(route.section_order or route.section_ids),
                     execution=projections.get("execution/contract.json"),
                     resource_ledger=projections.get("resources/ledger.json"),
+                    image_policy=image_policy_payload,
                 )
                 for route in plan.routes
             ]
@@ -448,6 +480,7 @@ async def _execute(
             plan=plan,
             projections=projections,
             profile=profile,
+            image_policy=image_policy_payload,
         )
         projection = VerificationProjection(
             generation_id=str((run.generation_projection or {}).get("generation_id", run_id)),
@@ -489,6 +522,7 @@ async def _execute(
             allowed_packages=allowed_packages,
             public_text=public_text,
             max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+            image_policy=generation_projection_payload.get("image_policy"),
         )
         prior_source_passed = _prior_gate_passed(
             prior_projection, "source_contract", identity.identity_hash
@@ -971,6 +1005,9 @@ async def _execute(
                     for gate in projection.gate_results
                 ],
                 "runtime_journey_count": len(projection.runtime_evidence),
+                "runtime_evidence": [
+                    item.model_dump(mode="json") for item in projection.runtime_evidence
+                ],
                 "repair_receipt_hashes": [
                     receipt.receipt_hash for receipt in projection.repair_receipts
                 ],
@@ -980,6 +1017,9 @@ async def _execute(
                 if active.public_readback is not None
                 else None
             ),
+            runtime_evidence=[
+                item.model_dump(mode="json") for item in projection.runtime_evidence
+            ],
         )
         return {"status": "succeeded", "run_id": str(run_id), "preview_url": active.url}
     except VerificationFailure as exc:
@@ -2023,6 +2063,7 @@ async def _export_portfolio(
     provenance: dict[str, Any],
     verification: dict[str, Any],
     public_readback: dict[str, Any] | None,
+    runtime_evidence: list[dict[str, Any]],
 ) -> None:
     """Copy the complete portfolio (source + dist + metadata) to the export
     root. Advisory only: failures are recorded as events, never raised."""
@@ -2058,6 +2099,7 @@ async def _export_portfolio(
                     repo_dir=workspace.repo_dir,
                     run_root=workspace.root,
                     plan=plan,
+                    runtime_evidence=runtime_evidence,
                 ),
                 "realization_contracts": realization_contracts,
                 "provenance": provenance,

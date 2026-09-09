@@ -44,7 +44,7 @@ def _plan(*, resource_slot: bool = False) -> SitePlan:
                 {
                     "route_id": "home",
                     "path": "/",
-                    "section_ids": ["hero", "project"],
+                    "section_ids": ["home:hero", "home:project"],
                     "responsive_outcome": "stack on mobile",
                     "reduced_motion_outcome": "static equivalent",
                     "interaction_outcome": "keyboard accessible",
@@ -97,9 +97,15 @@ def _plan(*, resource_slot: bool = False) -> SitePlan:
             ],
             "acceptance_coverage": [
                 {
-                    "criterion_id": "criterion:home:0",
+                    "criterion_id": "criterion:home:hero",
                     "route_id": "home",
-                    "expected_outcome": "evidence-first hierarchy",
+                    "expected_outcome": "Positioning",
+                    "source_marker": "data-criterion-id",
+                },
+                {
+                    "criterion_id": "criterion:home:project",
+                    "route_id": "home",
+                    "expected_outcome": "Evidence",
                     "source_marker": "data-criterion-id",
                 }
             ],
@@ -115,7 +121,7 @@ def _plan(*, resource_slot: bool = False) -> SitePlan:
                         "unit_id": "route-home",
                         "kind": "route",
                         "route_id": "home",
-                        "section_ids": ["hero", "project"],
+                        "section_ids": ["home:hero", "home:project"],
                         "depends_on": ["foundation"],
                     },
                     {

@@ -198,16 +198,16 @@ def _validate_v4_image_policy(blueprint: ExperienceBlueprintV4, context: dict[st
         # A text-only approved pack remains valid; the host cannot invent an
         # image slot that Build Preparation did not approve.
         return
-    placed = [
-        item
+    placed_slot_ids = {
+        item.resource_slot_id
         for item in blueprint.resource_placements
         if item.resource_slot_id in image_slots
-    ]
-    if len(placed) < minimum:
+    }
+    if len(placed_slot_ids) < minimum:
         raise SitePlanValidationError(
             "PLAN_REQUIRED_IMAGE_PLACEMENT",
             "The accepted blueprint must place at least "
-            f"{minimum} approved image slot(s); found {len(placed)}. "
+            f"{minimum} distinct approved image slot(s); found {len(placed_slot_ids)}. "
             "Choose an approved image slot and bind it to an existing route section.",
         )
     if bool(policy.get("require_primary_route_image")):
@@ -215,7 +215,11 @@ def _validate_v4_image_policy(blueprint: ExperienceBlueprintV4, context: dict[st
         routes = [item for item in site.get("routes", []) if isinstance(item, dict)]
         primary = next((item for item in routes if str(item.get("path", "")) == "/"), None)
         primary_id = str((primary or routes[0] if routes else {}).get("route_id", ""))
-        if primary_id and not any(item.route_id == primary_id for item in placed):
+        if primary_id and not any(
+            item.route_id == primary_id
+            for item in blueprint.resource_placements
+            if item.resource_slot_id in placed_slot_ids
+        ):
             raise SitePlanValidationError(
                 "PLAN_PRIMARY_ROUTE_IMAGE_MISSING",
                 "The primary route must contain at least one approved visible image placement.",

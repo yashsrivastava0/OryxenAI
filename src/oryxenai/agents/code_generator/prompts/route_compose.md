@@ -31,6 +31,16 @@ element whose direct children form the intended peers. If the section has no
 planned image, keep its layout intentionally single-column rather than leaving
 an empty visual track.
 
+Preserve the typed recipe recorded for every region. The exact
+`[data-region-id="..."]` element remains the owner of its direct children:
+`text-with-supporting-media` uses two real wide-screen peers and one stacked
+`minmax(0, 1fr)` column on small screens, `work-detail-list` keeps repeated
+detail rows mounted with explicit gaps and separators, and `timeline-list`
+keeps ordered entries and its spine in normal flow. Keep `min-width: 0`, a
+readable measure, bounded media frames, and a complete reduced-motion state.
+The composer may not move the region marker to an outer wrapper or introduce a
+fourth layout recipe.
+
 For the V4 contract, section modules are the only executable owners of section
 anchors and approved content. The route composer must not import
 `src/content/generated-content`, call `contentValue(...)`, build an

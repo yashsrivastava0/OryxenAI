@@ -230,6 +230,73 @@ def validate_generation_changes(
     return normalized
 
 
+def validate_generation_changes_incrementally(
+    changes: GenerationChanges,
+    *,
+    owned_paths: list[str],
+    repo_dir: Path,
+    max_file_bytes: int,
+    max_response_bytes: int,
+    allowed_packages: set[str],
+    public_text: set[str],
+    repair_mode: bool = False,
+) -> tuple[list[SourceFileChange], list[SourceValidationError]]:
+    """Validate a response file by file while retaining every safe body.
+
+    A multi-file response is one model attempt, but its source bodies are
+    useful repair context even when one sibling fails validation. The original
+    all-or-nothing validator remains the public strict gate; this helper is
+    deliberately used only by the candidate lifecycle after the response
+    envelope and ownership contract have been admitted.
+    """
+
+    total_bytes = sum(
+        len(change.complete_utf8_content.encode("utf-8")) for change in changes.files
+    )
+    if total_bytes > max_response_bytes:
+        return [], [
+            SourceValidationError(
+                "SOURCE_RESPONSE_TOO_LARGE", "The generation response exceeds its size limit."
+            )
+        ]
+
+    valid: list[SourceFileChange] = []
+    errors: list[SourceValidationError] = []
+    seen: set[str] = set()
+    for change in changes.files:
+        try:
+            normalized_path = _safe_path(change.path)
+        except SourceValidationError as exc:
+            errors.append(exc)
+            continue
+        if normalized_path in seen:
+            errors.append(
+                SourceValidationError(
+                    "SOURCE_DUPLICATE_PATH",
+                    "The generation response contains duplicate paths.",
+                    file=normalized_path,
+                )
+            )
+            continue
+        seen.add(normalized_path)
+        try:
+            normalized = validate_generation_changes(
+                changes.model_copy(update={"files": [change]}),
+                owned_paths=owned_paths,
+                repo_dir=repo_dir,
+                max_file_bytes=max_file_bytes,
+                max_response_bytes=max_response_bytes,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                repair_mode=repair_mode,
+            )
+        except SourceValidationError as exc:
+            errors.append(exc)
+        else:
+            valid.extend(normalized)
+    return valid, errors
+
+
 def validate_repository(
     repo_dir: Path,
     *,

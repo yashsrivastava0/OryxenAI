@@ -27,11 +27,17 @@ from oryxenai.agents.code_generator.core.pipeline_contract import (
     uses_blueprint,
     uses_v5_namespace,
 )
+from oryxenai.agents.code_generator.core.process_runner import resolve_npm_executable
 from oryxenai.agents.code_generator.core.provider_preflight import (
     ProviderPreflightError,
     code_generator_wire_schema_issues,
     provider_preflight_status,
     run_provider_preflight,
+)
+from oryxenai.agents.code_generator.core.toolchain_preflight import (
+    cache_toolchain_preflight,
+    run_toolchain_preflight,
+    toolchain_preflight_status,
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
@@ -104,6 +110,10 @@ class CodeGeneratorDevelopmentService:
         self._jobs = jobs
         self._settings = settings
         self._inputs = DevelopmentInputAdapter(settings)
+        # The dependency is constructed once per request. The preflight module
+        # therefore owns the short-lived process cache so the explicit proof
+        # survives readiness polling and the subsequent create request.
+        self._toolchain_preflight_result = toolchain_preflight_status(settings)
 
     def _provider_profile_names(self) -> list[str]:
         """Return every profile used by the standalone pipeline once."""
@@ -138,6 +148,29 @@ class CodeGeneratorDevelopmentService:
                 details=exc.details,
             ) from exc
         return result
+
+    async def toolchain_preflight(self) -> dict[str, Any]:
+        """Prove the local install/build/browser/gateway path without a model call."""
+
+        try:
+            result = await run_toolchain_preflight(self._settings)
+        except Exception:
+            result = {
+                "schema_version": "code-generator-toolchain-preflight-v1",
+                "status": "blocked",
+                "ready": False,
+                "model_calls": 0,
+                "checks": {},
+                "facts": {},
+                "diagnostics": [
+                    {
+                        "code": "TOOLCHAIN_PREFLIGHT_EXCEPTION",
+                        "message": "The disposable toolchain preflight failed before producing a proof.",
+                    }
+                ],
+            }
+        self._toolchain_preflight_result = cache_toolchain_preflight(self._settings, result)
+        return self._toolchain_preflight_result
 
     async def _worker_contract_readiness(self) -> dict[str, Any]:
         """Check that a fresh worker can execute the active pipeline.
@@ -277,8 +310,8 @@ class CodeGeneratorDevelopmentService:
         # Foundation files are compiled deterministically from the admitted
         # blueprint and do not require a model profile or provider call.
         profiles["foundation"] = True
-        npm = str(self._settings.code_generator_dependencies.npm_executable or "")
-        npm_available = bool(npm and shutil.which(npm))
+        npm = resolve_npm_executable(self._settings)
+        npm_available = bool(npm)
         packs = self.build_preparation_packs()
         latest_pack = next((pack for pack in packs if pack.get("eligible")), None)
         best_pack = max(
@@ -329,6 +362,21 @@ class CodeGeneratorDevelopmentService:
         preflight = provider_preflight_status(self._settings, self._provider_profile_names())
         if preflight.get("status") != "ready":
             readiness_blockers.append("provider_preflight_required")
+        toolchain_preflight = toolchain_preflight_status(self._settings)
+        if toolchain_preflight.get("status") == "not_run" and self._toolchain_preflight_result:
+            toolchain_preflight = self._toolchain_preflight_result
+        if not toolchain_preflight:
+            toolchain_preflight = {
+                "schema_version": "code-generator-toolchain-preflight-v1",
+                "status": "not_run",
+                "ready": False,
+                "model_calls": 0,
+                "checks": {},
+                "facts": {},
+                "diagnostics": [],
+            }
+        if toolchain_preflight.get("status") != "ready":
+            readiness_blockers.append("toolchain_preflight_required")
         return {
             "planning_ready": profiles["director"] and profiles["planner"],
             "generation_ready": generation_ready,
@@ -361,6 +409,7 @@ class CodeGeneratorDevelopmentService:
             ),
             "blocker_codes": list(readiness_blockers),
             "provider_preflight": preflight,
+            "toolchain_preflight": toolchain_preflight,
             "can_start_latest": not readiness_blockers,
             "can_start_best": not readiness_blockers,
             "readiness_blockers": readiness_blockers,
@@ -415,6 +464,36 @@ class CodeGeneratorDevelopmentService:
                     status_code=409,
                 )
             return _projection(existing)
+        provider_preflight = provider_preflight_status(
+            self._settings, self._provider_profile_names()
+        )
+        if provider_preflight.get("status") != "ready":
+            raise DevelopmentRunError(
+                "PROVIDER_PREFLIGHT_REQUIRED",
+                "Run provider preflight successfully before starting paid planning.",
+                status_code=409,
+                details={
+                    "provider_preflight": {
+                        "status": provider_preflight.get("status", "not_run"),
+                        "checked_profiles": provider_preflight.get("checked_profiles", []),
+                    }
+                },
+            )
+        toolchain_preflight = toolchain_preflight_status(self._settings)
+        if toolchain_preflight.get("status") == "not_run" and self._toolchain_preflight_result:
+            toolchain_preflight = self._toolchain_preflight_result
+        if not toolchain_preflight or toolchain_preflight.get("status") != "ready":
+            raise DevelopmentRunError(
+                "TOOLCHAIN_PREFLIGHT_REQUIRED",
+                "Run the disposable toolchain preflight successfully before starting paid planning.",
+                status_code=409,
+                details={
+                    "toolchain_preflight": {
+                        "status": (toolchain_preflight or {}).get("status", "not_run"),
+                        "diagnostics": (toolchain_preflight or {}).get("diagnostics", [])[:8],
+                    }
+                },
+            )
         pipeline_contract_version = str(
             self._settings.code_generator_development.pipeline_contract_version
         )
