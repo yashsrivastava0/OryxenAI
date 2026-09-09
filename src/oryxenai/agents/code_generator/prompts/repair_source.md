@@ -154,6 +154,12 @@ actually gone.
   panel containing only whitespace, comments, or an empty
   `aria-hidden="true"` element is inert. Do not invent education, project, or
   capability details to fill it.
+- `SOURCE_HIDDEN_APPROVED_CONTENT`: an approved content key is rendered only
+  inside an unplanned collapsed Disclosure. Remove that Disclosure and render
+  the exact `contentValue("...")` call directly in the normal document flow.
+  Keep a Disclosure only when this unit's contract explicitly assigns its
+  interaction ID and marker; never solve the diagnostic by inventing an
+  interaction or by duplicating a hidden-only panel.
 - Disclosure repairs render one capability/content list only. Synchronize the
   button's `aria-expanded` and `aria-controls` with `hidden={!open}` (or
   conditional rendering) on that single panel. The native semantic list is
