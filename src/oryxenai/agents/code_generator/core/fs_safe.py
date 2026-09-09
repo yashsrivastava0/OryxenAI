@@ -95,7 +95,16 @@ def remove_tree(path: Path, *, required: bool = True) -> bool:
 
     if not path.exists():
         return True
-    for child in sorted(path.iterdir()):
+    try:
+        children = sorted(path.iterdir())
+    except OSError as exc:
+        if not required:
+            return False
+        raise FsSafeError(
+            "FS_REMOVE_FAILED",
+            f"The tree could not be enumerated for removal: {path} ({exc})",
+        ) from exc
+    for child in children:
         if child.name in _DISPOSABLE_NAMES and child.is_dir() and not child.is_symlink():
             _rmtree_retry(child, required=False)
     return _rmtree_retry(path, required=required)
