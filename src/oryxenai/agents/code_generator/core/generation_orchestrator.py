@@ -1040,6 +1040,7 @@ class CodeGeneratorGenerationOrchestrator:
                     public_text=public_text,
                     settings=settings,
                     checkpoint=checkpoint,
+                    operation=operation,
                 )
             except SourceValidationError as exc:
                 diagnostics = [_diagnostic_from_exception(exc, unit.unit_id)]
@@ -1442,6 +1443,7 @@ class CodeGeneratorGenerationOrchestrator:
                             public_text=public_text,
                             settings=settings,
                             checkpoint=checkpoint,
+                            operation="repair",
                         )
                     except SourceValidationError as exc:
                         source_diagnostics = [_diagnostic_from_exception(exc, owner.unit_id)]
@@ -1710,6 +1712,7 @@ class CodeGeneratorGenerationOrchestrator:
         public_text: set[str],
         settings: Any,
         checkpoint: SourceCheckpoint | None,
+        operation: str = "",
     ) -> None:
         if changes is None:
             raise GenerationError(
@@ -1732,6 +1735,7 @@ class CodeGeneratorGenerationOrchestrator:
             max_response_bytes=int(settings.code_generator_generation.max_response_bytes),
             allowed_packages=allowed_packages,
             public_text=public_text,
+            repair_mode=operation == "repair",
         )
         for change in normalized:
             target = (candidate / change.path).resolve()

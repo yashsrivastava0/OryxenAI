@@ -246,6 +246,39 @@ def test_source_change_operations_match_repository_state(tmp_path) -> None:
         )
 
 
+def test_repair_source_change_operations_follow_candidate_state(tmp_path) -> None:
+    existing = tmp_path / "src" / "existing.ts"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("export const oldValue = true;", encoding="utf-8")
+
+    validated = validate_generation_changes(
+        GenerationChanges(
+            files=[
+                SourceFileChange(
+                    path="src/existing.ts",
+                    operation="create",
+                    complete_utf8_content="export const newValue = true;",
+                ),
+                SourceFileChange(
+                    path="src/new.ts",
+                    operation="replace",
+                    complete_utf8_content="export const newFile = true;",
+                ),
+            ]
+        ),
+        owned_paths=["src/**"],
+        repo_dir=tmp_path,
+        max_file_bytes=10000,
+        max_response_bytes=10000,
+        allowed_packages=set(),
+        public_text=set(),
+        repair_mode=True,
+    )
+
+    assert [item.operation for item in validated] == ["replace", "create"]
+    assert [item.path for item in validated] == ["src/existing.ts", "src/new.ts"]
+
+
 def test_prompt_builder_injects_the_normative_generation_contract() -> None:
     _system, instructions, receipt = build_instructions(
         "integrate",
@@ -387,7 +420,7 @@ def test_v4_planner_prompt_requires_concrete_responsive_sizes() -> None:
     assert "BAD `(max-width: sixtyrem) 100vw, 58vw`" in instructions
     assert "shadcn_theme_bindings" in instructions
     assert "primary-foreground" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.planner.v12"
+    assert receipt.prompt_versions["operation"] == "code_generator.planner.v14"
 
 
 def test_generation_result_rejects_accepted_mode_for_first_time_generation() -> None:
