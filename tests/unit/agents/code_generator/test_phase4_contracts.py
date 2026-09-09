@@ -290,6 +290,20 @@ def test_fs_safe_directory_rename_retries_transient_permission_errors(
     assert target.is_dir()
 
 
+def test_fs_safe_best_effort_removal_does_not_raise_on_locked_directory(
+    tmp_path, monkeypatch
+) -> None:
+    locked = tmp_path / "locked"
+    locked.mkdir()
+
+    def deny_enumeration(_path: Path):
+        raise PermissionError("directory lock")
+
+    monkeypatch.setattr(type(locked), "iterdir", deny_enumeration)
+
+    assert fs_safe.remove_tree(locked, required=False) is False
+
+
 def test_marker_repair_fallback_inserts_only_missing_route_markers(tmp_path) -> None:
     repo = tmp_path / "repo"
     route = repo / "src" / "routes" / "home-route" / "index.tsx"
