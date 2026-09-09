@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 import unicodedata
+from collections.abc import Iterable
 from contextlib import suppress
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
@@ -67,6 +68,9 @@ _INLINE_CUSTOM_PROPERTY_DEFINITION_RE = re.compile(
 _ROUTE_FONT_FACE_RE = re.compile(r"@font-face\b", re.IGNORECASE)
 _DISCLOSURE_BLOCK_RE = re.compile(
     r"<Disclosure\b[^>]*>(?P<body>.*?)</Disclosure\s*>", re.DOTALL
+)
+_CONTENT_VALUE_LITERAL_RE = re.compile(
+    r"\bcontentValue\s*\(\s*[\"'](?P<content_id>[^\"']+)[\"']\s*\)"
 )
 _HIDDEN_EMPTY_SELF_CLOSING_RE = re.compile(
     r"<(?P<tag>[A-Za-z_$][\w$.:/-]*)\b"
@@ -686,6 +690,21 @@ def validate_route_batch_contract(
                     owner_relative,
                 )
             )
+        # A Disclosure is an interaction, not a neutral layout wrapper. When
+        # a model places the only rendering of an approved content key inside
+        # an unplanned collapsed Disclosure, the copy disappears from the
+        # initial portfolio and the DOM smoke gate cannot prove the public
+        # contract. Keep planned interaction disclosures valid, but require
+        # ordinary approved prose to stay in the document flow.
+        diagnostics.extend(
+            _hidden_approved_content_diagnostics(
+                owner_text,
+                owner_relative,
+                work_unit_id,
+                approved_content_ids=(content_ids_by_section or {}).get(section_id, []),
+                planned_interaction_ids=interaction_ids or [],
+            )
+        )
         section_selector = (section_selectors_by_section or {}).get(section_id, f"#{section_id}")
         selector_matches = _literal_selector_positions(owner_text, section_selector)
         if selector_matches is not None and len(selector_matches) != 1:
@@ -2005,6 +2024,76 @@ def _noninformative_disclosure_diagnostics(
                 line=line,
             )
         )
+    return diagnostics
+
+
+def _hidden_approved_content_diagnostics(
+    source: str,
+    relative: str,
+    work_unit_id: str,
+    *,
+    approved_content_ids: Iterable[str],
+    planned_interaction_ids: Iterable[str],
+) -> list[SourceDiagnostic]:
+    """Reject approved copy whose only route rendering is unplanned disclosure.
+
+    The runtime verifier reads the initial, visible document state. A model
+    can otherwise satisfy the source ``contentValue`` check while putting a
+    paragraph in ``<Disclosure>`` with no corresponding interaction contract;
+    the built portfolio then fails smoke verification even though the source
+    appears complete. Content duplicated in an always-visible sibling is fine,
+    as is a Disclosure carrying an explicitly planned interaction marker.
+    """
+
+    approved = {str(value).strip() for value in approved_content_ids if str(value).strip()}
+    if not approved:
+        return []
+    planned = {str(value).strip() for value in planned_interaction_ids if str(value).strip()}
+    clean_source = strip_source_comments(source)
+    diagnostics: list[SourceDiagnostic] = []
+    for match in _DISCLOSURE_BLOCK_RE.finditer(clean_source):
+        block = match.group(0)
+        opening_end = block.find(">")
+        opening = block[: opening_end + 1] if opening_end >= 0 else block
+        marker_ids = {
+            str(value).strip()
+            for value in re.findall(
+                r"\bdata-interaction-id\s*=\s*[\"']([^\"']+)[\"']", opening
+            )
+            if str(value).strip()
+        }
+        if marker_ids & planned:
+            continue
+        body = match.group("body")
+        for call in _CONTENT_VALUE_LITERAL_RE.finditer(body):
+            content_id = call.group("content_id").strip()
+            if content_id not in approved:
+                continue
+            # The key remains acceptable when another visible expression in
+            # this section renders it outside this Disclosure. Remove this
+            # block before searching so a duplicate within the same panel is
+            # not mistaken for a visible fallback.
+            outside = clean_source[: match.start()] + clean_source[match.end() :]
+            if re.search(
+                rf"\bcontentValue\s*\(\s*[\"']{re.escape(content_id)}[\"']\s*[\)]",
+                outside,
+            ):
+                continue
+            line = clean_source.count("\n", 0, match.start()) + 1
+            diagnostics.append(
+                _diagnostic(
+                    "SOURCE_HIDDEN_APPROVED_CONTENT",
+                    "Approved content is rendered only inside an unplanned collapsed "
+                    f"Disclosure: {content_id}. Render it in the normal document flow, "
+                    "or bind the Disclosure to an explicit planned interaction marker; "
+                    "do not hide ordinary portfolio copy behind an invented control.",
+                    work_unit_id,
+                    relative,
+                    line=line,
+                    expected=content_id,
+                    observed="unplanned Disclosure",
+                )
+            )
     return diagnostics
 
 

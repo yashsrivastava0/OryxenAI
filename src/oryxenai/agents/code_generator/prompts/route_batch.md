@@ -168,6 +168,13 @@ Visual and implementation contract:
   it when the approved scope has no content to reveal. An empty optional panel
   is not a required-image or content failure, but omit the optional control or
   use an existing approved value rather than inventing copy.
+- Do not use `Disclosure` as a generic wrapper for ordinary approved prose
+  (experience context, project summaries, education, contact copy, or other
+  content that has no explicit interaction in this unit). Render that copy
+  directly in the normal document flow so the initial portfolio is complete.
+  Use a collapsed Disclosure only when the current generation contract assigns
+  an interaction ID for it; carry that exact marker on the executable trigger
+  and keep the approved panel content available after activation.
 - Put every assigned interaction on the actual target element identified by
   its `target_selector`. That same JSX opening tag must carry both the exact
   `data-interaction-id` attribute and the blueprint `literal_marker`. An

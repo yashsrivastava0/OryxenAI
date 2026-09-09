@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from oryxenai.agents.code_generator.core.development_schemas import Diagnostic, SitePlan
+from oryxenai.agents.code_generator.core.development_schemas import Diagnostic, RoutePlan, SitePlan
 from oryxenai.agents.code_generator.core.final_repair import repair_allowed_paths
 
 
@@ -65,6 +65,43 @@ def test_route_scoped_diagnostic_resolves_the_hashed_storage_key() -> None:
     )
 
     assert paths == ["src/routes/home-4ea140588150-4859f06d/**"]
+
+
+def test_route_scoped_diagnostic_prefers_canonical_plan_storage_key() -> None:
+    """Runtime diagnostics must expose the source tree the compiler wrote.
+
+    Build Preparation's projection can still contain ``routes/home`` while
+    the accepted plan carries the collision-safe key used on disk.  A final
+    repair must follow the plan rather than authorize a nonexistent semantic
+    directory.
+    """
+
+    plan = SitePlan(
+        plan_id="test",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                storage_key="home-4ea14058",
+                section_ids=["home:introduction"],
+                responsive_outcome="",
+                reduced_motion_outcome="",
+                interaction_outcome="",
+            )
+        ],
+    )
+
+    paths = repair_allowed_paths(
+        [_diagnostic(route_id="home")],
+        plan,
+        {
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "storage_key": "routes/home"}]
+            }
+        },
+    )
+
+    assert paths == ["src/routes/home-4ea14058/**"]
 
 
 def test_route_scoped_diagnostic_never_guesses_a_bare_route_directory() -> None:

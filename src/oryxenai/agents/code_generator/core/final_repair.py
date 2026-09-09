@@ -101,6 +101,14 @@ class FinalRepairer:
             "candidate_identity": identity.model_dump(mode="json"),
             "plan": plan.model_dump(mode="json"),
             "diagnostic_bundle": bundle.model_dump(mode="json"),
+            # The repair prompt uses this exact list to decide whether a
+            # returned file is a create or replace operation. Final-stage
+            # repairs used to expose source bodies only through the nested
+            # diagnostic bundle, leaving the model with no explicit
+            # existing_files state for runtime-only diagnostics (which do not
+            # name a source file). Keep it bound to the same bounded bodies
+            # shown in the bundle so it cannot grant broader write authority.
+            "existing_files": sorted(bundle.bounded_related_source),
             "strategy": strategy,
             "round": round_number,
             # Final verification is entered only after the current source has
@@ -373,7 +381,6 @@ def repair_allowed_paths(
     projections: dict[str, Any] | None = None,
     repo_dir: Path | None = None,
 ) -> list[str]:
-    del plan
     file_paths = {
         item.file for item in diagnostics if item.file and not item.file.startswith("public/")
     }
@@ -401,11 +408,27 @@ def repair_allowed_paths(
     if route_ids:
         # Route files live at the site contract's storage key (e.g.
         # src/routes/home-4ea140588150/**), never at the bare route id.
+        # Prefer the accepted SitePlan's key: the Build Preparation
+        # projection may retain a semantic key while the compiler has
+        # canonicalized the plan to a collision-safe hashed key. Using that
+        # stale projection previously authorized src/routes/home/** even
+        # though the real source lived in src/routes/home-4ea14058/**, so
+        # runtime-only repairs received no route source and were declined.
         storage_keys: dict[str, str] = {}
+        for route in getattr(plan, "routes", []):
+            route_id = str(getattr(route, "route_id", "") or "")
+            storage_key = str(getattr(route, "storage_key", "") or "")
+            storage_key = storage_key.replace("\\", "/").strip("/")
+            if storage_key.startswith("routes/"):
+                storage_key = storage_key.removeprefix("routes/")
+            if route_id and storage_key:
+                storage_keys[route_id] = storage_key
         for route in (projections or {}).get("site/contract.json", {}).get("routes", []):
             if not isinstance(route, dict):
                 continue
             route_id = str(route.get("route_id", ""))
+            if route_id in storage_keys:
+                continue
             storage_key = str(route.get("storage_key", route_id)).replace("\\", "/").strip("/")
             if storage_key.startswith("routes/"):
                 storage_key = storage_key.removeprefix("routes/")
