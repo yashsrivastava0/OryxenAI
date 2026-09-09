@@ -585,7 +585,6 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       previewBridgeReady = true;
       clearPreviewLoadTimer();
       view('preview-embed-status').textContent = 'Embedded preview connected.';
-      sendPreviewInit();
     }
   });
   controller.loadRun().catch((error) => setError(error.message));

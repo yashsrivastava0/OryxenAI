@@ -70,7 +70,6 @@ function PreviewPanel({ preview, unverified }: { preview: GenerationPreviewVM; u
       const data = event.data as { type?: unknown; version?: unknown } | null;
       if (data?.type === "preview:ready" && data.version === PREVIEW_BRIDGE_VERSION) {
         setBridgeStatus("Embedded preview connected.");
-        sendPreviewInit();
       }
     };
     window.addEventListener("message", handleMessage);

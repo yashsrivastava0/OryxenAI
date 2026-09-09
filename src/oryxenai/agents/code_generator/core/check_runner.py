@@ -80,6 +80,7 @@ async def run_source_checks(
     settings: Any,
     include_source_audit: bool = True,
     source_paths: list[str] | None = None,
+    include_noninformative_disclosures: bool = True,
 ) -> list[SourceDiagnostic]:
     from oryxenai.agents.code_generator.core.source_validation import validate_repository
 
@@ -90,6 +91,7 @@ async def run_source_checks(
         max_source_bytes=max_source_bytes,
         work_unit_id=work_unit_id,
         source_paths=source_paths,
+        include_noninformative_disclosures=include_noninformative_disclosures,
     )
     if diagnostics:
         return diagnostics

@@ -606,12 +606,12 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     worker_release_id: str = "oryxenai-code-generator-v5-quality-v3"
     quality_gate_version: str = "quality-gate-v3"
     planner_max_attempts: int = Field(default=2, ge=1, le=4)
-    # Host-owned visual coverage policy. Build Preparation may provide
-    # text-led packs with no image slots; when image slots exist, require at
-    # least one approved visible image on the primary route.
-    minimum_visible_images: int = Field(default=1, ge=0, le=12)
+    # Host-owned visual coverage policy. Images are preferred when an approved
+    # pack supplies suitable material, but text/abstract-led web portfolios
+    # remain valid unless a Build Preparation slot explicitly requires media.
+    minimum_visible_images: int = Field(default=0, ge=0, le=12)
     preferred_visible_images: int = Field(default=2, ge=0, le=24)
-    require_primary_route_image: bool = True
+    require_primary_route_image: bool = False
     design_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
     design_similarity_history: int = Field(default=3, ge=1, le=10)
 
@@ -784,10 +784,14 @@ class CodeGeneratorVerificationConfig(BaseModel):
     )
     viewport_profiles: dict[str, dict[str, int]] = Field(
         default_factory=lambda: {
-            "mobile": {"width": 390, "height": 844},
-            "tablet": {"width": 768, "height": 1024},
             "desktop": {"width": 1440, "height": 900},
+            "laptop": {"width": 1280, "height": 800},
         }
+    )
+    # The preview UI may expose additional device presets, but release
+    # verification is deliberately bounded to desktop web viewports.
+    release_viewport_profiles: list[str] = Field(
+        default_factory=lambda: ["desktop", "laptop"]
     )
     geometry_thresholds: dict[str, float] = Field(
         default_factory=lambda: {

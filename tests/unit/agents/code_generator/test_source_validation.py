@@ -806,6 +806,21 @@ def test_route_batch_rejects_empty_disclosure_panel(tmp_path) -> None:
     assert diagnostics[0].file == education_path
     assert diagnostics[0].line == 3
 
+    # The integration workflow keeps this observation available to the model
+    # review, but does not spend a source-repair round on an optional panel.
+    assert not any(
+        item.code == "SOURCE_NONINFORMATIVE_DISCLOSURE"
+        for item in validate_route_batch_contract(
+            tmp_path,
+            [education_path],
+            route_id="home",
+            section_ids=["home:education"],
+            section_selectors_by_section={"home:education": "#education"},
+            work_unit_id="route-home-batch-2",
+            include_noninformative_disclosures=False,
+        )
+    )
+
     education.write_text(
         education.read_text(encoding="utf-8").replace(
             '<span aria-hidden="true" />',

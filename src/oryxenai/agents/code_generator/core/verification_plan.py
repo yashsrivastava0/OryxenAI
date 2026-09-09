@@ -27,6 +27,22 @@ def build_verification_profile(settings: Any) -> VerificationProfile:
             "tablet": {"width": 768, "height": 1024},
             "desktop": {"width": 1440, "height": 900},
         }
+    configured_viewports = {
+        str(key): dict(value) for key, value in viewports.items()
+    }
+    release_names = [
+        str(value).strip()
+        for value in (getattr(config, "release_viewport_profiles", []) or [])
+        if str(value).strip()
+    ]
+    if release_names:
+        selected = {
+            name: configured_viewports[name]
+            for name in release_names
+            if name in configured_viewports
+        }
+        if selected:
+            configured_viewports = selected
     return VerificationProfile(
         profile_id=str(getattr(config, "profile_id", "code-generator-verification-v1")),
         source_check_ids=list(
@@ -56,7 +72,7 @@ def build_verification_profile(settings: Any) -> VerificationProfile:
         ),
         browser_name=str(getattr(config, "browser_name", "chromium")),
         browser_executable=str(getattr(config, "browser_executable", "") or ""),
-        viewport_profiles={str(key): dict(value) for key, value in viewports.items()},
+        viewport_profiles=configured_viewports,
         geometry_thresholds={
             str(key): float(value)
             for key, value in dict(
@@ -87,6 +103,7 @@ def derive_verification_plan(
         for item in site.get("public_content", [])
         if isinstance(item, dict)
     }
+    configured_default_viewport = _configured_default_viewport(profile)
     journeys: list[VerificationJourney] = []
     check_ids = [*profile.source_check_ids, *profile.build_check_ids, *profile.runtime_check_ids]
     for route in routes:
@@ -100,6 +117,8 @@ def derive_verification_plan(
         ]
         expected_text = _content_strings(content)
         preferred_viewport = _viewport_for_route(plan, route_id)
+        if preferred_viewport not in profile.viewport_profiles:
+            preferred_viewport = configured_default_viewport
         viewport_names = list(profile.viewport_profiles) or [preferred_viewport]
         viewport_names = [
             preferred_viewport,
@@ -187,7 +206,7 @@ def derive_verification_plan(
             VerificationJourney(
                 journey_id="navigation:all-edges",
                 start_path=str(routes[0].get("path", "/")) if routes else "/",
-                viewport_profile="desktop",
+                viewport_profile=configured_default_viewport,
                 steps=[
                     VerificationStep(step_id="navigation:start", action="load"),
                     *nav_steps,
@@ -200,7 +219,7 @@ def derive_verification_plan(
         VerificationJourney(
             journey_id="unknown-route",
             start_path="/__oryxenai_unknown_route__",
-            viewport_profile="desktop",
+            viewport_profile=configured_default_viewport,
             steps=[
                 VerificationStep(
                     step_id="unknown-route:load",
@@ -260,6 +279,9 @@ def derive_verification_plan(
             else "click"
         )
         selector = _interaction_selector(interaction_data, interaction_id)
+        interaction_viewport = _viewport_for_route(plan, route_id)
+        if interaction_viewport not in profile.viewport_profiles:
+            interaction_viewport = configured_default_viewport
         # Only same-app path expectations are enforceable in the offline
         # runtime: external destinations and "#anchor" scrolls cannot be
         # asserted as page.url paths.
@@ -270,7 +292,7 @@ def derive_verification_plan(
                 journey_id=journey_id,
                 route_id=route_id,
                 start_path=str(route.get("path", "/")),
-                viewport_profile=_viewport_for_route(plan, route_id),
+                viewport_profile=interaction_viewport,
                 steps=[
                     VerificationStep(step_id=f"{journey_id}:load", action="load"),
                     VerificationStep(
@@ -353,9 +375,14 @@ def _content_strings(content: dict[str, Any]) -> list[str]:
 
 
 def _viewport_for_route(plan: SitePlan, route_id: str) -> str:
-    for route in plan.routes:
-        if route.route_id == route_id:
-            value = f"{route.responsive_outcome} {route.responsive_behavior}".casefold()
-            if "mobile" in value or "narrow" in value:
-                return "mobile"
+    # Planner prose describes responsive behavior; it cannot select a release
+    # viewport or expand the configured desktop verification surface.
     return "desktop"
+
+
+def _configured_default_viewport(profile: VerificationProfile) -> str:
+    """Choose a release viewport that is guaranteed to be configured."""
+
+    if "desktop" in profile.viewport_profiles:
+        return "desktop"
+    return next(iter(profile.viewport_profiles), "desktop")

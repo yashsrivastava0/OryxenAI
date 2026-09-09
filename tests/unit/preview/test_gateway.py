@@ -7,7 +7,11 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from oryxenai.preview.gateway import create_candidate_app, create_preview_app
+from oryxenai.preview.gateway import (
+    _rewrite_preview_html_urls,
+    create_candidate_app,
+    create_preview_app,
+)
 from oryxenai.storage.preview import MemoryPreviewStorage
 
 
@@ -124,11 +128,114 @@ async def test_gateway_injects_mount_metadata_for_nested_asset_urls() -> None:
 
 
 @pytest.mark.asyncio
+async def test_active_gateway_rewrites_assets_for_nested_spa_routes() -> None:
+    storage = MemoryPreviewStorage()
+    html = (
+        b"<!doctype html><html><head>"
+        b'<script type="module" src="./assets/app.js"></script>'
+        b'<link rel="stylesheet" href="/assets/app.css">'
+        b"</head><body><main>active</main></body></html>"
+    )
+    javascript = b"console.log('active')"
+    stylesheet = b"main { color: red; }"
+    prefix = "preview/candidates/candidate-active/build-active"
+    for path, data, content_type in (
+        ("index.html", html, "text/html"),
+        ("assets/app.js", javascript, "text/javascript"),
+        ("assets/app.css", stylesheet, "text/css"),
+    ):
+        await storage.put_immutable(
+            key=f"{prefix}/dist/{path}", data=data, content_type=content_type
+        )
+    receipt = json.dumps(
+        {
+            "run_id": "run-active",
+            "build_hash": "build-active",
+            "candidate_id": "candidate-active",
+            "candidate_identity_hash": "identity-active",
+        },
+        separators=(",", ":"),
+    ).encode()
+    receipt_ref = await storage.put_immutable(
+        key="preview/receipts/active.json", data=receipt, content_type="application/json"
+    )
+    manifest_entries = [
+        {
+            "path": path,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "media_type": content_type,
+        }
+        for path, data, content_type in (
+            ("index.html", html, "text/html"),
+            ("assets/app.js", javascript, "text/javascript"),
+            ("assets/app.css", stylesheet, "text/css"),
+        )
+    ]
+    pointer = {
+        "receipt_key": "preview/receipts/active.json",
+        "receipt_hash": receipt_ref.sha256,
+        "candidate_prefix": prefix,
+        "build_hash": "build-active",
+        "candidate_id": "candidate-active",
+        "candidate_identity_hash": "identity-active",
+        "manifest": {"entries": manifest_entries},
+    }
+    host = "preview-cccccccccccccccc"
+    await storage.put_conditional(
+        key=f"preview/hosts/{host}/active.json",
+        data=(json.dumps(pointer, separators=(",", ":")) + "\n").encode(),
+        content_type="application/json",
+        expected_etag=None,
+    )
+    app = create_preview_app(storage)
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        nested = await client.get(f"/preview/{host}/work/project")
+        script = await client.get(f"/preview/{host}/assets/app.js")
+        missing = await client.get(f"/preview/{host}/assets/missing.js")
+    assert nested.status_code == 200
+    assert f'src="/preview/{host}/assets/app.js"' in nested.text
+    assert 'href="/preview/preview-cccccccccccccccc/assets/app.css"' in nested.text
+    assert script.status_code == 200
+    assert script.text == "console.log('active')"
+    assert missing.status_code == 404
+
+
+def test_gateway_rewrites_entry_assets_to_the_mount_root() -> None:
+    html = (
+        b'<script type="module" src="./assets/app.js"></script>'
+        b'<link rel="stylesheet" href="/assets/app.css">'
+        b'<link rel="modulepreload" href="assets/chunk.js">'
+        b'<img srcset="./assets/image-480.webp 480w, /assets/image.webp 1280w">'
+    )
+    rewritten = _rewrite_preview_html_urls(html, "/preview/host-abcdefghijklmnop/").decode()
+    assert 'src="/preview/host-abcdefghijklmnop/assets/app.js"' in rewritten
+    assert 'href="/preview/host-abcdefghijklmnop/assets/app.css"' in rewritten
+    assert 'href="/preview/host-abcdefghijklmnop/assets/chunk.js"' in rewritten
+    assert (
+        'srcset="/preview/host-abcdefghijklmnop/assets/image-480.webp 480w, '
+        '/preview/host-abcdefghijklmnop/assets/image.webp 1280w"'
+    ) in rewritten
+
+
+def test_gateway_keeps_external_and_fragment_urls_unchanged() -> None:
+    html = (
+        b'<script src="https://cdn.example/app.js"></script>'
+        b'<img src="data:image/svg+xml;base64,abc">'
+        b'<link href="#local">'
+    )
+    assert _rewrite_preview_html_urls(html, "/preview/host/") == html
+
+
+@pytest.mark.asyncio
 async def test_candidate_gateway_serves_assets_under_the_exact_nested_mount(tmp_path) -> None:
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text(
-        "<!doctype html><html><head></head><body><div id='root'></div></body></html>",
+        "<!doctype html><html><head>"
+        "<script type='module' src='./assets/app.js'></script>"
+        "</head><body><div id='root'></div></body></html>",
         encoding="utf-8",
     )
     (dist / "assets" / "app.js").write_text("console.log('ok')", encoding="utf-8")
@@ -143,9 +250,14 @@ async def test_candidate_gateway_serves_assets_under_the_exact_nested_mount(tmp_
     ) as client:
         headers = {"X-Preview-Verify-Token": header_value}
         page = await client.get("/preview/host-abcdefghijklmnop/", headers=headers)
+        nested = await client.get(
+            "/preview/host-abcdefghijklmnop/work/project", headers=headers
+        )
         asset = await client.get("/preview/host-abcdefghijklmnop/assets/app.js", headers=headers)
     assert page.status_code == 200
     assert 'content="/preview/host-abcdefghijklmnop/"' in page.text
+    assert nested.status_code == 200
+    assert "src='/preview/host-abcdefghijklmnop/assets/app.js'" in nested.text
     assert asset.status_code == 200
     assert asset.text == "console.log('ok')"
 
@@ -156,7 +268,11 @@ async def test_public_candidate_gateway_requires_capability_and_supports_nested_
     token = "A" * 32
     candidate_id = "candidate-test"
     build_hash = "a" * 64
-    html = b"<!doctype html><html><head></head><body>candidate</body></html>"
+    html = (
+        b"<!doctype html><html><head>"
+        b'<script type="module" src="./assets/app.js"></script>'
+        b"</head><body>candidate</body></html>"
+    )
     javascript = b"console.log('candidate')"
     manifest = {
         "schema_version": "code-generator-build-manifest-v1",
@@ -219,6 +335,7 @@ async def test_public_candidate_gateway_requires_capability_and_supports_nested_
     assert page.status_code == 200
     assert 'content="/candidate-preview/candidate/' in page.text
     assert nested.status_code == 200
+    assert f'src="{base}/assets/app.js"' in nested.text
     assert asset.status_code == 200
     assert asset.text == "console.log('candidate')"
     assert denied.status_code == 404

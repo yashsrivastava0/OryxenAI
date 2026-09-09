@@ -60,7 +60,7 @@ def test_explicit_functional_finding_still_blocks() -> None:
     assert effective_finding_severity(finding) == "blocking"
 
 
-def test_informative_disclosure_finding_is_always_functional() -> None:
+def test_optional_empty_disclosure_is_advisory_but_required_content_still_blocks() -> None:
     finding = QualityFindingV2(
         finding_id="finding-empty-disclosure",
         severity="advisory",
@@ -72,7 +72,30 @@ def test_informative_disclosure_finding_is_always_functional() -> None:
         evidence="The disclosure panel contains no visible approved meaning.",
         requested_outcome="Remove the empty control or expose existing approved meaning.",
     )
-    assert effective_finding_severity(finding) == "blocking"
+    assert effective_finding_severity(finding) == "advisory"
+    assert (
+        effective_finding_severity(
+            finding.model_copy(
+                update={"evidence": "The optional panel does not expose approved content."}
+            )
+        )
+        == "advisory"
+    )
+    assert (
+        effective_finding_severity(
+            finding.model_copy(
+                update={"evidence": "The visual treatment must include a stronger rail."}
+            )
+        )
+        == "advisory"
+    )
+    required = finding.model_copy(
+        update={
+            "evidence": "A required interaction exposes no approved content.",
+            "requested_outcome": "Restore the required interaction.",
+        }
+    )
+    assert effective_finding_severity(required) == "blocking"
 
 
 def test_historical_quality_receipt_is_restamped_for_the_current_policy() -> None:

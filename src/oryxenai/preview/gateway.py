@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import mimetypes
+import posixpath
 import re
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -21,6 +22,16 @@ from oryxenai.storage.preview import PreviewStorage, PreviewStorageError
 _HOST_RE = re.compile(r"^[a-z2-7][a-z2-7-]{15,63}$")
 _CAPABILITY_RE = re.compile(r"^[A-Za-z0-9_-]{24,160}$")
 _IDENTITY_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,160}$")
+_HTML_ASSET_ATTRIBUTE_RE = re.compile(
+    r"(?P<prefix><(?:script|link|img|source|video|audio|track)\b[^>]*?\s"
+    r"(?:src|href)\s*=\s*)(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
+_HTML_SRCSET_ATTRIBUTE_RE = re.compile(
+    r"(?P<prefix><(?:img|source|video)\b[^>]*?\ssrcset\s*=\s*)"
+    r"(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
 _ASSET_SUFFIXES = {
     ".js",
     ".mjs",
@@ -111,6 +122,80 @@ def _inject_preview_base(data: bytes, base_path: str) -> bytes:
     if close_index < 0:
         return data
     return data[: close_index + 1] + marker + data[close_index + 1 :]
+
+
+def _preview_asset_url(value: str, mount_path: str) -> str:
+    """Resolve one local HTML asset reference against the preview mount.
+
+    Vite emits relative entrypoint references.  A route request such as
+    ``/preview/<host>/about`` would otherwise resolve ``./assets/app.js``
+    under ``/about/assets`` in the browser.  Only local asset references are
+    rewritten; external/data URLs and fragments retain their original value.
+    """
+
+    from urllib.parse import urlsplit, urlunsplit
+
+    stripped = value.strip()
+    if (
+        not stripped
+        or stripped.startswith(("#", "//", "data:", "blob:", "javascript:"))
+    ):
+        return value
+    parsed = urlsplit(stripped)
+    if parsed.scheme or parsed.netloc:
+        return value
+    path = parsed.path.replace("\\", "/")
+    if not path:
+        return value
+    while path.startswith("./"):
+        path = path[2:]
+    if path.startswith("../"):
+        # The artifact manifest rejects traversal; leave malformed input
+        # untouched so the existing closure/404 checks report it precisely.
+        return value
+    path = posixpath.normpath(path.lstrip("/"))
+    if path in {"", "."} or path == ".." or path.startswith("../"):
+        return value
+    mount = "/" + mount_path.strip("/") + "/" if mount_path.strip("/") else "/"
+    rewritten = f"{mount.rstrip('/')}/{path}" if mount != "/" else f"/{path}"
+    return urlunsplit(("", "", rewritten, parsed.query, parsed.fragment))
+
+
+def _rewrite_preview_html_urls(data: bytes, mount_path: str) -> bytes:
+    """Rewrite local script/style/media URLs in served HTML only.
+
+    Stored immutable artifact bytes and their manifest hashes are never
+    changed.  The gateway transforms the response copy so nested SPA route
+    requests consistently fetch assets from the artifact root.
+    """
+
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+
+    def replace_attribute(match: re.Match[str]) -> str:
+        return (
+            f"{match.group('prefix')}{match.group('quote')}"
+            f"{_preview_asset_url(match.group('value'), mount_path)}"
+            f"{match.group('quote')}"
+        )
+
+    def replace_srcset(match: re.Match[str]) -> str:
+        rewritten = ", ".join(
+            (
+                f"{_preview_asset_url(parts[0], mount_path)}"
+                + (f" {parts[1]}" if len(parts) > 1 else "")
+            )
+            for candidate in match.group("value").split(",")
+            for parts in [candidate.strip().split(None, 1)]
+            if parts and parts[0]
+        )
+        return f"{match.group('prefix')}{match.group('quote')}{rewritten}{match.group('quote')}"
+
+    text = _HTML_ASSET_ATTRIBUTE_RE.sub(replace_attribute, text)
+    text = _HTML_SRCSET_ATTRIBUTE_RE.sub(replace_srcset, text)
+    return text.encode("utf-8")
 
 
 class PreviewGateway:
@@ -208,6 +293,7 @@ class PreviewGateway:
         )
         body = stored[1]
         if requested == "index.html":
+            body = _rewrite_preview_html_urls(body, f"{self.route_prefix}/{host}/")
             body = _inject_preview_base(body, f"{self.route_prefix}/{host}/")
         return Response(
             content=b"" if request.method == "HEAD" else body,
@@ -278,6 +364,7 @@ class PreviewGateway:
         body = stored[1]
         if requested == "index.html":
             mount = self._candidate_mount(token, candidate_id, build_hash)
+            body = _rewrite_preview_html_urls(body, mount)
             body = _inject_preview_base(body, mount)
         return Response(
             content=b"" if request.method == "HEAD" else body,
@@ -410,7 +497,8 @@ class CandidateGateway:
                 headers={"X-OryxenAI-Candidate-404": "artifact"},
             )
         data = target.read_bytes()
-        if relative == "index.html":
+        if target == self.dist_dir / "index.html":
+            data = _rewrite_preview_html_urls(data, self.mount_prefix)
             data = _inject_preview_base(data, self.mount_prefix)
         return Response(
             content=b"" if request.method == "HEAD" else data,

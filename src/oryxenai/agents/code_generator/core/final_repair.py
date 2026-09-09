@@ -290,6 +290,7 @@ class FinalRepairer:
             max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
             work_unit_id="final-repair",
             settings=settings,
+            include_noninformative_disclosures=False,
         )
         if cheap_diagnostics:
             raise FinalRepairError(

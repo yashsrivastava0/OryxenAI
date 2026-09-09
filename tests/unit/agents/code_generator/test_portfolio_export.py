@@ -11,6 +11,7 @@ import oryxenai.jobs.handlers.code_generator_verification as code_generator_veri
 from oryxenai.agents.code_generator.core.portfolio_export import (
     _generation_report,
     _source_references_resource_slot,
+    build_safe_evidence_summary,
     build_export_receipt,
     export_failed_run,
 )
@@ -86,6 +87,44 @@ def test_generation_report_preserves_terminal_stage_and_pipeline_issue() -> None
     assert "Recorded pipeline issues: `1`" in report
     assert "Primary failure: `GENERATION_FAILED`" in report
     assert "The generated source did not pass validation." in report
+
+
+def test_generation_report_reads_nested_generation_projection_evidence() -> None:
+    report = _generation_report(
+        {
+            "run_id": "run-nested",
+            "generation_projection": {
+                "quality_review": {"accepted": False},
+                "call_receipts": [{"call_id": "one"}, {"call_id": "two"}],
+                "request_rounds": 1,
+                "repair_rounds": 2,
+            },
+        }
+    )
+
+    assert "Quality review: `rejected`" in report
+    assert "Recorded model-call receipts: `2`" in report
+    assert "Generation request rounds: `1`" in report
+    assert "Repair rounds: `2`" in report
+
+
+def test_safe_evidence_summary_uses_promoted_call_ledger() -> None:
+    summary = build_safe_evidence_summary(
+        {
+            "status": "success",
+            "checkpoint_hash": "checkpoint-1",
+            "call_ledger": {
+                "call_count": 4,
+                "request_rounds": 2,
+                "repair_rounds": 1,
+            },
+        }
+    )
+
+    assert summary["accepted_checkpoint_hash"] == "checkpoint-1"
+    assert summary["call_count"] == 4
+    assert summary["request_rounds"] == 2
+    assert summary["repair_rounds"] == 1
 
 
 def test_image_evidence_recognizes_literal_jsx_resource_bindings() -> None:
