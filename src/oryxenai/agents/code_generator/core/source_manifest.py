@@ -11,6 +11,10 @@ from PIL import Image
 
 from oryxenai.agents.code_generator.core.development_schemas import ExperienceBlueprintV4
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+from oryxenai.agents.code_generator.core.resource_policy import (
+    is_image_category,
+    normalize_resource_category,
+)
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
 from oryxenai.agents.shared.image_retrieval import generate_responsive_renditions
 
@@ -217,8 +221,8 @@ def _materialize_image_assets(
     for slot in execution.get("slots", []) if isinstance(execution, dict) else []:
         if not isinstance(slot, dict):
             continue
-        category = str(slot.get("category", "")).casefold()
-        if not any(token in category for token in ("image", "photo", "illustration", "texture")):
+        category = normalize_resource_category(slot.get("category", ""))
+        if not is_image_category(category):
             continue
         slot_id = str(slot.get("resource_slot_id", ""))
         resolution = slot.get("resolution", {})
@@ -250,6 +254,7 @@ def _materialize_image_assets(
                     [str(item) for item in slot.get("section_ids", [])],
                     sources,
                     placement_by_slot.get(slot_id),
+                    category=category,
                 )
             )
     acquired_by_id: dict[str, list[dict[str, Any]]] = {}
@@ -259,7 +264,7 @@ def _materialize_image_assets(
         if isinstance(item, dict)
     }
     for item in acquired_resources:
-        if str(item.get("category", "")).casefold() not in {"image", "texture", "illustration"}:
+        if not is_image_category(item.get("category", "")):
             continue
         request_id = str(item.get("request_id", ""))
         # Acquisition requests are namespaced by their origin.  Deferred
@@ -274,8 +279,14 @@ def _materialize_image_assets(
                 break
         resource_id = possible_slot if possible_slot in slot_ids else request_id
         acquired_by_id.setdefault(resource_id, []).append(item)
+    execution_by_slot = {
+        str(item.get("resource_slot_id", "")): item
+        for item in execution.get("slots", [])
+        if isinstance(item, dict) and str(item.get("resource_slot_id", ""))
+    }
     for resource_id, entries in acquired_by_id.items():
         placement = entries[0].get("placement", {})
+        execution_slot = execution_by_slot.get(resource_id, {})
         acquired_sources: list[dict[str, Any]] = []
         if len(entries) == 1:
             # A single acquired original still needs the same responsive
@@ -308,10 +319,15 @@ def _materialize_image_assets(
             assets.append(
                 _image_asset(
                     resource_id,
-                    str(placement.get("route_id", "")),
-                    [str(placement.get("section_id", ""))] if placement.get("section_id") else [],
+                    str(placement.get("route_id", "") or execution_slot.get("route_id", "")),
+                    (
+                        [str(placement.get("section_id", ""))]
+                        if placement.get("section_id")
+                        else [str(item) for item in execution_slot.get("section_ids", []) if str(item)]
+                    ),
                     acquired_sources,
                     placement_by_slot.get(resource_id),
+                    category=normalize_resource_category(entries[0].get("category", "image")),
                 )
             )
     return sorted(assets, key=lambda item: item["resource_id"])
@@ -383,11 +399,15 @@ def _image_asset(
     section_ids: list[str],
     sources: list[dict[str, Any]],
     placement: Any | None,
+    *,
+    category: str,
 ) -> dict[str, Any]:
     ordered = sorted(sources, key=lambda item: (item["format"], item["width"]))
     largest = max(ordered, key=lambda item: int(item["width"]))
     return {
         "resource_id": resource_id,
+        "resource_slot_id": resource_id,
+        "category": normalize_resource_category(category),
         "route_id": route_id,
         "section_ids": section_ids,
         "alt_policy": str(getattr(placement, "alt_policy", "contextual_description")),

@@ -23,6 +23,14 @@ keep each section's `id`, `data-content-id`, and approved copy in that section
 module. Do not retype content, create a second section wrapper, or import an
 aggregator that owns multiple sections.
 
+When a completed section contains a planned image, preserve that section's
+`LocalImage` wrapper and its direct layout relationship while composing the
+route. Do not add a desktop grid to an outer section when its real copy and
+visual children are nested inside one wrapper; the layout rule belongs on the
+element whose direct children form the intended peers. If the section has no
+planned image, keep its layout intentionally single-column rather than leaving
+an empty visual track.
+
 For the V4 contract, section modules are the only executable owners of section
 anchors and approved content. The route composer must not import
 `src/content/generated-content`, call `contentValue(...)`, build an

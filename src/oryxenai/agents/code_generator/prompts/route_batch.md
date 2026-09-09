@@ -157,6 +157,14 @@ Visual and implementation contract:
 
 Resource and content contract:
 
+- For every planned image, render one visible `LocalImage` in the approved
+  section. The image wrapper and its direct copy/visual peers must be the
+  actual layout elements receiving the section's grid or flex declarations.
+  A rule on an outer `<section>` does not create a two-column layout when all
+  content is inside one child wrapper; put the rule on that wrapper or render
+  the image as a direct peer. If no image binding is present, use a deliberate
+  single-column layout and do not leave an empty desktop track.
+
 - Render only admitted local resources. Planned images use the trusted
   `LocalImage` component with the exact short `resourceId` and presentation
   props from `PLANNED LOCAL IMAGE BINDINGS`. Omit the `sources` prop: the

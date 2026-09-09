@@ -110,6 +110,14 @@ Grounding and exact coverage:
   `100vw` fallback. Do not spell out numbers or invent descriptive words in
   any CSS value.
   Representative media is never personal evidence.
+- Follow the host-provided `image_policy` in the planner context. When
+  `minimum_visible_images` is greater than zero and approved image slots are
+  available, place that many exact image slots, including one on the primary
+  `/` route when `require_primary_route_image` is true. Bind each to a real
+  approved section and a visible `LocalImage` wrapper. Do not satisfy this
+  requirement with a component slot, a CSS-only ornament, or an invented
+  resource ID. If the policy has no approved image slots, preserve the
+  text-led direction and do not fabricate one.
 - Assign every approved interaction exactly once with selector, literal
   marker, keyboard behavior, focus result, state transition, state attribute,
   and same-app navigation outcome when applicable.

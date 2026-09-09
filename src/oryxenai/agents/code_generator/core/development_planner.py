@@ -17,6 +17,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
 )
 from oryxenai.agents.code_generator.core.ownership import OwnershipError, validate_work_ownership
+from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 
 
 class SitePlanValidationError(ValueError):
@@ -33,7 +34,10 @@ def canonical_json(value: Any) -> bytes:
 
 
 def build_planner_context(
-    projections: dict[str, dict[str, Any]], input_receipt: dict[str, Any]
+    projections: dict[str, dict[str, Any]],
+    input_receipt: dict[str, Any],
+    *,
+    image_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return only the approved public contract and receipt hashes to the model."""
     site = projections["site/contract.json"]
@@ -46,6 +50,25 @@ def build_planner_context(
         [item for item in site.get("public_content", []) if isinstance(item, dict)],
         [item for item in site.get("facts", []) if isinstance(item, dict)],
     )
+    declared_image_slots = [
+        {
+            "resource_slot_id": str(item.get("resource_slot_id", "")),
+            "route_id": str(item.get("route_id", "")),
+            "section_ids": [str(value) for value in item.get("section_ids", []) if str(value)],
+            "category": str(item.get("category", "")),
+            "required": bool(item.get("required")),
+        }
+        for item in execution.get("slots", [])
+        if isinstance(item, dict)
+        and str(item.get("resource_slot_id", ""))
+        and is_image_category(item.get("category", ""))
+    ]
+    normalized_image_policy = {
+        "minimum_visible_images": 0,
+        "preferred_visible_images": 0,
+        "require_primary_route_image": False,
+        **dict(image_policy or {}),
+    }
     return {
         "site_contract": site,
         "navigation_contract": site.get(
@@ -55,6 +78,7 @@ def build_planner_context(
         "visual_direction": visual,
         "resource_bindings": {
             "slots": execution.get("slots", []),
+            "image_slots": declared_image_slots,
             "resource_ledger": ledger.get("resource_decisions", []),
             "materialized_resources": resources.get("resources", []),
         },
@@ -69,6 +93,7 @@ def build_planner_context(
         ],
         "blueprint_identity_manifest": _blueprint_identity_manifest(site),
         "blueprint_selector_manifest": _blueprint_selector_manifest(site),
+        "image_policy": normalized_image_policy,
         "receipt": {
             "admitted_identity": input_receipt["admitted_identity"],
             "projection_hashes": input_receipt["projection_hashes"],
@@ -131,6 +156,7 @@ def validate_v4_blueprint_identities(
 
     raw_manifest = context.get("blueprint_identity_manifest")
     if not isinstance(raw_manifest, list):
+        _validate_v4_image_policy(blueprint, context)
         return
     manifest = [item for item in raw_manifest if isinstance(item, dict)]
     expected = {
@@ -150,6 +176,49 @@ def validate_v4_blueprint_identities(
             raise SitePlanValidationError(
                 "PLAN_BLUEPRINT_IDENTITY_DRIFT",
                 "V4 region and semantic-owner IDs must echo the host identity manifest exactly.",
+            )
+    _validate_v4_image_policy(blueprint, context)
+
+
+def _validate_v4_image_policy(blueprint: ExperienceBlueprintV4, context: dict[str, Any]) -> None:
+    """Require host-configured visible image coverage when the pack permits it."""
+
+    raw_policy = context.get("image_policy")
+    policy = raw_policy if isinstance(raw_policy, dict) else {}
+    minimum = max(0, int(policy.get("minimum_visible_images", 0) or 0))
+    if minimum <= 0:
+        return
+    raw_slots = context.get("resource_bindings", {}).get("image_slots", [])
+    image_slots = {
+        str(item.get("resource_slot_id", ""))
+        for item in raw_slots
+        if isinstance(item, dict) and str(item.get("resource_slot_id", ""))
+    }
+    if not image_slots:
+        # A text-only approved pack remains valid; the host cannot invent an
+        # image slot that Build Preparation did not approve.
+        return
+    placed = [
+        item
+        for item in blueprint.resource_placements
+        if item.resource_slot_id in image_slots
+    ]
+    if len(placed) < minimum:
+        raise SitePlanValidationError(
+            "PLAN_REQUIRED_IMAGE_PLACEMENT",
+            "The accepted blueprint must place at least "
+            f"{minimum} approved image slot(s); found {len(placed)}. "
+            "Choose an approved image slot and bind it to an existing route section.",
+        )
+    if bool(policy.get("require_primary_route_image")):
+        site = context.get("site_contract", {})
+        routes = [item for item in site.get("routes", []) if isinstance(item, dict)]
+        primary = next((item for item in routes if str(item.get("path", "")) == "/"), None)
+        primary_id = str((primary or routes[0] if routes else {}).get("route_id", ""))
+        if primary_id and not any(item.route_id == primary_id for item in placed):
+            raise SitePlanValidationError(
+                "PLAN_PRIMARY_ROUTE_IMAGE_MISSING",
+                "The primary route must contain at least one approved visible image placement.",
             )
 
 

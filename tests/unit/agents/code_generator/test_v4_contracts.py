@@ -184,6 +184,60 @@ def test_v4_contracts_are_closed_and_provider_compatible() -> None:
     assert schema_compatibility_issues(ExperienceBlueprintV4) == []
 
 
+def test_v4_image_policy_requires_an_approved_primary_route_placement() -> None:
+    blueprint = _blueprint()
+    context = {
+        "blueprint_identity_manifest": [
+            {
+                "route_id": "home",
+                "section_id": "hero",
+                "region_id": "region:hero",
+                "owner_id": "owner:hero",
+            }
+        ],
+        "site_contract": {"routes": [{"route_id": "home", "path": "/"}]},
+        "resource_bindings": {
+            "image_slots": [
+                {
+                    "resource_slot_id": "slot-hero-image",
+                    "route_id": "home",
+                    "section_ids": ["hero"],
+                    "category": "editorial_photo",
+                }
+            ]
+        },
+        "image_policy": {
+            "minimum_visible_images": 1,
+            "require_primary_route_image": True,
+        },
+    }
+    with pytest.raises(SitePlanValidationError) as exc_info:
+        validate_v4_blueprint_identities(blueprint, context)
+    assert exc_info.value.code == "PLAN_REQUIRED_IMAGE_PLACEMENT"
+
+    placed = ExperienceBlueprintV4.model_validate(
+        {
+            **blueprint.model_dump(),
+            "resource_placements": [
+                {
+                    "resource_slot_id": "slot-hero-image",
+                    "route_id": "home",
+                    "section_id": "hero",
+                    "element_marker": 'data-resource-slot="hero-image"',
+                    "element_selector": '[data-resource-slot="hero-image"]',
+                    "alt_policy": "decorative",
+                    "fit": "cover",
+                    "responsive_behavior": "Stack below the approved hero copy.",
+                    "sizes": "100vw",
+                    "aspect_ratio_min": 1,
+                    "aspect_ratio_max": 2,
+                }
+            ],
+        }
+    )
+    validate_v4_blueprint_identities(placed, context)
+
+
 def test_v4_distinctive_move_rejects_weak_neutral_ratio_range() -> None:
     payload = _blueprint().model_dump(mode="python")
     payload["distinctive_moves"][0].update(minimum_ratio=0.95, maximum_ratio=1.05)

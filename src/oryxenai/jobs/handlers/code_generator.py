@@ -93,6 +93,10 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
     ResourceProviderError,
     default_adapters,
 )
+from oryxenai.agents.code_generator.core.resource_policy import (
+    is_image_category,
+    normalize_resource_category,
+)
 from oryxenai.agents.code_generator.core.resource_scout import select_candidate_with_scout
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.agents.shared.contracts import ModelClient
@@ -355,7 +359,21 @@ async def _execute(
         )
         return {"status": "needs_attention", "run_id": str(run_id)}
 
-    context = build_planner_context(projections, receipt.model_dump(mode="json"))
+    context = build_planner_context(
+        projections,
+        receipt.model_dump(mode="json"),
+        image_policy={
+            "minimum_visible_images": int(
+                getattr(settings.code_generator_development, "minimum_visible_images", 1)
+            ),
+            "preferred_visible_images": int(
+                getattr(settings.code_generator_development, "preferred_visible_images", 2)
+            ),
+            "require_primary_route_image": bool(
+                getattr(settings.code_generator_development, "require_primary_route_image", True)
+            ),
+        },
+    )
     context_digest = context_hash(context)
     context_path = _write_context(settings, receipt.admitted_identity, context_digest, context)
     context_receipt = ContextReceipt(
@@ -1502,16 +1520,37 @@ def _build_initial_requests(
         *_build_delegated_requests(plan, projections, input_hash, plan_hash),
         *deferred_requests,
     ]
+    blueprint = getattr(plan, "experience_blueprint", None)
+    placed_slot_ids = {
+        str(item.resource_slot_id)
+        for item in getattr(blueprint, "resource_placements", [])
+        if str(getattr(item, "resource_slot_id", ""))
+    }
+    execution_slots = {
+        str(item.get("resource_slot_id", "")): item
+        for item in projections.get("execution/contract.json", {}).get("slots", [])
+        if isinstance(item, dict) and str(item.get("resource_slot_id", ""))
+    }
     for slot in plan.resource_slots:
         if slot.slot_id in resolved_slot_ids:
             continue
+        binding = execution_slots.get(slot.slot_id, {})
+        binding_category = normalize_resource_category(binding.get("category", ""))
+        # Optional image slots are acquired only when the accepted blueprint
+        # places them. This prevents downloading a whole catalogue of images
+        # that the generated source has no obligation to render.
+        if (
+            is_image_category(binding_category)
+            and not bool(binding.get("required"))
+            and slot.slot_id not in placed_slot_ids
+        ):
+            continue
         matched = any(
             isinstance(resource, dict)
-            and str(resource.get("route_id", "")) == slot.route_id
             and (
-                not resource.get("purpose")
-                or str(resource.get("purpose", "")).casefold() in slot.purpose.casefold()
-                or slot.purpose.casefold() in str(resource.get("purpose", "")).casefold()
+                str(resource.get("resource_id", "")) == slot.slot_id
+                or str(resource.get("role_id", "")) == slot.slot_id
+                or str(resource.get("need_id", "")) == slot.slot_id
             )
             for resource in resources
         )
@@ -1522,12 +1561,38 @@ def _build_initial_requests(
                 need
                 for need in needs
                 if isinstance(need, dict)
-                and slot.route_id in [str(item) for item in need.get("route_ids", [])]
-                and _words_overlap(slot.purpose, str(need.get("purpose", "")))
+                and (
+                    str(need.get("role_id", "")) == slot.slot_id
+                    or str(need.get("resource_slot_id", "")) == slot.slot_id
+                    or str(need.get("need_id", "")) == slot.slot_id
+                )
             ),
             {},
         )
-        category = _infer_category(slot.purpose, matching_need)
+        if not matching_need:
+            matching_need = next(
+                (
+                    need
+                    for need in needs
+                    if isinstance(need, dict)
+                    and slot.route_id in [str(item) for item in need.get("route_ids", [])]
+                    and _words_overlap(slot.purpose, str(need.get("purpose", "")))
+                ),
+                {},
+            )
+        category = normalize_resource_category(
+            binding.get("category") or matching_need.get("category") or slot.purpose
+        )
+        if category not in {
+            "image",
+            "texture",
+            "font",
+            "icon",
+            "illustration",
+            "component_source",
+            "style_primitive",
+        }:
+            category = _infer_category(slot.purpose, matching_need)
         work_unit_id = next(
             (
                 unit.unit_id
@@ -1546,6 +1611,10 @@ def _build_initial_requests(
             category=category,  # type: ignore[arg-type]
             placement=ResourcePlacement(
                 route_id=slot.route_id,
+                section_id=(
+                    str((binding.get("section_ids") or [""])[0])
+                    or str((matching_need.get("section_ids") or [""])[0])
+                ),
                 purpose=slot.purpose,
             ),
             why_existing_is_insufficient="The admitted pack has no suitable resource binding for this slot.",
@@ -1611,15 +1680,8 @@ def _build_delegated_requests(
             or resolution.get("resolution_type") != "delegated_acquisition"
         ):
             continue
-        raw_category = str(slot.get("category", "")).casefold()
-        category = {
-            "photo": "image",
-            "editorial_photo": "image",
-            "visual_component": "component_source",
-            "component": "component_source",
-            "typography_system": "font",
-        }.get(raw_category, raw_category)
-        if category not in {"image", "font", "component_source"}:
+        category = normalize_resource_category(slot.get("category", ""))
+        if category not in {"image", "texture", "illustration", "font", "component_source"}:
             continue
         route_id = str(slot.get("route_id", ""))
         section_ids = [str(value) for value in slot.get("section_ids", []) if str(value)]
@@ -1633,6 +1695,12 @@ def _build_delegated_requests(
         )
         purpose = str(slot.get("rationale", "") or slot.get("component_placement", ""))
         required = bool(slot.get("required"))
+        if (
+            is_image_category(category)
+            and not required
+            and str(slot.get("resource_slot_id", "")) not in _placed_slot_ids(plan)
+        ):
+            continue
         fallback = _fallback_for(category, required)
         requests.append(
             ResourceRequest(
@@ -1670,13 +1738,16 @@ def _build_delegated_requests(
 
 
 def _deferred_category(raw_category: str) -> str:
+    return normalize_resource_category(raw_category)
+
+
+def _placed_slot_ids(plan: SitePlan) -> set[str]:
+    blueprint = getattr(plan, "experience_blueprint", None)
     return {
-        "photo": "image",
-        "editorial_photo": "image",
-        "visual_component": "component_source",
-        "component": "component_source",
-        "typography_system": "font",
-    }.get(raw_category.casefold(), raw_category.casefold())
+        str(item.resource_slot_id)
+        for item in getattr(blueprint, "resource_placements", [])
+        if str(getattr(item, "resource_slot_id", ""))
+    }
 
 
 def _build_deferred_requests(
@@ -1709,7 +1780,7 @@ def _build_deferred_requests(
         ):
             continue
         category = _deferred_category(str(slot.get("category", "")))
-        if category not in {"image", "font", "component_source"}:
+        if category not in {"image", "texture", "illustration", "font", "component_source"}:
             continue
         route_id = str(slot.get("route_id", ""))
         section_ids = [str(value) for value in slot.get("section_ids", []) if str(value)]
@@ -1724,6 +1795,8 @@ def _build_deferred_requests(
         slot_id = str(slot.get("resource_slot_id", ""))
         purpose = str(slot.get("rationale", "") or slot.get("component_placement", ""))
         required = bool(slot.get("required"))
+        if not required and is_image_category(category) and slot_id not in _placed_slot_ids(plan):
+            continue
         provider = str(resolution.get("provider", ""))
         fallback_kind = _fallback_for(category, required)
         request_id = f"deferred-{slot_id}"
@@ -1787,7 +1860,7 @@ def _build_deferred_requests(
         # so an unrecognized category still gets a best-effort direct URL.
         technical_metadata: dict[str, Any] = {}
         canonical_source = str(resolution.get("direct_source_url", "")) or source_reference
-        if category == "image":
+        if is_image_category(category):
             # Build Preparation already decided and verified exactly this one
             # image; ImageAdapter must fetch and optimize the single decided
             # file, not pre-generate a full responsive rendition set the
@@ -1839,6 +1912,17 @@ def _build_deferred_requests(
 
 
 def _infer_category(purpose: str, need: dict[str, Any]) -> str:
+    declared = normalize_resource_category(need.get("category", ""))
+    if declared in {
+        "image",
+        "texture",
+        "font",
+        "icon",
+        "illustration",
+        "component_source",
+        "style_primitive",
+    }:
+        return declared
     value = f"{purpose} {need.get('category', '')}".casefold()
     if "font" in value or "type" in value:
         return "font"
@@ -1856,6 +1940,7 @@ def _infer_category(purpose: str, need: dict[str, Any]) -> str:
 
 
 def _allowed_sources(category: str) -> list[str]:
+    category = normalize_resource_category(category)
     return {
         "image": ["pexels", "pixabay", "unsplash", "fixture"],
         "texture": ["pexels", "pixabay", "unsplash", "fixture"],
@@ -1868,6 +1953,7 @@ def _allowed_sources(category: str) -> list[str]:
 
 
 def _fallback_for(category: str, required: bool) -> str:
+    category = normalize_resource_category(category)
     if required:
         return "none"
     return {
@@ -1879,6 +1965,7 @@ def _fallback_for(category: str, required: bool) -> str:
 
 
 def _fallback_text(category: str) -> str:
+    category = normalize_resource_category(category)
     return {
         "font": "Use the configured system font stack.",
         "icon": "Use a local Lucide/default icon.",
@@ -1888,6 +1975,7 @@ def _fallback_text(category: str) -> str:
 
 
 def _max_bytes_for(category: str) -> int:
+    category = normalize_resource_category(category)
     return {
         "image": 4 * 1024 * 1024,
         "texture": 4 * 1024 * 1024,
