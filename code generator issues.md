@@ -1,5 +1,34 @@
 # Code Generator Issues
 
+## 2026-09-09 20:31 +05:30 — Reliability plan implementation disposition
+
+Commit `a503a4a` implements the reliability handoff through the offline
+verification boundary. The new five-run campaign is recorded separately in
+`docs/code-generator-live-campaign.md`; no new full pipeline call was made
+before the implementation commit.
+
+| Issue | Disposition | Implementation and verification | New live confirmation |
+| --- | --- | --- | --- |
+| R01 | fixed/verified offline | `core/generation_orchestrator.py` and `core/source_validation.py` retain complete pending proposals, overlay repairs, and keep rejected bodies restricted; `test_reliability_guards.py` covers sibling retention and integrity. | Pending campaign |
+| R02 | fixed/verified offline | Durable attempt records, diagnostic history, and failure merges are persisted before error propagation in `core/generation_orchestrator.py`; accounting regression passes. | Pending campaign |
+| R03 | fixed/verified offline | Generation-level counters and per-unit deltas are merged without cloning common prefixes; accounting regression passes. | Pending campaign |
+| R04 | fixed/verified offline | `core/parallel_scheduler.py` has an actual serial stop-on-failure path; sibling-start regression passes. | Pending campaign |
+| R05 | fixed/verified offline | `core/portfolio_export.py` and the verification failure handler export primary failures, pipeline issues, ledger counts, checkpoints, and safe evidence; report regressions pass. | Pending campaign |
+| R06 | fixed/verified offline | Export evidence separates `referenced_in_source` from decoded/visible browser observations and records not-run states; image evidence regressions pass. | Pending campaign |
+| R07 | fixed/verified offline | `core/image_policy.py`, planner validation, design realization, final source validation, runtime verification, and candidate identity carry one hashed image policy with distinct route obligations; image policy regressions pass. | Pending campaign |
+| R08 | fixed/verified offline | `core/runtime_verifier.py` checks ancestor visibility, clipping/occlusion, lazy-image decode, frame geometry, and scroll restoration; runtime evidence regressions pass. | Pending campaign |
+| R09 | fixed/verified offline | `core/layout_recipe_catalogue.py`, token compilation, prompts, and runtime checks share three typed marker-bound recipes; recipe floor regressions pass. | Pending campaign |
+| R10 | fixed/verified offline | `core/component_admission.py` and acquisition admission validate exports, local imports, package subpaths, dependencies, CSS, and disposable TypeScript compatibility before optional materialization; admission regressions pass. | Initial/emergent full-pipeline confirmation pending |
+| R11 | advisory/upstream | Image provenance and approved-slot policy are preserved in `core/image_policy.py`, acquisition, runtime evidence, and export. Semantic suitability of upstream decorative media remains an evaluator acceptance criterion. | Pending campaign |
+| R12 | fixed locally; Linux parity still blocked | `core/toolchain_preflight.py` runs the configured executable through disposable install, TypeScript, build, browser, and gateway checks; Linux/Azure image proof is unavailable in this workspace. | Local preflight pending; Linux unexecuted |
+
+Offline verification for this commit: focused reliability/admission/image/export
+tests pass (24 tests), the full Code Generator unit suite passes (299 tests),
+Ruff, mypy, and compileall pass. The prior repository-wide run had seven
+failures in stale integration fixtures, cross-test database contention, and a
+separate Content Architect mock path; those are not represented as a green
+repository-wide claim. No live campaign result is yet accepted.
+
 ## 2026-09-09 14:40 +05:30 — Repair lifecycle and evidence audit; next implementation plan
 
 Read-only API checks confirmed the five continuation runs remain
