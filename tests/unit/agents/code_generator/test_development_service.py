@@ -76,6 +76,48 @@ def test_generation_retry_identity_changes_after_terminal_run_write() -> None:
 
 
 @pytest.mark.asyncio
+async def test_quality_projection_normalizes_historical_policy_severity() -> None:
+    class FakeRepository:
+        async def get(self, _run_id):
+            return SimpleNamespace(
+                status="needs_attention",
+                generation_projection={
+                    "quality_review": {
+                        "schema_version": "quality-review-receipt-v2",
+                        "findings": [
+                            {
+                                "finding_id": "finding-composition",
+                                "severity": "blocking",
+                                "owner_work_unit_id": "route-home",
+                                "code": "blueprint-distinctive-move-missing",
+                                "file": "src/routes/home/index.tsx",
+                                "line": 1,
+                                "marker": "data-section",
+                                "evidence": "The source is missing visual balance.",
+                                "requested_outcome": "Improve the composition.",
+                            }
+                        ],
+                        "accepted": False,
+                        "receipt_hash": "historical-hash",
+                    }
+                },
+                integration_review=None,
+                source_checkpoint=None,
+            )
+
+    service = development_service.CodeGeneratorDevelopmentService(
+        FakeRepository(),  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        Settings(),
+    )
+
+    result = await service.quality(UUID("00000000-0000-0000-0000-000000000123"))
+
+    assert result["quality_review"]["accepted"] is True
+    assert result["quality_review"]["findings"][0]["severity"] == "advisory"
+
+
+@pytest.mark.asyncio
 async def test_preview_gateway_probe_accepts_only_successful_2xx(monkeypatch) -> None:
     calls: list[tuple[str, dict[str, object]]] = []
 
