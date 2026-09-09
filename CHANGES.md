@@ -11,7 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-09 22:41 +05:30 — Codex (GPT-6 / OpenAI) — [4da1ddb] — fix(code-generator): keep toolchain preflight cleanup best effort
+### 2026-09-09 23:39 +05:30 - Codex (GPT-6 / OpenAI) - [9716681] - fix(code-generator): catch inert disclosure panels early
+
+The second authorized live campaign run reached source generation and exposed
+an inert education `Disclosure` whose panel contained only an aria-hidden
+empty span. Added a narrow host-owned source diagnostic so this concrete
+functional defect is found during route validation and can be repaired within
+the existing bounded budget. Also aligned generation/review prompts with D-076:
+`columns_*` are abstract design-grid spans, so the model's desktop-span
+observation remains advisory unless an executable recipe or runtime contract is
+broken. The full Code Generator unit suite passes (310), mypy passes, and
+touched-file Ruff checks pass.
+
+### 2026-09-09 22:41 +05:30 - Codex (GPT-6 / OpenAI) - [4da1ddb] - fix(code-generator): keep toolchain preflight cleanup best effort
 
 Best-effort cleanup now returns a safe incomplete result when Windows denies
 directory enumeration, so cleanup cannot discard a valid toolchain proof or
@@ -45,31 +57,6 @@ Verification: focused reliability/admission/image/export tests pass (24), the
 full Code Generator unit suite passes (299), Ruff, mypy, and compileall pass.
 The repository-wide baseline still contains unrelated/stale integration and
 mock-path failures documented in `code generator issues.md`.
-
-### 2026-09-09 14:40 +05:30 — Codex — [e99ed55] — Code Generator reliability investigation and implementation handoff
-
-Traced the five failed runs, compiled the three current briefs, and replayed the
-latest repair offline. Added an evidence-backed implementation plan covering
-pending-file retention, durable batch accounting, image/layout quality, truthful
-exports and a separately authorized five-run campaign; no new live run or
-production-source change was made. Updated `code generator issues.md` and
-compacted the oldest detailed history entries per this file's retention policy.
-
-### 2026-09-09 13:45 +05:30 - Codex (GPT-5 / OpenAI) - [29fc598] - fix(code-generator): reconcile stale repair file operations
-
-Closed the fifth live campaign's deterministic `SOURCE_CREATE_EXISTS` repair
-failure. Initial generation still enforces exact create/replace state. Repair
-validation now reconciles a stale operation tag with the actual owned candidate
-tree only after ownership, trusted-file, size, import, and content-policy
-checks, so a mixed response can continue across partial/rejected attempts
-without widening authority. Applied the same bounded behavior to the
-orchestrator's route/integration repairs and the final-repair path, documented
-the contract, and added a regression test for existing-plus-missing files.
-
-Verification: all 285 Code Generator unit tests pass; Ruff and mypy pass; the
-recorded fifth-run repair response replays offline as one `replace` plus five
-`create` operations with no `SOURCE_CREATE_EXISTS`. The five-run live campaign
-is closed; no sixth full pipeline call was made.
 
 ### 2026-09-09 09:50 +05:30 - Codex (GPT-5 / OpenAI) - [59409b5] - fix(worker): make PowerShell launcher use writable uv cache
 Updated `scripts/run-worker.ps1` to run from the repository root, use the
@@ -217,6 +204,8 @@ instead of sharing the more permissive general worker default.
 ## Compacted history
 
 ### 2026-09
+- 2026-09-09 — [e99ed55] — Investigated five failed Code Generator runs and authored the implementation and five-slot campaign handoff for pending retention, accounting, visual quality, truthful exports, and preflight.
+- 2026-09-09 — [29fc598] — Reconciled stale `create`/`replace` repair tags against the owned candidate tree while preserving strict initial-generation semantics and bounded repair authority.
 - 2026-09-08 — [ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, d6b6777, bb7078b, 5731cf5, 78eacc7] — Completed Build Preparation/frontend handoffs, safe output copy and cache behavior, provider-neutral routing, scoped telemetry, and false-identity/preflight handling; detailed history remains in Git.
 - 2026-09-07 — [7f09506, 5bef169, ac5543e, 3f5b2aa, 78117e7] — Added candidate previews, corrected live repair and export behavior, and closed scaffold/toolchain and generation-time authoring gaps.
 - 2026-09-06 — [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce, 5768ce7, 618a038, fa9be97, f208540, ebfbc94, cdf8952, 1956d58, 7c94916, 83179f3, ae89b61, 68f1cd1, 861e981, cdf7a18] — Fixed Code Generator/runtime issues, delivered frontend studio/auth/output work, and hardened agent job lifecycle and cancellation.
@@ -244,6 +233,6 @@ instead of sharing the more permissive general worker default.
 
 ## Summary (as of last compaction — 2026-09-09)
 
-- Recent detailed entries retained: 17
-- Compacted milestone bullets: 29
-- Last updated: 2026-09-09 14:40 +05:30 — Codex
+- Recent detailed entries retained: 16
+- Compacted milestone bullets: 31
+- Last updated: 2026-09-09 23:39 +05:30 — Codex
