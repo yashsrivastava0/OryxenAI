@@ -8,11 +8,15 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     AdmittedInputReference,
     GenerationProjection,
     QualityFindingV2,
+    QualityReviewReceiptV2,
     SafeIssue,
     SourceDiagnostic,
 )
 from oryxenai.agents.code_generator.core.development_service import _projection
 from oryxenai.agents.code_generator.core.finding_policy import effective_finding_severity
+from oryxenai.agents.code_generator.core.quality_review import (
+    normalize_persisted_quality_review_for_read,
+)
 from oryxenai.agents.code_generator.core.terminal_failure import (
     build_terminal_failure_report,
     normalize_terminal_failure,
@@ -53,6 +57,61 @@ def test_explicit_functional_finding_still_blocks() -> None:
         requested_outcome="Keep the approved content visible.",
     )
     assert effective_finding_severity(finding) == "blocking"
+
+
+def test_historical_quality_receipt_is_restamped_for_the_current_policy() -> None:
+    score_evidence = [
+        {
+            "dimension": dimension,
+            "score": 4,
+            "owner_work_unit_id": "route-home",
+            "file": "src/routes/home/index.tsx",
+            "line": 1,
+            "marker": "data-section",
+            "evidence": "The source contains the reviewed section.",
+        }
+        for dimension in ("hierarchy", "composition", "typography", "resource_fit", "motion")
+    ]
+    historical = {
+        "schema_version": "quality-review-receipt-v2",
+        "source_manifest_hash": "source",
+        "plan_hash": "plan",
+        "realization_hash": "realization",
+        "review_context_hash": "context",
+        "response_id": "response",
+        "review_hash": "review",
+        "quality_gate_version": "quality-gate-v3",
+        "hierarchy_score": 4,
+        "composition_score": 4,
+        "typography_score": 4,
+        "resource_fit_score": 4,
+        "motion_score": 4,
+        "score_evidence": score_evidence,
+        "findings": [
+            {
+                "finding_id": "finding-composition",
+                "severity": "blocking",
+                "owner_work_unit_id": "route-home",
+                "code": "blueprint-distinctive-move-missing",
+                "file": "src/routes/home/index.tsx",
+                "line": 1,
+                "marker": "data-section",
+                "evidence": "The source is missing visual balance.",
+                "requested_outcome": "Improve the composition.",
+            }
+        ],
+        "advisory_observations": [],
+        "accepted": False,
+        "receipt_hash": "historical-hash",
+    }
+
+    normalized = normalize_persisted_quality_review_for_read(historical)
+    receipt = QualityReviewReceiptV2.model_validate(normalized)
+
+    assert normalized["accepted"] is True
+    assert normalized["findings"][0]["severity"] == "advisory"
+    assert receipt.accepted is True
+    assert receipt.receipt_hash != "historical-hash"
 
 
 def _generation_projection() -> GenerationProjection:

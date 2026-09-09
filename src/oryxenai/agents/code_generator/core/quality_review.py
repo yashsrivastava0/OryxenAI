@@ -6,7 +6,10 @@ import hashlib
 import json
 from typing import Any
 
+from pydantic import ValidationError
+
 from oryxenai.agents.code_generator.core.development_schemas import (
+    QualityFindingV2,
     QualityReviewDraftV1,
     QualityReviewReceiptV1,
     QualityReviewReceiptV2,
@@ -29,6 +32,37 @@ class QualityReviewError(ValueError):
         self.message = message
         self.details = details or {}
         super().__init__(message)
+
+
+def normalize_persisted_quality_review_for_read(payload: dict[str, Any]) -> dict[str, Any]:
+    """Re-stamp a V2 receipt after a host-owned policy vocabulary update.
+
+    Historical receipts may have been stamped before a model finding code was
+    moved from blocking to advisory.  Their source and reviewer bindings stay
+    valid, but the stored ``accepted`` value and receipt hash no longer match
+    the current host policy.  Normalize only that compatibility projection;
+    the database row is not mutated and malformed receipts still fail closed
+    through the normal schema validation.
+    """
+
+    if payload.get("schema_version") != "quality-review-receipt-v2":
+        return payload
+    raw_findings = payload.get("findings")
+    if not isinstance(raw_findings, list):
+        return payload
+    try:
+        findings = normalize_findings(
+            [QualityFindingV2.model_validate(item) for item in raw_findings]
+        )
+    except ValidationError:
+        return payload
+    normalized = dict(payload)
+    normalized["findings"] = [item.model_dump(mode="json") for item in findings]
+    normalized["accepted"] = not has_blocking_findings(findings)
+    # QualityReviewReceiptV2 recomputes this from the normalized content.  A
+    # historical hash cannot be trusted after the host policy changed.
+    normalized["receipt_hash"] = ""
+    return normalized
 
 
 def _nearby_unique_marker(source: str, reported_line: int) -> str:

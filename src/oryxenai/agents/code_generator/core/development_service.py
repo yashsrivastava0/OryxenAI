@@ -37,6 +37,9 @@ from oryxenai.agents.code_generator.core.provider_preflight import (
     provider_preflight_status,
     run_provider_preflight,
 )
+from oryxenai.agents.code_generator.core.quality_review import (
+    normalize_persisted_quality_review_for_read,
+)
 from oryxenai.agents.code_generator.core.terminal_failure import normalize_terminal_failure
 from oryxenai.agents.code_generator.core.toolchain_preflight import (
     cache_toolchain_preflight,
@@ -1257,10 +1260,21 @@ def browser_ready(verification: Any) -> bool:
 
 
 def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
+    readable_generation_projection = (
+        dict(run.generation_projection) if isinstance(run.generation_projection, dict) else None
+    )
+    if readable_generation_projection is not None:
+        quality_review = readable_generation_projection.get("quality_review")
+        if isinstance(quality_review, dict):
+            readable_generation_projection["quality_review"] = (
+                normalize_persisted_quality_review_for_read(quality_review)
+            )
     generation_projection = None
-    if isinstance(run.generation_projection, dict):
+    if readable_generation_projection is not None:
         with contextlib.suppress(ValidationError):
-            generation_projection = GenerationProjection.model_validate(run.generation_projection)
+            generation_projection = GenerationProjection.model_validate(
+                readable_generation_projection
+            )
     return DevelopmentRunProjection.model_validate(
         {
             "run_id": str(run.id),
@@ -1284,8 +1298,8 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "preflight_receipt": getattr(run, "preflight_receipt", None),
             "creative_direction": getattr(run, "creative_direction", None),
             "integration_review": getattr(run, "integration_review", None),
-            "quality_review": (run.generation_projection or {}).get("quality_review")
-            if isinstance(run.generation_projection, dict)
+            "quality_review": (readable_generation_projection or {}).get("quality_review")
+            if readable_generation_projection is not None
             else None,
             "job_id": str(run.background_job_id or ""),
             "input": run.input_reference,
@@ -1299,7 +1313,7 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "acquire_summary": run.acquire_summary or None,
             "plan_delta_count": run.plan_delta_count,
             "generation_job_id": str(run.generation_job_id or ""),
-            "generation": run.generation_projection,
+            "generation": readable_generation_projection,
             "source_checkpoint": run.source_checkpoint,
             "source_summary": run.source_summary or {},
             "verification_job_id": str(run.verification_job_id or ""),
