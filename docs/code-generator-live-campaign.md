@@ -14,7 +14,7 @@ the historical campaigns below and begins before any new full pipeline call.
 - Used: **0/5**.
 - Accepted cross-pack portfolios: **0/2**.
 - Code revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
-- State: local preflight and service readiness pending; no slot is reserved.
+- State: local preflight and service readiness passed; no slot is reserved.
 - Execution rule: one full pipeline at a time; stop at two accepted results or
   after slot 5, whichever comes first. A verification-only retry that reuses
   an accepted source is recorded separately and does not consume a full source
@@ -24,7 +24,7 @@ the historical campaigns below and begins before any new full pipeline call.
 
 | Slot | Pack | Reason | Status |
 | --- | --- | --- | --- |
-| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | pending preflight |
+| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | ready to reserve |
 | 2 | `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | B provides a structurally different seven-section brief after slot 1 is diagnosed. | unreserved |
 | 3 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | A provides the remaining current seven-section variation. | unreserved |
 | 4 | choose after the preceding result | Only if fewer than two accepted results remain and the run adds evidence. | unreserved |
@@ -34,8 +34,24 @@ the historical campaigns below and begins before any new full pipeline call.
 
 The effective non-secret settings, scaffold/dependency/prompt identities,
 input hashes, toolchain facts, gateway reachability, and provider readiness
-will be written here before slot 1 is reserved. This section intentionally
-contains no credentials, signed URLs, raw prompts, or private brief content.
+were recorded before slot 1 was reserved. This section intentionally contains
+no credentials, signed URLs, raw prompts, or private brief content.
+
+- Preflight completed: 2026-09-09 20:53 +05:30.
+- Provider: `ready`; six configured Code Generator profiles checked;
+  `private_context_sent=false`.
+- Toolchain: `ready`; Windows `amd64`; Node `v25.1.0`; npm `11.6.2`;
+  scaffold profile `react-vite-v1`; all install, TypeScript, Vite build,
+  browser, workspace/cache, gateway, and brief-path checks passed; `model_calls=0`.
+- Scaffold hash: `15bccf3eccba8fa70423d75ad5c56613fa65df1c9e31411fbfa3676153e83113`.
+- Dependency pins hash: `4fa0bc05ecb4c5cc6f6bbd1e16daf8f49ec7687e726400cd6e91f78819000026`.
+- Preflight lock hash: `d63f9af7f3b2c6aceca3a13db098ff0f6a2b364c689580330950154f85d1ac71`.
+- Prompt catalogue hash: `e59a6102e7e1970ebd250992facb58ad5c0cbb0651c9662eeefc20733187b907`.
+- Effective image policy before plan: minimum `1`, preferred `2`, primary-route
+  requirement `true`; production route concurrency `1`.
+- Eligible current pack contract hashes: C `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128`,
+  B `bf27265ec7e4c27b9151e881b02b516916608f472508bd9eb835055bf1076215`,
+  A `d3858b6133cc66bda14222ac7009530cf13c1990687a3a5b63f7b7ebd15b4ab9`.
 
 ## Current continuation campaign — five-run cap (2026-09-09)
 

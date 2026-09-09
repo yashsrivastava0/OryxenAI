@@ -20,7 +20,7 @@ before the implementation commit.
 | R09 | fixed/verified offline | `core/layout_recipe_catalogue.py`, token compilation, prompts, and runtime checks share three typed marker-bound recipes; recipe floor regressions pass. | Pending campaign |
 | R10 | fixed/verified offline | `core/component_admission.py` and acquisition admission validate exports, local imports, package subpaths, dependencies, CSS, and disposable TypeScript compatibility before optional materialization; admission regressions pass. | Initial/emergent full-pipeline confirmation pending |
 | R11 | advisory/upstream | Image provenance and approved-slot policy are preserved in `core/image_policy.py`, acquisition, runtime evidence, and export. Semantic suitability of upstream decorative media remains an evaluator acceptance criterion. | Pending campaign |
-| R12 | fixed locally; Linux parity still blocked | `core/toolchain_preflight.py` runs the configured executable through disposable install, TypeScript, build, browser, and gateway checks; Linux/Azure image proof is unavailable in this workspace. | Local preflight pending; Linux unexecuted |
+| R12 | fixed/verified locally; Linux parity still blocked | `core/toolchain_preflight.py` runs the configured executable through disposable install, TypeScript, build, browser, and gateway checks; Linux/Azure image proof is unavailable in this workspace. | Local preflight passed; Linux unexecuted |
 
 Offline verification for this commit: focused reliability/admission/image/export
 tests pass (24 tests), the full Code Generator unit suite passes (299 tests),
