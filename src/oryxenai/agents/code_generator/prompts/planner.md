@@ -55,6 +55,9 @@ Grounding and exact coverage:
   number like `"1"` or `"7"` is rejected. Use a semantic or letter-prefixed
   identifier instead: `"space-1"`/`"s1"` rather than `"1"`, `"cobalt"` rather
   than `"Cobalt"` or `"#2457C5"`.
+  For `type_steps[*].name`, use the bare semantic suffix such as `body`,
+  `display`, `heading`, or `label`; do not include the compiler group prefix
+  `type-`. The compiler emits the final `--type-<name>-...` custom properties.
 - Give every section exact selectors, viewport order, columns, measure, gap,
   width range, overlap ceiling, and sticky authority. Responsive changes must
   preserve approved copy and reading order.

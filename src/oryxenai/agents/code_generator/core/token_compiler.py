@@ -232,7 +232,12 @@ def _compile_v4_tokens(
     display = roles.get("display", body)
     emit("font-body", f'"{body.family}"')
     emit("font-display", f'"{display.family}"')
-    type_step_names = {step.name for step in blueprint.tokens.type_steps}
+    # ``FluidTypeStepV4`` normalizes this at the schema boundary, but keep the
+    # compiler defensive for blueprints assembled through ``model_copy`` or a
+    # trusted persisted projection that bypasses field validators. The
+    # semantic name is the suffix after the type group prefix; emitting that
+    # prefix twice creates a token no route prompt can reference consistently.
+    type_step_names = {_type_token_name(step.name) for step in blueprint.tokens.type_steps}
     emitted_type_names: set[str] = set()
     for role in (body, display):
         if role.role in emitted_type_names or role.role in type_step_names:
@@ -243,13 +248,14 @@ def _compile_v4_tokens(
         emit(f"type-{role.role}-tracking", f"{role.tracking_em:g}em")
         emitted_type_names.add(role.role)
     for step in sorted(blueprint.tokens.type_steps, key=lambda item: item.name):
-        if step.name in emitted_type_names:
+        type_name = _type_token_name(step.name)
+        if type_name in emitted_type_names:
             continue
-        emit(f"type-{step.name}-min", f"{step.minimum_rem:g}rem")
-        emit(f"type-{step.name}-max", f"{step.maximum_rem:g}rem")
-        emit(f"type-{step.name}-line-height", f"{step.line_height:g}")
-        emit(f"type-{step.name}-tracking", f"{step.tracking_em:g}em")
-        emitted_type_names.add(step.name)
+        emit(f"type-{type_name}-min", f"{step.minimum_rem:g}rem")
+        emit(f"type-{type_name}-max", f"{step.maximum_rem:g}rem")
+        emit(f"type-{type_name}-line-height", f"{step.line_height:g}")
+        emit(f"type-{type_name}-tracking", f"{step.tracking_em:g}em")
+        emitted_type_names.add(type_name)
     lines.extend(["}", ""])
 
     emitted_font_faces: set[tuple[str, str, int, str]] = set()
@@ -298,6 +304,14 @@ def _compile_v4_tokens(
                     ]
                 )
     return "\n".join(lines)
+
+
+def _type_token_name(value: str) -> str:
+    """Normalize a type-step name before adding the compiler-owned group."""
+    normalized = value.strip().replace("_", "-").lower()
+    while normalized.startswith("type-"):
+        normalized = normalized.removeprefix("type-")
+    return normalized
 
 
 def _font_weight_for_path(
