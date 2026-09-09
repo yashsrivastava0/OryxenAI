@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 09:50 +05:30 - Codex (GPT-5 / OpenAI) - [59409b5] - fix(worker): make PowerShell launcher use writable uv cache
+Updated `scripts/run-worker.ps1` to run from the repository root, use the
+repository-local `uv` cache, create its runtime cache directories, and
+propagate launcher failures. This prevents a locked global `uv` cache from
+silently leaving Discovery jobs queued without a worker.
+
 ### 2026-09-09 03:00 +05:30 - Codex (GPT-5 / OpenAI) - [2f424e5] - fix(code-generator): harden brief-driven generation and previews
 
 Implemented the Code Generator reliability handoff for variable Build Preparation output:
@@ -280,6 +286,6 @@ frontend Vitest suite (72 tests).
 
 ## Summary (as of last compaction — 2026-09-09)
 
-- Recent detailed entries retained: 16
+- Recent detailed entries retained: 17
 - Compacted milestone bullets: 26
-- Last updated: 2026-09-09 09:30 +05:30 — Antigravity (Gemini 3.8 Flash / Google)
+- Last updated: 2026-09-09 09:50 +05:30 — Codex (GPT-5 / OpenAI)
