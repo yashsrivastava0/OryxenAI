@@ -1,6 +1,26 @@
 # Code Generator Issues
 
-## 2026-09-09 22:41 +05:30 — Toolchain preflight cleanup disposition
+## 2026-09-09 23:39 +05:30 - Pack B live disposition and early disclosure gate
+
+Authorized and recorded run `2f22c091-32e7-47dc-bc99-aef25d4e8058` reached
+`needs_attention` with terminal code `INTEGRATION_REVIEW_UNRESOLVED` after
+admission, planning, acquisition, and source generation. The accepted source
+checkpoint is `checkpoint-45ab339bb9940d8268e6`, with checkpoint hash
+`45ab339bb9940d8268e63715b94aba6b88d607ddab30a27497c4a44bf372f5b4`, source
+manifest `dcfc97a0dde4af1fbfbd3592c37ea68fe36af77d78bc59fb7058884a095f4186`,
+60 files, and 2,173,891 bytes. The generation projection records 14 call
+receipts/attempts, three repair rounds, and a repair budget of three; no
+verification or preview promotion ran. Final normalized quality contained one
+advisory `blueprint-desktop-column-mismatch` and one blocking
+`noninformative-disclosure`. The former misread D-076's abstract
+`columns_desktop=8` as a literal CSS track requirement. The latter identified
+`<Disclosure label="Details"><span aria-hidden="true" /></Disclosure>` in
+`home-education-7cdb08f7.tsx` line 12. Commit `9716681` adds the early
+host-owned disclosure diagnostic, preserves the advisory grid policy, and
+aligns the generation/review prompts. The next authorized slot is the first
+live confirmation of this fix.
+
+## 2026-09-09 22:41 +05:30 - Toolchain preflight cleanup disposition
 
 The API-level toolchain proof initially returned a generic blocked response
 because Windows denied enumeration of a disposable preflight directory during

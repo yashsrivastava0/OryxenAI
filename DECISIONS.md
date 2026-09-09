@@ -24,7 +24,16 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
-## D-085 — Bound reliability release to serial attempts, tested layout recipes, and browser evidence
+## D-086 - Reject inert disclosure controls before whole-site review
+
+- **Date & Time:** 2026-09-09 23:39 +05:30 - Codex (GPT-6 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Pack B completed source generation but final review discovered a `Disclosure` whose panel held only an `aria-hidden` empty span; the issue surfaced too late. Review also reported a desktop column mismatch that contradicted D-076's abstract design-grid semantics.
+- **Decision:** Add narrow host-owned source diagnostics for empty or aria-hidden-only `Disclosure` panels; keep this functional interaction issue blocking and instruct repairs to remove the control or use existing approved content. Mark `noninformative-disclosure` explicitly blocking. Clarify in generation and review prompts that `columns_*` are abstract spans, and map `blueprint-desktop-column-mismatch` advisory unless the real recipe or runtime contract is broken.
+- **Rejected alternatives:** Increasing polish budgets; inventing panel copy; rejecting all `Disclosure` controls; or requiring a literal CSS track count for an abstract design span.
+- **Consequence:** Inert controls are found during route validation and can be repaired within the existing bounded budget, while an aesthetic grid interpretation cannot consume functional acceptance.
+
+## D-085 - Bound reliability release to serial attempts, tested layout recipes, and browser evidence
 
 - **Date & Time:** 2026-09-09 20:31 +05:30 — Codex (GPT-6 / OpenAI)
 - **Status:** decided-implemented
