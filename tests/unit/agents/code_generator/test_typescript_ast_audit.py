@@ -4,11 +4,18 @@ from oryxenai.agents.code_generator.core.source_lexing import strip_source_comme
 from oryxenai.agents.code_generator.core.typescript_ast_audit import (
     _audit_v4_anti_slop,
     _audit_v4_cross_route_sameness,
+    _marker_present,
     _route_source_path,
     _selector_declarations,
     _selector_has_reduced_motion,
     _selector_targets_contract,
 )
+
+
+def test_motion_marker_accepts_a_static_conditional_jsx_attribute() -> None:
+    source = '<article data-motion={index === 0 ? "current-role" : undefined} />'
+
+    assert _marker_present('data-motion="current-role"', source)
 
 
 def test_route_source_path_does_not_rehash_planner_storage_key() -> None:
