@@ -504,6 +504,41 @@ export default function Hero() {
     )
 
 
+def test_route_batch_contract_names_near_miss_content_key_for_repair(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Featured.tsx"
+    expected = "content:home:featured:summary-7620e261"
+    near_miss = "content:home:featured:summary-7620ec24"
+    (tmp_path / path).write_text(
+        f'''const contentValue = (key: string) => key;
+export default function Featured() {{
+  return <section id="featured" data-content-id="home:featured">
+    <p>{{contentValue("{near_miss}")}}</p>
+  </section>;
+}}
+''',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [path],
+        route_id="home",
+        section_ids=["home:featured"],
+        content_ids_by_section={"home:featured": [expected]},
+        section_selectors_by_section={"home:featured": "#featured"},
+        work_unit_id="route-home-batch-1",
+    )
+
+    missing = [
+        item for item in diagnostics if item.code == "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING"
+    ]
+    assert len(missing) == 1
+    assert expected in missing[0].normalized_message
+    assert near_miss in missing[0].normalized_message
+
+
 def test_route_batch_contract_accepts_content_ids_mapped_from_a_literal_array(tmp_path) -> None:
     """Live-discovered 2026-09: an approved key rendered via a statically
     known `const IDS = ["a", "b"]; IDS.map(id => contentValue(id))` array is

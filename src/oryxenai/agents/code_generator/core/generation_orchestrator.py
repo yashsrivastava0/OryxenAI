@@ -1667,26 +1667,42 @@ class CodeGeneratorGenerationOrchestrator:
                 if persist_projection:
                     await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                 continue
-            diagnostics = await run_source_checks(
-                workspace.repo_dir,
-                allowed_packages=allowed_packages,
-                public_text=public_text,
-                max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
-                work_unit_id=unit.unit_id,
-                settings=settings,
-                # Route batches are fragment owners.  Their route shell is
-                # still the scaffold until the dependent composer runs, so a
-                # whole-site audit here would report composer-owned failures
-                # back to the wrong model operation.
-                include_source_audit=unit.kind != "route_batch",
-                include_noninformative_disclosures=False,
-                # A parallel batch starts from a source-only copy of the
-                # current repository, which can contain stale files owned by
-                # another batch. Attribute repository policy diagnostics only
-                # to files this operation can actually replace; the merged
-                # wave and integration checks remain whole-repository.
-                source_paths=list(unit.owns_paths) if unit.kind == "route_batch" else None,
+            # Run the route-batch contract before npm/typecheck diagnostics.
+            # It can name an exact approved content key and a one-character
+            # transcription near-miss; waiting for TypeScript first only
+            # reports the opaque union error and causes the repair model to
+            # repeat the same typo.
+            diagnostics: list[SourceDiagnostic] = (
+                _route_batch_contract_diagnostics(
+                    workspace=workspace,
+                    plan=plan,
+                    unit=unit,
+                    projections=projections,
+                )
+                if unit.kind == "route_batch"
+                else []
             )
+            if not diagnostics:
+                diagnostics = await run_source_checks(
+                    workspace.repo_dir,
+                    allowed_packages=allowed_packages,
+                    public_text=public_text,
+                    max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+                    work_unit_id=unit.unit_id,
+                    settings=settings,
+                    # Route batches are fragment owners.  Their route shell is
+                    # still the scaffold until the dependent composer runs, so a
+                    # whole-site audit here would report composer-owned failures
+                    # back to the wrong model operation.
+                    include_source_audit=unit.kind != "route_batch",
+                    include_noninformative_disclosures=False,
+                    # A parallel batch starts from a source-only copy of the
+                    # current repository, which can contain stale files owned by
+                    # another batch. Attribute repository policy diagnostics only
+                    # to files this operation can actually replace; the merged
+                    # wave and integration checks remain whole-repository.
+                    source_paths=list(unit.owns_paths) if unit.kind == "route_batch" else None,
+                )
             if diagnostics:
                 _rollback_candidate(workspace, unit.unit_id)
                 projection.diagnostics.extend(diagnostics)
@@ -1713,68 +1729,6 @@ class CodeGeneratorGenerationOrchestrator:
                 if persist_projection:
                     await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                 continue
-            if unit.kind == "route_batch":
-                (
-                    section_content_ids,
-                    section_selectors,
-                    interaction_markers,
-                    interaction_contracts,
-                ) = _v4_route_batch_contract_data(plan, unit)
-                batch_diagnostics = validate_route_batch_contract(
-                    workspace.repo_dir,
-                    list(unit.owns_paths),
-                    route_id=unit.route_id,
-                    section_ids=list(unit.section_ids),
-                    source_markers=[
-                        coverage.source_marker
-                        for coverage in plan.acceptance_coverage
-                        if coverage.route_id == unit.route_id
-                        and coverage.criterion_id in unit.criterion_ids
-                    ],
-                    content_ids_by_section=section_content_ids,
-                    section_selectors_by_section=section_selectors,
-                    interaction_ids=list(unit.interaction_ids),
-                    interaction_markers=interaction_markers,
-                    interaction_contracts=interaction_contracts,
-                    image_assets_by_slot=_v4_image_assets_for_unit(plan, unit, projections),
-                    distinctive_moves=_v4_distinctive_moves_for_unit(plan, unit),
-                    motion_beats=_v4_motion_beats_for_unit(plan, unit),
-                    h1_owner_section_id=_v4_h1_owner_for_route(plan, unit.route_id),
-                    work_unit_id=unit.unit_id,
-                    include_noninformative_disclosures=False,
-                )
-                if batch_diagnostics:
-                    _rollback_candidate(workspace, unit.unit_id)
-                    projection.diagnostics.extend(batch_diagnostics)
-                    unit_projection.diagnostics.extend(
-                        item.diagnostic_id for item in batch_diagnostics
-                    )
-                    _record_pending_diagnostics(
-                        workspace,
-                        unit=unit,
-                        projection=unit_projection,
-                        files=pending_files,
-                        diagnostic_ids=[item.diagnostic_id for item in batch_diagnostics],
-                    )
-                    if persist_projection:
-                        await self._persist(
-                            sessionmaker, run_id, projection, status=projection.phase
-                        )
-                    _consume_repair_budget(
-                        projection,
-                        batch_diagnostics,
-                        repair_round=repair_round,
-                        settings=settings,
-                    )
-                    repair_round += 1
-                    unit_projection.repair_round = repair_round
-                    operation = "repair"
-                    role_profile = str(settings.code_generator_generation.repair_profile)
-                    if persist_projection:
-                        await self._persist(
-                            sessionmaker, run_id, projection, status=projection.phase
-                        )
-                    continue
             if unit.kind == "route_compose" and isinstance(
                 plan.experience_blueprint, ExperienceBlueprintV4
             ):
@@ -4505,6 +4459,51 @@ def _v4_route_batch_contract_data(
             for assignment in blueprint.interaction_assignments
             if assignment.route_id == route_id and assignment.interaction_id in interaction_ids
         },
+    )
+
+
+def _route_batch_contract_diagnostics(
+    *,
+    workspace: GenerationWorkspace,
+    plan: SitePlan,
+    unit: WorkUnit,
+    projections: dict[str, dict[str, Any]],
+) -> list[SourceDiagnostic]:
+    """Run the deterministic section contract before the toolchain gate.
+
+    The route-batch contract has more useful repair evidence than a raw
+    TypeScript union error: it can identify the exact approved key that was
+    mistyped and the source call that is close to it. Keep this helper as the
+    single call site so serial and parallel route execution cannot drift.
+    """
+
+    (
+        section_content_ids,
+        section_selectors,
+        interaction_markers,
+        interaction_contracts,
+    ) = _v4_route_batch_contract_data(plan, unit)
+    return validate_route_batch_contract(
+        workspace.repo_dir,
+        list(unit.owns_paths),
+        route_id=unit.route_id,
+        section_ids=list(unit.section_ids),
+        source_markers=[
+            coverage.source_marker
+            for coverage in plan.acceptance_coverage
+            if coverage.route_id == unit.route_id and coverage.criterion_id in unit.criterion_ids
+        ],
+        content_ids_by_section=section_content_ids,
+        section_selectors_by_section=section_selectors,
+        interaction_ids=list(unit.interaction_ids),
+        interaction_markers=interaction_markers,
+        interaction_contracts=interaction_contracts,
+        image_assets_by_slot=_v4_image_assets_for_unit(plan, unit, projections),
+        distinctive_moves=_v4_distinctive_moves_for_unit(plan, unit),
+        motion_beats=_v4_motion_beats_for_unit(plan, unit),
+        h1_owner_section_id=_v4_h1_owner_for_route(plan, unit.route_id),
+        work_unit_id=unit.unit_id,
+        include_noninformative_disclosures=False,
     )
 
 
