@@ -266,8 +266,11 @@ class DependencyManager:
 
             await self._create_lock(stage_dir, settings)
             lock_file = stage_dir / "package-lock.json"
-            lock_hash = hashlib.sha256(lock_file.read_bytes()).hexdigest()
             await self._install(stage_dir, settings)
+            # npm may add platform-compatible optional transitive entries
+            # during the offline install (notably the Tailwind WASM helpers
+            # on Windows), so hash the lock that is actually committed.
+            lock_hash = hashlib.sha256(lock_file.read_bytes()).hexdigest()
             self._commit_stage(repo_dir, stage_dir)
         finally:
             shutil.rmtree(stage_dir, ignore_errors=True)
@@ -337,7 +340,13 @@ class DependencyManager:
     async def _install(self, repo_dir: Path, settings: Any) -> None:
         config = settings.code_generator_dependencies
         executable = _npm_executable(settings)
-        command = [executable, "ci", "--ignore-scripts", "--prefix", str(repo_dir)]
+        # ``npm ci`` rejects a lockfile that npm's platform-aware lockfile
+        # pass pruned optional entries from, even though those entries remain
+        # referenced by an optional package. Offline ``npm install`` repairs
+        # that platform projection from the warmed cache without permitting
+        # network access or install scripts; the manifest pins and the final
+        # lock hash remain receipt-bound.
+        command = [executable, "install", "--ignore-scripts", "--prefix", str(repo_dir)]
         if not bool(getattr(config, "allow_network_install", False)):
             command.insert(2, "--offline")
         await _run_npm(command, repo_dir, settings, stage="install")
