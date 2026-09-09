@@ -11,10 +11,10 @@ This is a new campaign after reliability commit `a503a4a`. It is separate from
 the historical campaigns below and begins before any new full pipeline call.
 
 - Maximum full pipeline calls: **5**.
-- Used: **0/5**.
+- Used: **1/5**.
 - Accepted cross-pack portfolios: **0/2**.
 - Code revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
-- State: local preflight and service readiness passed; no slot is reserved.
+- State: slot 1 reserved; the full pipeline request is next.
 - Execution rule: one full pipeline at a time; stop at two accepted results or
   after slot 5, whichever comes first. A verification-only retry that reuses
   an accepted source is recorded separately and does not consume a full source
@@ -24,7 +24,7 @@ the historical campaigns below and begins before any new full pipeline call.
 
 | Slot | Pack | Reason | Status |
 | --- | --- | --- | --- |
-| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | ready to reserve |
+| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | reserved |
 | 2 | `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | B provides a structurally different seven-section brief after slot 1 is diagnosed. | unreserved |
 | 3 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | A provides the remaining current seven-section variation. | unreserved |
 | 4 | choose after the preceding result | Only if fewer than two accepted results remain and the run adds evidence. | unreserved |
@@ -52,6 +52,12 @@ no credentials, signed URLs, raw prompts, or private brief content.
 - Eligible current pack contract hashes: C `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128`,
   B `bf27265ec7e4c27b9151e881b02b516916608f472508bd9eb835055bf1076215`,
   A `d3858b6133cc66bda14222ac7009530cf13c1990687a3a5b63f7b7ebd15b4ab9`.
+
+### Reserved slots
+
+| Slot | Reserved at | Pack | Code revision | Content hash | Visual hash | Contract hash | Idempotency key | Run ID | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 2026-09-09 20:56:11 +05:30 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | `a503a4a` | `0e88ebced8c350b04aab1bdeff4c1f430a0b3e5c7999379c3244e11df929e527` | `e3444c79571cdb92fbdc3be8356d056fd7203930946dafa18624198dc6cfa918` | `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128` | `542c3c11-415d-468c-947f-8d4654845fef` | pending POST | reserved |
 
 ## Current continuation campaign — five-run cap (2026-09-09)
 
