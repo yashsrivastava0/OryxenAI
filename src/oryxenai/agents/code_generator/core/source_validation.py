@@ -1224,9 +1224,7 @@ def _literal_present(literal: str, source: str) -> bool:
     tolerant = re.compile(
         rf'\[\s*{re.escape(attr)}\s*=\s*(?:"{re.escape(value)}"|\'{re.escape(value)}\'|{re.escape(value)})\s*\]'
     )
-    if tolerant.search(source):
-        return True
-    return False
+    return bool(tolerant.search(source))
 
 
 def _css_rule_contains(
