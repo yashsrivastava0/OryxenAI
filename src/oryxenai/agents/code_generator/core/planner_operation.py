@@ -230,6 +230,7 @@ async def run_planner_operation(
             parsed = _canonicalize_v4_distinctive_move_ratios(parsed)
             parsed = _canonicalize_v4_typography_bindings(parsed, projections)
             parsed = _canonicalize_v4_blueprint_identities(parsed, context)
+            parsed = _canonicalize_v4_content_bindings(parsed, context)
             parsed = _canonicalize_v4_reserved_color_tokens(parsed)
         try:
             if uses_v4:
@@ -521,6 +522,73 @@ def _canonicalize_v4_blueprint_identities(parsed: Any, context: dict[str, Any]) 
             changed = True
         result["distinctive_moves"] = moves
     return result if changed else parsed
+
+
+def _canonicalize_v4_content_bindings(parsed: Any, context: dict[str, Any]) -> Any:
+    """Rebind each region to the host-owned approved content-key sequence.
+
+    Content IDs are deterministic keys compiled from the approved Build
+    Preparation brief; they are not creative choices made by the planner.
+    Large sections can contain dozens of leaf keys, and a model may therefore
+    summarize or omit a list even after being told to echo it exactly.  Once a
+    unique route/section identity is known, replacing that field with the
+    immutable manifest sequence preserves the approved copy and prevents a
+    provider's compression from turning a valid pack into a false planner
+    failure.  Unknown or ambiguous sections remain untouched so normal
+    validation still rejects invented scope.
+    """
+
+    if not isinstance(parsed, dict):
+        return parsed
+    raw_manifest = context.get("content_key_manifest")
+    if not isinstance(raw_manifest, list):
+        return parsed
+
+    content_by_section: dict[tuple[str, str], list[str]] = {}
+    ambiguous: set[tuple[str, str]] = set()
+    for raw in raw_manifest:
+        if not isinstance(raw, dict):
+            continue
+        key = (str(raw.get("route_id", "")).strip(), str(raw.get("section_id", "")).strip())
+        values = raw.get("content_ids")
+        if not all(key) or not isinstance(values, list):
+            continue
+        if key in content_by_section:
+            ambiguous.add(key)
+            continue
+        content_by_section[key] = [str(value) for value in values]
+    for key in ambiguous:
+        content_by_section.pop(key, None)
+    if not content_by_section:
+        return parsed
+
+    raw_regions = parsed.get("section_regions", parsed.get("regions"))
+    if not isinstance(raw_regions, list):
+        return parsed
+    changed = False
+    regions: list[Any] = []
+    for raw_region in raw_regions:
+        if not isinstance(raw_region, dict):
+            regions.append(raw_region)
+            continue
+        key = (
+            str(raw_region.get("route_id", "")).strip(),
+            str(raw_region.get("section_id", "")).strip(),
+        )
+        expected = content_by_section.get(key)
+        if expected is None or raw_region.get("content_ids") == expected:
+            regions.append(raw_region)
+            continue
+        updated = dict(raw_region)
+        updated["content_ids"] = list(expected)
+        regions.append(updated)
+        changed = True
+
+    if not changed:
+        return parsed
+    result = dict(parsed)
+    result["section_regions" if "section_regions" in parsed else "regions"] = regions
+    return result
 
 
 def _canonicalize_v4_reserved_color_tokens(parsed: Any) -> Any:
