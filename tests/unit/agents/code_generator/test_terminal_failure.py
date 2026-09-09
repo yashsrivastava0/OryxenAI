@@ -28,6 +28,7 @@ def test_subjective_model_finding_ids_do_not_become_functional_blockers() -> Non
         "blueprint-distinctive-move-missing",
         "composition-missing-section-rail",
         "typography-role-coverage",
+        "blueprint-desktop-column-mismatch",
         "MISSING_VISUAL_BALANCE",
     ):
         finding = QualityFindingV2(
@@ -55,6 +56,21 @@ def test_explicit_functional_finding_still_blocks() -> None:
         marker="data-section",
         evidence="Approved content is hidden behind an interaction.",
         requested_outcome="Keep the approved content visible.",
+    )
+    assert effective_finding_severity(finding) == "blocking"
+
+
+def test_informative_disclosure_finding_is_always_functional() -> None:
+    finding = QualityFindingV2(
+        finding_id="finding-empty-disclosure",
+        severity="advisory",
+        owner_work_unit_id="route-home-batch-2",
+        code="noninformative-disclosure",
+        file="src/routes/home/sections/Education.tsx",
+        line=1,
+        marker="<Disclosure>",
+        evidence="The disclosure panel contains no visible approved meaning.",
+        requested_outcome="Remove the empty control or expose existing approved meaning.",
     )
     assert effective_finding_severity(finding) == "blocking"
 

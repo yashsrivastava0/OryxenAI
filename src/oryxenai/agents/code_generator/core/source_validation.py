@@ -65,6 +65,21 @@ _INLINE_CUSTOM_PROPERTY_DEFINITION_RE = re.compile(
     r"\.setProperty\(\s*[\"'](?P<setter>--[A-Za-z_][\w-]*)[\"'])"
 )
 _ROUTE_FONT_FACE_RE = re.compile(r"@font-face\b", re.IGNORECASE)
+_DISCLOSURE_BLOCK_RE = re.compile(
+    r"<Disclosure\b[^>]*>(?P<body>.*?)</Disclosure\s*>", re.DOTALL
+)
+_HIDDEN_EMPTY_SELF_CLOSING_RE = re.compile(
+    r"<(?P<tag>[A-Za-z_$][\w$.:/-]*)\b"
+    r"(?=[^>]*\baria-hidden\s*=\s*(?:[\"']true[\"']|\{true\}))"
+    r"[^>]*/\s*>",
+    re.DOTALL,
+)
+_HIDDEN_EMPTY_ELEMENT_RE = re.compile(
+    r"<(?P<tag>[A-Za-z_$][\w$.:/-]*)\b"
+    r"(?=[^>]*\baria-hidden\s*=\s*(?:[\"']true[\"']|\{true\}))"
+    r"[^>]*>\s*</(?P=tag)\s*>",
+    re.DOTALL,
+)
 
 
 def _approved_urls(public_text: set[str]) -> set[str]:
@@ -380,6 +395,14 @@ def validate_repository(
                 _validate_imports(text, relative, allowed_packages)
         except SourceValidationError as exc:
             diagnostics.append(_diagnostic(exc.code, exc.message, work_unit_id, relative))
+        if relative.startswith("src/routes/") and path.suffix.casefold() == ".tsx":
+            diagnostics.extend(
+                _noninformative_disclosure_diagnostics(
+                    text,
+                    relative,
+                    work_unit_id,
+                )
+            )
     diagnostics.extend(
         _validate_route_css_contract(
             repo_dir,
@@ -585,6 +608,14 @@ def validate_route_batch_contract(
         except SourceValidationError as exc:
             diagnostics.append(_diagnostic(exc.code, exc.message, work_unit_id, relative))
     sources = {path: contract_sources.get(path, "") for path in source_paths}
+    for relative, source in sources.items():
+        diagnostics.extend(
+            _noninformative_disclosure_diagnostics(
+                source,
+                relative,
+                work_unit_id,
+            )
+        )
 
     anchor_relative = source_paths[0]
     anchor_text = sources.get(anchor_relative, "")
@@ -1933,7 +1964,53 @@ def _near_miss_content_key(content_id: str, owner_text: str) -> str | None:
     return None
 
 
-def _diagnostic(code: str, message: str, work_unit_id: str, file: str) -> SourceDiagnostic:
+def _noninformative_disclosure_diagnostics(
+    source: str,
+    relative: str,
+    work_unit_id: str,
+) -> list[SourceDiagnostic]:
+    """Find disclosures whose panel contains no visible meaningful content.
+
+    A disclosure is a real interactive control, so an empty panel is a
+    functional authoring error even when the surrounding approved copy is
+    present. Keep this check deliberately narrow: it only recognizes an
+    empty panel or one made exclusively from literal ``aria-hidden=true``
+    empty elements. A panel containing an expression, an image, or any other
+    authored element remains the model's responsibility to review.
+    """
+
+    diagnostics: list[SourceDiagnostic] = []
+    clean_source = strip_source_comments(source)
+    for match in _DISCLOSURE_BLOCK_RE.finditer(clean_source):
+        body = _HIDDEN_EMPTY_SELF_CLOSING_RE.sub("", match.group("body"))
+        body = _HIDDEN_EMPTY_ELEMENT_RE.sub("", body)
+        if body.strip():
+            continue
+        line = clean_source.count("\n", 0, match.start()) + 1
+        diagnostics.append(
+            _diagnostic(
+                "SOURCE_NONINFORMATIVE_DISCLOSURE",
+                "The owned section contains an inert Disclosure with an empty or "
+                "aria-hidden-only panel. Remove the control or populate it with "
+                "existing approved content; do not add new copy.",
+                work_unit_id,
+                relative,
+                line=line,
+            )
+        )
+    return diagnostics
+
+
+def _diagnostic(
+    code: str,
+    message: str,
+    work_unit_id: str,
+    file: str,
+    *,
+    line: int = 0,
+    expected: str = "",
+    observed: str = "",
+) -> SourceDiagnostic:
     import hashlib
 
     fingerprint = hashlib.sha256(f"{code}:{file}:{message}".encode()).hexdigest()[:24]
@@ -1945,5 +2022,8 @@ def _diagnostic(code: str, message: str, work_unit_id: str, file: str) -> Source
         work_unit_id=work_unit_id,
         normalized_message=message,
         file=file,
+        line=line,
+        expected=expected,
+        observed=observed,
         fingerprint=fingerprint,
     )
