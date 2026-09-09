@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+import oryxenai.agents.code_generator.core.dependency_manager as dependency_manager
 from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
@@ -107,6 +108,22 @@ def test_dependency_manager_resolves_portable_npm_name(monkeypatch) -> None:
     )
 
     assert _npm_executable(settings) == "C:/Program Files/nodejs/npm.cmd"
+
+
+def test_offline_install_repairs_platform_lock_projection(tmp_path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    async def fake_run(command, repo_dir, settings, *, stage):
+        commands.append(command)
+        (repo_dir / "package-lock.json").write_text('{"packages": {}}', encoding="utf-8")
+        (repo_dir / "node_modules").mkdir()
+
+    monkeypatch.setattr(dependency_manager, "_run_npm", fake_run)
+    settings = Settings()
+    asyncio.run(DependencyManager()._install(tmp_path, settings))
+
+    assert commands[0][1] == "install"
+    assert "--offline" in commands[0]
 
 
 def test_install_script_dependency_is_rejected_by_policy(tmp_path) -> None:
