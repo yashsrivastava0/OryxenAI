@@ -31,6 +31,7 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyPolicyError,
     build_dependency_ledger,
     detect_supported_import_dependencies,
+    detect_unsupported_import_dependencies,
 )
 from oryxenai.agents.code_generator.core.design_fingerprint import (
     compile_design_fingerprint,
@@ -281,11 +282,15 @@ def _public_planner_attempts(
 
 
 def _planner_issue_with_artifact(settings: Any, run_id: UUID, exc: Exception) -> SafeIssue:
-    records = [dict(item) for item in getattr(exc, "attempt_diagnostics", []) if isinstance(item, dict)]
+    records = [
+        dict(item) for item in getattr(exc, "attempt_diagnostics", []) if isinstance(item, dict)
+    ]
     try:
         artifact_path = _write_planner_attempt_artifact(settings, run_id, records)
     except Exception:
-        logger.warning("planner diagnostics artifact could not be written run_id=%s", run_id, exc_info=True)
+        logger.warning(
+            "planner diagnostics artifact could not be written run_id=%s", run_id, exc_info=True
+        )
         artifact_path = ""
     issue = _planner_failure_issue(exc)
     if records:
@@ -733,7 +738,9 @@ async def _execute(
             settings, run_id, planner_attempt_records
         )
     except Exception:
-        logger.warning("planner diagnostics artifact could not be written run_id=%s", run_id, exc_info=True)
+        logger.warning(
+            "planner diagnostics artifact could not be written run_id=%s", run_id, exc_info=True
+        )
         planner_diagnostic_artifact = ""
     planner_attempt_receipts = _public_planner_attempts(
         planner_attempt_records, planner_diagnostic_artifact
@@ -1082,7 +1089,11 @@ async def _execute_acquisition(
                     # dependencies' own docstring). Scan the fetched source
                     # itself as a defense-in-depth fallback, never installing
                     # anything outside the existing supported_packages
-                    # allowlist.
+                    # allowlist. Unsupported imports are rejected before the
+                    # materialized source can enter the generated tree; the
+                    # outer request handler then records its honest local
+                    # fallback instead of deferring a missing-module error to
+                    # the foundation typecheck.
                     supported_packages = set(
                         getattr(settings.code_generator_dependencies, "supported_packages", {})
                     )
@@ -1095,6 +1106,20 @@ async def _execute_acquisition(
                         detected_dependency_names |= detect_supported_import_dependencies(
                             text, supported_packages
                         )
+                        unsupported_imports = detect_unsupported_import_dependencies(
+                            text,
+                            installed_packages={
+                                *dict(prior_manifest.get("dependencies", {})),
+                                *dict(prior_manifest.get("devDependencies", {})),
+                            },
+                            supported_packages=supported_packages,
+                        )
+                        if unsupported_imports:
+                            raise AcquisitionValidationError(
+                                "COMPONENT_DEPENDENCY_UNSUPPORTED",
+                                "The selected component imports unsupported packages: "
+                                + ", ".join(sorted(unsupported_imports)[:8]),
+                            )
                 materialized_files = [
                     _prefix_materialized_file(item, str(run_id)) for item in materialized_files
                 ]

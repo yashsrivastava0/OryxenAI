@@ -57,9 +57,10 @@ def detect_supported_import_dependencies(text: str, supported_packages: Iterable
     never installed, only surfacing later as a foundation-stage typecheck
     failure. This never installs an unvetted package: it only ever matches
     names already present in ``code_generator_dependencies.supported_packages``
-    (config/app.toml), so a component importing something unsupported still
-    correctly falls through to the existing rejected_fallback/typecheck path
-    instead of silently gaining a new dependency.
+    (config/app.toml), so a component importing something unsupported is left
+    for the companion ``detect_unsupported_import_dependencies`` gate to
+    convert into its configured local fallback instead of silently gaining a
+    new dependency.
     """
 
     supported = set(supported_packages)
