@@ -183,3 +183,18 @@ def test_dependency_scan_covers_dynamic_imports_and_reexports() -> None:
         installed_packages={"react"},
         supported_packages={"motion", "lucide-react"},
     ) == {"@radix-ui/react-id"}
+
+
+def test_component_source_with_unconfigured_package_is_rejected_before_typecheck() -> None:
+    text = (
+        'import { useInView } from "motion/react";\n'
+        'import { annotate } from "rough-notation";\n'
+        'import type { RoughAnnotation } from "rough-notation/lib/model";\n'
+    )
+
+    assert detect_supported_import_dependencies(text, {"motion"}) == {"motion"}
+    assert detect_unsupported_import_dependencies(
+        text,
+        installed_packages={"react"},
+        supported_packages={"motion"},
+    ) == {"rough-notation"}
