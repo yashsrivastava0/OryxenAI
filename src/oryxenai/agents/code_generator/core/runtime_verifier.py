@@ -438,6 +438,7 @@ class RuntimeVerifier:
         overflow_results: list[dict[str, str | int | bool]] = []
         geometry_results: list[dict[str, Any]] = []
         realization_results: list[dict[str, Any]] = []
+        resource_observations: list[dict[str, Any]] = []
         screenshot_relative_path = ""
         try:
             for step in journey.steps:
@@ -492,6 +493,17 @@ class RuntimeVerifier:
                     reduced_motion=journey.motion_profile == "reduce",
                 )
                 realization_results.append(realization_result)
+                for observation in realization_result.get("resource_observations", []):
+                    if not isinstance(observation, dict):
+                        continue
+                    resource_observations.append(
+                        {
+                            **observation,
+                            "journey_id": journey.journey_id,
+                            "viewport": journey.viewport_profile,
+                            "motion_profile": journey.motion_profile,
+                        }
+                    )
                 violations = [
                     v for v in realization_result.get("violations", []) if isinstance(v, dict)
                 ]
@@ -757,6 +769,7 @@ class RuntimeVerifier:
                 overflow_results=overflow_results,
                 geometry_results=geometry_results,
                 realization_results=realization_results,
+                resource_observations=resource_observations,
                 passed=passed,
                 screenshot_relative_path=screenshot_relative_path,
             ),
@@ -1051,6 +1064,7 @@ class RuntimeVerifier:
               const viewport = payload.viewport;
               const violations = [];
               const checked = [];
+              const resource_observations = [];
               const visible = element => {
                 if (!element) return false;
                 const style = getComputedStyle(element);
@@ -1131,6 +1145,21 @@ class RuntimeVerifier:
                 if ((computedColumns > 1) !== (expectedColumns > 1)) {
                   violations.push({code: 'RUNTIME_REGION_COLUMN_COUNT', message: `Region ${item.region_id} rendered ${computedColumns} columns; contract expects ${expectedColumns > 1 ? 'multiple' : 'a single'} column.`});
                 }
+                const recipeProperties = {
+                  'text-with-supporting-media': ['display', 'gridTemplateColumns', 'columnGap', 'alignItems'],
+                  'work-detail-list': ['display', 'gridTemplateColumns', 'rowGap', 'borderBlockStart'],
+                  'timeline-list': ['display', 'gridTemplateColumns', 'rowGap', 'borderInlineStart'],
+                }[item.layout_recipe] || [];
+                for (const property of recipeProperties) {
+                  const value = propertyValue(style, property);
+                  if (!value || value === 'none' || value === 'normal' || value === 'auto') {
+                    violations.push({code: 'RUNTIME_LAYOUT_RECIPE_PROPERTY_MISSING', message: `Region ${item.region_id} recipe ${item.layout_recipe} lacks ${property}.`});
+                  }
+                }
+                if (item.layout_recipe === 'text-with-supporting-media' && expectedColumns > 1 &&
+                    region.children.length < 2) {
+                  violations.push({code: 'RUNTIME_LAYOUT_RECIPE_EMPTY_TRACK', message: `Region ${item.region_id} requests supporting media but has fewer than two direct children.`});
+                }
                 const expectedGap = lengthPixels(item.gap, style);
                 const observedGap = Number.parseFloat(style.columnGap || style.gap || style.rowGap);
                 if (Number.isFinite(expectedGap) && Number.isFinite(observedGap) && Math.abs(expectedGap - observedGap) > 1.5) {
@@ -1144,7 +1173,7 @@ class RuntimeVerifier:
                 if (estimatedMeasure > item.max_measure_ch * 1.2) {
                   violations.push({code: 'RUNTIME_REGION_MEASURE', message: `Region ${item.region_id} exceeds its readable measure.`});
                 }
-                checked.push({kind: 'region', id: item.region_id, widthRatio, computedColumns});
+                checked.push({kind: 'region', id: item.region_id, recipe: item.layout_recipe, widthRatio, computedColumns, directChildCount: region.children.length});
               }
               for (let left = 0; left < regionRecords.length; left += 1) {
                 for (let right = left + 1; right < regionRecords.length; right += 1) {
@@ -1208,20 +1237,122 @@ class RuntimeVerifier:
                 }
                 checked.push({kind: 'distinctive_move', id: item.move_id, ratio});
               }
-              for (const item of contract.resource_checks) {
-                const element = one(item.element_selector, 'RUNTIME_RESOURCE_SELECTOR', `Resource ${item.resource_slot_id}`);
-                if (!element) continue;
-                const image = element instanceof HTMLImageElement ? element : element.querySelector('img');
-                if (image && image.loading === 'lazy') {
-                  image.scrollIntoView({block: 'center', inline: 'nearest'});
-                  await new Promise(resolve => requestAnimationFrame(() => resolve()));
-                  try { await image.decode(); } catch (error) { /* decode check below owns the diagnostic */ }
+              const resourceChecks = [...contract.resource_checks, ...(contract.image_obligations || [])];
+              const seenResourceIds = new Set();
+              const area = rect => Math.max(0, rect.right - rect.left) * Math.max(0, rect.bottom - rect.top);
+              const intersectionRect = (left, right) => ({
+                left: Math.max(left.left, right.left),
+                top: Math.max(left.top, right.top),
+                right: Math.min(left.right, right.right),
+                bottom: Math.min(left.bottom, right.bottom),
+              });
+              const ancestorState = target => {
+                let node = target;
+                let opacity = 1;
+                let hidden = false;
+                const clips = [];
+                while (node && node.nodeType === 1) {
+                  const style = getComputedStyle(node);
+                  const nodeRect = node.getBoundingClientRect();
+                  opacity *= Number.isFinite(Number(style.opacity)) ? Number(style.opacity) : 1;
+                  if (style.display === 'none' || style.visibility === 'hidden' ||
+                      style.contentVisibility === 'hidden' || node.hasAttribute('hidden') ||
+                      node.getAttribute('aria-hidden') === 'true') hidden = true;
+                  if (['hidden', 'clip', 'scroll', 'auto'].includes(style.overflow) ||
+                      ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX) ||
+                      ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY)) {
+                    clips.push(nodeRect);
+                  }
+                  node = node.parentElement;
                 }
-                if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
-                  violations.push({code: 'RUNTIME_RESOURCE_DECODE', message: `Resource ${item.resource_slot_id} has no decoded local image.`});
+                return {opacity, hidden, clips};
+              };
+              for (const item of resourceChecks) {
+                if (seenResourceIds.has(item.resource_slot_id)) continue;
+                seenResourceIds.add(item.resource_slot_id);
+                const element = one(item.element_selector, 'RUNTIME_RESOURCE_SELECTOR', `Resource ${item.resource_slot_id}`);
+                const observation = {
+                  kind: 'resource',
+                  resource_slot_id: item.resource_slot_id,
+                  route_id: contract.route_id,
+                  section_id: item.section_id,
+                  selector: item.element_selector,
+                  policy_required: Boolean(item.policy_required),
+                  decoded_in_browser: false,
+                  visible_in_browser: false,
+                  visible_ratio: 0,
+                  intrinsic_aspect_ratio: 0,
+                  frame_width: 0,
+                  frame_height: 0,
+                  frame_aspect_ratio: 0,
+                  ancestor_opacity: 0,
+                  local_path: '',
+                  reasons: [],
+                };
+                if (!element) {
+                  observation.reasons.push('selector_missing');
+                  resource_observations.push(observation);
                   continue;
                 }
+                const image = element instanceof HTMLImageElement ? element : element.querySelector('img');
+                const previousX = scrollX;
+                const previousY = scrollY;
+                if (image) {
+                  image.scrollIntoView({block: 'center', inline: 'nearest'});
+                  await new Promise(resolve => requestAnimationFrame(() => resolve()));
+                }
+                if (image) {
+                  try {
+                    await Promise.race([
+                      image.decode(),
+                      new Promise(resolve => setTimeout(resolve, 3000)),
+                    ]);
+                  } catch (error) { /* decode check below owns the diagnostic */ }
+                }
+                const decoded = Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+                observation.decoded_in_browser = decoded;
+                if (!image || !decoded) {
+                  observation.reasons.push('decode_failed');
+                  violations.push({code: 'RUNTIME_RESOURCE_DECODE', message: `Resource ${item.resource_slot_id} has no decoded local image.`});
+                  resource_observations.push(observation);
+                  window.scrollTo(previousX, previousY);
+                  continue;
+                }
+                const currentSource = image.currentSrc || image.src || '';
+                let currentPath = '';
+                try {
+                  const parsed = new URL(currentSource, window.location.href);
+                  currentPath = parsed.pathname;
+                  const isLocal = parsed.origin === window.location.origin &&
+                    currentPath.includes('/resources/');
+                  const allowed = (item.admitted_local_paths || []).map(value => {
+                    const normalized = String(value).replace(/^public\//, '').replace(/^\/+/, '');
+                    return normalized.startsWith('resources/')
+                      ? `/resources/pack/${normalized.slice('resources/'.length)}`
+                      : `/${normalized}`;
+                  });
+                  const allowedPath = !allowed.length || allowed.some(value => currentPath.endsWith(value));
+                  if (!isLocal || !allowedPath) {
+                    observation.reasons.push('source_not_admitted_local');
+                    violations.push({code: 'RUNTIME_RESOURCE_PATH_MISMATCH', message: `Resource ${item.resource_slot_id} does not resolve to an admitted local media path.`});
+                  }
+                } catch (error) {
+                  observation.reasons.push('source_url_invalid');
+                  violations.push({code: 'RUNTIME_RESOURCE_PATH_MISMATCH', message: `Resource ${item.resource_slot_id} has an invalid browser source URL.`});
+                }
+                observation.local_path = currentPath;
                 const ratio = image.naturalWidth / image.naturalHeight;
+                const frameRect = element.getBoundingClientRect();
+                const frameWidth = Math.max(0, frameRect.width);
+                const frameHeight = Math.max(0, frameRect.height);
+                observation.intrinsic_aspect_ratio = ratio;
+                observation.frame_width = frameWidth;
+                observation.frame_height = frameHeight;
+                observation.frame_aspect_ratio = frameWidth / Math.max(1, frameHeight);
+                if (frameWidth <= 0 || frameHeight <= 0) {
+                  observation.reasons.push('frame_geometry_missing');
+                  violations.push({code: 'RUNTIME_RESOURCE_DIMENSIONS_MISSING', message: `Resource ${item.resource_slot_id} has no usable rendered frame.`});
+                }
                 if (ratio < item.aspect_ratio_min || ratio > item.aspect_ratio_max) {
                   violations.push({code: 'RUNTIME_RESOURCE_ASPECT_RATIO', message: `Resource ${item.resource_slot_id} aspect ratio ${ratio.toFixed(3)} is outside contract.`});
                 }
@@ -1237,16 +1368,54 @@ class RuntimeVerifier:
                 }
                 const rect = image.getBoundingClientRect();
                 const style = getComputedStyle(image);
-                if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) {
-                  violations.push({code: 'RUNTIME_RESOURCE_NOT_VISIBLE', message: `Resource ${item.resource_slot_id} decoded but is hidden or has no rendered area.`});
+                const ancestor = ancestorState(image);
+                observation.ancestor_opacity = ancestor.opacity;
+                let visibleRect = intersectionRect(rect, {left: 0, top: 0, right: innerWidth, bottom: innerHeight});
+                for (const clip of ancestor.clips) visibleRect = intersectionRect(visibleRect, clip);
+                const visibleArea = area(visibleRect);
+                const visibleRatio = visibleArea / Math.max(1, area(rect));
+                observation.visible_ratio = visibleRatio;
+                if (ancestor.hidden || style.display === 'none' || style.visibility === 'hidden') {
+                  observation.reasons.push('ancestor_hidden');
+                  violations.push({code: 'RUNTIME_RESOURCE_ANCESTOR_HIDDEN', message: `Resource ${item.resource_slot_id} is hidden by an ancestor or the image itself.`});
                 }
-                const section = image.closest('[data-content-id], section')?.getBoundingClientRect();
-                const intersection = section ? Math.max(0, Math.min(rect.right, section.right) - Math.max(rect.left, section.left)) * Math.max(0, Math.min(rect.bottom, section.bottom) - Math.max(rect.top, section.top)) : rect.width * rect.height;
-                const visibleRatio = intersection / Math.max(1, rect.width * rect.height);
+                if (ancestor.opacity <= 0.01 || Number(style.opacity) <= 0.01) {
+                  observation.reasons.push('ancestor_opacity');
+                  violations.push({code: 'RUNTIME_RESOURCE_ANCESTOR_OPACITY', message: `Resource ${item.resource_slot_id} is suppressed by ancestor opacity.`});
+                }
+                if (visibleRatio < 0.999) {
+                  observation.reasons.push('clipped_or_outside_viewport');
+                  violations.push({code: 'RUNTIME_RESOURCE_CLIPPED', message: `Resource ${item.resource_slot_id} is clipped or outside the viewport.`});
+                }
+                const sampleRect = visibleArea > 0 ? visibleRect : rect;
+                const samples = [
+                  [(sampleRect.left + sampleRect.right) / 2, (sampleRect.top + sampleRect.bottom) / 2],
+                  [sampleRect.left + (sampleRect.right - sampleRect.left) * 0.2, sampleRect.top + (sampleRect.bottom - sampleRect.top) * 0.2],
+                  [sampleRect.left + (sampleRect.right - sampleRect.left) * 0.8, sampleRect.top + (sampleRect.bottom - sampleRect.top) * 0.8],
+                ].filter(point => point[0] >= 0 && point[0] <= innerWidth && point[1] >= 0 && point[1] <= innerHeight);
+                const occluded = samples.some(point => {
+                  const hit = document.elementFromPoint(point[0], point[1]);
+                  return Boolean(hit && hit !== image && !element.contains(hit));
+                });
+                if (occluded) {
+                  observation.reasons.push('occluded');
+                  violations.push({code: 'RUNTIME_RESOURCE_OCCLUDED', message: `Resource ${item.resource_slot_id} is covered by another rendered element.`});
+                }
+                const visible = rect.width > 0 && rect.height > 0 && !ancestor.hidden &&
+                  ancestor.opacity > 0.01 && Number(style.opacity) > 0.01 &&
+                  visibleRatio >= item.minimum_visible_ratio && !occluded;
+                observation.visible_in_browser = visible;
+                if (!visible) {
+                  observation.reasons.push('not_visible');
+                  violations.push({code: 'RUNTIME_RESOURCE_NOT_VISIBLE', message: `Resource ${item.resource_slot_id} decoded but is hidden, clipped, occluded, or below its visible-area contract.`});
+                }
                 if (visibleRatio < item.minimum_visible_ratio) {
                   violations.push({code: 'RUNTIME_RESOURCE_VISIBLE_USE', message: `Resource ${item.resource_slot_id} visible ratio ${visibleRatio.toFixed(3)} is below contract.`});
                 }
-                checked.push({kind: 'resource', id: item.resource_slot_id, ratio, visibleRatio});
+                checked.push({kind: 'resource', id: item.resource_slot_id, ratio, visibleRatio, decoded, visible, policyRequired: Boolean(item.policy_required)});
+                resource_observations.push(observation);
+                window.scrollTo(previousX, previousY);
+                await new Promise(resolve => requestAnimationFrame(() => resolve()));
               }
               for (const item of contract.interaction_checks) {
                 const target = one(item.target_selector, 'RUNTIME_INTERACTION_SELECTOR', `Interaction ${item.interaction_id}`);
@@ -1291,7 +1460,7 @@ class RuntimeVerifier:
                 }
                 checked.push({kind: 'font', id: item.role, family: style.fontFamily, weight: style.fontWeight});
               }
-              return {contractHash: contract.contract_hash, checked, violations};
+              return {contractHash: contract.contract_hash, checked, violations, resource_observations};
             }""",
                 payload,
             ),

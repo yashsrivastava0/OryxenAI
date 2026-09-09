@@ -13,6 +13,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     SitePlan,
 )
+from oryxenai.agents.code_generator.core.image_policy import coerce_image_policy
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 from oryxenai.agents.code_generator.core.source_lexing import strip_source_comments
@@ -223,6 +224,36 @@ def _slot_is_bound(
     return any(token in source for token in tokens)
 
 
+def _source_references_image_slot(source: str, slot_id: str) -> bool:
+    escaped = re.escape(slot_id)
+    return bool(
+        re.search(
+            rf"<LocalImage\b[^>]*\bresourceId\s*=\s*(?:['\"]{escaped}['\"]|\{{\s*['\"`]"
+            rf"{escaped}['\"`]\s*\}})",
+            _without_comments(source),
+            re.DOTALL,
+        )
+    )
+
+
+def _route_source_map(
+    files: dict[str, str], routes: list[dict[str, Any]], *, blueprint_v4: bool
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for route in routes:
+        route_id = str(route.get("route_id", ""))
+        storage_key = str(route.get("storage_key") or route_id).replace("\\", "/").strip("/")
+        if storage_key.startswith("routes/"):
+            storage_key = storage_key.removeprefix("routes/")
+        if blueprint_v4:
+            storage_key = semantic_segment(storage_key or route_id)
+        prefix = f"src/routes/{storage_key}/"
+        result[route_id] = "\n".join(
+            text for path, text in files.items() if path.startswith(prefix)
+        )
+    return result
+
+
 def validate_final_source(
     repo_dir: Path,
     *,
@@ -232,6 +263,7 @@ def validate_final_source(
     public_text: set[str],
     work_unit_id: str = "final-source",
     max_source_bytes: int = 32 * 1024 * 1024,
+    image_policy: dict[str, Any] | Any | None = None,
 ) -> list[Diagnostic]:
     del work_unit_id
     diagnostics: list[Diagnostic] = []
@@ -292,17 +324,65 @@ def validate_final_source(
             )
             if isinstance(item, dict) and is_image_category(item.get("category", "image"))
         }
-        if image_placements and not any(
-            item.resource_slot_id in materialized_image_slots for item in image_placements
-        ):
-            diagnostics.append(
-                _diag(
-                    "SOURCE_REQUIRED_IMAGE_MISSING",
-                    "The blueprint placed approved image slots, but no local image was materialized for the generated source.",
-                    route_id=image_placements[0].route_id,
-                    symbol="resource_placements",
+        effective_policy = coerce_image_policy(image_policy)
+        if effective_policy is None:
+            if image_placements and not any(
+                item.resource_slot_id in materialized_image_slots for item in image_placements
+            ):
+                diagnostics.append(
+                    _diag(
+                        "SOURCE_REQUIRED_IMAGE_MISSING",
+                        "The blueprint placed approved image slots, but no local image was materialized for the generated source.",
+                        route_id=image_placements[0].route_id,
+                        symbol="resource_placements",
+                    )
                 )
+        elif not effective_policy.text_only_exemption:
+            route_sources = _route_source_map(files, routes, blueprint_v4=True)
+            approved_ids = set(effective_policy.approved_image_slot_ids)
+            materialized = approved_ids & materialized_image_slots
+            target_route_id = effective_policy.primary_route_id or (
+                next((item.route_id for item in image_placements), "")
             )
+            target_placements = [
+                item
+                for item in image_placements
+                if item.resource_slot_id in approved_ids and item.route_id == target_route_id
+            ]
+            referenced = {
+                item.resource_slot_id
+                for item in target_placements
+                if _source_references_image_slot(
+                    route_sources.get(target_route_id, ""), item.resource_slot_id
+                )
+            }
+            visible_candidates = referenced & materialized
+            minimum = max(
+                1 if effective_policy.require_primary_route_image else 0,
+                effective_policy.minimum_visible_images,
+            )
+            if len(visible_candidates) < minimum:
+                diagnostics.append(
+                    _diag(
+                        "SOURCE_ROUTE_IMAGE_MINIMUM_MISSING",
+                        "The final route source does not contain enough distinct materialized approved image bindings for the effective image policy.",
+                        route_id=target_route_id,
+                        symbol="resource_placements",
+                    )
+                )
+            if (
+                effective_policy.require_primary_route_image
+                and target_route_id
+                and not visible_candidates
+            ):
+                diagnostics.append(
+                    _diag(
+                        "SOURCE_PRIMARY_ROUTE_IMAGE_MISSING",
+                        "The primary route has no distinct materialized approved image binding in executable source.",
+                        route_id=target_route_id,
+                        symbol="resource_placements",
+                    )
+                )
     content_keys = content_ids_by_section(
         [item for item in site.get("public_content", []) if isinstance(item, dict)],
         [item for item in site.get("facts", []) if isinstance(item, dict)],

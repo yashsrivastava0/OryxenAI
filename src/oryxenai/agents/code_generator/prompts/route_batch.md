@@ -121,6 +121,18 @@ Visual and implementation contract:
   behavior at different breakpoints, declare `row-gap` and `column-gap`
   explicitly in every rule that sets either one for that selector; do not
   rely on a `gap` shorthand plus a partial longhand override.
+- Use the exact typed recipe for each assigned region from `BOUNDED LAYOUT
+  RECIPE CATALOGUE`. The `[data-region-id="..."]` element must own the direct
+  children being laid out. For `text-with-supporting-media`, render two real
+  direct peers only when approved supporting media exists, use
+  `minmax(0, ...)` tracks and `min-width: 0`, and stack to one column below
+  768px. For `work-detail-list`, keep every detail item mounted in normal flow
+  with explicit `row-gap` and a stable structural separator. For
+  `timeline-list`, keep the ordered entries and spine readable without
+  absolute positioning. Use the exact recipe CSS properties on the region;
+  the trusted generated-token stylesheet provides the structural floor, and
+  route CSS may refine it with approved tokens. A missing optional image must
+  collapse to the text/list fallback rather than create an empty grid track.
 - Use only custom properties that exist in the compiler-emitted token groups
   or that the owning JSX defines literally as runtime style state. Never emit
   `@font-face` in route CSS; local font faces and URLs are already emitted by

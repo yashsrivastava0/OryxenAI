@@ -17,7 +17,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     BuildManifest,
     Diagnostic,
 )
-from oryxenai.agents.code_generator.core.process_runner import ProcessResult, run_command
+from oryxenai.agents.code_generator.core.process_runner import (
+    ProcessResult,
+    resolve_npm_executable,
+    run_command,
+)
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
 
@@ -71,7 +75,12 @@ def diagnostic(
 def _command(settings: Any, name: str, default: list[str]) -> list[str]:
     config = getattr(settings, "code_generator_verification", None)
     value = getattr(config, name, None) if config is not None else None
-    return [str(item) for item in value] if value else list(default)
+    command = [str(item) for item in value] if value else list(default)
+    if command and Path(command[0]).name.casefold() in {"npm", "npm.cmd", "npm.exe"}:
+        executable = resolve_npm_executable(settings)
+        if executable:
+            command[0] = executable
+    return command
 
 
 def _timeout(settings: Any, name: str, default: float) -> float:

@@ -33,7 +33,7 @@ def _plan() -> SitePlan:
                 {
                     "route_id": "home",
                     "path": "/",
-                    "section_ids": ["hero", "project"],
+                    "section_ids": ["home:hero", "home:project"],
                     "responsive_outcome": "stack on mobile",
                     "reduced_motion_outcome": "static equivalent",
                     "interaction_outcome": "keyboard accessible",
@@ -86,9 +86,15 @@ def _plan() -> SitePlan:
             ],
             "acceptance_coverage": [
                 {
-                    "criterion_id": "criterion:home:0",
+                    "criterion_id": "criterion:home:hero",
                     "route_id": "home",
-                    "expected_outcome": "evidence-first hierarchy",
+                    "expected_outcome": "Positioning",
+                    "source_marker": "data-criterion-id",
+                },
+                {
+                    "criterion_id": "criterion:home:project",
+                    "route_id": "home",
+                    "expected_outcome": "Evidence",
                     "source_marker": "data-criterion-id",
                 }
             ],
@@ -99,7 +105,7 @@ def _plan() -> SitePlan:
                         "unit_id": "route-home",
                         "kind": "route",
                         "route_id": "home",
-                        "section_ids": ["hero", "project"],
+                        "section_ids": ["home:hero", "home:project"],
                         "depends_on": ["foundation"],
                     },
                     {
@@ -137,7 +143,7 @@ class _GenerationModel:
                 category="image",
                 placement={
                     "route_id": "home",
-                    "section_id": "hero",
+                    "section_id": "home:hero",
                     "purpose": "editorial ornament",
                 },
                 why_existing_is_insufficient="The foundation needs a local decorative texture.",
@@ -167,16 +173,15 @@ class _GenerationModel:
                 finish_reason="stop",
             )
         if operation.endswith("foundation"):
-            content = "export const foundationReady = true;\n"
-            path = "src/design/generated.ts"
+            content = ":root { --foundation-ready: 1; }\n"
+            path = "src/design/generated-tokens.css"
         elif operation.endswith("route_batch"):
             content = (
-                'import "./route.css";\n\n'
                 "export default function RoutePage() {\n"
                 '  return <main className="route-page"><h1>Durable systems</h1><h2>QueueGuard</h2><p>Designed durable job lifecycles.</p></main>;\n'
                 "}\n"
             )
-            path = "src/routes/home-4ea140588150/index.tsx"
+            path = "src/routes/home/index.tsx"
         else:
             content = "export const integrationReady = true;\n"
             path = "src/components/shared/integration.ts"
@@ -189,7 +194,7 @@ class _GenerationModel:
                     "files": [
                         {
                             "path": path,
-                            "operation": "replace" if path.endswith("/index.tsx") else "create",
+                            "operation": "create",
                             "complete_utf8_content": content,
                         }
                     ],

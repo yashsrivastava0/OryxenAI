@@ -52,6 +52,8 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentRunStatus,
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
+    ExportedSignature,
+    GenerationAttemptRecord,
     GenerationCallReceipt,
     GenerationChanges,
     GenerationContextReceipt,
@@ -60,6 +62,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     GenerationWorkUnitProjection,
     IntegrationReviewV1,
     LocalMaterialFile,
+    PendingSourceProposal,
     PlanDelta,
     QualityReviewDraftV1,
     ResourceBinding,
@@ -81,6 +84,7 @@ from oryxenai.agents.code_generator.core.generation_prompt_builder import (
     ROUTE_UNIT_KEY_ORDER,
     build_instructions,
 )
+from oryxenai.agents.code_generator.core.image_policy import build_image_policy_snapshot
 from oryxenai.agents.code_generator.core.integration_review_operation import (
     run_integration_review_operation,
 )
@@ -110,7 +114,7 @@ from oryxenai.agents.code_generator.core.source_manifest import (
 )
 from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
-    validate_generation_changes,
+    validate_generation_changes_incrementally,
     validate_route_batch_contract,
     validate_route_composer_contract,
 )
@@ -148,6 +152,387 @@ def _unit_dir_slug(unit_id: str) -> str:
     return slug or "unit"
 
 
+def _pending_proposal_path(workspace: GenerationWorkspace, unit_id: str) -> Path:
+    """Return the restricted ledger location for one unit's pending bodies."""
+
+    return workspace.ledger_dir / "pending" / f"{_unit_dir_slug(unit_id)}.json"
+
+
+def _source_body_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _pending_files_from_ledger(
+    workspace: GenerationWorkspace,
+    unit: WorkUnit,
+    projection: GenerationWorkUnitProjection,
+) -> dict[str, str]:
+    """Load and integrity-check a pending proposal's source bodies.
+
+    The projection is authoritative for whether a proposal is expected. The
+    ledger file is still checked against its per-file hashes before any body is
+    allowed into a candidate tree, so a partial or manually edited ledger
+    cannot turn into accepted source during a resume.
+    """
+
+    proposal = projection.pending_proposal
+    if proposal is None:
+        return {}
+    path = _pending_proposal_path(workspace, unit.unit_id)
+    if proposal.stored_relative_path:
+        try:
+            declared = (workspace.root / proposal.stored_relative_path).resolve()
+        except OSError as exc:
+            raise GenerationError(
+                "PENDING_PROPOSAL_INVALID", "The pending proposal path could not be resolved."
+            ) from exc
+        if not declared.is_relative_to(workspace.root.resolve()) or declared != path.resolve():
+            raise GenerationError(
+                "PENDING_PROPOSAL_PATH_UNSAFE",
+                "The pending proposal ledger path is outside the run workspace.",
+            )
+    raw = _read_json(path)
+    if not raw:
+        raise GenerationError(
+            "PENDING_PROPOSAL_MISSING",
+            "The durable projection references a pending source proposal that is unavailable.",
+        )
+    try:
+        stored = PendingSourceProposal.model_validate(raw.get("proposal", {}))
+    except ValidationError as exc:
+        raise GenerationError(
+            "PENDING_PROPOSAL_INVALID", "The pending source proposal metadata is invalid."
+        ) from exc
+    if stored.model_dump(mode="json", exclude={"stored_relative_path", "updated_at"}) != proposal.model_dump(
+        mode="json", exclude={"stored_relative_path", "updated_at"}
+    ):
+        raise GenerationError(
+            "PENDING_PROPOSAL_DRIFT",
+            "The pending source proposal metadata does not match the durable projection.",
+        )
+    if stored.unit_id != unit.unit_id:
+        raise GenerationError(
+            "PENDING_PROPOSAL_UNIT_MISMATCH",
+            "The pending source proposal belongs to another work unit.",
+        )
+    owned_paths = {
+        value.replace("\\", "/").strip("/")
+        for value in unit.owns_paths
+        if value and "*" not in value
+    }
+    if owned_paths and not set(stored.pending_paths).issubset(owned_paths):
+        raise GenerationError(
+            "PENDING_PROPOSAL_OWNERSHIP_ESCAPE",
+            "The pending source proposal contains a path outside its work-unit ownership.",
+        )
+    raw_files = raw.get("files", {})
+    if not isinstance(raw_files, dict):
+        raise GenerationError(
+            "PENDING_PROPOSAL_INVALID", "The pending source proposal bodies are invalid."
+        )
+    files: dict[str, str] = {}
+    for raw_path, raw_body in raw_files.items():
+        relative = str(raw_path).replace("\\", "/").strip("/")
+        if (
+            not relative
+            or ".." in Path(relative).parts
+            or Path(relative).is_absolute()
+            or relative not in stored.pending_paths
+            or not isinstance(raw_body, str)
+            or stored.file_hashes.get(relative) != _source_body_hash(raw_body)
+        ):
+            raise GenerationError(
+                "PENDING_PROPOSAL_INTEGRITY_FAILED",
+                "A pending source body failed its restricted ledger integrity check.",
+            )
+        files[relative] = raw_body
+    if set(files) != set(stored.pending_paths):
+        raise GenerationError(
+            "PENDING_PROPOSAL_INTEGRITY_FAILED",
+            "The pending source proposal inventory does not match its stored bodies.",
+        )
+    if stored.restricted_evidence_paths:
+        _pending_rejected_files_from_ledger(workspace, projection)
+    return files
+
+
+def _pending_rejected_files_from_ledger(
+    workspace: GenerationWorkspace,
+    projection: GenerationWorkUnitProjection,
+) -> dict[str, str]:
+    """Load invalid response bodies kept only as restricted repair evidence."""
+
+    proposal = projection.pending_proposal
+    if proposal is None or not proposal.restricted_evidence_paths:
+        return {}
+    raw = _read_json(_pending_proposal_path(workspace, proposal.unit_id))
+    raw_files = raw.get("restricted_evidence_files", {})
+    if not isinstance(raw_files, dict):
+        raise GenerationError(
+            "PENDING_PROPOSAL_INTEGRITY_FAILED",
+            "The restricted pending-proposal evidence is invalid.",
+        )
+    files: dict[str, str] = {}
+    for raw_path, raw_body in raw_files.items():
+        relative = str(raw_path).replace("\\", "/").strip("/")
+        if (
+            not relative
+            or ".." in Path(relative).parts
+            or Path(relative).is_absolute()
+            or relative not in proposal.restricted_evidence_paths
+            or not isinstance(raw_body, str)
+            or proposal.restricted_evidence_hashes.get(relative) != _source_body_hash(raw_body)
+        ):
+            raise GenerationError(
+                "PENDING_PROPOSAL_INTEGRITY_FAILED",
+                "A restricted pending-proposal body failed its integrity check.",
+            )
+        files[relative] = raw_body
+    if set(files) != set(proposal.restricted_evidence_paths):
+        raise GenerationError(
+            "PENDING_PROPOSAL_INTEGRITY_FAILED",
+            "The restricted pending-proposal evidence inventory is incomplete.",
+        )
+    return files
+
+
+def _cleanup_pending_proposal(workspace: GenerationWorkspace, unit_id: str) -> None:
+    path = _pending_proposal_path(workspace, unit_id)
+    with contextlib.suppress(OSError):
+        path.unlink(missing_ok=True)
+
+
+def _cleanup_stale_candidate_backups(workspace: GenerationWorkspace) -> None:
+    """Remove abandoned swap backups after an accepted checkpoint is restored."""
+
+    for path in workspace.root.glob("repo-*-old"):
+        if path.is_dir():
+            fs_safe.remove_tree(path, required=False)
+
+
+def _build_pending_proposal(
+    *,
+    workspace: GenerationWorkspace,
+    unit: WorkUnit,
+    owned_paths: list[str],
+    base_checkpoint_hash: str,
+    base_repo: Path,
+    files: dict[str, str],
+    attempt_id: str,
+    exported_signatures: list[ExportedSignature] | None = None,
+    diagnostic_ids: list[str] | None = None,
+    restricted_evidence: dict[str, str] | None = None,
+) -> PendingSourceProposal:
+    exact_owned = sorted(
+        {
+            path.replace("\\", "/").strip("/")
+            for path in owned_paths
+            if path and "*" not in path
+        }
+    )
+    pending_paths = sorted(files)
+    present_paths = sorted(
+        set(pending_paths)
+        | {
+            path
+            for path in exact_owned
+            if (base_repo / path).is_file()
+        }
+    )
+    changed_paths = sorted(
+        path
+        for path in pending_paths
+        if _source_body_hash(files[path])
+        != (
+            _source_body_hash((base_repo / path).read_text(encoding="utf-8"))
+            if (base_repo / path).is_file()
+            else ""
+        )
+    )
+    proposal_path = _pending_proposal_path(workspace, unit.unit_id)
+    return PendingSourceProposal(
+        unit_id=unit.unit_id,
+        attempt_id=attempt_id
+        or hashlib.sha256(
+            f"{unit.unit_id}:{base_checkpoint_hash}:{pending_paths}".encode()
+        ).hexdigest()[:32],
+        base_checkpoint_hash=base_checkpoint_hash,
+        owned_paths=exact_owned,
+        expected_paths=exact_owned,
+        present_paths=present_paths,
+        pending_paths=pending_paths,
+        missing_paths=sorted(set(exact_owned) - set(pending_paths)),
+        changed_paths=changed_paths,
+        file_hashes={path: _source_body_hash(files[path]) for path in pending_paths},
+        file_sizes={path: len(files[path].encode("utf-8")) for path in pending_paths},
+        restricted_evidence_paths=sorted(restricted_evidence or {}),
+        restricted_evidence_hashes={
+            path: _source_body_hash(body)
+            for path, body in sorted((restricted_evidence or {}).items())
+        },
+        exported_signatures=list(exported_signatures or []),
+        diagnostic_ids=sorted(set(diagnostic_ids or [])),
+        stored_relative_path=proposal_path.relative_to(workspace.root).as_posix(),
+        updated_at=datetime.now(UTC).isoformat(),
+    )
+
+
+def _write_pending_proposal(
+    workspace: GenerationWorkspace,
+    proposal: PendingSourceProposal,
+    files: dict[str, str],
+    restricted_evidence: dict[str, str] | None = None,
+) -> PendingSourceProposal:
+    path = _pending_proposal_path(workspace, proposal.unit_id)
+    stored = proposal.model_copy(
+        update={"stored_relative_path": path.relative_to(workspace.root).as_posix()}
+    )
+    workspace.write_json(
+        path,
+        {
+            "schema_version": "code-generator-pending-source-record-v1",
+            "proposal": stored.model_dump(mode="json"),
+            "files": {key: files[key] for key in sorted(files)},
+            "restricted_evidence_files": dict(sorted((restricted_evidence or {}).items())),
+        },
+    )
+    return stored
+
+
+def _record_pending_diagnostics(
+    workspace: GenerationWorkspace,
+    *,
+    unit: WorkUnit,
+    projection: GenerationWorkUnitProjection,
+    files: dict[str, str],
+    diagnostic_ids: list[str],
+) -> None:
+    if projection.pending_proposal is None or projection.pending_proposal.unit_id != unit.unit_id:
+        return
+    updated = projection.pending_proposal.model_copy(
+        update={
+            "diagnostic_ids": sorted(
+                set(projection.pending_proposal.diagnostic_ids) | set(diagnostic_ids)
+            ),
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+    )
+    restricted_evidence = _pending_rejected_files_from_ledger(workspace, projection)
+    projection.pending_proposal = _write_pending_proposal(
+        workspace, updated, files, restricted_evidence=restricted_evidence
+    )
+
+
+def _merge_pending_signatures(
+    previous: list[ExportedSignature], current: list[ExportedSignature]
+) -> list[ExportedSignature]:
+    """Overlay the latest declared signatures onto a pending proposal."""
+
+    merged = {
+        (item.path.replace("\\", "/"), item.export_name): item for item in previous
+    }
+    for item in current:
+        key = (item.path.replace("\\", "/"), item.export_name)
+        merged[key] = item.model_copy(update={"path": key[0]})
+    return [
+        merged[key]
+        for key in sorted(merged, key=lambda value: (value[0], value[1]))
+    ]
+
+
+def _candidate_backup_path(workspace: GenerationWorkspace, unit_id: str) -> Path:
+    return workspace.root / f"repo-{_unit_dir_slug(unit_id)}-old"
+
+
+def _finalize_candidate(workspace: GenerationWorkspace, unit_id: str) -> None:
+    """Delete a candidate's accepted-tree backup after checkpoint creation."""
+
+    fs_safe.remove_tree(_candidate_backup_path(workspace, unit_id), required=False)
+
+
+def _rollback_candidate(workspace: GenerationWorkspace, unit_id: str) -> None:
+    """Restore the last accepted tree after a candidate fails revalidation."""
+
+    old = _candidate_backup_path(workspace, unit_id)
+    if not old.is_dir():
+        return
+    current = workspace.repo_dir
+    rejected = workspace.root / f"rejected-{_unit_dir_slug(unit_id)}"
+    fs_safe.remove_tree(rejected, required=False)
+    if current.exists():
+        fs_safe.rename_dir_with_retry(current, rejected)
+    try:
+        fs_safe.rename_dir_with_retry(old, current)
+    except Exception:
+        # Keep the rejected candidate around for diagnosis if restoration was
+        # itself blocked; the caller will surface the filesystem error rather
+        # than pretending that a failed candidate was accepted.
+        if not current.exists() and rejected.exists():
+            fs_safe.rename_dir_with_retry(rejected, current)
+        raise
+    # node_modules is disposable; the next toolchain install recreates it.
+    # Move it before deleting the rejected candidate so a running process can
+    # reuse the installed tree when the filesystem permits it.
+    installed = rejected / "node_modules"
+    if installed.is_dir() and not (current / "node_modules").exists():
+        with contextlib.suppress(fs_safe.FsSafeError):
+            fs_safe.rename_dir_with_retry(installed, current / "node_modules")
+    fs_safe.remove_tree(rejected, required=False)
+
+
+def _reserve_generation_attempt(
+    projection: GenerationProjection,
+    *,
+    operation: str,
+    unit_id: str,
+    phase: str,
+    request_round: int,
+    repair_round: int,
+    context_hash: str,
+) -> str:
+    attempt_id = hashlib.sha256(
+        f"{projection.generation_id}:{unit_id}:{operation}:{request_round}:"
+        f"{repair_round}:{context_hash}".encode()
+    ).hexdigest()[:32]
+    if not any(item.attempt_id == attempt_id for item in projection.attempt_records):
+        projection.attempt_records.append(
+            GenerationAttemptRecord(
+                attempt_id=attempt_id,
+                operation_id=operation,
+                unit_id=unit_id,
+                phase=phase,
+                request_round=request_round,
+                repair_round=repair_round,
+                reserved_at=datetime.now(UTC).isoformat(),
+            )
+        )
+    return attempt_id
+
+
+def _complete_generation_attempt(
+    projection: GenerationProjection,
+    attempt_id: str,
+    *,
+    status: str,
+    call_receipt_id: str = "",
+    error_code: str = "",
+    error_message: str = "",
+) -> None:
+    for index, record in enumerate(projection.attempt_records):
+        if record.attempt_id != attempt_id:
+            continue
+        projection.attempt_records[index] = record.model_copy(
+            update={
+                "status": status,
+                "call_receipt_id": call_receipt_id,
+                "error_code": error_code[:120],
+                "error_message": error_message[:500],
+                "completed_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        return
+
+
 class GenerationError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -166,10 +551,21 @@ class _OptionalComponentFallback(Exception):
 def _reset_generation_attempt_projection(projection: GenerationProjection) -> None:
     """Drop rejected-attempt diagnostics before a same-run retry."""
 
+    _archive_generation_diagnostics(projection)
     projection.diagnostics = []
     projection.issues = []
     for unit_projection in projection.work_units:
         unit_projection.diagnostics = []
+
+
+def _archive_generation_diagnostics(projection: GenerationProjection) -> None:
+    """Move resolved or superseded diagnostics into immutable run history."""
+
+    known = {item.diagnostic_id for item in projection.diagnostic_history}
+    projection.diagnostic_history.extend(
+        item for item in projection.diagnostics if item.diagnostic_id not in known
+    )
+    projection.diagnostics = []
 
 
 async def _prepare_isolated_route_repo(source_repo: Path, isolated_root: Path) -> Path:
@@ -262,7 +658,7 @@ class CodeGeneratorGenerationOrchestrator:
             projection = (
                 GenerationProjection.model_validate(run.generation_projection)
                 if resumed
-                else self._initial_projection(run, generation_id, plan)
+                else self._initial_projection(run, generation_id, plan, settings=settings)
             )
             if resumed:
                 # A frontend resume starts a new executable attempt. Keep
@@ -301,6 +697,18 @@ class CodeGeneratorGenerationOrchestrator:
                 projections,
                 max_work_units=int(settings.code_generator_development.max_work_units),
             )
+            effective_image_policy = build_image_policy_snapshot(
+                settings, projections=projections, plan=plan
+            )
+            if resumed and (
+                projection.image_policy is not None
+                and projection.image_policy.policy_hash != effective_image_policy.policy_hash
+            ):
+                raise GenerationError(
+                    "IMAGE_POLICY_CHANGED_ON_RESUME",
+                    "The effective image policy changed after this generation run was created.",
+                )
+            projection.image_policy = effective_image_policy
             workspace = GenerationWorkspace.open(
                 settings,
                 run_id=str(run_id),
@@ -309,6 +717,7 @@ class CodeGeneratorGenerationOrchestrator:
             checkpoint_store = CheckpointStore(workspace, generation_id=generation_id)
             if projection.accepted_checkpoint is not None:
                 checkpoint_store.restore(projection.accepted_checkpoint)
+                _cleanup_stale_candidate_backups(workspace)
                 # A checkpoint may have been produced by an older generator
                 # version. Restore its mutable source, then reassert the
                 # immutable shell before any toolchain or source checks run.
@@ -414,6 +823,7 @@ class CodeGeneratorGenerationOrchestrator:
                     message=exc.message,
                     next_action="Review the generation issue and start a corrected run.",
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id), "code": exc.code}
         except (
@@ -434,6 +844,7 @@ class CodeGeneratorGenerationOrchestrator:
                     message=message,
                     next_action="Review the generation issue and start a corrected run.",
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         except DevelopmentInputError as exc:
@@ -446,6 +857,7 @@ class CodeGeneratorGenerationOrchestrator:
                     next_action="Review the generation input and start a corrected run.",
                     details=exc.details,
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         except ValidationError as exc:
@@ -462,6 +874,7 @@ class CodeGeneratorGenerationOrchestrator:
                         "validation_summary": summary,
                     },
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         except TokenCompilationError as exc:
@@ -475,6 +888,7 @@ class CodeGeneratorGenerationOrchestrator:
                     next_action="Retry with a corrected typed visual blueprint.",
                     details={"exception_type": type(exc).__name__, "reason": reason},
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
         except ProviderError as exc:
@@ -489,6 +903,7 @@ class CodeGeneratorGenerationOrchestrator:
                     next_action="Review the provider contract and start a corrected run.",
                     details=details,
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id), "code": code}
         except Exception as exc:
@@ -507,6 +922,7 @@ class CodeGeneratorGenerationOrchestrator:
                     next_action="Review the run diagnostics and start a corrected run.",
                     details={"exception_type": type(exc).__name__},
                 ),
+                projection=projection,
             )
             return {"status": "needs_attention", "run_id": str(run_id)}
 
@@ -625,6 +1041,92 @@ class CodeGeneratorGenerationOrchestrator:
         allowed_packages: set[str],
         public_text: set[str],
     ) -> SourceCheckpoint:
+        # The production policy keeps the billable route lane serial. In this
+        # mode every unit runs against the authoritative workspace and its
+        # projection is persisted before the next sibling is considered. This
+        # preserves the accepted checkpoint and all receipts when a batch
+        # fails, and it guarantees that later siblings are never started after
+        # an earlier failure.
+        route_concurrency = int(settings.code_generator_generation.route_concurrency)
+        if route_concurrency != 1:
+            raise GenerationError(
+                "ROUTE_CONCURRENCY_UNSUPPORTED",
+                "Production route generation requires route_concurrency=1.",
+            )
+        if route_concurrency == 1:
+            batch_ids = {unit.unit_id for unit in units}
+            schedulable_units = [
+                unit.model_copy(
+                    update={
+                        "depends_on": [
+                            dependency for dependency in unit.depends_on if dependency in batch_ids
+                        ]
+                    }
+                )
+                for unit in units
+            ]
+            current_checkpoint = checkpoint
+
+            async def execute_serial(unit: WorkUnit) -> SourceCheckpoint:
+                nonlocal current_checkpoint
+                current_checkpoint = await self._run_unit(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    settings=settings,
+                    run=run,
+                    plan=plan,
+                    projections=projections,
+                    workspace=workspace,
+                    checkpoint_store=checkpoint_store,
+                    projection=projection,
+                    unit=unit,
+                    checkpoint=current_checkpoint,
+                    allowed_packages=allowed_packages,
+                    public_text=public_text,
+                    persist_projection=True,
+                )
+                unit_projection = _unit_projection(projection, unit)
+                unit_projection.status = "checkpointed"
+                unit_projection.checkpoint_after = current_checkpoint.checkpoint_hash
+                projection.accepted_checkpoint = current_checkpoint
+                await self._persist(
+                    sessionmaker,
+                    run_id,
+                    projection,
+                    status=DevelopmentRunStatus.GENERATING_ROUTES.value,
+                    source_checkpoint=current_checkpoint,
+                )
+                return current_checkpoint
+
+            await execute_waves(schedulable_units, execute_serial, max_concurrency=1)
+            diagnostics = await run_source_checks(
+                workspace.repo_dir,
+                allowed_packages=allowed_packages,
+                public_text=public_text,
+                max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
+                work_unit_id="route-batch-wave",
+                settings=settings,
+                include_source_audit=False,
+            )
+            if diagnostics:
+                projection.diagnostics.extend(diagnostics)
+                await self._persist(
+                    sessionmaker,
+                    run_id,
+                    projection,
+                    status=DevelopmentRunStatus.GENERATING_ROUTES.value,
+                )
+                raise GenerationError(
+                    "SERIAL_ROUTE_SOURCE_CHECK_FAILED",
+                    "The serial route-batch wave failed the deterministic source audit.",
+                )
+            if current_checkpoint is None:
+                raise GenerationError(
+                    "SOURCE_CHECKPOINT_MISSING",
+                    "The route-batch wave did not produce an accepted checkpoint.",
+                )
+            return current_checkpoint
+
         async def execute(unit: WorkUnit) -> tuple[GenerationProjection, SourceCheckpoint, Path]:
             isolated_root = isolated_workspace_path(workspace.root, unit)
             if not isolated_root.resolve().is_relative_to(workspace.root.resolve()):
@@ -687,6 +1189,11 @@ class CodeGeneratorGenerationOrchestrator:
             max_concurrency=int(settings.code_generator_generation.route_concurrency),
         )
         merged_projection = projection.model_copy(deep=True)
+        base_repair_budget = projection.repair_budget_used
+        base_repair_rounds = projection.repair_rounds
+        base_request_rounds = projection.request_rounds
+        base_repair_strategies = list(projection.repair_strategies)
+        base_repair_fingerprint_counts = dict(projection.repair_fingerprint_counts)
         merged_checkpoints: list[tuple[WorkUnit, SourceCheckpoint, Path]] = []
         for item in scheduled:
             local_projection, local_checkpoint, isolated_root = cast(
@@ -716,6 +1223,13 @@ class CodeGeneratorGenerationOrchestrator:
             main_unit.repair_round = local_unit.repair_round
             main_unit.call_receipt_id = local_unit.call_receipt_id
             main_unit.diagnostics = list(local_unit.diagnostics)
+            main_unit.pending_proposal = local_unit.pending_proposal
+            merged_projection.attempt_records.extend(
+                record
+                for record in local_projection.attempt_records
+                if record.attempt_id
+                not in {existing.attempt_id for existing in merged_projection.attempt_records}
+            )
             merged_projection.context_receipts.extend(
                 receipt
                 for receipt in local_projection.context_receipts
@@ -734,6 +1248,45 @@ class CodeGeneratorGenerationOrchestrator:
                 if diagnostic.diagnostic_id
                 not in {existing.diagnostic_id for existing in merged_projection.diagnostics}
             )
+            merged_projection.diagnostic_history.extend(
+                diagnostic
+                for diagnostic in local_projection.diagnostic_history
+                if diagnostic.diagnostic_id
+                not in {
+                    existing.diagnostic_id
+                    for existing in merged_projection.diagnostic_history
+                }
+            )
+            merged_projection.issues.extend(
+                issue
+                for issue in local_projection.issues
+                if (
+                    issue.code,
+                    issue.message,
+                    issue.next_action,
+                )
+                not in {
+                    (existing.code, existing.message, existing.next_action)
+                    for existing in merged_projection.issues
+                }
+            )
+            merged_projection.repair_budget_used += max(
+                0, local_projection.repair_budget_used - base_repair_budget
+            )
+            merged_projection.repair_rounds += max(
+                0, local_projection.repair_rounds - base_repair_rounds
+            )
+            merged_projection.request_rounds += max(
+                0, local_projection.request_rounds - base_request_rounds
+            )
+            merged_projection.repair_strategies.extend(
+                local_projection.repair_strategies[len(base_repair_strategies) :]
+            )
+            for fingerprint, count in local_projection.repair_fingerprint_counts.items():
+                merged_projection.repair_fingerprint_counts[fingerprint] = (
+                    merged_projection.repair_fingerprint_counts.get(fingerprint, 0)
+                    + max(0, count - base_repair_fingerprint_counts.get(fingerprint, 0))
+                )
             merged_checkpoints.append((unit, local_checkpoint, isolated_root))
 
         diagnostics = await run_source_checks(
@@ -755,7 +1308,15 @@ class CodeGeneratorGenerationOrchestrator:
             )
         projection.context_receipts = merged_projection.context_receipts
         projection.call_receipts = merged_projection.call_receipts
+        projection.attempt_records = merged_projection.attempt_records
         projection.diagnostics = merged_projection.diagnostics
+        projection.diagnostic_history = merged_projection.diagnostic_history
+        projection.issues = merged_projection.issues
+        projection.repair_budget_used = merged_projection.repair_budget_used
+        projection.repair_rounds = merged_projection.repair_rounds
+        projection.request_rounds = merged_projection.request_rounds
+        projection.repair_strategies = merged_projection.repair_strategies
+        projection.repair_fingerprint_counts = merged_projection.repair_fingerprint_counts
         for unit, _local_checkpoint, _isolated_root in merged_checkpoints:
             checkpoint = checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
@@ -888,7 +1449,8 @@ class CodeGeneratorGenerationOrchestrator:
             )
         request_round = 0
         repair_round = 0
-        rejected_attempt_files: dict[str, str] = {}
+        rejected_attempt_files = _pending_files_from_ledger(workspace, unit, unit_projection)
+        pending_files = dict(rejected_attempt_files)
         while True:
             context = _operation_context(
                 plan=plan,
@@ -902,6 +1464,12 @@ class CodeGeneratorGenerationOrchestrator:
                 diagnostics=projection.diagnostics,
                 repair_round=repair_round,
                 rejected_attempt_files=rejected_attempt_files,
+                pending_proposal=unit_projection.pending_proposal,
+                image_policy=(
+                    projection.image_policy.model_dump(mode="json")
+                    if projection.image_policy is not None
+                    else None
+                ),
             )
             context = _enforce_context_ceiling(
                 context,
@@ -925,6 +1493,15 @@ class CodeGeneratorGenerationOrchestrator:
             projection.context_receipts.append(context_receipt)
             unit_projection.status = "model_requested"
             unit_projection.request_round = request_round
+            attempt_id = _reserve_generation_attempt(
+                projection,
+                operation=operation,
+                unit_id=unit.unit_id,
+                phase=projection.phase,
+                request_round=request_round,
+                repair_round=repair_round,
+                context_hash=context_receipt.context_hash,
+            )
             if persist_projection:
                 await self._persist(sessionmaker, run_id, projection, status=projection.phase)
             try:
@@ -942,8 +1519,19 @@ class CodeGeneratorGenerationOrchestrator:
                     unit_id=unit.unit_id,
                     request_round=request_round,
                 )
-            except ModelOutputTruncatedError:
-                if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+            except BaseException as exc:
+                _complete_generation_attempt(
+                    projection,
+                    attempt_id,
+                    status="cancelled" if isinstance(exc, asyncio.CancelledError) else "failed",
+                    error_code=str(getattr(exc, "code", type(exc).__name__)),
+                    error_message=str(getattr(exc, "message", str(exc))),
+                )
+                if persist_projection:
+                    await self._persist(sessionmaker, run_id, projection, status=projection.phase)
+                if isinstance(exc, ModelOutputTruncatedError) and isinstance(
+                    plan.experience_blueprint, ExperienceBlueprintV4
+                ):
                     split_units = _bisect_v4_work_unit(unit, blueprint=plan.experience_blueprint)
                     if split_units:
                         return await self._run_truncated_v4_unit(
@@ -966,6 +1554,14 @@ class CodeGeneratorGenerationOrchestrator:
                 raise
             projection.call_receipts.append(call_receipt)
             unit_projection.call_receipt_id = call_receipt.receipt_id
+            _complete_generation_attempt(
+                projection,
+                attempt_id,
+                status="cache_hit" if call_receipt.retry_class == "cache_hit" else "succeeded",
+                call_receipt_id=call_receipt.receipt_id,
+            )
+            if persist_projection:
+                await self._persist(sessionmaker, run_id, projection, status=projection.phase)
             if result.mode == "cannot_complete":
                 if result.cannot_complete is None:
                     raise GenerationError(
@@ -1030,7 +1626,7 @@ class CodeGeneratorGenerationOrchestrator:
                 else {}
             )
             try:
-                self._apply_changes(
+                proposal = self._apply_changes(
                     changes=result.changes,
                     unit=unit,
                     plan=plan,
@@ -1041,11 +1637,35 @@ class CodeGeneratorGenerationOrchestrator:
                     settings=settings,
                     checkpoint=checkpoint,
                     operation=operation,
+                    pending_files=pending_files,
+                    pending_projection=unit_projection,
+                    attempt_id=attempt_id,
                 )
+                if proposal is not None:
+                    pending_files = _pending_files_from_ledger(workspace, unit, unit_projection)
+                    rejected_attempt_files = dict(pending_files)
             except SourceValidationError as exc:
                 diagnostics = [_diagnostic_from_exception(exc, unit.unit_id)]
                 projection.diagnostics.extend(diagnostics)
                 unit_projection.diagnostics.extend(item.diagnostic_id for item in diagnostics)
+                try:
+                    pending_files = _pending_files_from_ledger(workspace, unit, unit_projection)
+                except GenerationError:
+                    # A monkey-patched/legacy apply path may not have a
+                    # candidate ledger. Its complete response is still safe
+                    # repair context for this in-process iteration.
+                    pending_files = dict(rejected_attempt_files)
+                if pending_files:
+                    rejected_attempt_files = dict(pending_files)
+                _record_pending_diagnostics(
+                    workspace,
+                    unit=unit,
+                    projection=unit_projection,
+                    files=pending_files,
+                    diagnostic_ids=[item.diagnostic_id for item in diagnostics],
+                )
+                if persist_projection:
+                    await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                 _consume_repair_budget(
                     projection,
                     diagnostics,
@@ -1056,6 +1676,8 @@ class CodeGeneratorGenerationOrchestrator:
                 unit_projection.repair_round = repair_round
                 operation = "repair"
                 role_profile = str(settings.code_generator_generation.repair_profile)
+                if persist_projection:
+                    await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                 continue
             diagnostics = await run_source_checks(
                 workspace.repo_dir,
@@ -1077,8 +1699,18 @@ class CodeGeneratorGenerationOrchestrator:
                 source_paths=list(unit.owns_paths) if unit.kind == "route_batch" else None,
             )
             if diagnostics:
+                _rollback_candidate(workspace, unit.unit_id)
                 projection.diagnostics.extend(diagnostics)
                 unit_projection.diagnostics.extend(item.diagnostic_id for item in diagnostics)
+                _record_pending_diagnostics(
+                    workspace,
+                    unit=unit,
+                    projection=unit_projection,
+                    files=pending_files,
+                    diagnostic_ids=[item.diagnostic_id for item in diagnostics],
+                )
+                if persist_projection:
+                    await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                 _consume_repair_budget(
                     projection,
                     diagnostics,
@@ -1089,6 +1721,8 @@ class CodeGeneratorGenerationOrchestrator:
                 unit_projection.repair_round = repair_round
                 operation = "repair"
                 role_profile = str(settings.code_generator_generation.repair_profile)
+                if persist_projection:
+                    await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                 continue
             if unit.kind == "route_batch":
                 (
@@ -1120,10 +1754,20 @@ class CodeGeneratorGenerationOrchestrator:
                     work_unit_id=unit.unit_id,
                 )
                 if batch_diagnostics:
+                    _rollback_candidate(workspace, unit.unit_id)
                     projection.diagnostics.extend(batch_diagnostics)
                     unit_projection.diagnostics.extend(
                         item.diagnostic_id for item in batch_diagnostics
                     )
+                    _record_pending_diagnostics(
+                        workspace,
+                        unit=unit,
+                        projection=unit_projection,
+                        files=pending_files,
+                        diagnostic_ids=[item.diagnostic_id for item in batch_diagnostics],
+                    )
+                    if persist_projection:
+                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                     _consume_repair_budget(
                         projection,
                         batch_diagnostics,
@@ -1134,6 +1778,8 @@ class CodeGeneratorGenerationOrchestrator:
                     unit_projection.repair_round = repair_round
                     operation = "repair"
                     role_profile = str(settings.code_generator_generation.repair_profile)
+                    if persist_projection:
+                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                     continue
             if unit.kind == "route_compose" and isinstance(
                 plan.experience_blueprint, ExperienceBlueprintV4
@@ -1149,10 +1795,20 @@ class CodeGeneratorGenerationOrchestrator:
                     work_unit_id=unit.unit_id,
                 )
                 if composer_diagnostics:
+                    _rollback_candidate(workspace, unit.unit_id)
                     projection.diagnostics.extend(composer_diagnostics)
                     unit_projection.diagnostics.extend(
                         item.diagnostic_id for item in composer_diagnostics
                     )
+                    _record_pending_diagnostics(
+                        workspace,
+                        unit=unit,
+                        projection=unit_projection,
+                        files=pending_files,
+                        diagnostic_ids=[item.diagnostic_id for item in composer_diagnostics],
+                    )
+                    if persist_projection:
+                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                     _consume_repair_budget(
                         projection,
                         composer_diagnostics,
@@ -1163,11 +1819,19 @@ class CodeGeneratorGenerationOrchestrator:
                     unit_projection.repair_round = repair_round
                     operation = "repair"
                     role_profile = str(settings.code_generator_generation.repair_profile)
+                    if persist_projection:
+                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
                     continue
-            return checkpoint_store.accept(
+            accepted = checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
                 parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
             )
+            _archive_generation_diagnostics(projection)
+            unit_projection.diagnostics = []
+            _finalize_candidate(workspace, unit.unit_id)
+            _cleanup_pending_proposal(workspace, unit.unit_id)
+            unit_projection.pending_proposal = None
+            return accepted
 
     async def _run_truncated_v4_unit(
         self,
@@ -1328,7 +1992,11 @@ class CodeGeneratorGenerationOrchestrator:
                 projection.diagnostics.extend(diagnostics)
                 role_profile = str(settings.code_generator_generation.repair_profile)
                 active_diagnostics = list(diagnostics)
-                rejected_attempt_files: dict[str, str] = {}
+                owner_projection = _unit_projection(projection, owner)
+                rejected_attempt_files = _pending_files_from_ledger(
+                    workspace, owner, owner_projection
+                )
+                pending_files = dict(rejected_attempt_files)
                 source_repair_round = 0
                 while True:
                     context = _operation_context(
@@ -1343,6 +2011,12 @@ class CodeGeneratorGenerationOrchestrator:
                         diagnostics=active_diagnostics,
                         repair_round=source_repair_round,
                         rejected_attempt_files=rejected_attempt_files,
+                        pending_proposal=owner_projection.pending_proposal,
+                        image_policy=(
+                            projection.image_policy.model_dump(mode="json")
+                            if projection.image_policy is not None
+                            else None
+                        ),
                     )
                     context = _enforce_context_ceiling(
                         context,
@@ -1374,20 +2048,63 @@ class CodeGeneratorGenerationOrchestrator:
                         polish_unit_id = f"{polish_unit_id}-{polish_round}"
                     if source_repair_round:
                         polish_unit_id = f"{polish_unit_id}-source-repair-{source_repair_round}"
-                    result, call_receipt = await self._model_result(
-                        settings=settings,
+                    polish_attempt_id = _reserve_generation_attempt(
+                        projection,
                         operation="repair",
-                        role_profile=role_profile,
-                        context=context,
-                        system=system,
-                        instructions=instructions,
-                        context_receipt=context_receipt,
-                        workspace=workspace,
-                        generation_id=projection.generation_id,
                         unit_id=polish_unit_id,
+                        phase="integration_review",
                         request_round=0,
+                        repair_round=source_repair_round,
+                        context_hash=context_receipt.context_hash,
                     )
+                    await self._persist(
+                        sessionmaker, run_id, projection, status=DevelopmentRunStatus.INTEGRATING.value
+                    )
+                    try:
+                        result, call_receipt = await self._model_result(
+                            settings=settings,
+                            operation="repair",
+                            role_profile=role_profile,
+                            context=context,
+                            system=system,
+                            instructions=instructions,
+                            context_receipt=context_receipt,
+                            workspace=workspace,
+                            generation_id=projection.generation_id,
+                            unit_id=polish_unit_id,
+                            request_round=0,
+                        )
+                    except BaseException as exc:
+                        _complete_generation_attempt(
+                            projection,
+                            polish_attempt_id,
+                            status=(
+                                "cancelled"
+                                if isinstance(exc, asyncio.CancelledError)
+                                else "failed"
+                            ),
+                            error_code=str(getattr(exc, "code", type(exc).__name__)),
+                            error_message=str(getattr(exc, "message", str(exc))),
+                        )
+                        await self._persist(
+                            sessionmaker,
+                            run_id,
+                            projection,
+                            status=DevelopmentRunStatus.INTEGRATING.value,
+                        )
+                        raise
                     projection.call_receipts.append(call_receipt)
+                    _complete_generation_attempt(
+                        projection,
+                        polish_attempt_id,
+                        status=(
+                            "cache_hit" if call_receipt.retry_class == "cache_hit" else "succeeded"
+                        ),
+                        call_receipt_id=call_receipt.receipt_id,
+                    )
+                    await self._persist(
+                        sessionmaker, run_id, projection, status=DevelopmentRunStatus.INTEGRATING.value
+                    )
                     if result.mode != "changes":
                         # The model honestly reported it could not produce a
                         # bounded owner-scoped correction this round
@@ -1433,7 +2150,7 @@ class CodeGeneratorGenerationOrchestrator:
                     )
                     source_diagnostics: list[SourceDiagnostic] = []
                     try:
-                        self._apply_changes(
+                        proposal = self._apply_changes(
                             changes=result.changes,
                             unit=owner,
                             plan=plan,
@@ -1444,7 +2161,15 @@ class CodeGeneratorGenerationOrchestrator:
                             settings=settings,
                             checkpoint=checkpoint,
                             operation="repair",
+                            pending_files=pending_files,
+                            pending_projection=owner_projection,
+                            attempt_id=polish_attempt_id,
                         )
+                        if proposal is not None:
+                            pending_files = _pending_files_from_ledger(
+                                workspace, owner, owner_projection
+                            )
+                            rejected_attempt_files = dict(pending_files)
                     except SourceValidationError as exc:
                         source_diagnostics = [_diagnostic_from_exception(exc, owner.unit_id)]
                     if not source_diagnostics:
@@ -1459,7 +2184,24 @@ class CodeGeneratorGenerationOrchestrator:
                             settings=settings,
                         )
                     if source_diagnostics:
+                        _rollback_candidate(workspace, owner.unit_id)
                         projection.diagnostics.extend(source_diagnostics)
+                        owner_projection.diagnostics.extend(
+                            item.diagnostic_id for item in source_diagnostics
+                        )
+                        _record_pending_diagnostics(
+                            workspace,
+                            unit=owner,
+                            projection=owner_projection,
+                            files=pending_files,
+                            diagnostic_ids=[item.diagnostic_id for item in source_diagnostics],
+                        )
+                        await self._persist(
+                            sessionmaker,
+                            run_id,
+                            projection,
+                            status=DevelopmentRunStatus.INTEGRATING.value,
+                        )
                         _consume_repair_budget(
                             projection,
                             source_diagnostics,
@@ -1468,6 +2210,12 @@ class CodeGeneratorGenerationOrchestrator:
                         )
                         source_repair_round += 1
                         active_diagnostics = [*diagnostics, *source_diagnostics]
+                        await self._persist(
+                            sessionmaker,
+                            run_id,
+                            projection,
+                            status=DevelopmentRunStatus.INTEGRATING.value,
+                        )
                         continue
 
                     # A polish is durable only after the complete candidate
@@ -1479,9 +2227,14 @@ class CodeGeneratorGenerationOrchestrator:
                         work_unit_id=polish_unit_id,
                         parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
                     )
+                    _archive_generation_diagnostics(projection)
+                    owner_projection.diagnostics = []
                     projection.accepted_checkpoint = checkpoint
                     projection.source_file_count = checkpoint.file_count
                     projection.source_total_bytes = checkpoint.total_bytes
+                    _finalize_candidate(workspace, owner.unit_id)
+                    _cleanup_pending_proposal(workspace, owner.unit_id)
+                    owner_projection.pending_proposal = None
                     await self._persist(
                         sessionmaker,
                         run_id,
@@ -1569,6 +2322,7 @@ class CodeGeneratorGenerationOrchestrator:
                     section_order=list(route.section_order or route.section_ids),
                     execution=projections.get("execution/contract.json"),
                     resource_ledger=projections.get("resources/ledger.json"),
+                    image_policy=projection.image_policy,
                 )
                 for route in plan.routes
             ]
@@ -1608,18 +2362,58 @@ class CodeGeneratorGenerationOrchestrator:
                 "The complete source review exceeds the configured provider context ceiling.",
             )
         await self._validate_run(sessionmaker, run_id)
-        review, context_receipt, raw = await run_integration_review_operation(
-            client,
-            context=context,
-            profile_name=profile,
-            output_version=(
-                "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
-            ),
-            # Leave cache_key unset: run_integration_review_operation derives
-            # a stable role/operation/prompt-content key itself so this
-            # review's cache partition is shared across runs instead of
-            # scoped to one generation_id.
+        output_version = (
+            "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
         )
+        review_output_model = QualityReviewDraftV1 if output_version == "v4" else IntegrationReviewV1
+        _, _, reserved_receipt = build_instructions(
+            "integration_review",
+            {**context, "role_profile": profile},
+            output_model=review_output_model,
+        )
+        review_attempt_id = _reserve_generation_attempt(
+            projection,
+            operation="integration_review",
+            unit_id=f"integration-review-{round_number}",
+            phase="integration_review",
+            request_round=round_number,
+            repair_round=0,
+            context_hash=reserved_receipt.context_hash,
+        )
+        if persist:
+            await self._persist(
+                sessionmaker,
+                run_id,
+                projection,
+                status=DevelopmentRunStatus.INTEGRATING.value,
+            )
+        try:
+            review, context_receipt, raw = await run_integration_review_operation(
+                client,
+                context=context,
+                profile_name=profile,
+                output_version=output_version,
+                # Leave cache_key unset: run_integration_review_operation derives
+                # a stable role/operation/prompt-content key itself so this
+                # review's cache partition is shared across runs instead of
+                # scoped to one generation_id.
+            )
+        except BaseException as exc:
+            _complete_generation_attempt(
+                projection,
+                review_attempt_id,
+                status="cancelled" if isinstance(exc, asyncio.CancelledError) else "failed",
+                error_code=str(getattr(exc, "code", type(exc).__name__)),
+                error_message=str(getattr(exc, "message", str(exc))),
+            )
+            if persist:
+                await self._persist(
+                    sessionmaker,
+                    run_id,
+                    projection,
+                    status=DevelopmentRunStatus.INTEGRATING.value,
+                )
+            raise
         review = _canonicalize_review_owners(
             review,
             {unit.unit_id for unit in plan.work_graph.units},
@@ -1648,6 +2442,12 @@ class CodeGeneratorGenerationOrchestrator:
                 finish_reason=str(getattr(raw, "finish_reason", "") or ""),
                 duration_ms=float(getattr(raw, "latency_ms", 0.0) or 0.0),
             )
+        )
+        _complete_generation_attempt(
+            projection,
+            review_attempt_id,
+            status="succeeded",
+            call_receipt_id=f"call-review-{context_receipt.context_hash[:20]}",
         )
         review_payload = review.model_dump(mode="json")
         if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
@@ -1713,36 +2513,127 @@ class CodeGeneratorGenerationOrchestrator:
         settings: Any,
         checkpoint: SourceCheckpoint | None,
         operation: str = "",
-    ) -> None:
+        pending_files: dict[str, str] | None = None,
+        pending_projection: GenerationWorkUnitProjection | None = None,
+        attempt_id: str = "",
+    ) -> PendingSourceProposal | None:
         if changes is None:
             raise GenerationError(
                 "GENERATION_CHANGES_MISSING", "The generation result did not include changes."
             )
+        pending_signatures = (
+            list(pending_projection.pending_proposal.exported_signatures)
+            if pending_projection is not None and pending_projection.pending_proposal is not None
+            else []
+        )
         if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
-            _validate_v4_generation_coverage(changes, unit, plan, projections)
+            _validate_v4_generation_coverage(
+                changes,
+                unit,
+                plan,
+                projections,
+                existing_exported_signatures=pending_signatures,
+            )
         owners = _owned_paths(unit, plan, projections)
         original = workspace.repo_dir
         unit_slug = _unit_dir_slug(unit.unit_id)
+        existing_pending = dict(pending_files or {})
+        old = _candidate_backup_path(workspace, unit.unit_id)
+        if old.exists():
+            # A process can die between the directory swap and checkpoint
+            # acceptance. Restore the accepted side before applying the next
+            # response; the pending ledger remains the source of repair state.
+            _rollback_candidate(workspace, unit.unit_id)
         candidate = workspace.root / f"candidate-{unit_slug}"
         if candidate.exists():
             fs_safe.remove_tree(candidate)
-        _copy_without_disposables(original, candidate)
-        normalized = validate_generation_changes(
+        normalized, validation_errors = validate_generation_changes_incrementally(
             changes,
             owned_paths=owners,
-            repo_dir=candidate,
+            repo_dir=original,
             max_file_bytes=int(settings.code_generator_generation.max_file_bytes),
             max_response_bytes=int(settings.code_generator_generation.max_response_bytes),
             allowed_packages=allowed_packages,
             public_text=public_text,
             repair_mode=operation == "repair",
         )
-        for change in normalized:
-            target = (candidate / change.path).resolve()
+        merged_files = dict(existing_pending)
+        merged_files.update({change.path: change.complete_utf8_content for change in normalized})
+        merged_signatures = _merge_pending_signatures(
+            pending_signatures, list(changes.exported_signatures)
+        )
+        restricted_evidence: dict[str, str] = {}
+        if validation_errors:
+            valid_paths = {change.path for change in normalized}
+            for change in changes.files:
+                relative = change.path.replace("\\", "/").strip("/")
+                path = Path(relative)
+                if (
+                    relative
+                    and not path.is_absolute()
+                    and ".." not in path.parts
+                    and relative not in valid_paths
+                ):
+                    restricted_evidence[relative] = change.complete_utf8_content
+            if pending_projection is not None and pending_projection.pending_proposal is not None:
+                restricted_evidence = {
+                    **_pending_rejected_files_from_ledger(workspace, pending_projection),
+                    **restricted_evidence,
+                }
+        if validation_errors:
+            if merged_files or restricted_evidence:
+                proposal = _build_pending_proposal(
+                    workspace=workspace,
+                    unit=unit,
+                    owned_paths=owners,
+                    base_checkpoint_hash=checkpoint.checkpoint_hash if checkpoint else "",
+                    base_repo=original,
+                    files=merged_files,
+                    attempt_id=attempt_id,
+                    exported_signatures=merged_signatures,
+                    restricted_evidence=restricted_evidence,
+                )
+                proposal = _write_pending_proposal(
+                    workspace,
+                    proposal,
+                    merged_files,
+                    restricted_evidence=restricted_evidence,
+                )
+                if pending_projection is not None:
+                    pending_projection.pending_proposal = proposal
+            raise validation_errors[0]
+        if not merged_files:
+            raise GenerationError(
+                "GENERATION_CHANGES_MISSING", "The generation result did not include source files."
+            )
+
+        _copy_without_disposables(original, candidate)
+        # Every body in this merged proposal was admitted by the per-file gate
+        # in this attempt or by the integrity-checked pending ledger. The
+        # complete merged tree is the only thing that can enter the candidate.
+        for relative_path, body in sorted(merged_files.items()):
+            target = (candidate / relative_path).resolve()
+            if not target.is_relative_to(candidate.resolve()):
+                raise SourceValidationError(
+                    "SOURCE_OWNERSHIP_ESCAPE",
+                    "The pending source proposal escaped the candidate tree.",
+                    file=relative_path,
+                )
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(change.complete_utf8_content, encoding="utf-8", newline="\n")
-        old = workspace.root / f"repo-{unit_slug}-old"
-        fs_safe.remove_tree(old, required=False)
+            target.write_text(body, encoding="utf-8", newline="\n")
+        proposal = _build_pending_proposal(
+            workspace=workspace,
+            unit=unit,
+            owned_paths=owners,
+            base_checkpoint_hash=checkpoint.checkpoint_hash if checkpoint else "",
+            base_repo=original,
+            files=merged_files,
+            attempt_id=attempt_id,
+            exported_signatures=merged_signatures,
+        )
+        proposal = _write_pending_proposal(workspace, proposal, merged_files)
+        if pending_projection is not None:
+            pending_projection.pending_proposal = proposal
         try:
             fs_safe.rename_dir_with_retry(original, old)
             fs_safe.rename_dir_with_retry(candidate, original)
@@ -1763,7 +2654,10 @@ class CodeGeneratorGenerationOrchestrator:
             # recreates it.
             with contextlib.suppress(fs_safe.FsSafeError):
                 fs_safe.rename_dir_with_retry(installed, original / "node_modules")
-        fs_safe.remove_tree(old, required=False)
+        # Keep ``old`` until source/contract checks and checkpoint creation
+        # succeed. A rejected candidate can then be rolled back without
+        # losing the complete accepted tree.
+        return proposal
 
     async def _model_result(
         self,
@@ -2318,7 +3212,7 @@ class CodeGeneratorGenerationOrchestrator:
         await self._persist_ledgers(sessionmaker, run_id, resource_ledger, dependency_ledger)
 
     def _initial_projection(
-        self, run: Any, generation_id: str, plan: SitePlan
+        self, run: Any, generation_id: str, plan: SitePlan, *, settings: Any
     ) -> GenerationProjection:
         return GenerationProjection(
             generation_id=generation_id,
@@ -2329,6 +3223,7 @@ class CodeGeneratorGenerationOrchestrator:
                 (run.dependency_ledger or {}).get("dependency_ledger_hash", "")
             ),
             phase="generating_foundation",
+            image_policy=build_image_policy_snapshot(settings, plan=plan),
             work_units=[
                 GenerationWorkUnitProjection.model_validate(_unit_projection_dict(unit))
                 for unit in plan.work_graph.units
@@ -2400,14 +3295,50 @@ class CodeGeneratorGenerationOrchestrator:
             )
             await db.commit()
 
-    async def _fail(self, sessionmaker: Any, run_id: UUID, issue: SafeIssue) -> None:
+    async def _fail(
+        self,
+        sessionmaker: Any,
+        run_id: UUID,
+        issue: SafeIssue,
+        *,
+        projection: GenerationProjection | None = None,
+    ) -> None:
         async with sessionmaker() as db:
             repo = CodeGeneratorDevelopmentRepository(db)
             run = await repo.get(run_id)
             if run is None:
                 return
-            issues = [issue.model_dump(mode="json")]
-            await _cas(repo, run, DevelopmentRunStatus.NEEDS_ATTENTION.value, {"issues": issues})
+            active_projection = projection
+            if active_projection is None and isinstance(run.generation_projection, dict):
+                with contextlib.suppress(ValidationError):
+                    active_projection = GenerationProjection.model_validate(
+                        run.generation_projection
+                    )
+            issues = [
+                item.model_dump(mode="json")
+                for item in (active_projection.issues if active_projection is not None else [])
+            ]
+            issues.append(issue.model_dump(mode="json"))
+            unique_issues: list[dict[str, Any]] = []
+            seen_issue_keys: set[tuple[str, str]] = set()
+            for item in issues:
+                key = (str(item.get("code", "")), str(item.get("message", "")))
+                if key in seen_issue_keys:
+                    continue
+                seen_issue_keys.add(key)
+                unique_issues.append(item)
+            values: dict[str, Any] = {
+                "issues": unique_issues,
+                "terminal_failure": {
+                    "stage": "generation",
+                    "code": issue.code,
+                    "message": issue.message,
+                    "first_issue": unique_issues[0] if unique_issues else {},
+                },
+            }
+            if active_projection is not None:
+                values["generation_projection"] = active_projection.model_dump(mode="json")
+            await _cas(repo, run, DevelopmentRunStatus.NEEDS_ATTENTION.value, values)
             await repo.append_event(
                 run_id,
                 event_type="needs_attention",
@@ -2421,7 +3352,8 @@ class CodeGeneratorGenerationOrchestrator:
         # stage can fail (e.g. repair budget exhausted) well before the run
         # ever reaches verify_and_preview, so this is the only export attempt
         # such a run gets. Never allowed to affect the failure-reporting flow
-        # above; a run that failed before any source existed exports nothing.
+        # above; a run that failed before any source existed receives a
+        # metadata-only safe receipt.
         try:
             from oryxenai.agents.code_generator.core.portfolio_export import (
                 build_export_receipt,
@@ -2434,7 +3366,18 @@ class CodeGeneratorGenerationOrchestrator:
                 settings=settings,
                 run_id=str(run_id),
                 reason=issue.code,
-                issues=issues,
+                issues=unique_issues,
+                generation_projection=(
+                    active_projection.model_dump(mode="json")
+                    if active_projection is not None
+                    else None
+                ),
+                terminal_failure={
+                    "stage": "generation",
+                    "code": issue.code,
+                    "message": issue.message,
+                    "first_issue": unique_issues[0] if unique_issues else {},
+                },
             )
             if exported is not None:
                 receipt = build_export_receipt(exported)
@@ -2536,6 +3479,8 @@ def _operation_context(
     diagnostics: list[SourceDiagnostic],
     repair_round: int,
     rejected_attempt_files: dict[str, str] | None = None,
+    pending_proposal: PendingSourceProposal | None = None,
+    image_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     site = projections["site/contract.json"]
     routes = {
@@ -2698,6 +3643,7 @@ def _operation_context(
             projections=projections,
             operation=operation,
             owned_paths=owned,
+            image_policy=image_policy,
         ),
         "site_contract": {
             "routes": route_slices,
@@ -2717,6 +3663,7 @@ def _operation_context(
         "plan": context_plan,
         "resource_bindings": context_resource_bindings,
         "execution_contract": context_execution_contract,
+        "image_policy": dict(image_policy or {}),
         "prior_checkpoint": checkpoint.model_dump(mode="json") if checkpoint else {},
         "owned_paths": owned,
         # Ground truth for create-vs-replace: files present in the current
@@ -2726,6 +3673,36 @@ def _operation_context(
         "shared_source": shared_source,
         # Rejected files from the prior attempt of this unit, when present.
         "previous_attempt_files": previous_attempt_files,
+        # Complete proposal bookkeeping stays available even when body text is
+        # bounded by the context ceiling. This tells a repair whether a file is
+        # missing, pending, unchanged, or genuinely changed without asking the
+        # model to infer deletion from an omitted body.
+        "pending_proposal": (
+            pending_proposal.model_dump(mode="json") if pending_proposal is not None else {}
+        ),
+        "pending_file_inventory": {
+            "expected_paths": list(pending_proposal.expected_paths)
+            if pending_proposal is not None
+            else [],
+            "present_paths": list(pending_proposal.present_paths)
+            if pending_proposal is not None
+            else [],
+            "pending_paths": list(pending_proposal.pending_paths)
+            if pending_proposal is not None
+            else [],
+            "missing_paths": list(pending_proposal.missing_paths)
+            if pending_proposal is not None
+            else [],
+            "changed_paths": list(pending_proposal.changed_paths)
+            if pending_proposal is not None
+            else [],
+            "file_hashes": dict(pending_proposal.file_hashes)
+            if pending_proposal is not None
+            else {},
+            "file_sizes": dict(pending_proposal.file_sizes)
+            if pending_proposal is not None
+            else {},
+        },
         "input_hashes": [
             str(projections.get("handoff-report.json", {}).get("projection_hashes", {})),
             checkpoint.checkpoint_hash if checkpoint else "",
@@ -3691,6 +4668,8 @@ def _validate_v4_generation_coverage(
     unit: WorkUnit,
     plan: SitePlan,
     projections: dict[str, dict[str, Any]],
+    *,
+    existing_exported_signatures: list[ExportedSignature] | None = None,
 ) -> None:
     site = projections["site/contract.json"]
     grouped_content = content_ids_by_section(
@@ -3738,14 +4717,18 @@ def _validate_v4_generation_coverage(
         if len(kept_indices) != len(changes.files):
             changes.files = [changes.files[index] for index in kept_indices]
     changed_paths = [item.path.replace("\\", "/") for item in changes.files]
-    signatures = {
+    current_signatures = {
         (item.path.replace("\\", "/"), item.export_name) for item in changes.exported_signatures
     }
-    if any(path not in changed_paths for path, _export in signatures):
+    if any(path not in changed_paths for path, _export in current_signatures):
         raise SourceValidationError(
             "SOURCE_EXPORT_SIGNATURE_PATH",
             "An exported signature references a file outside the v4 source envelope.",
         )
+    signatures = current_signatures | {
+        (item.path.replace("\\", "/"), item.export_name)
+        for item in (existing_exported_signatures or [])
+    }
     signature_paths = {path for path, _export in signatures}
     changed_exported_paths = {
         item.path.replace("\\", "/")

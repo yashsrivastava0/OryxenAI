@@ -1423,6 +1423,9 @@ class SectionRegionV4(BaseModel):
     width_ratio_max: float = Field(default=1.0, gt=0, le=1)
     overlap_ratio_max: float = Field(default=0.0, ge=0, le=0.75)
     sticky_allowed: bool = False
+    layout_recipe: Literal[
+        "text-with-supporting-media", "work-detail-list", "timeline-list"
+    ] = "text-with-supporting-media"
 
     @model_validator(mode="after")
     def _geometry_range(self) -> SectionRegionV4:
@@ -1593,6 +1596,46 @@ class ResourcePlacementV4(BaseModel):
     @classmethod
     def _sizes(cls, value: str) -> str:
         return _validate_source_sizes(value)
+
+
+class ImagePolicySnapshotV1(BaseModel):
+    """Immutable host-owned image obligations for one generation run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-image-policy-v1"] = (
+        "code-generator-image-policy-v1"
+    )
+    minimum_visible_images: int = Field(default=0, ge=0, le=24)
+    preferred_visible_images: int = Field(default=0, ge=0, le=48)
+    require_primary_route_image: bool = False
+    approved_image_slot_ids: list[str] = Field(default_factory=list, max_length=256)
+    primary_route_id: str = ""
+    text_only_exemption: bool = False
+    policy_hash: str = ""
+
+    @model_validator(mode="after")
+    def stamp_policy_hash(self) -> ImagePolicySnapshotV1:
+        self.approved_image_slot_ids = sorted(
+            {value.strip() for value in self.approved_image_slot_ids if value.strip()}
+        )
+        if self.text_only_exemption and self.approved_image_slot_ids:
+            raise ValueError("text-only image policy cannot contain approved image slots")
+        if self.preferred_visible_images < self.minimum_visible_images:
+            raise ValueError("preferred image coverage cannot be below minimum coverage")
+        if not self.approved_image_slot_ids:
+            self.minimum_visible_images = 0
+            self.preferred_visible_images = 0
+            self.require_primary_route_image = False
+            self.text_only_exemption = True
+        payload = self.model_dump(mode="json", exclude={"policy_hash"})
+        computed = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+        if self.policy_hash and self.policy_hash != computed:
+            raise ValueError("policy_hash does not match the image policy snapshot")
+        self.policy_hash = computed
+        return self
 
 
 class MotionPropertyExpectationV4(BaseModel):
@@ -1939,6 +1982,9 @@ class RegionRuntimeCheckV1(BaseModel):
     width_ratio_max: float
     overlap_ratio_max: float
     sticky_allowed: bool
+    layout_recipe: Literal[
+        "text-with-supporting-media", "work-detail-list", "timeline-list"
+    ] = "text-with-supporting-media"
 
 
 class DistinctiveMoveRuntimeCheckV1(BaseModel):
@@ -1977,6 +2023,8 @@ class ResourceRuntimeCheckV1(BaseModel):
     minimum_visible_ratio: float
     require_srcset: bool = True
     require_dimensions: bool = True
+    policy_required: bool = False
+    admitted_local_paths: list[str] = Field(default_factory=list)
 
 
 class InteractionRuntimeCheckV1(BaseModel):
@@ -2027,6 +2075,7 @@ class DesignRealizationContract(BaseModel):
     region_checks: list[RegionRuntimeCheckV1] = Field(min_length=1)
     distinctive_move_checks: list[DistinctiveMoveRuntimeCheckV1] = Field(min_length=1)
     resource_checks: list[ResourceRuntimeCheckV1] = Field(default_factory=list)
+    image_obligations: list[ResourceRuntimeCheckV1] = Field(default_factory=list)
     interaction_checks: list[InteractionRuntimeCheckV1] = Field(default_factory=list)
     motion_checks: list[MotionRuntimeCheckV1] = Field(default_factory=list)
     font_checks: list[FontRuntimeCheckV1] = Field(min_length=1, max_length=2)
@@ -2775,6 +2824,65 @@ class GenerationCallReceipt(BaseModel):
     cached_tokens: int = Field(default=0, ge=0)
 
 
+class GenerationAttemptRecord(BaseModel):
+    """Durable lifecycle record for one logical generation attempt.
+
+    A provider call can fail after the request has left the process, and a
+    worker can be redelivered before the surrounding projection is updated.
+    Keeping the reservation and its terminal outcome as separate records makes
+    that uncertainty visible without retaining the prompt or model response.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-attempt-v1"] = "code-generator-attempt-v1"
+    attempt_id: str
+    operation_id: str
+    unit_id: str
+    phase: str = "generation"
+    request_round: int = 0
+    repair_round: int = 0
+    status: Literal["reserved", "succeeded", "cache_hit", "failed", "cancelled"] = "reserved"
+    call_receipt_id: str = ""
+    error_code: str = ""
+    error_message: str = ""
+    reserved_at: str
+    completed_at: str = ""
+
+
+class PendingSourceProposal(BaseModel):
+    """Metadata for a complete, not-yet-accepted unit proposal.
+
+    File bodies live in the run's restricted ledger file referenced by
+    ``stored_relative_path``. The database projection carries hashes and the
+    complete inventory so a restart can resume the same proposal without
+    placing source text in the public API projection.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-pending-proposal-v1"] = (
+        "code-generator-pending-proposal-v1"
+    )
+    unit_id: str
+    attempt_id: str
+    base_checkpoint_hash: str = ""
+    owned_paths: list[str] = Field(default_factory=list)
+    expected_paths: list[str] = Field(default_factory=list)
+    present_paths: list[str] = Field(default_factory=list)
+    pending_paths: list[str] = Field(default_factory=list)
+    missing_paths: list[str] = Field(default_factory=list)
+    changed_paths: list[str] = Field(default_factory=list)
+    file_hashes: dict[str, str] = Field(default_factory=dict)
+    file_sizes: dict[str, int] = Field(default_factory=dict)
+    restricted_evidence_paths: list[str] = Field(default_factory=list)
+    restricted_evidence_hashes: dict[str, str] = Field(default_factory=dict)
+    exported_signatures: list[ExportedSignature] = Field(default_factory=list)
+    diagnostic_ids: list[str] = Field(default_factory=list)
+    stored_relative_path: str = ""
+    updated_at: str
+
+
 class SourceCheckpoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2831,6 +2939,7 @@ class GenerationWorkUnitProjection(BaseModel):
     request_round: int = 0
     repair_round: int = 0
     diagnostics: list[str] = Field(default_factory=list)
+    pending_proposal: PendingSourceProposal | None = None
 
 
 class GenerationProjection(BaseModel):
@@ -2850,7 +2959,10 @@ class GenerationProjection(BaseModel):
     accepted_checkpoint: SourceCheckpoint | None = None
     context_receipts: list[GenerationContextReceipt] = Field(default_factory=list)
     call_receipts: list[GenerationCallReceipt] = Field(default_factory=list)
+    attempt_records: list[GenerationAttemptRecord] = Field(default_factory=list)
+    image_policy: ImagePolicySnapshotV1 | None = None
     diagnostics: list[SourceDiagnostic] = Field(default_factory=list)
+    diagnostic_history: list[SourceDiagnostic] = Field(default_factory=list)
     repair_rounds: int = 0
     repair_budget_used: int = 0
     repair_fingerprint_counts: dict[str, int] = Field(default_factory=dict)
@@ -2877,6 +2989,7 @@ class CandidateIdentity(BaseModel):
     source_manifest_hash: str
     scaffold_toolchain_profile_hash: str
     verification_profile_hash: str
+    image_policy_hash: str = ""
     identity_hash: str = ""
 
     @model_validator(mode="after")
@@ -3097,6 +3210,7 @@ class RuntimeEvidence(BaseModel):
     overflow_results: list[dict[str, str | int | bool]] = Field(default_factory=list)
     geometry_results: list[dict[str, Any]] = Field(default_factory=list)
     realization_results: list[dict[str, Any]] = Field(default_factory=list)
+    resource_observations: list[dict[str, Any]] = Field(default_factory=list)
     passed: bool
     screenshot_relative_path: str = ""
 

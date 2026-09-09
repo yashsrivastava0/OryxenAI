@@ -657,7 +657,11 @@ class CodeGeneratorGenerationConfig(BaseModel):
     # Structured route calls are serialized by default to avoid turning
     # provider rate limits into repeated generation failures. Deployments can
     # raise this explicitly after confirming their provider capacity.
-    route_concurrency: int = 1
+    # Source-generation route batches are deliberately serial in this
+    # release. The generation projection and filesystem checkpoint form one
+    # authoritative sequence; parallel siblings remain unavailable until
+    # centralized reservation and cancellation accounting is proven.
+    route_concurrency: int = Field(default=1, ge=1, le=1)
     artifact_store_provider: str = "local_fs"
     artifact_root: str = ".workspace/code-generator-artifacts"
     max_context_chars: int = 120000

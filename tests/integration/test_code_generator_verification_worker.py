@@ -103,9 +103,15 @@ def _plan() -> SitePlan:
             ],
             "acceptance_coverage": [
                 {
-                    "criterion_id": "criterion:home:0",
+                    "criterion_id": "criterion:home:hero",
                     "route_id": "home",
-                    "expected_outcome": "evidence-first hierarchy",
+                    "expected_outcome": "Positioning",
+                    "source_marker": "data-criterion-id",
+                },
+                {
+                    "criterion_id": "criterion:home:project",
+                    "route_id": "home",
+                    "expected_outcome": "Evidence",
                     "source_marker": "data-criterion-id",
                 }
             ],
