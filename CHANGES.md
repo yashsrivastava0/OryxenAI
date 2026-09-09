@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 00:03 +05:30 - Codex (GPT-6 / OpenAI) - [90e8349] - fix(code-generator): normalize typography token names
+
+Normalized prefixed fluid type-step names at the schema and compiler
+boundaries, so a planner value such as `type-heading` produces the canonical
+`--type-heading-*` properties instead of `--type-type-heading-*`. Added prompt
+guidance plus validated and trusted-construction regressions. The full Code
+Generator unit suite passes (312), mypy passes, and Ruff lint passes.
+
 ### 2026-09-09 23:39 +05:30 - Codex (GPT-6 / OpenAI) - [9716681] - fix(code-generator): catch inert disclosure panels early
 
 The second authorized live campaign run reached source generation and exposed
