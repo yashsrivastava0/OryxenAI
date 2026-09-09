@@ -98,6 +98,7 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
     ResourceProviderError,
     default_adapters,
 )
+from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 from oryxenai.agents.code_generator.core.source_generation_adapter import (
     adapt_v4_generation_result,
     stamp_v4_required_coverage,
@@ -3542,15 +3543,21 @@ def _v4_image_assets_for_unit(
     }
     materialized = projections.get("generated/resource-assets.json", {})
     assets = materialized.get("image_assets", []) if isinstance(materialized, dict) else []
-    return {
-        str(asset.get("resource_id", "")): {
+    result: dict[str, dict[str, Any]] = {}
+    for asset in assets:
+        if not isinstance(asset, dict) or not is_image_category(asset.get("category", "image")):
+            continue
+        slot_id = str(asset.get("resource_slot_id") or asset.get("resource_id") or "")
+        placement = placements.get(slot_id)
+        if placement is None:
+            continue
+        result[slot_id] = {
             **dict(asset),
-            "element_marker": placements[str(asset.get("resource_id", ""))].element_marker,
-            "element_selector": placements[str(asset.get("resource_id", ""))].element_selector,
+            "resource_slot_id": slot_id,
+            "element_marker": placement.element_marker,
+            "element_selector": placement.element_selector,
         }
-        for asset in assets
-        if isinstance(asset, dict) and str(asset.get("resource_id", "")) in placements
-    }
+    return result
 
 
 def _v4_motion_beats_for_unit(

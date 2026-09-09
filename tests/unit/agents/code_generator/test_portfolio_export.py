@@ -9,6 +9,8 @@ from pathlib import Path
 import oryxenai.agents.code_generator.core.portfolio_export as portfolio_export
 import oryxenai.jobs.handlers.code_generator_verification as code_generator_verification
 from oryxenai.agents.code_generator.core.portfolio_export import (
+    _generation_report,
+    _source_references_resource_slot,
     build_export_receipt,
     export_failed_run,
 )
@@ -20,6 +22,59 @@ def _settings_with_roots(tmp_path: Path):
     settings.code_generator_generation.workspace_root = str(tmp_path / "workspace")
     settings.code_generator_verification.export_root = str(tmp_path / "export")
     return settings
+
+
+def test_generation_report_reads_receipt_fields_and_image_evidence() -> None:
+    report = _generation_report(
+        {
+            "run_id": "run-1",
+            "quality_review": {"accepted": True},
+            "verification": {
+                "gate_results": [
+                    {"gate_id": "source_contract", "status": "passed", "diagnostics": []},
+                    {
+                        "gate_id": "dom_runtime",
+                        "status": "passed",
+                        "diagnostics": [
+                            {"code": "RUNTIME_REGION_GAP", "severity": "advisory"}
+                        ],
+                    },
+                ],
+                "advisories": [],
+            },
+            "build_attempt": {"status": "success", "build_hash": "build-1"},
+            "image_evidence": {
+                "planned_count": 1,
+                "materialized_count": 1,
+                "rendered_count": 1,
+                "failed_count": 0,
+                "entries": [
+                    {
+                        "resource_slot_id": "slot-hero",
+                        "route_id": "home",
+                        "section_id": "hero",
+                        "materialized": True,
+                        "rendered": True,
+                        "disposition": "admitted",
+                    }
+                ],
+            },
+            "routes": [],
+            "call_ledger": {},
+        }
+    )
+
+    assert "Quality review: `accepted`" in report
+    assert "Verification: `passed`" in report
+    assert "Build attempt: `success`" in report
+    assert "Planned: `1`; materialized: `1`; rendered: `1`; failed: `0`" in report
+    assert "Advisory observations: `1`" in report
+
+
+def test_image_evidence_recognizes_literal_jsx_resource_bindings() -> None:
+    assert _source_references_resource_slot('<LocalImage resourceId="slot-hero" />', "slot-hero")
+    assert _source_references_resource_slot('<LocalImage resourceId={`slot-hero`} />', "slot-hero")
+    assert not _source_references_resource_slot('<LocalImage resourceId="slot-other" />', "slot-hero")
 
 
 async def test_export_failed_run_returns_none_when_nothing_was_generated_yet(

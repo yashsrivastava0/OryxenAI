@@ -14,6 +14,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
 )
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 from oryxenai.agents.code_generator.core.source_lexing import strip_source_comments
 from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
@@ -263,7 +264,45 @@ def validate_final_source(
         for item in site.get("public_content", [])
         if isinstance(item, dict)
     }
-    blueprint_v4 = isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+    blueprint_v4_plan = (
+        plan.experience_blueprint
+        if isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+        else None
+    )
+    blueprint_v4 = blueprint_v4_plan is not None
+    if blueprint_v4_plan is not None:
+        execution = projections.get("execution/contract.json", {})
+        binding_categories = {
+            str(item.get("resource_slot_id", "")): item.get("category", "")
+            for item in execution.get("slots", [])
+            if isinstance(item, dict) and str(item.get("resource_slot_id", ""))
+        }
+        image_placements = [
+            item
+            for item in blueprint_v4_plan.resource_placements
+            if is_image_category(binding_categories.get(item.resource_slot_id, ""))
+        ]
+        generated_assets = projections.get("generated/resource-assets.json", {})
+        materialized_image_slots = {
+            str(item.get("resource_slot_id") or item.get("resource_id") or "")
+            for item in (
+                generated_assets.get("image_assets", [])
+                if isinstance(generated_assets, dict)
+                else []
+            )
+            if isinstance(item, dict) and is_image_category(item.get("category", "image"))
+        }
+        if image_placements and not any(
+            item.resource_slot_id in materialized_image_slots for item in image_placements
+        ):
+            diagnostics.append(
+                _diag(
+                    "SOURCE_REQUIRED_IMAGE_MISSING",
+                    "The blueprint placed approved image slots, but no local image was materialized for the generated source.",
+                    route_id=image_placements[0].route_id,
+                    symbol="resource_placements",
+                )
+            )
     content_keys = content_ids_by_section(
         [item for item in site.get("public_content", []) if isinstance(item, dict)],
         [item for item in site.get("facts", []) if isinstance(item, dict)],

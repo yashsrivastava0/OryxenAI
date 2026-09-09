@@ -2027,7 +2027,10 @@ async def _export_portfolio(
     """Copy the complete portfolio (source + dist + metadata) to the export
     root. Advisory only: failures are recorded as events, never raised."""
 
-    from oryxenai.agents.code_generator.core.portfolio_export import export_portfolio
+    from oryxenai.agents.code_generator.core.portfolio_export import (
+        build_image_evidence,
+        export_portfolio,
+    )
 
     details: dict[str, object]
     try:
@@ -2045,6 +2048,17 @@ async def _export_portfolio(
                 "pack_reference": pack_reference,
                 "trace_id": trace_id,
                 "quality_review": quality_review,
+                "build_attempt": {
+                    "status": "success",
+                    "build_hash": manifest.build_hash,
+                    "entry_count": len(manifest.entries),
+                    "total_bytes": manifest.total_bytes,
+                },
+                "image_evidence": build_image_evidence(
+                    repo_dir=workspace.repo_dir,
+                    run_root=workspace.root,
+                    plan=plan,
+                ),
                 "realization_contracts": realization_contracts,
                 "provenance": provenance,
                 "call_ledger": _export_call_ledger(generation_projection),
