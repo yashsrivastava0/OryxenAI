@@ -38,6 +38,9 @@ Preserve the typed recipe recorded for every region. The exact
 detail rows mounted with explicit gaps and separators, and `timeline-list`
 keeps ordered entries and its spine in normal flow. Keep `min-width: 0`, a
 readable measure, bounded media frames, and a complete reduced-motion state.
+The blueprint's `columns_mobile`/`columns_tablet`/`columns_desktop` values are
+abstract design-grid spans, not literal CSS track counts; a good two-track
+asymmetric implementation does not need to become an eight-track grid.
 The composer may not move the region marker to an outer wrapper or introduce a
 fourth layout recipe.
 

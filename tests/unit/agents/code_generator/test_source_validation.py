@@ -778,6 +778,54 @@ def test_route_batch_disclosure_accepts_boolean_state_and_reports_its_owner(tmp_
     assert diagnostics[0].file == design_path
 
 
+def test_route_batch_rejects_empty_disclosure_panel(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    education_path = "src/routes/home/sections/Education.tsx"
+    education = tmp_path / education_path
+    education.write_text(
+        """export default function Education() {
+  return <section id=\"education\" data-content-id=\"home:education\">
+    <Disclosure label=\"Details\"><span aria-hidden=\"true\" /></Disclosure>
+  </section>;
+}
+""",
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [education_path],
+        route_id="home",
+        section_ids=["home:education"],
+        section_selectors_by_section={"home:education": "#education"},
+        work_unit_id="route-home-batch-2",
+    )
+
+    assert [item.code for item in diagnostics] == ["SOURCE_NONINFORMATIVE_DISCLOSURE"]
+    assert diagnostics[0].file == education_path
+    assert diagnostics[0].line == 3
+
+    education.write_text(
+        education.read_text(encoding="utf-8").replace(
+            '<span aria-hidden="true" />',
+            '{contentValue("content:home:education:details-abc123")}',
+        ),
+        encoding="utf-8",
+    )
+    assert not any(
+        item.code == "SOURCE_NONINFORMATIVE_DISCLOSURE"
+        for item in validate_route_batch_contract(
+            tmp_path,
+            [education_path],
+            route_id="home",
+            section_ids=["home:education"],
+            section_selectors_by_section={"home:education": "#education"},
+            work_unit_id="route-home-batch-2",
+        )
+    )
+
+
 def test_route_batch_motion_diagnostic_names_the_beat_owner_stylesheet(tmp_path) -> None:
     sections = tmp_path / "src" / "routes" / "home" / "sections"
     sections.mkdir(parents=True)

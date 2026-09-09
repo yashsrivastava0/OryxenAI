@@ -12,6 +12,10 @@ supporting-media recipe may use two wide-screen peers only when an approved
 image is present; otherwise keep the structural fallback single-column and do
 not leave an empty track. Do not move a region marker to an ancestor or repair
 a recipe by deleting approved content or required interactions.
+The blueprint's `columns_mobile`/`columns_tablet`/`columns_desktop` values are
+abstract design-grid spans, not literal CSS track counts. Preserve the
+recipe's single versus multi-column behavior without forcing a numeric track
+count copied from the blueprint.
 
 If a repair touches CSS, every emitted design-token custom property carries
 its group prefix: a color token named `cobalt` compiles to `--color-cobalt`,
@@ -144,6 +148,12 @@ actually gone.
 - `SOURCE_ROUTE_BATCH_INTERACTION_STATE_MISSING` /
   `INTERACTION_STATE_NOT_REALIZED`: implement the exact state attribute/value,
   navigation, focus, and keyboard transition on the assigned target.
+- `SOURCE_NONINFORMATIVE_DISCLOSURE` / `noninformative-disclosure`: remove the
+  empty disclosure control, or make its panel expose existing approved
+  meaning that is not already duplicated in the always-visible content. A
+  panel containing only whitespace, comments, or an empty
+  `aria-hidden="true"` element is inert. Do not invent education, project, or
+  capability details to fill it.
 - Disclosure repairs render one capability/content list only. Synchronize the
   button's `aria-expanded` and `aria-controls` with `hidden={!open}` (or
   conditional rendering) on that single panel. The native semantic list is

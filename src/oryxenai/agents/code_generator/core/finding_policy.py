@@ -48,6 +48,7 @@ _BLOCKING_MODEL_CODES = {
     "interaction-state-missing",
     "redundant-disclosure-control",
     "blueprint-resource-role-mismatch",
+    "noninformative-disclosure",
 }
 _ADVISORY_MODEL_CODES = {
     # These are whole-site aesthetic observations.  In particular, the
@@ -57,6 +58,10 @@ _ADVISORY_MODEL_CODES = {
     "composition-missing-section-rail",
     "motion-grouping-mismatch",
     "typography-role-coverage",
+    # ``columns_*`` are abstract design-grid spans; a legitimate two-track
+    # realization must not be treated as a failed functional contract merely
+    # because the provider compares the span with CSS track count.
+    "blueprint-desktop-column-mismatch",
 }
 _ADVISORY_TERMS = (
     "visual",

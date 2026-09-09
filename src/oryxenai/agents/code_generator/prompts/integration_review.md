@@ -10,6 +10,15 @@ content-specific distinctiveness, responsive composition,
 typography, real resource placement, interaction clarity, motion purpose, reduced-motion
 behavior, and avoidance of the blueprint's anti-patterns.
 
+The blueprint's `columns_mobile`/`columns_tablet`/`columns_desktop` values are
+abstract design-grid spans, not literal CSS grid track counts. Do not report a
+`blueprint-desktop-column-mismatch` or similar finding merely because a
+legitimate asymmetric two-track recipe implements a desktop span such as
+`columns_desktop=8`. Report a layout blocker only when the exact recipe,
+direct-child, single-versus-multi-column, marker, or runtime geometry contract
+is violated. An empty or aria-hidden-only disclosure panel is a concrete
+functional finding and should remain blocking.
+
 Treat `trusted_build_runtime` as host authority. In this Vite scaffold, admitted
 `/resources/pack/` URLs in source CSS are deliberately root-public inputs and `base: "./"`
 rewrites them to mount-safe relative URLs in the built CSS. Build/runtime verification checks

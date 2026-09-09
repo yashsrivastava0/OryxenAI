@@ -94,11 +94,14 @@ Visual and implementation contract:
 - The verification viewports are exactly 390px (mobile), 768px (tablet), and
   1440px (desktop) -- these mirror `code_generator_verification.viewport_profiles`
   in config/app.toml and must stay in sync with it. A region's
-  `columns_mobile`/`columns_tablet`/`columns_desktop` are checked AT those
-  exact widths, so anchor `min-width` media queries at `768px` and `1440px`
-  (not an arbitrary round number such as `960px`) so the layout that
-  actually renders at each verified width matches the column count planned
-  for it.
+  `columns_mobile`/`columns_tablet`/`columns_desktop` values are abstract
+  design-grid spans, not literal CSS track counts. The runtime contract checks
+  whether a region is single-column or multi-column at those exact widths; it
+  does not require an eight-column `grid-template-columns` declaration just
+  because the blueprint says `columns_desktop=8`. Anchor `min-width` media
+  queries at `768px` and `1440px` (not an arbitrary round number such as
+  `960px`) so the layout mode that renders at each verified width matches the
+  recipe planned for it.
 - Never combine `aspect-ratio` with an unconstrained `min-height` on a flex
   or grid child -- the automatic minimum size a browser computes for that
   item can transfer the aspect ratio into a minimum WIDTH wider than its
@@ -160,7 +163,10 @@ Visual and implementation contract:
   DOM node than `data-motion-ready`, and a compound selector requiring both
   will never match either one.
 - Every visible link, button, and disclosure has a keyboard name, focus state,
-  and at least a 44px inline and block hit area.
+  and at least a 44px inline and block hit area. Never render an inert
+  disclosure: its panel must contain visible meaningful approved content, or
+  the disclosure control must be removed. An empty panel or a panel made only
+  from an `aria-hidden="true"` empty element is a source-contract failure.
 - Put every assigned interaction on the actual target element identified by
   its `target_selector`. That same JSX opening tag must carry both the exact
   `data-interaction-id` attribute and the blueprint `literal_marker`. An
