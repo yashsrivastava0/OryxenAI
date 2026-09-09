@@ -1182,6 +1182,9 @@ def _exact_selector_declarations(
 
 
 _ATTR_SELECTOR_LITERAL_RE = re.compile(r'^\[([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2\]$')
+_JSX_ATTR_MARKER_LITERAL_RE = re.compile(
+    r'^([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2$'
+)
 
 
 def _literal_present(literal: str, source: str) -> bool:
@@ -1196,18 +1199,34 @@ def _literal_present(literal: str, source: str) -> bool:
     selector at all. Try the exact literal first (covers every non-selector
     marker shape unchanged), then fall back to a quote-tolerant match only
     for literals that are actually shaped like a single attribute selector.
+    JSX may also express a marker as a statically-known conditional
+    attribute (for example, ``data-motion={index === 0 ? "current-role" :
+    undefined}``); accept that equivalent form so a repeated section map does
+    not burn repair rounds on a lexical-only mismatch.
     """
 
     if literal in source:
         return True
     match = _ATTR_SELECTOR_LITERAL_RE.match(literal)
     if match is None:
-        return False
+        marker = _JSX_ATTR_MARKER_LITERAL_RE.match(literal)
+        if marker is None:
+            return False
+        attr, _quote, value = marker.groups()
+        return bool(
+            re.search(
+                rf'\b{re.escape(attr)}\s*=\s*\{{[^}}]*["\']{re.escape(value)}["\'][^}}]*\}}',
+                source,
+                flags=re.DOTALL,
+            )
+        )
     attr, _quote, value = match.groups()
     tolerant = re.compile(
         rf'\[\s*{re.escape(attr)}\s*=\s*(?:"{re.escape(value)}"|\'{re.escape(value)}\'|{re.escape(value)})\s*\]'
     )
-    return bool(tolerant.search(source))
+    if tolerant.search(source):
+        return True
+    return False
 
 
 def _css_rule_contains(

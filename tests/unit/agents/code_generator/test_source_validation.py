@@ -1121,6 +1121,63 @@ export default function Hero() {
     assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
 
 
+def test_route_batch_motion_accepts_a_static_conditional_marker(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Experience.tsx"
+    css_path = "src/routes/home/sections/Experience.css"
+    (tmp_path / path).write_text(
+        """const entries = [\"current\", \"previous\"] as const;
+const observer = new IntersectionObserver(() => undefined);
+export default function Experience() {
+  return <section id="experience" data-content-id="home:experience">
+    {entries.map((entry, index) => <article data-motion={index === 0 ? "current-role" : undefined}>{entry}</article>)}
+  </section>;
+}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / css_path).write_text(
+        """#experience [data-motion="current-role"] { border-color: var(--color-accent-mark); transform: translateX(0); }
+#experience [data-motion-ready="true"][data-motion="current-role"] { border-color: var(--color-line-subtle); transform: translateX(-8px); transition: border-color 240ms ease-out, transform 240ms ease-out; }
+@media (prefers-reduced-motion: reduce) { #experience [data-motion="current-role"] { border-color: var(--color-accent-mark); transform: translateX(0); transition: none; } }
+""",
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [path, css_path],
+        route_id="home",
+        section_ids=["home:experience"],
+        section_selectors_by_section={"home:experience": "#experience"},
+        motion_beats=[
+            {
+                "motion_id": "motion:home:experience:current-role",
+                "section_id": "home:experience",
+                "target_marker": 'data-motion="current-role"',
+                "target_selector": '#experience [data-motion="current-role"]',
+                "trigger": "viewport",
+                "changed_properties": [
+                    {
+                        "property_name": "border-color",
+                        "before_value": "line-subtle",
+                        "after_value": "accent-mark",
+                    },
+                    {
+                        "property_name": "transform",
+                        "before_value": "translateX(-8px)",
+                        "after_value": "translateX(0)",
+                    },
+                ],
+            }
+        ],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
+
+
 def test_route_batch_contract_accepts_any_valid_css_attribute_selector_quote_style(
     tmp_path,
 ) -> None:

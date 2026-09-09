@@ -50,6 +50,28 @@ _NETWORK_RE = re.compile(
     r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(|\b(?:axios|ky)\s*\("
 )
 _FRAGMENT_RE = re.compile(r"href\s*=\s*[\"']#([^\"']+)[\"']")
+_JSX_ATTR_MARKER_RE = re.compile(
+    r"^(?P<attribute>[A-Za-z_:][\w:.-]*)\s*=\s*(?P<quote>[\"'])(?P<value>[^\"']*)(?P=quote)$"
+)
+
+
+def _marker_present(marker: str, source: str) -> bool:
+    """Accept literal or statically conditional JSX marker attributes."""
+
+    if marker in source:
+        return True
+    match = _JSX_ATTR_MARKER_RE.match(marker.strip())
+    if match is None:
+        return False
+    attribute = match.group("attribute")
+    value = match.group("value")
+    return bool(
+        re.search(
+            rf"\b{re.escape(attribute)}\s*=\s*\{{[^}}]*[\"']{re.escape(value)}[\"'][^}}]*\}}",
+            source,
+            flags=re.DOTALL,
+        )
+    )
 
 
 def _without_comments(value: str) -> str:
@@ -623,7 +645,7 @@ def audit_typescript_source(
             for beat in v4_blueprint.motion_beats:
                 if beat.route_id != route_id:
                     continue
-                marker_present = beat.target_marker in route_files_source
+                marker_present = _marker_present(beat.target_marker, route_files_source)
                 owner_file = section_owner_paths.get(beat.section_id, route_file)
                 scoped_css = "\n".join(
                     value for path, value in route_css.items() if path.startswith(route_prefix)
