@@ -38,6 +38,26 @@ _EXPLICIT_REQUIREMENT_PHRASES = (
     "required asset",
     "approved content",
 )
+_BLOCKING_MODEL_CODES = {
+    # These findings describe an observable product contract or an approved
+    # interaction.  Their severity is independent of the provider's declared
+    # value and of any visual language in the evidence.
+    "active-navigation-state",
+    "generic-disclosure-label",
+    "interaction-hidden-approved-content",
+    "interaction-state-missing",
+    "redundant-disclosure-control",
+    "blueprint-resource-role-mismatch",
+}
+_ADVISORY_MODEL_CODES = {
+    # These are whole-site aesthetic observations.  In particular, the
+    # ``missing`` and ``coverage`` words in these identifiers must not turn a
+    # subjective review into a functional release blocker.
+    "blueprint-distinctive-move-missing",
+    "composition-missing-section-rail",
+    "motion-grouping-mismatch",
+    "typography-role-coverage",
+}
 _ADVISORY_TERMS = (
     "visual",
     "composition",
@@ -128,15 +148,26 @@ def effective_finding_severity(finding: Any) -> str:
         return "advisory"
     if normalized_code in _BLOCKING_RUNTIME_CODES:
         return "blocking"
-    # A clearly functional/approved requirement wins over a visual adjective
+    if code in _BLOCKING_MODEL_CODES:
+        return "blocking"
+    # Evidence that names an approved contract wins over a visual adjective
     # in the same finding (for example, an explicit required interaction with
     # a spacing symptom).
+    if any(phrase in evidence for phrase in _EXPLICIT_REQUIREMENT_PHRASES):
+        return "blocking"
+    if code in _ADVISORY_MODEL_CODES:
+        return "advisory"
+    # Subjective visual evidence is advisory by default.  This check comes
+    # before generic words such as ``missing`` and ``coverage`` so a code such
+    # as ``missing-visual-balance`` cannot become a functional blocker merely
+    # because of its vocabulary.
+    if any(term in code or term in evidence for term in _ADVISORY_TERMS):
+        return "advisory"
+    # Unknown findings without an explicitly visual signal stay conservative;
+    # known functional codes above remain explicit rather than relying on
+    # substring guesses.
     if any(term in code for term in _BLOCKING_TERMS):
         return "blocking"
-    if any(term in code for term in _ADVISORY_TERMS):
-        if any(phrase in evidence for phrase in _EXPLICIT_REQUIREMENT_PHRASES):
-            return "blocking"
-        return "advisory"
     if any(term in evidence for term in _BLOCKING_TERMS):
         return "blocking"
     # Unknown findings stay visible and conservative.  Their declared
