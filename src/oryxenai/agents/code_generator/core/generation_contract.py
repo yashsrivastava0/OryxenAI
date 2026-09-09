@@ -26,6 +26,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
 )
 from oryxenai.agents.code_generator.core.motion_pattern_catalogue import get_motion_pattern
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 
 CONTRACT_VERSION = "code-generator-generation-contract-v4"
 
@@ -382,30 +383,34 @@ def build_generation_contract(
     )
     planned_slot_ids = set(planned_placements)
     materialized = projections.get("generated/resource-assets.json", {})
-    planned_image_assets = [
-        {
-            "resource_id": str(asset.get("resource_id", "")),
-            "route_id": str(asset.get("route_id", "")),
-            "section_ids": [str(item) for item in asset.get("section_ids", [])],
-            "sizes": str(asset.get("sizes", "100vw")),
-            "loading": str(asset.get("loading", "lazy")),
-            "fit": str(asset.get("fit", "cover")),
-            "focal_position": str(asset.get("focal_position", "center")),
-            "alt_policy": str(asset.get("alt_policy", "contextual_description")),
-            "manifest_source_count": len(asset.get("sources", [])),
-            "element_marker": planned_placements[str(asset.get("resource_id", ""))].element_marker,
-            "element_selector": planned_placements[
-                str(asset.get("resource_id", ""))
-            ].element_selector,
-        }
-        for asset in (
-            materialized.get("image_assets", []) if isinstance(materialized, dict) else []
+    planned_image_assets = []
+    for asset in materialized.get("image_assets", []) if isinstance(materialized, dict) else []:
+        if not isinstance(asset, dict) or not is_image_category(asset.get("category", "image")):
+            continue
+        slot_id = str(asset.get("resource_slot_id") or asset.get("resource_id") or "")
+        placement = planned_placements.get(slot_id)
+        if placement is None or slot_id not in planned_slot_ids:
+            continue
+        if scope and str(asset.get("route_id", "")) not in scope:
+            continue
+        if unit is not None and slot_id not in set(unit.resource_slot_ids):
+            continue
+        planned_image_assets.append(
+            {
+                "resource_id": str(asset.get("resource_id", slot_id)),
+                "resource_slot_id": slot_id,
+                "route_id": str(asset.get("route_id", "")),
+                "section_ids": [str(item) for item in asset.get("section_ids", [])],
+                "sizes": str(asset.get("sizes", "100vw")),
+                "loading": str(asset.get("loading", "lazy")),
+                "fit": str(asset.get("fit", "cover")),
+                "focal_position": str(asset.get("focal_position", "center")),
+                "alt_policy": str(asset.get("alt_policy", "contextual_description")),
+                "manifest_source_count": len(asset.get("sources", [])),
+                "element_marker": placement.element_marker,
+                "element_selector": placement.element_selector,
+            }
         )
-        if isinstance(asset, dict)
-        and str(asset.get("resource_id", "")) in planned_slot_ids
-        and (not scope or str(asset.get("route_id", "")) in scope)
-        and (unit is None or str(asset.get("resource_id", "")) in set(unit.resource_slot_ids))
-    ]
     motion_beats = (
         [
             item.model_dump(mode="json")

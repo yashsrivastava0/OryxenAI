@@ -1212,6 +1212,11 @@ class RuntimeVerifier:
                 const element = one(item.element_selector, 'RUNTIME_RESOURCE_SELECTOR', `Resource ${item.resource_slot_id}`);
                 if (!element) continue;
                 const image = element instanceof HTMLImageElement ? element : element.querySelector('img');
+                if (image && image.loading === 'lazy') {
+                  image.scrollIntoView({block: 'center', inline: 'nearest'});
+                  await new Promise(resolve => requestAnimationFrame(() => resolve()));
+                  try { await image.decode(); } catch (error) { /* decode check below owns the diagnostic */ }
+                }
                 if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
                   violations.push({code: 'RUNTIME_RESOURCE_DECODE', message: `Resource ${item.resource_slot_id} has no decoded local image.`});
                   continue;
@@ -1231,6 +1236,10 @@ class RuntimeVerifier:
                   violations.push({code: 'RUNTIME_RESOURCE_LOADING_POLICY', message: `Resource ${item.resource_slot_id} loading policy is ${loading}, expected ${item.loading}.`});
                 }
                 const rect = image.getBoundingClientRect();
+                const style = getComputedStyle(image);
+                if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) {
+                  violations.push({code: 'RUNTIME_RESOURCE_NOT_VISIBLE', message: `Resource ${item.resource_slot_id} decoded but is hidden or has no rendered area.`});
+                }
                 const section = image.closest('[data-content-id], section')?.getBoundingClientRect();
                 const intersection = section ? Math.max(0, Math.min(rect.right, section.right) - Math.max(rect.left, section.left)) * Math.max(0, Math.min(rect.bottom, section.bottom) - Math.max(rect.top, section.top)) : rect.width * rect.height;
                 const visibleRatio = intersection / Math.max(1, rect.width * rect.height);

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from collections.abc import Callable
 from datetime import UTC, datetime, tzinfo
@@ -19,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from oryxenai.agents.code_generator.core import fs_safe
 from oryxenai.agents.code_generator.core.build_runner import run_clean_build
+from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
 DEFAULT_EXPORT_ROOT = "output/code-gen-output"
@@ -156,19 +158,110 @@ def export_portfolio(
     return target
 
 
+def build_image_evidence(*, repo_dir: Path, run_root: Path, plan: Any) -> dict[str, Any]:
+    """Summarize image lineage without exposing prompts or private content."""
+
+    blueprint = getattr(plan, "experience_blueprint", None)
+    bindings = {
+        str(item.resource_slot_id): item.category
+        for item in getattr(plan, "execution_bindings", [])
+        if str(getattr(item, "resource_slot_id", ""))
+    }
+    placements = [
+        item
+        for item in getattr(blueprint, "resource_placements", [])
+        if is_image_category(bindings.get(str(item.resource_slot_id), ""))
+    ]
+    projections_path = run_root / "ledger" / "projections.json"
+    projections: dict[str, Any] = {}
+    if projections_path.is_file():
+        try:
+            raw = json.loads(projections_path.read_text(encoding="utf-8"))
+            projections = raw if isinstance(raw, dict) else {}
+        except (OSError, ValueError, TypeError):
+            projections = {}
+    generated = projections.get("generated/resource-assets.json", {})
+    assets = generated.get("image_assets", []) if isinstance(generated, dict) else []
+    assets_by_slot = {
+        str(item.get("resource_slot_id") or item.get("resource_id") or ""): item
+        for item in assets
+        if isinstance(item, dict) and is_image_category(item.get("category", "image"))
+    }
+    source_files = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore")
+        for path in repo_dir.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in {".tsx", ".ts", ".css"}
+        and "node_modules" not in path.parts
+    )
+    entries: list[dict[str, Any]] = []
+    for placement in placements:
+        slot_id = str(placement.resource_slot_id)
+        asset = assets_by_slot.get(slot_id)
+        rendered = _source_references_resource_slot(source_files, slot_id)
+        entries.append(
+            {
+                "resource_slot_id": slot_id,
+                "route_id": str(placement.route_id),
+                "section_id": str(placement.section_id),
+                "materialized": bool(asset),
+                "rendered": rendered,
+                "source_count": len(asset.get("sources", [])) if asset else 0,
+                "local_paths": [
+                    str(item.get("path", ""))
+                    for item in (asset.get("sources", []) if asset else [])
+                    if isinstance(item, dict) and str(item.get("path", ""))
+                ],
+                "disposition": "admitted" if asset and rendered else "fallback_or_missing",
+            }
+        )
+    return {
+        "planned_count": len(entries),
+        "materialized_count": sum(1 for item in entries if item["materialized"]),
+        "rendered_count": sum(1 for item in entries if item["rendered"]),
+        "failed_count": sum(1 for item in entries if not item["materialized"] or not item["rendered"]),
+        "entries": entries,
+    }
+
+
+def _source_references_resource_slot(source: str, slot_id: str) -> bool:
+    """Recognize literal JSX prop forms used by the generator contract."""
+
+    escaped = re.escape(slot_id)
+    return bool(
+        re.search(
+            rf"\bresourceId\s*=\s*(?:['\"]{escaped}['\"]|\{{\s*['\"`]"
+            rf"{escaped}['\"`]\s*\}})",
+            source,
+        )
+    )
+
+
 def _generation_report(payload: dict[str, Any]) -> str:
     """Build a compact evaluator handoff without prompts, source, or secrets."""
 
     quality = payload.get("quality_review")
-    quality_status = (
-        quality.get("status", "not_recorded") if isinstance(quality, dict) else "not_recorded"
-    )
+    if isinstance(quality, dict) and isinstance(quality.get("accepted"), bool):
+        quality_status = "accepted" if quality["accepted"] else "rejected"
+    else:
+        quality_status = "unknown"
     verification = payload.get("verification")
-    verification_status = (
-        verification.get("status", "not_recorded")
-        if isinstance(verification, dict)
-        else "not_recorded"
-    )
+    gate_results = verification.get("gate_results", []) if isinstance(verification, dict) else []
+    gate_statuses = {
+        str(item.get("gate_id", "")): str(item.get("status", "unknown"))
+        for item in gate_results
+        if isinstance(item, dict) and str(item.get("gate_id", ""))
+    }
+    if gate_statuses:
+        statuses = set(gate_statuses.values())
+        if "failed" in statuses:
+            verification_status = "failed"
+        elif statuses == {"passed"}:
+            verification_status = "passed"
+        else:
+            verification_status = "partial"
+    else:
+        verification_status = "unknown"
     call_ledger = payload.get("call_ledger")
     call_count = call_ledger.get("call_count", 0) if isinstance(call_ledger, dict) else 0
     request_rounds = call_ledger.get("request_rounds", 0) if isinstance(call_ledger, dict) else 0
@@ -197,6 +290,23 @@ def _generation_report(payload: dict[str, Any]) -> str:
         if isinstance(build_attempt, dict)
         else "not_recorded"
     )
+    image_evidence = payload.get("image_evidence")
+    blocking_findings: list[dict[str, Any]] = []
+    advisory_findings: list[dict[str, Any]] = []
+    if isinstance(verification, dict):
+        for gate in gate_results:
+            if not isinstance(gate, dict):
+                continue
+            for finding in gate.get("diagnostics", []):
+                if not isinstance(finding, dict):
+                    continue
+                if str(finding.get("severity", "blocking")) == "advisory":
+                    advisory_findings.append(finding)
+                else:
+                    blocking_findings.append(finding)
+        for advisory in verification.get("advisories", []):
+            if isinstance(advisory, dict):
+                advisory_findings.append(advisory)
     lines = [
         "# OryxenAI generation report",
         "",
@@ -228,6 +338,39 @@ def _generation_report(payload: dict[str, Any]) -> str:
         f"- Recorded model-call receipts: `{call_count}`",
         f"- Generation request rounds: `{request_rounds}`",
         f"- Repair rounds: `{repair_rounds}`",
+        f"- Verification gates: `{json.dumps(gate_statuses, sort_keys=True)}`",
+        f"- Blocking findings: `{len(blocking_findings)}`",
+        f"- Advisory observations: `{len(advisory_findings)}`",
+        "",
+        "## Image evidence",
+        (
+            f"- Planned: `{image_evidence.get('planned_count', 0)}`; "
+            f"materialized: `{image_evidence.get('materialized_count', 0)}`; "
+            f"rendered: `{image_evidence.get('rendered_count', 0)}`; "
+            f"failed: `{image_evidence.get('failed_count', 0)}`"
+            if isinstance(image_evidence, dict)
+            else "- Image evidence: `unknown`"
+        ),
+        *(
+            [
+                "- "
+                + json.dumps(
+                    {
+                        "resource_slot_id": item.get("resource_slot_id", ""),
+                        "route_id": item.get("route_id", ""),
+                        "section_id": item.get("section_id", ""),
+                        "materialized": item.get("materialized", False),
+                        "rendered": item.get("rendered", False),
+                        "disposition": item.get("disposition", ""),
+                    },
+                    sort_keys=True,
+                )
+                for item in image_evidence.get("entries", [])
+                if isinstance(item, dict)
+            ]
+            if isinstance(image_evidence, dict)
+            else []
+        ),
         "",
         "## Routes",
         *route_lines,
