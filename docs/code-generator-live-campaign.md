@@ -11,11 +11,11 @@ This is a new campaign after reliability commit `a503a4a`. It is separate from
 the historical campaigns below and begins before any new full pipeline call.
 
 - Maximum full pipeline calls: **5**.
-- Used: **2/5**.
+- Used: **3/5**.
 - Accepted cross-pack portfolios: **0/2**.
 - Slot 1 run revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
-- Current runtime revision: `9716681` (`fix(code-generator): catch inert disclosure panels early`).
-- State: slots 1 and 2 completed with `needs_attention`; slot 3 is queued for the post-fix live confirmation.
+- Current runtime revision: `90e8349` (`fix(code-generator): normalize typography token names`).
+- State: slots 1 through 3 completed with `needs_attention`; slot 4 is unreserved and awaits the post-compiler-fix live confirmation.
 - Execution rule: one full pipeline at a time; stop at two accepted results or
   after slot 5, whichever comes first. A verification-only retry that reuses
   an accepted source is recorded separately and does not consume a full source
@@ -27,8 +27,8 @@ the historical campaigns below and begins before any new full pipeline call.
 | --- | --- | --- | --- |
 | 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | needs_attention |
 | 2 | `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | B provides a structurally different seven-section brief after slot 1 is diagnosed. | needs_attention |
-| 3 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | A provides the remaining current seven-section variation and confirms the early disclosure gate. | queued |
-| 4 | choose after the preceding result | Only if fewer than two accepted results remain and the run adds evidence. | unreserved |
+| 3 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | A provides the remaining current seven-section variation and confirms the early disclosure gate. | needs_attention |
+| 4 | choose after the preceding result | Confirm the typography-token fix against a structurally different pack if the run adds evidence. | unreserved |
 | 5 | choose after the preceding result | Final authorized slot under the cap. | unreserved |
 
 ### Preflight record
@@ -61,6 +61,11 @@ no credentials, signed URLs, raw prompts, or private brief content.
   preflight was `ready` with six profiles and `private_context_sent=false`,
   toolchain preflight was `ready` with all checks passing and zero model calls,
   the preview gateway was reachable, and the worker release contract matched.
+- Post-compiler-fix readiness refresh: 2026-09-10 00:02 +05:30 on `90e8349`;
+  provider preflight was `ready` with six profiles and
+  `private_context_sent=false`, toolchain preflight was `ready` with all checks
+  passing and zero model calls, the preview gateway was reachable, and exactly
+  one worker matched the release contract.
 
 ### Reserved slots
 
@@ -68,7 +73,7 @@ no credentials, signed URLs, raw prompts, or private brief content.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-09-09 20:56:11 +05:30 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | `a503a4a` | `0e88ebced8c350b04aab1bdeff4c1f430a0b3e5c7999379c3244e11df929e527` | `e3444c79571cdb92fbdc3be8356d056fd7203930946dafa18624198dc6cfa918` | `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128` | `542c3c11-415d-468c-947f-8d4654845fef` | `4dfd10cc-52bd-4fc7-8a6d-96addf47b26e` | needs_attention |
 | 2 | 2026-09-09 22:44:09 +05:30 | `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | `4da1ddb` | `db560919f26b359ce7836c40339c887b3faa001637452c2d672d1193b9155435` | `ff324462dc980bf29deb05bc4533716e55940babb40497170d668d8492f21f74` | `bf27265ec7e4c27b9151e881b02b516916608f472508bd9eb835055bf1076215` | `6fc66f93-259a-4ade-8341-e694e72a742f` | `2f22c091-32e7-47dc-bc99-aef25d4e8058` | needs_attention |
-| 3 | 2026-09-09 23:43:58 +05:30 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `9716681` | `a839ee313e9786e3e77d60a4fa6bdce5a1f55dccff5f92349ac46e88419c5210` | `389ce59c85baafce6b734b105bff05bbbb7454d68a6a84f9848429e691cd0427` | `d3858b6133cc66bda14222ac7009530cf13c1990687a3a5b63f7b7ebd15b4ab9` | `d0d38741-9e93-4a47-8ae8-320e4ac2516e` | `bc4319fb-da84-4c00-88fc-9485a9087d9d` | queued |
+| 3 | 2026-09-09 23:43:58 +05:30 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `9716681` | `a839ee313e9786e3e77d60a4fa6bdce5a1f55dccff5f92349ac46e88419c5210` | `389ce59c85baafce6b734b105bff05bbbb7454d68a6a84f9848429e691cd0427` | `d3858b6133cc66bda14222ac7009530cf13c1990687a3a5b63f7b7ebd15b4ab9` | `d0d38741-9e93-4a47-8ae8-320e4ac2516e` | `bc4319fb-da84-4c00-88fc-9485a9087d9d` | needs_attention |
 
 ### Slot 1 result — Pack C
 
@@ -93,6 +98,13 @@ no credentials, signed URLs, raw prompts, or private brief content.
 - Reserved at 2026-09-09 23:43:58 +05:30 with code revision `9716681` and idempotency key `d0d38741-9e93-4a47-8ae8-320e4ac2516e`.
 - Pack `5f144f04-2789-48c6-9b1c-6bd11c87abdb` is the eligible Maya Bennett pair: one route, seven sections, eight resources, three components; content hash `a839ee313e9786e3e77d60a4fa6bdce5a1f55dccff5f92349ac46e88419c5210`, visual hash `389ce59c85baafce6b734b105bff05bbbb7454d68a6a84f9848429e691cd0427`, contract hash `d3858b6133cc66bda14222ac7009530cf13c1990687a3a5b63f7b7ebd15b4ab9`.
 - Durable run `bc4319fb-da84-4c00-88fc-9485a9087d9d` and job `a6cd565a-663d-46ce-a9b6-6955e3d21f41` were accepted at 2026-09-09 23:44:56 +05:30 with initial status `queued`.
+
+### Slot 3 result - Pack A
+
+- Durable outcome: `needs_attention`, terminal code `SOURCE_REPAIR_TOTAL_EXHAUSTED`; the run stopped during `generating_routes` after four bounded source repair rounds.
+- Admission, planning, acquisition, foundation generation, and route batches one and two completed. The accepted checkpoint was `checkpoint-206348a511a77972369a` with hash `206348a511a77972369a79299c62545d94a5b7ca92e9663091a1a2ac3134572a`, source manifest `e0536ea55d794f68f5a14437f8f78ac9a8f4dac6a3096152e587915741ccb693`, 59 files, and 1,068,723 bytes.
+- The generation projection persisted seven call receipts/attempts, four repair rounds, and budget used four. Route batch three remained pending; compose, integration review, verification, and preview promotion did not run.
+- Root cause: the blueprint's `type-body`/`type-label`/`type-heading`/`type-display` names made the compiler emit `--type-type-*`, while the route response used canonical `--type-heading-*` and `--type-label-*` names. Commit `90e8349` normalizes the schema and compiler vocabulary and adds regressions.
 
 ## Current continuation campaign — five-run cap (2026-09-09)
 

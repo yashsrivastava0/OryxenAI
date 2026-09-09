@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-087 - Normalize typography type-step names at the schema and compiler boundary
+
+- **Date & Time:** 2026-09-10 00:03 +05:30 - Codex (GPT-6 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Pack A reached source generation but its planner emitted fluid type-step names such as `type-heading`. The compiler treated that group prefix as part of the semantic name and emitted `--type-type-heading-*`, while route source used the intended `--type-heading-*` vocabulary; bounded repairs could not converge on the inconsistent compiler contract.
+- **Decision:** Treat `type_steps[*].name` as a bare semantic suffix. Normalize repeated `type-` prefixes when the typed schema is validated and defensively normalize them again in the compiler for trusted `model_copy` or persisted construction paths. Emit only the canonical `--type-<name>-...` properties, and state that contract directly in the planner prompt.
+- **Rejected alternatives:** Increasing the repair budget; accepting arbitrary aliases in route CSS; rewriting route source after generation; or adding a second set of compatibility properties to the trusted stylesheet. Those alternatives hide a compiler vocabulary defect or create two token systems.
+- **Consequence:** Model output that echoes the CSS group prefix no longer creates undefined typography variables, while the emitted stylesheet and route prompts share one stable name space.
+
 ## D-086 - Reject inert disclosure controls before whole-site review
 
 - **Date & Time:** 2026-09-09 23:39 +05:30 - Codex (GPT-6 / OpenAI)
