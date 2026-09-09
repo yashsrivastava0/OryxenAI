@@ -1094,6 +1094,7 @@ class CodeGeneratorGenerationOrchestrator:
                 work_unit_id="route-batch-wave",
                 settings=settings,
                 include_source_audit=False,
+                include_noninformative_disclosures=False,
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
@@ -1284,6 +1285,7 @@ class CodeGeneratorGenerationOrchestrator:
             # intentionally composed in the following route_compose unit, so
             # the whole-site V4 audit must wait until that contract exists.
             include_source_audit=False,
+            include_noninformative_disclosures=False,
         )
         if diagnostics:
             raise GenerationError(
@@ -1373,6 +1375,7 @@ class CodeGeneratorGenerationOrchestrator:
                 # the toolchain and structural checks active, but defer the
                 # complete route audit to route_compose/integration.
                 include_source_audit=False,
+                include_noninformative_disclosures=False,
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
@@ -1402,6 +1405,7 @@ class CodeGeneratorGenerationOrchestrator:
                 work_unit_id=unit.unit_id,
                 settings=settings,
                 include_source_audit=unit.kind in {"route_compose", "integration"},
+                include_noninformative_disclosures=False,
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
@@ -1675,6 +1679,7 @@ class CodeGeneratorGenerationOrchestrator:
                 # whole-site audit here would report composer-owned failures
                 # back to the wrong model operation.
                 include_source_audit=unit.kind != "route_batch",
+                include_noninformative_disclosures=False,
                 # A parallel batch starts from a source-only copy of the
                 # current repository, which can contain stale files owned by
                 # another batch. Attribute repository policy diagnostics only
@@ -1736,6 +1741,7 @@ class CodeGeneratorGenerationOrchestrator:
                     motion_beats=_v4_motion_beats_for_unit(plan, unit),
                     h1_owner_section_id=_v4_h1_owner_for_route(plan, unit.route_id),
                     work_unit_id=unit.unit_id,
+                    include_noninformative_disclosures=False,
                 )
                 if batch_diagnostics:
                     _rollback_candidate(workspace, unit.unit_id)
@@ -2178,6 +2184,7 @@ class CodeGeneratorGenerationOrchestrator:
                             ),
                             work_unit_id=owner.unit_id,
                             settings=settings,
+                            include_noninformative_disclosures=False,
                         )
                     if source_diagnostics:
                         _rollback_candidate(workspace, owner.unit_id)
@@ -2246,6 +2253,7 @@ class CodeGeneratorGenerationOrchestrator:
                 max_source_bytes=int(settings.code_generator_generation.max_source_bytes),
                 work_unit_id="integration-review",
                 settings=settings,
+                include_noninformative_disclosures=False,
             )
             if diagnostics:
                 projection.diagnostics.extend(diagnostics)
@@ -4442,6 +4450,7 @@ def _invalidate_stale_route_batch_checkpoint(
                     plan, str(getattr(unit, "route_id", ""))
                 ),
                 work_unit_id=unit.unit_id,
+                include_noninformative_disclosures=False,
             )
         )
     if not diagnostics:

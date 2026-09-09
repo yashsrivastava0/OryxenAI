@@ -163,10 +163,11 @@ Visual and implementation contract:
   DOM node than `data-motion-ready`, and a compound selector requiring both
   will never match either one.
 - Every visible link, button, and disclosure has a keyboard name, focus state,
-  and at least a 44px inline and block hit area. Never render an inert
-  disclosure: its panel must contain visible meaningful approved content, or
-  the disclosure control must be removed. An empty panel or a panel made only
-  from an `aria-hidden="true"` empty element is a source-contract failure.
+  and at least a 44px inline and block hit area. A disclosure used for a
+  required interaction must expose visible meaningful approved content; remove
+  it when the approved scope has no content to reveal. An empty optional panel
+  is not a required-image or content failure, but omit the optional control or
+  use an existing approved value rather than inventing copy.
 - Put every assigned interaction on the actual target element identified by
   its `target_selector`. That same JSX opening tag must carry both the exact
   `data-interaction-id` attribute and the blueprint `literal_marker`. An

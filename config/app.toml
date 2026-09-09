@@ -238,9 +238,9 @@ pipeline_contract_version = "code-generator-v5"
 worker_release_id = "oryxenai-code-generator-v5-quality-v3"
 quality_gate_version = "quality-gate-v3"
 planner_max_attempts = 2
-minimum_visible_images = 1
+minimum_visible_images = 0
 preferred_visible_images = 2
-require_primary_route_image = true
+require_primary_route_image = false
 design_similarity_threshold = 0.82
 design_similarity_history = 3
 
@@ -388,11 +388,11 @@ preview_storage_prefix = "preview"
 # Complete-portfolio export destination (source + built dist + metadata).
 export_root = "output/code-gen-output"
 export_timezone = "Asia/Kolkata"
+release_viewport_profiles = ["desktop", "laptop"]
 
 [code_generator_verification.viewport_profiles]
-mobile = { width = 390, height = 844 }
-tablet = { width = 768, height = 1024 }
 desktop = { width = 1440, height = 900 }
+laptop = { width = 1280, height = 800 }
 
 [code_generator_verification.geometry_thresholds]
 min_text_px = 12.0

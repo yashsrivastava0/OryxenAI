@@ -126,6 +126,11 @@ Grounding and exact coverage:
   requirement with a component slot, a CSS-only ornament, or an invented
   resource ID. If the policy has no approved image slots, preserve the
   text-led direction and do not fabricate one.
+  When approved optional local image material is available and the brief does
+  not request a text-only or abstract treatment, prefer a restrained supporting
+  image placement as visual guidance; this preference is not a release gate.
+  When the brief explicitly calls for text, diagrams, or abstract artwork, omit
+  photo placements and choose a deliberate text/list or CSS composition instead.
 - Select exactly one of the typed layout recipes for every section region:
   `text-with-supporting-media`, `work-detail-list`, or `timeline-list`. The
   exact `[data-region-id="..."]` element owns the direct children described by

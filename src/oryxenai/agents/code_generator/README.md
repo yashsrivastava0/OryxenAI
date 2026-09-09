@@ -78,12 +78,41 @@ responsive experience blueprint into deterministic, non-overlapping work. A
 structured integration review can trigger one owner-scoped polish pass.
 
 Final verification recreates the toolchain cleanly and performs source, build,
-and browser gates. Every public route is exercised at configured mobile,
-tablet, and desktop viewports, plus reduced-motion mode; geometry, local assets,
+and browser gates. Every public route is exercised at the configured desktop
+and laptop release viewports, plus reduced-motion mode; geometry, local assets,
 routing, navigation, accessibility, console errors, and outbound requests are
-checked before an immutable preview receipt is promoted atomically. A configured
-package manager must create the lockfile and installation: the workflow never
-synthesizes package locks or `node_modules`.
+checked before an immutable preview receipt is promoted atomically. Mobile
+preview controls and responsive CSS remain available, but mobile is not a
+release gate for this web-only generator. A configured package manager must
+create the lockfile and installation: the workflow never synthesizes package
+locks or `node_modules`.
+
+## Previewing an exported portfolio locally
+
+An export with a built site can be opened without rebuilding it:
+
+```powershell
+uv run python scripts/preview-codegen-export.py output/code-gen-output/<export-folder>/dist
+```
+
+The viewer binds only to loopback, serves SPA routes such as `/about` and
+`/work/project` from the selected `dist/index.html`, rewrites Vite entry assets
+to the export root, ignores stale conditional-cache headers, and returns a real
+404 for missing JavaScript, CSS, image, or font files. Use a new viewer process
+for a different export (or stop and restart the same port) so the explicit
+`dist` argument remains the source of truth.
+
+## Azure/Docker handoff
+
+The committed Docker overlay is intentionally conservative for local
+development. Before enabling Code Generator verification on an Azure VM, keep
+the separate API, worker, and preview-gateway services and set the overlay's
+`code_generator_verification.enabled = true`, an HTTPS browser-reachable
+`preview_base_url`, the internal service URL for `preview_health_url`, and the
+exact application origin in `preview_embed_origins`. Keep
+`preview_public_readback_required = true` and use the configured private
+artifact storage. Windows runs validate generator behavior only; they do not
+claim Linux/Chromium or Azure deployment readiness.
 
 When enabled, use the standalone developer page at /code-generator-development.
 Its readiness panel reports only non-secret prerequisites; it does not claim a

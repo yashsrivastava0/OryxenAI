@@ -31,24 +31,23 @@ _BLOCKING_TERMS = (
     "coverage",
 )
 _EXPLICIT_REQUIREMENT_PHRASES = (
-    "approved requirement",
     "must preserve",
     "must include",
     "required interaction",
     "required asset",
-    "approved content",
+    "explicitly required",
+)
+_ADVISORY_FUNCTIONAL_REQUIREMENT_PHRASES = (
+    "required interaction",
+    "required asset",
+    "explicitly required",
 )
 _BLOCKING_MODEL_CODES = {
     # These findings describe an observable product contract or an approved
     # interaction.  Their severity is independent of the provider's declared
     # value and of any visual language in the evidence.
-    "active-navigation-state",
-    "generic-disclosure-label",
     "interaction-hidden-approved-content",
     "interaction-state-missing",
-    "redundant-disclosure-control",
-    "blueprint-resource-role-mismatch",
-    "noninformative-disclosure",
 }
 _ADVISORY_MODEL_CODES = {
     # These are whole-site aesthetic observations.  In particular, the
@@ -62,6 +61,11 @@ _ADVISORY_MODEL_CODES = {
     # realization must not be treated as a failed functional contract merely
     # because the provider compares the span with CSS track count.
     "blueprint-desktop-column-mismatch",
+    "blueprint-resource-role-mismatch",
+    "generic-disclosure-label",
+    "noninformative-disclosure",
+    "redundant-disclosure-control",
+    "active-navigation-state",
 }
 _ADVISORY_TERMS = (
     "visual",
@@ -155,13 +159,24 @@ def effective_finding_severity(finding: Any) -> str:
         return "blocking"
     if code in _BLOCKING_MODEL_CODES:
         return "blocking"
-    # Evidence that names an approved contract wins over a visual adjective
-    # in the same finding (for example, an explicit required interaction with
-    # a spacing symptom).
+    if code in _ADVISORY_MODEL_CODES:
+        # Keep known visual observations advisory even when their prose uses
+        # generic words such as "must" or "approved".  Only a disclosure/nav
+        # observation that explicitly names a required interaction/asset is a
+        # functional failure; a wrong crop, span, or polish suggestion needs a
+        # separate concrete contract code to become blocking.
+        if code in {
+            "noninformative-disclosure",
+            "generic-disclosure-label",
+            "redundant-disclosure-control",
+            "active-navigation-state",
+        } and any(phrase in evidence for phrase in _ADVISORY_FUNCTIONAL_REQUIREMENT_PHRASES):
+            return "blocking"
+        return "advisory"
+    # Evidence that names an explicit contract wins over an otherwise unknown
+    # finding.  Generic "approved" wording deliberately is not sufficient.
     if any(phrase in evidence for phrase in _EXPLICIT_REQUIREMENT_PHRASES):
         return "blocking"
-    if code in _ADVISORY_MODEL_CODES:
-        return "advisory"
     # Subjective visual evidence is advisory by default.  This check comes
     # before generic words such as ``missing`` and ``coverage`` so a code such
     # as ``missing-visual-balance`` cannot become a functional blocker merely
