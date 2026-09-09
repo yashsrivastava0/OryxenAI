@@ -582,6 +582,42 @@ export default function Hero() {
     assert not any(item.code == "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING" for item in diagnostics)
 
 
+def test_route_batch_contract_accepts_literal_object_and_tuple_maps(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Featured.tsx"
+    expected_name = "content:home:featured:name-7620e261"
+    expected_tag = "content:home:featured:tag-2db10e4a"
+    expected_body = "content:home:featured:body-b221191c"
+    (tmp_path / path).write_text(
+        f'''const contentValue = (key: string) => key;
+const cards = [{{ name: "{expected_name}", tags: ["{expected_tag}"] }}] as const;
+const rows = [["{expected_body}", "unused"]] as const;
+export default function Featured() {{
+  return <section id="featured" data-content-id="home:featured">
+    {{cards.map((card) => <p>{{contentValue(card.name)}}{{card.tags.map((tag) => contentValue(tag))}}</p>)}}
+    {{rows.map(([body, _unused]) => <p>{{contentValue(body)}}</p>)}}
+  </section>;
+}}
+''',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [path],
+        route_id="home",
+        section_ids=["home:featured"],
+        content_ids_by_section={
+            "home:featured": [expected_name, expected_tag, expected_body]
+        },
+        section_selectors_by_section={"home:featured": "#featured"},
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING" for item in diagnostics)
+
+
 def test_route_batch_contract_requires_materialized_images_motion_and_state(tmp_path) -> None:
     section = tmp_path / "src" / "routes" / "home" / "sections"
     section.mkdir(parents=True)

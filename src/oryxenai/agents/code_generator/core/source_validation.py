@@ -1940,14 +1940,12 @@ def _content_key_covered_by_mapped_array(content_id: str, owner_text: str) -> bo
     `NAME.map(param => ...)` where the callback body passes that same
     param, unmodified, into contentValue(param).
 
-    No general JS interpreter -- the map parameter must flow into
-    contentValue verbatim, not through a template literal or other
-    transform. This mirrors the ts-morph-free but AST-based resolution
-    scripts/audit-source.mjs already performs for the same
-    array-of-literals + `.map(param => contentValue(param))` shape
-    (staticLiteralValue's identifier/mappedCollection branches); this
-    regex-based check exists only so the durable pipeline's pre-toolchain
-    gate does not reject a binding the real npm audit would accept.
+    No general JS interpreter is attempted: only literal arrays/objects or
+    tuples whose map callback passes a property or binding directly into
+    contentValue are admitted. This mirrors the bounded AST resolution in
+    scripts/audit-source.mjs and keeps the pre-toolchain gate aligned with the
+    authoritative npm audit instead of rejecting safe repeated-content
+    rendering patterns.
     """
 
     for declaration in _MAPPED_ARRAY_DECLARATION_RE.finditer(owner_text):
@@ -1962,6 +1960,88 @@ def _content_key_covered_by_mapped_array(content_id: str, owner_text: str) -> bo
             param = map_call.group(1)
             window = owner_text[map_call.end() : map_call.end() + 4000]
             if re.search(rf"\bcontentValue\s*\(\s*{re.escape(param)}\s*\)", window):
+                return True
+
+    # Repeated portfolio content is often represented as a typed object or
+    # tuple collection to keep the JSX readable.  The runtime value is still
+    # deterministic: the collection is a literal, its map callback passes a
+    # property/binding to contentValue, and the approved key is one of those
+    # literals.  Treat these bounded shapes like the direct literal-array
+    # form above.  Do not accept arbitrary computed strings or a collection
+    # that is not mapped through contentValue.
+    for declaration in re.finditer(
+        r"(?:const|let)\s+(?P<name>\w+)\s*(?::[^=]+)?=\s*\[(?P<body>[\s\S]*?)\]\s*(?:as\s+const)?\s*;",
+        owner_text,
+    ):
+        body = declaration.group("body")
+        if content_id not in body:
+            continue
+        collection_name = declaration.group("name")
+        map_pattern = re.compile(
+            rf"\b{re.escape(collection_name)}\s*\.\s*map\s*\(\s*"
+            r"(?:\(\s*)?(?P<param>\w+)(?:\s*,[^=]*)?\)?\s*=>",
+            re.DOTALL,
+        )
+        for mapped in map_pattern.finditer(owner_text):
+            window = owner_text[mapped.end() : mapped.end() + 12000]
+            parameter = mapped.group("param")
+            # Direct object fields: { name: "content-id" } and
+            # contentValue(item.name).
+            for field in re.finditer(
+                rf"(?P<field>[A-Za-z_$][\w$]*)\s*:\s*[\"']"
+                rf"{re.escape(content_id)}[\"']",
+                body,
+            ):
+                if re.search(
+                    rf"\bcontentValue\s*\(\s*{re.escape(parameter)}\s*\.\s*"
+                    rf"{re.escape(field.group('field'))}\b",
+                    window,
+                ):
+                    return True
+            # Nested literal arrays, e.g. technologies: ["id", ...],
+            # rendered by an inner map over item.technologies.
+            for field in re.finditer(
+                rf"(?P<field>[A-Za-z_$][\w$]*)\s*:\s*\[[^\]]{{0,12000}}"
+                rf"[\"']{re.escape(content_id)}[\"']",
+                body,
+                re.DOTALL,
+            ):
+                nested = re.search(
+                    rf"\b{re.escape(parameter)}\s*\.\s*"
+                    rf"{re.escape(field.group('field'))}\s*\.\s*map\s*\(",
+                    window,
+                )
+                if nested is None:
+                    continue
+                nested_window = window[nested.end() : nested.end() + 8000]
+                if re.search(r"\bcontentValue\s*\(", nested_window):
+                    return True
+
+    # Tuple collections commonly use a destructured map callback:
+    # `rows.map(([title, body]) => contentValue(title) ... )`.  Resolve only
+    # literal collection members and bindings that are passed verbatim to the
+    # trusted helper.
+    for declaration in re.finditer(
+        r"(?:const|let)\s+(?P<name>\w+)\s*(?::[^=]+)?=\s*\[(?P<body>[\s\S]*?)\]\s*(?:as\s+const)?\s*;",
+        owner_text,
+    ):
+        if content_id not in declaration.group("body"):
+            continue
+        map_pattern = re.compile(
+            rf"\b{re.escape(declaration.group('name'))}\s*\.\s*map\s*\(\s*"
+            r"\(\s*\[\s*(?P<bindings>[A-Za-z_$][\w$]*(?:\s*,\s*[A-Za-z_$][\w$]*)+)\s*\]"
+            r"[^=]*\)\s*=>",
+            re.DOTALL,
+        )
+        for mapped in map_pattern.finditer(owner_text):
+            window = owner_text[mapped.end() : mapped.end() + 8000]
+            if any(
+                re.search(
+                    rf"\bcontentValue\s*\(\s*{re.escape(binding)}\b",
+                    window,
+                )
+                for binding in re.split(r"\s*,\s*", mapped.group("bindings"))
+            ):
                 return True
     return False
 
