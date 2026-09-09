@@ -5,7 +5,43 @@ This is the durable handoff record for the reliability campaign authorized on
 Code session can resume without guessing which Build Preparation output or
 which live-call budget remains.
 
-## Guardrails
+## Current continuation campaign — five-run cap (2026-09-09)
+
+This section supersedes the earlier four-slot campaign table below. The owner
+authorized at most five full pipeline calls for this continuation. All five
+were consumed in sequence, each was investigated before the next reservation,
+and no sixth full pipeline call was made. Provider preflight and static checks
+were run outside that budget.
+
+### Eligible Build Preparation packs
+
+| Pack | Profile | Evidence |
+| --- | --- | --- |
+| `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | Maya Bennett | Valid pair; 1 route, 7 sections, 8 resources, 3 components. |
+| `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | Akash Ojha | Valid, structurally different pair; 1 route, 7 sections, 8 resources, 3 components. |
+| `c0860464-a786-43d8-9c30-d12d7516c4b8` | Varun Dhawan | Valid pair; 1 route, 6 sections, abstract-systems illustration resource category. |
+
+The empty-title/section pairs remain negative fixtures and were not selected.
+The older four-route pair remains an offline regression fixture only.
+
+### Full pipeline outcomes
+
+| Run | Pack | Outcome | Earliest durable failure |
+| --- | --- | --- | --- |
+| `55234cbb-32f3-475f-8716-affce08c8c3f` | Maya | `needs_attention` | Acquire: `DEPENDENCY_INSTALL_FAILED` because native Windows could not start the configured `npm` shim; fixed in `d1c5645`. |
+| `beb5e244-8787-4dcb-8c08-67fac19bcbe5` | Akash | `needs_attention` | Acquire: offline `npm ci` lacked platform optional/transitive cache entries; fixed in `2b2714a`. |
+| `e5e32ac3-89d4-48ad-bbaf-4eb5e8927ee6` | Akash | `needs_attention` | Plan: incomplete content-key coverage/image placement; fixed in `97d83dd`. |
+| `e39ee9e6-b71a-430b-bc7a-934046579f27` | Akash | `needs_attention` | Generation: admitted component imported unsupported `rough-notation`; fixed in `59bf982`. |
+| `291ed5d7-6a7d-44c8-b024-fbb7dbf8c5c8` | Varun | `needs_attention` | Generation: bounded repair exhausted on stale `create` for an already-created stylesheet; fixed in `29fc598` by reconciling repair operations against the candidate tree. |
+
+The fifth run acquired and materialized local image renditions but did not
+reach a route checkpoint, clean build, preview, or `ready` state. Its planner,
+route-batch contexts, calls, export, and source assets remain available for
+offline inspection. The exact trace and fix are recorded in `code generator
+issues.md`. Do not claim a successful ready run or Azure deployment from this
+campaign.
+
+## Archived prior four-slot campaign guardrails
 
 - Maximum full pipeline LLM runs: **4**.
 - Stop immediately after **one successful `ready` run**, or after a second
