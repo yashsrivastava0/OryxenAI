@@ -8,6 +8,7 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyManager,
     DependencyPolicyError,
     _create_stage_dir,
+    _npm_executable,
     detect_import_dependencies,
     detect_supported_import_dependencies,
     detect_unsupported_import_dependencies,
@@ -95,6 +96,17 @@ def test_dependency_stage_directory_is_immediately_writable(tmp_path) -> None:
     marker.write_text("{}", encoding="utf-8")
 
     assert marker.read_text(encoding="utf-8") == "{}"
+
+
+def test_dependency_manager_resolves_portable_npm_name(monkeypatch) -> None:
+    settings = Settings()
+    settings.code_generator_dependencies.npm_executable = "npm"
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.core.dependency_manager.shutil.which",
+        lambda value: "C:/Program Files/nodejs/npm.cmd" if value == "npm" else None,
+    )
+
+    assert _npm_executable(settings) == "C:/Program Files/nodejs/npm.cmd"
 
 
 def test_install_script_dependency_is_rejected_by_policy(tmp_path) -> None:
