@@ -526,6 +526,12 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
         "existing_files is the ground truth for what exists."
     )
     lines.append(
+        "- Repair responses remain bounded to the same owned paths. If a repair is "
+        "based on a rejected response and a file's state changed between contexts, "
+        "the host reconciles a stale create/replace tag with the candidate tree "
+        "after ownership checks; still emit the operation that matches existing_files."
+    )
+    lines.append(
         "- One file max 256 KiB, UTF-8 (no null bytes), no duplicate paths, no hidden (dot) path parts."
     )
 
