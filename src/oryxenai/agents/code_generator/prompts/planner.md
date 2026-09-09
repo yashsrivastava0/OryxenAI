@@ -17,6 +17,11 @@ Grounding and exact coverage:
   owner for multiple sections, invent a replacement ID, or omit a manifest
   row. Never add a fact,
   claim, project, metric, testimonial, link, section, route, or resource.
+- `content_ids` are host-owned bindings, not a summary field. For every
+  `section_regions` row, copy the complete `content_key_manifest` array for
+  its exact `(route_id, section_id)` pair in the supplied order, including
+  long capability or project sections. Never shorten, reorder, paraphrase,
+  or replace that array with a representative subset.
 - Emit `typography_roles` with exactly one object whose explicit `role` is
   `body`, plus at most one second object whose explicit `role` is `display`.
   Never omit `role`, emit two `body` objects, or use a font family as the role.
