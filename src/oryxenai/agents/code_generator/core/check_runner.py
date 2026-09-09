@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import re
-import shutil
 from pathlib import Path
 from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import SourceDiagnostic
 from oryxenai.agents.code_generator.core.process_runner import (
     ProcessRunnerError,
+    resolve_npm_executable,
     run_command,
 )
 from oryxenai.agents.code_generator.core.workspace import repository_root
@@ -20,9 +20,7 @@ async def prepare_toolchain(repo_dir: Path, *, settings: Any) -> SourceDiagnosti
     config = settings.code_generator_generation
     if not bool(getattr(config, "use_real_typecheck", False)):
         return None
-    npm = str(
-        getattr(settings.code_generator_dependencies, "npm_executable", "") or ""
-    ) or shutil.which("npm")
+    npm = resolve_npm_executable(settings)
     if not npm:
         return _command_diagnostic(
             "TOOLCHAIN_UNAVAILABLE",
@@ -204,7 +202,9 @@ def _unbalanced(text: str) -> bool:
     stack: list[str] = []
     quote = ""
     escaped = False
-    for char in text:
+    index = 0
+    while index < len(text):
+        char = text[index]
         if quote:
             if escaped:
                 escaped = False
@@ -212,6 +212,22 @@ def _unbalanced(text: str) -> bool:
                 escaped = True
             elif char == quote:
                 quote = ""
+            index += 1
+            continue
+        if (
+            char == "/"
+            and index + 1 < len(text)
+            and text[index + 1] == "/"
+            and (index == 0 or text[index - 1] != "\\")
+        ):
+            newline = text.find("\n", index + 2)
+            index = len(text) if newline == -1 else newline + 1
+            continue
+        if char == "/" and index + 1 < len(text) and text[index + 1] == "*":
+            end = text.find("*/", index + 2)
+            if end == -1:
+                return True
+            index = end + 2
             continue
         if char in {"'", '"', "`"}:
             quote = char
@@ -219,6 +235,7 @@ def _unbalanced(text: str) -> bool:
             stack.append(pairs[char])
         elif char in pairs.values() and (not stack or stack.pop() != char):
             return True
+        index += 1
     return bool(stack) or bool(quote)
 
 

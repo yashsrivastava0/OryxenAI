@@ -38,6 +38,27 @@ async def execute_waves(
     remaining = set(by_id)
     completed: set[str] = set()
     results: list[ScheduledUnitResult] = []
+    if int(max_concurrency) <= 1:
+        wave = 0
+        while remaining:
+            ready = sorted(
+                unit_id
+                for unit_id in remaining
+                if set(by_id[unit_id].depends_on).issubset(completed)
+            )
+            if not ready:
+                raise ValueError("work graph contains a cycle or unknown dependency")
+            # Serial mode is intentionally a real sequential coordinator:
+            # await one unit, persist/observe its outcome in the caller, then
+            # decide which unit can run next. Creating sibling coroutines and
+            # hiding them behind a semaphore still schedules work that must be
+            # abandoned when the first unit fails.
+            unit_id = ready[0]
+            results.append(ScheduledUnitResult(unit_id, wave, await execute(by_id[unit_id])))
+            completed.add(unit_id)
+            remaining.remove(unit_id)
+            wave += 1
+        return results
     semaphore = asyncio.Semaphore(max(1, int(max_concurrency)))
     wave = 0
     while remaining:

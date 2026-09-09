@@ -33,6 +33,14 @@ def build_candidate_identity(
     dependency_ledger = DependencyLedger.model_validate(run.dependency_ledger or {"receipts": []})
     input_receipt = dict(run.input_receipt or {})
     plan_hash = str((run.planner_receipt or {}).get("plan_hash", ""))
+    generation_projection = (
+        run.generation_projection if isinstance(run.generation_projection, dict) else {}
+    )
+    image_policy_hash = str(
+        (generation_projection.get("image_policy", {}) or {}).get("policy_hash", "")
+        if isinstance(generation_projection.get("image_policy", {}), dict)
+        else ""
+    )
     return CandidateIdentity(
         input_receipt_hash=str(input_receipt.get("admitted_identity", "")),
         site_plan_hash=plan_hash or _hash(plan.model_dump(mode="json")),
@@ -48,4 +56,5 @@ def build_candidate_identity(
             }
         ),
         verification_profile_hash=profile.profile_hash,
+        image_policy_hash=image_policy_hash,
     )

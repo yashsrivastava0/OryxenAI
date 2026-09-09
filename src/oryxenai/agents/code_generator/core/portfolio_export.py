@@ -16,6 +16,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from oryxenai.agents.code_generator.core import fs_safe
@@ -82,84 +83,89 @@ def export_portfolio(
     root = Path(str(getattr(config, "export_root", DEFAULT_EXPORT_ROOT)))
     if not root.is_absolute():
         root = repository_root() / root
+    root.mkdir(parents=True, exist_ok=True)
     exported_at, timezone_name = _export_timestamp(config)
     short_id = run_id.replace("-", "")[:8] or "run"
     folder_name = f"{exported_at:%H-%M-%d-%m-%Y}-{short_id}"
     target = root / folder_name
-    # UUID prefixes are collision-safe for normal runs. If a caller reuses a
-    # short synthetic ID, preserve the existing export instead of deleting it.
-    if target.exists():
-        existing_metadata = target / "portfolio.json"
-        if existing_metadata.is_file():
-            try:
-                existing = json.loads(existing_metadata.read_text(encoding="utf-8"))
-            except (OSError, ValueError, TypeError):
-                existing = {}
-            if str(existing.get("run_id", "")) != run_id:
-                target = root / f"{folder_name}-{run_id[:12]}"
-        if target.exists():
-            fs_safe.remove_tree(target, required=False)
-
+    collision = 0
+    while target.exists():
+        collision += 1
+        target = root / f"{folder_name}-{short_id}-{collision}"
+    staging = root / f".{folder_name}.staging-{uuid4().hex}"
     excluded: list[str] = []
-    shutil.copytree(
-        repo_dir,
-        target / "source",
-        symlinks=False,
-        ignore=_export_ignore(repo_dir, excluded),
-    )
-    dist_dir = repo_dir / "dist"
-    if dist_dir.is_dir():
+    try:
+        staging.mkdir(parents=True, exist_ok=False)
         shutil.copytree(
-            dist_dir,
-            target / "dist",
+            repo_dir,
+            staging / "source",
             symlinks=False,
-            ignore=_export_ignore(dist_dir, excluded),
+            ignore=_export_ignore(repo_dir, excluded),
         )
-    has_screenshots = screenshots_dir is not None and screenshots_dir.is_dir()
-    if has_screenshots and screenshots_dir is not None:
-        shutil.copytree(
-            screenshots_dir,
-            target / "screenshots",
-            symlinks=False,
-            ignore=_export_ignore(screenshots_dir, excluded),
+        dist_dir = repo_dir / "dist"
+        if dist_dir.is_dir():
+            shutil.copytree(
+                dist_dir,
+                staging / "dist",
+                symlinks=False,
+                ignore=_export_ignore(dist_dir, excluded),
+            )
+        has_screenshots = screenshots_dir is not None and screenshots_dir.is_dir()
+        if has_screenshots and screenshots_dir is not None:
+            shutil.copytree(
+                screenshots_dir,
+                staging / "screenshots",
+                symlinks=False,
+                ignore=_export_ignore(screenshots_dir, excluded),
+            )
+
+        payload = {
+            # v2 is additive: readers must continue accepting v1 exports while
+            # new exports carry the quality/resource/route receipt references
+            # supplied by the promotion handler.
+            "schema_version": "oryxenai-portfolio-export-v2",
+            "legacy_schema_version": "oryxenai-portfolio-export-v1",
+            "run_id": run_id,
+            "exported_at": exported_at.astimezone(UTC).isoformat(),
+            "export_timezone": timezone_name,
+            "export_folder": target.name,
+            **metadata,
+            "runtime": {
+                "kind": "static-vite",
+                "docker": False,
+                "preview": "shared-static-gateway",
+                "entrypoint": "dist/index.html" if dist_dir.is_dir() else "",
+            },
+            "evaluator_handoff": {
+                "source_path": "source",
+                "dist_path": "dist" if dist_dir.is_dir() else "",
+                "screenshots_path": "screenshots" if has_screenshots else "",
+                "metadata_path": "portfolio.json",
+                "report_path": "generation-report.md",
+            },
+            "excluded_source_artifacts": sorted(set(excluded)),
+        }
+        payload["evidence_summary"] = build_safe_evidence_summary(payload)
+        fs_safe.write_text_atomic(
+            staging / "portfolio.json",
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         )
-
-    payload = {
-        # v2 is additive: readers must continue accepting v1 exports while
-        # new exports carry the quality/resource/route receipt references
-        # supplied by the promotion handler.
-        "schema_version": "oryxenai-portfolio-export-v2",
-        "legacy_schema_version": "oryxenai-portfolio-export-v1",
-        "run_id": run_id,
-        "exported_at": exported_at.astimezone(UTC).isoformat(),
-        "export_timezone": timezone_name,
-        "export_folder": target.name,
-        **metadata,
-        "runtime": {
-            "kind": "static-vite",
-            "docker": False,
-            "preview": "shared-static-gateway",
-            "entrypoint": "dist/index.html",
-        },
-        "evaluator_handoff": {
-            "source_path": "source",
-            "dist_path": "dist" if dist_dir.is_dir() else "",
-            "screenshots_path": "screenshots" if has_screenshots else "",
-            "metadata_path": "portfolio.json",
-            "report_path": "generation-report.md",
-        },
-        "excluded_source_artifacts": sorted(set(excluded)),
-    }
-    fs_safe.write_text_atomic(
-        target / "portfolio.json",
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-    )
-    fs_safe.write_text_atomic(target / "generation-report.md", _generation_report(payload))
-    return target
+        fs_safe.write_text_atomic(staging / "generation-report.md", _generation_report(payload))
+        fs_safe.rename_dir_with_retry(staging, target)
+        return target
+    except Exception:
+        fs_safe.remove_tree(staging, required=False)
+        raise
 
 
-def build_image_evidence(*, repo_dir: Path, run_root: Path, plan: Any) -> dict[str, Any]:
-    """Summarize image lineage without exposing prompts or private content."""
+def build_image_evidence(
+    *,
+    repo_dir: Path,
+    run_root: Path,
+    plan: Any,
+    runtime_evidence: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Summarize planning, source, and browser image evidence separately."""
 
     blueprint = getattr(plan, "experience_blueprint", None)
     bindings = {
@@ -170,7 +176,11 @@ def build_image_evidence(*, repo_dir: Path, run_root: Path, plan: Any) -> dict[s
     placements = [
         item
         for item in getattr(blueprint, "resource_placements", [])
-        if is_image_category(bindings.get(str(item.resource_slot_id), ""))
+        if (
+            is_image_category(bindings.get(str(item.resource_slot_id), ""))
+            if bindings
+            else True
+        )
     ]
     projections_path = run_root / "ledger" / "projections.json"
     projections: dict[str, Any] = {}
@@ -187,40 +197,268 @@ def build_image_evidence(*, repo_dir: Path, run_root: Path, plan: Any) -> dict[s
         for item in assets
         if isinstance(item, dict) and is_image_category(item.get("category", "image"))
     }
-    source_files = "\n".join(
-        path.read_text(encoding="utf-8", errors="ignore")
+    source_by_path = {
+        path.relative_to(repo_dir).as_posix(): path.read_text(encoding="utf-8", errors="ignore")
         for path in repo_dir.rglob("*")
         if path.is_file()
         and path.suffix.lower() in {".tsx", ".ts", ".css"}
         and "node_modules" not in path.parts
-    )
+    }
+    source_files = "\n".join(source_by_path.values())
+    runtime_items: list[dict[str, Any]] = []
+    for raw_item in runtime_evidence or []:
+        item = raw_item.model_dump(mode="json") if hasattr(raw_item, "model_dump") else raw_item
+        if not isinstance(item, dict):
+            continue
+        journey_defaults = {
+            "journey_id": str(item.get("journey_id", "")),
+            "route_id": str(item.get("route_id", "")),
+            "viewport": str(item.get("viewport", item.get("viewport_profile", ""))),
+        }
+        observations = item.get("resource_observations", [])
+        if isinstance(observations, list):
+            for raw_observation in observations:
+                if not isinstance(raw_observation, dict):
+                    continue
+                runtime_items.append({**journey_defaults, **raw_observation})
+        # Accept a direct observation as well so small diagnostics and older
+        # callers can feed the exporter without manufacturing a journey
+        # wrapper.
+        if str(item.get("resource_slot_id", "")):
+            runtime_items.append({**journey_defaults, **item})
+
+    def source_for_route(route_id: str) -> str:
+        route = next(
+            (item for item in getattr(plan, "routes", []) if item.route_id == route_id), None
+        )
+        if route is None:
+            return source_files
+        storage_key = str(route.storage_key or route.route_id).replace("\\", "/").strip("/")
+        if storage_key.startswith("routes/"):
+            storage_key = storage_key.removeprefix("routes/")
+        if hasattr(blueprint, "route_shells"):
+            from oryxenai.agents.code_generator.core.path_policy import semantic_segment
+
+            storage_key = semantic_segment(storage_key or route_id)
+        prefix = f"src/routes/{storage_key}/"
+        scoped = "\n".join(
+            text for path, text in source_by_path.items() if path.startswith(prefix)
+        )
+        return scoped or source_files
+
     entries: list[dict[str, Any]] = []
     for placement in placements:
         slot_id = str(placement.resource_slot_id)
         asset = assets_by_slot.get(slot_id)
-        rendered = _source_references_resource_slot(source_files, slot_id)
+        referenced = _source_references_resource_slot(
+            source_for_route(str(placement.route_id)), slot_id
+        )
+        observations = [
+            item
+            for item in runtime_items
+            if str(item.get("resource_slot_id", item.get("id", ""))) == slot_id
+            and (
+                not str(item.get("route_id", ""))
+                or str(item.get("route_id", "")) == str(placement.route_id)
+            )
+            and (
+                not str(item.get("section_id", ""))
+                or str(item.get("section_id", "")) == str(placement.section_id)
+            )
+        ]
+        browser_checked = bool(observations)
+        decoded = (
+            any(item.get("decoded_in_browser", item.get("decoded", False)) is True for item in observations)
+            if browser_checked
+            else None
+        )
+        visible = (
+            any(item.get("visible_in_browser", item.get("visible", False)) is True for item in observations)
+            if browser_checked
+            else None
+        )
+        if not asset:
+            disposition = "fallback_or_missing"
+        elif visible is True:
+            disposition = "admitted_verified"
+        elif decoded is True:
+            disposition = "admitted_decoded_unverified_visibility"
+        elif referenced:
+            disposition = "admitted_referenced_unverified_browser"
+        else:
+            disposition = "admitted_unreferenced"
         entries.append(
             {
                 "resource_slot_id": slot_id,
                 "route_id": str(placement.route_id),
                 "section_id": str(placement.section_id),
                 "materialized": bool(asset),
-                "rendered": rendered,
+                # `rendered` remains as a v1 compatibility alias. New
+                # consumers must use the three evidence fields below.
+                "rendered": referenced,
+                "referenced_in_source": referenced,
+                "decoded_in_browser": decoded,
+                "visible_in_browser": visible,
+                "browser_evidence_state": (
+                    "verified"
+                    if visible is True
+                    else "failed"
+                    if browser_checked
+                    else "not_run"
+                ),
+                "runtime_observation_count": len(observations),
+                "browser_observations": [
+                    {
+                        "journey_id": str(item.get("journey_id", "")),
+                        "viewport": str(item.get("viewport", "")),
+                        "decoded_in_browser": item.get("decoded_in_browser"),
+                        "visible_in_browser": item.get("visible_in_browser"),
+                        "local_path": str(item.get("local_path", "")),
+                        "frame_width": item.get("frame_width"),
+                        "frame_height": item.get("frame_height"),
+                        "frame_aspect_ratio": item.get("frame_aspect_ratio"),
+                        "intrinsic_aspect_ratio": item.get("intrinsic_aspect_ratio"),
+                        "ancestor_opacity": item.get("ancestor_opacity"),
+                        "reasons": list(item.get("reasons", []))
+                        if isinstance(item.get("reasons", []), list)
+                        else [],
+                    }
+                    for item in observations
+                ],
                 "source_count": len(asset.get("sources", [])) if asset else 0,
                 "local_paths": [
                     str(item.get("path", ""))
                     for item in (asset.get("sources", []) if asset else [])
                     if isinstance(item, dict) and str(item.get("path", ""))
                 ],
-                "disposition": "admitted" if asset and rendered else "fallback_or_missing",
+                "disposition": disposition,
             }
         )
     return {
         "planned_count": len(entries),
         "materialized_count": sum(1 for item in entries if item["materialized"]),
+        "referenced_count": sum(1 for item in entries if item["referenced_in_source"]),
+        "decoded_count": sum(1 for item in entries if item["decoded_in_browser"] is True),
+        "visible_count": sum(1 for item in entries if item["visible_in_browser"] is True),
         "rendered_count": sum(1 for item in entries if item["rendered"]),
-        "failed_count": sum(1 for item in entries if not item["materialized"] or not item["rendered"]),
+        "failed_count": sum(
+            1
+            for item in entries
+            if not item["materialized"]
+            or not item["referenced_in_source"]
+            or (
+                item["runtime_observation_count"] > 0
+                and item["visible_in_browser"] is not True
+            )
+        ),
+        "browser_evidence_complete": not entries
+        or all(item["runtime_observation_count"] > 0 for item in entries),
+        "browser_evidence_not_run_count": sum(
+            1 for item in entries if item["runtime_observation_count"] == 0
+        ),
         "entries": entries,
+    }
+
+
+def build_safe_evidence_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Extract the safe, stage-neutral facts shared by every export report.
+
+    Successful and failed exports call the same ``export_portfolio`` writer,
+    but terminal paths often possess different subsets of evidence. This
+    summary keeps those differences explicit without copying prompts, model
+    responses, private intake, or machine-local absolute paths into the
+    downloadable receipt.
+    """
+
+    issues = [
+        item
+        for item in payload.get("issues", [])
+        if isinstance(item, dict) and str(item.get("code", ""))
+    ]
+    raw_terminal = payload.get("terminal_failure")
+    terminal = raw_terminal if isinstance(raw_terminal, dict) else {}
+    terminal_code = str(terminal.get("code") or terminal.get("terminal_code") or "")
+    terminal_message = str(
+        terminal.get("message") or terminal.get("safe_user_summary") or ""
+    )[:500]
+    terminal_stage = str(
+        terminal.get("stage")
+        or terminal.get("phase")
+        or payload.get("stage")
+        or payload.get("failing_stage")
+        or ""
+    )
+    generation = payload.get("generation_projection")
+    generation = generation if isinstance(generation, dict) else {}
+    accepted_checkpoint = generation.get("accepted_checkpoint")
+    accepted_checkpoint_hash = (
+        str(accepted_checkpoint.get("checkpoint_hash", ""))
+        if isinstance(accepted_checkpoint, dict)
+        else ""
+    )
+    calls = generation.get("call_receipts", [])
+    attempts = generation.get("attempt_records", [])
+    image_evidence = payload.get("image_evidence")
+    image_evidence = image_evidence if isinstance(image_evidence, dict) else {}
+    build_attempt = payload.get("build_attempt")
+    build_attempt = build_attempt if isinstance(build_attempt, dict) else {}
+    routes = [
+        {
+            "route_id": str(item.get("route_id", "")),
+            "path": str(item.get("path", "")),
+        }
+        for item in payload.get("routes", [])
+        if isinstance(item, dict)
+    ]
+    input_hashes = payload.get("input_hashes")
+    safe_input_hashes = (
+        {
+            str(key): str(value)
+            for key, value in input_hashes.items()
+            if str(key) and isinstance(value, (str, int, float, bool))
+        }
+        if isinstance(input_hashes, dict)
+        else {}
+    )
+    first_issue = issues[0] if issues else {}
+    return {
+        "status": str(payload.get("status", "unknown")),
+        "source_status": str(payload.get("source_status", "")),
+        "failing_stage": terminal_stage or str(payload.get("failing_stage", "")),
+        "primary_issue": {
+            "code": terminal_code or str(first_issue.get("code", "")),
+            "message": terminal_message
+            or str(first_issue.get("message", first_issue.get("normalized_message", "")))[:500],
+        },
+        "pipeline_issue_count": len(issues),
+        "terminal_failure": {
+            "code": terminal_code,
+            "message": terminal_message,
+        },
+        "input_hashes": safe_input_hashes,
+        "accepted_checkpoint_hash": accepted_checkpoint_hash,
+        "candidate_id": str(payload.get("candidate_id", "")),
+        "candidate_status": str(payload.get("candidate_status", "")),
+        "build_outcome": str(build_attempt.get("status", "not_run")),
+        "routes": routes,
+        "attempt_count": len(attempts) if isinstance(attempts, list) else 0,
+        "call_count": len(calls) if isinstance(calls, list) else 0,
+        "diagnostic_history_count": len(generation.get("diagnostic_history", []))
+        if isinstance(generation.get("diagnostic_history", []), list)
+        else 0,
+        "request_rounds": int(generation.get("request_rounds", 0) or 0),
+        "repair_rounds": int(generation.get("repair_rounds", 0) or 0),
+        "image_evidence": {
+            "planned": int(image_evidence.get("planned_count", 0) or 0),
+            "materialized": int(image_evidence.get("materialized_count", 0) or 0),
+            "referenced_in_source": int(image_evidence.get("referenced_count", 0) or 0),
+            "decoded_in_browser": int(image_evidence.get("decoded_count", 0) or 0),
+            "visible_in_browser": int(image_evidence.get("visible_count", 0) or 0),
+            "browser_evidence_complete": image_evidence.get("browser_evidence_complete"),
+            "browser_evidence_not_run_count": int(
+                image_evidence.get("browser_evidence_not_run_count", 0) or 0
+            ),
+        },
     }
 
 
@@ -290,6 +528,11 @@ def _generation_report(payload: dict[str, Any]) -> str:
         if isinstance(build_attempt, dict)
         else "not_recorded"
     )
+    build_diagnostics = (
+        [item for item in build_attempt.get("diagnostics", []) if isinstance(item, dict)]
+        if isinstance(build_attempt, dict)
+        else []
+    )
     image_evidence = payload.get("image_evidence")
     blocking_findings: list[dict[str, Any]] = []
     advisory_findings: list[dict[str, Any]] = []
@@ -307,6 +550,61 @@ def _generation_report(payload: dict[str, Any]) -> str:
         for advisory in verification.get("advisories", []):
             if isinstance(advisory, dict):
                 advisory_findings.append(advisory)
+    terminal_failure = payload.get("terminal_failure")
+    pipeline_issues = [
+        item
+        for item in payload.get("issues", [])
+        if isinstance(item, dict) and str(item.get("code", ""))
+    ]
+    if isinstance(terminal_failure, dict):
+        # Verification persists TerminalFailureReport; failed-export callers
+        # may also provide the smaller stage/code/message shape. Normalize
+        # both into the safe report vocabulary.
+        terminal_failure = {
+            "code": str(
+                terminal_failure.get("code")
+                or terminal_failure.get("terminal_code")
+                or ""
+            ),
+            "message": str(
+                terminal_failure.get("message")
+                or terminal_failure.get("safe_user_summary")
+                or ""
+            ),
+        }
+    elif pipeline_issues:
+        first_issue = pipeline_issues[0]
+        terminal_failure = {
+            "code": str(first_issue.get("code", "")),
+            "message": str(first_issue.get("message", "")),
+        }
+    generation_projection = payload.get("generation_projection")
+    generation_evidence: dict[str, Any] = (
+        generation_projection if isinstance(generation_projection, dict) else {}
+    )
+    artifact_lines = ["- Source project: `source/`"]
+    if isinstance(handoff, dict) and handoff.get("dist_path"):
+        artifact_lines.append("- Built site: `dist/`")
+    if screenshots_path:
+        artifact_lines.append(f"- Verification screenshots: `{screenshots_path}/`")
+    image_line = "- Image evidence: `unknown`"
+    if isinstance(image_evidence, dict):
+        if "referenced_count" in image_evidence:
+            image_line = (
+                f"- Planned: `{image_evidence.get('planned_count', 0)}`; "
+                f"materialized: `{image_evidence.get('materialized_count', 0)}`; "
+                f"referenced: `{image_evidence.get('referenced_count', 0)}`; "
+                f"decoded: `{image_evidence.get('decoded_count', 0)}`; "
+                f"visible: `{image_evidence.get('visible_count', 0)}`; "
+                f"failed: `{image_evidence.get('failed_count', 0)}`"
+            )
+        else:
+            image_line = (
+                f"- Planned: `{image_evidence.get('planned_count', 0)}`; "
+                f"materialized: `{image_evidence.get('materialized_count', 0)}`; "
+                f"rendered: `{image_evidence.get('rendered_count', 0)}`; "
+                f"failed: `{image_evidence.get('failed_count', 0)}`"
+            )
     lines = [
         "# OryxenAI generation report",
         "",
@@ -322,11 +620,10 @@ def _generation_report(payload: dict[str, Any]) -> str:
         f"- Checkpoint: `{payload.get('checkpoint_hash', '')}`",
         f"- Build hash: `{payload.get('build_hash', '')}`",
         f"- Build Preparation reference: `{payload.get('pack_reference', '')}`",
+        f"- Failing stage: `{payload.get('failing_stage') or (terminal_failure or {}).get('stage') or (terminal_failure or {}).get('phase') or 'none recorded'!s}`",
         "",
         "## Artifact map",
-        "- Source project: `source/`",
-        "- Built site: `dist/`",
-        *([f"- Verification screenshots: `{screenshots_path}/`"] if screenshots_path else []),
+        *artifact_lines,
         "- Safe metadata: `portfolio.json`",
         "- This report: `generation-report.md`",
         "",
@@ -343,14 +640,7 @@ def _generation_report(payload: dict[str, Any]) -> str:
         f"- Advisory observations: `{len(advisory_findings)}`",
         "",
         "## Image evidence",
-        (
-            f"- Planned: `{image_evidence.get('planned_count', 0)}`; "
-            f"materialized: `{image_evidence.get('materialized_count', 0)}`; "
-            f"rendered: `{image_evidence.get('rendered_count', 0)}`; "
-            f"failed: `{image_evidence.get('failed_count', 0)}`"
-            if isinstance(image_evidence, dict)
-            else "- Image evidence: `unknown`"
-        ),
+        image_line,
         *(
             [
                 "- "
@@ -360,7 +650,11 @@ def _generation_report(payload: dict[str, Any]) -> str:
                         "route_id": item.get("route_id", ""),
                         "section_id": item.get("section_id", ""),
                         "materialized": item.get("materialized", False),
-                        "rendered": item.get("rendered", False),
+                        "referenced_in_source": item.get(
+                            "referenced_in_source", item.get("rendered", False)
+                        ),
+                        "decoded_in_browser": item.get("decoded_in_browser", False),
+                        "visible_in_browser": item.get("visible_in_browser", False),
                         "disposition": item.get("disposition", ""),
                     },
                     sort_keys=True,
@@ -370,6 +664,41 @@ def _generation_report(payload: dict[str, Any]) -> str:
             ]
             if isinstance(image_evidence, dict)
             else []
+        ),
+        "## Failure evidence",
+        f"- Recorded pipeline issues: `{len(pipeline_issues)}`",
+        *[
+            f"- `{item.get('code', '')}`: {str(item.get('message', ''))[:400]}"
+            for item in pipeline_issues
+        ],
+        *[
+            f"- Build diagnostic `{item.get('code', '')}`: "
+            f"{str(item.get('message', item.get('normalized_message', '')))[:400]}"
+            for item in build_diagnostics
+            if str(item.get("code", ""))
+        ],
+        (
+            f"- Primary failure: `{terminal_failure.get('code', '')}` — "
+            f"{terminal_failure.get('message', '')}"
+            if isinstance(terminal_failure, dict)
+            else "- Primary failure: `none recorded`"
+        ),
+        (
+            f"- Generation phase: `{generation_evidence.get('phase', 'unknown')}`; "
+            f"source ready: `{generation_evidence.get('source_ready', False)}`; "
+            f"accepted checkpoint: `{(generation_evidence.get('accepted_checkpoint') or {}).get('checkpoint_hash', '')}`"
+            if generation_evidence
+            else "- Generation evidence: `none recorded`"
+        ),
+        (
+        f"- Generation attempts: `{len(generation_evidence.get('attempt_records', []))}`; "
+        f"context receipts: `{len(generation_evidence.get('context_receipts', []))}`; "
+        f"call receipts: `{len(generation_evidence.get('call_receipts', []))}`; "
+        f"diagnostic history: `{len(generation_evidence.get('diagnostic_history', []))}`; "
+        f"request rounds: `{generation_evidence.get('request_rounds', 0)}`; "
+            f"repair rounds: `{generation_evidence.get('repair_rounds', 0)}`"
+            if generation_evidence
+            else "- Generation ledger: `none recorded`"
         ),
         "",
         "## Routes",
@@ -421,14 +750,17 @@ async def export_failed_run(
     run_id: str,
     reason: str,
     issues: list[dict[str, Any]] | None = None,
+    generation_projection: dict[str, Any] | None = None,
+    terminal_failure: dict[str, Any] | None = None,
 ) -> Path | None:
     """Best-effort export of whatever source tree exists for a run that did
     not reach a promoted READY state (needs_attention or failed). Unlike
     `export_portfolio`, this never requires promotion-only state (a build
     manifest, an active preview, a candidate identity) -- only a run id and
-    whatever the generation/verification workspace already has on disk.
-    Returns None (never raises) when there is nothing yet to export, e.g. a
-    run that failed before generation produced any source tree.
+    whatever the generation/verification workspace already has on disk. If a
+    run failed before source creation, it still writes a metadata-only safe
+    receipt with an empty `source/` directory so the failure remains
+    downloadable and inspectable.
 
     Before exporting, this also attempts a best-effort clean build so the
     export gets a real `dist/` (and an honest build status in the report)
@@ -441,11 +773,35 @@ async def export_failed_run(
         workspace_root = repository_root() / workspace_root
     run_root = (workspace_root / run_id).resolve()
     repo_dir = run_root / "repo"
-    if not repo_dir.is_dir():
-        return None
-    build_attempt = await _attempt_best_effort_build(
-        repo_dir=repo_dir, settings=settings, run_id=run_id
-    )
+    source_exists = repo_dir.is_dir()
+    if source_exists:
+        build_attempt = await _attempt_best_effort_build(
+            repo_dir=repo_dir, settings=settings, run_id=run_id
+        )
+    else:
+        # Keep the export shape stable while making early planner/acquisition
+        # failures downloadable. The empty source directory is deliberately
+        # not presented as a runnable site; the report records that no build
+        # was attempted because no source tree existed.
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        build_attempt = {
+            "status": "not_run",
+            "diagnostics": [
+                {
+                    "code": "SOURCE_NOT_CREATED",
+                    "message": "The run failed before a generated source tree was created.",
+                }
+            ],
+        }
+    failure_record = terminal_failure or {
+        "stage": "generation_or_verification",
+        "code": reason,
+        "message": (
+            str((issues or [{}])[0].get("message", ""))
+            if issues
+            else "The run ended before verified preview promotion."
+        ),
+    }
     return export_portfolio(
         settings=settings,
         run_id=run_id,
@@ -455,7 +811,10 @@ async def export_failed_run(
             "status": "needs_attention",
             "export_reason": reason,
             "issues": issues or [],
+            "terminal_failure": failure_record,
+            "generation_projection": generation_projection or {},
             "build_attempt": build_attempt,
+            "source_status": "available" if source_exists else "not_created",
         },
     )
 
@@ -488,6 +847,7 @@ __all__ = [
     "DEFAULT_EXPORT_ROOT",
     "DEFAULT_EXPORT_TIMEZONE",
     "build_export_receipt",
+    "build_safe_evidence_summary",
     "export_failed_run",
     "export_portfolio",
 ]

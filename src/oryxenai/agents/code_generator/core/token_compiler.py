@@ -10,6 +10,9 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV3,
     ExperienceBlueprintV4,
 )
+from oryxenai.agents.code_generator.core.layout_recipe_catalogue import (
+    compile_layout_recipe_css,
+)
 
 
 class TokenCompilationError(ValueError):
@@ -324,5 +327,8 @@ def write_generated_tokens(
 ) -> Path:
     target = repo_dir / "src" / "design" / "generated-tokens.css"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(compile_generated_tokens(blueprint, bindings), encoding="utf-8")
+    compiled = compile_generated_tokens(blueprint, bindings)
+    if isinstance(blueprint, ExperienceBlueprintV4):
+        compiled += compile_layout_recipe_css(blueprint.section_regions)
+    target.write_text(compiled, encoding="utf-8")
     return target

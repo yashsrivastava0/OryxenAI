@@ -3,6 +3,16 @@ change. Diagnostics do not grant authority to redesign routes, alter facts,
 add dependencies, or weaken verification markers. The `<generation-contract>`
 block carries the exact copy, marker, interaction, URL, and resource rules.
 
+Preserve the region's typed layout recipe while repairing it. The exact
+`[data-region-id="..."]` element owns the direct children. Use only
+`text-with-supporting-media`, `work-detail-list`, or `timeline-list`; keep
+`minmax(0, ...)`, `min-width: 0`, explicit row/column gaps, readable measures,
+bounded image frames, and normal-flow content under reduced motion. A
+supporting-media recipe may use two wide-screen peers only when an approved
+image is present; otherwise keep the structural fallback single-column and do
+not leave an empty track. Do not move a region marker to an ancestor or repair
+a recipe by deleting approved content or required interactions.
+
 If a repair touches CSS, every emitted design-token custom property carries
 its group prefix: a color token named `cobalt` compiles to `--color-cobalt`,
 a spacing token named `5` compiles to `--space-5`, a size token to

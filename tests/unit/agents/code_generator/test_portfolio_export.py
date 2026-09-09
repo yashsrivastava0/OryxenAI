@@ -35,9 +35,7 @@ def test_generation_report_reads_receipt_fields_and_image_evidence() -> None:
                     {
                         "gate_id": "dom_runtime",
                         "status": "passed",
-                        "diagnostics": [
-                            {"code": "RUNTIME_REGION_GAP", "severity": "advisory"}
-                        ],
+                        "diagnostics": [{"code": "RUNTIME_REGION_GAP", "severity": "advisory"}],
                     },
                 ],
                 "advisories": [],
@@ -71,13 +69,34 @@ def test_generation_report_reads_receipt_fields_and_image_evidence() -> None:
     assert "Advisory observations: `1`" in report
 
 
+def test_generation_report_preserves_terminal_stage_and_pipeline_issue() -> None:
+    report = _generation_report(
+        {
+            "run_id": "run-failed",
+            "issues": [{"code": "SOURCE_REPAIR_EXHAUSTED", "message": "repair limit"}],
+            "terminal_failure": {
+                "terminal_code": "GENERATION_FAILED",
+                "phase": "generation",
+                "safe_user_summary": "The generated source did not pass validation.",
+            },
+        }
+    )
+
+    assert "Failing stage: `generation`" in report
+    assert "Recorded pipeline issues: `1`" in report
+    assert "Primary failure: `GENERATION_FAILED`" in report
+    assert "The generated source did not pass validation." in report
+
+
 def test_image_evidence_recognizes_literal_jsx_resource_bindings() -> None:
     assert _source_references_resource_slot('<LocalImage resourceId="slot-hero" />', "slot-hero")
-    assert _source_references_resource_slot('<LocalImage resourceId={`slot-hero`} />', "slot-hero")
-    assert not _source_references_resource_slot('<LocalImage resourceId="slot-other" />', "slot-hero")
+    assert _source_references_resource_slot("<LocalImage resourceId={`slot-hero`} />", "slot-hero")
+    assert not _source_references_resource_slot(
+        '<LocalImage resourceId="slot-other" />', "slot-hero"
+    )
 
 
-async def test_export_failed_run_returns_none_when_nothing_was_generated_yet(
+async def test_export_failed_run_writes_metadata_only_receipt_when_nothing_was_generated_yet(
     tmp_path: Path,
 ) -> None:
     settings = _settings_with_roots(tmp_path)
@@ -88,7 +107,15 @@ async def test_export_failed_run_returns_none_when_nothing_was_generated_yet(
         reason="PLANNER_OUTPUT_INVALID",
     )
 
-    assert result is None
+    assert result is not None
+    assert (result / "source").is_dir()
+    assert not (result / "dist").exists()
+    portfolio = (result / "portfolio.json").read_text(encoding="utf-8")
+    assert '"source_status": "not_created"' in portfolio
+    assert '"status": "not_run"' in portfolio
+    report = (result / "generation-report.md").read_text(encoding="utf-8")
+    assert "SOURCE_NOT_CREATED" in report
+    assert "Build attempt: `not_run`" in report
 
 
 async def test_export_failed_run_exports_the_existing_source_tree(

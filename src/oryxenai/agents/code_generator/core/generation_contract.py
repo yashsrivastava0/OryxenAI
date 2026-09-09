@@ -24,6 +24,9 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     SitePlan,
     WorkUnit,
 )
+from oryxenai.agents.code_generator.core.layout_recipe_catalogue import (
+    layout_recipe_context,
+)
 from oryxenai.agents.code_generator.core.motion_pattern_catalogue import get_motion_pattern
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 from oryxenai.agents.code_generator.core.resource_policy import is_image_category
@@ -125,6 +128,7 @@ def build_generation_contract(
     projections: dict[str, dict[str, Any]],
     operation: str,
     owned_paths: list[str],
+    image_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     site = projections.get("site/contract.json", {})
     scope = _route_scope(unit, projections)
@@ -165,6 +169,14 @@ def build_generation_contract(
     v4_section_selectors = (
         {
             (region.route_id, region.section_id): region.section_selector
+            for region in v4_blueprint.section_regions
+        }
+        if v4_blueprint is not None
+        else {}
+    )
+    v4_layout_recipes = (
+        {
+            (region.route_id, region.section_id): region.layout_recipe
             for region in v4_blueprint.section_regions
         }
         if v4_blueprint is not None
@@ -231,6 +243,9 @@ def build_generation_contract(
                     {
                         "section_id": section_id,
                         "section_selector": v4_section_selectors.get((route_id, section_id), ""),
+                        "layout_recipe": v4_layout_recipes.get(
+                            (route_id, section_id), "text-with-supporting-media"
+                        ),
                         "owner_file": owner_by_section.get(section_id, ""),
                         "content_ids": list(approved_content_ids),
                         "verbatim_strings": [] if v4 else prose,
@@ -381,6 +396,21 @@ def build_generation_contract(
         if v4_blueprint is not None
         else {}
     )
+    scoped_route_ids = set(scope) if scope else None
+    scoped_section_ids = (
+        set(unit.section_ids)
+        if unit is not None and unit.kind == "route_batch"
+        else None
+    )
+    layout_recipes = (
+        layout_recipe_context(
+            v4_blueprint.section_regions,
+            route_ids=scoped_route_ids,
+            section_ids=scoped_section_ids,
+        )
+        if v4_blueprint is not None
+        else []
+    )
     planned_slot_ids = set(planned_placements)
     materialized = projections.get("generated/resource-assets.json", {})
     planned_image_assets = []
@@ -479,6 +509,8 @@ def build_generation_contract(
         ],
         "optional_slot_bindings": [slot for slot in slots if not slot["required"]],
         "planned_image_assets": planned_image_assets,
+        "image_policy": dict(image_policy or {}),
+        "layout_recipes": layout_recipes,
         "motion_beats": motion_beats,
         "distinctive_moves": distinctive_moves,
         "must_preserve_text": must_preserve,
@@ -778,6 +810,55 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
                 "  Put wrapperMarker literally on the rendered element matched by "
                 "wrapperSelector; a comment or unrelated element does not satisfy placement."
             )
+
+    image_policy = contract.get("image_policy", {})
+    if isinstance(image_policy, dict):
+        lines.append("")
+        lines.append("IMAGE POLICY")
+        if image_policy.get("text_only_exemption"):
+            lines.append(
+                "- This approved scope contains no image slots. Keep the composition text-led "
+                "and do not invent image URLs or pretend a CSS texture is a downloaded image."
+            )
+        else:
+            lines.append(
+                f"- The host requires at least {image_policy.get('minimum_visible_images', 0)} "
+                "distinct approved image placement(s) in the final rendered site."
+            )
+            if image_policy.get("require_primary_route_image"):
+                lines.append(
+                    f"- The primary route is {image_policy.get('primary_route_id', '')!r}; "
+                    "it must contain a visible approved image placement."
+                )
+            lines.append(
+                "- Optional fallback artwork is not evidence of an admitted image. Preserve "
+                "the exact resource-slot identity and route scope in every LocalImage binding."
+            )
+
+    recipes = contract.get("layout_recipes", [])
+    if recipes:
+        lines.append("")
+        lines.append("BOUNDED LAYOUT RECIPE CATALOGUE")
+        lines.append(
+            "Choose only the recipe recorded for each region. The exact region selector owns "
+            "the direct children whose layout is being checked; do not satisfy a recipe with "
+            "an unrelated ancestor or a generic card grid. Keep essential content in normal "
+            "flow and let narrow viewports stack or simplify the arrangement."
+        )
+        for item in recipes:
+            recipe = item.get("recipe", {}) if isinstance(item, dict) else {}
+            lines.append(
+                f"- route={item.get('route_id')}; section={item.get('section_id')}; "
+                f"region={item.get('region_id')}; selector={item.get('region_selector')}; "
+                f"recipe={recipe.get('recipe_id')}; primitives="
+                f"{json.dumps(recipe.get('required_primitives', []))}; CSS="
+                f"{json.dumps(recipe.get('required_css_properties', []))}; narrow CSS="
+                f"{json.dumps(recipe.get('mobile_css_properties', []))}"
+            )
+            lines.append(f"  {recipe.get('direct_child_contract', '')}")
+            lines.append(f"  Image: {recipe.get('image_behavior', '')}")
+            lines.append(f"  Motion: {recipe.get('motion_behavior', '')}")
+            lines.append(f"  Fallback: {recipe.get('fallback_behavior', '')}")
 
     distinctive_moves = contract.get("distinctive_moves", [])
     if distinctive_moves:

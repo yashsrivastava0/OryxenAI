@@ -63,6 +63,17 @@ def _executable_name(value: str) -> str:
     return Path(value).name.casefold()
 
 
+def resolve_npm_executable(settings: Any) -> str:
+    """Resolve the package manager exactly as worker subprocesses do."""
+
+    configured = str(
+        getattr(getattr(settings, "code_generator_dependencies", None), "npm_executable", "")
+        or ""
+    ).strip()
+    candidate = configured or "npm"
+    return shutil.which(candidate) or (candidate if configured else "")
+
+
 def _validate_command(command: list[str]) -> None:
     if not command or any(not isinstance(item, str) or not item for item in command):
         raise ProcessRunnerError(
