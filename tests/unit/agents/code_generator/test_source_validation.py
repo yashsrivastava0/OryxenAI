@@ -820,7 +820,6 @@ def test_route_batch_rejects_empty_disclosure_panel(tmp_path) -> None:
             include_noninformative_disclosures=False,
         )
     )
-
     education.write_text(
         education.read_text(encoding="utf-8").replace(
             '<span aria-hidden="true" />',
@@ -838,6 +837,84 @@ def test_route_batch_rejects_empty_disclosure_panel(tmp_path) -> None:
             section_selectors_by_section={"home:education": "#education"},
             work_unit_id="route-home-batch-2",
         )
+    )
+
+
+def test_route_batch_rejects_approved_content_hidden_in_unplanned_disclosure(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Experience.tsx"
+    content_id = "content:home:experience:leadership-9e720e53"
+    (tmp_path / path).write_text(
+        f'''export default function Experience() {{
+  return <section id="experience" data-content-id="home:experience">
+    <Disclosure label="Read leadership context">
+      <p>{{contentValue("{content_id}")}}</p>
+    </Disclosure>
+  </section>;
+}}
+''',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [path],
+        route_id="home",
+        section_ids=["home:experience"],
+        content_ids_by_section={"home:experience": [content_id]},
+        section_selectors_by_section={"home:experience": "#experience"},
+        interaction_ids=[],
+        work_unit_id="route-home-batch-1",
+    )
+
+    hidden = [item for item in diagnostics if item.code == "SOURCE_HIDDEN_APPROVED_CONTENT"]
+    assert len(hidden) == 1
+    assert content_id in hidden[0].normalized_message
+    assert hidden[0].file == path
+
+
+def test_route_batch_allows_visible_duplicate_or_planned_disclosure_content(tmp_path) -> None:
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Experience.tsx"
+    content_id = "content:home:experience:leadership-9e720e53"
+    (tmp_path / path).write_text(
+        f'''export default function Experience() {{
+  return <section id="experience" data-content-id="home:experience">
+    <p>{{contentValue("{content_id}")}}</p>
+    <Disclosure label="Read leadership context">
+      <p>{{contentValue("{content_id}")}}</p>
+    </Disclosure>
+  </section>;
+}}
+''',
+        encoding="utf-8",
+    )
+    common = {
+        "route_id": "home",
+        "section_ids": ["home:experience"],
+        "content_ids_by_section": {"home:experience": [content_id]},
+        "section_selectors_by_section": {"home:experience": "#experience"},
+        "interaction_ids": [],
+        "work_unit_id": "route-home-batch-1",
+    }
+
+    assert not any(
+        item.code == "SOURCE_HIDDEN_APPROVED_CONTENT"
+        for item in validate_route_batch_contract(tmp_path, [path], **common)
+    )
+
+    planned = (tmp_path / path).read_text(encoding="utf-8").replace(
+        '<Disclosure label="Read leadership context">',
+        '<Disclosure label="Read leadership context" '
+        'data-interaction-id="interaction:home:experience:leadership">',
+    )
+    (tmp_path / path).write_text(planned, encoding="utf-8")
+    common["interaction_ids"] = ["interaction:home:experience:leadership"]
+    assert not any(
+        item.code == "SOURCE_HIDDEN_APPROVED_CONTENT"
+        for item in validate_route_batch_contract(tmp_path, [path], **common)
     )
 
 
