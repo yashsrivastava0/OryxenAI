@@ -354,7 +354,12 @@ def _npm_executable(settings: Any) -> str:
             "DEPENDENCY_INSTALL_UNAVAILABLE",
             "No package-manager executable is configured for dependency acquisition.",
         )
-    return executable
+    # ``npm`` resolves through PowerShell in an interactive terminal on
+    # Windows, but ``subprocess.run`` cannot execute the ``npm.ps1`` shim.
+    # Resolve the configured name once so native overlays may stay portable
+    # (``npm`` on Unix/Windows) while the actual worker receives ``npm.cmd``
+    # or the configured absolute executable path.
+    return shutil.which(executable) or executable
 
 
 async def _run_npm(command: list[str], repo_dir: Path, settings: Any, *, stage: str) -> None:
