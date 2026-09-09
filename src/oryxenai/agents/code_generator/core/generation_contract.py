@@ -843,7 +843,10 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
             "Choose only the recipe recorded for each region. The exact region selector owns "
             "the direct children whose layout is being checked; do not satisfy a recipe with "
             "an unrelated ancestor or a generic card grid. Keep essential content in normal "
-            "flow and let narrow viewports stack or simplify the arrangement."
+            "flow and let narrow viewports stack or simplify the arrangement. The numeric "
+            "columns_mobile/columns_tablet/columns_desktop values are abstract design-grid "
+            "spans, not literal CSS track counts; implement the recipe's single-versus-"
+            "multi-column behavior rather than copying a span into grid-template-columns."
         )
         for item in recipes:
             recipe = item.get("recipe", {}) if isinstance(item, dict) else {}
