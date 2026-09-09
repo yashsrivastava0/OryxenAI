@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 22:24 +05:30 — Codex (GPT-6 / OpenAI) — [14bb97c, c8a66e7, 80a925c] — fix(code-generator): make quality and failure reports truthful
+
+Replaced keyword-based severity inference with explicit host-owned finding
+mappings and strict terminal reports, then made historical quality receipts
+readable across run, quality, and product projections. Live Pack C reached
+source generation and stopped honestly at `INTEGRATION_REVIEW_UNRESOLVED`; its
+checkpoint remains retained and no preview was promoted. Verification: full
+Code Generator unit suite passes (307), mypy passes, and touched-file
+Ruff/format checks pass.
+
 ### 2026-09-09 20:31 +05:30 — Codex — [a503a4a] — fix(code-generator): enforce reliable generation lifecycle
 
 Implemented the reliability plan through the offline verification boundary:
@@ -81,8 +91,6 @@ Added an administrator-only pipeline reset capability to allow resetting any act
 - Added topbar Reset button with `ADMIN` badge, account menu secondary link, and confirmation dialog modal in `frontend/src/app/AppShell.tsx` and styled in `frontend/src/styles/shell.css`.
 - Verified with integration tests in `tests/api/test_admin_pipeline_reset.py`, store unit tests, and production frontend build.
 
-
-
 ### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [66d8287] - docs(frontend): author comprehensive frontend and agent integration specifications
 
 Created an exhaustive 6-document technical reference suite under `docs/frontend/`
@@ -112,7 +120,6 @@ executing the major frontend revamp:
   catalog, exact JSON payloads, copy-paste recipes, and step-by-step refactoring
   quality checklist.
 85 frontend vitest unit tests passing; Vite production build verified clean.
-
 
 ### 2026-09-09 01:20 +05:30 - Codex (GPT-5 / OpenAI) - [78a9c77] - frontend: remove legacy static pipeline shell
 
@@ -209,67 +216,13 @@ cross-person mismatches. Preflight validation failures are translated into a
 safe, attributable 409 response instead of an unhandled generic 500, with
 regression coverage for both the false-positive and error-sanitization paths.
 
-### 2026-09-08 17:51 +05:30 - Codex (GPT-5 / OpenAI) - [bb7078b] - app: harden Design-to-Prepare handoff
-
-Applied the same stale-projection protection to the explicit Visual Design →
-Build Preparation handoff. If the browser still has a fail-closed `locked`
-projection while upstream approval is already durable, the handoff now starts
-the preparation job instead of opening a permanently locked screen. The
-frontend boundary regression check covers this path.
-
-### 2026-09-08 17:28 +05:30 - Codex (GPT-5 / OpenAI) - [5731cf5] - app: repair stale Discovery-to-Content handoff
-
-Fixed the `/app` Continue to Content handoff when the browser still holds
-Content Architect's fail-closed `locked` projection from before Discovery was
-approved. The explicit handoff now starts Content for both stale `locked` and
-fresh `available` projections, and the frontend boundary test protects the
-regression path. Verified with the complete frontend typecheck, Vitest suite,
-and production build.
-
-### 2026-09-08 16:05 +05:30 - Codex (GPT-5 / OpenAI) - [78eacc7] - telemetry: align Experiential management observations
-
-Aligned the Experiential usage reconciler with the documented management API
-host and its organization-scoped usage contract. The reconciler now derives
-the management host from the configured inference URL, reads non-secret key
-metadata and effective key limits without guessing identifiers, and only calls
-usage rollups when an optional EXPLABS_ORG_ID environment value is
-configured. This removes recurring invalid telemetry probes while preserving
-local attempt telemetry and provider-observed data when the account scope is
-available. Added bounded unit coverage for URL derivation and key-ID safety.
-
-
 ## Compacted history
 
 ### 2026-09
-- 2026-09-08 - Codex - [ddc2e77] - Integrated approved Build Preparation into /app with safe output copying and provider attempt/usage safeguards; detailed history retained in Git.
-- 2026-09-08 - Codex - [3a6cf25] - Added per-boot legacy frontend cache busting so updated output controls appear after refresh.
-- 2026-09-08 - Codex - [b07582d] - Added per-agent safe JSON copy controls and clipboard fallback states.
-- 2026-09-08 - Codex (GPT-5 / OpenAI) - [7f2fbd0] - Fixed repeated manual Discovery retries colliding with durable idempotency constraints, and kept job-attempt tracing internal to adapter.
-- 2026-09-08 - Codex (GPT-5 / OpenAI) - [9d256f3] - Implemented provider-neutral Experiential/Gemini routing, quota ledger, bounded recovery, and usage telemetry; records D-078.
-- 2026-09-07 - Claude Code (Sonnet 5 / Anthropic) - [7f09506] - Added unverified candidate preview for needs_attention runs in dev harness; cancelled 95 stale queued jobs and fixed uncommitted export_receipt writes.
-- 2026-09-07 - Claude Code (Sonnet 5 / Anthropic) - [5bef169, ac5543e] - Root-caused live repair failures in DB history; fixed quote-tolerant attribute selector checks and distinctive-move review code mapping.
-- 2026-09-07 - Claude Code (Sonnet 5 / Anthropic) - [3f5b2aa] - Added clean auto-build on failed exports, wired export into generation failure path, and added geometry repair guidance.
-- 2026-09-07 - Claude Code (Sonnet 5 / Anthropic) - [78117e7] - Implemented truthful scaffold toolchain and 5 generation-time authoring fixes (cross-route nav edges, aspect-ratio pairing, 44px touch targets).
-- 2026-09-06 - Claude Code (Sonnet 5 / Anthropic) - [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce] - Fixed 10 Code Generator bugs across 5 live runs including content-box measurement for width-ratio checks and comment stripper regex.
-- 2026-09-06 - Antigravity (Gemini 3.8 Flash / Google) - [5768ce7] - Revamped /app Discovery workspace into an Editorial Swiss living draft studio with 6-stage drafting rail and progressive disclosure.
-- 2026-09-06 - Antigravity (Gemini 3.8 Flash / Google) - [618a038] - Added official OryxenAI 3-layer logo to sign-in, fixed back-button CTA stuck state, and added drafting grid and traveling sweep motion.
-- 2026-09-06 - Antigravity (Gemini 3.8 Flash / Google) - [fa9be97] - Redesigned Screen 1 (/sign-in) with 44/56 two-column Editorial Swiss studio layout, Google OAuth above the fold, and 5-card showcase carousel.
-- 2026-09-06 - Codex (GPT-5 / OpenAI) - [f208540, ebfbc94] - Documented frontend context/output ledger, copy-controls requirements, and replacement runbook pack for redesign agents.
-- 2026-09-06 - Codex (GPT-5 / OpenAI) - [cdf8952] - Fixed a Content approval 409 on pending-claim routes, bounded a one-click Discovery-to-Content handoff, and added safe copy-ready JSON to review surfaces; records D-075.
-- 2026-09-06 - Claude Code (Sonnet 5 / Anthropic) - [1956d58] - Curated kept `output/` artifacts, fixed a `.gitignore` nested-negation bug, corrected stale README claims, and documented `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE`.
-- 2026-09-06 - Codex (GPT-5 / OpenAI) - [7c94916] - Fixed Discovery's frontend to send correct answer action modes instead of presentation kinds, restoring authenticated answer submission.
-- 2026-09-06 - Claude Code (Sonnet 5 / Anthropic) - [83179f3 and 8 prior commits] - Closed 8 more live-tested Code Generator bugs beyond D-072 and added failed-run export (`export_failed_run`); records D-074.
-- 2026-09-06 - Codex (GPT-5 / OpenAI) - [ae89b61] - Fixed stale shared-execution-lane blocking that stalled Discovery behind old Code Generator leases.
-- 2026-09-06 - Codex (GPT-5 / OpenAI) - [68f1cd1, 861e981] - Added safe job lifecycle metadata, foreground scheduling, and stale-lease recovery for Discovery, plus durable stop fencing; records D-073.
-- 2026-09-06 - Codex (GPT-5 / OpenAI) - [cdf7a18] - Added durable cancellation fencing for Content Architect/Visual Design Director, a reusable three-stage job projection, and bounded trace export/copy support.
-- 2026-09-05 - Codex (GPT-5 / OpenAI) - [903477a, a2a8a60, 963375b, 7a0c68f] - Completed Azure VM provisioning, networking, SSH handoffs, and R2 credentials readiness checkpoints.
-- 2026-09-05 - Codex (GPT-5 / OpenAI) - [caa8f33] - Completed the authenticated three-stage Preact product handoff (Discovery/Content Architect/Visual Design Director) with retry/session fixes.
-- 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [34c638b, d6cde91] - Fixed `--color-accent` token collision, bounded live-search fallback for expired pinned Pixabay URLs, enriched repair diagnostics; records D-071, D-072.
-- 2026-09-05 - Codex (GPT-5 / OpenAI) - [8a2066a] - Added provider-neutral `BudgetedModelClient` to reserve prompt/completion charges before transmission and stop at a session cost cap; records D-070.
-- 2026-09-05 - Codex (GPT-5 / OpenAI) - [5b86779] - Added session-scoped PostgreSQL caching for validated structured model results across Discovery/Content Architect/Visual Design Director/Build Preparation; records D-069.
-- 2026-09-05 - Claude Code (Sonnet 5 / Anthropic) - [aedf96c] - Closed repair control-flow gaps, added review prompt prefix-caching, introduced the deterministic motion pattern catalogue; records D-068.
-- 2026-09-05 - Codex (GPT-5 / OpenAI) - [0ce8ecd] - Added canonical first-deployment path (Azure Linux VM, Docker Compose, Supabase auth, Cloudflare R2, Caddy HTTPS) with a production-overlay runbook.
-- 2026-09-05 - Antigravity (Gemini 3.8 Flash / Google) - [9fabd58] - Consolidated all agent outputs under single canonical `output/` directory, purging obsolete prebuild artifacts.
+- 2026-09-08 — [ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, bb7078b, 5731cf5, 78eacc7] — Completed Build Preparation/frontend handoffs, safe output copy and cache behavior, provider-neutral routing, and scoped telemetry; detailed history remains in Git.
+- 2026-09-07 — [7f09506, 5bef169, ac5543e, 3f5b2aa, 78117e7] — Added candidate previews, corrected live repair and export behavior, and closed scaffold/toolchain and generation-time authoring gaps.
+- 2026-09-06 — [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce, 5768ce7, 618a038, fa9be97, f208540, ebfbc94, cdf8952, 1956d58, 7c94916, 83179f3, ae89b61, 68f1cd1, 861e981, cdf7a18] — Fixed Code Generator/runtime issues, delivered frontend studio/auth/output work, and hardened agent job lifecycle and cancellation.
+- 2026-09-05 — [903477a, a2a8a60, 963375b, 7a0c68f, caa8f33, 34c638b, d6cde91, 8a2066a, 5b86779, aedf96c, 0ce8ecd, 9fabd58] — Completed deployment/auth foundations, provider budgets/caching, resource and repair fixes, motion patterns, and canonical output cleanup.
 
 ---
 

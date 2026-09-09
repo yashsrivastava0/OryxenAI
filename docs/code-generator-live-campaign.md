@@ -13,8 +13,9 @@ the historical campaigns below and begins before any new full pipeline call.
 - Maximum full pipeline calls: **5**.
 - Used: **1/5**.
 - Accepted cross-pack portfolios: **0/2**.
-- Code revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
-- State: slot 1 reserved; the full pipeline request is next.
+- Slot 1 run revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
+- Current readback revision: `80a925c` (severity-policy, terminal-report, and historical-receipt compatibility fixes).
+- State: slot 1 completed with `needs_attention`; slot 2 is available after readiness refresh.
 - Execution rule: one full pipeline at a time; stop at two accepted results or
   after slot 5, whichever comes first. A verification-only retry that reuses
   an accepted source is recorded separately and does not consume a full source
@@ -24,7 +25,7 @@ the historical campaigns below and begins before any new full pipeline call.
 
 | Slot | Pack | Reason | Status |
 | --- | --- | --- | --- |
-| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | reserved |
+| 1 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | C reproduces the latest repair path and exercises its route-scoped abstract image slot. | needs_attention |
 | 2 | `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | B provides a structurally different seven-section brief after slot 1 is diagnosed. | unreserved |
 | 3 | `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | A provides the remaining current seven-section variation. | unreserved |
 | 4 | choose after the preceding result | Only if fewer than two accepted results remain and the run adds evidence. | unreserved |
@@ -57,7 +58,15 @@ no credentials, signed URLs, raw prompts, or private brief content.
 
 | Slot | Reserved at | Pack | Code revision | Content hash | Visual hash | Contract hash | Idempotency key | Run ID | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 2026-09-09 20:56:11 +05:30 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | `a503a4a` | `0e88ebced8c350b04aab1bdeff4c1f430a0b3e5c7999379c3244e11df929e527` | `e3444c79571cdb92fbdc3be8356d056fd7203930946dafa18624198dc6cfa918` | `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128` | `542c3c11-415d-468c-947f-8d4654845fef` | pending POST | reserved |
+| 1 | 2026-09-09 20:56:11 +05:30 | `c0860464-a786-43d8-9c30-d12d7516c4b8` | `a503a4a` | `0e88ebced8c350b04aab1bdeff4c1f430a0b3e5c7999379c3244e11df929e527` | `e3444c79571cdb92fbdc3be8356d056fd7203930946dafa18624198dc6cfa918` | `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128` | `542c3c11-415d-468c-947f-8d4654845fef` | `4dfd10cc-52bd-4fc7-8a6d-96addf47b26e` | needs_attention |
+
+### Slot 1 result — Pack C
+
+- Run: `4dfd10cc-52bd-4fc7-8a6d-96addf47b26e`; durable job: `c7b49a1a-8900-4349-a6de-86a21198978d`.
+- Durable outcome: `needs_attention`, terminal code `INTEGRATION_REVIEW_UNRESOLVED`.
+- Admission, planning, acquisition, and source generation completed. The run accepted a 62-file source checkpoint with hash `ae525b31bce45ec6d0a5ef6055121c4a6517ab8aa3f4186f303e13b8be992127`, source manifest hash `937d9a7a1c4b2e36ab28b96b0d7afa898917ba9b5ba68d76586bd4e6279576db`, and 2,154,124 bytes.
+- The generation projection records 13 model calls/attempts and one repair round. The bounded whole-site review exhausted three integration polish rounds; verification and preview promotion did not run.
+- The original receipt classified two subjective findings as blocking. `14bb97c` replaced keyword severity inference with explicit host-owned mappings, and `c8a66e7` plus `80a925c` keep terminal, run, quality, and product read projections truthful for historical data. The current read projection is accepted with all three findings advisory; this does not make the source a successful portfolio.
 
 ## Current continuation campaign — five-run cap (2026-09-09)
 

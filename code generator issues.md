@@ -1,5 +1,26 @@
 # Code Generator Issues
 
+## 2026-09-09 22:22 +05:30 — Pack C live quality-gate disposition
+
+Authorized live run `4dfd10cc-52bd-4fc7-8a6d-96addf47b26e` completed planning,
+acquisition, and source generation, then stopped at the bounded integration
+review with `INTEGRATION_REVIEW_UNRESOLVED`. The source checkpoint was retained
+and the run correctly remained `needs_attention`; verification and preview
+promotion did not run.
+
+The provider supplied two subjective findings with codes
+`blueprint-distinctive-move-missing` and `typography-role-coverage`. The old
+keyword classifier persisted them as blocking because their evidence used
+words such as “missing,” even though they described visual polish. The host
+policy now maps known functional findings explicitly and keeps subjective
+composition, typography, and motion observations advisory (`14bb97c`). The
+strict terminal report and historical receipt/read-projection compatibility
+fixes are in `c8a66e7` and `80a925c`.
+
+Pack C remains a failed campaign slot, not an accepted portfolio. The exact run,
+checkpoint, hashes, usage, and preview outcome are recorded in
+`docs/code-generator-live-campaign.md`.
+
 ## 2026-09-09 20:31 +05:30 — Reliability plan implementation disposition
 
 Commit `a503a4a` implements the reliability handoff through the offline
