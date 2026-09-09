@@ -420,7 +420,7 @@ def test_v4_planner_prompt_requires_concrete_responsive_sizes() -> None:
     assert "BAD `(max-width: sixtyrem) 100vw, 58vw`" in instructions
     assert "shadcn_theme_bindings" in instructions
     assert "primary-foreground" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.planner.v14"
+    assert receipt.prompt_versions["operation"] == "code_generator.planner.v15"
 
 
 def test_generation_result_rejects_accepted_mode_for_first_time_generation() -> None:

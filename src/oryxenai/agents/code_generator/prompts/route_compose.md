@@ -17,7 +17,11 @@ violation, not a valid outcome.
 The composer owns only the route shell and route-level composition paths. It
 may resolve layout rhythm, landmark structure, section transitions, and
 route-local interaction wiring, but it may not rewrite already-owned batch
-content or create a second visual language. Import and render one completed
+content or create a second visual language. Section-scoped interactions are
+already assigned to their owning route batch by the host; only interaction
+IDs explicitly listed for this composer are route-shell concerns. Never
+invent a composer disclosure around an imported section to satisfy a control
+whose target is inside that section. Import and render one completed
 section component for every approved section, in the exact approved order;
 keep each section's `id`, `data-content-id`, and approved copy in that section
 module. Do not retype content, create a second section wrapper, or import an
