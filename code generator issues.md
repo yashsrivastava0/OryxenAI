@@ -1,5 +1,15 @@
 # Code Generator Issues
 
+## 2026-09-09 22:41 +05:30 — Toolchain preflight cleanup disposition
+
+The API-level toolchain proof initially returned a generic blocked response
+because Windows denied enumeration of a disposable preflight directory during
+best-effort cleanup. `4da1ddb` makes optional tree removal return `False` on
+that access error, preserving the actual proof result. After restarting the
+API and worker with the required Windows child-process permissions, the API
+preflight passed Node, npm, install, TypeScript, Vite build, browser, gateway,
+and brief-path checks; no model call was used.
+
 ## 2026-09-09 22:22 +05:30 — Pack C live quality-gate disposition
 
 Authorized live run `4dfd10cc-52bd-4fc7-8a6d-96addf47b26e` completed planning,
