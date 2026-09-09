@@ -90,6 +90,31 @@ function findParameterDeclaration(source, name) {
   return declaration;
 }
 
+function findBindingElement(source, name) {
+  let binding;
+  function visit(current) {
+    if (binding || !current) return;
+    if (
+      ts.isBindingElement(current) &&
+      ts.isIdentifier(current.name) &&
+      current.name.text === name &&
+      current.parent &&
+      ts.isArrayBindingPattern(current.parent) &&
+      current.parent.parent &&
+      ts.isParameter(current.parent.parent)
+    ) {
+      binding = {
+        parameter: current.parent.parent,
+        index: current.parent.elements.indexOf(current),
+      };
+      return;
+    }
+    ts.forEachChild(current, visit);
+  }
+  visit(source);
+  return binding;
+}
+
 function mappedCollection(parameter, source, seen) {
   const functionNode = parameter?.parent;
   const call = functionNode?.parent;
@@ -125,6 +150,19 @@ function staticLiteralValue(node, source, seen = new Set()) {
       const parameter = findParameterDeclaration(source, value.text);
       const collection = mappedCollection(parameter, source, new Set([...seen, value.text]));
       if (collection !== undefined) return collection;
+      const binding = findBindingElement(source, value.text);
+      if (binding) {
+        const mapped = mappedCollection(
+          binding.parameter,
+          source,
+          new Set([...seen, value.text]),
+        );
+        if (Array.isArray(mapped)) {
+          return mapped
+            .map((item) => (Array.isArray(item) ? item[binding.index] : undefined))
+            .filter((item) => item !== undefined);
+        }
+      }
     }
     return staticLiteralValue(initializer, source, new Set([...seen, value.text]));
   }
@@ -143,10 +181,34 @@ function staticLiteralValue(node, source, seen = new Set()) {
     if (object && typeof object === "object" && typeof index === "string") return object[index];
   }
   if (ts.isPropertyAccessExpression(value)) {
+    const expression = unwrap(value.expression);
+    if (ts.isIdentifier(expression)) {
+      const parameter = findParameterDeclaration(source, expression.text);
+      const collection = mappedCollection(parameter, source, new Set([...seen, expression.text]));
+      if (Array.isArray(collection)) {
+        return collection
+          .map((item) => (
+            item && typeof item === "object" && !Array.isArray(item)
+              ? item[value.name.text]
+              : undefined
+          ))
+          .filter((item) => item !== undefined);
+      }
+    }
     const object = staticLiteralValue(value.expression, source, seen);
     if (object && typeof object === "object") return object[value.name.text];
   }
   return undefined;
+}
+
+function addStaticContentValues(target, value) {
+  if (typeof value === "string") {
+    target.add(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) addStaticContentValues(target, item);
+  }
 }
 
 function exportedInitializer(source, exportName) {
@@ -661,10 +723,7 @@ function auditV4Routes() {
       for (const call of callNodes(tree)) {
         if (!ts.isIdentifier(call.expression) || !contentNames.has(call.expression.text)) continue;
         const argument = call.arguments[0] && staticLiteralValue(call.arguments[0], tree);
-        if (typeof argument === "string") contentCalls.add(argument);
-        else if (Array.isArray(argument)) {
-          for (const value of argument) if (typeof value === "string") contentCalls.add(value);
-        }
+        addStaticContentValues(contentCalls, argument);
       }
     }
     for (const contentId of contentByRoute.get(route.routeId) || []) {
