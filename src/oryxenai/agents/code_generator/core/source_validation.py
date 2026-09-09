@@ -134,7 +134,22 @@ def validate_generation_changes(
     max_response_bytes: int,
     allowed_packages: set[str],
     public_text: set[str],
+    repair_mode: bool = False,
 ) -> list[SourceFileChange]:
+    """Validate and normalize a bounded source change set.
+
+    Initial generation keeps the create/replace contract deliberately strict:
+    a model response must describe the candidate tree it was given.  Repair
+    responses are different because they can be produced from a rejected
+    response while another file in the same unit has already been accepted.
+    In that situation a stale operation tag is not a source-safety problem --
+    ownership, trusted-file, size, import, and content policy checks still
+    apply -- but rejecting the whole repair on ``create`` versus ``replace``
+    burns the bounded repair budget.  When ``repair_mode`` is enabled, align
+    the operation with the actual candidate tree after all path checks.  This
+    is deterministic, idempotent, and confined to the already-authorized
+    repair envelope.
+    """
     if (
         sum(len(change.complete_utf8_content.encode("utf-8")) for change in changes.files)
         > max_response_bytes
@@ -185,13 +200,19 @@ def validate_generation_changes(
                 file=path,
             )
         existing = (repo_dir / path).is_file()
-        if change.operation == "create" and existing:
+        operation = change.operation
+        if repair_mode:
+            if operation == "create" and existing:
+                operation = "replace"
+            elif operation == "replace" and not existing:
+                operation = "create"
+        if operation == "create" and existing:
             raise SourceValidationError(
                 "SOURCE_CREATE_EXISTS",
                 "A create change would overwrite an existing source file.",
                 file=path,
             )
-        if change.operation == "replace" and not existing:
+        if operation == "replace" and not existing:
             raise SourceValidationError(
                 "SOURCE_REPLACE_MISSING",
                 "A replace change targets a source file that does not exist.",
@@ -205,7 +226,7 @@ def validate_generation_changes(
             _validate_css_value_policy(change.complete_utf8_content, path)
         _validate_text_policy(change.complete_utf8_content, path, public_text)
         _validate_imports(change.complete_utf8_content, path, allowed_packages)
-        normalized.append(change.model_copy(update={"path": path}))
+        normalized.append(change.model_copy(update={"path": path, "operation": operation}))
     return normalized
 
 

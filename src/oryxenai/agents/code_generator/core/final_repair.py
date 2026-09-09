@@ -260,6 +260,7 @@ class FinalRepairer:
             max_response_bytes=int(settings.code_generator_generation.max_response_bytes),
             allowed_packages=allowed_packages,
             public_text=public_text,
+            repair_mode=True,
         )
         for change in normalized:
             target = (candidate / change.path).resolve()
