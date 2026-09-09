@@ -1,5 +1,27 @@
 # Code Generator Issues
 
+## 2026-09-10 00:03 +05:30 - Pack A live disposition and typography-token fix
+
+Authorized run `bc4319fb-da84-4c00-88fc-9485a9087d9d` reached
+`needs_attention` with terminal code `SOURCE_REPAIR_TOTAL_EXHAUSTED` during
+`generating_routes`. Admission, planning, acquisition, foundation generation,
+and route batches one and two completed; the accepted checkpoint was
+`checkpoint-206348a511a77972369a` with checkpoint hash
+`206348a511a77972369a79299c62545d94a5b7ca92e9663091a1a2ac3134572a`, source
+manifest `e0536ea55d794f68f5a14437f8f78ac9a8f4dac6a3096152e587915741ccb693`,
+59 files, and 1,068,723 bytes. The generation projection persisted seven call
+receipts/attempts, four source repair rounds, and budget used four; route batch
+three remained pending, so compose, integration review, verification, and
+preview promotion did not run.
+
+The root cause was a compiler vocabulary mismatch: the admitted blueprint
+contained `type_steps` named `type-body`, `type-label`, `type-heading`, and
+`type-display`, which produced `--type-type-*` properties, while the route
+response used canonical `--type-heading-*` and `--type-label-*` properties.
+Commit `90e8349` normalizes the names in the schema and compiler, protects the
+trusted construction path, and updates planner guidance. This is a failed
+slot with a targeted fix; the next slot is the live confirmation.
+
 ## 2026-09-09 23:39 +05:30 - Pack B live disposition and early disclosure gate
 
 Authorized and recorded run `2f22c091-32e7-47dc-bc99-aef25d4e8058` reached
