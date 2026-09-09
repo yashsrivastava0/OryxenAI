@@ -118,6 +118,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     validate_route_batch_contract,
     validate_route_composer_contract,
 )
+from oryxenai.agents.code_generator.core.terminal_failure import build_terminal_failure_report
 from oryxenai.agents.code_generator.core.token_compiler import (
     TokenCompilationError,
     write_generated_tokens,
@@ -203,9 +204,9 @@ def _pending_files_from_ledger(
         raise GenerationError(
             "PENDING_PROPOSAL_INVALID", "The pending source proposal metadata is invalid."
         ) from exc
-    if stored.model_dump(mode="json", exclude={"stored_relative_path", "updated_at"}) != proposal.model_dump(
+    if stored.model_dump(
         mode="json", exclude={"stored_relative_path", "updated_at"}
-    ):
+    ) != proposal.model_dump(mode="json", exclude={"stored_relative_path", "updated_at"}):
         raise GenerationError(
             "PENDING_PROPOSAL_DRIFT",
             "The pending source proposal metadata does not match the durable projection.",
@@ -324,20 +325,11 @@ def _build_pending_proposal(
     restricted_evidence: dict[str, str] | None = None,
 ) -> PendingSourceProposal:
     exact_owned = sorted(
-        {
-            path.replace("\\", "/").strip("/")
-            for path in owned_paths
-            if path and "*" not in path
-        }
+        {path.replace("\\", "/").strip("/") for path in owned_paths if path and "*" not in path}
     )
     pending_paths = sorted(files)
     present_paths = sorted(
-        set(pending_paths)
-        | {
-            path
-            for path in exact_owned
-            if (base_repo / path).is_file()
-        }
+        set(pending_paths) | {path for path in exact_owned if (base_repo / path).is_file()}
     )
     changed_paths = sorted(
         path
@@ -428,16 +420,11 @@ def _merge_pending_signatures(
 ) -> list[ExportedSignature]:
     """Overlay the latest declared signatures onto a pending proposal."""
 
-    merged = {
-        (item.path.replace("\\", "/"), item.export_name): item for item in previous
-    }
+    merged = {(item.path.replace("\\", "/"), item.export_name): item for item in previous}
     for item in current:
         key = (item.path.replace("\\", "/"), item.export_name)
         merged[key] = item.model_copy(update={"path": key[0]})
-    return [
-        merged[key]
-        for key in sorted(merged, key=lambda value: (value[0], value[1]))
-    ]
+    return [merged[key] for key in sorted(merged, key=lambda value: (value[0], value[1]))]
 
 
 def _candidate_backup_path(workspace: GenerationWorkspace, unit_id: str) -> Path:
@@ -1252,10 +1239,7 @@ class CodeGeneratorGenerationOrchestrator:
                 diagnostic
                 for diagnostic in local_projection.diagnostic_history
                 if diagnostic.diagnostic_id
-                not in {
-                    existing.diagnostic_id
-                    for existing in merged_projection.diagnostic_history
-                }
+                not in {existing.diagnostic_id for existing in merged_projection.diagnostic_history}
             )
             merged_projection.issues.extend(
                 issue
@@ -1767,7 +1751,9 @@ class CodeGeneratorGenerationOrchestrator:
                         diagnostic_ids=[item.diagnostic_id for item in batch_diagnostics],
                     )
                     if persist_projection:
-                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
+                        await self._persist(
+                            sessionmaker, run_id, projection, status=projection.phase
+                        )
                     _consume_repair_budget(
                         projection,
                         batch_diagnostics,
@@ -1779,7 +1765,9 @@ class CodeGeneratorGenerationOrchestrator:
                     operation = "repair"
                     role_profile = str(settings.code_generator_generation.repair_profile)
                     if persist_projection:
-                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
+                        await self._persist(
+                            sessionmaker, run_id, projection, status=projection.phase
+                        )
                     continue
             if unit.kind == "route_compose" and isinstance(
                 plan.experience_blueprint, ExperienceBlueprintV4
@@ -1808,7 +1796,9 @@ class CodeGeneratorGenerationOrchestrator:
                         diagnostic_ids=[item.diagnostic_id for item in composer_diagnostics],
                     )
                     if persist_projection:
-                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
+                        await self._persist(
+                            sessionmaker, run_id, projection, status=projection.phase
+                        )
                     _consume_repair_budget(
                         projection,
                         composer_diagnostics,
@@ -1820,7 +1810,9 @@ class CodeGeneratorGenerationOrchestrator:
                     operation = "repair"
                     role_profile = str(settings.code_generator_generation.repair_profile)
                     if persist_projection:
-                        await self._persist(sessionmaker, run_id, projection, status=projection.phase)
+                        await self._persist(
+                            sessionmaker, run_id, projection, status=projection.phase
+                        )
                     continue
             accepted = checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
@@ -2058,7 +2050,10 @@ class CodeGeneratorGenerationOrchestrator:
                         context_hash=context_receipt.context_hash,
                     )
                     await self._persist(
-                        sessionmaker, run_id, projection, status=DevelopmentRunStatus.INTEGRATING.value
+                        sessionmaker,
+                        run_id,
+                        projection,
+                        status=DevelopmentRunStatus.INTEGRATING.value,
                     )
                     try:
                         result, call_receipt = await self._model_result(
@@ -2079,9 +2074,7 @@ class CodeGeneratorGenerationOrchestrator:
                             projection,
                             polish_attempt_id,
                             status=(
-                                "cancelled"
-                                if isinstance(exc, asyncio.CancelledError)
-                                else "failed"
+                                "cancelled" if isinstance(exc, asyncio.CancelledError) else "failed"
                             ),
                             error_code=str(getattr(exc, "code", type(exc).__name__)),
                             error_message=str(getattr(exc, "message", str(exc))),
@@ -2103,7 +2096,10 @@ class CodeGeneratorGenerationOrchestrator:
                         call_receipt_id=call_receipt.receipt_id,
                     )
                     await self._persist(
-                        sessionmaker, run_id, projection, status=DevelopmentRunStatus.INTEGRATING.value
+                        sessionmaker,
+                        run_id,
+                        projection,
+                        status=DevelopmentRunStatus.INTEGRATING.value,
                     )
                     if result.mode != "changes":
                         # The model honestly reported it could not produce a
@@ -2365,7 +2361,9 @@ class CodeGeneratorGenerationOrchestrator:
         output_version = (
             "v4" if isinstance(plan.experience_blueprint, ExperienceBlueprintV4) else "legacy"
         )
-        review_output_model = QualityReviewDraftV1 if output_version == "v4" else IntegrationReviewV1
+        review_output_model = (
+            QualityReviewDraftV1 if output_version == "v4" else IntegrationReviewV1
+        )
         _, _, reserved_receipt = build_instructions(
             "integration_review",
             {**context, "role_profile": profile},
@@ -3327,14 +3325,15 @@ class CodeGeneratorGenerationOrchestrator:
                     continue
                 seen_issue_keys.add(key)
                 unique_issues.append(item)
+            terminal_report = build_terminal_failure_report(
+                run_id=str(run_id),
+                issue=issue,
+                projection=active_projection,
+            )
+            terminal_payload = terminal_report.model_dump(mode="json")
             values: dict[str, Any] = {
                 "issues": unique_issues,
-                "terminal_failure": {
-                    "stage": "generation",
-                    "code": issue.code,
-                    "message": issue.message,
-                    "first_issue": unique_issues[0] if unique_issues else {},
-                },
+                "terminal_failure": terminal_payload,
             }
             if active_projection is not None:
                 values["generation_projection"] = active_projection.model_dump(mode="json")
@@ -3372,12 +3371,7 @@ class CodeGeneratorGenerationOrchestrator:
                     if active_projection is not None
                     else None
                 ),
-                terminal_failure={
-                    "stage": "generation",
-                    "code": issue.code,
-                    "message": issue.message,
-                    "first_issue": unique_issues[0] if unique_issues else {},
-                },
+                terminal_failure=terminal_payload,
             )
             if exported is not None:
                 receipt = build_export_receipt(exported)
@@ -3699,9 +3693,7 @@ def _operation_context(
             "file_hashes": dict(pending_proposal.file_hashes)
             if pending_proposal is not None
             else {},
-            "file_sizes": dict(pending_proposal.file_sizes)
-            if pending_proposal is not None
-            else {},
+            "file_sizes": dict(pending_proposal.file_sizes) if pending_proposal is not None else {},
         },
         "input_hashes": [
             str(projections.get("handoff-report.json", {}).get("projection_hashes", {})),

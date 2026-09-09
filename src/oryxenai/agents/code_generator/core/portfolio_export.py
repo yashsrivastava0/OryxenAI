@@ -561,6 +561,12 @@ def _generation_report(payload: dict[str, Any]) -> str:
         # may also provide the smaller stage/code/message shape. Normalize
         # both into the safe report vocabulary.
         terminal_failure = {
+            "stage": str(
+                terminal_failure.get("stage")
+                or terminal_failure.get("phase")
+                or ""
+            ),
+            "phase": str(terminal_failure.get("phase") or terminal_failure.get("stage") or ""),
             "code": str(
                 terminal_failure.get("code")
                 or terminal_failure.get("terminal_code")

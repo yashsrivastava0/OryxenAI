@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 from datetime import UTC, datetime
@@ -11,6 +12,7 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
+from pydantic import ValidationError
 
 from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
@@ -19,6 +21,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DevelopmentEvent,
     DevelopmentRunProjection,
     DevelopmentRunStatus,
+    GenerationProjection,
 )
 from oryxenai.agents.code_generator.core.pipeline_contract import (
     PIPELINE_V3,
@@ -34,6 +37,7 @@ from oryxenai.agents.code_generator.core.provider_preflight import (
     provider_preflight_status,
     run_provider_preflight,
 )
+from oryxenai.agents.code_generator.core.terminal_failure import normalize_terminal_failure
 from oryxenai.agents.code_generator.core.toolchain_preflight import (
     cache_toolchain_preflight,
     run_toolchain_preflight,
@@ -1253,6 +1257,10 @@ def browser_ready(verification: Any) -> bool:
 
 
 def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
+    generation_projection = None
+    if isinstance(run.generation_projection, dict):
+        with contextlib.suppress(ValidationError):
+            generation_projection = GenerationProjection.model_validate(run.generation_projection)
     return DevelopmentRunProjection.model_validate(
         {
             "run_id": str(run.id),
@@ -1305,7 +1313,11 @@ def _projection(run: CodeGeneratorDevelopmentRun) -> DevelopmentRunProjection:
             "pending_promotion": run.pending_promotion,
             "active_preview": run.active_preview,
             "export_receipt": getattr(run, "export_receipt", None),
-            "terminal_failure": run.terminal_failure,
+            "terminal_failure": normalize_terminal_failure(
+                run.terminal_failure,
+                run_id=str(run.id),
+                projection=generation_projection,
+            ),
             "issues": run.issues,
             "created_at": run.created_at.isoformat(),
             "updated_at": run.updated_at.isoformat(),
