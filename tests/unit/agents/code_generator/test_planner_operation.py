@@ -6,6 +6,7 @@ import oryxenai.agents.code_generator.core.planner_operation as planner_operatio
 from oryxenai.agents.code_generator.core.development_planner import SitePlanValidationError
 from oryxenai.agents.code_generator.core.planner_operation import (
     _canonicalize_v4_blueprint_identities,
+    _canonicalize_v4_content_bindings,
     _canonicalize_v4_distinctive_move_ratios,
     _canonicalize_v4_reserved_color_tokens,
     _canonicalize_v4_typography_bindings,
@@ -94,7 +95,9 @@ async def test_planner_raises_after_exhausting_two_attempts() -> None:
 
     assert len(planner.calls) == 2
     assert len(caught.value.attempt_diagnostics) == 2
-    assert all(item["error_code"] == "PLANNER_OUTPUT_INVALID" for item in caught.value.attempt_diagnostics)
+    assert all(
+        item["error_code"] == "PLANNER_OUTPUT_INVALID" for item in caught.value.attempt_diagnostics
+    )
 
 
 @pytest.mark.asyncio
@@ -283,6 +286,43 @@ def test_v4_identity_canonicalization_rebinds_known_regions_and_moves() -> None:
     assert region["owner_id"] == "owner:home:home:hero"
     assert region["section_selector"] == "#home-hero"
     assert canonical["distinctive_moves"][0]["region_id"] == "region:home:home:hero"
+
+
+def test_v4_content_canonicalization_restores_complete_host_sequence() -> None:
+    payload = {
+        "section_regions": [
+            {
+                "route_id": "home",
+                "section_id": "home:capabilities",
+                "content_ids": ["content:home:home:capabilities:heading-1234"],
+            },
+            {
+                "route_id": "home",
+                "section_id": "home:unknown",
+                "content_ids": ["provider-invented"],
+            },
+        ]
+    }
+    context = {
+        "content_key_manifest": [
+            {
+                "route_id": "home",
+                "section_id": "home:capabilities",
+                "content_ids": [
+                    "content:home:home:capabilities:heading-aaaa",
+                    "content:home:home:capabilities:item-bbbb",
+                ],
+            }
+        ]
+    }
+
+    canonical = _canonicalize_v4_content_bindings(payload, context)
+
+    assert canonical["section_regions"][0]["content_ids"] == [
+        "content:home:home:capabilities:heading-aaaa",
+        "content:home:home:capabilities:item-bbbb",
+    ]
+    assert canonical["section_regions"][1] is payload["section_regions"][1]
 
 
 def test_v4_reserved_color_canonicalization_preserves_binding_value() -> None:
