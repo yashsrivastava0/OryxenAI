@@ -34,6 +34,9 @@ from oryxenai.agents.code_generator.core.pipeline_contract import (
 from oryxenai.agents.code_generator.core.provider_preflight import (
     code_generator_wire_schema_issues,
 )
+from oryxenai.agents.code_generator.core.quality_review import (
+    normalize_persisted_quality_review_for_read,
+)
 from oryxenai.agents.code_generator.core.stage_attempt import (
     StageAttemptToken,
     StageCoordinator,
@@ -781,7 +784,12 @@ class CodeGeneratorService:
             payload["design_variant"] = creative.get("variant_receipt")
             payload["design_fingerprint"] = creative.get("design_fingerprint")
             generation_projection = getattr(run, "generation_projection", None) or {}
-            payload["quality_review"] = generation_projection.get("quality_review")
+            quality_review = generation_projection.get("quality_review")
+            payload["quality_review"] = (
+                normalize_persisted_quality_review_for_read(quality_review)
+                if isinstance(quality_review, dict)
+                else quality_review
+            )
             payload["realization_contracts"] = verification_payload.get(
                 "verification_plan", {}
             ).get("realization_contracts", [])
