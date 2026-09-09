@@ -146,7 +146,14 @@ Grounding and exact coverage:
   from the element owning these direct children.
 - Assign every approved interaction exactly once with selector, literal
   marker, keyboard behavior, focus result, state transition, state attribute,
-  and same-app navigation outcome when applicable.
+  and same-app navigation outcome when applicable. When an interaction runs
+  inside a section, make its `target_selector` section-scoped: prefix a local
+  descendant selector with that section's exact `section_selector` (for
+  example, `#capabilities [data-capability-group] button`). Keep the stable
+  interaction ID in the `interaction:<route>:<section>:...` namespace when it
+  names a section. Reserve unscoped selectors and route-level IDs for genuine
+  route-shell behavior; the host uses these two signals to keep section
+  controls out of the composer.
 - Add motion only when it explains hierarchy, orientation, or interaction
   state. Bind trigger and target selectors, before/after computed properties,
   duration range, easing, main-thread budget, purpose, and a static

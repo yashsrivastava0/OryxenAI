@@ -1326,6 +1326,113 @@ def test_v4_interaction_is_owned_by_its_selector_matched_section_batch() -> None
     assert contract["required_coverage"]["interaction_ids"] == ["interaction:home:hero:contact"]
 
 
+def test_v4_local_interaction_selector_uses_section_namespace_for_ownership() -> None:
+    """A valid local selector must not make the route composer hide a section."""
+
+    base_blueprint = _blueprint()
+    region = base_blueprint.section_regions[0].model_copy(
+        update={
+            "region_id": "region:home:home:capabilities",
+            "section_id": "home:capabilities",
+            "owner_id": "owner:home:home:capabilities",
+            "section_selector": "#capabilities",
+            "region_selector": '[data-region-id="region:home:home:capabilities"]',
+        }
+    )
+    interaction_id = "interaction:home:capabilities:group-disclosure"
+    blueprint = ExperienceBlueprintV4.model_validate(
+        {
+            **base_blueprint.model_dump(),
+            "route_shells": [
+                base_blueprint.route_shells[0]
+                .model_copy(update={"section_order": ["home:capabilities"]})
+                .model_dump()
+            ],
+            "section_regions": [region.model_dump()],
+            "distinctive_moves": [
+                base_blueprint.distinctive_moves[0]
+                .model_copy(
+                    update={
+                        "section_id": "home:capabilities",
+                        "region_id": "region:home:home:capabilities",
+                        "target_selector": "#capabilities",
+                    }
+                )
+                .model_dump()
+            ],
+            "interaction_assignments": [
+                {
+                    "interaction_id": interaction_id,
+                    "route_id": "home",
+                    "owner_work_unit_id": "route-home-compose",
+                    "literal_marker": 'data-interaction="capability-group-disclosure"',
+                    "target_selector": "[data-capability-group] button",
+                    "outcome_selector": "[data-capability-group-content]",
+                    "trigger": "disclosure",
+                    "keyboard_behavior": "Enter or Space toggles the group.",
+                    "state_transition": "collapsed to expanded",
+                    "focus_behavior": "Keep focus on the trigger.",
+                    "expected_state_attribute": "aria-expanded",
+                    "expected_state_value": "true or false",
+                }
+            ],
+        }
+    )
+    plan = SitePlan(
+        plan_id="local-interaction-owner",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["home:capabilities"],
+                section_order=["home:capabilities"],
+                responsive_outcome="Readable at every viewport",
+                reduced_motion_outcome="Content remains visible without motion",
+                interaction_outcome="Keyboard accessible",
+            )
+        ],
+        interactions=[
+            InteractionContract(
+                interaction_id=interaction_id,
+                route_id="home",
+                trigger="disclosure",
+                outcome="collapsed to expanded",
+                keyboard_behavior="Enter or Space toggles the group.",
+                reduced_motion_behavior="No motion is required.",
+                target="[data-capability-group] button",
+            )
+        ],
+        experience_blueprint=blueprint,
+    )
+    projections = {
+        "site/contract.json": {
+            "routes": [
+                {
+                    "route_id": "home",
+                    "path": "/",
+                    "storage_key": "home",
+                    "section_sequence": ["home:capabilities"],
+                }
+            ],
+            "public_content": [],
+            "facts": [],
+        },
+        "design/visual-direction.json": {"global": {"must_preserve": []}},
+        "execution/contract.json": {"slots": []},
+    }
+
+    compiled = compile_site_plan(plan, projections)
+    batch = next(unit for unit in compiled.work_graph.units if unit.kind == "route_batch")
+    composer = next(unit for unit in compiled.work_graph.units if unit.kind == "route_compose")
+
+    assert batch.interaction_ids == [interaction_id]
+    assert composer.interaction_ids == []
+    assert compiled.experience_blueprint is not None
+    assert compiled.experience_blueprint.interaction_assignments[0].owner_work_unit_id == (
+        batch.unit_id
+    )
+
+
 def test_v4_source_wire_envelope_adapts_without_losing_coverage() -> None:
     receipt = GenerationContextReceipt(
         receipt_id="context-test",
@@ -1814,9 +1921,7 @@ def test_v4_token_compiler_defends_against_prefixed_model_copy_steps() -> None:
         step.model_copy(update={"name": f"type-type-{step.name}"})
         for step in _blueprint().tokens.type_steps
     ]
-    unvalidated_tokens = _blueprint().tokens.model_copy(
-        update={"type_steps": prefixed_steps}
-    )
+    unvalidated_tokens = _blueprint().tokens.model_copy(update={"type_steps": prefixed_steps})
     blueprint = _blueprint().model_copy(update={"tokens": unvalidated_tokens})
     css = compile_generated_tokens(blueprint)
 

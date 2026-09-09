@@ -266,13 +266,16 @@ def _v4_interaction_sections(plan: SitePlan) -> dict[str, str]:
     """Map selector-bound V4 interactions to their trigger's section owner.
 
     V4 interactions execute on elements inside section modules, while the
-    composer owns only the route shell. The planner already supplies exact
-    section and interaction selectors, so use the trigger target's CSS
-    ancestry rather than an interaction-ID naming convention. An outcome may
-    intentionally live in another section (for example, an in-page CTA), so
-    it cannot determine source ownership. Unresolved/ambiguous target
-    assignments remain composer-owned and fail closed at the whole-route
-    audit.
+    composer owns only the route shell. Prefer the trigger target's CSS
+    ancestry because it is the executable source-of-truth. Some valid
+    selectors are intentionally local to a section (for example,
+    ``[data-capability-group] button``) and therefore cannot be prefixed with
+    the section selector in the planner response. For that narrow case, use
+    the stable ``interaction:<route>:<section>:...`` namespace as a
+    deterministic fallback. An outcome may intentionally live in another
+    section (for example, an in-page CTA), so it cannot determine source
+    ownership. Unresolved or ambiguous assignments remain composer-owned and
+    fail closed at the whole-route audit.
     """
 
     blueprint = plan.experience_blueprint
@@ -288,7 +291,56 @@ def _v4_interaction_sections(plan: SitePlan) -> dict[str, str]:
         }
         if len(matches) == 1:
             result[interaction.interaction_id] = matches.pop()
+            continue
+        if not matches:
+            inferred = _section_from_interaction_id(
+                interaction.interaction_id,
+                interaction.route_id,
+                [
+                    region.section_id
+                    for region in blueprint.section_regions
+                    if region.route_id == interaction.route_id
+                ],
+            )
+            if inferred is not None:
+                result[interaction.interaction_id] = inferred
     return result
+
+
+def _section_from_interaction_id(
+    interaction_id: str, route_id: str, section_ids: list[str]
+) -> str | None:
+    """Return one section named by the stable interaction namespace.
+
+    V4 section IDs commonly include the route prefix (``home:capabilities``)
+    while interaction IDs use the shorter ``interaction:home:capabilities:…``
+    form. Accept both the complete section ID and that route-relative alias,
+    but only when exactly one admitted section matches. This keeps route-level
+    interactions such as ``interaction:home:contact`` composer-owned when no
+    section named ``contact`` exists, and avoids guessing on ambiguous names.
+    """
+
+    prefix = f"interaction:{route_id.strip()}:"
+    value = interaction_id.strip()
+    if not route_id.strip() or not value.startswith(prefix):
+        return None
+    remainder = value[len(prefix) :]
+    if not remainder:
+        return None
+    candidates: set[str] = set()
+    route_prefix = f"{route_id.strip()}:"
+    for section_id in section_ids:
+        section = section_id.strip()
+        if not section:
+            continue
+        aliases = {section}
+        if section.startswith(route_prefix):
+            relative = section[len(route_prefix) :]
+            if relative:
+                aliases.add(relative)
+        if any(remainder == alias or remainder.startswith(f"{alias}:") for alias in aliases):
+            candidates.add(section)
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def _selector_within(selector: str, section_selector: str) -> bool:

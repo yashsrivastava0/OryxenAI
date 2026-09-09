@@ -179,7 +179,13 @@ Visual and implementation contract:
   its `target_selector`. That same JSX opening tag must carry both the exact
   `data-interaction-id` attribute and the blueprint `literal_marker`. An
   outcome in another section is a destination, not a reason to move ownership
-  to the route composer or mark a duplicate navigation control.
+  to the route composer or mark a duplicate navigation control. The host
+  assigns section-scoped selectors to this batch; keep the exact target
+  selector on the executable element even when it is a generic descendant
+  selector such as `[data-capability-group] button`. Do not wrap an entire
+  approved section in a route-level disclosure to provide that interaction:
+  keep its heading, group labels, and purpose visible, and disclose only the
+  optional detail panel named by the interaction contract.
 
 Resource and content contract:
 
