@@ -1038,6 +1038,14 @@ def _normalize_token_identifier(value: str) -> str:
     return value.strip().replace("_", "-").lower()
 
 
+def _normalize_type_token_identifier(value: str) -> str:
+    """Return the semantic suffix used by the compiler's type token group."""
+    normalized = _normalize_token_identifier(value)
+    while normalized.startswith("type-"):
+        normalized = normalized.removeprefix("type-")
+    return normalized
+
+
 class NamedColorTokenV4(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1214,7 +1222,7 @@ class FluidTypeStepV4(BaseModel):
     def _ordered(self) -> FluidTypeStepV4:
         if self.minimum_rem > self.maximum_rem:
             raise ValueError("fluid type minimum must not exceed its maximum")
-        normalized = _normalize_token_identifier(self.name)
+        normalized = _normalize_type_token_identifier(self.name)
         if not re.fullmatch(r"[a-z][a-z0-9-]*", normalized):
             raise ValueError("fluid type steps require semantic identifiers")
         self.name = normalized
