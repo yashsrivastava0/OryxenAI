@@ -1,5 +1,29 @@
 # Code Generator Issues
 
+## 2026-09-09 13:45 +05:30 — Five-run variable-brief campaign and repair-state fix (Codex)
+
+The continuation campaign used the three eligible Build Preparation packs and
+stopped at the requested five full-pipeline calls. No sixth call was made.
+
+| Run | Pack | First durable outcome | Root cause / disposition |
+| --- | --- | --- | --- |
+| `55234cbb-32f3-475f-8716-affce08c8c3f` | Maya (`5f144f04-2789-48c6-9b1c-6bd11c87abdb`) | `needs_attention` during acquire: `DEPENDENCY_INSTALL_FAILED` | Native Windows overlay configured `npm_executable="npm"`, but direct subprocess execution could not start the PowerShell shim. Fixed in `d1c5645` by resolving the executable with `shutil.which()` before launch. |
+| `beb5e244-8787-4dcb-8c08-67fac19bcbe5` | Akash (`ba4b986e-7841-4cfb-94a0-d56fbe1b7956`) | `needs_attention` during acquire: offline `npm ci` missing `@emnapi/wasi-threads` and `tslib` | Platform-aware npm lock projection left optional/transitive entries that the warmed Windows cache could not satisfy with `npm ci`. Fixed in `2b2714a` by using offline `npm install --ignore-scripts --prefix` to repair the lock projection, then binding the final lock hash. |
+| `e5e32ac3-89d4-48ad-bbaf-4eb5e8927ee6` | Akash | `needs_attention` during plan: `PLAN_CONTENT_KEY_COVERAGE` | The planner omitted the complete content-key list for `home:capabilities` on one retry and omitted image placements on another. Fixed in `97d83dd` by host-canonicalizing known section bindings to the exact content manifest and requiring planner image policy/coverage before acceptance. |
+| `e39ee9e6-b71a-430b-bc7a-934046579f27` | Akash | `needs_attention` during generation: `FOUNDATION_SOURCE_CHECK_FAILED` | The admitted `highlighter` component imported unsupported `rough-notation` alongside `motion/react`; the brief declared only the supported `motion` package. Fixed in `59bf982` with an acquisition-time unsupported-import gate that falls back before source enters the generated tree. |
+| `291ed5d7-6a7d-44c8-b024-fbb7dbf8c5c8` | Varun (`c0860464-a786-43d8-9c30-d12d7516c4b8`) | `needs_attention` during generation: `SOURCE_REPAIR_EXHAUSTED` | The first route response was rejected for `SOURCE_CSS_INVALID_LENGTH` (`fiftych`). A bounded repair created the missing stylesheet; the next repair returned `create` for that now-existing stylesheet plus `create` for still-missing files. Strict validation rejected the mixed response as `SOURCE_CREATE_EXISTS`, exhausting the repair budget even though ownership and content were bounded. Fixed in `29fc598`: repair validation now reconciles stale `create`/`replace` tags with the actual candidate tree after ownership/trusted-file checks; initial generation remains strict. |
+
+Evidence for the fifth-run diagnosis is retained in
+`.workspace/code-generator-generation/291ed5d7-6a7d-44c8-b024-fbb7dbf8c5c8/route-batches/home-4ea14058-batch-1/`:
+the `663618e4…`/`c421377e…` contexts show the changing candidate inventory, and
+call `557d90fb…` contains the mixed operation response. Offline replay now
+normalizes the existing stylesheet to `replace` and the five absent files to
+`create`, with no `SOURCE_CREATE_EXISTS` error. The run never reached a
+checkpointed route, clean build, preview, or ready state; acquired image
+renditions remain in the failed-run export for inspection. Static verification
+after the fix: 285 Code Generator unit tests passed, plus Ruff, mypy, and the
+focused replay. The live campaign is closed at five full runs.
+
 ## 2026-09-09 03:00 +05:30 — Variable Build Preparation reliability pass (Codex) [2f424e5]
 
 This entry records the implementation checkpoint that follows the previous

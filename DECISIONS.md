@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-084 — Reconcile stale file-operation tags only inside bounded repairs
+
+- **Date & Time:** 2026-09-09 13:45 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** A live route-batch response was rejected for an invalid CSS unit. A bounded repair then created the missing stylesheet, while the next repair response repeated `operation="create"` for that now-existing file and used `create` for still-missing siblings. Strict operation validation exhausted the repair budget even though every path was owned and the source body was otherwise bounded.
+- **Decision:** Keep initial generation strict: `create` must target an absent file and `replace` an existing file. In repair mode only, after path ownership, trusted-file, size, import, and content checks are established, deterministically normalize each stale operation tag against the actual candidate tree. This makes a repair idempotent across partial/rejected attempts without broadening file authority.
+- **Rejected alternatives:** Disabling operation validation globally (would allow accidental overwrites during first generation); blindly turning every repair into `replace` (would fail legitimate repairs that restore a missing file); adding more paid repair rounds (would hide a deterministic state mismatch and violate the bounded-call policy); and silently patching generated files outside the owned envelope.
+- **Consequence:** Mixed create/replace repair responses can proceed safely across changing candidate inventories, while trusted files and ownership escapes remain hard failures. The repair prompt still instructs models to emit the operation matching `existing_files`, and the host normalization is deterministic fallback rather than model authority.
+
 ## D-083 — Make brief-driven Code Generator completion host-owned and evidence-bounded
 
 - **Date & Time:** 2026-09-09 03:00 +05:30 — Codex (GPT-5 / OpenAI)

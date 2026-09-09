@@ -11,6 +11,22 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 13:45 +05:30 - Codex (GPT-5 / OpenAI) - [29fc598] - fix(code-generator): reconcile stale repair file operations
+
+Closed the fifth live campaign's deterministic `SOURCE_CREATE_EXISTS` repair
+failure. Initial generation still enforces exact create/replace state. Repair
+validation now reconciles a stale operation tag with the actual owned candidate
+tree only after ownership, trusted-file, size, import, and content-policy
+checks, so a mixed response can continue across partial/rejected attempts
+without widening authority. Applied the same bounded behavior to the
+orchestrator's route/integration repairs and the final-repair path, documented
+the contract, and added a regression test for existing-plus-missing files.
+
+Verification: all 285 Code Generator unit tests pass; Ruff and mypy pass; the
+recorded fifth-run repair response replays offline as one `replace` plus five
+`create` operations with no `SOURCE_CREATE_EXISTS`. The five-run live campaign
+is closed; no sixth full pipeline call was made.
+
 ### 2026-09-09 09:50 +05:30 - Codex (GPT-5 / OpenAI) - [59409b5] - fix(worker): make PowerShell launcher use writable uv cache
 Updated `scripts/run-worker.ps1` to run from the repository root, use the
 repository-local `uv` cache, create its runtime cache directories, and
