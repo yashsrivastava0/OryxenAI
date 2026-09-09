@@ -1048,9 +1048,12 @@ class CodeGeneratorDevelopmentService:
                 "RUN_NOT_FOUND", "Development run was not found.", status_code=404
             )
         generation = dict(run.generation_projection or {})
+        quality_review = generation.get("quality_review")
+        if isinstance(quality_review, dict):
+            quality_review = normalize_persisted_quality_review_for_read(quality_review)
         return {
             "status": run.status,
-            "quality_review": generation.get("quality_review"),
+            "quality_review": quality_review,
             "integration_review": dict(run.integration_review or {}) or None,
             "source_checkpoint": dict(run.source_checkpoint or {}) or None,
         }
