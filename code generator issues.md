@@ -1,5 +1,51 @@
 # Code Generator Issues
 
+## 2026-09-09 14:40 +05:30 — Repair lifecycle and evidence audit; next implementation plan
+
+Read-only API checks confirmed the five continuation runs remain
+`needs_attention`. Fresh compilation accepted all three current underscore-folder
+brief pairs. No new full pipeline or portfolio model call was made in this audit.
+The owner authorized a separate future campaign of at most five full runs after
+implementation, stopping after two accepted cross-pack results.
+
+Detailed handoff: `docs/code-generator-reliability-plan-2026-09-09.md`.
+It contains exact saved-call references, issue IDs R01–R12, implementation work
+packages, regression scenarios, preview/Linux acceptance and campaign commands.
+
+New confirmed findings beyond the already-committed stale-operation fix:
+
+- R01: `_run_unit` replaces its rejected-file inventory with the latest repair
+  response, while `_apply_changes` applies that response over the accepted tree.
+  On run `291ed5d7`, one corrected stylesheet therefore lost the other five
+  proposed section files. Preserve and validate the merged pending proposal.
+- R02/R03: `_run_route_batch_wave` merges receipts only after every scheduled
+  batch succeeds; failure loses them from the durable projection. Success merging
+  also omits repair totals/strategies. The generation API currently reports zero
+  calls/repairs despite saved batch calls. R04 records the scheduler's lack of
+  explicit sibling failure cancellation as a required regression scenario.
+- R05/R06: the failed export omits route/input/call/image evidence and its report
+  ignores terminal issues. The successful-export image summary uses a source
+  regex as `rendered` evidence, not browser observations. These require separate
+  fixes to accounting, metadata wiring and evidence semantics.
+- R07–R12: independently enforce image policy through runtime; test ancestor
+  visibility; align exact layout selectors with tested recipes; preflight
+  optional component compatibility and platform toolchains. Visual inspection
+  found C's decorative craft-table photo poorly matched to its technical work;
+  it is an upstream optional pin, not download corruption. Prefer its approved
+  abstract illustration and restrained optional-media selection.
+
+Offline evidence: replaying the final `557d90fb` response against its actual
+batch tree passes source-policy and route-batch checks with five creates/one
+replace; a fresh offline npm install and app/node TypeScript checks also pass.
+Overlaying the first one-file repair on the full initial proposal eliminates
+the missing-section cascade but still exposes one exact layout-selector
+diagnostic. Neither experiment proves route composition, full build, browser
+acceptance or promotion. Focused existing regression suites passed after an
+approved rerun resolved pytest temporary-directory permissions.
+
+Disposition: investigation/plan complete; R01–R12 are not marked implemented.
+Implementation source and prior campaign records are unchanged by this entry.
+
 ## 2026-09-09 13:45 +05:30 — Five-run variable-brief campaign and repair-state fix (Codex)
 
 The continuation campaign used the three eligible Build Preparation packs and
