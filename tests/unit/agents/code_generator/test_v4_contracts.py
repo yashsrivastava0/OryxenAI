@@ -1791,6 +1791,40 @@ def test_v4_token_compiler_emits_aliases_and_font_metadata() -> None:
     assert css.count("--type-display-min:") == 1
 
 
+def test_v4_type_step_prefix_is_normalized_before_token_compilation() -> None:
+    token_data = _blueprint().tokens.model_dump(mode="python")
+    for step in token_data["type_steps"]:
+        step["name"] = f"type-{step['name']}"
+
+    normalized_tokens = DesignTokenSystemV4.model_validate(token_data)
+    assert [step.name for step in normalized_tokens.type_steps] == ["body", "display"]
+
+    blueprint = _blueprint().model_copy(update={"tokens": normalized_tokens})
+    css = compile_generated_tokens(blueprint)
+
+    assert "--type-type-" not in css
+    assert css.count("--type-body-min:") == 1
+    assert css.count("--type-display-min:") == 1
+
+
+def test_v4_token_compiler_defends_against_prefixed_model_copy_steps() -> None:
+    # model_copy is a trusted construction path that can bypass the schema
+    # field validator; compilation still owns the emitted CSS vocabulary.
+    prefixed_steps = [
+        step.model_copy(update={"name": f"type-type-{step.name}"})
+        for step in _blueprint().tokens.type_steps
+    ]
+    unvalidated_tokens = _blueprint().tokens.model_copy(
+        update={"type_steps": prefixed_steps}
+    )
+    blueprint = _blueprint().model_copy(update={"tokens": unvalidated_tokens})
+    css = compile_generated_tokens(blueprint)
+
+    assert "--type-type-" not in css
+    assert css.count("--type-body-min:") == 1
+    assert css.count("--type-display-min:") == 1
+
+
 def test_v4_token_compiler_rejects_shadcn_slot_colliding_with_a_color_token() -> None:
     """Defense-in-depth sibling of the schema-level collision test: even a
     blueprint that reached the compiler without going back through
