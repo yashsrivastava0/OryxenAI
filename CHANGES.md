@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 14:40 +05:30 — Codex — [e99ed55] — Code Generator reliability investigation and implementation handoff
+
+Traced the five failed runs, compiled the three current briefs, and replayed the
+latest repair offline. Added an evidence-backed implementation plan covering
+pending-file retention, durable batch accounting, image/layout quality, truthful
+exports and a separately authorized five-run campaign; no new live run or
+production-source change was made. Updated `code generator issues.md` and
+compacted the oldest detailed history entries per this file's retention policy.
+
 ### 2026-09-09 13:45 +05:30 - Codex (GPT-5 / OpenAI) - [29fc598] - fix(code-generator): reconcile stale repair file operations
 
 Closed the fifth live campaign's deterministic `SOURCE_CREATE_EXISTS` repair
@@ -211,48 +220,13 @@ configured. This removes recurring invalid telemetry probes while preserving
 local attempt telemetry and provider-observed data when the account scope is
 available. Added bounded unit coverage for URL derivation and key-ID safety.
 
-### 2026-09-08 15:10 +05:30 - Codex (GPT-5 / OpenAI) - [ddc2e77] - app: integrate Build Preparation, provider safety, and complete output rail
-
-Extended the authenticated `/app` journey through an explicit Build
-Preparation handoff after approved Content and Visual Design. Added durable
-state adaptation, progress/attention/stale recovery UI, and a safe right rail
-with exact persisted full-JSON copy controls for Discovery, Content Architect,
-Visual Design Director, and Build Preparation. Kept Code Generator/Preview
-outside the product flow and preserved explicit handoffs.
-
-Completed the provider-neutral free-tier hardening from PLAN.MD: post-response
-usage/cost/request telemetry (including wallet vs promotional consumption),
-safe attributable provider errors, quota observation/redaction, in-flight
-capacity preservation, and terminal accounting failure behavior, with the
-wallet column migration and admin date/model filters. Verified with `uv run
-pytest -q` (1,024 passed, 170 skipped), Ruff, mypy, frontend typecheck/Vitest,
-Vite production build, browser-auth tests, and migration-head checks.
-
-### 2026-09-08 11:14 +05:30 - Codex (GPT-5 / OpenAI) - [3a6cf25] - frontend: bust legacy bundle cache on bootstrap
-
-The legacy pipeline bootstrap now imports its mutable static bundle with a
-per-boot query string. This prevents browsers from retaining a pre-deployment
-`app.js` module after a normal workspace refresh, so the newly committed
-per-agent JSON copy controls are visible without a manual cache-clearing step.
-Verified with the two browser-bootstrap regression suites (10 tests).
-
-### 2026-09-08 11:10 +05:30 - Codex (GPT-5 / OpenAI) - [b07582d] - frontend: per-agent full JSON copy controls
-
-Updated the development pipeline's Agent Workspace sidebar so each available
-agent has its own Copy JSON control, while the selected-output control remains
-available in the header. Discovery now copies JSON instead of a Markdown-only
-summary, and Content Architect, Visual Design Director, and Build Preparation
-copy the complete safe agent-owned projections while excluding raw intake,
-source snapshots, credentials, run/job metadata, and worker errors. Added the
-clipboard API with a select-and-copy fallback and explicit copy status text.
-Verified with static JavaScript syntax checking, focused web/API tests, and the
-frontend Vitest suite (72 tests).
-
----
 
 ## Compacted history
 
 ### 2026-09
+- 2026-09-08 - Codex - [ddc2e77] - Integrated approved Build Preparation into /app with safe output copying and provider attempt/usage safeguards; detailed history retained in Git.
+- 2026-09-08 - Codex - [3a6cf25] - Added per-boot legacy frontend cache busting so updated output controls appear after refresh.
+- 2026-09-08 - Codex - [b07582d] - Added per-agent safe JSON copy controls and clipboard fallback states.
 - 2026-09-08 - Codex (GPT-5 / OpenAI) - [7f2fbd0] - Fixed repeated manual Discovery retries colliding with durable idempotency constraints, and kept job-attempt tracing internal to adapter.
 - 2026-09-08 - Codex (GPT-5 / OpenAI) - [9d256f3] - Implemented provider-neutral Experiential/Gemini routing, quota ledger, bounded recovery, and usage telemetry; records D-078.
 - 2026-09-07 - Claude Code (Sonnet 5 / Anthropic) - [7f09506] - Added unverified candidate preview for needs_attention runs in dev harness; cancelled 95 stale queued jobs and fixed uncommitted export_receipt writes.
@@ -302,6 +276,6 @@ frontend Vitest suite (72 tests).
 
 ## Summary (as of last compaction — 2026-09-09)
 
-- Recent detailed entries retained: 17
-- Compacted milestone bullets: 26
-- Last updated: 2026-09-09 09:50 +05:30 — Codex (GPT-5 / OpenAI)
+- Recent detailed entries retained: 16
+- Compacted milestone bullets: 29
+- Last updated: 2026-09-09 14:40 +05:30 — Codex
