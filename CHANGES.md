@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 03:08 +05:30 - Codex (GPT-6 / OpenAI) - [7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] - fix(code-generator): close desktop generation reliability gaps
+Closed preview/export, source-ownership, interaction-ownership, contract-ordering, static content-map, and conditional-motion audit gaps found in the authorized five-run campaign; the desktop/web path is hardened and the full Code Generator unit suite passes.
+
 ### 2026-09-10 00:03 +05:30 - Codex (GPT-6 / OpenAI) - [90e8349] - fix(code-generator): normalize typography token names
 
 Normalized prefixed fluid type-step names at the schema and compiler
@@ -241,6 +244,6 @@ instead of sharing the more permissive general worker default.
 
 ## Summary (as of last compaction — 2026-09-09)
 
-- Recent detailed entries retained: 16
+- Recent detailed entries retained: 17
 - Compacted milestone bullets: 31
-- Last updated: 2026-09-09 23:39 +05:30 — Codex
+- Last updated: 2026-09-10 03:08 +05:30 — Codex

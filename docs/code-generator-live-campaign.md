@@ -5,6 +5,37 @@ This is the durable handoff record for the reliability campaign authorized on
 Code session can resume without guessing which Build Preparation output or
 which live-call budget remains.
 
+## Final reliability campaign - five-run cap (2026-09-10)
+
+This is the superseding record for the continuation campaign authorized by the
+owner after the reliability plan was implemented. It keeps the historical
+campaign sections below intact, while recording the five final full-pipeline
+attempts and the deterministic fixes made between them.
+
+- Maximum full pipeline calls: **5**; consumed: **5/5**; accepted `ready`
+  portfolios: **0/2**. No sixth full pipeline call was made.
+- Final code revision: `5eca499` (with `c3fabdc`, `7a01ee9`, `3f07609`,
+  `f1e74d3`, `40434cf`, and `ed21a6a` as the preceding reliability fixes).
+- Release target: web/desktop, using the configured `desktop` (1440x900) and
+  `laptop` (1280x800) journeys. Mobile CSS and optional controls remain
+  supported, but mobile is not a release gate for this campaign.
+- Provider and toolchain preflights were green with zero portfolio model calls;
+  the worker matched release `oryxenai-code-generator-v5-quality-v3`.
+
+### Full-pipeline outcomes
+
+| Slot | Pack | Run / idempotency key | Terminal outcome | First causal evidence | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| 1 | B - `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | `2512c969-b0c3-44cd-ba29-1cea626c9d35` / `b7b5f35d-3d12-4ee3-bc78-8e6e7a6ea101` | `needs_attention` - `DOM_RUNTIME_FAILED` | Build and source passed; runtime had no console/page/network errors, but an approved experience paragraph was rendered only inside an unplanned collapsed `Disclosure`. | Fixed by `3f07609`: canonical route source is supplied to repairs and hidden approved content is a blocking source diagnostic. |
+| 2 | B - `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | `6de0fdb3-c019-4413-a142-78691ec5414a` / `2a9c3b24-473d-4235-88d7-b0acd33f1b8e` | `needs_attention` - `INTEGRATION_REVIEW_UNRESOLVED` | The required capability disclosure selector was assigned to the route composer, so it wrapped a duplicate label rather than the capability section it was meant to expose. | Fixed by `f1e74d3`: selector ancestry and exact section aliases now determine interaction ownership. |
+| 3 | B - `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | `7b74c97b-f95e-4b77-986c-a6aed0f99b78` / `94700ede-442a-4b65-afbc-cb2d434f0f0d` | `needs_attention` - `SOURCE_REPAIR_TOTAL_EXHAUSTED` | Typecheck reported a one-character near-miss in a generated content-key suffix (`...7620ec24` versus canonical `...7620e261`); the actionable route contract was hidden behind the later typecheck failure. | Fixed by `40434cf`: route-batch contract diagnostics run immediately after candidate application and before npm/typecheck. |
+| 4 | B - `ba4b986e-7841-4cfb-94a0-d56fbe1b7956` | `fe4a0224-8f5f-4c3e-86a2-a1aafef8d621` / `4f4ecd47-1135-44bb-a077-3f3e097d81ac` | `needs_attention` - `SOURCE_REPAIR_TOTAL_EXHAUSTED` | The generated source used statically provable literal object/tuple collections, but the Python pre-gate and scaffold AST audit did not agree; the run reported a large false-positive content-key bundle (plus a custom-property observation). | Fixed by `ed21a6a`: bounded object-field, nested-array, and tuple-destructuring maps are resolved consistently by both validators. |
+| 5 | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `20bdd7df-4604-48e0-ba36-3022eab10f0a` / `a1ca232f-045e-4609-a72d-d4fa452785a6` | `needs_attention` - `SOURCE_CONTRACT_FAILED` | Source generation, clean build, and integration quality review completed. The only blocking result was a validator false negative for a statically-known JSX marker (`data-motion={index === 0 ? "current-role" : undefined}`) implementing `motion:home:experience:current-role`; quality findings were advisory. | Fixed offline by `c3fabdc`: source and TypeScript AST audits accept exact literal or static conditional JSX markers. No sixth run was available to re-run build, verification, and preview promotion. |
+
+### Final disposition and handoff
+
+The last run retained a valid 53-file source checkpoint (`93c27537190a996a6b8ddaa67d1468561430b49da6654c26a55293cbeb85a4e4`, manifest `4d1ea57b96349343506d99aa3c3468d19d28221eb4ce2976f90567b5b99f1912`) and a successful build, but the campaign ended before the final offline fix could be exercised through the verification and preview-promotion gates. It is therefore not a successful `ready` result, and no Azure deployment or verified preview is claimed. Optional image omission remains valid when the approved brief has no suitable media; a rendered required image that 404s or fails decoding remains blocking. Start a new explicitly authorized campaign to prove the final revision end to end on the target Linux/Azure toolchain.
+
 ## Reliability-plan implementation campaign — five-run cap (2026-09-09)
 
 This is a new campaign after reliability commit `a503a4a`. It is separate from

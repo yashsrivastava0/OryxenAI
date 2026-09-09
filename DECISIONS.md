@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-088 - Make desktop web the release gate and keep source contracts statically provable
+
+- **Date & Time:** 2026-09-10 03:10 +05:30 - Codex (GPT-6 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The reliability campaign targets browser-delivered web portfolios. Mobile-oriented planner prose must not silently add a release journey, and two live runs showed that legitimate deterministic source forms (literal object/tuple maps and conditional JSX marker attributes) were rejected because the Python pre-gate and TypeScript AST audit recognized different subsets of the language.
+- **Decision:** Gate release evidence on the configured `desktop` (1440x900) and `laptop` (1280x800) journeys; retain responsive/mobile behavior and optional controls without making mobile a campaign blocker. Keep required content, interactions, assets, build, runtime, navigation, and accessibility checks blocking. Align both source validators on bounded, statically provable forms only: literal object-field or tuple collection maps and static JSX conditional markers are accepted, while computed or ambiguous values remain hard failures.
+- **Rejected alternatives:** Making mobile a required acceptance viewport (would spend reliability budget on a non-target surface); disabling source-contract checks (would allow missing content and broken interactions); accepting arbitrary JavaScript evaluation (unsafe and non-deterministic); or requiring every marker and content key to appear as a literal in JSX (rejects safe, readable generated code).
+- **Consequence:** Future variable briefs can produce and preview desktop web portfolios without cosmetic/mobile variation consuming the finite repair budget, while the generator still fails closed for real build, runtime, content, interaction, asset, ownership, and accessibility defects. A new authorized Linux/Azure campaign is still required before claiming an end-to-end `ready` result for this revision.
+
 ## D-087 - Normalize typography type-step names at the schema and compiler boundary
 
 - **Date & Time:** 2026-09-10 00:03 +05:30 - Codex (GPT-6 / OpenAI)
