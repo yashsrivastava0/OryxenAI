@@ -1270,7 +1270,6 @@ class RuntimeVerifier:
               for (const item of resourceChecks) {
                 if (seenResourceIds.has(item.resource_slot_id)) continue;
                 seenResourceIds.add(item.resource_slot_id);
-                const element = one(item.element_selector, 'RUNTIME_RESOURCE_SELECTOR', `Resource ${item.resource_slot_id}`);
                 const observation = {
                   kind: 'resource',
                   resource_slot_id: item.resource_slot_id,
@@ -1289,6 +1288,31 @@ class RuntimeVerifier:
                   local_path: '',
                   reasons: [],
                 };
+                // A resource placement can be approved but optional.  When
+                // acquisition/materialization made it available, the model
+                // may still choose the declared abstract/text fallback.  A
+                // missing optional selector is therefore evidence of an
+                // omitted optional treatment, not a required-image failure.
+                // Keep the observation so the export receipt distinguishes an
+                // omission from a browser decode/request failure.  Required
+                // image obligations and malformed/multiple selectors still
+                // go through the blocking selector path below.
+                let optionalOmission = false;
+                if (!item.policy_required) {
+                  try {
+                    optionalOmission = document.querySelectorAll(item.element_selector).length === 0;
+                  } catch (error) {
+                    optionalOmission = false;
+                  }
+                }
+                if (optionalOmission) {
+                  observation.reasons.push('optional_omitted');
+                  observation.decoded_in_browser = null;
+                  observation.visible_in_browser = null;
+                  resource_observations.push(observation);
+                  continue;
+                }
+                const element = one(item.element_selector, 'RUNTIME_RESOURCE_SELECTOR', `Resource ${item.resource_slot_id}`);
                 if (!element) {
                   observation.reasons.push('selector_missing');
                   resource_observations.push(observation);

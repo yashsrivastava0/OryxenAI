@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -17,7 +18,10 @@ from oryxenai.agents.code_generator.core.runtime_verifier import (
     _browser_environment,
     _validate_interaction_state,
 )
-from oryxenai.agents.code_generator.core.verification_plan import derive_verification_plan
+from oryxenai.agents.code_generator.core.verification_plan import (
+    build_verification_profile,
+    derive_verification_plan,
+)
 
 
 def test_interaction_journeys_use_literal_markers_and_assert_external_links() -> None:
@@ -193,6 +197,58 @@ def test_every_route_is_checked_at_all_configured_viewports_with_geometry() -> N
     )
     assert reduced.motion_profile == "reduce"
     assert any(step.action == "assert_geometry" for step in reduced.steps)
+
+
+def test_release_profile_filters_inherited_mobile_viewports() -> None:
+    class Config:
+        profile_id = "release"
+        viewport_profiles: ClassVar[dict[str, dict[str, int]]] = {
+            "mobile": {"width": 390, "height": 844},
+            "tablet": {"width": 768, "height": 1024},
+            "desktop": {"width": 1440, "height": 900},
+            "laptop": {"width": 1280, "height": 800},
+        }
+        release_viewport_profiles: ClassVar[list[str]] = ["desktop", "laptop"]
+
+    profile = build_verification_profile(type("Settings", (), {"code_generator_verification": Config()})())
+    assert set(profile.viewport_profiles) == {"desktop", "laptop"}
+
+    identity = CandidateIdentity(
+        input_receipt_hash="input",
+        site_plan_hash="plan",
+        work_graph_hash="graph",
+        source_checkpoint_hash="checkpoint",
+        source_manifest_hash="manifest",
+        scaffold_toolchain_profile_hash="toolchain",
+        verification_profile_hash="verification",
+    )
+    plan = SitePlan(
+        plan_id="plan",
+        routes=[
+            RoutePlan(
+                route_id="home",
+                path="/",
+                section_ids=["hero"],
+                responsive_outcome="stack on mobile and narrow screens",
+                reduced_motion_outcome="safe",
+                interaction_outcome="keyboard safe",
+            )
+        ],
+    )
+    result = derive_verification_plan(
+        identity=identity,
+        plan=plan,
+        projections={
+            "site/contract.json": {
+                "routes": [{"route_id": "home", "path": "/"}],
+                "public_content": [],
+                "public_content_manifest": {"nav": []},
+            }
+        },
+        profile=profile,
+    )
+    direct = [item for item in result.runtime_journeys if item.journey_id.startswith("direct:")]
+    assert {item.viewport_profile for item in direct} == {"desktop", "laptop"}
 
 
 def test_runtime_verifier_translates_nested_preview_urls_to_application_paths() -> None:

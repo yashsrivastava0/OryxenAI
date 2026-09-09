@@ -320,6 +320,7 @@ def validate_repository(
     max_source_bytes: int,
     work_unit_id: str,
     source_paths: list[str] | None = None,
+    include_noninformative_disclosures: bool = True,
 ) -> list[SourceDiagnostic]:
     scoped_paths = (
         {item.replace("\\", "/").strip("/") for item in source_paths}
@@ -395,7 +396,11 @@ def validate_repository(
                 _validate_imports(text, relative, allowed_packages)
         except SourceValidationError as exc:
             diagnostics.append(_diagnostic(exc.code, exc.message, work_unit_id, relative))
-        if relative.startswith("src/routes/") and path.suffix.casefold() == ".tsx":
+        if (
+            include_noninformative_disclosures
+            and relative.startswith("src/routes/")
+            and path.suffix.casefold() == ".tsx"
+        ):
             diagnostics.extend(
                 _noninformative_disclosure_diagnostics(
                     text,
@@ -566,6 +571,7 @@ def validate_route_batch_contract(
     motion_beats: list[dict[str, Any]] | None = None,
     h1_owner_section_id: str = "",
     work_unit_id: str,
+    include_noninformative_disclosures: bool = True,
 ) -> list[SourceDiagnostic]:
     """Validate section ownership before a split batch is checkpointed.
 
@@ -608,14 +614,15 @@ def validate_route_batch_contract(
         except SourceValidationError as exc:
             diagnostics.append(_diagnostic(exc.code, exc.message, work_unit_id, relative))
     sources = {path: contract_sources.get(path, "") for path in source_paths}
-    for relative, source in sources.items():
-        diagnostics.extend(
-            _noninformative_disclosure_diagnostics(
-                source,
-                relative,
-                work_unit_id,
+    if include_noninformative_disclosures:
+        for relative, source in sources.items():
+            diagnostics.extend(
+                _noninformative_disclosure_diagnostics(
+                    source,
+                    relative,
+                    work_unit_id,
+                )
             )
-        )
 
     anchor_relative = source_paths[0]
     anchor_text = sources.get(anchor_relative, "")

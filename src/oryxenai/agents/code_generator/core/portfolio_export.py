@@ -390,12 +390,16 @@ def build_safe_evidence_summary(payload: dict[str, Any]) -> dict[str, Any]:
     )
     generation = payload.get("generation_projection")
     generation = generation if isinstance(generation, dict) else {}
+    call_ledger = payload.get("call_ledger")
+    call_ledger = call_ledger if isinstance(call_ledger, dict) else {}
     accepted_checkpoint = generation.get("accepted_checkpoint")
     accepted_checkpoint_hash = (
         str(accepted_checkpoint.get("checkpoint_hash", ""))
         if isinstance(accepted_checkpoint, dict)
         else ""
     )
+    if not accepted_checkpoint_hash:
+        accepted_checkpoint_hash = str(payload.get("checkpoint_hash", ""))
     calls = generation.get("call_receipts", [])
     attempts = generation.get("attempt_records", [])
     image_evidence = payload.get("image_evidence")
@@ -442,12 +446,18 @@ def build_safe_evidence_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "build_outcome": str(build_attempt.get("status", "not_run")),
         "routes": routes,
         "attempt_count": len(attempts) if isinstance(attempts, list) else 0,
-        "call_count": len(calls) if isinstance(calls, list) else 0,
+        "call_count": int(
+            call_ledger.get("call_count", len(calls) if isinstance(calls, list) else 0) or 0
+        ),
         "diagnostic_history_count": len(generation.get("diagnostic_history", []))
         if isinstance(generation.get("diagnostic_history", []), list)
         else 0,
-        "request_rounds": int(generation.get("request_rounds", 0) or 0),
-        "repair_rounds": int(generation.get("repair_rounds", 0) or 0),
+        "request_rounds": int(
+            call_ledger.get("request_rounds", generation.get("request_rounds", 0)) or 0
+        ),
+        "repair_rounds": int(
+            call_ledger.get("repair_rounds", generation.get("repair_rounds", 0)) or 0
+        ),
         "image_evidence": {
             "planned": int(image_evidence.get("planned_count", 0) or 0),
             "materialized": int(image_evidence.get("materialized_count", 0) or 0),
@@ -478,12 +488,25 @@ def _source_references_resource_slot(source: str, slot_id: str) -> bool:
 def _generation_report(payload: dict[str, Any]) -> str:
     """Build a compact evaluator handoff without prompts, source, or secrets."""
 
+    # Failed/needs-attention exports keep the durable generation projection
+    # under one nested field.  Promoted exports historically copied the same
+    # values to the top level, so read both shapes and prefer the explicit
+    # top-level receipt when present.  This keeps the handoff truthful instead
+    # of showing ``unknown``/zero for evidence that is already persisted.
+    raw_projection = payload.get("generation_projection")
+    generation_evidence: dict[str, Any] = (
+        raw_projection if isinstance(raw_projection, dict) else {}
+    )
     quality = payload.get("quality_review")
+    if not isinstance(quality, dict):
+        quality = generation_evidence.get("quality_review")
     if isinstance(quality, dict) and isinstance(quality.get("accepted"), bool):
         quality_status = "accepted" if quality["accepted"] else "rejected"
     else:
         quality_status = "unknown"
     verification = payload.get("verification")
+    if not isinstance(verification, dict):
+        verification = generation_evidence.get("verification")
     gate_results = verification.get("gate_results", []) if isinstance(verification, dict) else []
     gate_statuses = {
         str(item.get("gate_id", "")): str(item.get("status", "unknown"))
@@ -501,9 +524,25 @@ def _generation_report(payload: dict[str, Any]) -> str:
     else:
         verification_status = "unknown"
     call_ledger = payload.get("call_ledger")
-    call_count = call_ledger.get("call_count", 0) if isinstance(call_ledger, dict) else 0
-    request_rounds = call_ledger.get("request_rounds", 0) if isinstance(call_ledger, dict) else 0
-    repair_rounds = call_ledger.get("repair_rounds", 0) if isinstance(call_ledger, dict) else 0
+    if not isinstance(call_ledger, dict):
+        call_ledger = generation_evidence.get("call_ledger")
+    call_receipts = generation_evidence.get("call_receipts", [])
+    if isinstance(call_ledger, dict) and call_ledger.get("call_count") is not None:
+        call_count = call_ledger.get("call_count", 0)
+    elif isinstance(call_receipts, list):
+        call_count = len(call_receipts)
+    else:
+        call_count = 0
+    request_rounds = (
+        call_ledger.get("request_rounds", 0)
+        if isinstance(call_ledger, dict)
+        else generation_evidence.get("request_rounds", 0)
+    )
+    repair_rounds = (
+        call_ledger.get("repair_rounds", 0)
+        if isinstance(call_ledger, dict)
+        else generation_evidence.get("repair_rounds", 0)
+    )
     routes = payload.get("routes")
     route_lines = (
         [
@@ -584,10 +623,6 @@ def _generation_report(payload: dict[str, Any]) -> str:
             "code": str(first_issue.get("code", "")),
             "message": str(first_issue.get("message", "")),
         }
-    generation_projection = payload.get("generation_projection")
-    generation_evidence: dict[str, Any] = (
-        generation_projection if isinstance(generation_projection, dict) else {}
-    )
     artifact_lines = ["- Source project: `source/`"]
     if isinstance(handoff, dict) and handoff.get("dist_path"):
         artifact_lines.append("- Built site: `dist/`")

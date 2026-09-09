@@ -20,6 +20,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     DistinctiveMoveRuntimeCheckV1,
     FontRuntimeCheckV1,
     RegionRuntimeCheckV1,
+    ResourceRuntimeCheckV1,
     VerificationJourney,
     VerificationPlan,
     VerificationProfile,
@@ -242,6 +243,52 @@ async def test_asymmetric_two_track_grid_satisfies_an_abstract_multi_column_cont
     )
 
     assert not any(d.code == "RUNTIME_REGION_COLUMN_COUNT" for d in diagnostics), diagnostics
+
+
+async def test_optional_materialized_resource_can_use_an_abstract_fallback(
+    region_site_url,
+) -> None:
+    """An optional image placement omitted by the route is not a required
+    image failure; a rendered image still goes through the normal checks."""
+
+    contract = DesignRealizationContract(
+        route_id="home",
+        section_order=["hero"],
+        region_checks=[_region_check(columns=1)],
+        distinctive_move_checks=[
+            DistinctiveMoveRuntimeCheckV1(
+                move_id="move-1",
+                section_id="hero",
+                source_selector="#region",
+                target_selector="#region",
+                relationship="width_ratio",
+                minimum_ratio=0.0,
+                maximum_ratio=10.0,
+                viewports=["desktop"],
+                required_css_properties=[],
+            )
+        ],
+        resource_checks=[
+            ResourceRuntimeCheckV1(
+                resource_slot_id="slot-optional",
+                section_id="hero",
+                element_selector='[data-resource-slot="slot-optional"]',
+                loading="lazy",
+                aspect_ratio_min=1.0,
+                aspect_ratio_max=2.0,
+                minimum_visible_ratio=0.5,
+                policy_required=False,
+                admitted_local_paths=["resources/images/slot-optional.jpg"],
+            )
+        ],
+        font_checks=[_font_check()],
+    )
+
+    _evidence, diagnostics = await RuntimeVerifier().verify(
+        region_site_url, plan=_plan(contract), profile=_profile()
+    )
+
+    assert not any(d.code == "RUNTIME_RESOURCE_SELECTOR" for d in diagnostics), diagnostics
 
 
 async def test_padding_based_visual_inset_is_measured_as_narrower_than_border_box(

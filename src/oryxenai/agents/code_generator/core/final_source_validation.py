@@ -273,6 +273,7 @@ def validate_final_source(
         public_text=public_text,
         max_source_bytes=max_source_bytes,
         work_unit_id="final-source",
+        include_noninformative_disclosures=False,
     )
     diagnostics.extend(
         _diag(item.code, item.normalized_message, file=item.file, route_id=item.route_id)

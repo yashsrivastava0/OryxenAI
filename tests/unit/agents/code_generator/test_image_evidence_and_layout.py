@@ -81,8 +81,9 @@ def test_image_policy_is_snapshot_hashed_and_primary_route_scoped() -> None:
     assert policy.text_only_exemption is False
     assert policy.approved_image_slot_ids == ["slot-detail", "slot-hero"]
     assert policy.primary_route_id == "home"
-    assert policy.minimum_visible_images == 1
+    assert policy.minimum_visible_images == 0
     assert policy.preferred_visible_images == 2
+    assert policy.require_primary_route_image is False
     assert policy.policy_hash
     assert policy.model_validate(policy.model_dump(mode="json")).policy_hash == policy.policy_hash
 
@@ -139,7 +140,11 @@ def test_layout_catalogue_emits_all_three_marker_bound_recipe_floors() -> None:
 
 def test_design_realization_adds_independent_primary_image_obligation() -> None:
     plan = _image_plan()
-    policy = build_image_policy_snapshot(Settings(), plan=plan)
+    settings = Settings()
+    settings.code_generator_development = settings.code_generator_development.model_copy(
+        update={"minimum_visible_images": 1, "require_primary_route_image": True}
+    )
+    policy = build_image_policy_snapshot(settings, plan=plan)
     contract = compile_design_realization(
         plan.experience_blueprint,
         route_id="home",

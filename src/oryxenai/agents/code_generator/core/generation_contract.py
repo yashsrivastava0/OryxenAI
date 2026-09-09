@@ -825,6 +825,13 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
                 f"- The host requires at least {image_policy.get('minimum_visible_images', 0)} "
                 "distinct approved image placement(s) in the final rendered site."
             )
+            if not image_policy.get("minimum_visible_images", 0) and not image_policy.get(
+                "require_primary_route_image"
+            ):
+                lines.append(
+                    "- Approved optional image material may be used when it fits the brief, "
+                    "but omission or an abstract/text fallback is valid and non-blocking."
+                )
             if image_policy.get("require_primary_route_image"):
                 lines.append(
                     f"- The primary route is {image_policy.get('primary_route_id', '')!r}; "
