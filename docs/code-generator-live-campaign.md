@@ -14,7 +14,7 @@ the historical campaigns below and begins before any new full pipeline call.
 - Used: **1/5**.
 - Accepted cross-pack portfolios: **0/2**.
 - Slot 1 run revision: `a503a4a` (`fix(code-generator): enforce reliable generation lifecycle`).
-- Current readback revision: `80a925c` (severity-policy, terminal-report, and historical-receipt compatibility fixes).
+- Current runtime revision: `4da1ddb` (readback compatibility and best-effort preflight cleanup fixes).
 - State: slot 1 completed with `needs_attention`; slot 2 is available after readiness refresh.
 - Execution rule: one full pipeline at a time; stop at two accepted results or
   after slot 5, whichever comes first. A verification-only retry that reuses
@@ -53,6 +53,10 @@ no credentials, signed URLs, raw prompts, or private brief content.
 - Eligible current pack contract hashes: C `bf077c5a360964138755be1d11b5acf64b828fa777ce4a142954ab808b261128`,
   B `bf27265ec7e4c27b9151e881b02b516916608f472508bd9eb835055bf1076215`,
   A `d3858b6133cc66bda14222ac7009530cf13c1990687a3a5b63f7b7ebd15b4ab9`.
+- Slot 2 readiness refresh: 2026-09-09 22:40 +05:30 on `4da1ddb`; provider
+  preflight was `ready` with six profiles and `private_context_sent=false`,
+  toolchain preflight was `ready` with all checks passing, and the preview
+  gateway was reachable. No full pipeline call was made by these proofs.
 
 ### Reserved slots
 

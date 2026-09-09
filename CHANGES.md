@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-09 22:41 +05:30 — Codex (GPT-6 / OpenAI) — [4da1ddb] — fix(code-generator): keep toolchain preflight cleanup best effort
+
+Best-effort cleanup now returns a safe incomplete result when Windows denies
+directory enumeration, so cleanup cannot discard a valid toolchain proof or
+replace it with a generic blocked response. The API-level preflight then passed
+Node, npm, install, TypeScript, Vite build, browser, gateway, and brief-path
+checks. The full Code Generator unit suite passes (308).
+
 ### 2026-09-09 22:24 +05:30 — Codex (GPT-6 / OpenAI) — [14bb97c, c8a66e7, 80a925c] — fix(code-generator): make quality and failure reports truthful
 
 Replaced keyword-based severity inference with explicit host-owned finding
@@ -206,20 +214,10 @@ ceilings to match this project's own observed 1-2-round real-fix depth, and
 gave Code Generator jobs their own `code_generator_max_attempts` config
 instead of sharing the more permissive general worker default.
 
-### 2026-09-08 20:55 +05:30 - Codex (GPT-5 / OpenAI) - [d6b6777] - build-preparation: fix false identity rejection and safe preflight errors
-
-Build Preparation now takes the approved owner identity from the Content
-Architect public manifest/visual handoff before inspecting factual evidence,
-so repeated employer or organization names cannot be mistaken for the
-portfolio owner. The strict visual-identity guard remains in place for real
-cross-person mismatches. Preflight validation failures are translated into a
-safe, attributable 409 response instead of an unhandled generic 500, with
-regression coverage for both the false-positive and error-sanitization paths.
-
 ## Compacted history
 
 ### 2026-09
-- 2026-09-08 — [ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, bb7078b, 5731cf5, 78eacc7] — Completed Build Preparation/frontend handoffs, safe output copy and cache behavior, provider-neutral routing, and scoped telemetry; detailed history remains in Git.
+- 2026-09-08 — [ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, d6b6777, bb7078b, 5731cf5, 78eacc7] — Completed Build Preparation/frontend handoffs, safe output copy and cache behavior, provider-neutral routing, scoped telemetry, and false-identity/preflight handling; detailed history remains in Git.
 - 2026-09-07 — [7f09506, 5bef169, ac5543e, 3f5b2aa, 78117e7] — Added candidate previews, corrected live repair and export behavior, and closed scaffold/toolchain and generation-time authoring gaps.
 - 2026-09-06 — [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce, 5768ce7, 618a038, fa9be97, f208540, ebfbc94, cdf8952, 1956d58, 7c94916, 83179f3, ae89b61, 68f1cd1, 861e981, cdf7a18] — Fixed Code Generator/runtime issues, delivered frontend studio/auth/output work, and hardened agent job lifecycle and cancellation.
 - 2026-09-05 — [903477a, a2a8a60, 963375b, 7a0c68f, caa8f33, 34c638b, d6cde91, 8a2066a, 5b86779, aedf96c, 0ce8ecd, 9fabd58] — Completed deployment/auth foundations, provider budgets/caching, resource and repair fixes, motion patterns, and canonical output cleanup.
