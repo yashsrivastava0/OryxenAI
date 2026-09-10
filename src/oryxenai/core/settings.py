@@ -606,7 +606,7 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     worker_release_id: str = "oryxenai-code-generator-v5-quality-v3"
     quality_gate_version: str = "quality-gate-v3"
     planner_max_attempts: int = Field(default=2, ge=1, le=4)
-    # Host-owned visual coverage policy. Live-discovered 2026-09-10 (D-093):
+    # Host-owned visual coverage policy. Live-discovered 2026-09-10 (D-092):
     # a soft "preferred" signal alone (the prior 0/2/False defaults) let the
     # planner legitimately place zero images across every observed live run
     # even when Build Preparation had already researched and vetted real
