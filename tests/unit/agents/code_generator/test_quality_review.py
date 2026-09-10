@@ -39,6 +39,30 @@ def _draft() -> QualityReviewDraftV1:
     )
 
 
+def test_quality_finding_names_the_exact_empty_field() -> None:
+    """Live-discovered 2026-09-10: the validator's error only named the rule
+    ("...require concrete source and owner evidence"), not which of the
+    seven required fields was actually blank. The bounded 2-attempt
+    schema-correction retry in run_integration_review_operation feeds this
+    exact message back to the model for a plain ValueError (it only has
+    field-specific feedback for QualityReviewError), so a generic message
+    left the model unable to self-correct -- it failed the same way on
+    both attempts and the run terminated with GENERATION_OUTPUT_INVALID."""
+
+    with pytest.raises(ValueError, match=r"empty field\(s\): evidence"):
+        QualityFindingV2(
+            finding_id="finding-1",
+            severity="blocking",
+            owner_work_unit_id="foundation",
+            code="CODE",
+            file="src/design/generated-tokens.css",
+            line=1,
+            marker="marker",
+            evidence="",
+            requested_outcome="Fix it.",
+        )
+
+
 def test_rebind_quality_review_receipt_source_recomputes_host_hash() -> None:
     receipt = stamp_quality_review_receipt(
         _draft(),
