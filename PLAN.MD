@@ -30,6 +30,15 @@ or be absent, while a genuinely broken rendered <img> remains blocking.
 Further Pexels/Unsplash URL-refresh or attribution work is deferred because no
 live failure evidence points there.
 
+Current campaign status after the first two live slots: both were Pack A and
+both ended `needs_attention` without a ready portfolio. Slot 1 ended at source
+generation with `SOURCE_REPAIR_EXHAUSTED`; slot 2 reached verification and
+ended with `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` because the selected-work
+section omitted the blueprint's conceptual lifecycle cue. Commit `d9caf30`
+now materializes that cue deterministically. No third slot has been reserved;
+the next allowed slot is another Pack A retry after the offline gate and
+service restart.
+
 ## 2. Step 1 — pre-live fix and decision boundary
 
 The Pydantic defaults in src/oryxenai/core/settings.py now match the
@@ -73,7 +82,10 @@ of these suites:
     tests/unit/agents/build_preparation/test_image_retrieval.py
 
 Also run uv run pytest -k code_generator -q, the verification-worker test,
-and the settings-file mypy/Ruff checks. Record pass/fail counts and separate
+and the settings-file mypy/Ruff checks. The latest required targeted suites
+passed 139 tests after the selected-work fix; the broader selection was
+started but stopped at handoff, so it has no final post-fix count. Record
+pass/fail counts and separate
 pre-existing fixture, database, Windows-permission, and unrelated-worktree
 failures from regressions caused by this task. Do not silently claim a green
 repository-wide baseline when those exceptions remain.
@@ -91,12 +103,24 @@ tree untouched, and run npm run source:audit followed by npm run typecheck:
 Repair-context plumbing and interaction-ownership attribution are behavioral
 fixes; their unit-test coverage is the offline confirmation for those cases.
 
+The saved Pack A slot-2 tree at
+.workspace/code-generator-generation/f8a3d88c-9546-40fe-ae6b-714e775c4e24/repo/
+was copied without modification to a disposable overlay. Applying the
+selected-work normalizer to the actual generated section then produced zero
+`source:audit` and `typecheck` diagnostics. The three historical replays above
+remain unchanged and are still required evidence.
+
 ## 4. Step 3 — bounded five-run campaign
 
 Before every slot, check the real current balance of the configured provider
 account directly. Do not use a stale remembered balance. If the balance is
 not available or cannot safely cover one more full run, stop and report it.
 Billing or authentication failure does not consume a campaign slot.
+
+For slots 1 and 2, the user supplied fresh evidence of configured-key presence,
+successful model access through `GET /v1/models` (HTTP 200), and a successful
+live quota/credit generation test (HTTP 200). That evidence cleared the
+balance gate for those slots; it does not waive the check before slot 3.
 
 Run one slot at a time through the normal API, durable job, worker, and
 preview-gateway path. Start the configured API, worker, and preview gateway;
