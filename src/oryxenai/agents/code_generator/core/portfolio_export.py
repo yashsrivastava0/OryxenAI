@@ -101,14 +101,17 @@ def export_portfolio(
             staging / "source",
             symlinks=False,
             ignore=_export_ignore(repo_dir, excluded),
+            copy_function=fs_safe.copy_file_with_retry,
         )
         dist_dir = repo_dir / "dist"
-        if dist_dir.is_dir():
+        has_dist = dist_dir.is_dir() and (dist_dir / "index.html").is_file()
+        if has_dist:
             shutil.copytree(
                 dist_dir,
                 staging / "dist",
                 symlinks=False,
                 ignore=_export_ignore(dist_dir, excluded),
+                copy_function=fs_safe.copy_file_with_retry,
             )
         has_screenshots = screenshots_dir is not None and screenshots_dir.is_dir()
         if has_screenshots and screenshots_dir is not None:
@@ -117,6 +120,7 @@ def export_portfolio(
                 staging / "screenshots",
                 symlinks=False,
                 ignore=_export_ignore(screenshots_dir, excluded),
+                copy_function=fs_safe.copy_file_with_retry,
             )
 
         payload = {
@@ -134,11 +138,11 @@ def export_portfolio(
                 "kind": "static-vite",
                 "docker": False,
                 "preview": "shared-static-gateway",
-                "entrypoint": "dist/index.html" if dist_dir.is_dir() else "",
+                "entrypoint": "dist/index.html" if has_dist else "",
             },
             "evaluator_handoff": {
                 "source_path": "source",
-                "dist_path": "dist" if dist_dir.is_dir() else "",
+                "dist_path": "dist" if has_dist else "",
                 "screenshots_path": "screenshots" if has_screenshots else "",
                 "metadata_path": "portfolio.json",
                 "report_path": "generation-report.md",

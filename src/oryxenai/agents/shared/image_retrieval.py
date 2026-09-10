@@ -966,6 +966,71 @@ async def search_images(
             await http.aclose()
 
 
+def _pixabay_asset_id(candidate: Any) -> str:
+    """Return the stable Pixabay identity carried by a brief candidate."""
+
+    return str(
+        getattr(candidate, "provider_asset_id", "")
+        or getattr(candidate, "provider_resource_id", "")
+        or ""
+    ).strip()
+
+
+async def _refresh_pixabay_image_url(
+    candidate: Any,
+    settings: Any,
+    client: httpx.AsyncClient,
+) -> str | None:
+    """Resolve a fresh download URL for a stale, ID-bearing Pixabay pin.
+
+    Pixabay's ``/get/`` URLs are signed and can expire between Build
+    Preparation's metadata search and Code Generator acquisition. The asset
+    ID is stable, so a failed pinned download can be repaired through the
+    provider's metadata endpoint without asking the model to invent a URL.
+    """
+
+    asset_id = _pixabay_asset_id(candidate)
+    key = _provider_key(settings, "pixabay_api_key_env", "PIXABAY_API_KEY")
+    if not asset_id or not key:
+        return None
+    try:
+        response = await _get(
+            client,
+            "https://pixabay.com/api/",
+            provider="pixabay",
+            settings=settings,
+            headers={"Accept": "application/json"},
+            params={"key": key, "id": asset_id},
+        )
+        payload = response.json()
+    except (ImageDownloadError, httpx.HTTPError, TypeError, ValueError):
+        return None
+    hits = payload.get("hits", []) if isinstance(payload, dict) else []
+    if not isinstance(hits, list):
+        return None
+    match = next(
+        (
+            item
+            for item in hits
+            if isinstance(item, dict) and str(item.get("id", "")) == asset_id
+        ),
+        None,
+    )
+    if match is None:
+        return None
+    refreshed = _pixabay_candidate(
+        match,
+        str(getattr(candidate, "query", "") or ""),
+        0,
+    )
+    if refreshed is None:
+        return None
+    parsed = urlparse(refreshed.image_url)
+    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_HOSTS["pixabay"]:
+        return None
+    return refreshed.image_url
+
+
 async def download_image_bytes(
     candidate_or_url: ImageCandidate | Any,
     settings: Any,
@@ -1003,7 +1068,30 @@ async def download_image_bytes(
             key = _provider_key(settings, "pexels_api_key_env", "PEXELS_API_KEY")
             if key:
                 headers["Authorization"] = key
-        response = await _get(http, url, provider=provider, settings=settings, headers=headers)
+        try:
+            response = await _get(http, url, provider=provider, settings=settings, headers=headers)
+        except ImageDownloadError as exc:
+            parsed_pin = urlparse(url)
+            is_stale_pixabay_pin = (
+                provider == "pixabay"
+                and not isinstance(candidate_or_url, str)
+                and parsed_pin.scheme == "https"
+                and parsed_pin.hostname == "pixabay.com"
+                and parsed_pin.path.startswith("/get/")
+                and int(exc.details.get("http_status", 0) or 0) == 400
+            )
+            if not is_stale_pixabay_pin:
+                raise
+            refreshed_url = await _refresh_pixabay_image_url(candidate_or_url, settings, http)
+            if not refreshed_url or refreshed_url == url:
+                raise
+            response = await _get(
+                http,
+                refreshed_url,
+                provider=provider,
+                settings=settings,
+                headers=headers,
+            )
         if response.url.scheme != "https" or response.url.host not in _ALLOWED_HOSTS.get(
             provider, set()
         ):

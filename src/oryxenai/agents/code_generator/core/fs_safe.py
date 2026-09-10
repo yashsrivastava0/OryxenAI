@@ -157,14 +157,16 @@ def write_text_atomic(path: Path, text: str) -> None:
     raise FsSafeError("FS_WRITE_FAILED", f"Atomic write failed for: {path}") from error
 
 
-def copy_file_with_retry(source: Path, target: Path) -> None:
+def copy_file_with_retry(source: str | Path, target: str | Path) -> None:
     """Copy one file, retrying through transient locks on the source."""
 
-    target.parent.mkdir(parents=True, exist_ok=True)
+    source_path = Path(source)
+    target_path = Path(target)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
     error: OSError | None = None
     for attempt in range(len(_RETRY_DELAYS_SECONDS) + 1):
         try:
-            shutil.copyfile(source, target)
+            shutil.copyfile(source_path, target_path)
             return
         except PermissionError as exc:
             error = exc
@@ -172,4 +174,4 @@ def copy_file_with_retry(source: Path, target: Path) -> None:
                 _sleep_before_retry(attempt)
                 continue
             break
-    raise FsSafeError("FS_COPY_FAILED", f"File copy stayed locked: {source}") from error
+    raise FsSafeError("FS_COPY_FAILED", f"File copy stayed locked: {source_path}") from error
