@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 22:52 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [882574e, 1563282] - fix(code-generator): require at least the preferred image count by default
+
+User-reported: images never appear in generated portfolios. Traced across
+3 live runs: Build Preparation researches and vets real image candidates
+correctly every time, and they reach execution/contract.json intact --
+but with minimum_visible_images=0/require_primary_route_image=false, the
+planner had a purely soft "preferred, not a release gate" instruction and
+declined all 21 opportunities across those runs. Raised the defaults to
+2/true (D-092) so "preferred" becomes an enforced floor; the zero-slot
+exemption path is untouched. Not yet live-confirmed.
+
 ### 2026-09-10 19:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [11a8fe3] - docs(code-generator): close campaign B with a ready result
 
 Campaign-B slot 5 (Pack A, run ff3398b1), the last slot in the shared
@@ -219,4 +230,4 @@ Verification: Ruff, mypy, compileall, Docker Compose configuration, and the fron
 
 - Recent detailed entries retained: 17
 - Compacted milestone bullets: 38
-- Last updated: 2026-09-10 19:53 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Last updated: 2026-09-10 22:52 +05:30 — Claude Code (Sonnet 5 / Anthropic)
