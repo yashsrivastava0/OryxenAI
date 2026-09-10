@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 19:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [pending] - docs(code-generator): close campaign B with a ready result
+
+Campaign-B slot 5 (Pack A, run ff3398b1), the last slot in the shared
+5-run budget, reached `ready` with zero blocking diagnostics across all
+three verification gates. Verified beyond DB status: the promoted preview
+was loaded in an actual browser, confirming real content in every
+section, working navigation, zero console errors, all resources 200, and
+`dist/index.html` present. No new code fix was needed -- this confirms
+slots 1-4's four fixes (22db99c, d9caf30, e7d9284, 06eb2c0) together.
+Campaign B is now closed (5/5 consumed, 1 ready).
+
 ### 2026-09-10 18:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [06eb2c0] - fix(code-generator): resolve real color tokens in the selected-work lifecycle normalizer
 
 Campaign-B live slot 4 (Pack A) exhausted its repair budget on three
@@ -166,39 +177,10 @@ Implemented the Code Generator reliability handoff for variable Build Preparatio
 
 Verification: Ruff, mypy, compileall, Docker Compose configuration, and the frontend TypeScript contract pass. The focused Code Generator tests report 63 passes; nine temp-directory tests cannot create pytest's Windows `.lock` file in this environment and are recorded as an environment ACL limitation. Live campaign inputs and outcomes are tracked in `docs/code-generator-live-campaign.md`.
 
-### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [66d8287] - docs(frontend): author comprehensive frontend and agent integration specifications
-
-Created an exhaustive 6-document technical reference suite under `docs/frontend/`
-to serve as the unambiguous source of truth for downstream AI coding agents
-executing the major frontend revamp:
-- `01-architecture-routing-and-auth-runtime.md`: Preact/Vite build boundary,
-  FastAPI manifest resolution, Google Supabase auth runtime, /api/v1/me
-  entitlement invariants, URL codec, visibility-aware polling, BroadcastChannel
-  multi-tab sync, error envelope, and tokens.
-- `02-agent-pipeline-and-data-contracts.md`: Authoritative domain schemas,
-  state machines, Pydantic models, JSONB storage, and route tables for all 5
-  agents (Discovery, Content Architect, Visual Design Director, Build Preparation,
-  Code Generator).
-- `03-current-frontend-implementation-audit.md`: Line-level audit of all 20+
-  components in `frontend/src/components/`, stage views, and data adapters.
-- `04-agent-by-agent-deep-dive-and-flaw-analysis.md`: Detailed comparison of
-  backend agent outputs vs. current UI presentation, documenting root causes
-  of why Build Preparation, Visual Design Director, and Content Architect
-  currently appear uncurated or broken (e.g. raw 300KB+ Markdown dumping with
-  fenced JSON, loss of structured profiles, and lack of visual design tokens).
-- `05-refactor-blueprint-and-component-architecture.md`: Target revamp
-  specification with custom hooks decomposition (`useSessionState`,
-  `useStagePolling`, etc.), two-column Discovery studio, visual Content
-  sitemap, interactive Design moodboard, Build Preparation command center,
-  and multi-device Portfolio Theater sandbox.
-- `06-api-reference-and-integration-cookbook.md`: Machine-readable route
-  catalog, exact JSON payloads, copy-paste recipes, and step-by-step refactoring
-  quality checklist.
-85 frontend vitest unit tests passing; Vite production build verified clean.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-09 — [66d8287] — Authored a 6-document frontend/agent integration reference suite under `docs/frontend/` for the major frontend revamp.
 - 2026-09-09 — [78a9c77] — Retired the temporary static Discovery/pipeline shell; `/app` now requires the manifest-selected Preact bundle.
 - 2026-09-09 — [bc7b5a6] — Added an administrator-only pipeline reset capability (full session reset back to Discovery, admin-audited).
 - 2026-09-09 — [f20779f] — Clarified planner guidance distinguishing a brief's design-language words from literal `colors[*].name` tokens after a live naming collision.
@@ -236,5 +218,5 @@ executing the major frontend revamp:
 ## Summary (as of last compaction — 2026-09-10)
 
 - Recent detailed entries retained: 17
-- Compacted milestone bullets: 37
-- Last updated: 2026-09-10 18:53 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Compacted milestone bullets: 38
+- Last updated: 2026-09-10 19:53 +05:30 — Claude Code (Sonnet 5 / Anthropic)

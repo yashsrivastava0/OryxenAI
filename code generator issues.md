@@ -1,5 +1,50 @@
 # Code Generator Issues
 
+## 2026-09-10 19:50 +05:30 - Pack A live disposition (slot 5, FINAL) — ready, campaign closed
+
+Run `ff3398b1-86cb-49cd-b12b-5f5857ded187` (Pack A retry, campaign-B slot
+5 -- the last slot in the shared 5-run budget) reached **`ready`**: the
+first ready result across this entire reliability campaign (campaign A's
+5 slots and campaign B's slots 1-4 all failed; 9 live runs total before
+this one). All three verification gates passed with zero blocking
+diagnostics: `source_contract`, `type_build_artifact`, and `dom_runtime`
+(0 blocking, 57 advisory -- e.g. a couple of regions rendering 2 columns
+where their contract expects 1, one distinctive-move width ratio outside
+its declared range; real, non-fabricated, and worth a future pass, but
+correctly non-blocking).
+
+Verified beyond the DB status alone, per this campaign's own discipline:
+the promoted preview (`http://127.0.0.1:4174/preview/preview-
+3uc4dd7inyzsszvpaakxjgppqyni72d4wckhsmke7zxkkzzn/`) was loaded in an
+actual Chrome tab. Every section rendered real, substantive content
+(Hero, Positioning, Selected Work with 3 real case studies, Capabilities
+across 4 categories, Experience across 3 roles, Credentials with an
+honest "pending verification" placeholder rather than fabricated text,
+Connect); the 7-link closed navigation is fully functional (clicking
+"Capabilities" updated the URL hash and the nav's active state
+correctly); zero console errors or exceptions; every real network
+request (document, JS bundle, CSS bundle, 3 font files) returned HTTP
+200; the route uses no `<img>` elements at all, so "no broken images" is
+met trivially (zero visible images is explicitly valid under the
+acceptance checklist); `dist/index.html` confirmed present on disk.
+Desktop and laptop were checked (mobile is not a release gate, D-088).
+
+This slot needed no new code fix -- it directly confirms slots 1-4's four
+fixes (`22db99c`, `d9caf30`, `e7d9284`, `06eb2c0`) together resolve every
+real defect this pack previously hit. **Campaign B is now closed (5/5
+slots consumed)**; no sixth run or automatic follow-on campaign is
+permitted. A future campaign, if authorized, should start with Pack B.
+
+Separately: this slot's live services were killed twice more by host OS
+memory pressure from unrelated desktop applications (same pattern as
+slot 4 -- not a Code Generator defect). The durable job queue resumed the
+in-flight run cleanly both times with no data loss or code change needed.
+Browser automation itself also degraded under the same memory pressure
+(one Chrome tab became unresponsive to script injection mid-verification;
+a fresh tab in the same browser worked immediately) -- also an
+environment condition, not a site defect, confirmed by the fresh tab
+rendering the exact same page correctly.
+
 ## 2026-09-10 18:50 +05:30 - Pack A live disposition (slot 4) and normalizer color-token fix
 
 Run `0b56cda5-59a4-4bd6-b8f0-2fe548d5d0e3` (Pack A retry, campaign-B slot 4)
