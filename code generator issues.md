@@ -1,5 +1,29 @@
 # Code Generator Issues
 
+## 2026-09-10 12:00 +05:30 - Repair-budget default reconciliation
+
+The configured repair policy was described two different ways: `settings.py`
+declared 3 rounds per unit, 6 total, and 5 integration-polish rounds, while
+`config/app.toml` supplied the effective 2/4/3 values used by live runs. The
+five-slot campaign at the top of `docs/code-generator-live-campaign.md` is
+the direct evidence that its failures were distinct validator, ownership, and
+hidden-content defects rather than a repair that was converging when its
+budget expired.
+
+The fix adopts the app configuration as the Pydantic defaults (2/4/3), keeps
+the `ge=1, le=6` bound, and leaves `config/app.toml` unchanged. The dead
+`repair_depth` field remains in its three verification-handler write sites;
+the live bound is `RepairBudget`, so removing an unused compatibility field
+before a paid campaign would add risk without changing behavior. No force-
+`dist` or image-retrieval change was made.
+
+Offline confirmation: the settings-focused unit tests, mypy, and Ruff lint
+passed; the targeted source/audit/repair/contract/export/image suites passed
+136 tests. The requested verification-worker file retains one documented
+pre-existing `PLAN_SECTION_COVERAGE` fixture failure, and file-level format
+checking reports an older unrelated formatting issue at `settings.py:801`.
+No live model call was used for this fix.
+
 ## 2026-09-10 00:03 +05:30 - Pack A live disposition and typography-token fix
 
 Authorized run `bc4319fb-da84-4c00-88fc-9485a9087d9d` reached
