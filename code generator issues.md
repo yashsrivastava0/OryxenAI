@@ -1,5 +1,54 @@
 # Code Generator Issues
 
+## 2026-09-10 15:55 +05:30 - Broken regression test traced to a test-fixture path mismatch; not a live defect
+
+Five folders under `output/code-gen-output/` (`d24c1886`, `66c00daa`,
+`b5b906d2`, `dac3c383`, `cd5b9c54`, timestamped 14:37-14:47) looked like new
+live-campaign failures but were not: each `portfolio.json` shows
+`call_count: 0`, `repair_rounds: 0`, and every `work_unit` still
+`"status": "pending"` -- no model call was ever made. They were byproducts of
+repeatedly running `tests/integration/test_code_generator_verification_worker.py
+::test_verification_builds_and_promotes_a_clean_candidate`, whose fix (route
+section ids renamed to route-namespaced `home:hero`/`home:project`) was left
+incomplete before a Claude Code -> Codex -> Claude Code handoff.
+
+Root cause: the test hand-wrote its "real" generated route content to
+`src/routes/home-4ea140588150/index.tsx`, a path invented for the test with
+no relationship to the route's actual (bare) storage key, `home`. The real
+scaffold writer (`materialize_trusted_manifests`) and the route registry both
+wire the router to `src/routes/home/index.tsx`, which the test never touched
+-- so `validate_final_source` correctly inspected an empty placeholder and
+raised all five `SOURCE_*_MISSING` diagnostics, deterministically, every
+time this test ran. This is a self-contained test-authoring bug in one file,
+not a live-pipeline defect -- confirmed by tracing every call site by hand,
+not inferred from the error codes alone.
+
+Fix: wrote the test's route content to `src/routes/home/index.tsx` (matching
+the actual storage key), wrapped the navigation link in a real `<nav>`
+landmark, and added the two closed-navigation-contract anchor links
+(`#hero`, `#project`) the admitted "privacy-safe-v3" fixture requires.
+The test now passes end to end (build, DOM/runtime verification, screenshot
+capture, promotion). The stray output folders were deleted (gitignored,
+untracked, test-run artifacts only).
+
+A separate, real bug was found while tracing `d24c1886`'s mislabeled
+failure: its real issue code (`PLAN_SECTION_COVERAGE`) never reached
+`terminal_failure.code`/`evidence_summary.primary_issue.code` in the
+exported `portfolio.json` -- both showed the generic `"needs_attention"`
+instead, because `code_generator_verification.py`'s `_execute()` early-failure
+branches (raised before a `VerificationProjection` exists) returned no
+`"code"` key. Fixed by adding the real issue code to both branches. A new
+regression test (`test_verification_surfaces_the_real_issue_code_not_the_
+generic_status`) asserts the real code survives into the exported evidence.
+See D-090 and D-091 in `DECISIONS.md`. Confirmation: both changed tests plus
+the full `tests/integration/test_code_generator_verification_worker.py`
+file pass (9/9); `ruff check`/`mypy` clean on both changed files; the
+pre-existing DB-connectivity/resource-cleanup flakiness in
+`test_code_generator_generation_worker.py` and
+`test_portfolio_export.py::test_verification_handler_exports_on_needs_attention`
+was independently reproduced on a clean `HEAD` (via `git stash`) and
+confirmed unrelated to this change.
+
 ## 2026-09-10 14:15 +05:30 - Pack A live quality-review disposition and deterministic selected-work lifecycle cue
 
 Run `f8a3d88c-9546-40fe-ae6b-714e775c4e24` reached `needs_attention` with
