@@ -1247,6 +1247,560 @@ def _css_rule_contains(
     return False
 
 
+_CSS_SPELLED_NUMBER_VALUES = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+    "hundred": 100,
+    "thousand": 1000,
+}
+_CSS_LENGTH_UNIT_RE = re.compile(
+    rf"(?P<number>(?:{_CSS_NUMBER_WORD})(?:-?(?:{_CSS_NUMBER_WORD}))*)"
+    r"(?P<unit>vmin|vmax|dvh|dvw|svh|svw|lvh|lvw|rem|px|em|ex|ch|vh|vw|cm|mm|in|pt|pc)\Z",
+    re.IGNORECASE,
+)
+
+
+def _css_spelled_number(value: str) -> int | None:
+    """Convert a bounded CSS number phrase to an integer.
+
+    The source policy only flags number words joined to a CSS unit.  Keep the
+    host correction equally narrow: ordinary numeric CSS, keywords, custom
+    properties, and prose are never rewritten.  Hyphenated forms such as
+    ``twenty-five`` and the simple ``fifty`` typo found in the live campaign
+    are enough to repair the readable model slips this adapter owns.
+    """
+
+    tokens = value.casefold().replace("-", " ").split()
+    if not tokens:
+        return None
+    total = 0
+    current = 0
+    number_words = tuple(
+        sorted(_CSS_SPELLED_NUMBER_VALUES, key=len, reverse=True)
+    )
+    expanded: list[str] = []
+    for token in tokens:
+        if token in _CSS_SPELLED_NUMBER_VALUES:
+            expanded.append(token)
+            continue
+        cursor = 0
+        while cursor < len(token):
+            word = next(
+                (
+                    candidate
+                    for candidate in number_words
+                    if token.startswith(candidate, cursor)
+                ),
+                None,
+            )
+            if word is None:
+                return None
+            expanded.append(word)
+            cursor += len(word)
+    for word in expanded:
+        number = _CSS_SPELLED_NUMBER_VALUES[word]
+        if word not in {"hundred", "thousand"}:
+            current += number
+        elif word == "hundred":
+            current = (current or 1) * 100
+        else:
+            total += (current or 1) * 1000
+            current = 0
+    return total + current
+
+
+def _normalize_css_spelled_lengths(source: str) -> str:
+    """Repair only invalid number-word CSS lengths in a generated body."""
+
+    comment_spans = [
+        match.span() for match in re.finditer(r"/\*.*?\*/", source, flags=re.DOTALL)
+    ]
+    replacements: list[tuple[int, int, str]] = []
+    for declaration in _CSS_DECLARATION_RE.finditer(source):
+        if any(start <= declaration.start() < end for start, end in comment_spans):
+            continue
+        property_name = declaration.group("property")
+        if property_name.startswith("--") or property_name.casefold() == "content":
+            continue
+        invalid = _CSS_SPELLED_LENGTH_RE.search(declaration.group("value"))
+        if invalid is None:
+            continue
+        split = _CSS_LENGTH_UNIT_RE.fullmatch(invalid.group("length"))
+        if split is None:
+            continue
+        number = _css_spelled_number(split.group("number"))
+        if number is None:
+            continue
+        start = declaration.start("value") + invalid.start("length")
+        end = declaration.start("value") + invalid.end("length")
+        replacements.append((start, end, f"{number}{split.group('unit').lower()}"))
+    for start, end, replacement in reversed(replacements):
+        source = f"{source[:start]}{replacement}{source[end:]}"
+    return source
+
+
+def normalize_route_batch_motion_changes(
+    changes: GenerationChanges,
+    *,
+    motion_beats: Iterable[dict[str, Any]],
+) -> bool:
+    """Normalize mechanical motion/CSS defects before the source gate.
+
+    Model-authored copy, layout, and component composition remain untouched.
+    This adapter only materializes the already-admitted motion contract: a
+    valid CSS length, the planned marker/selector, an IntersectionObserver
+    guard for viewport opacity beats, and the declared before/after states.
+    Keeping it before incremental validation prevents a mechanical typo from
+    consuming one of the bounded model repair rounds.
+    """
+
+    contents = {
+        change.path.replace("\\", "/").strip("/"): change.complete_utf8_content
+        for change in changes.files
+    }
+    changed = normalize_route_batch_motion_sources(contents, motion_beats=motion_beats)
+    for change in changes.files:
+        relative = change.path.replace("\\", "/").strip("/")
+        if relative in contents and change.complete_utf8_content != contents[relative]:
+            change.complete_utf8_content = contents[relative]
+    return changed
+
+
+def normalize_route_batch_motion_sources(
+    sources: dict[str, str],
+    *,
+    motion_beats: Iterable[dict[str, Any]],
+) -> bool:
+    """Apply bounded, idempotent motion corrections to a route source map."""
+
+    changed = False
+    for relative, source in list(sources.items()):
+        if relative.casefold().endswith(".css"):
+            normalized = _normalize_css_spelled_lengths(source)
+            if normalized != source:
+                sources[relative] = normalized
+                changed = True
+
+    for beat in motion_beats:
+        if not isinstance(beat, dict):
+            continue
+        owner_path = _motion_owner_source_path(sources, beat)
+        if owner_path is None:
+            continue
+        owner_source = sources[owner_path]
+        style_path = Path(owner_path).with_suffix(".css").as_posix()
+        if style_path not in sources:
+            style_path = next(
+                (
+                    relative
+                    for relative in sources
+                    if relative.casefold().endswith(".css")
+                    and Path(relative).stem == Path(owner_path).stem
+                ),
+                "",
+            )
+        marker = str(beat.get("target_marker", "") or "").strip()
+        selector = str(beat.get("target_selector", "") or "").strip()
+        combined = _combined_route_sources(sources)
+        if marker and not _literal_present(marker, combined):
+            updated = _add_motion_marker(owner_source, marker, selector, beat)
+            if updated != owner_source:
+                sources[owner_path] = updated
+                owner_source = updated
+                changed = True
+                combined = _combined_route_sources(sources)
+
+        pattern = get_motion_pattern(str(beat.get("pattern_id", "") or ""))
+        if pattern is not None:
+            # Trusted Reveal/StaggerGroup owns its actual animation in the
+            # scaffold.  Add only a harmless selector anchor when the model
+            # omitted the route-local selector; adding opacity here would
+            # override the trusted class's specificity and behavior.
+            if (
+                selector
+                and style_path
+                and not _literal_present(selector, combined)
+                and _safe_css_selector(selector)
+            ):
+                sources[style_path] = (
+                    sources[style_path].rstrip()
+                    + f"\n\n/* OryxenAI trusted motion selector anchor */\n{selector} {{}}\n"
+                )
+                changed = True
+            continue
+
+        if marker and not _literal_present(marker, combined):
+            # There is no useful CSS/observer fallback if the target element
+            # could not be located. Leave the response for the bounded model
+            # repair path instead of fabricating a detached marker.
+            continue
+        if not selector or not style_path or not _safe_css_selector(selector):
+            continue
+        trigger = str(beat.get("trigger", "") or "").strip()
+        trigger_selector = str(beat.get("trigger_selector", "") or "").strip()
+        if not trigger_selector:
+            section_id = str(beat.get("section_id", "") or "")
+            section_name = section_id.rsplit(":", 1)[-1]
+            if re.fullmatch(r"[A-Za-z_][\w-]*", section_name):
+                trigger_selector = f"#{section_name}"
+
+        needs_fallback = not _literal_present(selector, combined)
+        for expectation in beat.get("changed_properties", []):
+            if not isinstance(expectation, dict):
+                continue
+            property_name = str(expectation.get("property_name", "") or "").strip()
+            after_value = str(expectation.get("after_value", "") or "").strip()
+            if property_name and after_value and not _css_rule_has_motion_value(
+                combined, selector, property_name, after_value
+            ):
+                needs_fallback = True
+        opacity_before = any(
+            isinstance(expectation, dict)
+            and str(expectation.get("property_name", "")).strip() == "opacity"
+            and str(expectation.get("before_value", "")).strip() == "0"
+            for expectation in beat.get("changed_properties", [])
+        )
+        guard_selector = _motion_guard_selector(selector, trigger_selector)
+        if opacity_before and not _css_rule_has_motion_value(
+            combined, guard_selector, "opacity", "0"
+        ):
+            needs_fallback = True
+        if "prefers-reduced-motion" not in combined:
+            needs_fallback = True
+        if trigger == "viewport" and (
+            not re.search(
+                r"\bIntersectionObserver\b|\banimation-timeline\s*:\s*view\s*\(|\bview-timeline\b",
+                owner_source,
+            )
+            or (
+                opacity_before
+                and not re.search(
+                    r"setAttribute\(\s*[\"']data-motion-ready[\"']\s*,\s*[\"']true[\"']\s*\)",
+                    owner_source,
+                )
+            )
+        ):
+            needs_fallback = True
+            updated = _add_motion_observer(owner_source, trigger_selector, beat)
+            if updated != owner_source:
+                sources[owner_path] = updated
+                owner_source = updated
+                changed = True
+                combined = _combined_route_sources(sources)
+        if needs_fallback:
+            fallback = _motion_css_fallback(beat, selector, trigger_selector)
+            if fallback and f"/* OryxenAI motion contract: {beat.get('motion_id', '')} */" not in sources[style_path]:
+                sources[style_path] = sources[style_path].rstrip() + "\n\n" + fallback + "\n"
+                changed = True
+    return changed
+
+
+def _combined_route_sources(sources: dict[str, str]) -> str:
+    return "\n".join(
+        value
+        for relative, value in sorted(sources.items())
+        if Path(relative).suffix.casefold() in {".css", ".js", ".jsx", ".ts", ".tsx"}
+    )
+
+
+def _motion_owner_source_path(sources: dict[str, str], beat: dict[str, Any]) -> str | None:
+    section_id = str(beat.get("section_id", "") or "").strip()
+    if section_id:
+        anchor = re.compile(
+            rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']"
+        )
+        match = next(
+            (
+                (relative, source)
+                for relative, source in sorted(sources.items())
+                if Path(relative).suffix.casefold() in {".tsx", ".jsx"}
+                and anchor.search(source)
+            ),
+            None,
+        )
+        if match is not None:
+            return match[0]
+    trigger_selector = str(beat.get("trigger_selector", "") or "").strip()
+    section_match = re.fullmatch(r"#([A-Za-z_][\w-]*)", trigger_selector)
+    if section_match is None:
+        return None
+    section_id = section_match.group(1)
+    return next(
+        (
+            relative
+            for relative, source in sorted(sources.items())
+            if Path(relative).suffix.casefold() in {".tsx", ".jsx"}
+            and re.search(
+                rf"\bid\s*=\s*[\"']{re.escape(section_id)}[\"']", source
+            )
+        ),
+        None,
+    )
+
+
+def _safe_css_selector(selector: str) -> bool:
+    return bool(selector) and not any(character in selector for character in "{};\x00")
+
+
+def _css_rule_has_motion_value(
+    source: str, selector: str, property_name: str, expected: str
+) -> bool:
+    expected_value = " ".join(expected.split()).casefold()
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", source):
+        if not _literal_present(selector, match.group(1)):
+            continue
+        for declaration in _CSS_DECLARATION_RE.finditer(match.group(2)):
+            if declaration.group("property").casefold() != property_name.casefold():
+                continue
+            actual = " ".join(declaration.group("value").split()).casefold()
+            if actual == expected_value:
+                return True
+            if property_name.casefold().endswith("color") and re.fullmatch(
+                r"[a-z][\w-]*", expected_value
+            ) and expected_value in actual:
+                return True
+    return False
+
+
+def _motion_guard_selector(selector: str, trigger_selector: str) -> str:
+    if trigger_selector and selector.startswith(trigger_selector):
+        suffix = selector[len(trigger_selector) :].lstrip()
+        if suffix:
+            return f'{trigger_selector}[data-motion-ready="true"] {suffix}'
+        return f'{trigger_selector}[data-motion-ready="true"]'
+    return f'[data-motion-ready="true"] {selector}'
+
+
+def _motion_css_value(property_name: str, value: str) -> str:
+    normalized = " ".join(value.split())
+    if property_name.casefold().endswith("color") and re.fullmatch(
+        r"[A-Za-z][\w-]*", normalized
+    ) and normalized.casefold() not in {
+        "inherit",
+        "initial",
+        "transparent",
+        "currentcolor",
+        "unset",
+    }:
+        return f"var(--color-{normalized})"
+    return normalized
+
+
+def _motion_css_fallback(
+    beat: dict[str, Any], selector: str, trigger_selector: str
+) -> str:
+    expectations = [
+        item for item in beat.get("changed_properties", []) if isinstance(item, dict)
+    ]
+    after = [
+        f"  {item['property_name']}: {_motion_css_value(str(item['property_name']), str(item['after_value']))};"
+        for item in expectations
+        if str(item.get("property_name", "")).strip()
+        and str(item.get("after_value", "")).strip()
+    ]
+    before = [
+        f"  {item['property_name']}: {_motion_css_value(str(item['property_name']), str(item['before_value']))};"
+        for item in expectations
+        if str(item.get("property_name", "")).strip()
+        and str(item.get("before_value", "")).strip()
+    ]
+    if not after or not before:
+        return f"/* OryxenAI motion contract: {beat.get('motion_id', '')} */\n{selector} {{}}"
+    motion_id = re.sub(r"[^A-Za-z0-9_-]+", "-", str(beat.get("motion_id", "beat"))).strip("-")
+    keyframe = f"oyx-motion-{motion_id or 'beat'}"
+    duration = beat.get("duration_min_ms", 400)
+    try:
+        duration_ms = max(1, min(int(duration), 10000))
+    except (TypeError, ValueError):
+        duration_ms = 400
+    easing = str(beat.get("easing", "ease-out") or "ease-out").strip()
+    if not re.fullmatch(
+        r"(?:linear|ease(?:-in|-out|-in-out)?|cubic-bezier\([^)]{1,80}\)|steps\([^)]{1,80}\))",
+        easing,
+        flags=re.IGNORECASE,
+    ):
+        easing = "ease-out"
+    guard = _motion_guard_selector(selector, trigger_selector)
+    return "\n".join(
+        [
+            f"/* OryxenAI motion contract: {beat.get('motion_id', '')} */",
+            f"{selector} {{",
+            *after,
+            "}",
+            f"{guard} {{",
+            *before,
+            f"  animation: {keyframe} {duration_ms}ms {easing} forwards;",
+            "}",
+            f"@keyframes {keyframe} {{",
+            "  from {",
+            *before,
+            "  }",
+            "  to {",
+            *after,
+            "  }",
+            "}",
+            "@media (prefers-reduced-motion: reduce) {",
+            f"  {selector} {{",
+            *[f"  {line}" for line in after],
+            "    animation: none;",
+            "  }",
+            "}",
+        ]
+    )
+
+
+def _add_motion_marker(
+    source: str, marker: str, selector: str, beat: dict[str, Any]
+) -> str:
+    match = _JSX_ATTR_MARKER_LITERAL_RE.match(marker)
+    if match is None:
+        return source
+    attribute, _quote, value = match.groups()
+    target = _find_motion_target_tag(source, selector, beat)
+    if target is None:
+        return source
+    _tag_start, tag_end = target
+    attribute_text = f' {attribute}="{html.escape(value, quote=True)}"'
+    insertion = tag_end - 1 if source[tag_end - 1 : tag_end] == "/" else tag_end
+    return f"{source[:insertion]}{attribute_text}{source[insertion:]}"
+
+
+def _find_motion_target_tag(
+    source: str, selector: str, beat: dict[str, Any]
+) -> tuple[int, int] | None:
+    section_id = str(beat.get("section_id", "") or "").strip()
+    anchor = (
+        re.search(rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']", source)
+        if section_id
+        else None
+    )
+    if anchor is None:
+        return None
+    section_start = source.rfind("<", 0, anchor.start())
+    section_end_match = re.search(r'data-content-id\s*=\s*["\']', source[anchor.end() :])
+    section_end = (
+        anchor.end() + section_end_match.start()
+        if section_end_match is not None
+        else len(source)
+    )
+    candidates: list[tuple[int, int, str]] = []
+    cursor = section_start
+    while cursor >= 0 and cursor < section_end:
+        opening = re.search(r"<[A-Za-z][\w:.-]*\b", source[cursor:section_end])
+        if opening is None:
+            break
+        tag_start = cursor + opening.start()
+        tag_end = _jsx_opening_tag_end(source, tag_start)
+        if tag_end < 0 or tag_end >= section_end:
+            break
+        tag = source[tag_start : tag_end + 1]
+        if "data-content-id" not in tag and not tag.lstrip().startswith("<section"):
+            candidates.append((tag_start, tag_end, tag))
+        cursor = tag_end + 1
+    for tag_start, tag_end, tag in candidates:
+        if _motion_selector_tail_matches_tag(selector, tag):
+            return tag_start, tag_end
+    return candidates[0][:2] if candidates else None
+
+
+def _motion_selector_tail_matches_tag(selector: str, tag: str) -> bool:
+    tail = selector.rsplit(" ", 1)[-1].strip()
+    if tail.startswith("."):
+        class_name = tail[1:]
+        return any(
+            class_name in str(match.group(2)).split()
+            for match in re.finditer(
+                r"\b(?:className|class)\s*=\s*([\"'])(.*?)\1", tag
+            )
+        )
+    if tail.startswith("#"):
+        return bool(re.search(rf"\bid\s*=\s*[\"']{re.escape(tail[1:])}[\"']", tag))
+    attribute = re.fullmatch(r"\[([A-Za-z_:][\w:.-]*)\s*=\s*([\"'])(.*?)\2\]", tail)
+    if attribute is not None:
+        name, _quote, value = attribute.groups()
+        return bool(
+            re.search(
+                rf"\b{re.escape(name)}\s*=\s*[\"']{re.escape(value)}[\"']", tag
+            )
+        )
+    return bool(re.match(rf"<[\s]*{re.escape(tail)}\b", tag)) if tail else False
+
+
+def _add_motion_observer(source: str, trigger_selector: str, beat: dict[str, Any]) -> str:
+    if not trigger_selector or any(character in trigger_selector for character in "\\\"\r\n"):
+        return source
+    if re.search(
+        r"setAttribute\(\s*[\"']data-motion-ready[\"']\s*,\s*[\"']true[\"']\s*\)",
+        source,
+    ):
+        return source
+    function_openings = list(
+        re.finditer(
+            r"(?:export\s+default\s+)?function\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{|"
+            r"(?:const|let)\s+[A-Za-z_$][\w$]*\s*=\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{",
+            source,
+            flags=re.DOTALL,
+        )
+    )
+    section_id = str(beat.get("section_id", "") or "")
+    anchor = source.find(f'data-content-id="{section_id}"') if section_id else -1
+    openings = [item for item in function_openings if anchor < 0 or item.start() <= anchor]
+    opening = openings[-1] if openings else (function_openings[-1] if function_openings else None)
+    if opening is None:
+        return source
+    if not re.search(
+        r'import\s*\{[^}]*\buseEffect\b[^}]*\}\s*from\s*["\']react["\']',
+        source,
+    ):
+        source = 'import { useEffect } from "react";\n' + source
+        shift = len('import { useEffect } from "react";\n')
+        insertion = opening.end() + shift
+    else:
+        insertion = opening.end()
+    selector_literal = trigger_selector.replace("\\", "\\\\").replace('"', '\\"')
+    effect = (
+        "\n  useEffect(() => {\n"
+        f'    const motionSection = document.querySelector<HTMLElement>("{selector_literal}");\n'
+        '    if (!motionSection || typeof IntersectionObserver === "undefined") return undefined;\n'
+        "    const observer = new IntersectionObserver(([entry]) => {\n"
+        "      if (entry.isIntersecting) {\n"
+        '        motionSection.setAttribute("data-motion-ready", "true");\n'
+        "        observer.disconnect();\n"
+        "      }\n"
+        "    }, { threshold: 0.2 });\n"
+        "    observer.observe(motionSection);\n"
+        "    return () => observer.disconnect();\n"
+        "  }, []);\n"
+    )
+    return f"{source[:insertion]}{effect}{source[insertion:]}"
+
+
 def _interaction_state_value_matches(assignments: list[str], expected: str) -> bool:
     """Interpret boolean state ranges without requiring their prose verbatim."""
 
