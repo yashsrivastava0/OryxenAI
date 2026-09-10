@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 14:00 +05:30 - Codex (configured runtime) - [22db99c] - fix(code-generator): normalize route motion contract drift
+
+After live Pack A exposed deterministic CSS-length and route-motion contract
+drift, added host-side normalization for spelled CSS lengths, trusted selector
+anchors, custom-motion guard/fallback CSS, and exact observer wiring. The
+targeted suites and direct Pack A route-contract replay passed; the bounded
+campaign records the live failure separately.
+
 ### 2026-09-10 12:00 +05:30 - Codex (configured runtime) - [68e1693] - fix(code-generator): reconcile repair-budget defaults
 
 Aligned the Code Generator Pydantic repair defaults with the effective
@@ -193,23 +201,10 @@ hand-authoring multi-line files over SSH. Caddy stays a native VM service per
 the existing runbook design, not a Docker container. Also fixed the runbook's
 own text to point at these checked-in files.
 
-### 2026-09-08 23:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [2790e9d] - app: release Generate & Preview stage, superseding D-063's boundary
-
-Added a fifth `/app` stage (D-081) that starts the previously-unexposed
-production Code Generator session API and embeds its promoted preview,
-gated on Build Preparation completion. Recovered and adapted a near-complete
-prior implementation from history (`f9e8eef`/`9c27a69`, removed at `389fa28`)
-to the current `ActivePreview`/`CodeGeneratorSessionStatus` field names.
-Generate and Preview are one merged stage; the rail's decorative
-permanently-locked "Preview" tile is removed. The preview panel (route
-selector, mobile/tablet/desktop/fit viewports, refresh, open-in-new-tab,
-sandboxed iframe) reuses the exact `postMessage` bridge already live-verified
-in the developer harness. `product-boundary.test.ts` now requires
-`/code-generator` instead of forbidding it.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-08 — [2790e9d] — Released the authenticated Generate & Preview stage with the promoted-preview iframe bridge and Build Preparation gate (D-081); detailed history remains in Git.
 - 2026-09-09 — [e99ed55] — Investigated five failed Code Generator runs and authored the implementation and five-slot campaign handoff for pending retention, accounting, visual quality, truthful exports, and preflight.
 - 2026-09-09 — [29fc598] — Reconciled stale `create`/`replace` repair tags against the owned candidate tree while preserving strict initial-generation semantics and bounded repair authority.
 - 2026-09-08 — [44304ff] — Added honest repair-decline handling, shared-cause runtime correlation, stable prompt-cache keys, tighter observed repair ceilings, and a dedicated Code Generator job-attempt policy.
@@ -241,5 +236,5 @@ in the developer harness. `product-boundary.test.ts` now requires
 ## Summary (as of last compaction — 2026-09-09)
 
 - Recent detailed entries retained: 17
-- Compacted milestone bullets: 32
-- Last updated: 2026-09-10 12:00 +05:30 — Codex
+- Compacted milestone bullets: 33
+- Last updated: 2026-09-10 14:00 +05:30 — Codex
