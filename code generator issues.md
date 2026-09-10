@@ -1,5 +1,74 @@
 # Code Generator Issues
 
+## 2026-09-11 00:40 +05:30 - Suspected `_route_source_map` double-hashing bug investigated and disproven; real remaining gap is a missing `<LocalImage>` render
+
+Following D-092's live re-test (live run `74c82e9d`, Priya Vasudevan pack,
+first run with the raised image-policy floor), the planner finally placed 2
+resource_placements as intended, but the run still failed with
+`SOURCE_ROUTE_IMAGE_MINIMUM_MISSING`. An isolated call to
+`final_source_validation.py::_route_source_map()` appeared to return an
+empty route source for a V4 route whose `storage_key` looked already
+semantic ("home-4ea14058"), suggesting the function was re-hashing an
+already-semantic value into a second hash and looking for a directory the
+generator never wrote (the same class of risk D-090 had flagged as
+deferred/unconfirmed). A fix mirroring `typescript_ast_audit.py`'s
+"only semanticize if not already set" guard was applied.
+
+Re-running the *full* `validate_final_source()` against the real rejected
+checkpoint with that fix in place still showed both
+`SOURCE_ROUTE_IMAGE_MINIMUM_MISSING` and `SOURCE_PRIMARY_ROUTE_IMAGE_MISSING`
+firing -- inconsistent with the fix working. Tracing every intermediate
+variable (`binding_categories`, `image_placements`, `materialized_image_
+slots`, `approved_ids`, `target_placements`, `route_sources`, `referenced`,
+`visible_candidates`) against the real projections showed the actual root
+cause of the *original* symptom: `_route_source_map()`'s input --
+`projections["site/contract.json"]["routes"]` -- always carries the bare
+placeholder `brief_ingestion.py` writes (`f"routes/{route_id}"`), never the
+real semantic value `blueprint_compiler.py` computes onto `plan.routes`
+directly. My isolated test had fed the function an already-semantic
+`storage_key` that this call site's real data never actually contains, so
+the "double-hash" never happens in production. `work_graph_compiler.py`'s
+`_storage_key()` and `source_manifest.py`'s `_route_storage_key()` both
+independently, consistently always re-derive the semantic segment for this
+exact same bare-placeholder input -- confirming the original unconditional
+`final_source_validation.py::_route_source_map()` logic was correct all
+along. `typescript_ast_audit.py::_route_source_path()`'s "skip if already
+set" guard is *also* correct, but only because it is fed a different input
+(`plan.routes`, whose `storage_key` genuinely is pre-semanticized). Reverted
+the fix (file now matches HEAD exactly, nothing to commit) and re-ran the
+trace against the real, unmodified code: `route_sources["home"]` resolves
+correctly (36592 chars), `referenced = {"assumed-image:home:intro:0"}`,
+`visible_candidates` is non-empty, so `SOURCE_PRIMARY_ROUTE_IMAGE_MISSING`
+correctly does not fire -- only `SOURCE_ROUTE_IMAGE_MINIMUM_MISSING` does,
+exactly as expected (1 of the 2 required images genuinely present). D-090
+updated with this follow-up; no code change needed there.
+
+The one real, confirmed gap: the model's own generated
+`home-featured-work-9cd2bcd5.tsx` planned and marked a resource placement
+for `assumed-image:home:featured-work:3` (correct wrapper
+`data-resource="featured-work-process-accent"` div) but never rendered the
+`<LocalImage resourceId="assumed-image:home:featured-work:3">` component
+inside it -- a model-output completeness gap, not a validator bug. The
+run's one repair round did not fix it. Next step: a fresh live run with
+the (already-correct) validator giving accurate diagnostics, to see whether
+the existing repair mechanism self-corrects this with the real, unmasked
+signal this time.
+
+## 2026-09-10 23:19 +05:30 - Integration-review schema-correction retry gave the model nothing concrete to fix
+
+Live run `b3e9c620` (Priya Vasudevan pack, first live test after D-092)
+reached `needs_attention` with `GENERATION_OUTPUT_INVALID`:
+`"findings.2: Value error, quality findings require concrete source and
+owner evidence."` `run_integration_review_operation`'s bounded 2-attempt
+schema-correction retry already feeds validation errors back to the model,
+but `QualityFindingV2`'s validator only named the rule, not which of its
+seven required fields (`finding_id`, `owner_work_unit_id`, `code`, `file`,
+`marker`, `evidence`, `requested_outcome`) was actually left blank -- so
+the model failed the exact same way on both attempts. Fixed in `01e9ed0`:
+the validator now names the empty field(s) explicitly (e.g. "empty
+field(s): evidence"). Added a regression test asserting the exact field
+name appears in the error.
+
 ## 2026-09-10 22:52 +05:30 - Zero images across every observed live run traced to a soft-preference image policy default
 
 User-reported: generated portfolios never show images, including the

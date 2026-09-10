@@ -11,6 +11,31 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-11 00:40 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [no commit; investigation only] - docs(code-generator): close D-090's follow-up, disprove a suspected `_route_source_map` double-hash bug
+
+Live-testing D-092's image-policy fix (run `74c82e9d`, Priya Vasudevan
+pack) surfaced what looked like a real instance of D-090's deferred
+storage-key risk in `final_source_validation.py::_route_source_map()`. A
+fix was written and applied, then traced variable-by-variable against the
+real projections and found to be based on a false premise -- the
+function's actual input never carries a pre-semantic storage key, so the
+original unconditional logic was correct all along and consistent with its
+two siblings (`work_graph_compiler.py`, `source_manifest.py`). Reverted;
+`final_source_validation.py` matches HEAD exactly, nothing to commit. The
+real, confirmed remaining gap is a model-output completeness defect (a
+planned image placement whose `<LocalImage>` was never rendered), not a
+validator bug. Full trace in `code generator issues.md` and D-090's
+follow-up in `DECISIONS.md`.
+
+### 2026-09-10 23:19 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [01e9ed0] - fix(code-generator): name the exact empty field in quality-finding validation errors
+
+Live run `b3e9c620` (Priya Vasudevan pack) failed `GENERATION_OUTPUT_
+INVALID` on both attempts of the bounded integration-review schema-
+correction retry because `QualityFindingV2`'s validator only named the
+rule, not which of its seven required fields was actually blank, leaving
+the model nothing concrete to fix. The validator now names the exact empty
+field(s); added a regression test.
+
 ### 2026-09-10 22:52 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [882574e, 1563282] - fix(code-generator): require at least the preferred image count by default
 
 User-reported: images never appear in generated portfolios. Traced across
@@ -169,29 +194,12 @@ full Code Generator unit suite passes (299), Ruff, mypy, and compileall pass.
 The repository-wide baseline still contains unrelated/stale integration and
 mock-path failures documented in `code generator issues.md`.
 
-### 2026-09-09 09:50 +05:30 - Codex (GPT-5 / OpenAI) - [59409b5] - fix(worker): make PowerShell launcher use writable uv cache
-Updated `scripts/run-worker.ps1` to run from the repository root, use the
-repository-local `uv` cache, create its runtime cache directories, and
-propagate launcher failures. This prevents a locked global `uv` cache from
-silently leaving Discovery jobs queued without a worker.
-
-### 2026-09-09 03:00 +05:30 - Codex (GPT-5 / OpenAI) - [2f424e5] - fix(code-generator): harden brief-driven generation and previews
-
-Implemented the Code Generator reliability handoff for variable Build Preparation output:
-
-- admitted the canonical and current underscore/legacy brief mirrors through one immutable compiler, including result-only Markdown pairs, while rejecting incomplete or malformed route/section indexes before model calls;
-- added exact host-side planner identity/token canonicalization, a configuration-bounded planner retry, and restricted per-attempt diagnostics so `PLANNER_OUTPUT_INVALID` failures are actionable without persisting raw model payloads in receipts;
-- added source scans for static, re-export, and literal dynamic npm imports so optional components fall back safely and required unsupported packages fail with a clear dependency issue;
-- replaced score-only quality acceptance with one host-owned finding policy: functional/safety/approved-requirement findings block while visual geometry/polish findings remain explicit advisories;
-- preserved clean-build candidates as capability-scoped unverified previews, kept separate from active verified promotion, and wired candidate/warning/retry state through the development API and `/app` generation UI;
-- made the npm cache warmer install configured pins into a disposable project and prove a real offline `npm ci`, and added the production Docker/Compose/config wiring required for the Azure VM layout.
-
-Verification: Ruff, mypy, compileall, Docker Compose configuration, and the frontend TypeScript contract pass. The focused Code Generator tests report 63 passes; nine temp-directory tests cannot create pytest's Windows `.lock` file in this environment and are recorded as an environment ACL limitation. Live campaign inputs and outcomes are tracked in `docs/code-generator-live-campaign.md`.
-
 ## Compacted history
 
 ### 2026-09
 - 2026-09-09 — [66d8287] — Authored a 6-document frontend/agent integration reference suite under `docs/frontend/` for the major frontend revamp.
+- 2026-09-09 — [59409b5] — Fixed `run-worker.ps1` to use a writable repo-local `uv` cache instead of a lockable global one.
+- 2026-09-09 — [2f424e5] — Hardened brief-driven Code Generator: brief-mirror admission, planner retry/canonicalization, npm import scanning, host-owned quality findings, unverified-preview candidates, npm cache warmer, Azure VM Docker wiring.
 - 2026-09-09 — [78a9c77] — Retired the temporary static Discovery/pipeline shell; `/app` now requires the manifest-selected Preact bundle.
 - 2026-09-09 — [bc7b5a6] — Added an administrator-only pipeline reset capability (full session reset back to Discovery, admin-audited).
 - 2026-09-09 — [f20779f] — Clarified planner guidance distinguishing a brief's design-language words from literal `colors[*].name` tokens after a live naming collision.
