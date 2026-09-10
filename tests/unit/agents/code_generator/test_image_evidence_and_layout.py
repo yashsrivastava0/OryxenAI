@@ -81,9 +81,9 @@ def test_image_policy_is_snapshot_hashed_and_primary_route_scoped() -> None:
     assert policy.text_only_exemption is False
     assert policy.approved_image_slot_ids == ["slot-detail", "slot-hero"]
     assert policy.primary_route_id == "home"
-    assert policy.minimum_visible_images == 0
+    assert policy.minimum_visible_images == 2
     assert policy.preferred_visible_images == 2
-    assert policy.require_primary_route_image is False
+    assert policy.require_primary_route_image is True
     assert policy.policy_hash
     assert policy.model_validate(policy.model_dump(mode="json")).policy_hash == policy.policy_hash
 
