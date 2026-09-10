@@ -236,8 +236,8 @@ negative rejection fixtures and must never be selected for a paid run.
 ## Pre-live-fix confirmation campaign — bounded five-run cap (2026-09-10)
 
 This is a new campaign after the 2026-09-10 final five-slot campaign. The
-historical `Final reliability campaign` table above is unchanged. One live
-slot has now been consumed; the campaign remains authorized for at most five
+historical `Final reliability campaign` table above is unchanged. Two live
+slots have now been consumed; the campaign remains authorized for at most five
 full-pipeline runs, stopping at two cross-pack ready results, an insufficient
 balance, or the fifth consumed run.
 
@@ -250,9 +250,13 @@ balance, or the fifth consumed run.
 - The focused settings unit suite passed (19 tests), mypy and Ruff lint for
   `settings.py` passed, and the targeted source/audit/repair/contract/export/
   image suites passed (138 tests) after the route-motion normalizer fix.
-- Post-fix `pytest -k code_generator -q` passed 356 tests, with the same four
-  documented baseline/environment failures and 912 deselected; no new failure
-  was introduced by the live-disposition fix.
+- After the slot-2 lifecycle fix, the required targeted suites passed 139
+  tests. The exact slot-2 accepted source tree was copied to a disposable
+  overlay, the host cue materializer was applied, and both `source:audit` and
+  `typecheck` exited 0. The broader `pytest -k code_generator -q` selection
+  was started after this fix but stopped at handoff; its last completed
+  pre-fix baseline was 356 passed with four documented baseline/environment
+  failures and 912 deselected.
 - The verification-worker file had one already-documented
   `PLAN_SECTION_COVERAGE` fixture failure; the broader `-k code_generator`
   baseline had four documented pre-existing/environment failures alongside
@@ -272,22 +276,31 @@ install was used.
 | B / slot 3 | `.workspace/code-generator-generation/7b74c97b-f95e-4b77-986c-a6aed0f99b78/repo/` | exit 1; 295 route-contract diagnostic lines | exit 0 | Route-contract failures surface in the audit independently before the clean typecheck result. |
 | B / slot 4 | `.workspace/code-generator-generation/fe4a0224-8f5f-4c3e-86a2-a1aafef8d621/repo/` | exit 1; 295 older route-source diagnostic lines | exit 0 | Zero diagnostics match the literal object/tuple content-map false-positive pattern. |
 
-Slot 1 was reserved and consumed after the user supplied a fresh provider
-check showing configured-key presence, successful model access (HTTP 200), and
-a successful live quota/credit test (HTTP 200). The earlier direct balance
-attempt was inconclusive because the credit-grants endpoint returned HTTP 403
-and the browser billing overview required an interactive login; the stale
-balance figures from earlier notes remain inadmissible.
+For slot 2 diagnosis, the accepted tree at
+`.workspace/code-generator-generation/f8a3d88c-9546-40fe-ae6b-714e775c4e24/repo/`
+was copied without modifying the saved source. Applying the committed
+selected-work normalizer to the copied generated section produced the missing
+cue, and the disposable overlay passed `npm run source:audit` and
+`npm run typecheck` with exit 0.
+
+Slots 1 and 2 were reserved and consumed after the user supplied a fresh
+provider check showing configured-key presence, successful model access (HTTP
+200), and a successful live quota/credit test (HTTP 200). The earlier direct
+balance attempt was inconclusive because the credit-grants endpoint returned
+HTTP 403 and the browser billing overview required an interactive login; the
+stale balance figures from earlier notes remain inadmissible.
 
 ### Live outcomes — append one row immediately after each run
 
 | Slot | Balance check | Pack | Run ID | Terminal outcome | First causal evidence | Preview / acceptance evidence | Usage / notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Fresh user-supplied provider key/model/quota check; HTTP 200 | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `dd721d1e-cde9-4349-af50-27660ab6d779` | `needs_attention` - `SOURCE_REPAIR_EXHAUSTED` | Initial receipt `e170f1a784920512ef8fdefed1cb3849d28b41bcd9164493c401ad254bb21970` contained `fiftych`/`sixtyfivech`, a trusted hero-selector mismatch, and custom selected-work motion without the required guarded opacity/setter; final terminal evidence was the missing selected-work guard. | No verification, build, or preview promotion; accepted checkpoint `0584a38d4ab6058d064e249cfc4c83c44374262cf76099724609cef62aa57442` was pre-route foundation, so no ready result. | Full live slot 1/5 consumed. Generation job `d0b600f9-cc6b-440d-adc3-25eb5e5023c5` succeeded without a worker error; repair receipts `3343dd8d62d5a81a1313bdc8b228211134a772218d0a1ba38a423f44a7a76d72` and `f51d9622fdb8c79de6895b03a19894999261c0557f8521bde913015eaa5f4b44`. Host fix `22db99c` is offline-verified; retry A only after service restart and re-preflight. |
+| 2 | Fresh user-supplied provider key/model/quota check; HTTP 200 | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `f8a3d88c-9546-40fe-ae6b-714e775c4e24` | `needs_attention` - `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` | DB run evidence points to the accepted checkpoint `b89f1e433d7e3339831da46c7112c79cdeef57e84a552a938446aaa89ca53c29`; integration review had one blocking `missing-selected-work-lifecycle-cue` finding at `src/routes/home-4ea14058/sections/home-selected-work-2f0991ad.tsx:5`. The section rendered its intro and three work articles but no conceptual lifecycle cue/marker. | No accepted ready result or promoted preview. Plan, acquire, generate, and verify jobs all succeeded without an error payload; the bounded repair receipt `5ac54cd735290adb8b6582ce6eb44971575c5413cfc563b1fab113f34e02ddfe` (ledger file `65c8da3a510d5134ac4c6ce25bd6d57e7d833272b9ee3f081e7ba31fa9d4d61c.json`) changed only hero CSS, leaving the blocking selected-work cue absent. | Full live slot 2/5 consumed. Commit `d9caf30` materializes the blueprint-required cue deterministically; targeted suites passed 139 and the exact accepted-tree overlay passed `source:audit`/`typecheck` with exit 0. Retry A only after service restart and fresh preflight. |
 
 Pack order is A → B → C → A after successful cross-pack results. A failed
 pack is retried before advancing, but only after its root cause is fixed and
-re-verified offline; therefore slot 2 retries A. Pack A is first because its
+re-verified offline; slot 2 retried A and, because it also failed, slot 3
+remains a retry of A. Pack A is first because its
 furthest historical run is the direct target of the offline-confirmed
 conditional-marker fix. Pack A is
 `5f144f04-2789-48c6-9b1c-6bd11c87abdb`, Pack B is
