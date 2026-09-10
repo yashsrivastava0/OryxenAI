@@ -1042,6 +1042,10 @@ class OperationRouteConfig(BaseModel):
     sanitized_primary_profile: str = ""
     fallback_profiles: list[str] = Field(default_factory=list)
     allow_gemini: bool = False
+    # Explicitly permits the complete approved packet to reach Gemini only as
+    # a fallback for personal or otherwise unclassified input. This stays at
+    # the operation boundary instead of widening Gemini globally.
+    allow_personal_gemini_fallback: bool = False
     normal_calls: int = 1
     recovery_allowance: int = 1
     max_output_tokens: int | None = None

@@ -12,7 +12,7 @@ from oryxenai.agents.shared.providers.errors import (
 from oryxenai.core.settings import get_settings
 
 
-def test_first_four_routes_keep_personal_input_on_experiential() -> None:
+def test_first_four_routes_keep_experiential_primary_and_allow_gemini_recovery() -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
 
@@ -25,9 +25,12 @@ def test_first_four_routes_keep_personal_input_on_experiential() -> None:
 
     assert personal[0] == "experiential_luna"
     assert settings.models.get_profile(personal[0]).api_key_env == "EXPLABS_API_KEY"
-    assert sanitized[0] == "gemini_flash_lite_1"
+    assert sanitized[0] == "experiential_luna"
+    assert any(settings.models.get_profile(name).provider == "gemini" for name in personal[1:])
+    assert any(settings.models.get_profile(name).provider == "gemini" for name in sanitized[1:])
     assert all(
-        settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in personal
+        settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY"
+        for name in (*personal, *sanitized)
     )
 
 
@@ -45,7 +48,7 @@ def test_first_four_routes_keep_personal_input_on_experiential() -> None:
         ("build_preparation", "compose_visual_brief"),
     ],
 )
-def test_all_first_four_personal_operations_use_only_experiential(
+def test_all_first_four_personal_operations_keep_experiential_as_primary(
     engine: str, operation: str
 ) -> None:
     settings = get_settings()
@@ -54,7 +57,22 @@ def test_all_first_four_personal_operations_use_only_experiential(
     assert names
     assert settings.models.get_profile(names[0]).provider == "experiential"
     assert settings.models.get_profile(names[0]).model == "gpt-5.6-luna"
+    assert all(settings.models.get_profile(name).provider == "gemini" for name in names[1:])
     assert all(settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in names)
+
+
+def test_first_four_unknown_input_also_has_only_gemini_fallbacks() -> None:
+    settings = get_settings()
+    router = ModelRouter(settings.models)
+
+    names = router.operation_profile_names(
+        "visual_design_director",
+        "establish_visual_language",
+        input_classification="unknown",
+    )
+
+    assert names[0] == "experiential_luna"
+    assert all(settings.models.get_profile(name).provider == "gemini" for name in names[1:])
 
 
 def test_capacity_registry_uses_remaining_capacity_and_cooldown() -> None:

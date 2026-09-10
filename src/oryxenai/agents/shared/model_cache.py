@@ -273,6 +273,7 @@ class StructuredResultCache:
                     model_profile=model_profile,
                     request_context=request_context,
                     strict_schema=strict_schema,
+                    result_validator=validator,
                 )
 
             compute = compute_default
@@ -711,6 +712,7 @@ async def generate_with_cache(
             model_profile=model_profile,
             request_context=request_context,
             strict_schema=strict_schema,
+            result_validator=validator,
         )
         validator(dict(result.parsed_output))
         return result

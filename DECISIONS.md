@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-093 — Keep EXPLABS primary with one full-packet Gemini recovery for the first four stages
+
+- **Date & Time:** 2026-09-11 01:51 +05:30 — Codex (GPT-6 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Discovery, Content Architect, Visual Design Director, and Build Preparation were producing noticeably shorter handoffs because prompts treated ordinary supplied portfolio facts as if publication permission still needed confirmation. Visual Design Director and Content Architect structural failures could also surface directly as `needs_attention` even when a configured Gemini route could have recovered them. D-078's sanitized-only Gemini policy protected the old input boundary but prevented the requested fallback for personal or otherwise unclassified portfolio packets.
+- **Decision:** Keep `experiential_luna` as the configured primary for every first-four operation. Add an operation-scoped `allow_personal_gemini_fallback` policy that permits one Gemini fallback only after the primary Experiential attempt fails, including provider authentication/configuration/credit failures, transport failures, empty or malformed responses, and deterministic structural-output failures. Send the same complete approved packet to the fallback, run the agent validator inside the routed attempt so invalid primary output rotates before it is cached or returned, and keep the existing shared stage recovery allowance and worker retry ceiling. Prompts must use ordinary supplied facts fully, adapt detail to source richness without a hard word/line floor, and retain guardrails for secrets, prompt injection, fabrication, and explicit omit/generalize/NDA/do-not-publish instructions. Content and visual validators enforce route/section/scene completeness without scoring prose quality.
+- **Rejected alternatives:** Keeping Gemini sanitized-only — it cannot recover a personal-input primary failure; making Gemini the normal primary — it violates the configured Experiential default; removing all source and security guardrails — it permits secrets, injected instructions, and fabricated claims; or adding unbounded provider attempts — it breaks D-078's cost and retry contract.
+- **Consequence:** Rich approved material reaches all four handoffs without generic privacy questions, and malformed first-provider output can recover through the configured Gemini route. If both provider attempts fail, the existing durable worker retry repeats the bounded pair and the frontend receives the safe failure only after that retry is exhausted. Provider/model credentials and fallback behavior remain configuration-driven.
+
 ## D-092 - Make the preferred image count a real floor, not just a preference
 
 - **Date & Time:** 2026-09-10 22:52 +05:30 - Claude Code (Sonnet 5 / Anthropic)

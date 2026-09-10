@@ -8,7 +8,7 @@ AgentResult. The executor handles persistence and state transitions.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
@@ -132,6 +132,7 @@ class ModelClient(Protocol):
         model_profile: Any = None,
         request_context: Any = None,
         strict_schema: bool = False,
+        result_validator: Callable[[dict[str, Any]], None] | None = None,
     ) -> Any: ...
 
 

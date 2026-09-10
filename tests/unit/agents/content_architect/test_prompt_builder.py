@@ -80,6 +80,14 @@ class TestBuildInstructions:
         )
         assert "re-interview" in system
 
+    def test_source_use_and_detail_guidance_is_explicit(self):
+        system, task, _version, _manifest = build_instructions(
+            "plan_content", {"approved_brief_title": "x"}
+        )
+        assert "Use those facts fully in strategy and public copy" in system
+        assert "complete downstream handoff" in system
+        assert "There is no line or word minimum" in task
+
 
 class TestPromptVersion:
     def test_versions_are_stable(self):

@@ -1,6 +1,6 @@
 <!--
   Operation: integrate_content (only runs when integration_needed was signaled)
-  Version: content_architect.integrate_content.v3
+  Version: content_architect.integrate_content.v4
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -39,6 +39,13 @@ opportunities described in words only, confidentiality restrictions, must-preser
 mobile-shortenable elements, and elements that must never be fabricated) now that the full content
 set is final. Never name an exact component, layout, color, typography, or animation choice.
 </visual_director_handoff>
+
+<complete_output_rule>
+Return the full reconciled content packs, manifest, and handoff with all existing visitor-facing
+detail preserved. Reconciliation must not turn a complete route into a short summary or a partial
+patch. If no wording needs correction, copy the complete content forward and only change the
+consistency fields that require it.
+</complete_output_rule>
 
 <format>
 Return ONE complete JSON object matching ContentArchitectOutput, including the (possibly lightly

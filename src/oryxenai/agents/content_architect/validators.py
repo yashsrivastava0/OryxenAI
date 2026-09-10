@@ -5,8 +5,11 @@ envelope keys must exist, mode must be known and consistent with the
 operation, route/claim entries must carry usable stable IDs. Free-text
 content (site_story_strategy prose, section content blocks, public_content_manifest
 copy, visual_director_handoff notes) is NOT business-validated — the model
-decides how to phrase things; only the envelope shape is checked, mirroring
-how Discovery never business-validates brief_markdown.
+decides how to phrase things; structural completeness is checked separately,
+while the prose remains free-form and unscored, just as Discovery never
+business-validates brief_markdown. Active routes and their
+declared sections must be present and non-empty; there is no word-count or
+stylistic gate, so genuinely sparse source material stays honest.
 
 Two checks here go beyond pure shape and are deliberate structural backstops
 (not content judgment): a BLOCKED route/claim can never be referenced from
@@ -172,6 +175,8 @@ def validate_stage_output(
             page_content_packs or [], effective_route_plan, effective_claim_grounding
         )
     )
+    if content_required:
+        errors.extend(_validate_content_coverage(page_content_packs or [], effective_route_plan))
 
     if operation == "integrate_content" and not _is_nonempty_dict(
         data.get("visual_director_handoff")
@@ -377,6 +382,85 @@ def _find_internal_note_keys(content: dict[str, Any], *, depth: int = 0) -> set[
                 if isinstance(item, dict):
                     found |= _find_internal_note_keys(item, depth=depth + 1)
     return found
+
+
+def _validate_content_coverage(page_content_packs: list[Any], route_plan: list[Any]) -> list[str]:
+    """Require every active route and declared section to have usable copy.
+
+    This is deliberately an adaptive completeness check, not a word-count
+    gate. It catches the common partial-response failure where a model emits a
+    route shell or an empty section while allowing a genuinely sparse source
+    to remain concise.
+    """
+
+    errors: list[str] = []
+    expected_routes: list[dict[str, Any]] = [
+        route
+        for route in route_plan
+        if isinstance(route, dict) and route.get("publication_status") != "blocked"
+    ]
+    packs_by_route: dict[str, list[dict[str, Any]]] = {}
+    for pack in page_content_packs:
+        if isinstance(pack, dict):
+            route_id = str(pack.get("route_id", "") or "").strip()
+            packs_by_route.setdefault(route_id, []).append(pack)
+
+    for route in expected_routes:
+        route_id = str(route.get("route_id", "") or "").strip()
+        packs = packs_by_route.get(route_id, [])
+        if len(packs) != 1:
+            errors.append(
+                f"Route {route_id!r} must have exactly one complete page content pack; "
+                f"found {len(packs)}"
+            )
+            continue
+
+        pack = packs[0]
+        sections = pack.get("sections")
+        if not isinstance(sections, list) or not sections:
+            errors.append(f"Route {route_id!r} must have at least one content section")
+            continue
+
+        expected_section_ids = [
+            str(section_id).strip()
+            for section_id in route.get("section_sequence", [])
+            if str(section_id).strip()
+        ]
+        actual_section_ids = [
+            str(section.get("section_id", "") or "").strip()
+            for section in sections
+            if isinstance(section, dict)
+        ]
+        if expected_section_ids and actual_section_ids != expected_section_ids:
+            errors.append(
+                f"Route {route_id!r} sections must exactly match section_sequence in order"
+            )
+
+        for section_index, section in enumerate(sections):
+            if not isinstance(section, dict):
+                continue
+            content = section.get("content")
+            if not _has_visitor_content(content):
+                section_id = str(section.get("section_id", "") or section_index)
+                errors.append(
+                    f"Route {route_id!r} section {section_id!r} has no visitor-facing content"
+                )
+    return errors
+
+
+def _has_visitor_content(value: Any) -> bool:
+    """Return whether a flexible content block contains meaningful material."""
+
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(
+            key not in _INTERNAL_NOTE_KEYS and _has_visitor_content(child)
+            for key, child in value.items()
+        )
+    if isinstance(value, list):
+        return any(_has_visitor_content(child) for child in value)
+    return False
 
 
 def _is_nonempty_dict(value: Any) -> bool:
