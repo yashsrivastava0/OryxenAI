@@ -1,6 +1,6 @@
 <!--
   Operation: establish_visual_language (always runs first)
-  Version: visual_design_director.establish_visual_language.v4
+  Version: visual_design_director.establish_visual_language.v6
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -82,8 +82,19 @@ not a duplicate of visual_language verbatim.
 
 <pages_when_included>
 When pages_included=true, write one PageVisualDirection per supplied public route_plan entry (see the
-direct_page_experience operation's <pages> instructions for the exact per-page/scene requirements —
-apply the same rules here). Populate asset_briefs and resource_candidates as needed by those pages.
+direct_page_experience operation's <pages> and <scenes> instructions for the exact per-page/scene
+field list — apply the same rules here). Populate asset_briefs and resource_candidates as needed by
+those pages.
+
+Each scene's own content_refs is a LIST of the real section_id values (from that route's Content
+Architect page pack) that scene realizes — never invented. Separately, for every meaningful
+image/visual requirement, add ONE asset_briefs entry (unique asset_id) whose content_ref is exactly
+ONE bare section_id or claim_id, copied verbatim — never a route_id prefix like "home:hero" and never
+two locations joined with a separator like "home:hero; home:positioning" or
+"home:hero / home:positioning", even when the asset is genuinely relevant to more than one section.
+Pick the single section it belongs to most; an asset reused elsewhere is expressed by referencing its
+asset_id from other scenes' asset_requirements instead, never by listing multiple content_ref values.
+
 Leave compiler_handoff as an empty object {} regardless (see the system prompt's
 compiler_handoff_rule) — only integrate_site_experience populates it, even when you inline full pages
 here.
