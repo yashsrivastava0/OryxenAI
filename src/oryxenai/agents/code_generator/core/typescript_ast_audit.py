@@ -21,6 +21,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     SitePlan,
 )
+from oryxenai.agents.code_generator.core.motion_pattern_catalogue import get_motion_pattern
 from oryxenai.agents.code_generator.core.source_lexing import (
     static_jsx_attribute_values,
     strip_source_comments,
@@ -647,6 +648,37 @@ def audit_typescript_source(
                     continue
                 marker_present = _marker_present(beat.target_marker, route_files_source)
                 owner_file = section_owner_paths.get(beat.section_id, route_file)
+                trusted_pattern = get_motion_pattern(beat.pattern_id)
+                if trusted_pattern is not None:
+                    # A beat bound to a catalogue pattern_id delegates its
+                    # entire animation implementation -- opacity/transform
+                    # states, reduced-motion handling, and the
+                    # data-motion-ready wiring -- to motion.css/
+                    # SharedSystems.tsx, which are trusted, pipeline-owned
+                    # files never included in a section's own scoped CSS.
+                    # Requiring those literal implementation details here
+                    # would always fail a correct, trusted-component usage
+                    # (source_validation.py's pre-gate already carries this
+                    # same exception, confirmed live: a valid Reveal-based
+                    # hero was rejected this way). The only thing this
+                    # unit's own source must prove is that the trusted
+                    # component is actually rendered.
+                    jsx_tag_present = bool(
+                        re.search(
+                            rf"<\s*{re.escape(trusted_pattern.jsx_tag)}\b", route_files_source
+                        )
+                    )
+                    if not marker_present or not jsx_tag_present:
+                        diagnostics.append(
+                            _diagnostic(
+                                "SOURCE_MOTION_BEAT_UNIMPLEMENTED",
+                                "Every v4 motion beat needs a target marker and executable source behavior.",
+                                file=owner_file,
+                                route_id=route_id,
+                                symbol=beat.motion_id,
+                            )
+                        )
+                    continue
                 scoped_css = "\n".join(
                     value for path, value in route_css.items() if path.startswith(route_prefix)
                 )
