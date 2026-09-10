@@ -639,14 +639,22 @@ class CodeGeneratorGenerationConfig(BaseModel):
     # See config/app.toml for why this covers real responsive-image output.
     max_source_bytes: int = 32 * 1024 * 1024
     max_request_rounds: int = 4
-    max_repair_rounds_per_unit: int = 3
-    max_repair_rounds_total: int = 6
-    # 3 was live-reproduced twice (once via ScaleMax, once via direct OpenAI,
-    # same pack) as genuinely too tight: both runs converged steadily each
-    # round -- 3 blocking findings down to 1, then a lone, reviewer-described
-    # "bounded motion correction" -- but ran out of budget while still making
-    # real progress, not while stuck. See "code generator issues.md".
-    max_integration_polish_rounds: int = Field(default=5, ge=1, le=6)
+    max_repair_rounds_per_unit: int = 2
+    max_repair_rounds_total: int = 4
+    # These Pydantic defaults must match config/app.toml's effective values
+    # (the file that actually governs every live run) so the two never
+    # silently disagree again. An earlier default of 5 polish rounds was
+    # argued for from a genuine but now-superseded incident (pre-44304ff,
+    # before the honest-decline escape hatch and shared-cause width-ratio
+    # correlation fixes). The 2026-09-10 five-slot campaign, run entirely
+    # under these tighter values, showed every terminal failure was one
+    # distinct, root-causable defect (validator disagreement, ownership
+    # misattribution, hidden content) rather than a repair genuinely still
+    # converging when the budget ran out -- see docs/code-generator-live-
+    # campaign.md's "Final reliability campaign" table. Raising round counts
+    # does not fix a whack-a-mole pattern; root-causing each new defect does.
+    # See "code generator issues.md" for both incidents.
+    max_integration_polish_rounds: int = Field(default=3, ge=1, le=6)
     max_route_batch_sections: int = 8
     max_concurrency: int = 1
     typecheck_timeout_seconds: float = 120.0
