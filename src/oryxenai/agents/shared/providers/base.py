@@ -12,13 +12,17 @@ import hashlib
 import os
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
 from oryxenai.agents.shared.contracts import ModelClient
-from oryxenai.agents.shared.providers.errors import ProviderConfigError
+from oryxenai.agents.shared.providers.errors import (
+    ModelOutputInvalidError,
+    ProviderConfigError,
+    ProviderError,
+)
 from oryxenai.core.logging import get_logger
 
 if TYPE_CHECKING:
@@ -79,6 +83,7 @@ class BaseProviderAdapter(ModelClient, ABC):
         model_profile: Any = None,
         request_context: Any = None,
         strict_schema: bool = False,
+        result_validator: Callable[[dict[str, Any]], None] | None = None,
     ) -> Any:
         """Structured output via the provider's native mechanism."""
         self._ensure_initialized()
@@ -96,6 +101,18 @@ class BaseProviderAdapter(ModelClient, ABC):
                 strict_schema=strict_schema,
                 request_context=request_context,
             )
+            if result_validator is not None:
+                parsed_output = getattr(result, "parsed_output", result)
+                if not isinstance(parsed_output, Mapping):
+                    raise ModelOutputInvalidError(
+                        "Model output did not contain a structured object."
+                    )
+                try:
+                    result_validator(dict(parsed_output))
+                except ProviderError:
+                    raise
+                except Exception as exc:
+                    raise ModelOutputInvalidError() from exc
             elapsed_ms = (time.monotonic() * 1000) - start_ms
             logger.info(
                 "provider=%s model=%s operation=%s trace=%s elapsed_ms=%.0f model_profile=%s",

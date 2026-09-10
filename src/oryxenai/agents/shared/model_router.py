@@ -95,9 +95,10 @@ class ModelRouter:
     ) -> tuple[str, ...]:
         """Resolve primary and bounded fallback profiles for an operation.
 
-        Gemini profiles are only considered when the packet is explicitly
-        marked ``sanitized`` or ``synthetic`` and the operation policy opts in.
-        Unknown packets therefore remain on the configured Luna primary.
+        Gemini is normally limited to explicitly ``sanitized`` or ``synthetic``
+        packets. An operation may explicitly opt into Gemini as a full-packet
+        fallback for personal/unknown input; the configured primary remains
+        first and Gemini is never selected as the normal route by that opt-in.
         """
 
         override = str(override_profile_name or "").strip()
@@ -107,6 +108,10 @@ class ModelRouter:
             return (name,) if name else ()
         names: list[str] = []
         classification = str(input_classification or "unknown").strip().casefold()
+        gemini_allowed = route.allow_gemini and (
+            classification in {"sanitized", "synthetic"}
+            or (classification in {"personal", "unknown"} and route.allow_personal_gemini_fallback)
+        )
         if override and self.is_selectable(override):
             names.append(override)
         elif (
@@ -134,9 +139,7 @@ class ModelRouter:
             if not value or profile is None or value in result:
                 continue
             provider = str(profile.provider or "").strip().casefold()
-            if provider == "gemini" and (
-                not route.allow_gemini or classification not in {"sanitized", "synthetic"}
-            ):
+            if provider == "gemini" and not gemini_allowed:
                 continue
             result.append(value)
         return tuple(result)

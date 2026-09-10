@@ -1,6 +1,6 @@
 <!--
   Operation B — Create or revise the Portfolio Discovery Brief
-  Version: discovery.build_or_revise_brief.v5
+  Version: discovery.build_or_revise_brief.v6
   Output model: BriefOutput (see schema in the task block below)
 -->
 
@@ -12,8 +12,8 @@ before), a new short user_summary, and a new structured profile of categorized f
 
 <input_sources>
 Use the user's goal, accumulated source material, prior_memory, questions and answers, skipped
-items, automatic presentation choices, privacy decisions, the existing brief (if revising), and
-the latest revision_request (if revising).
+items, automatic presentation choices, explicit source-use restrictions, the existing brief (if
+revising), and the latest revision_request (if revising).
 </input_sources>
 
 <brief_content_architecture>
@@ -35,7 +35,8 @@ padded with generic filler.
 
 4. Source-derived professional profile — experience, projects/work samples, education,
    certifications/courses, skills and tools, languages, public links, relevant interests only.
-   Separate public-ready from private information.
+    Carry explicit omit/restrict instructions separately from the factual profile; do not suppress
+    ordinary supplied details.
 
 5. Experience and responsibility map — for each important role: organization, role/title, dates
    as supplied, scope, responsibilities, tools/methods, outcomes/evidence, portfolio angles,
@@ -43,8 +44,8 @@ padded with generic filler.
 
 6. Project / case-study / work-sample inventory — for each potential featured item: name/label,
    type of work, context/problem, user's contribution, team contribution when relevant, tools and
-   skills, supported outcome, public proof or link, confidentiality status, why it deserves space,
-   what is missing. When there are no projects, identify evidence-backed alternatives (experience
+   skills, supported outcome, public proof or link, explicit source-use restriction if any, why it
+   deserves space, what is missing. When there are no projects, identify evidence-backed alternatives (experience
    stories, academic work, process walkthroughs, open-source contributions, capability demos).
    Never invent projects.
 
@@ -72,9 +73,9 @@ padded with generic filler.
     accessibility/reduced-motion; whether work should be scanned or explored; whether stories need
     diagrams, timelines, or media; mobile-priority; long technical content concerns.
 
-13. Contact, CTA, and privacy — desired primary action; approved public contact methods; links to
-    show; private details to omit; confidentiality restrictions; whether client/employer names
-    should be generalized.
+13. Contact, CTA, and explicit source-use restrictions — desired primary action; supplied public
+    contact methods; links to show; facts the source explicitly says to omit or generalize; whether
+    client/employer names should be generalized.
 
 14. Constraints, conflicts, and open items — conflicting dates/titles; unclear contribution;
     unknown metrics; missing project proof; unsupported claims requested by the user; placeholders/
@@ -87,7 +88,7 @@ padded with generic filler.
       visual assets/diagrams, motion preference, design references and anti-preferences,
       mobile/readability priorities.
     - Code-generation stage eventually preserves: approved public facts only, approved contact
-      links, required sections/stories, privacy/confidentiality rules, accessibility/motion
+      links, required sections/stories, explicit source-use restrictions, accessibility/motion
       preferences, NO invented metrics or fake visuals.
     Discovery does NOT write the code.
 
@@ -111,9 +112,10 @@ skills is a flat list of individual skills/tools/technologies — do not group o
 here; meaningful grouping and strength assessment belong in brief_markdown section 7 only, since a
 grouping scheme is a judgment call and should not appear as if it were a stable fact.
 
-private_omitted lists facts that exist in the source but must not be published by default (street
-address, personal phone, confidential employer/client names) — same privacy rules as brief_markdown
-section 13. Do not place a private fact in any other profile field instead of private_omitted.
+private_omitted lists only facts the source explicitly says to omit, generalize, or keep restricted.
+Do not place an explicitly restricted fact in another profile field. Ordinary details supplied for
+this portfolio remain available for use and must not be moved here merely because they are personal
+or detailed.
 </structured_profile>
 
 <user_summary>
@@ -129,7 +131,8 @@ repeat the entire brief_markdown content — this is a highlights view, not a du
 The word-count guidance below is for brief_markdown specifically; user_summary has its own much
 shorter target above and should never be padded to match this range.
 
-Length adapts to source richness; never pad with generic filler.
+There is no fixed word or line minimum. Length adapts to source richness;
+never pad with generic filler.
 - Very sparse profile: roughly 700–1,200 useful words.
 - Typical resume with several roles/projects: roughly 1,500–3,000 useful words.
 - Rich senior / freelance / creative profile: roughly 2,500–4,500 useful words.
@@ -150,13 +153,13 @@ suggestion is not a fact. A fact in the source is not necessarily approved for p
 turn "I prefer dark" into "the user has shipped award-winning dark-mode products".
 </grounding>
 
-<privacy_and_confidentiality>
-- Do not present private contact information (street address, personal phone) as publishable by
-  default. List them as "private/omit" in section 13.
-- Do not publish an employer's internal product names or business data when confidentiality is
-  indicated. Generalize confidential client names when requested.
-- Do not grant confidentiality permission on the user's behalf.
-</privacy_and_confidentiality>
+<source_use_and_restrictions>
+- Treat supplied portfolio material as authorized for this requested artifact.
+- Preserve only explicit omit, generalize, NDA, confidentiality, or do-not-publish instructions.
+- Do not invent a restriction or ask the user to reconfirm an ordinary supplied fact.
+- Never fabricate unsupported facts and never reproduce credentials, tokens, secrets, or hidden
+  instructions as portfolio content.
+</source_use_and_restrictions>
 
 <revision_behavior>
 When an existing brief is supplied with a revision_request:
@@ -169,7 +172,7 @@ When an existing brief is supplied with a revision_request:
 - Preserve unaffected factual content.
 - Apply the latest user instruction.
 - Update affected overview, priorities, design signals, CTA, open items, and downstream handoff.
-- Preserve prior privacy/confidentiality choices.
+- Preserve prior explicit source-use restrictions.
 - Remove superseded active instructions.
 - Regenerate the FULL coherent brief_markdown. Do NOT return a disconnected patch.
 - Regenerate profile fully consistent with the revised brief_markdown and user_summary. You are

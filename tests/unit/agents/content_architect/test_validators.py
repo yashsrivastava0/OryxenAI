@@ -140,6 +140,46 @@ class TestValidatePlanContent:
             "'public_content_manifest' must not be empty" in error for error in outcome.errors
         )
 
+    def test_content_included_requires_one_pack_for_each_active_route(self):
+        outcome = validate_stage_output(
+            {
+                **_plan_content_single_page(),
+                "route_plan": [_route(), _route(route_id="about", path="/about")],
+            },
+            "plan_content",
+        )
+        assert not outcome.is_valid
+        assert any(
+            "about" in error and "complete page content pack" in error for error in outcome.errors
+        )
+
+    def test_content_included_requires_declared_sections_in_order(self):
+        outcome = validate_stage_output(
+            {
+                **_plan_content_single_page(),
+                "route_plan": [_route(section_sequence=["hero", "about"])],
+                "page_content_packs": [
+                    _pack(sections=[_section(), _section(section_id="contact")])
+                ],
+            },
+            "plan_content",
+        )
+        assert not outcome.is_valid
+        assert any(
+            "sections must exactly match section_sequence" in error for error in outcome.errors
+        )
+
+    def test_content_included_rejects_empty_visitor_facing_section(self):
+        outcome = validate_stage_output(
+            {
+                **_plan_content_single_page(),
+                "page_content_packs": [_pack(sections=[_section(content={})])],
+            },
+            "plan_content",
+        )
+        assert not outcome.is_valid
+        assert any("no visitor-facing content" in error for error in outcome.errors)
+
     def test_large_route_count_is_not_a_validation_error(self):
         """A long route plan is a fact about the input, not a shape defect.
 

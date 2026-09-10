@@ -1,7 +1,7 @@
 <!--
   Operation: integrate_site_experience (only if warranted — more than 2 routes,
   or a cross-page conflict was flagged)
-  Version: visual_design_director.integrate_site_experience.v4
+  Version: visual_design_director.integrate_site_experience.v5
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -65,6 +65,13 @@ not collapse several contextual roles into one generic asset, and do not add
 generated pixels or handwritten component source. Any role that cannot be
 honestly authorized remains an explicit conflict for Build Preparation.
 </real_resource_policy>
+
+<complete_output_rule>
+Return the complete reconciled visual direction, preserving all useful page and scene detail from
+the earlier stages. Reconciliation must not replace a detailed route with a short summary or a
+partial patch. Change only what coherence requires, while keeping every approved route, stable ID,
+responsive behavior, accessibility rule, and failure-safe instruction represented.
+</complete_output_rule>
 
 <compiler_handoff>
 Populate compiler_handoff — a free-form summary for the FUTURE Experience Blueprint Compiler (not

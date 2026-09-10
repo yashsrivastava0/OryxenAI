@@ -36,7 +36,11 @@ code_generator_integrator = "code_generator_integrator"
 code_generator_repairer = "code_generator_repairer"
 
 [routing.policy]
-version = "precode_free_v1"
+version = "precode_fallback_v2"
+# The first four operations below keep the Experiential Labs profile as their
+# primary source and explicitly permit Gemini only for a bounded recovery
+# attempt. Their operation-level flag is the exception to the general input
+# policy label; it does not make Gemini a normal primary route.
 input_policy = "personal_luna_only"
 utilization_ceiling = 0.8
 wallet_spend_enabled = false
@@ -93,9 +97,9 @@ unresolved_attempt_ttl_seconds = 3600
 
 [routing.operation_profiles.discovery.understand_and_question]
 primary_profile = "experiential_luna"
-sanitized_primary_profile = "gemini_flash_lite_1"
 fallback_profiles = ["gemini_flash_lite_1", "gemini_flash_lite_2", "gemini_flash_lite_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 1
 recovery_allowance = 1
 max_output_tokens = 4096
@@ -107,6 +111,7 @@ reasoning_effort = "low"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 1
 recovery_allowance = 1
 max_output_tokens = 12000
@@ -118,6 +123,7 @@ reasoning_effort = "medium"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 3
 recovery_allowance = 1
 max_output_tokens = 16000
@@ -129,6 +135,7 @@ reasoning_effort = "medium"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 3
 recovery_allowance = 1
 max_output_tokens = 16000
@@ -140,6 +147,7 @@ reasoning_effort = "medium"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 3
 recovery_allowance = 1
 max_output_tokens = 16000
@@ -151,6 +159,7 @@ reasoning_effort = "medium"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 3
 recovery_allowance = 1
 max_output_tokens = 24000
@@ -162,6 +171,7 @@ reasoning_effort = "medium"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 3
 recovery_allowance = 1
 max_output_tokens = 24000
@@ -173,6 +183,7 @@ reasoning_effort = "medium"
 primary_profile = "experiential_luna"
 fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 3
 recovery_allowance = 1
 max_output_tokens = 24000
@@ -182,9 +193,9 @@ reasoning_effort = "medium"
 
 [routing.operation_profiles.build_preparation.compose_visual_brief]
 primary_profile = "experiential_luna"
-sanitized_primary_profile = "gemini_flash_lite_1"
 fallback_profiles = ["gemini_flash_lite_1", "gemini_flash_lite_2", "gemini_flash_lite_3", "experiential_luna"]
 allow_gemini = true
+allow_personal_gemini_fallback = true
 normal_calls = 1
 recovery_allowance = 1
 max_output_tokens = 12000
@@ -390,9 +401,11 @@ supports_prompt_cache_key = false
 supports_prompt_cache_options = false
 supports_prompt_cache_breakpoint = false
 
-# Gemini Free Tier profiles are explicitly sanitized-input only.  The three
-# aliases are separate configured capacity sources; quota limits are observed
-# at runtime and are never hardcoded in agent code.
+# Gemini Free Tier profiles carry a sanitized default policy. The first-four
+# operation routes explicitly widen that profile to an approved full-packet
+# fallback only after their Experiential primary fails. The three aliases are
+# separate configured capacity sources; quota limits are observed at runtime
+# and are never hardcoded in agent code.
 [profiles.gemini_flash_lite_1]
 provider = "gemini"
 model = "gemini-3.5-flash-lite"

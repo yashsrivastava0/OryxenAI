@@ -1,6 +1,6 @@
 <!--
   Operation: direct_page_experience (only if establish_visual_language deferred pages_included=false)
-  Version: visual_design_director.direct_page_experience.v4
+  Version: visual_design_director.direct_page_experience.v5
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
@@ -50,6 +50,12 @@ diagram simplification, sticky behavior, touch vs. hover). If motion_intent is n
 reduced_motion_behavior is also REQUIRED — describe the static/reduced experience explicitly, not
 just "disable motion."
 </scenes>
+
+<detail_rule>
+Every supplied route and scene must be developed fully from the approved content. Do not return a
+partial patch, a route label, or a generic visual summary. Keep all applicable page and scene fields
+meaningful, with depth adapting to the amount of approved content and without invented evidence.
+</detail_rule>
 
 <assets>
 The input includes a resource_policy. For an image-rich approved direction,

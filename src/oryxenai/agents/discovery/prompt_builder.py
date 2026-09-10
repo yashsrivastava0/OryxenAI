@@ -19,9 +19,9 @@ logger = get_logger("oryxenai.agents.discovery.prompt_builder")
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v5"
-PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v6"
-PROMPT_VERSION_SYSTEM = "discovery.system.v2"
+PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v6"
+PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v7"
+PROMPT_VERSION_SYSTEM = "discovery.system.v3"
 
 _OPERATION_VERSION_MAP = {
     "understand_and_question": PROMPT_VERSION_QUESTIONS,
@@ -40,10 +40,11 @@ _OPERATION_PROMPT_FILE = {
 _QUESTIONS_OPERATIONS = {"understand_and_question", "prepare_questions"}
 
 _FAST_BRIEF_GUIDANCE = (
-    "\n## Interactive speed target\n"
-    "This is an interactive response. Keep brief_markdown concise: cover all relevant headings "
-    "with one short paragraph or 1-3 bullets each, and target roughly 700-1,400 words for a "
-    "typical resume and no more than 1,800 words for a rich resume. Do not repeat source bullets."
+    "\n## Detail target\n"
+    "The response is interactive, but brief_markdown must remain the complete detailed handoff. "
+    "Use the source richness to develop every applicable section and fact; omit only sections that "
+    "genuinely do not apply and never compress a rich source into a short summary. user_summary "
+    "remains the compact highlights view."
 )
 
 _FINAL_REMINDER = (
