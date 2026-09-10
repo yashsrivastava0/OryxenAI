@@ -11,6 +11,30 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-11 03:07 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [c8c9333] - fix(visual-design-director): inline the missing content_ref rule for single-route pages
+
+User-reported: Visual Design Director's `MODEL_OUTPUT_INVALID` ("did not
+satisfy the required structure") kept recurring, specifically on this
+agent and no other. Live-reproduced end-to-end (Discovery -> Content
+Architect -> Visual Design Director, real resume input, real model calls,
+bypassing the redacted worker error envelope to read validators.py's raw
+errors directly): `establish_visual_language.md`'s `pages_when_included`
+path -- mandatory whenever pages_included=true, which the prompt itself
+requires for every single-route/simple-hybrid portfolio -- only
+cross-referenced `direct_page_experience.md`'s asset `content_ref` rule
+("exactly ONE bare section_id, never joined with a separator") instead of
+stating it inline. `prompt_builder.py` never actually loads that other
+operation's file for this call, so the model never saw the rule and
+produced `content_ref: "home:hero; home:positioning"`, which
+`validate_final_references` correctly rejects as an unknown content_ref
+with no repair path (unlike Content Architect, VDD's `agent.py` has no
+corrective re-call on its own final-validation failure). Inlined the rule
+into `establish_visual_language.md` and bumped its prompt version;
+re-verified live against the same captured Content Architect output that
+failed before the fix, twice, both succeeding with single-value
+content_ref. The Content-Architect-style repair-call pattern remains a
+candidate follow-up if this class of failure recurs for a different field.
+
 ### 2026-09-11 02:10 +05:30 - Codex (GPT-6 / OpenAI) - [67d5a75] - fix(agents): restore rich first-four output and bounded Gemini recovery
 
 Updated Discovery, Content Architect, Visual Design Director, and Build Preparation prompts to use ordinary supplied material fully and emit complete adaptive-detail handoffs while preserving explicit restrictions and security guardrails. Routed the first four stages through EXPLABS-first recovery with one same-packet Gemini fallback for provider and structural failures, added route/section/scene completeness gates, and recorded D-093.
@@ -137,70 +161,16 @@ field. The change keeps repair bounded based on the evidence from the prior
 five-slot campaign rather than raising limits for distinct root-causable
 defects.
 
-### 2026-09-10 10:22 +05:30 - Codex (OpenAI) - [39076d0] - fix(code-generator): refresh stale image pins and harden dist exports
-Refreshed expired Pixabay `/get/` pins by stable asset ID, applied the configured raw image-size limit, made exports retry-safe on Windows, and stopped partial `dist` trees from being advertised as runnable. Added live-provider and regression coverage for the image/export paths.
-
-### 2026-09-10 03:08 +05:30 - Codex (GPT-6 / OpenAI) - [7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] - fix(code-generator): close desktop generation reliability gaps
-Closed preview/export, source-ownership, interaction-ownership, contract-ordering, static content-map, and conditional-motion audit gaps found in the authorized five-run campaign; the desktop/web path is hardened and the full Code Generator unit suite passes.
-
-### 2026-09-10 00:03 +05:30 - Codex (GPT-6 / OpenAI) - [90e8349] - fix(code-generator): normalize typography token names
-
-Normalized prefixed fluid type-step names at the schema and compiler
-boundaries, so a planner value such as `type-heading` produces the canonical
-`--type-heading-*` properties instead of `--type-type-heading-*`. Added prompt
-guidance plus validated and trusted-construction regressions. The full Code
-Generator unit suite passes (312), mypy passes, and Ruff lint passes.
-
-### 2026-09-09 23:39 +05:30 - Codex (GPT-6 / OpenAI) - [9716681] - fix(code-generator): catch inert disclosure panels early
-
-The second authorized live campaign run reached source generation and exposed
-an inert education `Disclosure` whose panel contained only an aria-hidden
-empty span. Added a narrow host-owned source diagnostic so this concrete
-functional defect is found during route validation and can be repaired within
-the existing bounded budget. Also aligned generation/review prompts with D-076:
-`columns_*` are abstract design-grid spans, so the model's desktop-span
-observation remains advisory unless an executable recipe or runtime contract is
-broken. The full Code Generator unit suite passes (310), mypy passes, and
-touched-file Ruff checks pass.
-
-### 2026-09-09 22:41 +05:30 - Codex (GPT-6 / OpenAI) - [4da1ddb] - fix(code-generator): keep toolchain preflight cleanup best effort
-
-Best-effort cleanup now returns a safe incomplete result when Windows denies
-directory enumeration, so cleanup cannot discard a valid toolchain proof or
-replace it with a generic blocked response. The API-level preflight then passed
-Node, npm, install, TypeScript, Vite build, browser, gateway, and brief-path
-checks. The full Code Generator unit suite passes (308).
-
-### 2026-09-09 22:24 +05:30 — Codex (GPT-6 / OpenAI) — [14bb97c, c8a66e7, 80a925c] — fix(code-generator): make quality and failure reports truthful
-
-Replaced keyword-based severity inference with explicit host-owned finding
-mappings and strict terminal reports, then made historical quality receipts
-readable across run, quality, and product projections. Live Pack C reached
-source generation and stopped honestly at `INTEGRATION_REVIEW_UNRESOLVED`; its
-checkpoint remains retained and no preview was promoted. Verification: full
-Code Generator unit suite passes (307), mypy passes, and touched-file
-Ruff/format checks pass.
-
-### 2026-09-09 20:31 +05:30 — Codex — [a503a4a] — fix(code-generator): enforce reliable generation lifecycle
-
-Implemented the reliability plan through the offline verification boundary:
-complete pending source proposals and restricted rejected evidence, durable
-serial attempt accounting with stop-on-failure, optional component admission,
-hashed image obligations with browser evidence, marker-bound layout recipes,
-toolchain preflight, and truthful atomic exports. Added focused regressions,
-aligned stale integration fixtures with canonical host identities, and recorded
-the adopted contract in `DECISIONS.md` plus R01–R12 dispositions in
-`code generator issues.md`. No new live portfolio pipeline call was made in
-this implementation commit; the new five-slot campaign starts at 0/5.
-
-Verification: focused reliability/admission/image/export tests pass (24), the
-full Code Generator unit suite passes (299), Ruff, mypy, and compileall pass.
-The repository-wide baseline still contains unrelated/stale integration and
-mock-path failures documented in `code generator issues.md`.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-10 — [39076d0] — Refreshed stale image pins by stable asset ID and hardened dist exports against partial/retry failures on Windows.
+- 2026-09-10 — [7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] — Closed desktop generation reliability gaps (preview/export, source/interaction ownership, contract ordering, static content-map, conditional-motion audit) from the five-run campaign.
+- 2026-09-10 — [90e8349] — Fixed fluid type-step token double-prefixing (`--type-type-heading-*` -> `--type-heading-*`) at the schema/compiler boundary.
+- 2026-09-09 — [9716681] — Caught inert disclosure panels (aria-hidden empty content) as a host-owned source diagnostic; aligned `columns_*` review guidance with D-076.
+- 2026-09-09 — [4da1ddb] — Made toolchain preflight cleanup best-effort so a Windows enumeration denial can't discard a valid toolchain proof.
+- 2026-09-09 — [14bb97c, c8a66e7, 80a925c] — Replaced keyword-based severity inference with explicit host-owned quality findings; Pack C stopped honestly at `INTEGRATION_REVIEW_UNRESOLVED`.
+- 2026-09-09 — [a503a4a] — Implemented the Code Generator reliability plan: pending-proposal completion, serial attempt accounting, hashed image obligations, marker-bound layout recipes, toolchain preflight, truthful atomic exports (D-0XX, R01-R12 in `code generator issues.md`).
 - 2026-09-09 — [66d8287] — Authored a 6-document frontend/agent integration reference suite under `docs/frontend/` for the major frontend revamp.
 - 2026-09-09 — [59409b5] — Fixed `run-worker.ps1` to use a writable repo-local `uv` cache instead of a lockable global one.
 - 2026-09-09 — [2f424e5] — Hardened brief-driven Code Generator: brief-mirror admission, planner retry/canonicalization, npm import scanning, host-owned quality findings, unverified-preview candidates, npm cache warmer, Azure VM Docker wiring.
@@ -238,8 +208,8 @@ mock-path failures documented in `code generator issues.md`.
 
 ---
 
-## Summary (as of last compaction — 2026-09-10)
+## Summary (as of last compaction — 2026-09-11)
 
-- Recent detailed entries retained: 17
-- Compacted milestone bullets: 38
-- Last updated: 2026-09-10 22:52 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Recent detailed entries retained: 13
+- Compacted milestone bullets: 23
+- Last updated: 2026-09-11 03:07 +05:30 — Claude Code (Sonnet 5 / Anthropic)
