@@ -114,6 +114,8 @@ from oryxenai.agents.code_generator.core.source_manifest import (
 )
 from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
+    normalize_route_batch_motion_changes,
+    normalize_route_batch_motion_sources,
     validate_generation_changes_incrementally,
     validate_route_batch_contract,
     validate_route_composer_contract,
@@ -2481,6 +2483,12 @@ class CodeGeneratorGenerationOrchestrator:
             raise GenerationError(
                 "GENERATION_CHANGES_MISSING", "The generation result did not include changes."
             )
+        motion_beats = (
+            _v4_motion_beats_for_unit(plan, unit)
+            if unit.kind == "route_batch"
+            and isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+            else []
+        )
         pending_signatures = (
             list(pending_projection.pending_proposal.exported_signatures)
             if pending_projection is not None and pending_projection.pending_proposal is not None
@@ -2494,6 +2502,8 @@ class CodeGeneratorGenerationOrchestrator:
                 projections,
                 existing_exported_signatures=pending_signatures,
             )
+        if motion_beats:
+            normalize_route_batch_motion_changes(changes, motion_beats=motion_beats)
         owners = _owned_paths(unit, plan, projections)
         original = workspace.repo_dir
         unit_slug = _unit_dir_slug(unit.unit_id)
@@ -2519,6 +2529,8 @@ class CodeGeneratorGenerationOrchestrator:
         )
         merged_files = dict(existing_pending)
         merged_files.update({change.path: change.complete_utf8_content for change in normalized})
+        if motion_beats:
+            normalize_route_batch_motion_sources(merged_files, motion_beats=motion_beats)
         merged_signatures = _merge_pending_signatures(
             pending_signatures, list(changes.exported_signatures)
         )
