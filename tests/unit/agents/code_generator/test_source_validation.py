@@ -1,11 +1,17 @@
 from types import SimpleNamespace
 
+from oryxenai.agents.code_generator.core.development_schemas import (
+    GenerationChanges,
+    SourceFileChange,
+)
 from oryxenai.agents.code_generator.core.generation_orchestrator import (
     _invalidate_stale_route_batch_checkpoint,
 )
 from oryxenai.agents.code_generator.core.source_validation import (
     _canonical_visible_text,
     normalize_generated_route_contract,
+    normalize_route_batch_motion_changes,
+    normalize_route_batch_motion_sources,
     validate_local_imports,
     validate_repository,
     validate_route_batch_contract,
@@ -1176,6 +1182,158 @@ export default function Experience() {
     )
 
     assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
+
+
+def test_route_batch_motion_normalizer_repairs_live_shaped_route_sources(tmp_path) -> None:
+    """Keep mechanically checkable route motion defects out of model repair."""
+
+    sections = tmp_path / "src" / "routes" / "home" / "sections"
+    sections.mkdir(parents=True)
+    sources = {
+        "src/routes/home/sections/Hero.tsx": """export default function Hero() {
+  return <section id="hero" data-content-id="home:hero">
+    <Reveal data-motion="hero-text" />
+  </section>;
+}
+""",
+        "src/routes/home/sections/Hero.css": """#hero { max-width: fiftych; }
+.home-hero__copy { max-width: sixtyfivech; }
+""",
+        "src/routes/home/sections/SelectedWork.tsx": """import { useEffect, useRef, useState } from "react";
+
+export default function SelectedWork() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      setReady(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setReady(true);
+        observer.disconnect();
+      }
+    });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+  return <section id="selected-work" data-content-id="home:selected-work">
+    <div ref={ref} data-motion="work-marker" className="home-work__marker" />
+  </section>;
+}
+""",
+        "src/routes/home/sections/SelectedWork.css": """#selected-work [data-motion="work-marker"] {
+  opacity: 1;
+  transform: translateX(0);
+}
+#selected-work:has(.work-ready) [data-motion="work-marker"] {
+  opacity: 1;
+}
+""",
+    }
+    beats = [
+        {
+            "motion_id": "motion:home:hero:reveal",
+            "section_id": "home:hero",
+            "target_marker": 'data-motion="hero-text"',
+            "target_selector": '#hero [data-motion="hero-text"]',
+            "trigger": "viewport",
+            "pattern_id": "reveal-fade-rise",
+            "changed_properties": [
+                {"property_name": "opacity", "before_value": "0", "after_value": "1"}
+            ],
+        },
+        {
+            "motion_id": "motion:home:selected-work:orientation",
+            "section_id": "home:selected-work",
+            "target_marker": 'data-motion="work-marker"',
+            "target_selector": '#selected-work [data-motion="work-marker"]',
+            "trigger": "viewport",
+            "trigger_selector": "#selected-work",
+            "changed_properties": [
+                {"property_name": "opacity", "before_value": "0", "after_value": "1"},
+                {
+                    "property_name": "transform",
+                    "before_value": "translateX(-12px)",
+                    "after_value": "translateX(0)",
+                },
+            ],
+        },
+    ]
+
+    changes = GenerationChanges(
+        files=[
+            SourceFileChange(path=path, operation="create", complete_utf8_content=body)
+            for path, body in sources.items()
+        ]
+    )
+    assert normalize_route_batch_motion_changes(changes, motion_beats=beats)
+    sources = {
+        change.path: change.complete_utf8_content for change in changes.files
+    }
+    assert "fiftych" not in sources["src/routes/home/sections/Hero.css"]
+    assert "max-width: 50ch" in sources["src/routes/home/sections/Hero.css"]
+    assert "max-width: 65ch" in sources["src/routes/home/sections/Hero.css"]
+    assert '#hero [data-motion="hero-text"] {}' in sources[
+        "src/routes/home/sections/Hero.css"
+    ]
+    selected_source = sources["src/routes/home/sections/SelectedWork.tsx"]
+    assert "useEffect" in selected_source
+    assert "IntersectionObserver" in selected_source
+    assert 'setAttribute("data-motion-ready", "true")' in selected_source
+    selected_styles = sources["src/routes/home/sections/SelectedWork.css"]
+    assert '#selected-work [data-motion="work-marker"] {' in selected_styles
+    assert '[data-motion-ready="true"]' in selected_styles
+    assert "opacity: 0" in selected_styles
+    assert "prefers-reduced-motion" in selected_styles
+    assert "@keyframes oyx-motion-motion-home-selected-work-orientation" in selected_styles
+
+    first_pass = dict(sources)
+    assert not normalize_route_batch_motion_sources(sources, motion_beats=beats)
+    assert sources == first_pass
+    for path, body in sources.items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        list(sources),
+        route_id="home",
+        section_ids=["home:hero", "home:selected-work"],
+        section_selectors_by_section={
+            "home:hero": "#hero",
+            "home:selected-work": "#selected-work",
+        },
+        motion_beats=beats,
+        work_unit_id="route-home-batch-1",
+    )
+    assert not any(
+        item.code in {"SOURCE_CSS_INVALID_LENGTH", "SOURCE_ROUTE_BATCH_MOTION_INVALID"}
+        for item in diagnostics
+    )
+
+
+def test_route_batch_motion_normalizer_only_rewrites_css_declarations() -> None:
+    changes = GenerationChanges(
+        files=[
+            SourceFileChange(
+                path="src/routes/home/sections/Hero.css",
+                operation="create",
+                complete_utf8_content=(
+                    "/* max-width: fiftych */\n"
+                    ".hero { max-width: fiftych; margin: twenty-fivepx; }\n"
+                ),
+            )
+        ]
+    )
+
+    assert normalize_route_batch_motion_changes(changes, motion_beats=[])
+    body = changes.files[0].complete_utf8_content
+    assert "/* max-width: fiftych */" in body
+    assert "max-width: 50ch" in body
+    assert "margin: 25px" in body
 
 
 def test_route_batch_contract_accepts_any_valid_css_attribute_selector_quote_style(
