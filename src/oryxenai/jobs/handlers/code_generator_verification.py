@@ -1041,7 +1041,7 @@ async def _execute(
                 next_action="Start a corrected verification attempt.",
             ),
         )
-        return {"status": "needs_attention", "run_id": str(run_id)}
+        return {"status": "needs_attention", "run_id": str(run_id), "code": exc.code}
     except Exception as exc:
         code = getattr(exc, "code", "VERIFICATION_FAILED")
         message = getattr(exc, "message", "Final verification could not complete safely.")
@@ -1063,7 +1063,7 @@ async def _execute(
                 next_action="Review the safe verification issue and retry.",
             ),
         )
-        return {"status": "needs_attention", "run_id": str(run_id)}
+        return {"status": "needs_attention", "run_id": str(run_id), "code": code}
     finally:
         if server is not None:
             await server.close()
