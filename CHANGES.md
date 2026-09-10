@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 14:43 +05:30 - Codex (configured runtime) - [d9caf30] - fix(code-generator): materialize selected-work lifecycle cue
+
+After live Pack A slot 2 reached verification but was rejected for the
+blueprint-required selected-work lifecycle cue, added an idempotent host-side
+materializer for the sparse `observe`/`shape`/`deliver` treatment. It is scoped
+to the admitted v4 lifecycle thesis and leaves approved content, images, and
+dist/export behavior unchanged. The targeted suites passed 139 tests and the
+exact saved slot-2 tree passed source audit and typecheck in a disposable
+overlay.
+
 ### 2026-09-10 14:00 +05:30 - Codex (configured runtime) - [22db99c] - fix(code-generator): normalize route motion contract drift
 
 After live Pack A exposed deterministic CSS-length and route-motion contract
@@ -233,8 +243,8 @@ own text to point at these checked-in files.
 
 ---
 
-## Summary (as of last compaction — 2026-09-09)
+## Summary (as of last compaction — 2026-09-10)
 
-- Recent detailed entries retained: 17
+- Recent detailed entries retained: 18
 - Compacted milestone bullets: 33
-- Last updated: 2026-09-10 14:00 +05:30 — Codex
+- Last updated: 2026-09-10 14:43 +05:30 — Codex

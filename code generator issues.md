@@ -1,5 +1,32 @@
 # Code Generator Issues
 
+## 2026-09-10 14:15 +05:30 - Pack A live quality-review disposition and deterministic selected-work lifecycle cue
+
+Run `f8a3d88c-9546-40fe-ae6b-714e775c4e24` reached `needs_attention` with
+`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` during verification. The normal API,
+durable jobs, and worker path completed plan, acquisition, generation, and
+verification without a worker error. The accepted checkpoint was
+`b89f1e433d7e3339831da46c7112c79cdeef57e84a552a938446aaa89ca53c29`.
+
+The integration review's single blocking finding was
+`missing-selected-work-lifecycle-cue` at
+`src/routes/home-4ea14058/sections/home-selected-work-2f0991ad.tsx:5`: the
+selected-work section rendered its intro and three articles but omitted the
+blueprint's sparse conceptual lifecycle cue beside those groups. The final
+repair receipt hash was
+`5ac54cd735290adb8b6582ce6eb44971575c5413cfc563b1fab113f34e02ddfe`; its
+ledger file `ledger/repairs/65c8da3a510d5134ac4c6ce25bd6d57e7d833272b9ee3f081e7ba31fa9d4d61c.json`
+changed only the hero stylesheet, so the blocking source remained unchanged.
+
+Commit `d9caf30` adds a deterministic, idempotent host normalizer that runs
+only for a v4 route batch whose approved blueprint contains a selected-work
+section and lifecycle-cue thesis. It materializes a non-evidentiary
+`observe`/`shape`/`deliver` marker treatment with scoped CSS, without changing
+approved content, image retrieval, or dist/export behavior. Confirmation:
+139 targeted tests passed, and the exact saved Pack A tree copied to a
+disposable overlay passed `npm run source:audit` and `npm run typecheck` with
+exit 0. No ready result or promoted preview was produced by this slot.
+
 ## 2026-09-10 14:00 +05:30 - Pack A live disposition and deterministic route-motion normalizer
 
 Run `dd721d1e-cde9-4349-af50-27660ab6d779` reached `needs_attention` with
