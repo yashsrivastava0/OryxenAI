@@ -232,7 +232,18 @@ class _BaseAdapter:
                 pass
         if self.category in {"image", "texture", "illustration"}:
             try:
-                return await download_image_bytes(candidate, settings)
+                raw_limit = int(
+                    getattr(
+                        getattr(settings, "image_retrieval", None),
+                        "raw_download_max_bytes",
+                        12 * 1024 * 1024,
+                    )
+                )
+                return await download_image_bytes(
+                    candidate,
+                    settings,
+                    max_bytes=max(1, raw_limit),
+                )
             except ValueError as exc:
                 raise ResourceProviderError(
                     str(exc), provider=candidate.provider_key, retryable=False

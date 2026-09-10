@@ -349,6 +349,9 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       status: 'exported',
       relative_path: fallback.details?.relative_path || '',
       folder: fallback.details?.folder || '',
+      source_path: fallback.details?.source_path || '',
+      dist_path: fallback.details?.dist_path || '',
+      metadata_path: fallback.details?.metadata_path || '',
       report_path: fallback.details?.report_path || 'generation-report.md',
     } : null);
     const state = view('output-state');

@@ -2146,6 +2146,9 @@ async def _export_portfolio(
         details = {
             "relative_path": receipt["relative_path"],
             "folder": receipt["folder"],
+            "source_path": receipt["source_path"],
+            "dist_path": receipt["dist_path"],
+            "metadata_path": receipt["metadata_path"],
             "report_path": receipt["report_path"],
         }
     async with sessionmaker() as db:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -12,6 +13,7 @@ from oryxenai.agents.shared.image_retrieval import (
     ImageSearchIntent,
     _clean_pixabay_tags,
     _pixabay_candidate,
+    download_image_bytes,
     prepare_image_bytes,
     search_images,
 )
@@ -249,6 +251,68 @@ async def test_image_search_tries_next_provider_when_first_returns_only_used_ass
     assert candidates
     assert any(candidate.provider == "pixabay" for candidate in candidates)
     assert all(candidate.provider_asset_id != "1" for candidate in candidates)
+
+
+@pytest.mark.asyncio
+async def test_stale_pixabay_pin_refreshes_by_asset_id_before_failing(monkeypatch) -> None:
+    settings = Settings()
+    settings.image_retrieval.retry_count = 0
+    monkeypatch.setenv("PIXABAY_API_KEY", "pixabay-test")
+    requests: list[httpx.Request] = []
+    stale_url = "https://pixabay.com/get/stale-signed-url_1280.jpg"
+    fresh_url = "https://pixabay.com/get/fresh-signed-url_1280.jpg"
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/api/":
+            assert request.url.params["id"] == "1850469"
+            assert request.url.params["key"] == "pixabay-test"
+            return httpx.Response(
+                200,
+                json={
+                    "hits": [
+                        {
+                            "id": 1850469,
+                            "tags": "editorial workspace",
+                            "largeImageURL": fresh_url,
+                            "imageWidth": 2400,
+                            "imageHeight": 1350,
+                            "pageURL": "https://pixabay.com/photos/editorial-workspace-1850469/",
+                            "user": "Pixabay Author",
+                        }
+                    ]
+                },
+                request=request,
+            )
+        if request.url == httpx.URL(stale_url):
+            return httpx.Response(
+                400,
+                text="This URL is invalid or has expired.",
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
+        assert request.url == httpx.URL(fresh_url)
+        return httpx.Response(
+            200,
+            content=b"fresh-image-bytes",
+            headers={"content-type": "image/jpeg"},
+            request=request,
+        )
+
+    candidate = SimpleNamespace(
+        provider="pixabay",
+        provider_resource_id="1850469",
+        canonical_source=stale_url,
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        data = await download_image_bytes(candidate, settings, client=client)
+
+    assert data == b"fresh-image-bytes"
+    assert [request.url.path for request in requests] == [
+        "/get/stale-signed-url_1280.jpg",
+        "/api/",
+        "/get/fresh-signed-url_1280.jpg",
+    ]
 
 
 def test_image_processing_rejects_corrupt_and_undersized_bytes() -> None:
