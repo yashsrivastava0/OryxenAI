@@ -1,5 +1,59 @@
 # Code Generator Issues
 
+## 2026-09-10 18:50 +05:30 - Pack A live disposition (slot 4) and normalizer color-token fix
+
+Run `0b56cda5-59a4-4bd6-b8f0-2fe548d5d0e3` (Pack A retry, campaign-B slot 4)
+reached `needs_attention` with `SOURCE_REPAIR_EXHAUSTED` after two genuine
+model repair rounds (`call-9019b7189e1c45f45c9a`, `call-9e8186e9a18e22034a9b`).
+Accepted checkpoint `e619daae8ee9abe8f777992e7da452f4eedb5ffe22a8b590c8af4fdf1e1a34bd`
+(foundation only; the route-batch work unit never reached an accepted
+checkpoint). Three final blocking diagnostics, all `SOURCE_CSS_CUSTOM_
+PROPERTY_UNBOUND` on `src/routes/home-4ea14058/sections/home-selected-
+work-2f0991ad.css`, referencing undefined custom properties
+`--color-accent-signal`, `--color-border-subtle`, `--color-ink-secondary`.
+Two earlier, transient diagnostics from intermediate repair rounds
+(`SOURCE_REPLACE_MISSING`, `SOURCE_ROUTE_BATCH_DISTINCTIVE_MOVE_INVALID`,
+both on the hero section) were confirmed already resolved by the model's
+own repair output before termination -- inspecting the final pending
+candidate (`ledger/pending/route-home-4ea14058-batch-1.json`) showed the
+hero CSS correctly matching its distinctive move's exact selector.
+
+Root cause, confirmed by reading the exact injected CSS in that pending
+candidate: the three broken custom properties come from `d9caf30`'s
+"OryxenAI trusted selected-work lifecycle cue" deterministic normalizer
+(`normalize_route_batch_selected_work_sources`), which hardcoded assumed
+color token names. Color token names are chosen per run by the model's own
+creative direction (this run used "ink-strong"/"ink-muted"/"signal"/
+"accent"/"border"/"rule"; a different run's fixture used "ink"/"paper") --
+never a fixed system contract -- so none of the three hardcoded names
+existed in this run's actual `src/design/generated-tokens.css`. Because the
+broken CSS lives in normalizer-injected code the model never authored and
+is never asked to repair, it persisted unchanged across both repair
+rounds while the model successfully fixed its own real mistakes elsewhere
+in the same route batch -- confirming this was the sole terminal blocker.
+
+Commit `06eb2c0` adds `_resolve_existing_color_token()`, which scans the
+route's actual generated CSS for existing `--color-*` properties and
+picks one by semantic keyword (muted/secondary/subtle, border/rule/
+outline, signal/accent/primary), omitting the declaration entirely if
+nothing resolves rather than emitting an unprovable reference.
+Confirmation: re-running the normalizer against this run's real merged
+sources and real tokens produced zero undefined custom properties
+(previously 3); full `test_source_validation.py` suite (35/35, including
+one updated and one new regression test) and the broader `-k
+code_generator` selection (362 passed, same 3 pre-existing baseline/
+environment failures) both clean. Campaign-B slot 4 consumed; no ready
+result. One slot (5) remains in the shared 5-run budget.
+
+Separately, this session's live services (API/worker/preview gateway)
+were killed twice by the host OS under memory pressure from unrelated
+desktop applications (browser tabs, other AI-tool apps) -- not from these
+services themselves, which never appeared among the top memory consumers.
+The durable job queue resumed the in-flight run cleanly both times
+(current_attempt advanced, generation restarted from the last durable
+checkpoint) with no code change needed; this is the job system working as
+designed, not a Code Generator defect.
+
 ## 2026-09-10 17:28 +05:30 - Pack A live disposition (slot 3) and trusted-motion-pattern validator fix
 
 Run `5cf49daa-7ff5-404c-b884-d17cae272598` (Pack A retry, campaign-B slot 3)

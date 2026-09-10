@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 18:50 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [06eb2c0] - fix(code-generator): resolve real color tokens in the selected-work lifecycle normalizer
+
+Campaign-B live slot 4 (Pack A) exhausted its repair budget on three
+SOURCE_CSS_CUSTOM_PROPERTY_UNBOUND diagnostics, all from d9caf30's
+deterministic lifecycle-cue normalizer hardcoding assumed color token
+names (`--color-ink-secondary`/`--color-border-subtle`/`--color-accent-
+signal`) that don't exist in this run's actual generated tokens -- color
+names are chosen per run by the model, never fixed. Added
+`_resolve_existing_color_token()` to look up real tokens by semantic
+keyword instead, degrading gracefully when none resolve. Verified 3 → 0
+undefined references against the exact rejected run. Slot 4 consumed, no
+ready result; 1 slot remains.
+
 ### 2026-09-10 17:28 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [e7d9284] - fix(code-generator): recognize trusted motion patterns in the final source audit
 
 Campaign-B live slot 3 (Pack A) rejected a correct, trusted `<Reveal>`-based
@@ -153,15 +166,6 @@ Implemented the Code Generator reliability handoff for variable Build Preparatio
 
 Verification: Ruff, mypy, compileall, Docker Compose configuration, and the frontend TypeScript contract pass. The focused Code Generator tests report 63 passes; nine temp-directory tests cannot create pytest's Windows `.lock` file in this environment and are recorded as an environment ACL limitation. Live campaign inputs and outcomes are tracked in `docs/code-generator-live-campaign.md`.
 
-### 2026-09-09 02:44 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [bc7b5a6] - feat(studio): add admin-only pipeline reset
-
-Added an administrator-only pipeline reset capability to allow resetting any active portfolio session completely back to zero (restarting from the Discovery agent) while preserving the administrator's authentication session:
-- Added `PipelineResetService.reset_admin_pipeline` in `src/oryxenai/runtime/pipeline_reset.py` to cancel pending jobs with `PIPELINE_RESET`, clean external preview/artifact stores, purge background jobs, agent runs, and code generator execution records, zero `current_state`, reset status to `active`, and record an admin audit log entry.
-- Added `POST /api/v1/sessions/{session_id}/reset` in `src/oryxenai/api/routes/sessions.py`, guarded by `require_admin` (returning 403 `ADMIN_REQUIRED` to non-admin users). Registered in authorization route inventory.
-- Added `pipeline/reset` action in `frontend/src/app/store.ts` and `api.resetSession` in `frontend/src/data/api-client.ts`.
-- Added topbar Reset button with `ADMIN` badge, account menu secondary link, and confirmation dialog modal in `frontend/src/app/AppShell.tsx` and styled in `frontend/src/styles/shell.css`.
-- Verified with integration tests in `tests/api/test_admin_pipeline_reset.py`, store unit tests, and production frontend build.
-
 ### 2026-09-09 02:28 +05:30 - Antigravity (Gemini 3.8 Flash / Google) - [66d8287] - docs(frontend): author comprehensive frontend and agent integration specifications
 
 Created an exhaustive 6-document technical reference suite under `docs/frontend/`
@@ -192,17 +196,11 @@ executing the major frontend revamp:
   quality checklist.
 85 frontend vitest unit tests passing; Vite production build verified clean.
 
-### 2026-09-09 01:20 +05:30 - Codex (GPT-5 / OpenAI) - [78a9c77] - frontend: remove legacy static pipeline shell
-
-Retired the temporary static Discovery/pipeline shell (`index.html`, `app.js`,
-and `app.css`) and removed its `/dev` route and `/app` fallback. `/app` now
-requires the manifest-selected Preact bundle and reports a clear 503 when it is
-not built. The separate Build Preparation diagnostic and Code Generator
-development control room remain intact.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-09 — [78a9c77] — Retired the temporary static Discovery/pipeline shell; `/app` now requires the manifest-selected Preact bundle.
+- 2026-09-09 — [bc7b5a6] — Added an administrator-only pipeline reset capability (full session reset back to Discovery, admin-audited).
 - 2026-09-09 — [f20779f] — Clarified planner guidance distinguishing a brief's design-language words from literal `colors[*].name` tokens after a live naming collision.
 - 2026-09-09 — [051afa6] — Added undeclared-npm-import detection via source scan for pinned/deferred components, closing the empty-`dependency_metadata` gap.
 - 2026-09-08 — [a2ae087] — Checked in Azure production Compose/Caddy/TOML deployment overlays matching the VM runbook.
@@ -238,5 +236,5 @@ development control room remain intact.
 ## Summary (as of last compaction — 2026-09-10)
 
 - Recent detailed entries retained: 17
-- Compacted milestone bullets: 34
-- Last updated: 2026-09-10 15:55 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Compacted milestone bullets: 37
+- Last updated: 2026-09-10 18:53 +05:30 — Claude Code (Sonnet 5 / Anthropic)
