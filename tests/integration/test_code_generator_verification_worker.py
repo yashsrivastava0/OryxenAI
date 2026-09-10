@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
@@ -159,22 +161,34 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
         input_reference=reference.model_dump(mode="json"), idempotency_key=None
     )
     plan = _plan()
+    # The real "privacy-safe-v3" fixture is admitted through the same
+    # brief-ingestion path production briefs use, which requires every
+    # content-section id to be route-namespaced ("home:hero", not "hero" --
+    # see brief_ingestion.py's BRIEF_SECTION_SCOPE_INVALID check). _plan()'s
+    # bare ids are shared with other tests in this file that never validate
+    # against a real admitted fixture, so only this test's copy is renamed.
+    plan.routes[0].section_ids = ["home:hero", "home:project"]
+    plan.work_graph.units[1].section_ids = ["home:hero", "home:project"]
     workspace = GenerationWorkspace.open(
         settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
     )
     from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
 
     materialize_trusted_manifests(workspace, projections, plan)
-    route_file = workspace.repo_dir / "src" / "routes" / "home-4ea140588150" / "index.tsx"
+    route_file = workspace.repo_dir / "src" / "routes" / "home" / "index.tsx"
     route_file.parent.mkdir(parents=True, exist_ok=True)
     route_file.write_text(
         'import "./route.css";\n'
         'import { publicRouteUrl } from "../../app/ResourceUrl";\n\n'
         "export default function RoutePage() {\n"
         '  return <main data-route-id="home" data-criterion-id="criterion:home:0">\n'
-        '    <section data-content-id="hero"><h1>Durable systems</h1></section>\n'
-        '    <section data-content-id="project"><h2>QueueGuard</h2><p>Designed durable job lifecycles.</p></section>\n'
-        '    <a data-navigation-target="home" data-interaction-id="home-nav" href={publicRouteUrl("/")}>Home</a>\n'
+        '    <section id="hero" data-content-id="home:hero"><h1>Durable systems</h1></section>\n'
+        '    <section id="project" data-content-id="home:project"><h2>QueueGuard</h2><p>Designed durable job lifecycles.</p></section>\n'
+        '    <nav aria-label="Primary">\n'
+        '      <a data-navigation-target="home" data-interaction-id="home-nav" href={publicRouteUrl("/")}>Home</a>\n'
+        '      <a href="#hero">Hero</a>\n'
+        '      <a href="#project">Project</a>\n'
+        "    </nav>\n"
         "    {/* slot-abf48c82a3ef77ddba4e slot-fa09c3c4a6256f2edce6 */}\n"
         "  </main>;\n"
         "}\n",
@@ -242,6 +256,106 @@ async def test_verification_builds_and_promotes_a_clean_candidate(db_session, tm
     assert screenshot_dir.is_dir()
     screenshots = list(screenshot_dir.glob("*.png"))
     assert screenshots, "at least one verification screenshot must be captured"
+
+
+async def test_verification_surfaces_the_real_issue_code_not_the_generic_status(
+    db_session, tmp_path
+) -> None:
+    """A pre-verification plan rejection must not be masked as "needs_attention".
+
+    Regression for a bug where `_execute()`'s early-failure branches (before
+    a `VerificationProjection` exists) returned only `{"status":
+    "needs_attention"}` with no `"code"`, so both the handler's own export
+    `reason` and the exported `portfolio.json`'s `terminal_failure.code` /
+    `evidence_summary.primary_issue.code` showed the generic status string
+    instead of the real issue code (observed live as `PLAN_SECTION_COVERAGE`
+    silently becoming `"needs_attention"`).
+    """
+
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_acquisition.materials_root = str(tmp_path / "materials")
+    settings.code_generator_dependencies.workspaces_root = str(tmp_path / "dependencies")
+    settings.code_generator_verification.preview_root = str(tmp_path / "preview")
+    settings.code_generator_verification.preview_base_url = "http://127.0.0.1:4174/preview"
+    settings.code_generator_verification.preview_parent_origin = "http://test"
+    settings.code_generator_verification.install_timeout_seconds = 120
+    settings.code_generator_verification.typecheck_timeout_seconds = 120
+    settings.code_generator_verification.build_timeout_seconds = 120
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    # Deliberately keep _plan()'s bare "hero"/"project" section ids instead of
+    # the route-namespaced ids the real admitted fixture requires, so
+    # `validate_site_plan` rejects the plan with PLAN_SECTION_COVERAGE before
+    # a VerificationProjection ever exists.
+    plan = _plan()
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+    generation = GenerationProjection(
+        generation_id=f"generation-{run.id}",
+        input_receipt_hash=receipt.admitted_identity,
+        site_plan_hash="plan-hash",
+        phase="source_ready",
+        accepted_checkpoint=checkpoint,
+        source_ready=True,
+        work_units=[_unit_projection_dict(unit) for unit in plan.work_graph.units],
+    )
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={
+            "status": "source_ready",
+            "plan": plan.model_dump(mode="json"),
+            "planner_receipt": {"plan_hash": "plan-hash"},
+            "input_receipt": receipt.model_dump(mode="json"),
+            "resource_ledger": projections["resources/ledger.json"],
+            "dependency_ledger": {"receipts": [], "dependency_ledger_hash": ""},
+            "generation_projection": generation.model_dump(mode="json"),
+            "source_checkpoint": checkpoint.model_dump(mode="json"),
+        },
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    storage = MemoryPreviewStorage()
+    result = await CodeGeneratorVerificationHandler(
+        model_factory=lambda _profile: _UnexpectedRepairModel(),
+        storage_factory=lambda _settings: storage,
+    ).execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "needs_attention"
+    assert result["code"] == "PLAN_SECTION_COVERAGE", result
+
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    export_receipt = refreshed.export_receipt
+    assert export_receipt is not None, "a failed run must still export a safe evidence receipt"
+
+    from oryxenai.agents.code_generator.core.workspace import repository_root
+
+    portfolio_path = (
+        repository_root() / export_receipt["relative_path"] / export_receipt["metadata_path"]
+    )
+    portfolio = json.loads(portfolio_path.read_text(encoding="utf-8"))
+    evidence = portfolio["evidence_summary"]
+    assert evidence["primary_issue"]["code"] == "PLAN_SECTION_COVERAGE", portfolio
+    assert evidence["terminal_failure"]["code"] == "PLAN_SECTION_COVERAGE", portfolio
 
 
 def _v4_blueprint() -> ExperienceBlueprintV4:
