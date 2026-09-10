@@ -11,6 +11,30 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 15:55 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [6c22712] - fix(code-generator): repair the verification regression test's route-path mismatch
+
+Traced five stray `output/code-gen-output/` folders (zero model calls each,
+per `portfolio.json`) to one broken integration test,
+`test_verification_builds_and_promotes_a_clean_candidate`, left incomplete
+across a Claude Code -> Codex -> Claude Code handoff. Root cause: the test
+hand-wrote its "real" route content to an invented path
+(`src/routes/home-4ea140588150/`) unrelated to the route's actual bare
+storage key (`home`), so the router-wired placeholder the scaffold writer
+creates was validated instead. Fixed the path, added a real `<nav>` landmark,
+and added the closed-navigation-contract anchors the admitted fixture
+requires; the test now passes end to end (build, DOM/runtime verification,
+screenshot capture, promotion). See D-090.
+
+### 2026-09-10 15:55 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [fd9669d] - fix(code-generator): surface the real issue code in terminal-failure/export evidence
+
+`code_generator_verification.py`'s `_execute()` early-failure branches
+(raised before a `VerificationProjection` exists) returned no `"code"` key,
+so a real issue code (observed live as `PLAN_SECTION_COVERAGE`) was masked
+as the generic `"needs_attention"` status in exported `portfolio.json`
+evidence. Added the real code to both branches; new regression test asserts
+it survives into `terminal_failure.code`/`evidence_summary.primary_issue.code`.
+See D-091.
+
 ### 2026-09-10 14:43 +05:30 - Codex (configured runtime) - [d9caf30] - fix(code-generator): materialize selected-work lifecycle cue
 
 After live Pack A slot 2 reached verification but was rejected for the
@@ -165,55 +189,12 @@ requires the manifest-selected Preact bundle and reports a clear 503 when it is
 not built. The separate Build Preparation diagnostic and Code Generator
 development control room remain intact.
 
-### 2026-09-09 00:35 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [f20779f] - code-generator: clarify planner guidance on design-language words vs literal color names
-
-Live-confirmed a reproducible planner failure specific to one pack's own
-visual brief: prose describing "one confident technical accent" pulled the
-model toward literally naming a raw color token "accent" too, colliding
-with the reserved `shadcn_theme_bindings` slot key (D-071's existing
-collision validator). Two independent full runs (6 total planner attempts
-across the existing 3-attempt budget) both still failed on this exact
-category despite the corrective retry already naming the collision — real
-model pressure from the brief's own wording, not noise. Added guidance that
-a brief's design-language words ("an accent color," "the primary action")
-name a concept, not the literal `colors[*].name` string. Live-verified: the
-next run's planning stage passed cleanly. Prompt-only; no code/test/worker
-changes needed.
-
-### 2026-09-09 00:20 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [051afa6] - code-generator: detect a pinned component's undeclared npm imports via source scan
-
-Live-confirmed root cause of "Cannot find module 'motion/react'" at
-foundation typecheck: the two-Markdown-brief handoff format has no field
-for a pinned/deferred component's own npm dependencies, so
-`dependency_metadata` stays empty end to end and the package is never
-requested — confirmed via direct DB inspection of the persisted dependency
-ledger (`receipts: []`), not guessed. The existing auto-resolution logic in
-both acquisition call sites was already correct; it simply had nothing to
-resolve. Added `detect_supported_import_dependencies()`
-(`dependency_manager.py`): scans a fetched component's actual source text
-for bare-specifier imports, matching only against the already-configured
-`supported_packages` allowlist, so an unvetted package can never be
-silently installed. Live-verified across three more runs: the fix correctly
-triggered dependency resolution for the first time, surfaced an unrelated
-one-time offline-npm-cache miss (same category as the earlier undici-types
-gap, not a code defect — fixed by warming `.workspace/npm-cache` with a
-real network install), and a further run cleared acquisition cleanly. New
-unit coverage for the scan helper. 267 passed (2 new), same 1 pre-existing
-unrelated failure. mypy/ruff clean.
-
-### 2026-09-08 23:40 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [a2ae087] - deploy: check in Azure production Compose/Caddy/TOML overlays
-
-Added `config/app.production.toml`, `compose.production.yaml`, and a repo-root
-`Caddyfile` matching `docs/deployment/02-azure-vm-runbook.md`'s sections 5/6/8
-content exactly (every field verified against the current Settings model
-first), so the operator clones and edits placeholders on the VM instead of
-hand-authoring multi-line files over SSH. Caddy stays a native VM service per
-the existing runbook design, not a Docker container. Also fixed the runbook's
-own text to point at these checked-in files.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-09 — [f20779f] — Clarified planner guidance distinguishing a brief's design-language words from literal `colors[*].name` tokens after a live naming collision.
+- 2026-09-09 — [051afa6] — Added undeclared-npm-import detection via source scan for pinned/deferred components, closing the empty-`dependency_metadata` gap.
+- 2026-09-08 — [a2ae087] — Checked in Azure production Compose/Caddy/TOML deployment overlays matching the VM runbook.
 - 2026-09-08 — [2790e9d] — Released the authenticated Generate & Preview stage with the promoted-preview iframe bridge and Build Preparation gate (D-081); detailed history remains in Git.
 - 2026-09-09 — [e99ed55] — Investigated five failed Code Generator runs and authored the implementation and five-slot campaign handoff for pending retention, accounting, visual quality, truthful exports, and preflight.
 - 2026-09-09 — [29fc598] — Reconciled stale `create`/`replace` repair tags against the owned candidate tree while preserving strict initial-generation semantics and bounded repair authority.
@@ -245,6 +226,6 @@ own text to point at these checked-in files.
 
 ## Summary (as of last compaction — 2026-09-10)
 
-- Recent detailed entries retained: 18
-- Compacted milestone bullets: 33
-- Last updated: 2026-09-10 14:43 +05:30 — Codex
+- Recent detailed entries retained: 17
+- Compacted milestone bullets: 34
+- Last updated: 2026-09-10 15:55 +05:30 — Claude Code (Sonnet 5 / Anthropic)
