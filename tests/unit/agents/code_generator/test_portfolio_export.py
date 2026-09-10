@@ -4,6 +4,7 @@ for this (2026-09-05): "store the output even if it is a failed run"."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import oryxenai.agents.code_generator.core.portfolio_export as portfolio_export
@@ -11,8 +12,8 @@ import oryxenai.jobs.handlers.code_generator_verification as code_generator_veri
 from oryxenai.agents.code_generator.core.portfolio_export import (
     _generation_report,
     _source_references_resource_slot,
-    build_safe_evidence_summary,
     build_export_receipt,
+    build_safe_evidence_summary,
     export_failed_run,
 )
 from oryxenai.core.settings import get_settings
@@ -263,6 +264,27 @@ def test_build_export_receipt_reports_no_dist_when_the_build_failed(tmp_path: Pa
     receipt = build_export_receipt(exported)
 
     assert receipt["dist_path"] == ""
+
+
+def test_export_does_not_advertise_a_partial_dist_without_an_entrypoint(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "index.html").write_text("<main>source</main>", encoding="utf-8")
+    (repo / "dist").mkdir()
+    (repo / "dist" / "partial.js").write_text("// incomplete", encoding="utf-8")
+    settings = _settings_with_roots(tmp_path)
+
+    exported = portfolio_export.export_portfolio(
+        settings=settings,
+        run_id="partial-dist-run",
+        repo_dir=repo,
+        metadata={"status": "needs_attention"},
+    )
+
+    assert not (exported / "dist").exists()
+    payload = json.loads((exported / "portfolio.json").read_text(encoding="utf-8"))
+    assert payload["runtime"]["entrypoint"] == ""
+    assert payload["evaluator_handoff"]["dist_path"] == ""
 
 
 async def test_export_failed_run_stays_source_only_when_the_build_fails(
