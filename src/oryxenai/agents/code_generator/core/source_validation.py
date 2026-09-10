@@ -1521,6 +1521,32 @@ def normalize_route_batch_motion_sources(
     return changed
 
 
+def _resolve_existing_color_token(
+    sources: dict[str, str], keywords: tuple[str, ...], fallback: str
+) -> str:
+    """Pick an already-generated --color-* custom property by keyword.
+
+    Color token names are chosen per run by the model's own creative
+    direction (e.g. "ink-muted"/"signal" in one run, "ink"/"paper" in
+    another) -- never a fixed system contract. A deterministic normalizer
+    that hardcodes an assumed color name will eventually reference one that
+    does not exist in a given run's actual generated tokens, producing
+    SOURCE_CSS_CUSTOM_PROPERTY_UNBOUND (live-discovered 2026-09-10: exactly
+    this, for --color-ink-secondary/--color-border-subtle/--color-accent-
+    signal). Resolve against what this run actually generated instead.
+    """
+
+    available: set[str] = set()
+    for path, text in sources.items():
+        if path.casefold().endswith(".css"):
+            available.update(re.findall(r"--color-[a-z0-9-]+", text))
+    for keyword in keywords:
+        for name in sorted(available):
+            if keyword in name:
+                return name
+    return fallback if fallback in available else ""
+
+
 def normalize_route_batch_selected_work_sources(sources: dict[str, str]) -> bool:
     """Materialize a sparse lifecycle cue admitted by the v4 blueprint.
 
@@ -1593,10 +1619,26 @@ def normalize_route_batch_selected_work_sources(sources: dict[str, str]) -> bool
 
     style_source = sources[style_path]
     if lifecycle_class not in style_source:
-        lifecycle_css = """
+        # Color token names are chosen per run by the model's own creative
+        # direction, never a fixed system contract -- resolve against what
+        # this run actually generated instead of hardcoding an assumed name
+        # that may not exist (see _resolve_existing_color_token).
+        ink_token = _resolve_existing_color_token(
+            sources, ("muted", "secondary", "subtle"), "--color-ink-muted"
+        )
+        border_token = _resolve_existing_color_token(
+            sources, ("border", "rule", "outline"), "--color-border"
+        )
+        accent_token = _resolve_existing_color_token(
+            sources, ("signal", "accent", "primary"), "--color-accent"
+        )
+        ink_declaration = f"  color: var({ink_token});\n" if ink_token else ""
+        border_declaration = f"  background: var({border_token});\n" if border_token else ""
+        accent_declaration = f"  color: var({accent_token});\n" if accent_token else ""
+        lifecycle_css = f"""
 
 /* OryxenAI trusted selected-work lifecycle cue */
-.selected-work-lifecycle {
+.selected-work-lifecycle {{
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1604,45 +1646,42 @@ def normalize_route_batch_selected_work_sources(sources: dict[str, str]) -> bool
   margin-block: var(--space-3) var(--space-2);
   padding-block: var(--space-3);
   border-block: var(--border-subtle);
-  color: var(--color-ink-secondary);
-  font-size: var(--type-label-min);
+{ink_declaration}  font-size: var(--type-label-min);
   font-weight: 600;
   letter-spacing: var(--type-label-tracking);
   line-height: var(--type-label-line-height);
   text-transform: uppercase;
-}
+}}
 
-.selected-work-lifecycle__step {
+.selected-work-lifecycle__step {{
   white-space: nowrap;
-}
+}}
 
-.selected-work-lifecycle__line {
+.selected-work-lifecycle__line {{
   flex: 1 1 2rem;
   min-inline-size: 2rem;
   block-size: var(--size-rule);
-  background: var(--color-border-subtle);
-}
+{border_declaration}}}
 
-.selected-work-lifecycle__marker {
+.selected-work-lifecycle__marker {{
   display: inline-grid;
   place-items: center;
   inline-size: var(--size-marker);
   block-size: var(--size-marker);
-  color: var(--color-accent-signal);
-  font-size: 0.7rem;
+{accent_declaration}  font-size: 0.7rem;
   line-height: 1;
-}
+}}
 
-@media (max-width: 767px) {
-  .selected-work-lifecycle {
+@media (max-width: 767px) {{
+  .selected-work-lifecycle {{
     gap: var(--space-2);
-  }
+  }}
 
-  .selected-work-lifecycle__line {
+  .selected-work-lifecycle__line {{
     flex-basis: 1rem;
     min-inline-size: 1rem;
-  }
-}
+  }}
+}}
 """
         sources[style_path] = style_source.rstrip() + lifecycle_css + "\n"
         changed = True
