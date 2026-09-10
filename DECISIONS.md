@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-092 - Make the preferred image count a real floor, not just a preference
+
+- **Date & Time:** 2026-09-10 22:52 +05:30 - Claude Code (Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** The user reported generated portfolios never showing images. Traced across three consecutive live campaign runs (all Pack A, a single-route "home" pack): Build Preparation correctly researched and vetted 7 real image candidates per run (real Pixabay photos with license/attribution/dimensions, `category: "editorial_photo"`, which `normalize_resource_category` already maps to `"image"` correctly), and all 7 slots correctly reached `execution/contract.json` with zero code-level drops. With `minimum_visible_images=0` and `require_primary_route_image=false`, the planner prompt's only instruction was a soft "prefer a restrained supporting image placement... this preference is not a release gate" — and the planner model declined every single one, 3/3 times, despite real vetted material being available every time.
+- **Decision:** Raise `minimum_visible_images` from 0 to 2 (matching the existing `preferred_visible_images=2`, so "preferred" becomes an actual floor the planner prompt enforces as a hard requirement) and `require_primary_route_image` from `false` to `true`, in both `settings.py` and `config/app.toml`. Left `build_image_policy_snapshot`'s `text_only_exemption` early-return path untouched — it already forces `0`/`False` unconditionally whenever a pack has zero approved image slots, so a genuinely image-less pack still degrades honestly regardless of these defaults.
+- **Rejected alternatives:** Fixing this at the prompt-wording level only (making the "preferred" language stronger without changing the numeric policy) — rejected because the planner prompt already has a dedicated hard-requirement code path (`minimum_visible_images > 0`) that this simply needed to activate; inventing a second enforcement mechanism would duplicate it. Leaving it as a soft preference and instead trying to fix the *model's* creative judgment via prompt tuning — rejected because it's unfalsifiable without more live runs, whereas flipping a host-owned policy value is a single, cheap, deterministic, immediately-verifiable change.
+- **Consequence:** Any pack with at least 2 approved image slots (the common case per Build Preparation's own per-section image research) now gets a real, planner-enforced image requirement, with one anchored to the primary route. A pack with fewer than 2 approved slots, or zero, still degrades correctly (fewer than the floor is a `PLAN_REQUIRED_IMAGE_PLACEMENT` validation failure only when slots exist but are under-placed; zero slots is the exemption path, unaffected). Future live runs should be checked for this working as intended before assuming it's fully proven.
+
 ## D-090 - Defer route storage-key single-source-of-truth refactor; fix the test that surfaced it instead
 
 - **Date & Time:** 2026-09-10 15:55 +05:30 - Claude Code (Sonnet 5 / Anthropic)
