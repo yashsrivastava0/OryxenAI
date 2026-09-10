@@ -33,6 +33,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Rejected alternatives:** Making mobile a required acceptance viewport (would spend reliability budget on a non-target surface); disabling source-contract checks (would allow missing content and broken interactions); accepting arbitrary JavaScript evaluation (unsafe and non-deterministic); or requiring every marker and content key to appear as a literal in JSX (rejects safe, readable generated code).
 - **Consequence:** Future variable briefs can produce and preview desktop web portfolios without cosmetic/mobile variation consuming the finite repair budget, while the generator still fails closed for real build, runtime, content, interaction, asset, ownership, and accessibility defects. A new authorized Linux/Azure campaign is still required before claiming an end-to-end `ready` result for this revision.
 
+## D-089 - Reconcile Code Generator repair-budget defaults with effective configuration
+
+- **Date & Time:** 2026-09-10 12:00 +05:30 - Codex (configured runtime)
+- **Status:** decided-implemented
+- **Context:** `settings.py` declared repair defaults of 3 per unit, 6 total, and 5 integration-polish rounds while `config/app.toml` effectively governed every run with 2, 4, and 3. The completed five-slot campaign showed distinct root-causable defects, not genuine repair-round starvation.
+- **Decision:** Adopt the effective `config/app.toml` values as the Pydantic defaults: 2 per unit, 4 total, and 3 integration-polish rounds, retaining the existing `ge=1, le=6` bound and leaving `config/app.toml` unchanged.
+- **Rejected alternatives:** Just raise the number to the older 3/6/5 values, which would not address the observed whack-a-mole defects; non-decision: retain the dead `repair_depth` field because it is written for compatibility, never read, and the real bound is `RepairBudget`.
+- **Consequence:** Settings and effective configuration describe one bounded policy, and future live diagnosis stays focused on the concrete defect evidenced by the run rather than assuming more rounds would converge it. No force-`dist` path or image-retrieval change is implied.
+
 ## D-087 - Normalize typography type-step names at the schema and compiler boundary
 
 - **Date & Time:** 2026-09-10 00:03 +05:30 - Codex (GPT-6 / OpenAI)

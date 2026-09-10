@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 12:00 +05:30 - Codex (configured runtime) - [68e1693] - fix(code-generator): reconcile repair-budget defaults
+
+Aligned the Code Generator Pydantic repair defaults with the effective
+`config/app.toml` policy (2 per unit, 4 total, 3 integration-polish rounds)
+and documented D-089's deliberate retention of the unused `repair_depth`
+field. The change keeps repair bounded based on the evidence from the prior
+five-slot campaign rather than raising limits for distinct root-causable
+defects.
+
 ### 2026-09-10 10:22 +05:30 - Codex (OpenAI) - [39076d0] - fix(code-generator): refresh stale image pins and harden dist exports
 Refreshed expired Pixabay `/get/` pins by stable asset ID, applied the configured raw image-size limit, made exports retry-safe on Windows, and stopped partial `dist` trees from being advertised as runnable. Added live-provider and regression coverage for the image/export paths.
 
@@ -198,28 +207,12 @@ sandboxed iframe) reuses the exact `postMessage` bridge already live-verified
 in the developer harness. `product-boundary.test.ts` now requires
 `/code-generator` instead of forbidding it.
 
-### 2026-09-08 23:00 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [44304ff] - code-generator: honor honest repair declines, reuse stable cache keys, tighten repair budgets
-
-Root-caused and fixed two open reliability bugs from the prior session's
-handoff: `FinalRepairError` had no escape hatch for a V4 plan's honest
-`cannot_complete` result, so the caller blindly retried an already-declined
-diagnostic bundle to budget exhaustion; now a distinct `FinalRepairDeclined`
-is retried once and stopped on a second identical decline.
-`RUNTIME_REGION_WIDTH_RATIO` findings sharing the same measured content width
-now get an explicit shared-cause note instead of looking like N independent
-defects. Separately, fixed all three Code Generator prompt-cache keys (they
-were scoped to `generation_id`/`identity_hash`, defeating reuse of the large
-stable system-prompt prefix across runs — the same pattern the cost
-research doc measured as ~73% of a day's spend), tightened repair-round
-ceilings to match this project's own observed 1-2-round real-fix depth, and
-gave Code Generator jobs their own `code_generator_max_attempts` config
-instead of sharing the more permissive general worker default.
-
 ## Compacted history
 
 ### 2026-09
 - 2026-09-09 — [e99ed55] — Investigated five failed Code Generator runs and authored the implementation and five-slot campaign handoff for pending retention, accounting, visual quality, truthful exports, and preflight.
 - 2026-09-09 — [29fc598] — Reconciled stale `create`/`replace` repair tags against the owned candidate tree while preserving strict initial-generation semantics and bounded repair authority.
+- 2026-09-08 — [44304ff] — Added honest repair-decline handling, shared-cause runtime correlation, stable prompt-cache keys, tighter observed repair ceilings, and a dedicated Code Generator job-attempt policy.
 - 2026-09-08 — [ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, d6b6777, bb7078b, 5731cf5, 78eacc7] — Completed Build Preparation/frontend handoffs, safe output copy and cache behavior, provider-neutral routing, scoped telemetry, and false-identity/preflight handling; detailed history remains in Git.
 - 2026-09-07 — [7f09506, 5bef169, ac5543e, 3f5b2aa, 78117e7] — Added candidate previews, corrected live repair and export behavior, and closed scaffold/toolchain and generation-time authoring gaps.
 - 2026-09-06 — [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce, 5768ce7, 618a038, fa9be97, f208540, ebfbc94, cdf8952, 1956d58, 7c94916, 83179f3, ae89b61, 68f1cd1, 861e981, cdf7a18] — Fixed Code Generator/runtime issues, delivered frontend studio/auth/output work, and hardened agent job lifecycle and cancellation.
@@ -248,5 +241,5 @@ instead of sharing the more permissive general worker default.
 ## Summary (as of last compaction — 2026-09-09)
 
 - Recent detailed entries retained: 17
-- Compacted milestone bullets: 31
-- Last updated: 2026-09-10 03:08 +05:30 — Codex
+- Compacted milestone bullets: 32
+- Last updated: 2026-09-10 12:00 +05:30 — Codex
