@@ -269,8 +269,13 @@ install was used.
 | B / slot 3 | `.workspace/code-generator-generation/7b74c97b-f95e-4b77-986c-a6aed0f99b78/repo/` | exit 1; 296 route-contract diagnostic lines | exit 0 | Route-contract failures surface in the audit independently before the clean typecheck result. |
 | B / slot 4 | `.workspace/code-generator-generation/fe4a0224-8f5f-4c3e-86a2-a1aafef8d621/repo/` | exit 1; 295 older route-source diagnostic lines | exit 0 | Zero diagnostics match the literal object/tuple content-map false-positive pattern. |
 
-No live slot has been reserved. The next action is a direct current provider
-balance check immediately before slot 1; a billing/auth failure is not a slot.
+No live slot has been reserved. The required direct balance gate was attempted
+on 2026-09-10: the configured OpenAI key authenticated successfully against
+the provider models endpoint, but the credit-grants endpoint returned HTTP
+403, and the browser billing overview is waiting for an interactive account
+login. No current balance could therefore be verified safely. This is a
+billing/auth gate, not a live slot; the campaign must not use the stale balance
+figures from earlier notes.
 
 ### Live outcomes — append one row immediately after each run
 
