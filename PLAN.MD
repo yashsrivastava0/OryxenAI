@@ -30,21 +30,28 @@ or be absent, while a genuinely broken rendered <img> remains blocking.
 Further Pexels/Unsplash URL-refresh or attribution work is deferred because no
 live failure evidence points there.
 
-Current campaign status after four live slots: all were Pack A and all
-ended `needs_attention` without a ready portfolio. Slot 1 ended at source
-generation with `SOURCE_REPAIR_EXHAUSTED`; slot 2 reached verification and
-ended with `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` because the selected-work
-section omitted the blueprint's conceptual lifecycle cue (fixed by
-`d9caf30`); slot 3 reached the final source-contract gate and ended with
+**Campaign closed 2026-09-10 after all five live slots.** All five were
+Pack A. Slot 1 ended at source generation with `SOURCE_REPAIR_EXHAUSTED`;
+slot 2 reached verification and ended with
+`QUALITY_REVIEW_REJECTED_AFTER_REPAIR` because the selected-work section
+omitted the blueprint's conceptual lifecycle cue (fixed by `d9caf30`);
+slot 3 reached the final source-contract gate and ended with
 `SOURCE_CONTRACT_FAILED` because the final motion-beat audit had no
 trusted-pattern exception, rejecting a correct `<Reveal>`-based hero motion
 beat (fixed by `e7d9284`); slot 4 ended source generation with
 `SOURCE_REPAIR_EXHAUSTED` because `d9caf30`'s own lifecycle-cue normalizer
 hardcoded color token names that didn't exist in this run's generated
-tokens (fixed by `06eb2c0`, which resolves real tokens dynamically). No
-fifth slot has been reserved; this is the last slot in the shared 5-run
-budget. The next allowed slot is another Pack A retry after the offline
-gate and service restart.
+tokens (fixed by `06eb2c0`, which resolves real tokens dynamically);
+**slot 5 (run `ff3398b1-86cb-49cd-b12b-5f5857ded187`) reached `ready`** --
+all three verification gates passed with zero blocking diagnostics (57
+non-blocking advisory layout findings on `dom_runtime`), and the promoted
+preview was loaded in an actual browser and confirmed working: full real
+content across every section, a functional closed 7-link navigation,
+zero console errors, every real resource request returning HTTP 200, no
+broken images (this route has none at all), and `dist/index.html` present
+on disk. No sixth slot or automatic follow-on campaign is permitted; a
+future campaign, if authorized, should start with Pack B since Pack A is
+now confirmed capable of a clean `ready` result on this revision.
 
 ## 2. Step 1 — pre-live fix and decision boundary
 
