@@ -232,3 +232,62 @@ negative rejection fixtures and must never be selected for a paid run.
    pass. Stop on the first ready result, or after the second ready result.
 5. Record any additional fix commit and the exact preview URL/artifact path;
    do not claim Azure deployment from local Docker/config validation alone.
+
+## Pre-live-fix confirmation campaign — bounded five-run cap (2026-09-10)
+
+This is a new campaign after the 2026-09-10 final five-slot campaign. The
+historical `Final reliability campaign` table above is unchanged. This
+campaign starts with zero live slots consumed and is authorized for at most
+five full-pipeline runs, stopping at two cross-pack ready results, an
+insufficient balance, or the fifth consumed run.
+
+### Offline gate before slot 1
+
+- The requested settings reconciliation is present: Pydantic defaults now
+  match the effective 2/4/3 values in `config/app.toml`; that file was not
+  edited. The dead `repair_depth` field remains by deliberate D-089
+  non-decision.
+- The focused settings unit suite passed (19 tests), mypy and Ruff lint for
+  `settings.py` passed, and the targeted source/audit/repair/contract/export/
+  image suites passed (136 tests).
+- The verification-worker file had one already-documented
+  `PLAN_SECTION_COVERAGE` fixture failure; the broader `-k code_generator`
+  baseline had four documented pre-existing/environment failures alongside
+  its passing tests. Repository-wide Ruff, format, and mypy gates also report
+  unrelated dirty-worktree/untracked-file issues; these are recorded in the
+  session handoff and are not attributed to the settings hunk.
+
+### Exact checkpoint replays
+
+Each saved tree was copied to a disposable temporary directory with its warm
+`node_modules`; the saved trees were not modified and no model call or npm
+install was used.
+
+| Pack / historical slot | Saved tree | `source:audit` | `typecheck` | Evidence |
+| --- | --- | --- | --- | --- |
+| A / slot 5 | `.workspace/code-generator-generation/20bdd7df-4604-48e0-ba36-3022eab10f0a/repo/` | exit 0 | exit 0 | The conditional JSX motion-marker false negative fixed by `c3fabdc` produces no diagnostics. |
+| B / slot 3 | `.workspace/code-generator-generation/7b74c97b-f95e-4b77-986c-a6aed0f99b78/repo/` | exit 1; 296 route-contract diagnostic lines | exit 0 | Route-contract failures surface in the audit independently before the clean typecheck result. |
+| B / slot 4 | `.workspace/code-generator-generation/fe4a0224-8f5f-4c3e-86a2-a1aafef8d621/repo/` | exit 1; 295 older route-source diagnostic lines | exit 0 | Zero diagnostics match the literal object/tuple content-map false-positive pattern. |
+
+No live slot has been reserved. The next action is a direct current provider
+balance check immediately before slot 1; a billing/auth failure is not a slot.
+
+### Live outcomes — append one row immediately after each run
+
+| Slot | Balance check | Pack | Run ID | Terminal outcome | First causal evidence | Preview / acceptance evidence | Usage / notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+Pack order is A → B → C → A after successful cross-pack results, with a failed
+pack retried only after its root cause is fixed and re-verified offline. Pack A
+is first because its furthest historical run is the direct target of the
+offline-confirmed conditional-marker fix. Pack A is
+`5f144f04-2789-48c6-9b1c-6bd11c87abdb`, Pack B is
+`ba4b986e-7841-4cfb-94a0-d56fbe1b7956`, and Pack C is
+`c0860464-a786-43d8-9c30-d12d7516c4b8`.
+
+Every ready row must explicitly cover clean build/source checks, desktop and
+laptop browser errors and failed requests, broken-image absence and admitted
+paths, navigation/interactions, resolved blocking review findings, promoted
+preview reachability, iframe reconnect after refresh/route change, and a real
+`dist/index.html`. Mobile is not a release gate under D-088. No sixth run or
+automatic follow-on campaign is permitted.
