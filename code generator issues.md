@@ -1,5 +1,56 @@
 # Code Generator Issues
 
+## 2026-09-10 17:28 +05:30 - Pack A live disposition (slot 3) and trusted-motion-pattern validator fix
+
+Run `5cf49daa-7ff5-404c-b884-d17cae272598` (Pack A retry, campaign-B slot 3)
+reached `needs_attention` with `SOURCE_CONTRACT_FAILED`: two blocking
+diagnostics, `SOURCE_MOTION_BEAT_UNIMPLEMENTED` and
+`SOURCE_MOTION_REDUCED_MOTION_MISSING`, both on the hero's
+`motion:home:hero-lifecycle-reveal` beat
+(`src/routes/home-4ea14058/sections/home-hero-ecdc18c2.tsx`). Accepted
+checkpoint `b3d5da49e957053ce94c72daa2d759e7725f9822b6cda1f0503c7ea95057e7a3`.
+
+Root cause, confirmed by running `audit_typescript_source` directly against
+the exact rejected checkpoint tree: the model correctly rendered the
+trusted `<Reveal data-motion-target="hero-lifecycle">` component per the
+beat's `pattern_id: "reveal-fade-rise"` (a catalogue-trusted pattern whose
+entire CSS/JS animation lives in `motion.css`/`SharedSystems.tsx`, never in
+a section's own owned source). Both `source_validation.py`'s pre-gate and
+`normalize_route_batch_motion_sources`'s normalizer already carry this
+exact exception (the former's own comment: "confirmed live: a valid
+Reveal-based hero was rejected this way") -- but `typescript_ast_audit.py`'s
+separate, final V4 motion-beat check never got the same fix, so it
+unconditionally demanded transition/animation CSS and a
+`prefers-reduced-motion` override in the section's own stylesheet
+regardless of `pattern_id`, rejecting an otherwise-correct trusted-pattern
+usage at the very last gate.
+
+Commit `e7d9284` mirrors `source_validation.py`'s existing exception into
+`typescript_ast_audit.py`: when a beat's `pattern_id` resolves via the
+motion pattern catalogue, only require the target marker and the trusted
+JSX tag (e.g. `<Reveal>`) to be rendered, skipping the CSS-property/
+reduced-motion checks. Confirmation: re-running the validator against the
+exact rejected checkpoint went from 2 diagnostics to 0; two new regression
+tests (accept with trusted component + no CSS, still-reject when the
+component itself is missing); full `typescript_ast_audit.py` suite (9/9)
+and the broader `-k code_generator` selection (361 passed, same 3
+pre-existing baseline/environment failures) both clean. Campaign-B slot 3
+consumed; no ready result. Next: retry Pack A for slot 4 with this fix in
+place.
+
+Separately, this session found and worked around a local Windows dev-
+environment issue (not a Code Generator defect): `scripts/run-native.ps1
+api`'s hardcoded `--reload` makes uvicorn spawn the server as a reload-
+supervisor subprocess, which uvicorn's Windows loop factory forces onto
+`asyncio.SelectorEventLoop` -- and `SelectorEventLoop` does not support
+`asyncio.create_subprocess_exec` on Windows, so every subprocess-based
+check (node/npm/typecheck/build/browser launch) failed with a bare
+`NotImplementedError` until the API was started without `--reload`. The
+worker process is unaffected (it never goes through uvicorn), which is why
+prior live slots 1-2 succeeded despite this. No source change was made for
+this -- it is a local launch-argument choice, not applicable to the worker
+that actually runs generation/build.
+
 ## 2026-09-10 15:55 +05:30 - Broken regression test traced to a test-fixture path mismatch; not a live defect
 
 Five folders under `output/code-gen-output/` (`d24c1886`, `66c00daa`,

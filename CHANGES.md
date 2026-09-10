@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 17:28 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [e7d9284] - fix(code-generator): recognize trusted motion patterns in the final source audit
+
+Campaign-B live slot 3 (Pack A) rejected a correct, trusted `<Reveal>`-based
+hero motion beat because `typescript_ast_audit.py`'s final V4 motion-beat
+check, unlike `source_validation.py`'s pre-gate and the route-motion
+normalizer, had no exception for catalogue `pattern_id` beats and demanded
+CSS/reduced-motion evidence that legitimately lives in `SharedSystems.tsx`/
+`motion.css` instead. Mirrored the existing exception; verified 2 → 0
+diagnostics against the exact rejected checkpoint. Slot 3 consumed, no
+ready result; retrying Pack A for slot 4.
+
 ### 2026-09-10 15:55 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [6c22712] - fix(code-generator): repair the verification regression test's route-path mismatch
 
 Traced five stray `output/code-gen-output/` folders (zero model calls each,
