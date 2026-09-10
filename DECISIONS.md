@@ -24,6 +24,24 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-090 - Defer route storage-key single-source-of-truth refactor; fix the test that surfaced it instead
+
+- **Date & Time:** 2026-09-10 15:55 +05:30 - Claude Code (Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** While diagnosing five stray `output/code-gen-output/` folders that looked like new live-campaign failures, direct inspection showed they were byproducts of one broken integration test (`test_code_generator_verification_worker.py::test_verification_builds_and_promotes_a_clean_candidate`), which hand-wrote its "real" route content to an invented path (`src/routes/home-4ea140588150/`) unrelated to the route's actual bare storage key (`home`), so the router-wired placeholder was validated instead of the real content. Research along the way found that `source_manifest.py`, `final_source_validation.py`, and `work_graph_compiler.py` each independently re-derive semantic-vs-bare route storage keys via their own `isinstance(plan.experience_blueprint, ExperienceBlueprintV4)` check, while `blueprint_compiler.py` computes `RoutePlan.storage_key` semantically and unconditionally once — a latent single-source-of-truth violation that *could* reproduce this same class of orphaned-content bug in a real run if those checks ever disagree.
+- **Decision:** Fix the test itself (write real content to the path the scaffold actually wires, add the closed-navigation/nav-landmark markers the fixture requires) and fix a related, real diagnostics bug (see below) rather than refactoring the four storage-key call sites now. Record the inconsistency here for future evidence-triggered follow-up.
+- **Rejected alternatives:** Refactor `source_manifest.py`/`final_source_validation.py`/`work_graph_compiler.py` now to consume `route.storage_key` directly instead of re-deriving it — rejected because it is unconfirmed against any real campaign failure (both live campaign-B failures were unrelated and already fixed by `22db99c`/`d9caf30`), and this campaign's own discipline (D-089's `repair_depth` non-removal) is to fix root-caused, evidence-backed defects rather than preemptively refactor unconfirmed risk right before spending scarce live-run budget.
+- **Consequence:** The regression test now exercises the full build/verify/promote/screenshot path again. The storage-key inconsistency remains open; if a future live run ever produces orphaned route content again, check these four call sites first before treating it as a new defect class.
+
+## D-091 - Surface the real issue code instead of the generic run status in terminal-failure/export evidence
+
+- **Date & Time:** 2026-09-10 15:55 +05:30 - Claude Code (Sonnet 5 / Anthropic)
+- **Status:** decided-implemented
+- **Context:** A pre-verification plan rejection (observed live as `PLAN_SECTION_COVERAGE`) was masked in the exported `portfolio.json` as the generic `"needs_attention"` status, because `code_generator_verification.py`'s `_execute()` early-failure branches (raised before a `VerificationProjection` exists) returned `{"status": "needs_attention", ...}` with no `"code"` key, and the handler's own `reason=str(result.get("code", result.get("status", "")))` then fell back to the generic status string when building the failed-run export.
+- **Decision:** Add the real issue's code to both early-failure return branches in `_execute()` so `result["code"]` always carries it through to the export `reason` and the exported `terminal_failure`/`evidence_summary.primary_issue`.
+- **Rejected alternatives:** Patching `portfolio_export.py`'s `terminal_code or first_issue.get("code")` preference order instead — rejected because `terminal_code` was truthy-but-wrong (the generic status string), so that fallback never triggers; the real fix has to be upstream, where the code is dropped in the first place.
+- **Consequence:** Every future pre-verification rejection (live or offline) now shows its real issue code in exported evidence, improving diagnosability for the remaining live campaign-B slots without changing any generation/repair behavior.
+
 ## D-088 - Make desktop web the release gate and keep source contracts statically provable
 
 - **Date & Time:** 2026-09-10 03:10 +05:30 - Codex (GPT-6 / OpenAI)
