@@ -11,6 +11,9 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-10 10:22 +05:30 - Codex (OpenAI) - [39076d0] - fix(code-generator): refresh stale image pins and harden dist exports
+Refreshed expired Pixabay `/get/` pins by stable asset ID, applied the configured raw image-size limit, made exports retry-safe on Windows, and stopped partial `dist` trees from being advertised as runnable. Added live-provider and regression coverage for the image/export paths.
+
 ### 2026-09-10 03:08 +05:30 - Codex (GPT-6 / OpenAI) - [7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] - fix(code-generator): close desktop generation reliability gaps
 Closed preview/export, source-ownership, interaction-ownership, contract-ordering, static content-map, and conditional-motion audit gaps found in the authorized five-run campaign; the desktop/web path is hardened and the full Code Generator unit suite passes.
 
