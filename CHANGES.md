@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-11 02:10 +05:30 - Codex (GPT-6 / OpenAI) - [67d5a75] - fix(agents): restore rich first-four output and bounded Gemini recovery
+
+Updated Discovery, Content Architect, Visual Design Director, and Build Preparation prompts to use ordinary supplied material fully and emit complete adaptive-detail handoffs while preserving explicit restrictions and security guardrails. Routed the first four stages through EXPLABS-first recovery with one same-packet Gemini fallback for provider and structural failures, added route/section/scene completeness gates, and recorded D-093.
+
 ### 2026-09-11 00:40 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [no commit; investigation only] - docs(code-generator): close D-090's follow-up, disprove a suspected `_route_source_map` double-hash bug
 
 Live-testing D-092's image-policy fix (run `74c82e9d`, Priya Vasudevan
