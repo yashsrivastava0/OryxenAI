@@ -99,6 +99,15 @@ class TestBuildInstructions:
         assert "SHORTLIST_ID" in system
         assert "hero_asymmetric_text_dominant" not in system
 
+    def test_source_use_and_detail_guidance_is_explicit(self):
+        system, task, _version, _manifest = build_instructions(
+            "establish_visual_language", {"presentation_mode": "single_page"}
+        )
+        assert "authorized source material for this portfolio" in system
+        assert "publication permission" in system
+        assert "complete and detail-rich" in system
+        assert "every approved route must have a full page direction" in task
+
 
 class TestPromptVersion:
     def test_versions_are_stable(self):

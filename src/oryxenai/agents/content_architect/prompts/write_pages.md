@@ -1,6 +1,6 @@
 <!--
   Operation: write_pages (only runs when plan_content set content_included=false)
-  Version: content_architect.write_pages.v3
+  Version: content_architect.write_pages.v4
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -51,6 +51,13 @@ outcome; a thin one may honestly be a single strong paragraph.
 internal_notes is the ONLY place for your own review reasoning (confirmation needed, why something
 was generalized, QA checklists). Never put this reasoning inside a section's content field — a
 visitor must never see it.
+<detail_rule>
+Return the complete content set, including every applicable visitor-facing field for every route and
+section. Preserve all grounded detail from the route plan and claim grounding. A section may be
+short only when the supplied facts genuinely provide no more material; never shorten a rich section
+into a label, summary, or placeholder to save output space.
+</detail_rule>
+
 </page_content_packs>
 
 <public_content_manifest>

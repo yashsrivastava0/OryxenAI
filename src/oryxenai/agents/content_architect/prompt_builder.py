@@ -19,10 +19,10 @@ logger = get_logger("oryxenai.agents.content_architect.prompt_builder")
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-PROMPT_VERSION_SYSTEM = "content_architect.system.v2"
-PROMPT_VERSION_PLAN_CONTENT = "content_architect.plan_content.v4"
-PROMPT_VERSION_WRITE_PAGES = "content_architect.write_pages.v3"
-PROMPT_VERSION_INTEGRATE_CONTENT = "content_architect.integrate_content.v3"
+PROMPT_VERSION_SYSTEM = "content_architect.system.v3"
+PROMPT_VERSION_PLAN_CONTENT = "content_architect.plan_content.v5"
+PROMPT_VERSION_WRITE_PAGES = "content_architect.write_pages.v4"
+PROMPT_VERSION_INTEGRATE_CONTENT = "content_architect.integrate_content.v4"
 
 _OPERATION_VERSION_MAP = {
     "plan_content": PROMPT_VERSION_PLAN_CONTENT,

@@ -1,6 +1,6 @@
 <!--
   Operation A — Understand input and prepare the next interaction
-  Version: discovery.understand_and_question.v4
+  Version: discovery.understand_and_question.v5
   Output model: QuestionSetOutput (see schema in the task block below)
   Modes: NEEDS_DETAILS | ASK_QUESTIONS | READY_FOR_BRIEF
 -->
@@ -30,12 +30,12 @@ READY_FOR_BRIEF    — material and intent are sufficient, OR the user asked for
    - a target-job description (not the person)
    - inspiration/example text
    - template residue or placeholder content
-   - private information
+   - explicit omit/restrict instructions
    - conflicting information
    - unknown ownership
 3. Reuse information already present in prior_memory; do not re-ask for it.
-4. Identify only decisions that can MATERIALLY affect positioning, project selection, design
-   direction, credibility, privacy, visitor journey, or CTA.
+4. Identify only decisions that can materially affect positioning, project selection, design
+   direction, credibility, visitor journey, or CTA.
 5. For each remaining decision, ask exactly ONE specific question.
 6. Allow `allow_auto=true` only for presentation-only questions (tone, theme, motion, density,
    project order among known projects, section emphasis, CTA wording).
@@ -52,7 +52,7 @@ READY_FOR_BRIEF    — material and intent are sufficient, OR the user asked for
 <silent_information_value_test>
 Before adding a question, silently verify:
   - Is the answer already in prior_memory or source material?
-  - Will the answer change content, positioning, project order, privacy, CTA, or design direction
+  - Will the answer change content, positioning, project order, CTA, or design direction
     (mood, theme, density, motion, imagery — what the Visual Design Director stage needs)?
   - Can a later agent safely choose a default instead?
   - Is the user likely to actually know the answer?
@@ -120,6 +120,14 @@ Do not ask:
 - If the user pastes a job advertisement as if it were their own experience, ask one question to
   confirm ownership.
 </special_cases>
+
+<source_use_rule>
+Treat ordinary facts the user supplied for this portfolio as usable source material. Do not ask
+whether those facts are confidential, whether they are "genuinely yours," or whether they may be
+included. Ask a question only for a real content, positioning, contribution, conflict, or
+presentation decision. Follow explicit omit, generalize, NDA, or do-not-publish instructions when
+the source contains them.
+</source_use_rule>
 
 <contact_info_gap>
 If the source material has no obvious public contact channel at all (no email, phone, LinkedIn,

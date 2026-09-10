@@ -10,7 +10,7 @@ from typing import Any
 from oryxenai.agents.build_preparation.schemas import VisualBriefOutput
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-_PROMPT_VERSION = "build_preparation.compose_visual_brief.v2"
+_PROMPT_VERSION = "build_preparation.compose_visual_brief.v3"
 
 
 def _load(name: str) -> str:

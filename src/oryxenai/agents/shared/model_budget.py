@@ -133,6 +133,7 @@ class BudgetedModelClient:
         model_profile: Any = None,
         request_context: Any = None,
         strict_schema: bool = False,
+        result_validator: Any = None,
     ) -> Any:
         del model_profile
         async with self._lock:
@@ -177,6 +178,7 @@ class BudgetedModelClient:
                     system_prompt=system_prompt,
                     request_context=request_context,
                     strict_schema=strict_schema,
+                    result_validator=result_validator,
                 )
             except Exception:
                 self._budget.settle(reservation, None)

@@ -6,7 +6,8 @@ operation, page/scene/asset/resource entries must carry usable stable IDs.
 Free-text/free-dict direction (visual_language, shared_visual_systems,
 storyboard, layout_intent, motion_intent, compiler_handoff, ...) is NOT
 business-validated — the model decides how to phrase things; only the
-envelope shape is checked, mirroring Content Architect's exact philosophy.
+structural shape and completeness are checked, while the direction's prose
+remains free-form and unscored, mirroring Content Architect's philosophy.
 
 Per DECISIONS.md D-002, this stays strictly envelope/structural — no
 synthesized "subjective quality" warnings (excessive motion, long copy,
@@ -148,7 +149,7 @@ def validate_stage_output(
     )
     errors.extend(page_errors)
 
-    if operation in {"direct_page_experience", "integrate_site_experience"} and known_route_ids:
+    if pages_required and known_route_ids:
         expected_coverage = known_route_ids - blocked_route_ids
         missing = expected_coverage - page_route_ids
         for route_id in sorted(missing):
@@ -253,6 +254,8 @@ def _validate_pages(
         if scenes is not None and not isinstance(scenes, list):
             errors.append(f"Page {page_index} ({route_id or page_index}) 'scenes' must be a list")
             continue
+        if not scenes:
+            errors.append(f"Page {page_index} ({route_id or page_index}) has no visual scenes")
 
         for scene_index, scene in enumerate(scenes or []):
             label = f"page {page_index} scene {scene_index}"
@@ -265,6 +268,12 @@ def _validate_pages(
                 errors.append(f"{label} has no scene_id")
             else:
                 scene_ids.append(scene_id)
+
+            scene_route_id = str(scene.get("route_id", "") or "").strip()
+            if scene_route_id and route_id and scene_route_id != route_id:
+                errors.append(
+                    f"{label} ({scene_id or scene_index}) route_id does not match its parent page"
+                )
 
             responsive_behavior = scene.get("responsive_behavior")
             if not str(responsive_behavior or "").strip():

@@ -1,6 +1,6 @@
 <!--
   Operation: plan_content (always runs first)
-  Version: content_architect.plan_content.v4
+  Version: content_architect.plan_content.v5
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -23,6 +23,17 @@ STRATEGY_AND_CONTENT whenever you can write genuinely complete, unpadded content
 this one call — most single-page and hybrid portfolios qualify. Only defer to STRATEGY_ONLY when a
 real multi-page plan has more routes than you can write well in one response.
 </mode_and_content_included>
+
+<detail_and_coverage>
+Treat the approved snapshot as the complete source of truth available to this stage. Do not
+compress a rich profile into a thin strategy. For every selected route, plan every applicable
+section and develop the narrative, evidence, audience takeaway, and handoff detail that the
+source supports. When content_included=true, every route and every section must contain its full
+visitor-facing copy in this response. When content_included=false, preserve the same completeness
+in the route plan and make the second batched writing call responsible for all route sections.
+There is no line or word minimum: a sparse source stays honest, while a rich source receives
+correspondingly rich treatment.
+</detail_and_coverage>
 
 <site_story_strategy>
 Populate site_story_strategy with: positioning and a truthful value proposition, primary and
@@ -104,9 +115,9 @@ invent projects, employers, or metrics to fill space; use unresolved_issues to n
 stronger portfolio would need.
 No metrics / unsupported metrics: omit the number, or record it in claim_grounding as
 "unverified"/"unresolved" and phrase public copy qualitatively instead of numerically.
-NDA-heavy or confidential-client work: generalize the client/employer name only if the snapshot
-already permits it; otherwise describe the problem/technology/impact without naming the client, and
-note the restriction in privacy_and_confidentiality.
+Explicitly restricted client/employer work: generalize the name or detail exactly as the snapshot
+requires; otherwise use the supplied name and facts fully. Record only actual restrictions in
+privacy_and_confidentiality.
 Unclear team ownership: phrase the contribution as the team's outcome plus the user's specific
 supported role, never as a solo achievement.
 Too many strong projects: select the strongest few for dedicated routes and group the rest into a
@@ -141,17 +152,17 @@ receive a page_content_packs entry at all.
 
 <omissions_and_unresolved>
 List anything you deliberately left out (and why) in omissions. List anything unresolved that a
-human should decide before publishing in unresolved_issues. List every privacy/confidentiality
-constraint you applied in privacy_and_confidentiality. Record media availability (approved,
-unavailable, unknown) in media_status.
+human should decide before publishing in unresolved_issues. List only explicit
+privacy/confidentiality constraints you applied in privacy_and_confidentiality; leave it empty when
+none was supplied. Record media availability (approved, unavailable, unknown) in media_status.
 </omissions_and_unresolved>
 
 <visual_director_handoff>
 When you set content_included=true, also populate visual_director_handoff (content hierarchy and
 emphasis, density guidance, long-copy/responsive risks, storytelling opportunities, available and
-unavailable media, diagram/process-visual opportunities described only in words, confidentiality
-restrictions, must-preserve facts/wording, elements that may be shortened on mobile, and elements
-that must never be fabricated). Never name an exact component, layout, color, typography, or
+unavailable media, diagram/process-visual opportunities described only in words, explicit
+confidentiality restrictions, must-preserve facts/wording, elements that may be shortened on
+mobile, and elements that must never be fabricated). Never name an exact component, layout, color, typography, or
 animation choice — describe the opportunity or constraint only.
 </visual_director_handoff>
 

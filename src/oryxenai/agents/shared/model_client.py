@@ -46,7 +46,9 @@ class MockModelClient:
         model_profile: Any = None,
         request_context: Any = None,
         strict_schema: bool = False,
+        result_validator: Any = None,
     ) -> Any:
+        del result_validator
         return _mock_structured_result(output_model)
 
 
@@ -204,11 +206,25 @@ def _mock_structured_result(output_model: type[BaseModel]) -> Any:
                             priority="primary",
                         ),
                         ContentSection(
+                            section_id="about",
+                            purpose="Summarize the professional focus.",
+                            content={"summary": "Software engineering focused on durable systems."},
+                            claim_ids=[],
+                            priority="secondary",
+                        ),
+                        ContentSection(
                             section_id="project",
                             purpose="Feature the strongest project.",
                             content={"title": "QueueGuard", "summary": "A durable job system."},
                             claim_ids=["claim_queueguard"],
                             priority="primary",
+                        ),
+                        ContentSection(
+                            section_id="contact",
+                            purpose="Offer a closing action.",
+                            content={"cta": "Get in touch."},
+                            claim_ids=[],
+                            priority="secondary",
                         ),
                     ],
                     internal_notes={},

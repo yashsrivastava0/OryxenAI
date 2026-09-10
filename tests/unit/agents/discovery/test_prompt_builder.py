@@ -73,6 +73,14 @@ class TestBuildInstructions:
         assert "OryxenAI Discovery" in system
         assert "<trust_boundary>" in system
 
+    def test_source_use_and_detail_guidance_is_explicit(self):
+        system, task, _version, _manifest = build_instructions(
+            "build_or_revise_brief", {"message": "x", "existing_brief": ""}
+        )
+        assert "Do not ask the user to reconfirm ownership" in system
+        assert "brief_markdown must remain the complete detailed handoff" in task
+        assert "There is no fixed word or line minimum" in task
+
 
 class TestPromptVersion:
     def test_versions_are_stable(self):

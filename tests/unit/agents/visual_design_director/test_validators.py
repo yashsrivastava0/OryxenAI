@@ -150,6 +150,15 @@ class TestValidateEstablishVisualLanguage:
         assert not outcome.is_valid
         assert any("'pages' must not be empty" in error for error in outcome.errors)
 
+    def test_pages_included_requires_visual_direction_for_each_known_route(self):
+        outcome = validate_stage_output(
+            _establish_with_pages(),
+            "establish_visual_language",
+            known_route_plan=[_route(), _route(route_id="about", path="/about")],
+        )
+        assert not outcome.is_valid
+        assert any("about" in error and "no visual direction" in error for error in outcome.errors)
+
     def test_asset_briefs_and_resource_candidates_never_required(self):
         """A legitimate text/diagram-only site can have zero real assets and
         zero catalogue resources — this is a celebrated outcome, not
@@ -193,6 +202,13 @@ class TestValidateDirectPageExperience:
         outcome = validate_stage_output(self._valid_payload(pages=[]), "direct_page_experience")
         assert not outcome.is_valid
         assert any("'pages' must not be empty" in error for error in outcome.errors)
+
+    def test_page_without_scenes_rejected(self):
+        outcome = validate_stage_output(
+            self._valid_payload(pages=[_page(scenes=[])]), "direct_page_experience"
+        )
+        assert not outcome.is_valid
+        assert any("has no visual scenes" in error for error in outcome.errors)
 
     def test_page_with_no_route_id_rejected(self):
         outcome = validate_stage_output(
@@ -253,6 +269,14 @@ class TestValidateDirectPageExperience:
         )
         assert not outcome.is_valid
         assert any("has no responsive_behavior" in error for error in outcome.errors)
+
+    def test_scene_route_id_must_match_parent_page(self):
+        outcome = validate_stage_output(
+            self._valid_payload(pages=[_page(scenes=[_scene(route_id="about")])]),
+            "direct_page_experience",
+        )
+        assert not outcome.is_valid
+        assert any("does not match its parent page" in error for error in outcome.errors)
 
     def test_motion_without_reduced_motion_behavior_rejected(self):
         outcome = validate_stage_output(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from oryxenai.agents.shared.contracts import ModelClient, OperationBudget, ResolvedModelRoute
@@ -13,8 +13,10 @@ from oryxenai.agents.shared.model_usage import ModelUsageLedger, context_from_re
 from oryxenai.agents.shared.providers.errors import (
     ModelCapacityUnavailableError,
     ModelInputTooLargeError,
+    ModelOutputInvalidError,
     ModelRoutingPolicyChangedError,
     ModelUsagePersistenceError,
+    ProviderAuthError,
     ProviderConfigError,
     ProviderCreditError,
     ProviderError,
@@ -84,6 +86,7 @@ class RoutedModelClient(ModelClient):
         profile = self._runtime.config.get_profile(profile_name)
         if profile is None:
             raise ProviderConfigError(f"Model profile '{profile_name}' is not configured.")
+        route_policy = self._runtime.router.operation_route(self._engine, operation)
         return ResolvedModelRoute(
             profile_name=profile_name,
             provider=profile.provider,
@@ -93,7 +96,7 @@ class RoutedModelClient(ModelClient):
             quota_group=str(getattr(profile, "quota_group", "") or ""),
             profile_fingerprint=self._runtime.profile_fingerprint(profile_name),
             policy_version=self._runtime.router.config.routing.policy.version,
-            input_policy=str(getattr(profile, "input_policy", "any") or "any"),
+            input_policy=self._effective_input_policy(profile, route_policy),
             pricing_card_ref=str(getattr(profile, "pricing_card_ref", "") or ""),
             alternatives=tuple(names[1:]),
         )
@@ -161,6 +164,7 @@ class RoutedModelClient(ModelClient):
         model_profile: Any = None,
         request_context: Any = None,
         strict_schema: bool = False,
+        result_validator: Callable[[dict[str, Any]], None] | None = None,
     ) -> Any:
         del model_profile
         classification = self._classification(
@@ -210,11 +214,10 @@ class RoutedModelClient(ModelClient):
                 quota_group=str(getattr(profile, "quota_group", "") or ""),
                 profile_fingerprint=self._runtime.profile_fingerprint(profile_name),
                 policy_version=self._runtime.router.config.routing.policy.version,
-                input_policy=str(getattr(profile, "input_policy", "any") or "any"),
+                input_policy=self._effective_input_policy(profile, route_policy),
                 pricing_card_ref=str(getattr(profile, "pricing_card_ref", "") or ""),
                 alternatives=tuple(names[index + 1 :]),
             )
-            client = self._runtime.resolve_profile_client(profile_name)
             call_context = context_from_request(
                 engine=self._engine,
                 operation=operation,
@@ -266,9 +269,6 @@ class RoutedModelClient(ModelClient):
                 # while the ledger is unavailable would make usage
                 # attribution and the global budget unverifiable.
                 raise
-            # Count the application transmission only after reservation.  The
-            # provider adapters themselves have retries disabled.
-            self._budget.record_transmission()
             started = time.monotonic()
             provider_context = dict(request_context) if isinstance(request_context, Mapping) else {}
             provider_context.update(
@@ -291,6 +291,15 @@ class RoutedModelClient(ModelClient):
                 if route_policy.reasoning_effort:
                     provider_context["reasoning_effort"] = str(route_policy.reasoning_effort)
             try:
+                # Resolve lazily inside the attempt so profile/provider
+                # configuration failures are accounted for and can use the
+                # configured Gemini fallback just like transport failures.
+                client = self._runtime.resolve_profile_client(profile_name)
+                # Count the application transmission only after reservation
+                # and profile resolution. Provider adapters have retries
+                # disabled; this is the only provider-attempt layer.
+                self._budget.record_transmission()
+                provider_context["request_attempt"] = self._budget.transmissions
                 result = await client.generate_structured(
                     operation=operation,
                     instructions=instructions,
@@ -301,6 +310,22 @@ class RoutedModelClient(ModelClient):
                     request_context=provider_context,
                     strict_schema=strict_schema,
                 )
+                if result_validator is not None:
+                    parsed_output = getattr(result, "parsed_output", result)
+                    if not isinstance(parsed_output, Mapping):
+                        raise ModelOutputInvalidError(
+                            "Model output did not contain a structured object."
+                        )
+                    try:
+                        result_validator(dict(parsed_output))
+                    except ProviderError:
+                        raise
+                    except Exception as exc:
+                        # Agent validators may use their own exception type;
+                        # expose one safe, retryable contract failure so the
+                        # next configured provider can be tried before this
+                        # result is marked successful or cached.
+                        raise ModelOutputInvalidError() from exc
             except Exception as exc:
                 last_error = exc
                 if isinstance(exc, ProviderError):
@@ -383,6 +408,15 @@ class RoutedModelClient(ModelClient):
             return str(payload_value).strip().casefold()
         return self._input_classification
 
+    @staticmethod
+    def _effective_input_policy(profile: Any, route_policy: Any) -> str:
+        """Expose the route's effective packet policy in safe telemetry."""
+
+        provider = str(getattr(profile, "provider", "") or "").casefold()
+        if provider == "gemini" and getattr(route_policy, "allow_personal_gemini_fallback", False):
+            return "any"
+        return str(getattr(profile, "input_policy", "any") or "any")
+
     def _assert_policy_snapshot(self, request_context: Any) -> None:
         if not isinstance(request_context, Mapping):
             return
@@ -418,10 +452,10 @@ class RoutedModelClient(ModelClient):
             pairs,
             estimated_input_tokens=estimated_input_tokens,
         )
-        classification = str(input_classification or self._input_classification).casefold()
-        if classification not in {"sanitized", "synthetic"}:
-            primary = names[0]
-            ordered = [primary, *[name for name in ordered if name != primary]]
+        # Capacity ordering may choose among alternatives, but it must never
+        # promote a fallback provider into the primary position.
+        primary = names[0]
+        ordered = [primary, *[name for name in ordered if name != primary]]
         return tuple(ordered or names)
 
     def _can_recover(
@@ -434,11 +468,13 @@ class RoutedModelClient(ModelClient):
         if index >= len(names) - 1 or self._budget.recovery_remaining <= 0:
             return False
         if isinstance(error, ProviderError):
-            # A Gemini Free Tier quota window can be exhausted while another
-            # configured project still has legitimate capacity.  Wallet/key
-            # credit errors on paid routes remain terminal.
-            if isinstance(error, ProviderCreditError):
-                return route.provider.casefold() == "gemini"
+            next_profile = self._runtime.config.get_profile(names[index + 1])
+            next_provider = str(getattr(next_profile, "provider", "") or "").casefold()
+            if isinstance(error, (ProviderAuthError, ProviderConfigError, ProviderCreditError)):
+                # Credential/configuration/quota failures from the primary
+                # provider are recoverable only when the next configured
+                # source is the explicit Gemini fallback.
+                return route.provider.casefold() != "gemini" and next_provider == "gemini"
             return bool(error.retryable)
         return False
 

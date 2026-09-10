@@ -1,13 +1,13 @@
 <!--
   Operation: establish_visual_language (always runs first)
-  Version: visual_design_director.establish_visual_language.v3
+  Version: visual_design_director.establish_visual_language.v4
   Output model: VisualDesignDirectorOutput (see schema in the task block below)
 -->
 
 <operation>
 Read the approved Content Architect snapshot (presentation_mode, site_story_strategy, route_plan,
-page_content_packs, public_content_manifest, media_status, visual_director_handoff,
-privacy_and_confidentiality), any stated preferences (visual_tone, motion_preference,
+page_content_packs, public_content_manifest, media_status, visual_director_handoff, explicit
+source-use restrictions), any stated preferences (visual_tone, motion_preference,
 density_preference, accessibility_notes), and the resource_catalogue_shortlist. Establish the
 site-wide visual language and shared systems. When the resulting direction is small enough to also
 write complete, specific per-route direction in this same call (a single page, or a hybrid with only
@@ -30,6 +30,15 @@ response.
 
 For a single route, combine related sections into no more than four scenes; do not mirror every
 Content Architect section as a separate scene.
+
+<detail_rule>
+The visual language is the complete creative handoff, not a compact status note. Develop the
+creative thesis, shared systems, route direction, and scene direction from all approved content
+signals. When pages_included=true, every approved route must have a full page direction with
+meaningful scenes and the responsive, accessibility, motion, interaction, asset, and resource
+details required by the schema. Use a short user_summary only for highlights; never use it in place
+of the detailed output fields.
+</detail_rule>
 
 <visual_language>
 Populate visual_language with a genuine creative thesis for THIS profile, not a generic style label.
