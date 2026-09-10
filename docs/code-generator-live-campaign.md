@@ -236,10 +236,10 @@ negative rejection fixtures and must never be selected for a paid run.
 ## Pre-live-fix confirmation campaign — bounded five-run cap (2026-09-10)
 
 This is a new campaign after the 2026-09-10 final five-slot campaign. The
-historical `Final reliability campaign` table above is unchanged. This
-campaign starts with zero live slots consumed and is authorized for at most
-five full-pipeline runs, stopping at two cross-pack ready results, an
-insufficient balance, or the fifth consumed run.
+historical `Final reliability campaign` table above is unchanged. One live
+slot has now been consumed; the campaign remains authorized for at most five
+full-pipeline runs, stopping at two cross-pack ready results, an insufficient
+balance, or the fifth consumed run.
 
 ### Offline gate before slot 1
 
@@ -249,7 +249,10 @@ insufficient balance, or the fifth consumed run.
   non-decision.
 - The focused settings unit suite passed (19 tests), mypy and Ruff lint for
   `settings.py` passed, and the targeted source/audit/repair/contract/export/
-  image suites passed (136 tests).
+  image suites passed (138 tests) after the route-motion normalizer fix.
+- Post-fix `pytest -k code_generator -q` passed 356 tests, with the same four
+  documented baseline/environment failures and 912 deselected; no new failure
+  was introduced by the live-disposition fix.
 - The verification-worker file had one already-documented
   `PLAN_SECTION_COVERAGE` fixture failure; the broader `-k code_generator`
   baseline had four documented pre-existing/environment failures alongside
@@ -266,26 +269,27 @@ install was used.
 | Pack / historical slot | Saved tree | `source:audit` | `typecheck` | Evidence |
 | --- | --- | --- | --- | --- |
 | A / slot 5 | `.workspace/code-generator-generation/20bdd7df-4604-48e0-ba36-3022eab10f0a/repo/` | exit 0 | exit 0 | The conditional JSX motion-marker false negative fixed by `c3fabdc` produces no diagnostics. |
-| B / slot 3 | `.workspace/code-generator-generation/7b74c97b-f95e-4b77-986c-a6aed0f99b78/repo/` | exit 1; 296 route-contract diagnostic lines | exit 0 | Route-contract failures surface in the audit independently before the clean typecheck result. |
+| B / slot 3 | `.workspace/code-generator-generation/7b74c97b-f95e-4b77-986c-a6aed0f99b78/repo/` | exit 1; 295 route-contract diagnostic lines | exit 0 | Route-contract failures surface in the audit independently before the clean typecheck result. |
 | B / slot 4 | `.workspace/code-generator-generation/fe4a0224-8f5f-4c3e-86a2-a1aafef8d621/repo/` | exit 1; 295 older route-source diagnostic lines | exit 0 | Zero diagnostics match the literal object/tuple content-map false-positive pattern. |
 
-No live slot has been reserved. The earlier direct balance attempt was
-inconclusive because the credit-grants endpoint returned HTTP 403 and the
-browser billing overview required an interactive login. The user then supplied
-a fresh provider check showing configured-key presence, successful model access
-(HTTP 200), and a successful live quota/credit test (HTTP 200). That current
-evidence clears the one-run balance gate; the stale balance figures from
-earlier notes remain inadmissible.
+Slot 1 was reserved and consumed after the user supplied a fresh provider
+check showing configured-key presence, successful model access (HTTP 200), and
+a successful live quota/credit test (HTTP 200). The earlier direct balance
+attempt was inconclusive because the credit-grants endpoint returned HTTP 403
+and the browser billing overview required an interactive login; the stale
+balance figures from earlier notes remain inadmissible.
 
 ### Live outcomes — append one row immediately after each run
 
 | Slot | Balance check | Pack | Run ID | Terminal outcome | First causal evidence | Preview / acceptance evidence | Usage / notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Fresh user-supplied provider key/model/quota check; HTTP 200 | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `dd721d1e-cde9-4349-af50-27660ab6d779` | `needs_attention` - `SOURCE_REPAIR_EXHAUSTED` | Initial receipt `e170f1a784920512ef8fdefed1cb3849d28b41bcd9164493c401ad254bb21970` contained `fiftych`/`sixtyfivech`, a trusted hero-selector mismatch, and custom selected-work motion without the required guarded opacity/setter; final terminal evidence was the missing selected-work guard. | No verification, build, or preview promotion; accepted checkpoint `0584a38d4ab6058d064e249cfc4c83c44374262cf76099724609cef62aa57442` was pre-route foundation, so no ready result. | Full live slot 1/5 consumed. Generation job `d0b600f9-cc6b-440d-adc3-25eb5e5023c5` succeeded without a worker error; repair receipts `3343dd8d62d5a81a1313bdc8b228211134a772218d0a1ba38a423f44a7a76d72` and `f51d9622fdb8c79de6895b03a19894999261c0557f8521bde913015eaa5f4b44`. Host fix `22db99c` is offline-verified; retry A only after service restart and re-preflight. |
 
-Pack order is A → B → C → A after successful cross-pack results, with a failed
-pack retried only after its root cause is fixed and re-verified offline. Pack A
-is first because its furthest historical run is the direct target of the
-offline-confirmed conditional-marker fix. Pack A is
+Pack order is A → B → C → A after successful cross-pack results. A failed
+pack is retried before advancing, but only after its root cause is fixed and
+re-verified offline; therefore slot 2 retries A. Pack A is first because its
+furthest historical run is the direct target of the offline-confirmed
+conditional-marker fix. Pack A is
 `5f144f04-2789-48c6-9b1c-6bd11c87abdb`, Pack B is
 `ba4b986e-7841-4cfb-94a0-d56fbe1b7956`, and Pack C is
 `c0860464-a786-43d8-9c30-d12d7516c4b8`.

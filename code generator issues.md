@@ -1,5 +1,31 @@
 # Code Generator Issues
 
+## 2026-09-10 14:00 +05:30 - Pack A live disposition and deterministic route-motion normalizer
+
+Run `dd721d1e-cde9-4349-af50-27660ab6d779` reached `needs_attention` with
+`SOURCE_REPAIR_EXHAUSTED` during route generation. Its initial route receipt
+`e170f1a784920512ef8fdefed1cb3849d28b41bcd9164493c401ad254bb21970` contained
+CSS length slips (`fiftych` and `sixtyfivech`), a trusted hero motion selector
+that did not match the contract, and a custom selected-work motion beat using
+`:has(.work-ready)` without the required guarded opacity/setter evidence. The
+accepted checkpoint `0584a38d4ab6058d064e249cfc4c83c44374262cf76099724609cef62aa57442`
+was only the pre-route foundation. Repair receipts
+`3343dd8d62d5a81a1313bdc8b228211134a772218d0a1ba38a423f44a7a76d72` and
+`f51d9622fdb8c79de6895b03a19894999261c0557f8521bde913015eaa5f4b44` show the
+model corrected parts of the drift, but the final selected-work guard still
+failed validation; the cumulative repair context does not establish that the
+CSS length error recurred identically.
+
+Commit `22db99c` adds deterministic host-side route-batch normalization for
+spelled CSS lengths, trusted selector anchors, custom-motion guarded fallback
+CSS, and exact `data-motion-ready` observer wiring. It does not alter image
+retrieval or dist/export behavior. Confirmation: 33 source-validation tests,
+the targeted post-fix suites (138 passed), a direct normalized Pack A route
+contract check with zero diagnostics, and normalized-overlay typecheck exit 0.
+The broader `-k code_generator` run passed 356 tests with four known
+baseline/environment failures; no preview or ready result was produced by this
+slot.
+
 ## 2026-09-10 12:00 +05:30 - Repair-budget default reconciliation
 
 The configured repair policy was described two different ways: `settings.py`
