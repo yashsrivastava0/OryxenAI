@@ -1,5 +1,34 @@
 # Code Generator Issues
 
+## 2026-09-10 22:52 +05:30 - Zero images across every observed live run traced to a soft-preference image policy default
+
+User-reported: generated portfolios never show images, including the
+campaign's one `ready` result (slot 5, run `ff3398b1`). Root-caused by
+tracing the full pipeline for that exact run and two others (slots 3, 4),
+all Pack A: Build Preparation's `visual_input.py` correctly researched and
+vetted 7 real image candidates per run (real Pixabay photos with license/
+attribution/dimensions, `category: "editorial_photo"`); `normalize_
+resource_category` in `resource_policy.py` already maps `"editorial_
+photo"` to `"image"` correctly; and all 7 slots correctly reached
+`execution/contract.json` intact -- confirmed by reading the actual
+compiled contract, not inferred. The gap was entirely in host policy:
+`image_policy.py`'s `build_image_policy_snapshot()` derived
+`minimum_visible_images=0`/`require_primary_route_image=false` from the
+configured defaults, so the planner prompt's only instruction was the
+soft "prefer a restrained supporting image placement... this preference
+is not a release gate" clause -- and the planner model declined every
+single one of 21 image opportunities across 3 runs (7 per run x 3 runs),
+despite real vetted material being available every time.
+
+Commit `882574e` (D-092) raises `minimum_visible_images` to 2 (matching
+the existing `preferred_visible_images=2`, making "preferred" an actual
+floor the planner prompt enforces as `PLAN_REQUIRED_IMAGE_PLACEMENT` if
+violated) and `require_primary_route_image` to `true`, in both
+`settings.py` and `config/app.toml`. The exemption path for packs with
+zero approved image slots is untouched and still correctly forces 0/False
+regardless. Not yet live-confirmed -- the next live run should verify at
+least 2 real images render with valid, non-broken sources.
+
 ## 2026-09-10 19:50 +05:30 - Pack A live disposition (slot 5, FINAL) — ready, campaign closed
 
 Run `ff3398b1-86cb-49cd-b12b-5f5857ded187` (Pack A retry, campaign-B slot
