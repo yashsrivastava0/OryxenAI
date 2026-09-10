@@ -12,6 +12,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     normalize_generated_route_contract,
     normalize_route_batch_motion_changes,
     normalize_route_batch_motion_sources,
+    normalize_route_batch_selected_work_sources,
     validate_local_imports,
     validate_repository,
     validate_route_batch_contract,
@@ -1334,6 +1335,36 @@ def test_route_batch_motion_normalizer_only_rewrites_css_declarations() -> None:
     assert "/* max-width: fiftych */" in body
     assert "max-width: 50ch" in body
     assert "margin: 25px" in body
+
+
+def test_route_batch_selected_work_normalizer_materializes_lifecycle_cue() -> None:
+    sources = {
+        "src/routes/home/sections/SelectedWork.tsx": """export default function SelectedWork() {
+  return <section id="selected-work" data-content-id="home:selected-work">
+    <Reveal className="selected-work-intro" />
+    <article className="work-item" />
+  </section>;
+}
+""",
+        "src/routes/home/sections/SelectedWork.css": """#selected-work {
+  padding-block: var(--space-8);
+}
+""",
+    }
+
+    assert normalize_route_batch_selected_work_sources(sources)
+    selected_work = sources["src/routes/home/sections/SelectedWork.tsx"]
+    assert 'data-distinctive-move="selected-work-lifecycle"' in selected_work
+    assert "observe" in selected_work
+    assert "shape" in selected_work
+    assert "deliver" in selected_work
+    styles = sources["src/routes/home/sections/SelectedWork.css"]
+    assert ".selected-work-lifecycle" in styles
+    assert "--color-border-subtle" in styles
+
+    first_pass = dict(sources)
+    assert not normalize_route_batch_selected_work_sources(sources)
+    assert sources == first_pass
 
 
 def test_route_batch_contract_accepts_any_valid_css_attribute_selector_quote_style(

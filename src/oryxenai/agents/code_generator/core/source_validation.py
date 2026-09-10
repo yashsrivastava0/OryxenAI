@@ -1521,6 +1521,134 @@ def normalize_route_batch_motion_sources(
     return changed
 
 
+def normalize_route_batch_selected_work_sources(sources: dict[str, str]) -> bool:
+    """Materialize a sparse lifecycle cue admitted by the v4 blueprint.
+
+    The cue is a visual relationship between the selected-work groups, not an
+    additional evidence-bearing content item. Keep it deterministic and
+    idempotent so a model repair cannot spend its bounded budget on omitting a
+    mechanically checkable, blueprint-required treatment.
+    """
+
+    owner_path = next(
+        (
+            relative
+            for relative, source in sorted(sources.items())
+            if Path(relative).suffix.casefold() in {".tsx", ".jsx"}
+            and re.search(
+                r'data-content-id\s*=\s*["\'][^"\']*:selected-work["\']',
+                source,
+            )
+        ),
+        None,
+    )
+    if owner_path is None:
+        return False
+
+    style_path = Path(owner_path).with_suffix(".css").as_posix()
+    if style_path not in sources:
+        style_path = next(
+            (
+                relative
+                for relative in sources
+                if relative.casefold().endswith(".css")
+                and Path(relative).stem == Path(owner_path).stem
+            ),
+            "",
+        )
+    if not style_path:
+        return False
+
+    changed = False
+    owner_source = sources[owner_path]
+    lifecycle_class = "selected-work-lifecycle"
+    if lifecycle_class not in owner_source:
+        lifecycle_markup = """        <div
+          className="selected-work-lifecycle"
+          data-distinctive-move="selected-work-lifecycle"
+          aria-hidden="true"
+        >
+          <span className="selected-work-lifecycle__step">observe</span>
+          <span className="selected-work-lifecycle__line" />
+          <span className="selected-work-lifecycle__marker">•</span>
+          <span className="selected-work-lifecycle__step">shape</span>
+          <span className="selected-work-lifecycle__line" />
+          <span className="selected-work-lifecycle__marker">•</span>
+          <span className="selected-work-lifecycle__step">deliver</span>
+        </div>
+"""
+        if "</Reveal>" in owner_source:
+            updated = owner_source.replace("</Reveal>", f"</Reveal>\n{lifecycle_markup}", 1)
+        else:
+            article_match = re.search(r"(?m)^\s*<article\b", owner_source)
+            if article_match is None:
+                return False
+            updated = (
+                owner_source[: article_match.start()]
+                + lifecycle_markup
+                + owner_source[article_match.start() :]
+            )
+        sources[owner_path] = updated
+        changed = True
+
+    style_source = sources[style_path]
+    if lifecycle_class not in style_source:
+        lifecycle_css = """
+
+/* OryxenAI trusted selected-work lifecycle cue */
+.selected-work-lifecycle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block: var(--space-3) var(--space-2);
+  padding-block: var(--space-3);
+  border-block: var(--border-subtle);
+  color: var(--color-ink-secondary);
+  font-size: var(--type-label-min);
+  font-weight: 600;
+  letter-spacing: var(--type-label-tracking);
+  line-height: var(--type-label-line-height);
+  text-transform: uppercase;
+}
+
+.selected-work-lifecycle__step {
+  white-space: nowrap;
+}
+
+.selected-work-lifecycle__line {
+  flex: 1 1 2rem;
+  min-inline-size: 2rem;
+  block-size: var(--size-rule);
+  background: var(--color-border-subtle);
+}
+
+.selected-work-lifecycle__marker {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--size-marker);
+  block-size: var(--size-marker);
+  color: var(--color-accent-signal);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+@media (max-width: 767px) {
+  .selected-work-lifecycle {
+    gap: var(--space-2);
+  }
+
+  .selected-work-lifecycle__line {
+    flex-basis: 1rem;
+    min-inline-size: 1rem;
+  }
+}
+"""
+        sources[style_path] = style_source.rstrip() + lifecycle_css + "\n"
+        changed = True
+    return changed
+
+
 def _combined_route_sources(sources: dict[str, str]) -> str:
     return "\n".join(
         value

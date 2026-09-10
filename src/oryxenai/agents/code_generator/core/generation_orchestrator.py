@@ -116,6 +116,7 @@ from oryxenai.agents.code_generator.core.source_validation import (
     SourceValidationError,
     normalize_route_batch_motion_changes,
     normalize_route_batch_motion_sources,
+    normalize_route_batch_selected_work_sources,
     validate_generation_changes_incrementally,
     validate_route_batch_contract,
     validate_route_composer_contract,
@@ -2531,6 +2532,8 @@ class CodeGeneratorGenerationOrchestrator:
         merged_files.update({change.path: change.complete_utf8_content for change in normalized})
         if motion_beats:
             normalize_route_batch_motion_sources(merged_files, motion_beats=motion_beats)
+        if _v4_selected_work_lifecycle_required(plan, unit):
+            normalize_route_batch_selected_work_sources(merged_files)
         merged_signatures = _merge_pending_signatures(
             pending_signatures, list(changes.exported_signatures)
         )
@@ -4566,6 +4569,29 @@ def _v4_motion_beats_for_unit(
         for beat in blueprint.motion_beats
         if beat.route_id == str(getattr(unit, "route_id", "")) and beat.section_id in section_ids
     ]
+
+
+def _v4_selected_work_lifecycle_required(
+    plan: SitePlan | Any,
+    unit: WorkUnit | Any,
+) -> bool:
+    """Identify route batches whose approved blueprint calls for the cue."""
+
+    blueprint = getattr(plan, "experience_blueprint", None)
+    if not isinstance(blueprint, ExperienceBlueprintV4):
+        return False
+    section_ids = set(getattr(unit, "section_ids", []) or [])
+    if not any(
+        section_id.rsplit(":", 1)[-1].casefold() == "selected-work" for section_id in section_ids
+    ):
+        return False
+    route_id = str(getattr(unit, "route_id", ""))
+    return any(
+        move.route_id == route_id
+        and "lifecycle" in move.thesis.casefold()
+        and "cue" in move.thesis.casefold()
+        for move in blueprint.distinctive_moves
+    )
 
 
 def _v4_distinctive_moves_for_unit(
