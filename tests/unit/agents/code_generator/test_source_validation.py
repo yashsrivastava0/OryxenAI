@@ -1338,6 +1338,16 @@ def test_route_batch_motion_normalizer_only_rewrites_css_declarations() -> None:
 
 
 def test_route_batch_selected_work_normalizer_materializes_lifecycle_cue() -> None:
+    """Live-discovered 2026-09-10 (run 0b56cda5, slot 4): color token names
+    are chosen per run by the model's own creative direction ("ink-muted"/
+    "signal" in one run, "ink"/"paper" in another), never a fixed system
+    contract. The normalizer used to hardcode assumed color names
+    (--color-ink-secondary/--color-border-subtle/--color-accent-signal)
+    that did not exist in this run's actual generated tokens, so the
+    deterministic fix for one gap (a missing lifecycle cue) introduced a
+    new one (SOURCE_CSS_CUSTOM_PROPERTY_UNBOUND). It must resolve against
+    whatever color tokens this run actually generated instead."""
+
     sources = {
         "src/routes/home/sections/SelectedWork.tsx": """export default function SelectedWork() {
   return <section id="selected-work" data-content-id="home:selected-work">
@@ -1350,6 +1360,13 @@ def test_route_batch_selected_work_normalizer_materializes_lifecycle_cue() -> No
   padding-block: var(--space-8);
 }
 """,
+        "src/design/generated-tokens.css": """:root {
+  --color-ink-strong: #121212;
+  --color-ink-muted: #5a5a5a;
+  --color-signal: #2b6cff;
+  --color-border: #d9d9d9;
+}
+""",
     }
 
     assert normalize_route_batch_selected_work_sources(sources)
@@ -1360,11 +1377,37 @@ def test_route_batch_selected_work_normalizer_materializes_lifecycle_cue() -> No
     assert "deliver" in selected_work
     styles = sources["src/routes/home/sections/SelectedWork.css"]
     assert ".selected-work-lifecycle" in styles
-    assert "--color-border-subtle" in styles
+    assert "--color-border-subtle" not in styles
+    assert "--color-ink-secondary" not in styles
+    assert "--color-accent-signal" not in styles
+    assert "var(--color-ink-muted)" in styles
+    assert "var(--color-border)" in styles
+    assert "var(--color-signal)" in styles
 
     first_pass = dict(sources)
     assert not normalize_route_batch_selected_work_sources(sources)
     assert sources == first_pass
+
+
+def test_route_batch_selected_work_normalizer_omits_color_when_none_resolve() -> None:
+    """No design-tokens file at all: the normalizer must degrade gracefully
+    (omit the color/background declarations) rather than emit a var()
+    reference to a token it invented and cannot prove exists."""
+
+    sources = {
+        "src/routes/home/sections/SelectedWork.tsx": """export default function SelectedWork() {
+  return <section id="selected-work" data-content-id="home:selected-work">
+    <article className="work-item" />
+  </section>;
+}
+""",
+        "src/routes/home/sections/SelectedWork.css": "#selected-work { padding-block: var(--space-8); }\n",
+    }
+
+    assert normalize_route_batch_selected_work_sources(sources)
+    styles = sources["src/routes/home/sections/SelectedWork.css"]
+    assert ".selected-work-lifecycle" in styles
+    assert "--color-" not in styles
 
 
 def test_route_batch_contract_accepts_any_valid_css_attribute_selector_quote_style(
