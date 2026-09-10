@@ -236,10 +236,11 @@ negative rejection fixtures and must never be selected for a paid run.
 ## Pre-live-fix confirmation campaign — bounded five-run cap (2026-09-10)
 
 This is a new campaign after the 2026-09-10 final five-slot campaign. The
-historical `Final reliability campaign` table above is unchanged. Two live
-slots have now been consumed; the campaign remains authorized for at most five
-full-pipeline runs, stopping at two cross-pack ready results, an insufficient
-balance, or the fifth consumed run.
+historical `Final reliability campaign` table above is unchanged. Three live
+slots have now been consumed (a Claude Code -> Codex -> Claude Code handoff
+occurred between slots 2 and 3, same shared 5-run budget); the campaign
+remains authorized for at most five full-pipeline runs, stopping at two
+cross-pack ready results, an insufficient balance, or the fifth consumed run.
 
 ### Offline gate before slot 1
 
@@ -296,10 +297,11 @@ stale balance figures from earlier notes remain inadmissible.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Fresh user-supplied provider key/model/quota check; HTTP 200 | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `dd721d1e-cde9-4349-af50-27660ab6d779` | `needs_attention` - `SOURCE_REPAIR_EXHAUSTED` | Initial receipt `e170f1a784920512ef8fdefed1cb3849d28b41bcd9164493c401ad254bb21970` contained `fiftych`/`sixtyfivech`, a trusted hero-selector mismatch, and custom selected-work motion without the required guarded opacity/setter; final terminal evidence was the missing selected-work guard. | No verification, build, or preview promotion; accepted checkpoint `0584a38d4ab6058d064e249cfc4c83c44374262cf76099724609cef62aa57442` was pre-route foundation, so no ready result. | Full live slot 1/5 consumed. Generation job `d0b600f9-cc6b-440d-adc3-25eb5e5023c5` succeeded without a worker error; repair receipts `3343dd8d62d5a81a1313bdc8b228211134a772218d0a1ba38a423f44a7a76d72` and `f51d9622fdb8c79de6895b03a19894999261c0557f8521bde913015eaa5f4b44`. Host fix `22db99c` is offline-verified; retry A only after service restart and re-preflight. |
 | 2 | Fresh user-supplied provider key/model/quota check; HTTP 200 | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `f8a3d88c-9546-40fe-ae6b-714e775c4e24` | `needs_attention` - `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` | DB run evidence points to the accepted checkpoint `b89f1e433d7e3339831da46c7112c79cdeef57e84a552a938446aaa89ca53c29`; integration review had one blocking `missing-selected-work-lifecycle-cue` finding at `src/routes/home-4ea14058/sections/home-selected-work-2f0991ad.tsx:5`. The section rendered its intro and three work articles but no conceptual lifecycle cue/marker. | No accepted ready result or promoted preview. Plan, acquire, generate, and verify jobs all succeeded without an error payload; the bounded repair receipt `5ac54cd735290adb8b6582ce6eb44971575c5413cfc563b1fab113f34e02ddfe` (ledger file `65c8da3a510d5134ac4c6ce25bd6d57e7d833272b9ee3f081e7ba31fa9d4d61c.json`) changed only hero CSS, leaving the blocking selected-work cue absent. | Full live slot 2/5 consumed. Commit `d9caf30` materializes the blueprint-required cue deterministically; targeted suites passed 139 and the exact accepted-tree overlay passed `source:audit`/`typecheck` with exit 0. Retry A only after service restart and fresh preflight. |
+| 3 | Fresh provider key/quota check (GET /v1/models HTTP 200; trivial gpt-4o-mini completion HTTP 200) | A - `5f144f04-2789-48c6-9b1c-6bd11c87abdb` | `5cf49daa-7ff5-404c-b884-d17cae272598` | `needs_attention` - `SOURCE_CONTRACT_FAILED` | Accepted checkpoint `b3d5da49e957053ce94c72daa2d759e7725f9822b6cda1f0503c7ea95057e7a3`; two blocking diagnostics on motion beat `motion:home:hero-lifecycle-reveal` (`SOURCE_MOTION_BEAT_UNIMPLEMENTED`, `SOURCE_MOTION_REDUCED_MOTION_MISSING`) at `src/routes/home-4ea14058/sections/home-hero-ecdc18c2.tsx`. The model correctly rendered the trusted `<Reveal>` component for catalogue pattern `reveal-fade-rise`, but `typescript_ast_audit.py`'s final motion-beat check had no trusted-pattern exception (unlike `source_validation.py`'s pre-gate and the route-motion normalizer) and demanded CSS/reduced-motion evidence that legitimately lives in `SharedSystems.tsx`/`motion.css`. | No verification success or promoted preview; repair_receipts empty (rejected at the final source-contract gate, not during bounded repair). | Full live slot 3/5 consumed. Commit `e7d9284` mirrors the existing trusted-pattern exception into `typescript_ast_audit.py`; verified 2 → 0 diagnostics against the exact rejected checkpoint offline. Retry A for slot 4 after this fix. API this session ran without `--reload` on port 8001 to avoid a local Windows uvicorn/asyncio SelectorEventLoop subprocess bug unrelated to Code Generator logic (see `code generator issues.md`). |
 
 Pack order is A → B → C → A after successful cross-pack results. A failed
 pack is retried before advancing, but only after its root cause is fixed and
-re-verified offline; slot 2 retried A and, because it also failed, slot 3
+re-verified offline; slots 2 and 3 both retried A and both failed, so slot 4
 remains a retry of A. Pack A is first because its
 furthest historical run is the direct target of the offline-confirmed
 conditional-marker fix. Pack A is

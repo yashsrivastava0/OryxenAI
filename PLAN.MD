@@ -30,14 +30,17 @@ or be absent, while a genuinely broken rendered <img> remains blocking.
 Further Pexels/Unsplash URL-refresh or attribution work is deferred because no
 live failure evidence points there.
 
-Current campaign status after the first two live slots: both were Pack A and
-both ended `needs_attention` without a ready portfolio. Slot 1 ended at source
+Current campaign status after three live slots: all were Pack A and all
+ended `needs_attention` without a ready portfolio. Slot 1 ended at source
 generation with `SOURCE_REPAIR_EXHAUSTED`; slot 2 reached verification and
 ended with `QUALITY_REVIEW_REJECTED_AFTER_REPAIR` because the selected-work
-section omitted the blueprint's conceptual lifecycle cue. Commit `d9caf30`
-now materializes that cue deterministically. No third slot has been reserved;
-the next allowed slot is another Pack A retry after the offline gate and
-service restart.
+section omitted the blueprint's conceptual lifecycle cue (fixed by
+`d9caf30`); slot 3 reached the final source-contract gate and ended with
+`SOURCE_CONTRACT_FAILED` because the final motion-beat audit had no
+trusted-pattern exception, rejecting a correct `<Reveal>`-based hero motion
+beat (fixed by `e7d9284`). No fourth slot has been reserved; the next
+allowed slot is another Pack A retry after the offline gate and service
+restart.
 
 ## 2. Step 1 — pre-live fix and decision boundary
 
