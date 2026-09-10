@@ -2346,19 +2346,32 @@ class QualityFindingV2(BaseModel):
 
     @model_validator(mode="after")
     def _concrete_evidence(self) -> QualityFindingV2:
-        if not all(
-            value.strip()
-            for value in (
-                self.finding_id,
-                self.owner_work_unit_id,
-                self.code,
-                self.file,
-                self.marker,
-                self.evidence,
-                self.requested_outcome,
+        # Live-discovered 2026-09-10: naming only the rule ("quality findings
+        # require concrete source and owner evidence"), not which of these
+        # seven fields was actually left blank, gave the bounded
+        # schema-correction retry (run_integration_review_operation's
+        # _semantic_retry_feedback, which falls back to the raw validation
+        # error for a plain ValueError) nothing concrete to act on -- the
+        # model failed the same way on both attempts and the run terminated
+        # with GENERATION_OUTPUT_INVALID. State the exact empty field(s).
+        empty = [
+            name
+            for name, value in (
+                ("finding_id", self.finding_id),
+                ("owner_work_unit_id", self.owner_work_unit_id),
+                ("code", self.code),
+                ("file", self.file),
+                ("marker", self.marker),
+                ("evidence", self.evidence),
+                ("requested_outcome", self.requested_outcome),
             )
-        ):
-            raise ValueError("quality findings require concrete source and owner evidence")
+            if not value.strip()
+        ]
+        if empty:
+            raise ValueError(
+                "quality findings require concrete source and owner evidence; "
+                f"empty field(s): {', '.join(empty)}"
+            )
         return self
 
 
