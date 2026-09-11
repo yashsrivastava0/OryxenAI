@@ -1,4 +1,5 @@
 import { useState, useMemo } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import { SafeMarkdown, extractHeadings } from "./SafeMarkdown";
 import { RevisionComposer } from "./RevisionComposer";
 import { copyJson, formatJson, type CopyJsonResult } from "../data/clipboard";
@@ -23,10 +24,19 @@ export interface ArtifactSurfaceProps {
   warnings?: string[];
   artifactTypeName: string; // e.g. "brief", "content plan", "visual direction"
   finalJsonOutput?: unknown;
-  approvalActionLabel?: string;
-  requireApprovalConfirmation?: boolean;
-  onApprove?: () => Promise<void>;
+  /** The next agent this artifact hands off to. When set, the single primary
+   * action reads "Approve & continue to {nextStageName}" and both approves
+   * and advances the pipeline in one click — no separate confirmation step
+   * and no separate "Continue" screen afterward. Omit only for a terminal
+   * artifact with no downstream agent. */
+  nextStageName?: string;
+  onApproveAndContinue?: () => Promise<void>;
   onRevise?: (revisionRequest: string) => Promise<void>;
+  /** Rich custom content rendered above the markdown/structured sections —
+   * a sitemap, palette swatches, a peek-card deck. Lets a stage replace
+   * flattened markdown with real components while keeping the shared
+   * header/warnings/approval chrome. */
+  children?: ComponentChildren;
 }
 
 export function ArtifactSurface({
@@ -40,13 +50,12 @@ export function ArtifactSurface({
   warnings = [],
   artifactTypeName,
   finalJsonOutput,
-  approvalActionLabel,
-  requireApprovalConfirmation = true,
-  onApprove,
+  nextStageName,
+  onApproveAndContinue,
   onRevise,
+  children,
 }: ArtifactSurfaceProps) {
   const [showRevisionComposer, setShowRevisionComposer] = useState(false);
-  const [confirmingApproval, setConfirmingApproval] = useState(false);
   const [approving, setApproving] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | CopyJsonResult>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -58,16 +67,21 @@ export function ArtifactSurface({
     return formatJson(finalJsonOutput);
   }, [finalJsonOutput]);
 
-  const handleApprove = async () => {
-    if (!onApprove || approving) return;
+  const handleApproveAndContinue = async () => {
+    if (!onApproveAndContinue || approving) return;
     setApproving(true);
     setError(null);
     try {
-      await onApprove();
-      setConfirmingApproval(false);
+      await onApproveAndContinue();
+      // On success this component usually unmounts anyway (the shell
+      // navigates to the next stage, or the parent flips `isApproved` and
+      // stops rendering this action). Reset `approving` regardless: relying
+      // on every future caller to unmount rather than resolve is exactly
+      // the kind of coupling that produces a permanently stuck button the
+      // one time a caller doesn't.
+      setApproving(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Approval could not be saved. Please try again.");
-    } finally {
       setApproving(false);
     }
   };
@@ -150,6 +164,9 @@ export function ArtifactSurface({
 
         {/* Reading column */}
         <div className="artifact-body">
+          {/* Rich custom content (sitemap, palette, peek-card decks, ...) */}
+          {children}
+
           {/* Main prose */}
           {markdownContent && <SafeMarkdown content={markdownContent} />}
 
@@ -197,63 +214,47 @@ export function ArtifactSurface({
 
           {error && <p className="artifact-error" role="alert">{error}</p>}
 
-          {/* Review actions when stage is in review and mutable */}
-          {!isApproved && canMutate && onApprove && (
+          {/* Review actions when stage is in review and mutable: one primary
+              action fuses approval with advancing the pipeline, plus chat
+              (revise) as the only alternative — no separate confirmation
+              step and no separate "start next agent" screen afterward. */}
+          {!isApproved && canMutate && onApproveAndContinue && (
             <div className="artifact-review-actions">
-              {!showRevisionComposer && !confirmingApproval && (
+              {!showRevisionComposer && (
                 <div className="action-buttons-row">
                   <button
                     type="button"
-                    className="btn-primary"
+                    className={`btn-primary handoff-cta ${approving ? "is-approving" : ""}`}
                     disabled={approving}
-                    onClick={() => requireApprovalConfirmation
-                      ? setConfirmingApproval(true)
-                      : void handleApprove()}
+                    onClick={() => void handleApproveAndContinue()}
                   >
-                    {approving ? "Approving..." : approvalActionLabel ?? `Approve ${artifactTypeName}`}
+                    <span className="handoff-cta-label">
+                      {approving
+                        ? "Approving…"
+                        : nextStageName
+                          ? `Approve & continue to ${nextStageName}`
+                          : `Approve ${artifactTypeName}`}
+                    </span>
+                    {!approving && nextStageName && (
+                      <svg className="handoff-cta-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
                   </button>
                   {onRevise && (
                     <button
                       type="button"
                       className="btn-secondary"
+                      disabled={approving}
                       onClick={() => setShowRevisionComposer(true)}
                     >
-                      Request a revision
+                      Chat & revise
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Inline Approval Confirmation */}
-              {confirmingApproval && (
-                <div className="approval-confirmation-box" role="dialog" aria-labelledby="approval-heading">
-                  <h3 id="approval-heading">Approve this {artifactTypeName}?</h3>
-                  <p className="confirmation-explanation">
-                    Approving locks this draft as the verified foundation for the next stage.
-                    The next stage will not start until you explicitly choose to continue.
-                  </p>
-                  <div className="confirmation-actions">
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      disabled={approving}
-                      onClick={handleApprove}
-                    >
-                      {approving ? "Approving..." : `Yes, approve ${artifactTypeName}`}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      disabled={approving}
-                      onClick={() => setConfirmingApproval(false)}
-                    >
-                      Keep reviewing
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Revision Composer Modal/Sheet */}
+              {/* Revision Composer, the one alternative to approving as-is */}
               {showRevisionComposer && onRevise && (
                 <RevisionComposer
                   artifactName={artifactTypeName}

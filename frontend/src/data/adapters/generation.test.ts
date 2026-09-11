@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adaptCodeGenerator } from "./generation";
+import { adaptCodeGenerator, friendlyRouteLabel } from "./generation";
 import {
   generationNeedsAttentionNoPreview,
   generationNeedsAttentionWithCandidate,
@@ -50,5 +50,18 @@ describe("adaptCodeGenerator", () => {
 
   it("fails closed on unknown status", () => {
     expect(adaptCodeGenerator({ status: "future" }, true).state).toBe("unsupported");
+  });
+});
+
+describe("friendlyRouteLabel", () => {
+  it("renders a human-friendly page name instead of the raw route id", () => {
+    expect(friendlyRouteLabel("home", "/")).toBe("Home");
+    expect(friendlyRouteLabel("case_study_queueguard", "/case-studies/queueguard")).toBe("Case Study Queueguard");
+    expect(friendlyRouteLabel("about-me", "/about")).toBe("About Me");
+  });
+
+  it("falls back to the bare path when no route id is available", () => {
+    expect(friendlyRouteLabel("", "/contact")).toBe("/contact");
+    expect(friendlyRouteLabel("", "")).toBe("/");
   });
 });

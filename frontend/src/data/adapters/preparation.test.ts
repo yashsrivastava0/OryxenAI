@@ -23,6 +23,21 @@ describe("adaptBuildPreparation", () => {
     expect(view.agentOutput).toEqual({ stage: "compose_visual_brief", nested: { retained: true } });
   });
 
+  it("parses resource_index and component_index into structured, renderable fields (previously only counted)", () => {
+    const view = adaptBuildPreparation(preparationReady, true, true);
+    expect(view.resourceIndexCount).toBe(1);
+    expect(view.resourceIndex).toHaveLength(1);
+    expect(view.resourceIndex[0]?.roleId).toBe("home-hero-bg");
+    expect(view.resourceIndex[0]?.status).toBe("candidates_found");
+    expect(view.resourceIndex[0]?.candidates[0]?.previewUrl).toContain("images.unsplash.com");
+    expect(view.resourceIndex[0]?.candidates[0]?.attribution).toBe("Photo by John Doe on Unsplash");
+
+    expect(view.componentIndexCount).toBe(1);
+    expect(view.componentIndex).toHaveLength(1);
+    expect(view.componentIndex[0]?.roleId).toBe("framer-motion-reveal");
+    expect(view.componentIndex[0]?.suggestions[0]?.itemUrl).toBe("https://motion.dev/docs/react-quick-start");
+  });
+
   it("requires regeneration for stale output and surfaces retryable errors", () => {
     expect(adaptBuildPreparation(preparationStale, true, true).state).toBe("attention");
     const attention = adaptBuildPreparation(preparationNeedsAttention, true, true);

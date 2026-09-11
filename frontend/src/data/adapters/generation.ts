@@ -20,6 +20,20 @@ export interface GenerationPreviewVM {
   verificationStatus?: "verified" | "unverified";
 }
 
+/** Human-friendly page names for the theater's route selector, derived by
+ * pairing routeIds with routePaths positionally (both arrays are emitted
+ * in the same route order by the backend — session_schemas.py's
+ * ActivePreview). Falls back to the bare path when no id is available. */
+export function friendlyRouteLabel(routeId: string, path: string): string {
+  if (!routeId) return path || "/";
+  if (routeId === "home") return "Home";
+  return routeId
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => word[0]!.toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export interface GenerationViewModel extends StageViewModel {
   status: string;
   stale: boolean;

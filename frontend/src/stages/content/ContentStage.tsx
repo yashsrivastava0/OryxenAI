@@ -1,19 +1,20 @@
 import type { ContentViewModel } from "../../data/adapters/content";
 import { finalAgentOutput } from "../../data/final-agent-output";
-import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
-import { HandoffPanel } from "../../components/HandoffPanel";
+import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
+import { SiteMap } from "../../components/SiteMap";
+import { PeekCard } from "../../components/PeekCard";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
   canMutate: boolean;
   onStart: () => Promise<void>;
-  onApprove: () => Promise<void>;
+  /** Approves the content plan and starts Visual Design Director in one action. */
+  onApproveAndContinue: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
-  onContinueToDesign: () => void;
   onStop?: () => Promise<void>;
   inFlight?: boolean;
 }
@@ -22,9 +23,8 @@ export function ContentStage({
   view,
   canMutate,
   onStart,
-  onApprove,
+  onApproveAndContinue,
   onRevise,
-  onContinueToDesign,
   onStop,
   inFlight = false,
 }: ContentStageProps) {
@@ -95,75 +95,6 @@ export function ContentStage({
   // review or complete
   const isApproved = view.state === "complete";
 
-  // Build structured sections for ArtifactSurface
-  const structuredSections: ArtifactSectionItem[] = [];
-
-  // Strategy section
-  if (view.positioning || view.userSummary) {
-    structuredSections.push({
-      id: "strategy",
-      title: "Core Positioning & Strategy",
-      contentMarkdown: view.positioning
-        ? `**Positioning:** ${view.positioning}\n\n${view.userSummary}`
-        : view.userSummary,
-    });
-  }
-
-  // Route Plan section
-  if (view.routePlan.length > 0) {
-    const routeMarkdown = view.routePlan
-      .map(
-        (r) =>
-          `### \`${r.path}\` — ${r.title}\n* **Purpose:** ${r.purpose}\n* **Status:** \`${r.publicationStatus}\`\n* **Audience takeaway:** ${r.audienceTakeaway}\n* **Sections:** ${r.sectionSequence.map((s) => `\`${s}\``).join(", ")}`,
-      )
-      .join("\n\n---\n\n");
-
-    structuredSections.push({
-      id: "routes",
-      title: "Site Architecture & Routes",
-      badge: `${view.routePlan.length} routes planned`,
-      contentMarkdown: routeMarkdown,
-    });
-  }
-
-  // Page Content Packs section
-  if (view.pageContentPacks.length > 0) {
-    const packsMarkdown = view.pageContentPacks
-      .map((pack) => {
-        const sectionsText = pack.sections
-          .map((sec) => {
-            const headline = (sec.content.headline as string) || (sec.content.title as string) || sec.purpose;
-            const subhead = (sec.content.subheadline as string) || (sec.content.body as string) || "";
-            return `#### Section: \`${sec.sectionId}\` (${sec.priority || "standard"})\n*Purpose: ${sec.purpose}*\n\n${headline ? `**${headline}**\n\n` : ""}${subhead}`;
-          })
-          .join("\n\n");
-        return `### Route: \`${pack.routeId}\`\n\n${sectionsText}`;
-      })
-      .join("\n\n---\n\n");
-
-    structuredSections.push({
-      id: "sections",
-      title: "Page Content Packs",
-      contentMarkdown: packsMarkdown,
-    });
-  }
-
-  // Strategy Decisions section
-  if (view.decisionBasis.length > 0) {
-    const decisionsMarkdown = view.decisionBasis
-      .map(
-        (d) =>
-          `* **${d.decision.replace(/_/g, " ")}:** \`${d.value}\` (${d.basis.replace(/_/g, " ")}) — *${d.rationale}*`,
-      )
-      .join("\n");
-
-    structuredSections.push({
-      id: "decisions",
-      title: "Strategy Decisions",
-      contentMarkdown: decisionsMarkdown,
-    });
-  }
-
   return (
     <div className="content-stage-view">
       <ArtifactSurface
@@ -172,27 +103,103 @@ export function ContentStage({
         statusBadge={isApproved ? "Approved" : "Ready for review"}
         isApproved={isApproved}
         canMutate={canMutate}
-        structuredSections={structuredSections}
         finalJsonOutput={finalAgentOutput("content_architect", view.raw)}
         warnings={view.warnings}
         metadata={[
           { label: "Planned Routes", value: String(view.routePlan.length) },
           { label: "Status", value: isApproved ? "Locked & Approved" : "Under Review" },
         ]}
-        onApprove={onApprove}
-        onRevise={onRevise}
-      />
+        nextStageName={isApproved ? undefined : "Visual Design Director"}
+        onApproveAndContinue={isApproved ? undefined : onApproveAndContinue}
+        onRevise={isApproved ? undefined : onRevise}
+      >
+        {(view.positioning || view.userSummary) && (
+          <section className="content-strategy-card">
+            <p className="eyebrow">Core positioning & strategy</p>
+            {view.positioning && <p className="content-positioning">{view.positioning}</p>}
+            {view.userSummary && <p className="content-summary">{view.userSummary}</p>}
+          </section>
+        )}
 
-      {isApproved && (
-        <HandoffPanel
-          completedStageName="Content Plan"
-          nextStageName="Visual Design Director"
-          summary="Your site content and route architecture are approved and locked. Visual Design Director is ready to establish the creative thesis and page-by-page visual language."
-          nextDescription="Visual Design Director establishes typography, color, motion rules, and page-level composition."
-          actionLabel="Continue to Design"
-          onContinue={onContinueToDesign}
-        />
-      )}
+        {view.routePlan.length > 0 && <SiteMap routes={view.routePlan} />}
+
+        {view.pageContentPacks.length > 0 && (
+          <div className="content-section-deck">
+            <p className="eyebrow">Page content · {view.pageContentPacks.reduce((sum, pack) => sum + pack.sections.length, 0)} sections</p>
+            {view.pageContentPacks.map((pack) => {
+              const route = view.routePlan.find((r) => r.routeId === pack.routeId);
+              return (
+                <div key={pack.routeId} className="content-section-deck-route">
+                  <p className="content-section-deck-route-label">{route?.path || pack.routeId}</p>
+                  {pack.sections.map((sec) => {
+                    const headline = (sec.content.headline as string) || (sec.content.title as string) || sec.purpose;
+                    const subhead = (sec.content.subheadline as string) || (sec.content.body as string) || "";
+                    const otherKeys = Object.keys(sec.content).filter(
+                      (key) => !["headline", "title", "subheadline", "body"].includes(key),
+                    );
+                    return (
+                      <PeekCard
+                        key={sec.sectionId}
+                        eyebrow={sec.sectionId}
+                        title={headline || sec.purpose}
+                        badge={sec.priority || undefined}
+                        summary={subhead || sec.purpose}
+                      >
+                        <p className="peek-card-purpose">{sec.purpose}</p>
+                        {subhead && <p>{subhead}</p>}
+                        {otherKeys.length > 0 && (
+                          <dl className="content-section-extra-fields">
+                            {otherKeys.map((key) => {
+                              const value = sec.content[key];
+                              const rendered = Array.isArray(value)
+                                ? value.map((item) => (typeof item === "string" ? item : JSON.stringify(item))).join(", ")
+                                : typeof value === "string"
+                                  ? value
+                                  : JSON.stringify(value);
+                              return (
+                                <div key={key}>
+                                  <dt>{key.replace(/_/g, " ")}</dt>
+                                  <dd>{rendered}</dd>
+                                </div>
+                              );
+                            })}
+                          </dl>
+                        )}
+                      </PeekCard>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {view.decisionBasis.length > 0 && (
+          <details className="content-decisions-drawer">
+            <summary>Strategy decisions · {view.decisionBasis.length}</summary>
+            <ul>
+              {view.decisionBasis.map((d, idx) => (
+                <li key={idx}>
+                  <strong>{d.decision.replace(/_/g, " ")}:</strong> {d.value}
+                  <span className="content-decision-basis"> ({d.basis.replace(/_/g, " ")})</span>
+                  {d.rationale && <p className="content-decision-rationale">{d.rationale}</p>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {view.unresolvedIssues.length > 0 && (
+          <div className="content-unresolved-banner" role="note">
+            <p className="warnings-title">Unresolved items</p>
+            <ul>
+              {view.unresolvedIssues.map((issue, idx) => (
+                <li key={idx}>{issue}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </ArtifactSurface>
     </div>
   );
 }

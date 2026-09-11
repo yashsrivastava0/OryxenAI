@@ -23,7 +23,7 @@ describe("authenticated product boundary", () => {
     expect(source).toContain("/code-generator");
   });
 
-  it("keeps Discovery approval separate from the explicit Content start", async () => {
+  it("fuses Discovery brief approval with starting Content Architect in one user action", async () => {
     // @ts-expect-error vitest runs this contract check in Node
     const fs = await import("node:fs");
     // @ts-expect-error vitest runs this contract check in Node
@@ -34,17 +34,30 @@ describe("authenticated product boundary", () => {
       "utf8",
     );
 
-    const handler = appSource.slice(
-      appSource.indexOf("const handleApproveBrief"),
+    // handleApproveBrief itself only approves; the fused handler (used by
+    // the single UI action) explicitly composes it with starting Content.
+    const approveOnlyHandler = appSource.slice(
+      appSource.indexOf("const handleApproveBrief ="),
+      appSource.indexOf("const handleApproveBriefAndContinue"),
+    );
+    expect(approveOnlyHandler).toContain("approveDiscovery");
+    expect(approveOnlyHandler).not.toContain("startContentArchitect");
+
+    const fusedHandler = appSource.slice(
+      appSource.indexOf("const handleApproveBriefAndContinue"),
       appSource.indexOf("const runContentMutation"),
     );
-    expect(handler).toContain("approveDiscovery");
-    expect(handler).not.toContain("startContentArchitect");
-    expect(handler).toContain("Continue when you are ready to start Content Architect");
-    expect(stageSource).toContain('approvalActionLabel="Approve brief"');
-    expect(stageSource).toContain("requireApprovalConfirmation={false}");
-    expect(stageSource).toContain("onContinueToContent");
+    expect(fusedHandler).toContain("handleApproveBrief()");
+    expect(fusedHandler).toContain('selectStage("content")');
+    expect(fusedHandler).toContain("runContentMutation");
+
+    expect(stageSource).toContain("onApproveAndContinue");
     expect(appSource).toContain('state.content.state === "locked"');
+    // Every stage now shares one fused action (no more per-stage
+    // confirm-then-continue asymmetry) — Content->Design must use the same
+    // shape as Discovery->Content and Design->Prepare.
+    expect(appSource).toContain("handleApproveContentAndContinue");
+    expect(appSource).toContain("handleApproveDesignAndContinue");
   });
 
   it("repairs a stale incomplete Content result instead of looping on approval", async () => {
