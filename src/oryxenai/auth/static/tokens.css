@@ -52,8 +52,12 @@
   --type-body-lg: 400 1.125rem / 1.65 var(--font-body);
   --type-body: 400 1rem / 1.62 var(--font-body);
   --type-small: 400 0.875rem / 1.5 var(--font-body);
+  --type-h4: 650 1rem / 1.35 var(--font-body);
   --type-label: 600 0.72rem / 1.2 var(--font-mono);
   --type-label-tracking: 0.09em;
+  --type-eyebrow: 650 0.72rem / 1.2 var(--font-mono);
+  --type-eyebrow-tracking: 0.12em;
+  --type-caption: 400 0.78rem / 1.5 var(--font-body);
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -81,6 +85,18 @@
   --control-height-compact: 40px;
   --control-height-lg: 52px;
 
+  /* Elevation — layered editorial shadows. Soft tiers read as lifted paper;
+     the "edge" tiers are the deliberate hard-offset signature already used
+     by the admin reset modal/buttons, formalized here as reusable tokens
+     rather than one-off literals. Never a glow-only shadow. */
+  --shadow-xs: 0 1px 2px rgba(23, 26, 25, 0.05);
+  --shadow-sm: 0 2px 10px rgba(23, 26, 25, 0.05), 0 1px 2px rgba(23, 26, 25, 0.04);
+  --shadow-md: 0 10px 28px rgba(23, 26, 25, 0.09), 0 2px 6px rgba(23, 26, 25, 0.05);
+  --shadow-lg: 0 24px 56px rgba(23, 26, 25, 0.14), 0 4px 14px rgba(23, 26, 25, 0.07);
+  --shadow-signal: 0 10px 28px rgba(49, 87, 231, 0.2), 0 2px 8px rgba(49, 87, 231, 0.12);
+  --shadow-edge: 4px 4px 0 rgba(23, 26, 25, 0.92);
+  --shadow-edge-signal: 4px 4px 0 var(--signal);
+
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-snappy: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
@@ -88,11 +104,29 @@
   --duration-fast: 150ms;
   --duration-normal: 240ms;
   --duration-slow: 420ms;
+  --duration-slower: 620ms;
   --motion-response: 120ms;
   --motion-open: 180ms;
   --motion-surface-change: 260ms;
   --motion-handoff-sweep: 420ms;
   --motion-wait-cycle: 1200ms;
+  --motion-stagger-step: 55ms;
+
+  /* Theater — the one deliberate tonal departure, reserved for the Generate
+     & Preview stage so the generated portfolio (the actual artifact) reads
+     as the brightest thing on screen. Cobalt is lightened for AA contrast
+     against a near-black ground; everything else stays the same hue family
+     as the paper surfaces so it never feels like a different product. */
+  --theater-bg: #121110;
+  --theater-surface: #1a1917;
+  --theater-surface-raised: #221f1c;
+  --theater-ink: #f3f0e8;
+  --theater-ink-secondary: #c7c2b8;
+  --theater-graphite: #8d887e;
+  --theater-rule: #34312c;
+  --theater-rule-subtle: #262420;
+  --theater-signal: #6d8dff;
+  --theater-signal-subtle: rgba(109, 141, 255, 0.16);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -101,10 +135,12 @@
     --duration-fast: 1ms;
     --duration-normal: 1ms;
     --duration-slow: 1ms;
+    --duration-slower: 1ms;
     --motion-response: 1ms;
     --motion-open: 1ms;
     --motion-surface-change: 1ms;
     --motion-handoff-sweep: 1ms;
     --motion-wait-cycle: 1ms;
+    --motion-stagger-step: 0ms;
   }
 }

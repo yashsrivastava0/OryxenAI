@@ -35,11 +35,49 @@ export interface DiscoveryQuestionVM {
 
 export type DiscoveryRetryOperation = "questions" | "brief";
 
+export interface ProfileLinkVM {
+  label: string;
+  url: string;
+}
+
+export interface ExperienceEntryVM {
+  organization: string;
+  role: string;
+  dates: string;
+  highlights: string[];
+}
+
+export interface EducationEntryVM {
+  institution: string;
+  credential: string;
+  dates: string;
+}
+
+export interface ProjectEntryVM {
+  name: string;
+  summary: string;
+  contribution: string;
+  tech: string[];
+  link: string;
+}
+
+export interface StructuredProfileVM {
+  name: string;
+  currentTitle: string;
+  location: string;
+  links: ProfileLinkVM[];
+  experience: ExperienceEntryVM[];
+  education: EducationEntryVM[];
+  projects: ProjectEntryVM[];
+  skills: string[];
+  spokenLanguages: string[];
+}
+
 export interface DiscoveryViewModel extends StageViewModel {
   currentQuestions: DiscoveryQuestionVM[];
   answeredQuestionIds: string[];
   answeredTurns: Array<{ questionId: string; questionText: string; answerText: string }>;
-  brief: { title: string; userSummary: string; approved: boolean } | null;
+  brief: { title: string; markdown: string; userSummary: string; approved: boolean; profile: StructuredProfileVM } | null;
   safeError: (SafeStageError & { retryOperation: DiscoveryRetryOperation }) | null;
 }
 
@@ -69,6 +107,83 @@ const STATE_MAP: Record<string, StageState> = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+const EMPTY_PROFILE: StructuredProfileVM = {
+  name: "",
+  currentTitle: "",
+  location: "",
+  links: [],
+  experience: [],
+  education: [],
+  projects: [],
+  skills: [],
+  spokenLanguages: [],
+};
+
+/**
+ * Reads the StructuredProfile facts the Discovery model already extracted
+ * (agents/discovery/schemas.py::StructuredProfile) — skills, experience,
+ * education, projects, links. These are computed by the backend on every
+ * brief but were previously discarded on the client; the extracted-profile
+ * rail is what actually renders this now (see ExtractedProfileRail.tsx).
+ */
+function adaptStructuredProfile(raw: unknown): StructuredProfileVM {
+  if (!isRecord(raw)) return EMPTY_PROFILE;
+  const links: ProfileLinkVM[] = Array.isArray(raw.links)
+    ? raw.links
+        .filter((item): item is Record<string, unknown> => isRecord(item))
+        .map((item) => ({
+          label: typeof item.label === "string" ? item.label : "",
+          url: typeof item.url === "string" ? item.url : "",
+        }))
+        .filter((item) => item.label || item.url)
+    : [];
+  const experience: ExperienceEntryVM[] = Array.isArray(raw.experience)
+    ? raw.experience
+        .filter((item): item is Record<string, unknown> => isRecord(item))
+        .map((item) => ({
+          organization: typeof item.organization === "string" ? item.organization : "",
+          role: typeof item.role === "string" ? item.role : "",
+          dates: typeof item.dates === "string" ? item.dates : "",
+          highlights: stringArray(item.highlights),
+        }))
+    : [];
+  const education: EducationEntryVM[] = Array.isArray(raw.education)
+    ? raw.education
+        .filter((item): item is Record<string, unknown> => isRecord(item))
+        .map((item) => ({
+          institution: typeof item.institution === "string" ? item.institution : "",
+          credential: typeof item.credential === "string" ? item.credential : "",
+          dates: typeof item.dates === "string" ? item.dates : "",
+        }))
+    : [];
+  const projects: ProjectEntryVM[] = Array.isArray(raw.projects)
+    ? raw.projects
+        .filter((item): item is Record<string, unknown> => isRecord(item))
+        .map((item) => ({
+          name: typeof item.name === "string" ? item.name : "",
+          summary: typeof item.summary === "string" ? item.summary : "",
+          contribution: typeof item.contribution === "string" ? item.contribution : "",
+          tech: stringArray(item.tech),
+          link: typeof item.link === "string" ? item.link : "",
+        }))
+    : [];
+  return {
+    name: typeof raw.name === "string" ? raw.name : "",
+    currentTitle: typeof raw.current_title === "string" ? raw.current_title : "",
+    location: typeof raw.location === "string" ? raw.location : "",
+    links,
+    experience,
+    education,
+    projects,
+    skills: stringArray(raw.skills),
+    spokenLanguages: stringArray(raw.spoken_languages),
+  };
 }
 
 function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
@@ -174,8 +289,10 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
     status === "brief_review" || status === "approved"
       ? {
           title: typeof briefState.title === "string" ? briefState.title : "",
+          markdown: typeof briefState.markdown === "string" ? briefState.markdown : "",
           userSummary: typeof briefState.user_summary === "string" ? briefState.user_summary : "",
           approved: briefState.approved != null,
+          profile: adaptStructuredProfile(briefState.profile),
         }
       : null;
 

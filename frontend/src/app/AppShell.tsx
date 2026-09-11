@@ -703,7 +703,6 @@ export function AppShell({
         sessionId: approved.session_id,
         revision: approved.session_revision,
       });
-      dispatch({ type: "announce", message: "Brief approved. Continue when you are ready to start Content Architect." });
       notifyMutation(sessionId);
     } catch (error) {
       void refetchCurrentSession();
@@ -713,11 +712,32 @@ export function AppShell({
     }
   };
 
+  // Approves the current artifact and starts the next agent in one action —
+  // no separate confirmation step, no separate "start next stage" screen.
+  // The Handoff/Continue click a user used to make on a second screen is
+  // now implicit in approval itself; the journey rail's connector-sweep is
+  // the visible feedback that the pipeline moved forward.
+  const handleApproveBriefAndContinue = async () => {
+    await handleApproveBrief();
+    selectStage("content");
+    if (!state.content || state.content.state === "locked" || state.content.state === "available") {
+      await runContentMutation("start");
+    } else {
+      dispatch({ type: "announce", message: "Brief approved. Content Architect is already underway." });
+    }
+  };
+
+  // Returns the operation that actually completed so callers (notably the
+  // fused approve-and-continue handoff below) can tell a genuine approval
+  // apart from the silent safety-repair fallback without depending on a
+  // fresh render of `state` — this function's own `state` closure is fixed
+  // to the render that created it, so a post-await read of React state here
+  // would still reflect pre-mutation values.
   const runContentMutation = async (
     operation: "start" | "approve" | "revise",
     revisionRequest = "",
-  ) => {
-    if (!state.sessionId || mutatingStage) return;
+  ): Promise<"start" | "approve" | "revise" | "repair" | null> => {
+    if (!state.sessionId || mutatingStage) return null;
     setMutatingStage("content");
     try {
       const action = `content-${operation}`;
@@ -765,11 +785,28 @@ export function AppShell({
       });
       notifyMutation(state.sessionId);
       if (completedOperation === "approve") await refetchCurrentSession();
+      return completedOperation;
     } catch (error) {
       void refetchCurrentSession();
       throw error;
     } finally {
       setMutatingStage(null);
+    }
+  };
+
+  // Fuses "approve content plan" with "start Visual Design Director" into
+  // one user action. If the approval silently rerouted into the safety
+  // repair path instead (public-scope validation failure), stay on Content
+  // so the user can review the corrected plan — never silently advance past
+  // an artifact that was not actually approved.
+  const handleApproveContentAndContinue = async () => {
+    const completedOperation = await runContentMutation("approve");
+    if (completedOperation !== "approve") return;
+    selectStage("design");
+    if (!state.design || state.design.state === "locked" || state.design.state === "available") {
+      await runDesignMutation("start");
+    } else {
+      dispatch({ type: "announce", message: "Content plan approved. Visual Design Director is already underway." });
     }
   };
 
@@ -807,6 +844,17 @@ export function AppShell({
       throw error;
     } finally {
       setMutatingStage(null);
+    }
+  };
+
+  // Fuses "approve visual direction" with "start Build Preparation."
+  const handleApproveDesignAndContinue = async () => {
+    await runDesignMutation("approve");
+    selectStage("prepare");
+    if (!state.preparation || state.preparation.state === "locked" || state.preparation.state === "available") {
+      await runPreparationMutation("start");
+    } else {
+      dispatch({ type: "announce", message: "Visual direction approved. Build Preparation is already underway." });
     }
   };
 
@@ -1016,20 +1064,8 @@ export function AppShell({
                   onGenerateBriefNow={handleGenerateBrief}
                   onRetryDiscovery={handleRetryDiscovery}
                   onStopDiscovery={handleStopDiscovery}
-                  onApproveBrief={handleApproveBrief}
+                  onApproveAndContinue={handleApproveBriefAndContinue}
                   onReviseBrief={handleReviseBrief}
-                  onContinueToContent={async () => {
-                    selectStage("content");
-                    // The Content projection can still be the fail-closed
-                    // `locked` view captured before Discovery approval was
-                    // persisted.  This button is the explicit user handoff,
-                    // so treat both `locked` and `available` as startable
-                    // states.  Otherwise the UI would navigate to Content
-                    // while never enqueueing its durable job.
-                    if (!state.content || state.content.state === "locked" || state.content.state === "available") {
-                      await runContentMutation("start");
-                    }
-                  }}
                 />
               ) : null}
 
@@ -1038,11 +1074,10 @@ export function AppShell({
                   view={state.content}
                   canMutate={!state.readOnly}
                   inFlight={mutatingStage === "content"}
-                  onStart={() => runContentMutation("start")}
-                  onApprove={() => runContentMutation("approve")}
-                  onRevise={(request) => runContentMutation("revise", request)}
+                  onStart={async () => { await runContentMutation("start"); }}
+                  onApproveAndContinue={handleApproveContentAndContinue}
+                  onRevise={async (request) => { await runContentMutation("revise", request); }}
                   onStop={handleStopContent}
-                  onContinueToDesign={() => selectStage("design")}
                 />
               ) : null}
 
@@ -1052,20 +1087,9 @@ export function AppShell({
                   canMutate={!state.readOnly}
                   inFlight={mutatingStage === "design"}
                   onStart={() => runDesignMutation("start")}
-                  onApprove={() => runDesignMutation("approve")}
+                  onApproveAndContinue={handleApproveDesignAndContinue}
                   onRevise={(request) => runDesignMutation("revise", request)}
                   onStop={handleStopDesign}
-                  onContinueToPreparation={async () => {
-                    selectStage("prepare");
-                    // A preparation projection can remain fail-closed
-                    // `locked` for one render when Design approval and the
-                    // session refresh race.  The explicit handoff is the
-                    // user's authorization to begin this stage, so start
-                    // from that stale projection as well as `available`.
-                    if (!state.preparation || state.preparation.state === "locked" || state.preparation.state === "available") {
-                      await runPreparationMutation("start");
-                    }
-                  }}
                 />
               ) : null}
                 {state.sessionId && activeStage === "prepare" ? (

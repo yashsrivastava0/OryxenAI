@@ -3,10 +3,10 @@ import type { DiscoveryAnswerSubmission } from "../../data/discovery-answer";
 import { finalAgentOutput } from "../../data/final-agent-output";
 import { ConversationSurface, type AnsweredTurn } from "../../components/ConversationSurface";
 import { ArtifactSurface } from "../../components/ArtifactSurface";
-import { HandoffPanel } from "../../components/HandoffPanel";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { StartSurface } from "../../components/StartSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { ExtractedProfileRail } from "../../components/ExtractedProfileRail";
 
 export interface DiscoveryStageProps {
   view: DiscoveryViewModel | null;
@@ -17,9 +17,9 @@ export interface DiscoveryStageProps {
   onGenerateBriefNow: () => Promise<void>;
   onRetryDiscovery: () => Promise<void>;
   onStopDiscovery?: () => Promise<void>;
-  onApproveBrief: () => Promise<void>;
+  /** Approves the brief and starts Content Architect in one action. */
+  onApproveAndContinue: () => Promise<void>;
   onReviseBrief: (revisionRequest: string) => Promise<void>;
-  onContinueToContent: () => void | Promise<void>;
 }
 
 export function DiscoveryStage({
@@ -31,9 +31,8 @@ export function DiscoveryStage({
   onGenerateBriefNow,
   onRetryDiscovery,
   onStopDiscovery,
-  onApproveBrief,
+  onApproveAndContinue,
   onReviseBrief,
-  onContinueToContent,
 }: DiscoveryStageProps) {
   if (!view) {
     return (
@@ -70,37 +69,27 @@ export function DiscoveryStage({
 
   // Brief Review or Complete
   if (view.state === "review" || view.state === "complete") {
-    const rawBrief = (view.raw as Record<string, unknown>)?.brief as Record<string, unknown> | undefined;
-    const briefTitle = (rawBrief?.title as string) || "Portfolio Discovery Brief";
-    const briefMarkdown = (rawBrief?.markdown as string) || (rawBrief?.user_summary as string) || "";
+    const briefTitle = view.brief?.title || "Portfolio Discovery Brief";
+    const briefMarkdown = view.brief?.markdown || view.brief?.userSummary || "";
     const isApproved = view.state === "complete";
 
     return (
       <div className="discovery-brief-view">
-        <ArtifactSurface
-          title={briefTitle}
-          artifactTypeName="brief"
-          statusBadge={isApproved ? "Approved" : "Ready for review"}
-          isApproved={isApproved}
-          canMutate={canMutate}
-          markdownContent={briefMarkdown}
-          finalJsonOutput={finalAgentOutput("discovery", view.raw)}
-          approvalActionLabel="Approve brief"
-          requireApprovalConfirmation={false}
-          onApprove={onApproveBrief}
-          onRevise={onReviseBrief}
-        />
-
-        {isApproved && (
-          <HandoffPanel
-            completedStageName="Discovery Brief"
-            nextStageName="Content Architect"
-            summary="Your approved brief is now the only input Content Architect receives. Your raw source notes stay behind the Discovery boundary."
-            nextDescription="Content Architect defines the routes, positioning, and section-by-section portfolio copy."
-            actionLabel="Continue to Content"
-            onContinue={onContinueToContent}
+        <div className="discovery-review-layout">
+          <ArtifactSurface
+            title={briefTitle}
+            artifactTypeName="brief"
+            statusBadge={isApproved ? "Approved" : "Ready for review"}
+            isApproved={isApproved}
+            canMutate={canMutate}
+            markdownContent={briefMarkdown}
+            finalJsonOutput={finalAgentOutput("discovery", view.raw)}
+            nextStageName={isApproved ? undefined : "Content Architect"}
+            onApproveAndContinue={isApproved ? undefined : onApproveAndContinue}
+            onRevise={isApproved ? undefined : onReviseBrief}
           />
-        )}
+          {view.brief && <ExtractedProfileRail profile={view.brief.profile} />}
+        </div>
       </div>
     );
   }

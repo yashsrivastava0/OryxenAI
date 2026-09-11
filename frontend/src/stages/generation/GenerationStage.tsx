@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { GenerationPreviewVM, GenerationViewModel } from "../../data/adapters/generation";
+import { friendlyRouteLabel } from "../../data/adapters/generation";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
 import { ProgressSurface } from "../../components/ProgressSurface";
@@ -14,14 +15,24 @@ export interface GenerationStageProps {
   onRegenerate: () => Promise<void>;
 }
 
-const VIEWPORTS = [
-  { id: "mobile", label: "Mobile", width: "390px", height: "844px" },
-  { id: "tablet", label: "Tablet", width: "768px", height: "1024px" },
-  { id: "desktop", label: "Desktop", width: "1440px", height: "900px" },
-  { id: "fit", label: "Fit", width: "100%", height: "42rem" },
+// Real device classes, not a hardware laboratory (preview.md §6) — the
+// three breakpoint classes this product's generated portfolios actually
+// target (see D-088: desktop 1440x900 and laptop 1280x800 are the release
+// gate; tablet/mobile are the two additional classes worth eyeballing).
+const DEVICES = [
+  { id: "mobile", label: "Mobile", width: 390, height: 844 },
+  { id: "tablet", label: "Tablet", width: 768, height: 1024 },
+  { id: "desktop", label: "Desktop", width: 1440, height: 900 },
 ] as const;
+type DeviceId = (typeof DEVICES)[number]["id"];
 
 const PREVIEW_BRIDGE_VERSION = "preview-bridge-v1";
+// Bounded readiness thresholds (preview.md §15-16): distinguish "loading"
+// (expected) from "slow" (longer than normal) from "timeout" (readiness
+// could not be established) — never an eternal spinner, never an
+// aggressive auto-reload loop.
+const SLOW_AFTER_MS = 6000;
+const TIMEOUT_AFTER_MS = 20000;
 
 function resolveRouteUrl(preview: GenerationPreviewVM, routePath: string): string {
   const trimmed = routePath.replace(/^\/+/, "");
@@ -32,108 +43,196 @@ function resolveRouteUrl(preview: GenerationPreviewVM, routePath: string): strin
   }
 }
 
-function PreviewPanel({ preview, unverified }: { preview: GenerationPreviewVM; unverified: boolean }) {
+function originOf(url: string): string | null {
+  try {
+    return new URL(url, window.location.href).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** Measures the available canvas width so the selected device viewport can
+ * be scaled to fit (preview.md §6-7: a virtual viewport, not just "make the
+ * iframe narrower"). transform: scale() does not affect layout, so the
+ * wrapper's own box is sized to the POST-scale footprint manually. */
+function useCanvasWidth<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return { ref, width };
+}
+
+function PreviewPanel({
+  preview,
+  unverified,
+  focusMode,
+  onToggleFocusMode,
+}: {
+  preview: GenerationPreviewVM;
+  unverified: boolean;
+  focusMode: boolean;
+  onToggleFocusMode: () => void;
+}) {
   const routeOptions = preview.routePaths.length > 0 ? preview.routePaths : ["/"];
   const [routePath, setRoutePath] = useState(routeOptions[0] ?? "/");
-  const [viewport, setViewport] = useState<(typeof VIEWPORTS)[number]["id"]>("desktop");
-  const [bridgeStatus, setBridgeStatus] = useState("Loading the embedded preview...");
+  const [deviceId, setDeviceId] = useState<DeviceId>("desktop");
+  const [fitToCanvas, setFitToCanvas] = useState(true);
+  const [readiness, setReadiness] = useState<"loading" | "connected" | "slow" | "timeout">("loading");
   const [refreshNonce, setRefreshNonce] = useState(0);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const { ref: canvasRef, width: canvasWidth } = useCanvasWidth<HTMLDivElement>();
 
   const frameSrc = resolveRouteUrl(preview, routePath);
-  const activeViewport = VIEWPORTS.find((item) => item.id === viewport) ?? VIEWPORTS[2];
+  const device = DEVICES.find((item) => item.id === deviceId) ?? DEVICES[2];
+  // Leave a little horizontal breathing room rather than scaling to the
+  // exact pixel edge of the available canvas.
+  const availableWidth = Math.max(canvasWidth - 24, 1);
+  const scale = fitToCanvas ? Math.min(1, availableWidth / device.width) : 1;
 
   const sendPreviewInit = () => {
     const frame = frameRef.current;
     if (!frame || !frame.src || !frame.contentWindow) return;
-    let origin: string;
-    try {
-      origin = new URL(frame.src, window.location.href).origin;
-    } catch {
-      return;
-    }
+    const origin = originOf(frame.src);
+    if (!origin) return;
     frame.contentWindow.postMessage({ type: "preview:init", version: PREVIEW_BRIDGE_VERSION }, origin);
   };
 
   useEffect(() => {
-    setBridgeStatus("Loading the embedded preview...");
+    setReadiness("loading");
+    const slowTimer = window.setTimeout(() => setReadiness((r) => (r === "loading" ? "slow" : r)), SLOW_AFTER_MS);
+    const timeoutTimer = window.setTimeout(
+      () => setReadiness((r) => (r === "loading" || r === "slow" ? "timeout" : r)),
+      TIMEOUT_AFTER_MS,
+    );
+
     const handleMessage = (event: MessageEvent) => {
       const frame = frameRef.current;
       if (!frame || event.source !== frame.contentWindow || !frame.src) return;
-      let origin: string;
-      try {
-        origin = new URL(frame.src, window.location.href).origin;
-      } catch {
-        return;
-      }
-      if (event.origin !== origin) return;
-      const data = event.data as { type?: unknown; version?: unknown } | null;
+      const origin = originOf(frame.src);
+      if (!origin || event.origin !== origin) return;
+      const data = event.data as { type?: unknown; version?: unknown; path?: unknown } | null;
       if (data?.type === "preview:ready" && data.version === PREVIEW_BRIDGE_VERSION) {
-        setBridgeStatus("Embedded preview connected.");
+        setReadiness("connected");
+      } else if (data?.type === "preview:route" && data.version === PREVIEW_BRIDGE_VERSION && typeof data.path === "string") {
+        // The generated portfolio navigated internally (a real link click);
+        // keep the theater's own route selector in sync so it never
+        // silently disagrees with what's actually on screen.
+        const normalized = data.path || "/";
+        if (routeOptions.includes(normalized)) setRoutePath(normalized);
       }
     };
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+    return () => {
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(timeoutTimer);
+      window.removeEventListener("message", handleMessage);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameSrc]);
 
+  const readinessLabel =
+    readiness === "connected"
+      ? "Embedded preview connected."
+      : readiness === "slow"
+        ? "Still starting — this is taking longer than usual."
+        : readiness === "timeout"
+          ? "Preview did not respond. Try refreshing."
+          : "Starting preview…";
+
   return (
     <section
-      className="generation-preview-panel"
+      className={`preview-theater ${focusMode ? "is-focused" : ""}`}
       aria-label={unverified ? "Unverified candidate preview" : "Verified portfolio preview"}
     >
-      <div className="generation-preview-toolbar">
-        <label className="generation-preview-route">
-          <span className="metadata-label">Route</span>
+      <div className="preview-theater-toolbar">
+        <label className="preview-theater-route">
+          <span className="metadata-label">Page</span>
           <select value={routePath} onChange={(event) => setRoutePath((event.target as HTMLSelectElement).value)}>
-            {routeOptions.map((path) => (
-              <option key={path} value={path}>{path || "/"}</option>
+            {routeOptions.map((path, idx) => (
+              <option key={path} value={path}>
+                {friendlyRouteLabel(preview.routeIds[idx] ?? "", path)}
+              </option>
             ))}
           </select>
         </label>
-        <div className="generation-preview-viewports" role="group" aria-label="Preview viewport">
-          {VIEWPORTS.map((item) => (
+        <div className="preview-theater-devices" role="group" aria-label="Preview viewport">
+          {DEVICES.map((item) => (
             <button
               key={item.id}
               type="button"
               className="btn-quiet"
-              aria-pressed={item.id === viewport}
-              onClick={() => setViewport(item.id)}
+              aria-pressed={item.id === deviceId}
+              onClick={() => setDeviceId(item.id)}
             >
               {item.label}
             </button>
           ))}
-        </div>
-        <div className="generation-preview-actions">
           <button
             type="button"
             className="btn-quiet"
-            onClick={() => setRefreshNonce((value) => value + 1)}
+            aria-pressed={fitToCanvas}
+            title={fitToCanvas ? "Showing scaled to fit — click for actual size" : "Showing actual size — click to fit"}
+            onClick={() => setFitToCanvas((value) => !value)}
           >
+            Fit
+          </button>
+        </div>
+        <div className="preview-theater-actions">
+          <button type="button" className="btn-quiet" onClick={() => setRefreshNonce((value) => value + 1)}>
             Refresh
           </button>
           <a className="btn-quiet" href={frameSrc} target="_blank" rel="noopener noreferrer">
             Open in new tab
           </a>
+          <button type="button" className="btn-quiet" onClick={onToggleFocusMode} aria-pressed={focusMode}>
+            {focusMode ? "Exit focus" : "Focus"}
+          </button>
         </div>
       </div>
 
-      <p className="generation-preview-status" role="status">
+      <p className="preview-theater-status" role="status" data-readiness={readiness}>
         {unverified ? "Unverified candidate — not promoted. " : ""}
-        {bridgeStatus}
+        {readinessLabel}
+        {readiness === "timeout" && (
+          <button type="button" className="btn-quiet preview-theater-status-retry" onClick={() => setRefreshNonce((v) => v + 1)}>
+            Retry
+          </button>
+        )}
       </p>
 
-      <div className="generation-preview-frame-shell" data-viewport={activeViewport.id}>
-        <iframe
-          key={`${frameSrc}:${refreshNonce}`}
-          ref={frameRef}
-          className="generation-preview-frame"
-          title="Generated portfolio preview"
-          src={frameSrc}
-          sandbox="allow-scripts allow-same-origin"
-          style={{ width: activeViewport.width, height: activeViewport.height }}
-          onLoad={sendPreviewInit}
-        />
+      <div className="preview-theater-canvas" ref={canvasRef}>
+        <div
+          className="preview-theater-device-wrapper"
+          data-device={device.id}
+          style={{ width: `${device.width * scale}px`, height: `${device.height * scale}px` }}
+        >
+          <div
+            className="preview-theater-device-scale"
+            style={{ width: `${device.width}px`, height: `${device.height}px`, transform: `scale(${scale})` }}
+          >
+            {readiness === "loading" && <div className="preview-theater-loading-veil" aria-hidden="true" />}
+            <iframe
+              key={`${frameSrc}:${refreshNonce}`}
+              ref={frameRef}
+              className="preview-theater-frame"
+              title="Generated portfolio preview"
+              src={frameSrc}
+              sandbox="allow-scripts allow-same-origin"
+              onLoad={sendPreviewInit}
+            />
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -147,6 +246,22 @@ export function GenerationStage({
   onRetry,
   onRegenerate,
 }: GenerationStageProps) {
+  const [focusMode, setFocusMode] = useState(false);
+  const toggleFocusMode = () => setFocusMode((value) => !value);
+
+  // Users must never feel trapped in focus mode (preview.md §21, §49:
+  // "Esc from focus/fullscreen mode" is an explicit required keyboard
+  // test). The toolbar's own "Exit focus" button remains the primary,
+  // discoverable affordance; this is the fast keyboard escape hatch.
+  useEffect(() => {
+    if (!focusMode) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFocusMode(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focusMode]);
+
   if (!view || view.state === "locked") {
     return (
       <div className="stage-locked-panel">
@@ -201,41 +316,49 @@ export function GenerationStage({
 
   if (view.state === "attention") {
     return (
-      <>
-        <AttentionPanel
-          title={view.stale ? "This portfolio is out of date" : "Generation needs attention"}
-          summary={
-            view.safeError?.summary ||
-            (view.stale
-              ? "An approved build handoff changed since this portfolio was generated. Regenerate to bring it up to date."
-              : "The generated portfolio could not pass final verification. Your last verified preview, if any, is preserved below.")
-          }
-          preservedWorkNote="Your approved build handoff and any previously verified preview remain unchanged."
-          retryLabel={view.stale ? "Regenerate portfolio" : "Retry generation"}
-          onRetry={view.stale ? onRegenerate : onRetry}
-          inFlight={inFlight}
-          errorDetails={view.safeError ?? undefined}
-          technicalDetails={view.staleReasons.length > 0 ? view.staleReasons.join("\n") : null}
-        />
+      <div className={`generation-theater-boundary ${focusMode ? "is-focused" : ""}`}>
+        {!focusMode && (
+          <AttentionPanel
+            title={view.stale ? "This portfolio is out of date" : "Generation needs attention"}
+            summary={
+              view.safeError?.summary ||
+              (view.stale
+                ? "An approved build handoff changed since this portfolio was generated. Regenerate to bring it up to date."
+                : "The generated portfolio could not pass final verification. Your last verified preview, if any, is preserved below.")
+            }
+            preservedWorkNote="Your approved build handoff and any previously verified preview remain unchanged."
+            retryLabel={view.stale ? "Regenerate portfolio" : "Retry generation"}
+            onRetry={view.stale ? onRegenerate : onRetry}
+            inFlight={inFlight}
+            errorDetails={view.safeError ?? undefined}
+            technicalDetails={view.staleReasons.length > 0 ? view.staleReasons.join("\n") : null}
+          />
+        )}
         {view.candidatePreview ? (
-          <PreviewPanel preview={view.candidatePreview} unverified />
+          <PreviewPanel preview={view.candidatePreview} unverified focusMode={focusMode} onToggleFocusMode={toggleFocusMode} />
         ) : null}
-        {view.preview ? <PreviewPanel preview={view.preview} unverified={false} /> : null}
-      </>
+        {view.preview ? (
+          <PreviewPanel preview={view.preview} unverified={false} focusMode={focusMode} onToggleFocusMode={toggleFocusMode} />
+        ) : null}
+      </div>
     );
   }
 
   return (
-    <article className="generation-stage-view" aria-labelledby="generation-title">
-      <header className="generation-header">
-        <p className="eyebrow">GENERATE &amp; PREVIEW / PORTFOLIO READY</p>
-        <h1 id="generation-title">Your portfolio is generated and verified.</h1>
-        <p>This is the live, verified build. Regenerating replaces it only after a new run succeeds.</p>
-      </header>
+    <article className={`generation-stage-view generation-theater-boundary ${focusMode ? "is-focused" : ""}`} aria-labelledby="generation-title">
+      {!focusMode && (
+        <header className="generation-header">
+          <p className="eyebrow">GENERATE &amp; PREVIEW / PORTFOLIO READY</p>
+          <h1 id="generation-title">Your portfolio is generated and verified.</h1>
+          <p>This is the live, verified build. Regenerating replaces it only after a new run succeeds.</p>
+        </header>
+      )}
 
-      {view.preview ? <PreviewPanel preview={view.preview} unverified={false} /> : null}
+      {view.preview ? (
+        <PreviewPanel preview={view.preview} unverified={false} focusMode={focusMode} onToggleFocusMode={toggleFocusMode} />
+      ) : null}
 
-      {(view.warnings ?? []).length > 0 ? (
+      {!focusMode && (view.warnings ?? []).length > 0 ? (
         <aside className="generation-warnings" aria-label="Generation warnings">
           <p className="metadata-label">Non-blocking notes</p>
           <ul>
@@ -244,7 +367,7 @@ export function GenerationStage({
         </aside>
       ) : null}
 
-      {canMutate && (
+      {!focusMode && canMutate && (
         <div className="generation-actions">
           <button type="button" className="btn-secondary" disabled={inFlight} onClick={() => void onRegenerate()}>
             Regenerate portfolio

@@ -1,0 +1,117 @@
+/*
+ * Shared motion primitives — small, composable keyframes and utility
+ * classes reused across the Jinja2 auth pages (auth_shell.html) and the
+ * Preact product shell (product_shell.html → frontend/src/styles/shell.css
+ * and per-stage component CSS). Requires tokens.css to load first; every
+ * duration/ease referenced here is a custom property defined there so a
+ * single token edit re-tunes motion everywhere at once.
+ *
+ * Design intent (see AGENTS.md / DECISIONS.md "Editorial Swiss — Living
+ * Draft"): motion communicates drafting, evidence organization, handoff,
+ * and human approval — never decoration for its own sake. Every animation
+ * here is transform/opacity-first (cheap to composite, no layout
+ * thrashing) and every infinite/looping effect has an explicit stop in the
+ * reduced-motion block at the bottom, not just a shortened duration.
+ */
+
+/* ---- Entrance ------------------------------------------------------- */
+
+@keyframes oxa-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes oxa-scale-settle {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes oxa-widen {
+  from { opacity: 0; transform: scaleX(0.92); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+/* ---- Activity / "something real is happening" ----------------------- */
+
+@keyframes oxa-sweep {
+  from { transform: translateX(-120%); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateX(420%); opacity: 0; }
+}
+
+@keyframes oxa-quiet-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.42; }
+}
+
+@keyframes oxa-connector-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* ---- Utility classes -------------------------------------------------
+   Preact components set the CSS custom property `--oxa-stagger-index`
+   inline (style={{ "--oxa-stagger-index": index }}) per child for a
+   precise, data-driven stagger. Static Jinja markup gets the same effect
+   for free via the nth-child fallback below (covers up to 10 children,
+   the practical ceiling for anything staggered in this product: option
+   pills, extracted-profile cards, palette swatches, gallery tiles). */
+
+.oxa-rise-in {
+  animation: oxa-rise var(--motion-surface-change) var(--ease-snappy) both;
+}
+
+.oxa-scale-settle-in {
+  animation: oxa-scale-settle var(--duration-normal) var(--ease-spring) both;
+}
+
+.oxa-stagger > * {
+  animation: oxa-rise var(--motion-surface-change) var(--ease-snappy) both;
+  animation-delay: calc(var(--oxa-stagger-index, 0) * var(--motion-stagger-step));
+}
+.oxa-stagger > *:nth-child(1) { --oxa-stagger-index: 0; }
+.oxa-stagger > *:nth-child(2) { --oxa-stagger-index: 1; }
+.oxa-stagger > *:nth-child(3) { --oxa-stagger-index: 2; }
+.oxa-stagger > *:nth-child(4) { --oxa-stagger-index: 3; }
+.oxa-stagger > *:nth-child(5) { --oxa-stagger-index: 4; }
+.oxa-stagger > *:nth-child(6) { --oxa-stagger-index: 5; }
+.oxa-stagger > *:nth-child(7) { --oxa-stagger-index: 6; }
+.oxa-stagger > *:nth-child(8) { --oxa-stagger-index: 7; }
+.oxa-stagger > *:nth-child(9) { --oxa-stagger-index: 8; }
+.oxa-stagger > *:nth-child(10) { --oxa-stagger-index: 9; }
+
+/* A thin traveling highlight indicating a real, currently-active step.
+   Never attached to a step that isn't genuinely in flight — see
+   ProgressSurface/BuildPreparationStage usage. */
+.oxa-activity-line {
+  position: relative;
+  overflow: hidden;
+}
+.oxa-activity-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, var(--signal), transparent);
+  opacity: 0;
+}
+.oxa-activity-line.is-active::after {
+  animation: oxa-sweep 1.8s var(--ease-smooth) infinite;
+}
+
+/* A connector segment that draws left-to-right once, used when a handoff
+   between two pipeline stages fires (see JourneyRail). transform-origin
+   must be set to `left` by the consuming component's own rule. */
+.oxa-connector-draw {
+  animation: oxa-connector-draw var(--motion-handoff-sweep) var(--ease-snappy) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oxa-activity-line.is-active::after {
+    animation: none;
+    opacity: 0;
+  }
+  .oxa-rise-in, .oxa-scale-settle-in, .oxa-stagger > *, .oxa-connector-draw {
+    animation: none;
+  }
+}

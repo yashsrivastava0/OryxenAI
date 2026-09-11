@@ -21,9 +21,8 @@ const discoveryProps = {
   onSubmitAnswer: async () => {},
   onGenerateBriefNow: async () => {},
   onRetryDiscovery: async () => {},
-  onApproveBrief: async () => {},
+  onApproveAndContinue: async () => {},
   onReviseBrief: async () => {},
-  onContinueToContent: () => {},
 };
 
 describe("authenticated product stages", () => {
@@ -35,26 +34,37 @@ describe("authenticated product stages", () => {
     expect(unsupported.type).toBeDefined();
   });
 
-  it("keeps Content locked until Discovery approval and renders approved handoff", () => {
-    const props = { canMutate: true, onStart: async () => {}, onApprove: async () => {}, onRevise: async () => {}, onContinueToDesign: () => {} };
+  it("keeps Content locked until Discovery approval and wires the fused approve-and-continue action", () => {
+    const props = { canMutate: true, onStart: async () => {}, onApproveAndContinue: async () => {}, onRevise: async () => {} };
     expect(className(ContentStage({ ...props, view: adaptContentArchitect(contentFixtureNotStarted, false) }))).toBe("stage-locked-panel");
     expect(className(ContentStage({ ...props, view: adaptContentArchitect(contentFixtureReview, true) }))).toBe("content-stage-view");
-    expect(className(ContentStage({ ...props, view: adaptContentArchitect(contentFixtureApproved, true) }))).toBe("content-stage-view");
+    // ContentStage(...) is an unrendered vnode tree — assert the exact
+    // ArtifactSurface prop wiring that drives the fused single-click
+    // "Approve & continue to {nextStageName}" action, since the button's
+    // own label text is composed inside ArtifactSurface's function body
+    // and never executes without a real render pass.
+    const reviewNode = ContentStage({ ...props, view: adaptContentArchitect(contentFixtureReview, true) });
+    expect(JSON.stringify(reviewNode)).toContain('"nextStageName":"Visual Design Director"');
+    const approvedNode = ContentStage({ ...props, view: adaptContentArchitect(contentFixtureApproved, true) });
+    expect(className(approvedNode)).toBe("content-stage-view");
+    // Once approved there is no next-stage action left to fuse.
+    expect(JSON.stringify(approvedNode)).not.toContain('"nextStageName"');
   });
 
   it("renders the approved Visual Direction without auto-starting later stages", () => {
     const props = {
       canMutate: true,
       onStart: async () => {},
-      onApprove: async () => {},
+      onApproveAndContinue: async () => {},
       onRevise: async () => {},
-      onContinueToPreparation: () => {},
     };
     expect(className(DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureNotStarted, false) }))).toBe("stage-locked-panel");
     expect(className(DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureReview, true) }))).toBe("design-stage-view");
+    const reviewNode = DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureReview, true) });
+    expect(JSON.stringify(reviewNode)).toContain('"nextStageName":"Build Preparation"');
     const approvedNode = DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureApproved, true) });
     expect(className(approvedNode)).toBe("design-stage-view");
-    expect(JSON.stringify(approvedNode)).toContain("Continue to Prepare");
+    expect(JSON.stringify(approvedNode)).not.toContain('"nextStageName"');
   });
 
   it("renders Build Preparation as an explicit fourth stage", () => {
