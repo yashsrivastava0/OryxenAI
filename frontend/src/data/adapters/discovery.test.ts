@@ -31,6 +31,21 @@ describe("adaptDiscovery", () => {
     expect(vm.brief?.approved).toBe(false);
   });
 
+  it("exposes the brief markdown and structured profile facts (previously discarded)", () => {
+    const vm = adaptDiscovery(fixtures.briefReview);
+    expect(vm.brief?.markdown).toContain("systems-minded engineer");
+    expect(vm.brief?.profile.skills).toContain("Python");
+    expect(vm.brief?.profile.experience[0]?.organization).toBe("Northwind Systems");
+    expect(vm.brief?.profile.projects[0]?.name).toBe("Durable Jobs Rewrite");
+    expect(vm.brief?.profile.links[0]?.url).toBe("https://github.com/example");
+  });
+
+  it("returns an empty profile shape rather than throwing when profile is missing", () => {
+    const vm = adaptDiscovery(fixtures.approved.status === "approved" ? { status: "brief_review", brief: { title: "t" } } : {});
+    expect(vm.brief?.profile.skills).toEqual([]);
+    expect(vm.brief?.profile.experience).toEqual([]);
+  });
+
   it("maps approved to complete with an approved brief", () => {
     const vm = adaptDiscovery(fixtures.approved);
     expect(vm.state).toBe("complete");

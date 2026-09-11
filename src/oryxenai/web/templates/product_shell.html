@@ -2,6 +2,7 @@
 {% block title %}{{ app_name }} · Portfolio workspace{% endblock %}
 {% block base_stylesheet %}
 <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/tokens.css?v={{ tokens_css_version }}">
+<link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/motion.css?v={{ motion_css_version }}">
 <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
 {% endblock %}
 {% block head %}

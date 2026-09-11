@@ -19,6 +19,7 @@
   <meta name="oryxenai-onboarding-path" content="{{ auth_config.onboardingPath }}">
   <title>{{ app_name }} · Portfolio workspace</title>
   <link rel="stylesheet" href="/auth-static/tokens.css?v={{ tokens_css_version }}">
+  <link rel="stylesheet" href="/auth-static/motion.css?v={{ motion_css_version }}">
   <link rel="stylesheet" href="/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
   <link rel="stylesheet" href="/auth-static/auth.css?v={{ auth_css_version }}">
 </head>
@@ -482,6 +483,9 @@
         </section>
 
         <section id="access-panel" class="panel" hidden aria-labelledby="access-title">
+          <span class="panel-icon panel-icon-attention" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          </span>
           <p class="panel-eyebrow">Access review</p>
           <h2 id="access-title">Account pending admission</h2>
           <p id="access-detail" class="muted">Capacity is currently full, or this deployment uses a restricted admission list.</p>
@@ -489,6 +493,9 @@
         </section>
 
         <section id="unavailable-panel" class="panel" hidden aria-labelledby="unavailable-title">
+          <span class="panel-icon panel-icon-neutral" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          </span>
           <p class="panel-eyebrow">Unavailable</p>
           <h2 id="unavailable-title">Workspace temporarily unavailable</h2>
           <p class="muted">Access is paused locally. Sign out or reach out to the workspace administrator.</p>
@@ -496,13 +503,19 @@
         </section>
 
         <section id="onboarding-panel" class="panel" hidden aria-labelledby="onboarding-title">
+          <span class="panel-icon panel-icon-signal" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20c4.4 0 8-1.8 8-4a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4c0 2.2 3.6 4 8 4Z"/><circle cx="12" cy="8" r="4"/></svg>
+          </span>
           <p class="panel-eyebrow">One-time setup</p>
           <h2 id="onboarding-title">Choose your handle</h2>
           <p class="muted">Use 3–30 lowercase letters, numbers, underscores, or hyphens.</p>
           <form id="username-form" novalidate>
             <label for="username">Username</label>
             <div class="input-row">
-              <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" placeholder="e.g. alex-dev" required>
+              <div class="field-with-prefix">
+                <span class="field-prefix" aria-hidden="true">@</span>
+                <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" placeholder="alex-dev" required>
+              </div>
               <button class="primary-button" type="submit">Claim handle</button>
             </div>
             <p id="username-error" class="error-text" role="alert" hidden></p>

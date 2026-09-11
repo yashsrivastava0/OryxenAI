@@ -1,20 +1,19 @@
 import type { DesignViewModel } from "../../data/adapters/design";
 import { finalAgentOutput } from "../../data/final-agent-output";
-import { ArtifactSurface, type ArtifactSectionItem } from "../../components/ArtifactSurface";
+import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
-import { CompletionPanel } from "../../components/CompletionPanel";
-import { HandoffPanel } from "../../components/HandoffPanel";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
+import { PeekCard } from "../../components/PeekCard";
 
 export interface DesignStageProps {
   view: DesignViewModel | null;
   canMutate: boolean;
   onStart: () => Promise<void>;
-  onApprove: () => Promise<void>;
+  /** Approves the visual direction and starts Build Preparation in one action. */
+  onApproveAndContinue: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
-  onContinueToPreparation: () => void | Promise<void>;
   onStop?: () => Promise<void>;
   inFlight?: boolean;
 }
@@ -23,9 +22,8 @@ export function DesignStage({
   view,
   canMutate,
   onStart,
-  onApprove,
+  onApproveAndContinue,
   onRevise,
-  onContinueToPreparation,
   onStop,
   inFlight = false,
 }: DesignStageProps) {
@@ -95,58 +93,7 @@ export function DesignStage({
 
   // review or complete
   const isApproved = view.state === "complete";
-
-  // Build structured sections for ArtifactSurface
-  const structuredSections: ArtifactSectionItem[] = [];
-
-  // Creative Thesis & Language
   const lang = view.visualLanguage;
-  const thesisMarkdown = [
-    lang.creativeThesis ? `### Creative Thesis\n${lang.creativeThesis}` : "",
-    lang.designKeywords.length > 0 ? `\n\n**Keywords:** ${lang.designKeywords.join(", ")}` : "",
-    lang.colorIntent ? `\n\n**Color Intention:** ${lang.colorIntent}` : "",
-    lang.typographyIntent ? `\n\n**Typography Intention:** ${lang.typographyIntent}` : "",
-    lang.motionIntent ? `\n\n**Motion Rules:** ${lang.motionIntent}` : "",
-  ].join("");
-
-  structuredSections.push({
-    id: "thesis",
-    title: "Creative Thesis & Visual Language",
-    contentMarkdown: thesisMarkdown,
-  });
-
-  // Page Visual Directions
-  if (view.pages.length > 0) {
-    const pagesMarkdown = view.pages
-      .map(
-        (p) =>
-          `### Route: \`${p.routeId}\` — ${p.title}\n* **Mood:** ${p.mood}\n* **Layout intent:** ${p.layoutIntent}\n* **Desktop treatment:** ${p.desktopTreatment}\n* **Mobile treatment:** ${p.mobileTreatment}`,
-      )
-      .join("\n\n---\n\n");
-
-    structuredSections.push({
-      id: "pages",
-      title: "Page Visual Directions",
-      badge: `${view.pages.length} page directions`,
-      contentMarkdown: pagesMarkdown,
-    });
-  }
-
-  // Catalogue Candidates
-  if (view.resources.length > 0) {
-    const resourcesMarkdown = view.resources
-      .map(
-        (r) =>
-          `* **\`${r.resourceId}\`** (${r.category}): ${r.whyItMatches} — *Adaptation: ${r.adaptationNotes}*`,
-      )
-      .join("\n");
-
-    structuredSections.push({
-      id: "resources",
-      title: "Adapted Layout Candidates",
-      contentMarkdown: resourcesMarkdown,
-    });
-  }
 
   return (
     <div className="design-stage-view">
@@ -156,30 +103,101 @@ export function DesignStage({
         statusBadge={isApproved ? "Approved" : "Ready for review"}
         isApproved={isApproved}
         canMutate={canMutate}
-        structuredSections={structuredSections}
         finalJsonOutput={finalAgentOutput("visual_design_director", view.raw)}
         warnings={view.warnings}
         metadata={[
           { label: "Styled Routes", value: String(view.pages.length) },
           { label: "Status", value: isApproved ? "Locked & Approved" : "Under Review" },
         ]}
-        onApprove={onApprove}
-        onRevise={onRevise}
-      />
+        nextStageName={isApproved ? undefined : "Build Preparation"}
+        onApproveAndContinue={isApproved ? undefined : onApproveAndContinue}
+        onRevise={isApproved ? undefined : onRevise}
+      >
+        {lang.creativeThesis && (
+          <section className="design-thesis-card">
+            <p className="eyebrow">Creative thesis</p>
+            <p className="design-thesis-quote">{lang.creativeThesis}</p>
+            {lang.designKeywords.length > 0 && (
+              <ul className="design-keyword-chips oxa-stagger">
+                {lang.designKeywords.map((keyword) => (
+                  <li key={keyword} className="design-keyword-chip">{keyword}</li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
-      {isApproved && (
-        <>
-          <CompletionPanel />
-          <HandoffPanel
-            completedStageName="Visual Direction"
-            nextStageName="Build Preparation"
-            summary="Your approved visual direction is saved. Build Preparation will bind it to the approved content scope and write the generator-ready briefs."
-            nextDescription="Compile the approved narrative and visual systems into two hash-checked Markdown briefs. This handoff prepares the build without starting code generation."
-            actionLabel="Continue to Prepare"
-            onContinue={onContinueToPreparation}
-          />
-        </>
-      )}
+        {(lang.colorIntent || lang.typographyIntent || lang.motionIntent) && (
+          <div className="design-intent-grid oxa-stagger">
+            {lang.colorIntent && (
+              <div className="design-intent-card">
+                <p className="design-intent-label">Color</p>
+                <p>{lang.colorIntent}</p>
+              </div>
+            )}
+            {lang.typographyIntent && (
+              <div className="design-intent-card">
+                <p className="design-intent-label">Typography</p>
+                <p>{lang.typographyIntent}</p>
+              </div>
+            )}
+            {lang.motionIntent && (
+              <div className="design-intent-card">
+                <p className="design-intent-label">Motion</p>
+                <p>{lang.motionIntent}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {view.pages.length > 0 && (
+          <div className="design-page-deck">
+            <p className="eyebrow">Page direction · {view.pages.length}</p>
+            {view.pages.map((page) => (
+              <PeekCard
+                key={page.routeId}
+                eyebrow={page.routeId}
+                title={page.title || page.routeId}
+                badge={page.mood || undefined}
+                summary={page.layoutIntent || page.purpose}
+              >
+                {page.purpose && <p>{page.purpose}</p>}
+                <dl className="design-page-detail-fields">
+                  {page.layoutIntent && (<div><dt>Layout intent</dt><dd>{page.layoutIntent}</dd></div>)}
+                  {page.desktopTreatment && (<div><dt>Desktop</dt><dd>{page.desktopTreatment}</dd></div>)}
+                  {page.mobileTreatment && (<div><dt>Mobile</dt><dd>{page.mobileTreatment}</dd></div>)}
+                </dl>
+              </PeekCard>
+            ))}
+          </div>
+        )}
+
+        {view.resources.length > 0 && (
+          <details className="design-resources-drawer">
+            <summary>Adapted layout candidates · {view.resources.length}</summary>
+            <ul>
+              {view.resources.map((r) => (
+                <li key={r.resourceId}>
+                  <strong>{r.resourceId}</strong> <span className="design-resource-category">({r.category})</span>
+                  <p>{r.whyItMatches}</p>
+                  {r.adaptationNotes && <p className="design-resource-adaptation">Adaptation: {r.adaptationNotes}</p>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {view.conflicts.length > 0 && (
+          <div className="content-unresolved-banner" role="note">
+            <p className="warnings-title">Conflicts to resolve</p>
+            <ul>
+              {view.conflicts.map((conflict, idx) => (
+                <li key={idx}>{conflict}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </ArtifactSurface>
     </div>
   );
 }

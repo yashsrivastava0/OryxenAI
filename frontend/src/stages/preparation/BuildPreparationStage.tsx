@@ -1,9 +1,11 @@
+import { useState } from "preact/hooks";
 import type { BuildPreparationViewModel } from "../../data/adapters/preparation";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { SafeMarkdown } from "../../components/SafeMarkdown";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { PeekCard } from "../../components/PeekCard";
 
 export interface BuildPreparationStageProps {
   view: BuildPreparationViewModel | null;
@@ -20,6 +22,48 @@ function metric(label: string, value: string | number) {
       <span className="metadata-label">{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+/**
+ * The two Markdown briefs are still the authoritative generator handoff
+ * (unchanged data contract), but reading them is now opt-in: they sit
+ * behind an explicit "Read full brief" toggle instead of rendering by
+ * default, since each can carry a large fenced JSON index block near the
+ * top that used to dump straight onto the page as a wall of raw text.
+ */
+function BriefDrawer({ eyebrow, title, markdown }: { eyebrow: string; title: string; markdown: string }) {
+  const [open, setOpen] = useState(false);
+  if (!markdown) {
+    return (
+      <section className="preparation-brief-card">
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
+        <p className="preparation-empty">This brief is not available yet.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="preparation-brief-card">
+      <div className="preparation-brief-card-head">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2>{title}</h2>
+        </div>
+        <button type="button" className="btn-quiet" onClick={() => setOpen((v) => !v)}>
+          {open ? "Hide full brief" : "Read full brief"}
+        </button>
+      </div>
+      {open ? (
+        <div className="preparation-brief-body">
+          <SafeMarkdown content={markdown} />
+        </div>
+      ) : (
+        <p className="preparation-brief-collapsed-hint">
+          {Math.round(markdown.length / 1000)}k characters — the complete generator-ready handoff, collapsed by default.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -67,6 +111,10 @@ export function BuildPreparationStage({
   }
 
   if (view.state === "working") {
+    // Real, currently-active milestone only — no invented steps and no
+    // percentage. The activity-line sweep on the "current" item is the
+    // "something is genuinely happening" motion; it only ever decorates
+    // the one milestone the backend actually reports as in progress.
     const current = view.currentStage || view.statusText || "Compiling the build handoff";
     return (
       <ProgressSurface
@@ -105,6 +153,15 @@ export function BuildPreparationStage({
     );
   }
 
+  const IMAGE_CATEGORIES = new Set(["image", "photo", "editorial_photo", "portrait"]);
+  const imageEntries = view.resourceIndex.filter((entry) => IMAGE_CATEGORIES.has(entry.category.toLowerCase()));
+  const otherResourceEntries = view.resourceIndex.filter((entry) => !imageEntries.includes(entry));
+  const galleryTiles = imageEntries.flatMap((entry) =>
+    entry.candidates
+      .filter((c) => c.previewUrl)
+      .map((candidate) => ({ entry, candidate })),
+  );
+
   return (
     <article className="preparation-stage-view" aria-labelledby="preparation-title">
       <header className="preparation-header">
@@ -117,8 +174,11 @@ export function BuildPreparationStage({
 
       {onContinueToGenerate && (
         <div className="preparation-continue">
-          <button type="button" className="btn-primary" onClick={onContinueToGenerate}>
-            Continue to Generate &amp; Preview
+          <button type="button" className="btn-primary handoff-cta" onClick={onContinueToGenerate}>
+            <span className="handoff-cta-label">Continue to Generate &amp; Preview</span>
+            <svg className="handoff-cta-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
       )}
@@ -126,7 +186,7 @@ export function BuildPreparationStage({
       <div className="preparation-metrics" aria-label="Build handoff summary">
         {metric("Routes", view.routes.length)}
         {metric("Resource needs", view.resourceNeedsCount)}
-        {metric("Resource references", view.resourceIndexCount)}
+        {metric("Discovered assets", view.resourceIndexCount)}
         {metric("Component intents", view.componentIndexCount)}
       </div>
 
@@ -137,17 +197,92 @@ export function BuildPreparationStage({
         </section>
       )}
 
+      {galleryTiles.length > 0 && (
+        <section className="preparation-asset-gallery" aria-labelledby="preparation-gallery-title">
+          <div className="preparation-section-heading">
+            <div>
+              <p className="eyebrow">RESEARCHED IMAGERY</p>
+              <h2 id="preparation-gallery-title">Discovered photography</h2>
+            </div>
+            <span className="sec-badge">{galleryTiles.length} candidates</span>
+          </div>
+          <div className="asset-gallery-grid oxa-stagger">
+            {galleryTiles.map(({ entry, candidate }, idx) => (
+              <figure key={`${entry.needId}-${idx}`} className="asset-gallery-tile">
+                <img
+                  src={candidate.previewUrl}
+                  alt={candidate.title || entry.purpose || "Discovered candidate image"}
+                  loading="lazy"
+                  width={candidate.width || undefined}
+                  height={candidate.height || undefined}
+                />
+                <figcaption>
+                  <span className="asset-gallery-title">{candidate.title || entry.roleId}</span>
+                  <span className="asset-gallery-meta">{candidate.provider}{candidate.license ? ` · ${candidate.license}` : ""}</span>
+                  {entry.routeIds.length > 0 && (
+                    <span className="asset-gallery-bound">Bound: {entry.routeIds.join(", ")}</span>
+                  )}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {otherResourceEntries.length > 0 && (
+        <details className="preparation-events">
+          <summary>Other researched resources · {otherResourceEntries.length}</summary>
+          <ul className="preparation-resource-list">
+            {otherResourceEntries.map((entry) => (
+              <li key={entry.needId}>
+                <strong>{entry.roleId}</strong> <span className="preparation-resource-category">({entry.category || "resource"})</span>
+                <p>{entry.purpose}</p>
+                {entry.status === "no_material_found" && <span className="preparation-resource-none">No material found — the generator will use a safe fallback.</span>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {view.componentIndex.length > 0 && (
+        <section className="preparation-component-deck" aria-labelledby="preparation-components-title">
+          <div className="preparation-section-heading">
+            <div>
+              <p className="eyebrow">RESEARCHED COMPONENTS</p>
+              <h2 id="preparation-components-title">Component pattern suggestions</h2>
+            </div>
+            <span className="sec-badge">{view.componentIndex.length} roles</span>
+          </div>
+          {view.componentIndex.map((entry) => {
+            const primary = entry.primarySuggestionIndex != null ? entry.suggestions[entry.primarySuggestionIndex] : entry.suggestions[0];
+            return (
+              <PeekCard
+                key={entry.needId}
+                eyebrow={entry.roleId}
+                title={primary?.title || primary?.name || entry.roleId}
+                badge={entry.routeIds[0]}
+                summary={entry.purpose}
+              >
+                <ul className="preparation-component-suggestions">
+                  {entry.suggestions.map((s, idx) => (
+                    <li key={idx}>
+                      <strong>{s.title || s.name}</strong> <span className="preparation-resource-category">({s.provider})</span>
+                      {s.description && <p>{s.description}</p>}
+                      {s.itemUrl && (
+                        <a href={s.itemUrl} target="_blank" rel="noopener noreferrer">Documentation ↗</a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </PeekCard>
+            );
+          })}
+        </section>
+      )}
+
       <div className="preparation-brief-grid">
-        <section className="preparation-brief-card" aria-labelledby="content-brief-title">
-          <p className="eyebrow">CONTENT BRIEF</p>
-          <h2 id="content-brief-title">Content and narrative</h2>
-          {view.contentBriefMarkdown ? <SafeMarkdown content={view.contentBriefMarkdown} /> : <p className="preparation-empty">The content brief is not available yet.</p>}
-        </section>
-        <section className="preparation-brief-card" aria-labelledby="visual-brief-title">
-          <p className="eyebrow">VISUAL BRIEF</p>
-          <h2 id="visual-brief-title">Visual and build direction</h2>
-          {view.visualBriefMarkdown ? <SafeMarkdown content={view.visualBriefMarkdown} /> : <p className="preparation-empty">The visual brief is not available yet.</p>}
-        </section>
+        <BriefDrawer eyebrow="CONTENT BRIEF" title="Content and narrative" markdown={view.contentBriefMarkdown} />
+        <BriefDrawer eyebrow="VISUAL BRIEF" title="Visual and build direction" markdown={view.visualBriefMarkdown} />
       </div>
 
       {view.routes.length > 0 && (

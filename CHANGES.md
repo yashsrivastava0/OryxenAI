@@ -11,6 +11,91 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-11 17:45 +05:30 — Kiro (Claude Sonnet 5 / Anthropic) — [pending commit] — Full frontend visual/UX revamp: unified stage handoffs, curated per-stage views, preview theater, auth-page parity (D-095)
+
+User-reported: every screen besides `/sign-in` looked generic/AI-slop, moving
+between agents required too many approval clicks, and Build Preparation's
+output looked "dirty and exploded." Investigated the real current
+implementation directly (not the older planning docs, several of which
+described fields/behavior that no longer match the code) before changing
+anything.
+
+**Unified stage handoff (the concrete click-count bug):** confirmed
+Content→Design was a genuine outlier — 4 clicks across 3 screen states
+(approve → confirm → navigate-only "Continue" → separate "Start Visual
+Design Director" button) vs. every other transition's 2-3 clicks. Removed
+`ArtifactSurface`'s double-confirm step and the separate `HandoffPanel`/
+`CompletionPanel` components entirely; replaced with one fused
+"Approve & continue to {next agent} →" action wired through new
+`handleApprove{Brief,Content,Design}AndContinue` handlers in `AppShell.tsx`.
+Content Architect's existing safety-repair fallback (auto-revise on
+`CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE`) is preserved and correctly
+does *not* auto-advance to Design when it fires.
+
+**Per-stage curated views**, replacing markdown-flattening with real
+components (`PeekCard` progressive-disclosure primitive, `SiteMap`,
+`ExtractedProfileRail`): Discovery now surfaces the `StructuredProfile`
+facts (skills/experience/projects/education/links) the backend already
+parses but the client previously discarded. Content Architect gets a real
+route sitemap plus a peek-card section deck, surfacing `unresolvedIssues`/
+`decisionBasis` that were previously dropped. Visual Design Director gets
+an organized creative-thesis/keyword/intent-card layout (see D-095 — no
+fabricated hex swatches, since the real schema and prompt are prose-only
+by design). Build Preparation's adapter now parses `resource_index`/
+`component_index` into typed view-model arrays (previously only counted);
+the stage renders a real researched-image gallery and component-suggestion
+deck, with the two Markdown briefs moved behind a collapsed-by-default
+reader instead of dumping ~150-200KB of raw text (including an embedded
+JSON index block) directly onto the page.
+
+**Generate & Preview rebuilt as a "theater"** per `docs/code-generator/
+preview.md`'s existing research brief: a dedicated dark surface (new
+`--theater-*` tokens) so the generated portfolio reads as the brightest
+thing on screen, real virtual-viewport scaling math (`transform: scale()`
+against a `ResizeObserver`-measured canvas, not just a narrower iframe),
+a focus/fullscreen mode with an Escape-key exit, bounded loading/slow/
+timeout readiness states (6s/20s thresholds, never an eternal spinner),
+and consumption of the previously-unused `preview:route` postMessage so
+the toolbar's page selector stays in sync with in-portfolio navigation.
+Verified via the production `Caddyfile` that `preview.<DOMAIN>` is a
+genuinely different origin from `app.<DOMAIN>`, so the existing
+`sandbox="allow-scripts allow-same-origin"` iframe attribute is safe as
+configured (MDN's same-origin sandbox-defeat warning doesn't apply) —
+left unchanged rather than narrowed speculatively.
+
+**Design-token/motion foundation:** `tokens.css` gained elevation shadow
+tiers, a fuller type scale, and the theater surface tokens; new
+`motion.css` centralizes shared keyframes (`oxa-rise`, `oxa-scale-settle`,
+`oxa-sweep`, `oxa-quiet-pulse`, `oxa-connector-draw`) reused across both
+the Jinja2 auth pages and the Preact shell. Fixed a dead `quiet-pulse`
+animation reference (used twice in `shell.css`, defined nowhere) that had
+silently left two "pulsing" status indicators static.
+
+**Auth pages:** onboarding/callback/access-gate/account-unavailable
+(`auth_shell.html`'s shared generic-shell branch) got panel icons, an
+`@`-prefixed username field, and entrance motion to match `/sign-in`'s
+existing polish, with zero structural change. Admin console got a
+light-touch tokens/motion-only pass (hover states, entrance stagger,
+dialog scale-settle) with its structure explicitly left alone, per scope.
+
+**Verification:** fixed a real pre-existing bug found along the way —
+`performance-budget.test.ts` wrapped its byte-size assertions in a bare
+`try {} catch {}` that silently passed on *any* thrown error, including a
+failed `expect()`, so its 120kB/45kB raw budget had never actually been
+enforced (the pre-existing baseline build was already over it before this
+session). Rewrote it to fail loudly, track gzip size as the primary guard,
+and set reasoned new ceilings (170kB/50kB gzip JS, 70kB/16kB gzip CSS)
+reflecting genuine feature growth. `npm run build` / `npx tsc --noEmit` /
+`npx vitest run`: 92/92 passing. `uv run ruff check` + `uv run mypy` clean
+on the two touched Python files. `uv run pytest tests/api` (109 passed),
+`tests/ -k "auth or web"` (97 passed), `tests/unit` (1137 passed, 1
+pre-existing unrelated failure in `test_settings.py` traced to another
+contributor's uncommitted `core/settings.py` edit, confirmed via
+`git diff --stat` before this session started).
+
+### 2026-09-11 16:48 +05:30 — Kiro (configured runtime) — [no commit; shared dirty worktree] — Code Generator preview-first verification, D-094, live campaign
+Made native Code Generator acceptance preview-first while preserving immutable-input, clean-build, serving, storage, and promotion blockers; generated integration/source/runtime findings remain visible as advisories. Recovered Run 2 only from hash-matching durable exports, reached `ready` without consuming another full-run slot, browser-verified the promoted preview, and finalized the complete timestamped handoff in `docs/code-generator-live-campaign.md`, closing the campaign at 2/4.
+
 ### 2026-09-11 03:07 +05:30 - Claude Code (Sonnet 5 / Anthropic) - [c8c9333] - fix(visual-design-director): inline the missing content_ref rule for single-route pages
 
 User-reported: Visual Design Director's `MODEL_OUTPUT_INVALID` ("did not

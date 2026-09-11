@@ -70,6 +70,7 @@ def _shell_context(settings: Any, *, pipeline_mode: str | None = None) -> dict[s
         "auth_config": settings.auth_public_config,
         "pipeline_mode": effective_pipeline_mode,
         "tokens_css_version": _auth_asset_version("tokens.css"),
+        "motion_css_version": _auth_asset_version("motion.css"),
         "living_draft_mark_css_version": _auth_asset_version("living-draft-mark.css"),
         "auth_css_version": _auth_asset_version("auth.css"),
         "auth_client_version": _auth_asset_version("auth-client.js"),

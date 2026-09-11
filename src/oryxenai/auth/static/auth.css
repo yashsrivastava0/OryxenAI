@@ -241,16 +241,19 @@ button:disabled { cursor: not-allowed; opacity: .52; }
 .safe-details dd { margin: .45rem 0 0; overflow-wrap: anywhere; font-weight: 650; }
 
 .admin-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 2rem 0 1rem; }
+.admin-tabs button { transition: transform var(--duration-fast) var(--ease-snappy), background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast); }
 .admin-tabs [aria-selected="true"] { color: #fff; background: var(--ink); border-color: var(--ink); }
-.admin-summary { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--rule); }
-.admin-card { display: grid; gap: .35rem; padding: 1rem; }
+.admin-summary { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--rule); animation: oxa-rise var(--motion-open) var(--ease-snappy) both; }
+.admin-card { display: grid; gap: .35rem; padding: 1rem; transition: background var(--duration-fast); }
+.admin-card:hover { background: var(--canvas-subtle); }
 .admin-card + .admin-card { border-left: 1px solid var(--rule); }
 .admin-card span { color: var(--graphite); font: var(--type-label); text-transform: uppercase; }
-.admin-card strong { font: var(--type-h2); }
+.admin-card strong { font: var(--type-h2); color: var(--signal); }
 .admin-content { display: grid; gap: 1px; margin-top: 1.5rem; background: var(--rule); }
-.admin-row { padding: 1rem; background: var(--paper); }
+.admin-row { padding: 1rem; background: var(--paper); transition: background var(--duration-fast); animation: oxa-rise var(--duration-fast) var(--ease-snappy) both; }
+.admin-row:hover { background: var(--paper-elevated); }
 .admin-row p { margin-bottom: 0; color: var(--graphite); font-size: .875rem; }
-.admin-row-actions { margin-top: .75rem; }
+.admin-row-actions { margin-top: .75rem; display: flex; flex-wrap: wrap; gap: .5rem; }
 dialog {
   max-width: min(34rem, calc(100% - 2rem));
   padding: 2rem;
@@ -258,9 +261,11 @@ dialog {
   background: var(--paper);
   border: 1px solid var(--ink);
   border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-lg);
 }
-dialog::backdrop { background: rgba(23, 26, 25, .55); }
+dialog::backdrop { background: rgba(23, 26, 25, .55); backdrop-filter: blur(2px); }
 dialog form { display: grid; gap: .5rem; }
+dialog[open] { animation: oxa-scale-settle var(--duration-normal) var(--ease-spring) both; }
 [hidden] { display: none !important; }
 
 @media (max-width: 760px) {
@@ -278,6 +283,58 @@ dialog form { display: grid; gap: .5rem; }
   .safe-details div + div { padding-left: 0; border-top: 1px solid var(--rule); border-left: 0; }
   .admin-summary { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ==========================================================================
+   Generic auth shell — parity pass for callback / onboarding / access-gate /
+   account-unavailable. These panels share one template (auth_shell.html);
+   this block deepens their visual weight (icons, real elevation, entrance
+   motion) to match /sign-in's polish without changing their structure.
+   ========================================================================== */
+.panel {
+  animation: oxa-rise var(--motion-surface-change) var(--ease-snappy) both;
+}
+.panel-icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius-control);
+}
+.panel-icon-signal { color: var(--signal); background: var(--signal-subtle); }
+.panel-icon-attention { color: var(--attention); background: var(--attention-subtle); }
+.panel-icon-neutral { color: var(--graphite); background: var(--canvas-subtle); }
+
+.field-with-prefix {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.field-prefix {
+  position: absolute;
+  left: .85rem;
+  color: var(--graphite-dim);
+  font-weight: 650;
+  pointer-events: none;
+}
+.field-with-prefix input { padding-left: 1.7rem; }
+
+#progress-panel .progress-steps li.current { position: relative; }
+#progress-panel .progress-steps li.current::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 2px;
+  background: var(--signal);
+}
+#draft-mark-slot { animation: oxa-rise var(--duration-slow) var(--ease-snappy) both; }
+
+/* Deepen elevation on the generic shell's core card so callback/onboarding/
+   access/unavailable read with the same tactile weight as sign-in's cards,
+   without changing the two-column grid structure itself. */
+.auth-card-core { box-shadow: var(--shadow-sm); }
 
 /* ==========================================================================
    SCREEN 1: EDITORIAL SWISS /sign-in REDESIGN
@@ -1481,5 +1538,8 @@ body[data-page="sign-in"]::before {
   .showcase-card.card-active {
     display: flex !important;
     transform: none !important;
+  }
+  .panel, .admin-summary, .admin-row, #draft-mark-slot, dialog[open] {
+    animation: none !important;
   }
 }
