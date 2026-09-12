@@ -25,6 +25,10 @@ All references below point to the evidence-only audit in `../current-frontend-au
 | FE-019 | Generation | [generation-02-progress.png](../current-frontend-audit/evidence/screenshots/generation/generation-02-progress.png) | Raw coordinator label leaks into user copy | Human-readable milestone copy and consistent spacing |
 | FE-020 | Global/Generation | [generation-02-progress.png](../current-frontend-audit/evidence/screenshots/generation/generation-02-progress.png); output rail observation | Output rail selection falls back to stale earlier output | Inspector selection keyed by active stage and cleared safely when unavailable |
 
+## Related cross-cutting observation without a new FE ID
+
+The audit also recorded an administrator-safety problem that is intentionally kept separate from the FE-001–FE-020 register: an admin-only `Reset Pipeline` control was visible in the ordinary creator topbar. The exact audit evidence is [06-agent-state-and-action-audit.md](../current-frontend-audit/06-agent-state-and-action-audit.md), [09-accessibility-interaction-findings.md](../current-frontend-audit/09-accessibility-interaction-findings.md), and [10-journey-and-information-architecture-findings.md](../current-frontend-audit/10-journey-and-information-architecture-findings.md). The remediation target is `frontend/src/app/AppShell.tsx`: keep the quiet account-menu link to `/admin`, remove the destructive topbar control, and preserve the server-authorized administrator confirmation flow documented in [10-admin-console-specification.md](10-admin-console-specification.md).
+
 ## Evidence interpretation rules
 
 - Screenshot evidence describes the observed runtime, even when an uncommitted change appears to address part of it.

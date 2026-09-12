@@ -14,6 +14,8 @@ This folder is the implementation handoff for the OryxenAI frontend remediation.
 8. [07-responsive-accessibility-and-error-states.md](07-responsive-accessibility-and-error-states.md) — responsive and inclusive behavior.
 9. [08-acceptance-matrix.md](08-acceptance-matrix.md) — measurable acceptance criteria.
 10. [09-implementation-runbook.md](09-implementation-runbook.md) — ordered implementation and verification sequence.
+11. [10-admin-console-specification.md](10-admin-console-specification.md) — administrator-only screen, controls, confirmations, and safety boundary.
+12. [11-implementation-file-map.md](11-implementation-file-map.md) — screen-to-source map and implementation checklist for the next AI.
 
 ## Visual references
 
@@ -30,6 +32,7 @@ The [visuals/](visuals/) folder contains generated UI reference images, not prod
 - [09-generation-attention.png](visuals/09-generation-attention.png)
 - [10-mobile-review.png](visuals/10-mobile-review.png)
 - [11-output-inspector.png](visuals/11-output-inspector.png)
+- [12-admin-control-center.png](visuals/12-admin-control-center.png)
 
 ## Baseline
 

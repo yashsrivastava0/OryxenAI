@@ -28,6 +28,28 @@ Inputs: primary action, secondary action, disabled/loading state, status message
 
 Rules: sticky but reserved; never covers content; primary action has one clear verb; labels do not wrap on desktop; mobile actions stack full width.
 
+Action semantics:
+
+- accept an explicit `destinationStage` and `requiresApproval` flag;
+- render destination-specific copy, never a bare `Next` for a stage handoff;
+- expose `Approve & continue to {destination}` only when the current stage is reviewable;
+- expose `Continue to Generate` for the approved preparation handoff and keep Code Generator start explicit;
+- expose `Start next stage` when approval succeeded but the subsequent start request failed;
+- expose `Retry generation` only when `retry_available` is true in the server projection;
+- keep a sibling status region for `Saving`, `Approved`, `Start failed`, or `Retrying`.
+
+### InputComposer
+
+Inputs: field label, purpose/help text, value, validation state, word/character limit, submit label, disabled/loading state, and submit callback.
+
+Rules: semantic `<label>` association; multiline field for intake, answers, and revisions; preserve typed value on failed requests; no raw prompts, JSON, provider names, or model reasoning; use full-width layout on mobile; submit through the existing API command and announce only the resulting transition.
+
+### NextStageHandoff
+
+Inputs: approved current stage, destination label, start status, approval callback, start callback, and partial-success message.
+
+Rules: one explicit user gesture may request approval and navigation, but the view model records approval and start independently. The destination cannot become `working` until its start response is confirmed. Partial success is rendered as `Approved` plus `Start next stage`.
+
 ### OutputInspector
 
 Inputs: active stage, stage outputs, safe state metadata, and copy handler.

@@ -41,6 +41,11 @@ The implementation is complete only when the following checks pass against the a
 | Preview preservation | Existing verified/candidate preview remains visible after attention |
 | Generation entry | Approved Build Preparation shows an actionable Generate state, not a dead-end lock |
 | Partial approval | Approval success and next-stage start failure are represented separately |
+| Input composer | Intake, answer, and revision fields have labels, inline validation, preserved values on failure, and visible submit actions |
+| Destination copy | Review handoff buttons name the destination agent; no bare `Next` advances a stage |
+| Admin boundary | Creator topbar contains no destructive admin reset; authorized accounts can reach `/admin` from the account menu |
+| Admin controls | `/admin` renders summary, Users/Projects/Legacy/Deleted/Operations/Audit tabs, row actions, refresh, pagination, live status, and typed-target confirmation |
+| Admin safety | Unauthorized `/admin` access is rejected server-side; destructive mutations include idempotency and confirmation data; self/last-admin protections remain visible as safe errors |
 
 ## Accessibility and interaction
 
@@ -51,6 +56,8 @@ The implementation is complete only when the following checks pass against the a
 - Status announcements occur only on meaningful transitions.
 - Reduced-motion mode removes nonessential transitions.
 - Error summaries are understandable without developer terminology.
+- Intake, answer, revision, and admin confirmation controls have visible focus and inline validation.
+- `Next question` and `Approve & continue to {destination}` are not interchangeable labels.
 
 ## Browser test coverage
 
@@ -65,3 +72,5 @@ Discovery intake → questions → brief review → approval
 ```
 
 Record screenshots and geometry results for the four target viewport classes on every remediation pass.
+
+For the separate administrator pass, record `/admin` at desktop and mobile widths, including the Users tab, a project/operations tab, and one confirmation dialog. Use [12-admin-control-center.png](visuals/12-admin-control-center.png) as composition reference only; use live API data and safe masked values in validation.
