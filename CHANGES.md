@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-12 18:24 +05:30 — Codex (configured runtime) — [7aa452b] — frontend remediation research pack, evidence map, screen references
+
+Created `docs/Fix Frontend/` as a self-contained implementation handoff for the audited frontend remediation: root-cause analysis, FE-001–FE-020 evidence mapping, runtime/API contract diagnosis, screen and component specifications, responsive/accessibility rules, acceptance matrix, implementation runbook, and eleven generated UI reference images. No application code, authentication boundary, CSP, or unrelated worktree changes were modified.
+
 ### 2026-09-11 17:45 +05:30 — Kiro (Claude Sonnet 5 / Anthropic) — [pending commit] — Full frontend visual/UX revamp: unified stage handoffs, curated per-stage views, preview theater, auth-page parity (D-095)
 
 User-reported: every screen besides `/sign-in` looked generic/AI-slop, moving
