@@ -15,7 +15,10 @@ These images are high-level UI references for the implementation AI. They are no
 | `09-generation-attention.png` | Failure, preserved preview, and recovery |
 | `10-mobile-review.png` | Mobile condensed review screen |
 | `11-output-inspector.png` | Developer-only output drawer |
+| `12-admin-control-center.png` | Administrator-only control center with summary, tabs, and row actions |
 
 Every reference should use the cream/paper, ink, and restrained cobalt direction, readable sans-serif utility text, editorial display typography, hairline rules, and restrained geometry. Avoid gradients, glassmorphism, fake metrics, robot imagery, stock photography, and decorative elements that compete with the artifact.
 
 Exact copy, statuses, fields, and responsive rules are defined in the parent Markdown documents.
+
+The generated mockups may contain illustrative names, counts, or timestamps to make the composition legible. Treat those values as placeholders; never hardcode them into the product.

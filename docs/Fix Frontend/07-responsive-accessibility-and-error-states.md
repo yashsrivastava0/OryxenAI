@@ -40,6 +40,14 @@
 - Copy feedback is announced without moving focus.
 - Focus must not jump to the top when polling updates a stage.
 
+Inputs and handoffs:
+
+- every intake, answer, and revision field has a programmatic label and an inline error target;
+- submit buttons are reachable immediately after their field and expose a stable accessible name while loading;
+- `Next question` and `Approve & continue to {destination}` are distinct in both visible copy and announcement text;
+- approval announces the completed approval separately from a successful next-stage start;
+- if start fails after approval, focus moves to the `Start next stage` recovery action.
+
 ## Live regions
 
 - Use one small `role="status"` region for meaningful transitions such as “brief ready for review”, “generation failed”, or “preview promoted”.
@@ -60,6 +68,8 @@
 | Unknown backend status | unsupported | safe explanation and refresh, never guessed completion |
 | Broken/external resource preview | evidence fallback | metadata tile and source link, no broken image or raw query alt text |
 | Error boundary render failure | stage error boundary | preserve shell/navigation and offer reset/refetch |
+| Input save fails | input | retain typed value, announce the save failure, expose retry |
+| Administrator action fails | admin attention | retain the selected tab/row, show safe error text, keep the confirmation dialog usable |
 
 ## Motion and contrast
 
@@ -67,3 +77,10 @@
 - Never require animation to understand status, scene order, or action availability.
 - Keep visible focus indicators and sufficient text/control contrast.
 - Use animation only for short state transitions and drawer movement; do not use looping ambient motion during agent work.
+
+## Administrator responsive rules
+
+- the admin summary band changes from four columns to two and then one without hiding counts;
+- the tablist wraps or becomes a contained horizontal strip; it must not widen the page;
+- row action buttons wrap within the row and retain text labels;
+- destructive confirmation dialogs fit the viewport, keep Cancel and Confirm reachable, and return focus to the originating action on cancel or completion.
