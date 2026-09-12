@@ -1,5 +1,7 @@
 # Implementation runbook
 
+Before changing code, read [11-implementation-file-map.md](11-implementation-file-map.md) and [10-admin-console-specification.md](10-admin-console-specification.md). The file map is a routing aid; the backend and existing tests remain authoritative.
+
 ## Phase 1: establish the safe state contract
 
 1. Inspect the current dirty worktree and preserve unrelated contributor changes.
@@ -48,6 +50,8 @@ Exit condition: all responsive and accessibility checks in `08-acceptance-matrix
 4. Recheck console/network output for blocked media, uncaught errors, and repeated polling after terminal state.
 5. Update the evidence matrix only with observed results; do not claim a screenshot or measurement was validated without running it.
 
+6. Validate the separate administrator shell: remove the creator-topbar reset affordance, preserve the account-menu Administration link, and verify `/admin` actions against the existing server-authorized routes and confirmation contract.
+
 ## Change-management requirements
 
 - Use small, reviewable commits.
@@ -55,3 +59,14 @@ Exit condition: all responsive and accessibility checks in `08-acceptance-matrix
 - Do not reset, amend, rebase, push, or absorb unrelated dirty changes.
 - Add one compact change-history entry for the completed commit-sized remediation unit.
 - Add a decision entry only for a genuine architectural decision, such as introducing a same-origin media proxy or changing approval semantics.
+
+## Further enhancements after the remediation
+
+These are intentionally deferred and must not expand the current remediation without a new scope decision:
+
+- add product analytics only after the state and privacy contract is stable;
+- add richer preview comparison and shareable review links only as separately scoped work;
+- add server-backed filtering and search to Users, Projects, and Audit without changing authorization boundaries;
+- add operation detail drawers that expose safe state history rather than raw worker payloads;
+- add bulk actions only after a separate idempotency and confirmation review;
+- add a small health-summary link to diagnostics only if it remains safe and role-gated.

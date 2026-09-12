@@ -2,6 +2,18 @@
 
 The screen specifications below are authoritative for hierarchy and behavior. The visual references in `visuals/` show composition only.
 
+## Control language used across screens
+
+Inputs and actions are part of the specification, not decorative annotations. Every control must have a visible label, a keyboard name, a loading state, and a safe failure state.
+
+- Discovery intake and answers use a labeled multiline input/composer. The input is for user-provided intent or an answer to the current question; it is not a raw model prompt editor.
+- The intake CTA is `Start Discovery`.
+- The question CTA is `Submit answer` or `Next question` depending on whether the next question has already been returned. It must not claim to advance an agent stage.
+- Review CTAs name the destination agent: `Approve & continue to Content Architect`, `Approve & continue to Visual Design Director`, and `Approve & continue to Build Preparation`.
+- Build Preparation uses `Continue to Generate`, which reveals the explicit Generation entry action; it does not silently auto-start Code Generator.
+- A `Revise` action reveals a short revision composer with a label such as `What should change?`, preserves the current artifact, and submits through the existing revision endpoint.
+- A disabled or loading button keeps its label and exposes progress through adjacent status text; it must never collapse to an unlabeled icon.
+
 ## Discovery: intake
 
 Primary: one focused intake field with a clear purpose sentence and a single Start Discovery action.
@@ -16,6 +28,14 @@ Behavior:
 - show clear validation for empty or oversized input;
 - when starting, move to working with an honest milestone message.
 
+Input contract:
+
+- label: `What should this portfolio make clear?`;
+- multiline field with a concise example placeholder, not a raw JSON or prompt field;
+- submit: `Start Discovery`;
+- validation: empty, over-limit, and unavailable-session states are shown inline next to the field;
+- after submit, preserve the input through the existing session state and replace the composer with the working surface.
+
 ## Discovery: questioning
 
 Primary: one question at a time with its answer control.
@@ -24,6 +44,13 @@ Secondary: compact progress “Question 1 of N”, answered-turn summary, and st
 
 Do not place the step navigator behind the question card. Do not expose raw agent envelopes. Use a single transition-based status announcement when a new question arrives.
 
+Answer contract:
+
+- show one labeled answer field, `Your answer`;
+- keep `Submit answer` visible without scrolling past the question;
+- show `Next question` only after the server has returned the next question and the user is moving through an already-saved answer;
+- on failed save, retain the typed answer and show `We couldn't save that answer. Try again.` with a retry action.
+
 ## Discovery: brief review
 
 Primary: brief summary and profile facts that let the user judge whether the narrative is accurate.
@@ -31,6 +58,8 @@ Primary: brief summary and profile facts that let the user judge whether the nar
 Secondary: full Markdown brief in a collapsed reader/drawer; revision composer.
 
 The title is compact and readable. The approval dock is visible immediately and remains available while the full brief is inspected. The user can approve, revise, or leave without losing the durable state.
+
+The revision composer is initially compact or closed. When opened, it must contain one labeled multiline field (`What should change?`), a `Send revision` action, and a `Cancel` action. Approval remains visible in the reserved action dock while the composer is open.
 
 ## Content Architect: review
 
@@ -102,6 +131,12 @@ Primary: isolated preview theater with Desktop, Tablet, Mobile, Fit, route selec
 
 Secondary: non-blocking warnings and explicit regeneration action only when server policy permits it. Clearly label verified versus candidate/unverified previews.
 
+If the prior preparation approval succeeded but Generation start did not, show the approved preparation context and a separate `Start generation` action. Never replace this partial-success state with `Stage Locked`.
+
 ## Tablet and mobile
 
 Tablet uses one column with a compact stage selector, in-flow context strip, route tabs, and reserved actions. Mobile uses a single readable stream, full-width controls, no permanent rails, and a full-screen/slide-over inspector. No content may require horizontal page scrolling.
+
+## Administrator screen
+
+The administrator screen is a separate `/admin` page, not another creator stage. Its detailed contract, server boundary, button matrix, confirmation flow, and responsive requirements live in [10-admin-console-specification.md](10-admin-console-specification.md). The creator screens only expose a quiet `Administration` link to accounts authorized by the server.
