@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-12 18:45 +05:30 — Codex (configured runtime) — [df96f4d] — frontend remediation handoff detail and admin reference
+
+Extended `docs/Fix Frontend/` with explicit input/composer and destination-specific next-agent controls, partial-approval recovery guidance, administrator console specification, screen-to-source implementation map, admin evidence routing, responsive/admin acceptance checks, deferred enhancement notes, and the new `visuals/12-admin-control-center.png` reference. The original eleven visuals remain unchanged; no application source or unrelated worktree changes were modified.
+
 ### 2026-09-12 18:24 +05:30 — Codex (configured runtime) — [7aa452b] — frontend remediation research pack, evidence map, screen references
 
 Created `docs/Fix Frontend/` as a self-contained implementation handoff for the audited frontend remediation: root-cause analysis, FE-001–FE-020 evidence mapping, runtime/API contract diagnosis, screen and component specifications, responsive/accessibility rules, acceptance matrix, implementation runbook, and eleven generated UI reference images. No application code, authentication boundary, CSP, or unrelated worktree changes were modified.
@@ -233,26 +237,11 @@ dist/export behavior unchanged. The targeted suites passed 139 tests and the
 exact saved slot-2 tree passed source audit and typecheck in a disposable
 overlay.
 
-### 2026-09-10 14:00 +05:30 - Codex (configured runtime) - [22db99c] - fix(code-generator): normalize route motion contract drift
-
-After live Pack A exposed deterministic CSS-length and route-motion contract
-drift, added host-side normalization for spelled CSS lengths, trusted selector
-anchors, custom-motion guard/fallback CSS, and exact observer wiring. The
-targeted suites and direct Pack A route-contract replay passed; the bounded
-campaign records the live failure separately.
-
-### 2026-09-10 12:00 +05:30 - Codex (configured runtime) - [68e1693] - fix(code-generator): reconcile repair-budget defaults
-
-Aligned the Code Generator Pydantic repair defaults with the effective
-`config/app.toml` policy (2 per unit, 4 total, 3 integration-polish rounds)
-and documented D-089's deliberate retention of the unused `repair_depth`
-field. The change keeps repair bounded based on the evidence from the prior
-five-slot campaign rather than raising limits for distinct root-causable
-defects.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-10 — [22db99c] — Normalized route motion contracts (CSS lengths, trusted selectors, custom-motion fallback, observer wiring) after live Pack A drift.
+- 2026-09-10 — [68e1693] — Reconciled Code Generator repair-budget defaults with `config/app.toml` and documented D-089's retained unused field.
 - 2026-09-10 — [39076d0] — Refreshed stale image pins by stable asset ID and hardened dist exports against partial/retry failures on Windows.
 - 2026-09-10 — [7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] — Closed desktop generation reliability gaps (preview/export, source/interaction ownership, contract ordering, static content-map, conditional-motion audit) from the five-run campaign.
 - 2026-09-10 — [90e8349] — Fixed fluid type-step token double-prefixing (`--type-type-heading-*` -> `--type-heading-*`) at the schema/compiler boundary.
@@ -297,8 +286,8 @@ defects.
 
 ---
 
-## Summary (as of last compaction — 2026-09-11)
+## Summary (as of last compaction — 2026-09-12)
 
-- Recent detailed entries retained: 13
-- Compacted milestone bullets: 23
-- Last updated: 2026-09-11 03:07 +05:30 — Claude Code (Sonnet 5 / Anthropic)
+- Recent detailed entries retained: 15
+- Compacted milestone bullets: 25
+- Last updated: 2026-09-12 18:45 +05:30 — Codex (configured runtime)
