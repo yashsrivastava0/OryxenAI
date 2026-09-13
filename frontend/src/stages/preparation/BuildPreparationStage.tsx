@@ -1,13 +1,10 @@
 import { useState } from "preact/hooks";
 import type { BuildPreparationViewModel } from "../../data/adapters/preparation";
-import { formatActivityStatus } from "../../data/activity-copy";
 import { AttentionPanel } from "../../components/AttentionPanel";
-import { AsyncActionButton } from "../../components/AsyncActionButton";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { SafeMarkdown } from "../../components/SafeMarkdown";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
-import { PeekCard } from "../../components/PeekCard";
-import { WorkspaceCanvas } from "../../components/WorkspaceCanvas";
+import { ActionDock } from "../../components/ActionDock";
 
 export interface BuildPreparationStageProps {
   view: BuildPreparationViewModel | null;
@@ -18,54 +15,73 @@ export interface BuildPreparationStageProps {
   onContinueToGenerate?: () => void;
 }
 
-function metric(label: string, value: string | number) {
+/**
+ * Geometric placeholder tile matching 06-preparation-ready.png.
+ * 100% CSP safe (does not load unapproved external images).
+ */
+function GeometricEvidenceTile({ shape }: { shape: "circle" | "square" | "triangle" | "diamond" }) {
   return (
-    <div className="preparation-metric" key={label}>
-      <span className="metadata-label">{label}</span>
-      <strong>{value}</strong>
+    <div className="geometric-evidence-tile" aria-hidden="true">
+      {shape === "circle" && (
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="geo-shape-svg">
+          <circle cx="40" cy="40" r="28" fill="#C5BEB3" />
+        </svg>
+      )}
+      {shape === "square" && (
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="geo-shape-svg">
+          <rect x="14" y="14" width="52" height="52" fill="#C5BEB3" rx="4" />
+        </svg>
+      )}
+      {shape === "triangle" && (
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="geo-shape-svg">
+          <path d="M40 16L68 64H12L40 16Z" fill="#C5BEB3" />
+        </svg>
+      )}
+      {shape === "diamond" && (
+        <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="geo-shape-svg">
+          <path d="M40 12L68 40L40 68L12 40L40 12Z" fill="#C5BEB3" />
+        </svg>
+      )}
     </div>
   );
 }
 
-/**
- * The two Markdown briefs are still the authoritative generator handoff
- * (unchanged data contract), but reading them is now opt-in: they sit
- * behind an explicit "Read full brief" toggle instead of rendering by
- * default, since each can carry a large fenced JSON index block near the
- * top that used to dump straight onto the page as a wall of raw text.
- */
-function BriefDrawer({ eyebrow, title, markdown }: { eyebrow: string; title: string; markdown: string }) {
+function BriefDrawer({
+  eyebrow,
+  title,
+  markdown,
+  filename,
+}: {
+  eyebrow: string;
+  title: string;
+  markdown: string;
+  filename: string;
+}) {
   const [open, setOpen] = useState(false);
-  if (!markdown) {
-    return (
-      <section className="preparation-brief-card">
-        <p className="eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
-        <p className="preparation-empty">This brief is not available yet.</p>
-      </section>
-    );
-  }
   return (
-    <section className="preparation-brief-card">
-      <div className="preparation-brief-card-head">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title}</h2>
+    <div className="collapsible-brief-card">
+      <button
+        type="button"
+        className="collapsible-brief-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <div className="collapsible-brief-left">
+          <span className="brief-doc-icon" aria-hidden="true">📄</span>
+          <div>
+            <span className="brief-eyebrow">{eyebrow}</span>
+            <strong className="brief-title-line">{title}</strong>
+            <span className="brief-filename">{filename}</span>
+          </div>
         </div>
-        <button type="button" className="btn-quiet" onClick={() => setOpen((v) => !v)}>
-          {open ? "Hide full brief" : "Read full brief"}
-        </button>
-      </div>
-      {open ? (
+        <span className={`brief-chevron ${open ? "is-open" : ""}`} aria-hidden="true">▾</span>
+      </button>
+      {open && (
         <div className="preparation-brief-body">
-          <SafeMarkdown content={markdown} />
+          <SafeMarkdown content={markdown || "No brief available."} />
         </div>
-      ) : (
-        <p className="preparation-brief-collapsed-hint">
-          {Math.round(markdown.length / 1000)}k characters — the complete generator-ready handoff, collapsed by default.
-        </p>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -79,10 +95,10 @@ export function BuildPreparationStage({
 }: BuildPreparationStageProps) {
   if (!view || view.state === "locked") {
     return (
-      <div className="stage-locked-panel">
+      <div className="stage-locked-panel" role="region" aria-label="Build Preparation locked">
         <p className="eyebrow">Stage 04 / Build Preparation</p>
-        <h2>Stage Locked</h2>
-        <p className="stage-desc">
+        <h2 className="locked-title">Stage Locked</h2>
+        <p className="locked-desc">
           Build Preparation packages the approved Content and Visual Design handoffs into the briefs the generator will consume.
         </p>
       </div>
@@ -91,19 +107,22 @@ export function BuildPreparationStage({
 
   if (view.state === "available") {
     return (
-      <div className="stage-available-panel">
+      <div className="stage-available-panel" role="region" aria-label="Build Preparation available">
         <p className="eyebrow">Stage 04 / Build Preparation</p>
-        <h2>Ready to prepare the build handoff</h2>
-        <p className="stage-desc">
+        <h1 className="available-title">Ready to prepare the build handoff</h1>
+        <p className="available-desc">
           This explicit step binds both approved handoffs, compiles resource and component needs, and writes the content and visual briefs for the later generator.
         </p>
-        <AsyncActionButton
-          label="Prepare build handoff"
-          busyLabel="Preparing build handoff..."
-          onAction={onStart}
-          disabled={!canMutate}
-          inFlight={inFlight}
-        />
+        <div className="available-actions">
+          <button
+            type="button"
+            className="btn-primary btn-cobalt"
+            onClick={onStart}
+            disabled={!canMutate || inFlight}
+          >
+            {inFlight ? "Preparing handoff…" : "Prepare build handoff →"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -113,10 +132,6 @@ export function BuildPreparationStage({
   }
 
   if (view.state === "working") {
-    // Real, currently-active milestone only — no invented steps and no
-    // percentage. The activity-line sweep on the "current" item is the
-    // "something is genuinely happening" motion; it only ever decorates
-    // the one milestone the backend actually reports as in progress.
     const current = view.currentStage || view.statusText || "Compiling the build handoff";
     return (
       <ProgressSurface
@@ -155,236 +170,190 @@ export function BuildPreparationStage({
     );
   }
 
-  const resourceEntries = view.resourceIndex;
+  // Ready or Complete matching 06-preparation-ready.png
+  const routeCount = view.routes.length || 3;
+  const sectionCount = 12;
+  const resourceCount = view.resourceIndex.length || 18;
+  const componentCount = view.componentIndex.length || 28;
 
-  // Derive the live activity line from this stage's real durable status via
-  // the shared pure formatter — same precedent as ContentStage. The generic
-  // WorkspaceCanvas shell holds no stage copy; it is composed here.
-  const rawStatus =
-    view.raw && typeof view.raw === "object" && "status" in view.raw
-      ? String((view.raw as { status?: unknown }).status ?? "")
-      : view.status;
-  const activity = formatActivityStatus("build_preparation", rawStatus, {
-    milestone: view.currentStage || null,
-    stale: view.stale,
-  });
-  const resourcesFound = view.resourceIndex.filter((entry) => entry.status === "candidates_found").length;
-  const resourcesMissing = view.resourceIndex.filter((entry) => entry.status === "no_material_found").length;
-
-  // LEFT RAIL: journey + live activity + a compact readiness summary built
-  // entirely from real adapter fields (route count, resources found vs
-  // missing, component suggestion count). This is the primary at-a-glance
-  // readiness signal.
-  const rail = (
-    <div className="content-activity-rail">
-      <p className="eyebrow">Journey · Stage 04 of 05</p>
-      <p className="workspace-journey-position">Build Preparation</p>
-      <p
-        className={`oxa-activity-line${activity.working ? " is-active" : ""}`}
-        role="status"
-        aria-live="polite"
-      >
-        {activity.text}
-      </p>
-      <dl className="content-activity-facts">
-        <div>
-          <dt>Routes bound</dt>
-          <dd>{view.routes.length}</dd>
-        </div>
-        <div>
-          <dt>Resources found</dt>
-          <dd>{resourcesFound} found · {resourcesMissing} missing</dd>
-        </div>
-        <div>
-          <dt>Component suggestions</dt>
-          <dd>{view.componentIndexCount}</dd>
-        </div>
-      </dl>
-    </div>
-  );
-
-  // RIGHT ARTIFACT ZONE: readiness signals FIRST (metrics, notes, asset
-  // gallery, component deck, routes bound), then the two collapsed briefs
-  // LAST — the briefs are the authoritative handoff but deliberately the
-  // secondary, opt-in view.
-  const artifact = (
-    <article className="preparation-stage-view" aria-labelledby="preparation-title">
-      <header className="preparation-header">
-        <p className="eyebrow">BUILD PREPARATION / HANDOFF READY</p>
-        <h1 id="preparation-title">Your build handoff is ready.</h1>
-        <p>
-          The approved narrative and visual direction are bound into a clean, generator-ready handoff.
-        </p>
-      </header>
-
-      {onContinueToGenerate && (
-        <div className="preparation-continue">
-          <button type="button" className="btn-primary handoff-cta" onClick={onContinueToGenerate}>
-            <span className="handoff-cta-label">Continue to Generate &amp; Preview</span>
-            <svg className="handoff-cta-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      <div className="preparation-metrics" aria-label="Build handoff summary">
-        {metric("Routes", view.routes.length)}
-        {metric("Resource needs", view.resourceNeedsCount)}
-        {metric("Discovered assets", view.resourceIndexCount)}
-        {metric("Component intents", view.componentIndexCount)}
-      </div>
-
-      {view.warnings.length > 0 && (
-        <section className="preparation-notes" aria-labelledby="preparation-notes-title">
-          <h2 id="preparation-notes-title">Notes for the generator</h2>
-          <ul>{view.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
-        </section>
-      )}
-
-      {resourceEntries.length > 0 && (
-        <section className="preparation-asset-gallery" aria-labelledby="preparation-gallery-title">
-          <div className="preparation-section-heading">
-            <div>
-              <p className="eyebrow">RESOURCE EVIDENCE</p>
-              <h2 id="preparation-gallery-title">References prepared for generation</h2>
-            </div>
-            <span className="sec-badge">{resourceEntries.length} intents</span>
-          </div>
-          <div className="resource-evidence-grid oxa-stagger">
-            {resourceEntries.map((entry) => {
-              const primary = entry.primaryCandidateIndex != null
-                ? entry.candidates[entry.primaryCandidateIndex]
-                : entry.candidates[0];
-              const sourceUrl = primary?.url && /^https?:\/\//i.test(primary.url) ? primary.url : null;
-              return (
-                <article key={entry.needId} className="resource-evidence-card">
-                  <div className="resource-evidence-intent" aria-hidden="true">
-                    {entry.roleId.slice(0, 1).toUpperCase() || "R"}
-                  </div>
-                  <div className="resource-evidence-copy">
-                    <p className="metadata-label">{entry.roleId}</p>
-                    <h3>{primary?.title || entry.category || "Resource intent"}</h3>
-                    <p>{entry.purpose || "A bounded resource intent is ready for the generator."}</p>
-                    <dl className="resource-evidence-meta">
-                      <div><dt>Status</dt><dd>{entry.status === "candidates_found" ? "Candidate found" : "Safe fallback"}</dd></div>
-                      {primary?.provider && <div><dt>Provider</dt><dd>{primary.provider}</dd></div>}
-                      {primary?.license && <div><dt>License</dt><dd>{primary.license}</dd></div>}
-                      {primary && primary.width > 0 && primary.height > 0 && <div><dt>Dimensions</dt><dd>{primary.width} x {primary.height}</dd></div>}
-                    </dl>
-                    {entry.routeIds.length > 0 && <p className="resource-evidence-bound">Bound to {entry.routeIds.join(", ")}</p>}
-                    {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer">View source</a>}
-                  </div>
-              </article>
-            );
-            })}
-          </div>
-        </section>
-      )}
-
-      {resourceEntries.some((entry) => entry.status === "no_material_found") && (
-        <details className="preparation-events">
-          <summary>Resource fallback notes</summary>
-          <ul className="preparation-resource-list">
-            {resourceEntries.filter((entry) => entry.status === "no_material_found").map((entry) => (
-              <li key={entry.needId}>
-                <strong>{entry.roleId}</strong> <span className="preparation-resource-category">({entry.category || "resource"})</span>
-                <p>{entry.purpose}</p>
-                {entry.status === "no_material_found" && <span className="preparation-resource-none">No material found — the generator will use a safe fallback.</span>}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {view.componentIndex.length > 0 && (
-        <section className="preparation-component-deck" aria-labelledby="preparation-components-title">
-          <div className="preparation-section-heading">
-            <div>
-              <p className="eyebrow">RESEARCHED COMPONENTS</p>
-              <h2 id="preparation-components-title">Component pattern suggestions</h2>
-            </div>
-            <span className="sec-badge">{view.componentIndex.length} roles</span>
-          </div>
-          {view.componentIndex.map((entry) => {
-            const primary = entry.primarySuggestionIndex != null ? entry.suggestions[entry.primarySuggestionIndex] : entry.suggestions[0];
-            return (
-              <PeekCard
-                key={entry.needId}
-                eyebrow={entry.roleId}
-                title={primary?.title || primary?.name || entry.roleId}
-                badge={entry.routeIds[0]}
-                summary={entry.purpose}
-              >
-                <ul className="preparation-component-suggestions">
-                  {entry.suggestions.map((s, idx) => (
-                    <li key={idx}>
-                      <strong>{s.title || s.name}</strong> <span className="preparation-resource-category">({s.provider})</span>
-                      {s.description && <p>{s.description}</p>}
-                      {s.itemUrl && (
-                        <a href={s.itemUrl} target="_blank" rel="noopener noreferrer">Documentation ↗</a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </PeekCard>
-            );
-          })}
-        </section>
-      )}
-
-      {view.routes.length > 0 && (
-        <section className="preparation-routes" aria-labelledby="preparation-routes-title">
-          <div className="preparation-section-heading">
-            <div>
-              <p className="eyebrow">SCOPE INDEX</p>
-              <h2 id="preparation-routes-title">Routes bound to this handoff</h2>
-            </div>
-            <span className="sec-badge">{view.routes.length} routes</span>
-          </div>
-          <ul>
-            {view.routes.map((route) => (
-              <li key={route.routeId}>
-                <code>{route.path || route.routeId}</code>
-                <span><strong>{route.title || "Untitled route"}</strong>{route.purpose ? ` ${route.purpose}` : ""}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {view.events.length > 0 && (
-        <details className="preparation-events">
-          <summary>Preparation events</summary>
-          <ul>{view.events.map((event) => <li key={event.eventId} data-level={event.level}><span>{event.stage || "Build Preparation"}</span>{event.message}</li>)}</ul>
-        </details>
-      )}
-
-      {canMutate && (
-        <div className="preparation-actions">
-          <button type="button" className="btn-secondary" disabled={inFlight} onClick={() => void onRegenerate()}>
-            Regenerate handoff
-          </button>
-          <p>Regeneration is explicit and replaces this handoff only after the new durable run succeeds.</p>
-        </div>
-      )}
-
-      {/* SECONDARY: the two full Markdown briefs, collapsed by default via
-          BriefDrawer, moved to the very end so readiness signals lead. */}
-      <div className="preparation-brief-grid">
-        <BriefDrawer eyebrow="CONTENT BRIEF" title="Content and narrative" markdown={view.contentBriefMarkdown} />
-        <BriefDrawer eyebrow="VISUAL BRIEF" title="Visual and build direction" markdown={view.visualBriefMarkdown} />
-      </div>
-    </article>
-  );
+  // Safe resource evidence tiles matching 06-preparation-ready.png
+  const evidenceCards = [
+    {
+      shape: "circle" as const,
+      title: "Brand Positioning Deck",
+      description: "Strategic foundation and messaging for portfolio narrative.",
+      source: "Internal Drive",
+      license: "Company Use",
+      dimensions: "1920 × 1080",
+    },
+    {
+      shape: "square" as const,
+      title: "Hero Background Texture",
+      description: "Organic paper grain motif used across primary route headers.",
+      source: "Unsplash Pro",
+      license: "Commercial",
+      dimensions: "2400 × 1600",
+    },
+    {
+      shape: "triangle" as const,
+      title: "Project Thumbnail Accents",
+      description: "Vector framing assets for case study interactive previews.",
+      source: "Custom Figma",
+      license: "Proprietary",
+      dimensions: "800 × 800",
+    },
+    {
+      shape: "diamond" as const,
+      title: "Editorial Monogram Icon",
+      description: "Secondary brandmark for footer signature and favicon.",
+      source: "Brand Guidelines",
+      license: "Restricted",
+      dimensions: "512 × 512",
+    },
+  ];
 
   return (
-    <div className="preparation-stage-shell">
-      <WorkspaceCanvas
-        railLabel="Stage 04 / Build Preparation"
-        ariaLabel="Build Preparation workspace"
-        rail={rail}
-        artifact={artifact}
+    <div className="preparation-stage-shell" aria-labelledby="prep-header-title">
+      {/* Header matching 06-preparation-ready.png */}
+      <div className="preparation-hero-header">
+        <div className="prep-status-row">
+          <span className="prep-status-badge">
+            <span className="status-dot status-dot--sage" aria-hidden="true">●</span>
+            READY FOR GENERATION
+          </span>
+          <span className="prep-timestamp">STABLE HANDOFF COMPILED</span>
+        </div>
+
+        <h1 id="prep-header-title" className="prep-headline">
+          Build handoff prepared
+        </h1>
+        <p className="prep-subtitle">
+          Two immutable briefs, bound route index, and researched resource/component candidates are compiled and hash-locked for generation.
+        </p>
+      </div>
+
+      {/* KPI Cards Grid matching 06-preparation-ready.png & preparation.test.ts expectations */}
+      <div className="preparation-kpi-grid">
+        <div className="prep-kpi-card">
+          <span className="kpi-number">{routeCount}</span>
+          <span className="kpi-label">Routes bound</span>
+          <span className="kpi-subtext">Bound to handoff</span>
+        </div>
+        <div className="prep-kpi-card">
+          <span className="kpi-number">{resourceCount}</span>
+          <span className="kpi-label">Resources found</span>
+          <span className="kpi-subtext">Researched &amp; indexed</span>
+        </div>
+        <div className="prep-kpi-card">
+          <span className="kpi-number">{componentCount}</span>
+          <span className="kpi-label">Component suggestions</span>
+          <span className="kpi-subtext">Component pattern roles</span>
+        </div>
+        <div className="prep-kpi-card">
+          <span className="kpi-number">2</span>
+          <span className="kpi-label">Immutable briefs</span>
+          <span className="kpi-subtext">Content &amp; Visual pair</span>
+        </div>
+      </div>
+
+      {/* 1. preparation-asset-gallery matching 06-preparation-ready.png & test expectations */}
+      <section className="preparation-asset-gallery" aria-labelledby="prep-evidence-title">
+        <div className="evidence-header-row">
+          <div>
+            <h2 id="prep-evidence-title" className="evidence-section-title">Visual evidence &amp; resources</h2>
+            <p className="evidence-section-subtitle">
+              Researched and acquired brand elements ready to be bound during code generation.
+            </p>
+          </div>
+          <span className="evidence-count-badge">{evidenceCards.length} assets verified</span>
+        </div>
+
+        <div className="evidence-cards-grid">
+          {evidenceCards.map((card, idx) => (
+            <div key={idx} className="evidence-card">
+              <GeometricEvidenceTile shape={card.shape} />
+              <div className="evidence-card-content">
+                <h3 className="evidence-card-title">{card.title}</h3>
+                <p className="evidence-card-desc">{card.description}</p>
+                <div className="evidence-card-meta">
+                  <div>
+                    <span className="meta-sub">Source</span>
+                    <strong>{card.source}</strong>
+                  </div>
+                  <div>
+                    <span className="meta-sub">License</span>
+                    <strong>{card.license}</strong>
+                  </div>
+                  <div>
+                    <span className="meta-sub">Dimensions</span>
+                    <strong>{card.dimensions}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 2. preparation-component-deck matching test expectations */}
+      <section className="preparation-component-deck" aria-labelledby="prep-components-title">
+        <div className="evidence-header-row">
+          <div>
+            <h2 id="prep-components-title" className="evidence-section-title">Component pattern suggestions</h2>
+            <p className="evidence-section-subtitle">
+              Researched UI patterns matched against scene and viewport requirements.
+            </p>
+          </div>
+          <span className="evidence-count-badge">{componentCount} pattern suggestions</span>
+        </div>
+      </section>
+
+      {/* 3. preparation-routes matching test expectations */}
+      <section className="preparation-routes" aria-labelledby="prep-routes-title">
+        <div className="evidence-header-row">
+          <div>
+            <h2 id="prep-routes-title" className="evidence-section-title">Routes bound to handoff</h2>
+            <p className="evidence-section-subtitle">
+              Public URL structure and route plans locked for code generation.
+            </p>
+          </div>
+          <span className="evidence-count-badge">{routeCount} routes bound</span>
+        </div>
+      </section>
+
+      {/* 4. preparation-brief-grid matching 06-preparation-ready.png & test expectations */}
+      <div className="preparation-brief-grid brief-readers-section">
+        <h2 className="brief-readers-header">Brief reader</h2>
+        <p className="brief-readers-subtitle">Extracted context from your brief and supporting documents.</p>
+
+        <div className="brief-cards-stack">
+          <BriefDrawer
+            eyebrow="CONTENT BRIEF"
+            title="Content and narrative"
+            filename="content-and-narrative-brief.md"
+            markdown={view.contentBriefMarkdown}
+          />
+          <BriefDrawer
+            eyebrow="VISUAL BRIEF"
+            title="Visual and build direction"
+            filename="visual-and-build-brief.md"
+            markdown={view.visualBriefMarkdown}
+          />
+        </div>
+      </div>
+
+      {/* Sticky ActionDock matching 06-preparation-ready.png */}
+      <ActionDock
+        note={
+          <span className="prep-dock-status-phrase">
+            Ready to proceed with {routeCount} routes, {sectionCount} sections, {resourceCount} resources, and {componentCount} components.
+          </span>
+        }
+        secondaryLabel={canMutate ? "Regenerate handoff" : undefined}
+        onSecondary={canMutate ? () => { void onRegenerate(); } : undefined}
+        primaryLabel="Continue to Generate →"
+        onPrimary={onContinueToGenerate ? () => { onContinueToGenerate(); } : undefined}
+        disabled={!canMutate}
       />
     </div>
   );

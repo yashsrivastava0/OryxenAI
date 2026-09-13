@@ -12,7 +12,7 @@ export interface JourneyStageVM {
   isSelectable: boolean;
 }
 
-interface JourneyRailProps {
+export interface JourneyRailProps {
   journey: JourneyStageVM[];
   selectedStageId: JourneyStageId;
   onSelect: (stage: JourneyStageId) => void;
@@ -38,48 +38,54 @@ const DEFAULT_SUBLABELS: Record<string, string> = {
 };
 
 export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailProps) {
-  // If the provided journey only has the 3 interactive stages (e.g. in existing unit tests),
-  // extend it with the 3 descriptive locked pipeline stages for the complete 6-stage presentation.
+  // If the provided journey only has the 3 interactive stages (e.g. in older unit tests),
+  // extend it with the remaining pipeline stages for the complete presentation.
   const allStages: JourneyStageVM[] = journey.length === 3
     ? [
         ...journey,
         { id: "prepare", ordinal: 4, label: "Prepare", sublabel: DEFAULT_SUBLABELS.prepare, state: "locked", isSelectable: false },
-        { id: "generate", ordinal: 5, label: "Generate", sublabel: DEFAULT_SUBLABELS.generate, state: "locked", isSelectable: false },
-        { id: "preview", ordinal: 6, label: "Preview", sublabel: DEFAULT_SUBLABELS.preview, state: "locked", isSelectable: false },
+        { id: "generate", ordinal: 5, label: "Generate & Preview", sublabel: DEFAULT_SUBLABELS.generate, state: "locked", isSelectable: false },
       ]
     : journey;
 
   const currentStageIndex = allStages.findIndex((s) => s.id === selectedStageId);
-  const currentStage = allStages[currentStageIndex] ?? allStages[0];
-  const activeOrdinal = String(currentStage ? currentStage.ordinal : 1).padStart(2, "0");
-  const totalCount = String(allStages.length).padStart(2, "0");
 
   return (
     <nav className="journey-nav" aria-label="Portfolio journey">
-      {/* Mobile compact progress bar */}
+      {/* Mobile compact selector matching 10-mobile-review.png */}
       <div className="journey-mobile-summary">
-        <label className="journey-mobile-label" htmlFor="journey-stage-select">Current stage</label>
-        <select
-          id="journey-stage-select"
-          value={String(selectedStageId)}
-          aria-label="Current portfolio stage"
-          onChange={(event) => {
-            const next = (event.target as HTMLSelectElement).value as JourneyStageId;
-            const stage = allStages.find((item) => item.id === next);
-            if (stage?.isSelectable) onSelect(next);
-          }}
-        >
-          {allStages.map((stage) => (
-            <option key={stage.id} value={stage.id} disabled={!stage.isSelectable}>
-              {stage.ordinal}. {stage.label}{stage.isSelectable ? "" : " (locked)"}
-            </option>
-          ))}
-        </select>
-        <div className="journey-mobile-badge">
-          <span className="journey-mobile-count">{activeOrdinal} / {totalCount}</span>
-          <span className="journey-mobile-sep">·</span>
-          <span className="journey-mobile-name">{currentStage?.label?.toUpperCase()}</span>
+        <div className="journey-mobile-header">
+          <span className="journey-mobile-kicker">CURRENT STAGE</span>
+          <div className="journey-mobile-breadcrumbs" aria-hidden="true">
+            <span>BUILD</span>
+            <span className="breadcrumb-arrow">›</span>
+            <span className="breadcrumb-active">REVIEW</span>
+            <span className="breadcrumb-arrow">›</span>
+            <span>LAUNCH</span>
+          </div>
         </div>
+
+        <div className="journey-mobile-select-wrapper">
+          <label className="visually-hidden" htmlFor="journey-stage-select">Current portfolio stage</label>
+          <select
+            id="journey-stage-select"
+            value={String(selectedStageId)}
+            aria-label="Current portfolio stage"
+            onChange={(event) => {
+              const next = (event.target as HTMLSelectElement).value as JourneyStageId;
+              const stage = allStages.find((item) => item.id === next);
+              if (stage?.isSelectable) onSelect(next);
+            }}
+          >
+            {allStages.map((stage) => (
+              <option key={stage.id} value={stage.id} disabled={!stage.isSelectable}>
+                {stage.ordinal}. {stage.label}{stage.isSelectable ? "" : " (locked)"}
+              </option>
+            ))}
+          </select>
+          <span className="journey-mobile-chevron" aria-hidden="true">▾</span>
+        </div>
+
         <div className="journey-mobile-track">
           <div
             className="journey-mobile-fill"
@@ -88,13 +94,11 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
         </div>
       </div>
 
-      {/* Full 6-stage architectural rail */}
+      {/* Desktop horizontal 5-stage stepper matching 01-shell-overview.png */}
       <ol className="journey-rail">
         {allStages.map((stage, index) => {
           const state = railState(stage.state);
           const isSelected = stage.id === selectedStageId;
-          const ordinal = String(stage.ordinal).padStart(2, "0");
-          const sublabel = stage.sublabel ?? DEFAULT_SUBLABELS[stage.id] ?? "";
           const isComplete = state === "complete";
           const isCurrent = isSelected || state === "current";
 
@@ -105,9 +109,12 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
               data-selected={isSelected ? "true" : "false"}
               className={`journey-step ${isSelected ? "selected" : ""} ${isCurrent ? "current" : ""} ${isComplete ? "complete" : ""}`}
             >
-              {/* Connector line segment */}
+              {/* Connector line segment between steps */}
               {index > 0 && (
-                <div className={`journey-connector ${allStages[index - 1]?.state === "complete" ? "connector-complete" : ""} ${isSelected ? "connector-active" : ""}`} aria-hidden="true">
+                <div
+                  className={`journey-connector ${allStages[index - 1]?.state === "complete" ? "connector-complete" : ""} ${isSelected ? "connector-active" : ""}`}
+                  aria-hidden="true"
+                >
                   <span className="journey-connector-line" />
                 </div>
               )}
@@ -120,21 +127,21 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
                   onClick={() => onSelect(stage.id as JourneyStageId)}
                 >
                   <span className="journey-node">
-                    <span className="journey-ordinal">{isComplete ? "✓" : ordinal}</span>
+                    <span className="journey-ordinal">
+                      {isComplete && !isSelected ? "✓" : stage.ordinal}
+                    </span>
                   </span>
                   <span className="journey-meta">
                     <strong className="journey-label">{stage.label}</strong>
-                    {sublabel && <small className="journey-sublabel">{sublabel}</small>}
                   </span>
                 </button>
               ) : (
                 <div className="journey-locked-label">
                   <span className="journey-node">
-                    <span className="journey-ordinal">{ordinal}</span>
+                    <span className="journey-ordinal">{stage.ordinal}</span>
                   </span>
                   <span className="journey-meta">
                     <strong className="journey-label">{stage.label}</strong>
-                    {sublabel && <small className="journey-sublabel">{sublabel}</small>}
                   </span>
                 </div>
               )}
@@ -145,3 +152,6 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
     </nav>
   );
 }
+
+// StageNavigator alias for cleaner semantic imports
+export const StageNavigator = JourneyRail;

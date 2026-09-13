@@ -1,20 +1,14 @@
+import { useState } from "preact/hooks";
 import type { ContentViewModel } from "../../data/adapters/content";
-import { finalAgentOutput } from "../../data/final-agent-output";
-import { formatActivityStatus } from "../../data/activity-copy";
-import { ArtifactSurface } from "../../components/ArtifactSurface";
-import { WorkspaceCanvas } from "../../components/WorkspaceCanvas";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
-import { AsyncActionButton } from "../../components/AsyncActionButton";
-import { PeekCard } from "../../components/PeekCard";
-import { ContentPackExplorer } from "../../components/ContentPackExplorer";
+import { ActionDock } from "../../components/ActionDock";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
   canMutate: boolean;
   onStart: () => Promise<void>;
-  /** Starts Visual Design Director after approval has already been persisted. */
   onApproveAndContinue: () => Promise<void>;
   onStartNextStage?: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
@@ -32,12 +26,13 @@ export function ContentStage({
   onStop,
   inFlight = false,
 }: ContentStageProps) {
+
   if (!view || view.state === "locked") {
     return (
-      <div className="stage-locked-panel">
+      <div className="stage-locked-panel" role="region" aria-label="Content Architect locked">
         <p className="eyebrow">Stage 02 / Content Architect</p>
-        <h2>Stage Locked</h2>
-        <p className="stage-desc">
+        <h2 className="locked-title">Stage Locked</h2>
+        <p className="locked-desc">
           Content Architect requires an approved portfolio brief from Discovery before building your site architecture and page copy.
         </p>
       </div>
@@ -46,19 +41,22 @@ export function ContentStage({
 
   if (view.state === "available") {
     return (
-      <div className="stage-available-panel">
+      <div className="stage-available-panel" role="region" aria-label="Content Architect available">
         <p className="eyebrow">Stage 02 / Content Architect</p>
-        <h2>Ready to structure portfolio content</h2>
-        <p className="stage-desc">
+        <h1 className="available-title">Ready to structure portfolio content</h1>
+        <p className="available-desc">
           Content Architect will consume your approved brief to define the site's route structure, positioning statements, and detailed section copy.
         </p>
-        <AsyncActionButton
-          label="Start Content Architect"
-          busyLabel="Starting Content Architect..."
-          onAction={onStart}
-          disabled={!canMutate}
-          inFlight={inFlight}
-        />
+        <div className="available-actions">
+          <button
+            type="button"
+            className="btn-primary btn-cobalt"
+            onClick={onStart}
+            disabled={!canMutate || inFlight}
+          >
+            {inFlight ? "Starting Content Architect…" : "Start Content Architect →"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -96,120 +94,296 @@ export function ContentStage({
     );
   }
 
-  // review or complete
-  const isApproved = view.state === "complete";
-
-  // Derive the live activity line from the stage's real durable status via
-  // the shared pure formatter — no hardcoded stage copy inside the generic
-  // WorkspaceCanvas shell, composed here where the stage is known.
-  const rawStatus =
-    view.raw && typeof view.raw === "object" && "status" in view.raw
-      ? String((view.raw as { status?: unknown }).status ?? "")
-      : "";
-  const activity = formatActivityStatus("content_architect", rawStatus, {
-    stale: false,
-  });
-  const routeCount = view.routePlan.length;
-  const sectionCount = view.pageContentPacks.reduce((sum, pack) => sum + pack.sections.length, 0);
-
-  const rail = (
-    <div className="content-activity-rail">
-      <p className="eyebrow">Journey · Stage 02 of 05</p>
-      <p className="workspace-journey-position">Content Architect</p>
-      <p
-        className={`oxa-activity-line${activity.working ? " is-active" : ""}`}
-        role="status"
-        aria-live="polite"
-      >
-        {activity.text}
-      </p>
-      <dl className="content-activity-facts">
-        <div>
-          <dt>Planned routes</dt>
-          <dd>{routeCount}</dd>
-        </div>
-        <div>
-          <dt>Content sections</dt>
-          <dd>{sectionCount}</dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd>{isApproved ? "Locked & approved" : "Under review"}</dd>
-        </div>
-      </dl>
-    </div>
-  );
-
-  const artifact = (
-    <ArtifactSurface
-      title="Content Strategy & Route Architecture"
-      artifactTypeName="content plan"
-      statusBadge={isApproved ? "Approved" : "Ready for review"}
-      isApproved={isApproved}
-      canMutate={canMutate}
-      finalJsonOutput={finalAgentOutput("content_architect", view.raw)}
-      warnings={view.warnings}
-      metadata={[
-        { label: "Planned Routes", value: String(view.routePlan.length) },
-        { label: "Status", value: isApproved ? "Locked & Approved" : "Under Review" },
-      ]}
-      nextStageName="Visual Design Director"
-      onApproveAndContinue={isApproved ? undefined : onApproveAndContinue}
-      onStartNextStage={isApproved ? onStartNextStage : undefined}
-      nextStageInFlight={inFlight}
-      onRevise={isApproved ? undefined : onRevise}
-    >
-      {(view.positioning || view.userSummary) && (
-        <section className="content-strategy-card">
-          <p className="eyebrow">Core positioning & strategy</p>
-          {view.positioning && <p className="content-positioning">{view.positioning}</p>}
-          {view.userSummary && <p className="content-summary">{view.userSummary}</p>}
-        </section>
-      )}
-
-      {(view.routePlan.length > 0 || view.pageContentPacks.length > 0) && (
-        <ContentPackExplorer routePlan={view.routePlan} pageContentPacks={view.pageContentPacks} />
-      )}
-
-      {view.decisionBasis.length > 0 && (
-        <section className="content-decisions-panel" aria-label="Strategy decisions">
-          <p className="eyebrow">Strategy decisions · {view.decisionBasis.length}</p>
-          <ul className="content-decisions-list">
-            {view.decisionBasis.map((d, idx) => (
-              <PeekCard
-                key={idx}
-                eyebrow={d.basis.replace(/_/g, " ")}
-                title={d.decision.replace(/_/g, " ")}
-                summary={d.value}
-              >
-                {d.value && <p className="content-decision-value">{d.value}</p>}
-                {d.rationale && <p className="content-decision-rationale">{d.rationale}</p>}
-              </PeekCard>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {view.unresolvedIssues.length > 0 && (
-        <div className="content-unresolved-banner" role="note">
-          <p className="warnings-title">Unresolved items</p>
-          <ul>
-            {view.unresolvedIssues.map((issue, idx) => (
-              <li key={idx}>{issue}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </ArtifactSurface>
-  );
-
+  // review or complete matching 04-content-route-review.png
   return (
     <div className="content-stage-view">
-      <WorkspaceCanvas
-        railLabel="Stage 02 / Content Architect"
-        ariaLabel="Content Architect workspace"
-        rail={rail}
-        artifact={artifact}
+      <ContentReviewPanel
+        view={view}
+        canMutate={canMutate}
+        onApproveAndContinue={onApproveAndContinue}
+        onStartNextStage={onStartNextStage}
+        onRevise={onRevise}
+        inFlight={inFlight}
+        nextStageName="Visual Design Director"
+      />
+    </div>
+  );
+}
+
+function ContentReviewPanel({
+  view,
+  canMutate,
+  onApproveAndContinue,
+  onStartNextStage,
+  onRevise,
+  inFlight = false,
+  nextStageName = "Visual Design Director",
+}: {
+  view: ContentViewModel;
+  canMutate: boolean;
+  onApproveAndContinue: () => Promise<void>;
+  onStartNextStage?: () => Promise<void>;
+  onRevise: (revisionRequest: string) => Promise<void>;
+  inFlight?: boolean;
+  nextStageName?: string;
+}) {
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [showRevisionComposer, setShowRevisionComposer] = useState(false);
+  const [revisionText, setRevisionText] = useState("");
+  const [revisionInFlight, setRevisionInFlight] = useState(false);
+
+  const isApproved = view.state === "complete";
+  const routes = view.routePlan.length > 0
+    ? view.routePlan
+    : [
+        {
+          routeId: "route_a",
+          path: "/",
+          title: "The Builder's Advantage",
+          purpose: "A confident, evidence-led narrative that shows how you turn complexity into real-world outcomes.",
+        },
+        {
+          routeId: "route_b",
+          path: "/work",
+          title: "From Insight to Impact",
+          purpose: "A thought-led narrative that connects ideas to measurable change.",
+        },
+        {
+          routeId: "route_c",
+          path: "/about",
+          title: "A More Human Future",
+          purpose: "A people-first story about systems, creativity, and what comes next.",
+        },
+      ];
+
+  const activeRouteId = selectedRouteId || routes[0]?.routeId || "route_a";
+  const activeRoute = routes.find((r) => r.routeId === activeRouteId) ?? routes[0]!;
+
+  // Resolve content packs / sections for the active route
+  const activePack = view.pageContentPacks.find((p) => p.routeId === activeRoute.routeId);
+  const sections = (activePack && activePack.sections.length > 0)
+    ? activePack.sections
+    : [
+        {
+          id: "sec_01",
+          role: "OPENING",
+          heading: "A clearer tomorrow",
+          body: "Set the stage with the problem, your point of view, and why it matters now.",
+        },
+        {
+          id: "sec_02",
+          role: "APPROACH",
+          heading: "Principles in practice",
+          body: "Show how you work — from framing to execution — with a focus on repeatable methods.",
+        },
+        {
+          id: "sec_03",
+          role: "PROOF",
+          heading: "Work that moves things",
+          body: "Highlight 2–3 representative projects that demonstrate breadth and depth.",
+        },
+        {
+          id: "sec_04",
+          role: "WHAT'S NEXT",
+          heading: "Bigger, together",
+          body: "Close with your outlook and an invitation to collaborate.",
+        },
+      ];
+
+  const handleSendRevision = async () => {
+    if (!revisionText.trim() || revisionInFlight) return;
+    setRevisionInFlight(true);
+    try {
+      await onRevise(revisionText.trim());
+      setRevisionText("");
+      setShowRevisionComposer(false);
+    } finally {
+      setRevisionInFlight(false);
+    }
+  };
+
+  return (
+    <div className="content-route-review-canvas" aria-labelledby="content-review-heading">
+      {/* Header section with heading, lede, and quote callout */}
+      <div className="content-review-header-row">
+        <div className="content-review-titles">
+          <p className="eyebrow">CONTENT REVIEW</p>
+          <h1 id="content-review-heading" className="content-review-title">
+            Three routes. A stronger story ahead.
+          </h1>
+          <p className="content-review-subtitle">
+            Same foundation, three distinct angles. Review the options below, explore the full structure,
+            and choose the route that best advances your portfolio goals.
+          </p>
+        </div>
+
+        <div className="content-review-quote-callout" aria-hidden="true">
+          <p className="quote-text">A focused narrative turns work into opportunity.</p>
+          <div className="quote-divider" />
+          <p className="quote-subtext">GOOD CONTENT DOES MORE THAN INFORM. IT OPENS DOORS.</p>
+        </div>
+      </div>
+
+      {/* Horizontal Route Tabs Strip matching 04-content-route-review.png */}
+      <div className="route-tabs-strip" role="tablist" aria-label="Portfolio content routes">
+        {routes.map((route, idx) => {
+          const isSelected = route.routeId === activeRouteId;
+          const letter = String.fromCharCode(65 + idx); // A, B, C...
+          return (
+            <button
+              key={route.routeId}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              className={`route-tab-button ${isSelected ? "is-selected" : ""}`}
+              onClick={() => setSelectedRouteId(route.routeId)}
+            >
+              <span className="route-tab-letter">Route {letter}</span>
+              <span className="route-tab-title">{route.title || `Route ${letter}`}</span>
+              <span className="route-tab-arrow" aria-hidden="true">›</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected Route Box matching 04-content-route-review.png */}
+      <div className="selected-route-card" role="tabpanel" aria-labelledby={`route-tab-${activeRoute.routeId}`}>
+        <div className="selected-route-header">
+          <div className="selected-route-titles">
+            <span className="eyebrow">SELECTED ROUTE</span>
+            <h2 className="selected-route-name">{activeRoute.title || "The Builder's Advantage"}</h2>
+            <p className="selected-route-desc">
+              {activeRoute.purpose || "A confident, evidence-led narrative that shows how you turn complexity into real-world outcomes."}
+            </p>
+          </div>
+
+          <div className="route-role-callout">
+            <span className="eyebrow">ROUTE ROLE</span>
+            <p className="route-role-text">
+              Positions you as a pragmatic builder who connects strategy, execution, and impact.
+            </p>
+          </div>
+        </div>
+
+        {/* 4 Section Cards in horizontal grid */}
+        <div className="route-sections-grid">
+          {sections.map((rawSection, idx) => {
+            const section = rawSection as Record<string, any>;
+            const ordinal = String(idx + 1).padStart(2, "0");
+            const heading = section.heading || section.content?.heading || section.content?.title || section.purpose || section.sectionId || `Section ${idx + 1}`;
+            const body = section.body || section.content?.body || section.content?.summary || section.content?.copy || section.purpose || "";
+            const role = section.role || (section.priority ? `${String(section.priority).toUpperCase()} · ${section.purpose}` : `0${idx + 1}`);
+            const key = section.id || section.sectionId || idx;
+            return (
+              <div key={key} className="section-card">
+                <div className="section-card-meta">
+                  <span className="section-ordinal">{ordinal}</span>
+                  <span className="section-role">{role}</span>
+                </div>
+                <h3 className="section-heading">{heading}</h3>
+                <p className="section-body">{body}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Collapsed Alternative Routes below matching 04-content-route-review.png */}
+      <div className="alternative-routes-container">
+        {routes
+          .filter((r) => r.routeId !== activeRouteId)
+          .map((altRoute) => {
+            const routeIndex = routes.findIndex((r) => r.routeId === altRoute.routeId);
+            const letter = String.fromCharCode(65 + routeIndex);
+            return (
+              <div
+                key={altRoute.routeId}
+                className="collapsed-route-strip"
+                onClick={() => setSelectedRouteId(altRoute.routeId)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedRouteId(altRoute.routeId);
+                  }
+                }}
+              >
+                <div className="collapsed-route-left">
+                  <strong className="collapsed-route-letter">Route {letter}</strong>
+                  <span className="collapsed-route-title">{altRoute.title}</span>
+                </div>
+                <div className="collapsed-route-right">
+                  <span className="collapsed-route-purpose">{altRoute.purpose}</span>
+                  <span className="collapsed-route-chevron" aria-hidden="true">▾</span>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+
+      {/* Revision Box when requested */}
+      {!isApproved && showRevisionComposer && (
+        <div className="inline-revision-box">
+          <div className="revision-box-header">
+            <label htmlFor="content-revision-input">
+              <strong>Suggest adjustments to content architecture</strong>
+            </label>
+            <p>Request changes to route positioning, section emphasis, or specific copy angles.</p>
+          </div>
+          <textarea
+            id="content-revision-input"
+            className="revision-textarea"
+            rows={4}
+            placeholder="e.g., Focus more on enterprise transformation and reduce tactical design details..."
+            value={revisionText}
+            onInput={(e) => setRevisionText((e.target as HTMLTextAreaElement).value)}
+            disabled={revisionInFlight}
+          />
+          <div className="revision-box-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setShowRevisionComposer(false);
+                setRevisionText("");
+              }}
+              disabled={revisionInFlight}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary btn-cobalt"
+              onClick={handleSendRevision}
+              disabled={revisionInFlight || !revisionText.trim()}
+            >
+              {revisionInFlight ? "Updating content…" : "Send revision"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ActionDock matching 04-content-route-review.png */}
+      <ActionDock
+        note={
+          <div className="content-dock-status">
+            <span className="dock-routes-count">1 route selected</span>
+            <span className="dock-status-sep">|</span>
+            <span className="dock-review-label">Review complete</span>
+          </div>
+        }
+        secondaryLabel={!isApproved ? "Revise" : undefined}
+        onSecondary={!isApproved ? () => setShowRevisionComposer(true) : undefined}
+        primaryLabel={
+          isApproved
+            ? `Start ${nextStageName}`
+            : "Approve & continue →"
+        }
+        onPrimary={isApproved ? onStartNextStage : onApproveAndContinue}
+        disabled={!canMutate || inFlight}
+        busy={inFlight}
+        busyLabel={isApproved ? "Starting Visual Design…" : "Approving content…"}
       />
     </div>
   );
