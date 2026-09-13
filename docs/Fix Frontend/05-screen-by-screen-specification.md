@@ -61,6 +61,52 @@ The title is compact and readable. The approval dock is visible immediately and 
 
 The revision composer is initially compact or closed. When opened, it must contain one labeled multiline field (`What should change?`), a `Send revision` action, and a `Cancel` action. Approval remains visible in the reserved action dock while the composer is open.
 
+## Discovery: question experience addendum
+
+This section is authoritative for the Discovery question composer and supersedes older wording that submits a single-select option immediately.
+
+Shared question layout:
+
+- keep the stage navigator unobscured above the question canvas;
+- show a compact `Question {current} of {total}` indicator and, when present, a collapsed `Earlier answers` disclosure;
+- show one question prompt as the primary heading;
+- place `helpText` immediately below the prompt as a short reason or answering hint;
+- render the answer control in a readable single column;
+- reserve the action area so the primary action is visible without a long scroll.
+
+MCQ/multi-select:
+
+- use native checkbox inputs for `multi_select`, one per server-provided option;
+- wrap each input and label in a full-row selectable tile; do not render options inline;
+- selection is local until the user presses `Next question`;
+- allow selection changes before submission and support one or more selected values;
+- use `Select all that apply` only as a hint when it accurately describes the server-provided question;
+- keep `Skip question` separate and visible when `allowSkip` is true.
+
+Single-select and boolean:
+
+- use native radio inputs for `single_select` and the same tile geometry as multi-select;
+- show `Select one` when the question needs that instruction;
+- do not auto-submit when a radio is selected;
+- submit the selected value only from the explicit `Next question` action.
+
+Free-text:
+
+- use the existing `text` kind and a visible `Your answer` label above a multiline textarea;
+- use `helpText` or a short example placeholder as supplemental guidance, never as the label;
+- preserve the existing safe draft behavior;
+- do not show a numeric character count unless a real limit is returned by the product contract;
+- use `Next question` when another question is already available and `Submit answer` only when the current server state requires final submission.
+
+Save failure:
+
+- retain the typed text or selected values;
+- show a safe inline error associated with the field/group;
+- keep a retry-capable action and never imply that the next question was reached;
+- announce the transition once through the small status region, not by making the whole card live.
+
+See [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md) and the separate visual references [16](visuals/16-discovery-mcq-question.png) and [17](visuals/17-discovery-text-question.png).
+
 ## Content Architect: review
 
 Primary order:

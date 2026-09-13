@@ -115,3 +115,46 @@ Stage-specific models may add renderable fields but must retain the complete age
 - Deduplicate exact repeated display values where the backend field has been mapped to two visual roles.
 - Preserve safe errors and previews.
 - Keep backend IDs out of user-facing copy unless they are approved support references.
+
+## Discovery question surface
+
+The Discovery interview may be implemented as one component or a small family of components, but the following contracts must remain explicit:
+
+### QuestionHeader
+
+Inputs: stage label, current ordinal, total ordinal, question text, optional `helpText`, and optional earlier-answer disclosure.
+
+Rules: one visible primary question; bounded line length; no duplicate prompt/body rendering; no admin controls or raw agent envelope; heading and answer group must not produce duplicate screen-reader announcements.
+
+### ChoiceGroup
+
+Inputs: question kind, server-provided option IDs/labels, selected IDs, disabled/loading state, and change callback.
+
+Rules: `single_select` uses native radios, `multi_select` uses native checkboxes, and `boolean` uses the single-select treatment. Every control has an associated visible label. Full-row tiles are presentation only; do not replace native control semantics with an untested custom role. Selection does not call the API.
+
+### AnswerComposer
+
+Inputs: current question, local answer, draft state, validation error, submit label, skip availability, disabled/loading state, and callbacks.
+
+Rules: text questions use a visible `Your answer` label and the existing safe session draft behavior. The composer retains its value after failure. `Next question` submits the existing answer payload and never claims to start another agent stage.
+
+### QuestionActionBar
+
+Inputs: primary submit action, optional skip action, loading state, save status, and error/retry action.
+
+Rules: primary and secondary actions remain visible in the initial viewport; labels do not wrap on desktop; mobile actions stack full width; selection and answer changes remain local until the explicit primary action.
+
+### Question state view model
+
+The question presentation may derive local UI state from the existing `DiscoveryQuestionVM` without changing the backend schema:
+
+```text
+question: DiscoveryQuestionVM
+selection: string[]
+textDraft: string
+submitLabel: "Next question" | "Submit answer"
+saveState: "idle" | "saving" | "error"
+statusMessage: string | null
+```
+
+`selection` and `textDraft` are client interaction state. The adapter remains pure and continues to accept `unknown`, preserve the raw response, and normalize only the existing question kinds. No option descriptions, question limits, model fields, or provider fields may be invented for this surface.

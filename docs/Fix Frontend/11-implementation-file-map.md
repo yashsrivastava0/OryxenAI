@@ -36,6 +36,18 @@ Before adding a new shared abstraction, inspect these existing components and te
 
 The target abstractions are documented in [06-component-and-view-model-contracts.md](06-component-and-view-model-contracts.md): `StageNavigator`, `StageContextStrip`, `ArtifactReview`, `ActionDock`, `OutputInspector`, `ProgressSurface`, `AttentionPanel`, `PreviewTheater`, `InputComposer`, and `NextStageHandoff`.
 
+## Discovery question routing addendum
+
+| Concern | Current source | Required work |
+|---|---|---|
+| Question rendering and submit timing | `frontend/src/components/ConversationSurface.tsx` | keep one question visible; make single-select and multi-select selection local; submit only from explicit `Next question`; retain text drafts and save errors |
+| Discovery callbacks and stage transitions | `frontend/src/stages/discovery/DiscoveryStage.tsx` | preserve existing callback/API semantics; distinguish answer save from worker/stage transitions |
+| Question view model | `frontend/src/data/adapters/discovery.ts` | keep `DiscoveryQuestionVM` authoritative; do not invent option descriptions or limits; normalize unknown data safely |
+| Question styling and geometry | `frontend/src/styles/shell.css` | add explicit selectors for question header, fieldset, option tiles, textarea, action area, focus, error, and mobile stacking |
+| Question tests | `frontend/src/data/adapters/discovery.test.ts`, `frontend/src/stages/stages.test.ts`, and fixture-backed browser tests under the existing frontend test location | cover selection timing, native semantics, retained values after failure, status announcements, and target viewport geometry |
+
+Read [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md) before making visual or interaction decisions. The two new images are visual references only; backend state and the existing authenticated API boundary remain authoritative.
+
 ## Admin surface
 
 | Concern | Current source | Required work |

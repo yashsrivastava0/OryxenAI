@@ -74,3 +74,20 @@ Discovery intake → questions → brief review → approval
 Record screenshots and geometry results for the four target viewport classes on every remediation pass.
 
 For the separate administrator pass, record `/admin` at desktop and mobile widths, including the Users tab, a project/operations tab, and one confirmation dialog. Use [12-admin-control-center.png](visuals/12-admin-control-center.png) as composition reference only; use live API data and safe masked values in validation.
+
+## Discovery question browser matrix
+
+| Scenario | Fixture/input | Pass condition |
+|---|---|---|
+| Single-select idle | `single_select` with three options | Native radio group renders with a visible group name and no request occurs on option selection |
+| Single-select submit | one option selected | `Next question` submits the existing answer payload once and enters the server-returned state |
+| Multi-select | `multi_select` with three options | Native checkbox group renders as vertical selectable tiles; multiple values can be selected and deselected locally |
+| Multi-select submit | one or more options selected | `Next question` submits selected IDs once; empty selection cannot submit unless the server contract permits it |
+| Text question | `text` question | `Your answer` is a visible associated label; textarea and action are visible without long scrolling |
+| Draft retention | text typed, save request rejected | typed value remains, safe inline error is visible, and retry is available |
+| Choice retention | options selected, save request rejected | selected values remain checked and no false next-question transition is announced |
+| Skip | `allowSkip: true` | `Skip question` is separate, submits the existing skip payload, and never fabricates an answer string |
+| Transition announcement | successful save returns a new question | exactly one meaningful status transition is announced; the entire question body is not repeatedly read |
+| Keyboard | radios, checkboxes, textarea, actions | Tab/Shift+Tab, arrows, Space, Enter, and visible focus follow the native/group contract |
+| Responsive geometry | 1536×695, 1366×768, 768×1024, 390×844 | no page overflow, clipped controls, title/status overlap, or action obstruction |
+| Product boundary | creator question screen | no raw JSON, permanent output rail, open admin popover, or destructive reset control is present |
