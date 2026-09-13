@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 19:56 +05:30 — Codex (GPT-5) — [15450bf] — Discovery question research handoff, evidence copies, and visual references
+
+Added the self-contained Discovery question research pack with forensic findings, official accessibility/form guidance, MCQ/free-text contracts, evidence mapping, implementation routing, two byte-for-byte screenshot copies, and two new UI references. Existing Code Generator visual files were preserved unchanged.
+
 ### 2026-09-13 18:20 +05:30 - Codex (GPT-5) - [0e2b303] - stylesheet fallback for completed auth restore
 
 Added a cache-safe product-shell stylesheet that hides the temporary auth
