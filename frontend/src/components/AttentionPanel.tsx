@@ -7,6 +7,7 @@ export interface AttentionPanelProps {
   preservedWorkNote?: string;
   retryLabel?: string;
   onRetry?: () => void | Promise<void>;
+  retryAvailable?: boolean;
   technicalDetails?: string | null;
   errorDetails?: Pick<SafeStageError, "providerLabel" | "operationLabel" | "retryAfterSeconds" | "supportReference">;
   inFlight?: boolean;
@@ -18,6 +19,7 @@ export function AttentionPanel({
   preservedWorkNote = "Your previous approved work and inputs are safely preserved.",
   retryLabel = "Try again",
   onRetry,
+  retryAvailable = true,
   technicalDetails = null,
   errorDetails,
   inFlight = false,
@@ -64,7 +66,7 @@ export function AttentionPanel({
       ) : null}
       {retryError ? <p className="attention-retry-error" role="alert">{retryError}</p> : null}
 
-      {onRetry && (
+      {onRetry && retryAvailable ? (
         <div className="attention-actions">
           <button
             type="button"
@@ -75,6 +77,8 @@ export function AttentionPanel({
             {retrying || inFlight ? "Retrying..." : retryLabel}
           </button>
         </div>
+      ) : (
+        <p className="attention-refresh-note">Refresh to check the latest state, or contact support if this continues.</p>
       )}
 
       {technicalDetails && (

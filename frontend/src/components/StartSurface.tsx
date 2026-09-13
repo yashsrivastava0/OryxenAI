@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "preact/hooks";
+import { safeSessionStorage } from "../data/safe-storage";
 
 export interface StartSurfaceProps {
   onStart: (intakeText: string) => Promise<void>;
@@ -35,8 +36,10 @@ const SUPPORTING_PROMPTS: PromptDef[] = [
   },
 ];
 
+const MAX_INTAKE_CHARACTERS = 30000;
+
 export function StartSurface({ onStart, disabled = false, disabledReason }: StartSurfaceProps) {
-  const [intakeText, setIntakeText] = useState("");
+  const [intakeText, setIntakeText] = useState(() => safeSessionStorage.getItem("oryxenai.discovery_intake_draft") ?? "");
   const [promptValues, setPromptValues] = useState<Record<string, string>>({});
   const [openPromptIds, setOpenPromptIds] = useState<Set<string>>(new Set());
   const [inFlight, setInFlight] = useState(false);
@@ -50,6 +53,10 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
       if (pasteTimerRef.current) window.clearTimeout(pasteTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    safeSessionStorage.setItem("oryxenai.discovery_intake_draft", intakeText);
+  }, [intakeText]);
 
   const totalContent = useMemo(() => {
     let combined = intakeText.trim();
@@ -98,10 +105,15 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
       setError("Add your resume, work history, or project notes before starting Discovery.");
       return;
     }
+    if (value.length > MAX_INTAKE_CHARACTERS) {
+      setError(`Keep your source material under ${MAX_INTAKE_CHARACTERS.toLocaleString()} characters.`);
+      return;
+    }
     setInFlight(true);
     setError(null);
     try {
       await onStart(value);
+      safeSessionStorage.removeItem("oryxenai.discovery_intake_draft");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Discovery could not start. Try again.");
     } finally {
@@ -138,7 +150,7 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
           {/* Workbench Header */}
           <div className="workbench-header">
             <label className="workbench-label" htmlFor="intake-notes">
-              Source notes or resume
+              What should this portfolio make clear?
             </label>
             <div className="workbench-meta">
               <span className={`status-chip ${pasteNotice ? "chip-notice" : isFocused ? "chip-active" : "chip-ready"}`} aria-live="polite">
@@ -157,10 +169,11 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
               id="intake-notes"
               className="workbench-textarea"
               rows={5}
+              maxLength={MAX_INTAKE_CHARACTERS}
               value={intakeText}
               placeholder="Paste your resume, work history, key project metrics, case study notes, or target roles here…"
               onInput={(event) => {
-                setIntakeText((event.target as HTMLTextAreaElement).value);
+                setIntakeText((event.target as HTMLTextAreaElement).value.slice(0, MAX_INTAKE_CHARACTERS));
                 setError(null);
               }}
               onFocus={() => setIsFocused(true)}

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { GenerationPreviewVM, GenerationViewModel } from "../../data/adapters/generation";
 import { friendlyRouteLabel } from "../../data/adapters/generation";
+import { formatActivityStatus } from "../../data/activity-copy";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
 import { ProgressSurface } from "../../components/ProgressSurface";
@@ -49,6 +50,22 @@ function originOf(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+// Milestone labels are static descriptions of real backend phases, not the
+// live status line. formatActivityStatus() owns the single canonical,
+// specific phrasing for each real code_generator status
+// (queued/planning/acquiring/generating/verifying/preview_pending); reusing
+// it here keeps the milestone wording specific and consistent with the live
+// activity copy instead of a second, generic hardcoded string. The trailing
+// ellipsis belongs to the live pulse line, not a static list item, so it is
+// trimmed. This never invents a milestone: every status passed in already
+// corresponds to a milestone the backend actually reports, and an
+// unrecognised status falls back to the caller-supplied generic label.
+function milestoneLabel(status: string, fallback: string): string {
+  const copy = formatActivityStatus("code_generator", status);
+  if (!copy.working) return fallback;
+  return copy.text.replace(/…+$/u, "").trim() || fallback;
 }
 
 /** Measures the available canvas width so the selected device viewport can
@@ -302,13 +319,13 @@ export function GenerationStage({
       <ProgressSurface
         stageLabel="Stage 05 / Generate & Preview"
         title="Generating your portfolio"
-        currentMilestone={view.currentMilestone || view.statusText}
+        currentMilestone={view.currentMilestone || milestoneLabel(view.status, view.statusText)}
         milestones={[
-          { id: "queued", label: "Queued for generation", state: "complete" },
-          { id: "plan", label: "Planning the site", state: view.status === "planning" ? "current" : view.status === "queued" ? "quiet" : "complete" },
+          { id: "plan", label: "Planning", state: ["queued", "planning"].includes(view.status) ? "current" : "complete" },
           { id: "acquire", label: "Acquiring resources", state: view.status === "acquiring" ? "current" : ["queued", "planning"].includes(view.status) ? "quiet" : "complete" },
-          { id: "generate", label: "Generating the portfolio", state: view.status === "generating" ? "current" : ["queued", "planning", "acquiring"].includes(view.status) ? "quiet" : "complete" },
-          { id: "verify", label: "Verifying the build", state: view.status === "verifying" || view.status === "preview_pending" ? "current" : "quiet" },
+          { id: "generate", label: "Building pages", state: view.status === "generating" ? "current" : ["queued", "planning", "acquiring"].includes(view.status) ? "quiet" : "complete" },
+          { id: "verify", label: "Testing viewports", state: view.status === "verifying" ? "current" : ["queued", "planning", "acquiring", "generating"].includes(view.status) ? "quiet" : "complete" },
+          { id: "promote", label: "Promoting preview", state: view.status === "preview_pending" ? "current" : "quiet" },
         ]}
       />
     );
@@ -326,9 +343,10 @@ export function GenerationStage({
                 ? "An approved build handoff changed since this portfolio was generated. Regenerate to bring it up to date."
                 : "The generated portfolio could not pass final verification. Your last verified preview, if any, is preserved below.")
             }
-            preservedWorkNote="Your approved build handoff and any previously verified preview remain unchanged."
+            preservedWorkNote="Your verified preview remains preserved."
             retryLabel={view.stale ? "Regenerate portfolio" : "Retry generation"}
             onRetry={view.stale ? onRegenerate : onRetry}
+            retryAvailable={view.stale || view.retryAvailable}
             inFlight={inFlight}
             errorDetails={view.safeError ?? undefined}
             technicalDetails={view.staleReasons.length > 0 ? view.staleReasons.join("\n") : null}

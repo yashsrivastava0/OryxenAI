@@ -17,7 +17,11 @@ describe("adaptCodeGenerator", () => {
   });
 
   it("maps working and ready states into honest product states", () => {
-    expect(adaptCodeGenerator(generationWorking, true).state).toBe("working");
+    const working = adaptCodeGenerator(generationWorking, true, [
+      { id: "job-generate-1", kind: "code_generator.generate", status: "running", attempt: 1 },
+    ]);
+    expect(working.state).toBe("working");
+    expect(working.job?.id).toBe("job-generate-1");
     const view = adaptCodeGenerator(generationReady, true);
     expect(view.state).toBe("complete");
     expect(view.preview?.url).toBe("https://preview.example.test/preview/abc123/");
@@ -30,14 +34,62 @@ describe("adaptCodeGenerator", () => {
   });
 
   it("retains the last verified preview alongside a needs_attention error, when one exists", () => {
-    const withPreview = adaptCodeGenerator(generationNeedsAttentionWithPreview, true);
+    const withPreview = adaptCodeGenerator(generationNeedsAttentionWithPreview, true, [
+      {
+        id: "job-verify-failed",
+        kind: "code_generator.verify_and_preview",
+        status: "failed",
+        attempt: 3,
+        error: { code: "VERIFY_FAILED", message: "safe failure" },
+      },
+    ]);
     expect(withPreview.state).toBe("attention");
     expect(withPreview.preview?.url).toBe("https://preview.example.test/preview/abc123/");
     expect(withPreview.safeError?.retryable).toBe(true);
+    expect(withPreview.retryAvailable).toBe(true);
 
-    const withoutPreview = adaptCodeGenerator(generationNeedsAttentionNoPreview, true);
+    const withoutPreview = adaptCodeGenerator(generationNeedsAttentionNoPreview, true, [
+      {
+        id: "job-verify-failed",
+        kind: "code_generator.verify_and_preview",
+        status: "cancelled",
+        attempt: 3,
+      },
+    ]);
     expect(withoutPreview.state).toBe("attention");
     expect(withoutPreview.preview).toBeNull();
+    expect(withoutPreview.retryAvailable).toBe(false);
+  });
+
+  it("does not confuse current_run_id with a job id", () => {
+    const view = adaptCodeGenerator(
+      {
+        ...generationWorking,
+        current_run_id: "run-123",
+        active_job_id: "job-generate-1",
+      },
+      true,
+      [
+        { id: "run-123", kind: "code_generator.plan", status: "completed", attempt: 1 },
+        { id: "job-generate-1", kind: "code_generator.generate", status: "running", attempt: 1 },
+      ],
+    );
+    expect(view.job?.id).toBe("job-generate-1");
+  });
+
+  it("uses the coordinator stage for legacy responses without active job fields", () => {
+    const legacy = { ...generationWorking } as Record<string, unknown>;
+    delete legacy.active_job_id;
+    delete legacy.active_job_kind;
+    const view = adaptCodeGenerator(
+      legacy,
+      true,
+      [
+        { id: "job-plan", kind: "code_generator.plan", status: "completed", attempt: 1 },
+        { id: "job-generate", kind: "code_generator.generate", status: "running", attempt: 1 },
+      ],
+    );
+    expect(view.job?.id).toBe("job-generate");
   });
 
   it("exposes an unverified candidate separately from the active preview", () => {

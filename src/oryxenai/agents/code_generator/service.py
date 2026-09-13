@@ -754,6 +754,7 @@ class CodeGeneratorService:
                 )
             ):
                 raise EntitlementBindingConflictError()
+        stale_reasons = await self._stale_reasons(session_id, state)
         payload = state.model_dump(mode="json")
         jobs: list[dict[str, Any]] = []
         if run is not None:
@@ -829,10 +830,46 @@ class CodeGeneratorService:
                             "status": job.status,
                             "execution_lane": getattr(job, "execution_lane", None),
                             "attempt": job.attempt,
-                            "error": job.error_payload,
+                            "max_attempts": getattr(job, "max_attempts", None),
+                            "created_at": _safe_job_timestamp(getattr(job, "created_at", None)),
+                            "started_at": _safe_job_timestamp(getattr(job, "started_at", None)),
+                            "heartbeat_at": _safe_job_timestamp(getattr(job, "heartbeat_at", None)),
+                            "finished_at": _safe_job_timestamp(getattr(job, "finished_at", None)),
+                            "error": _safe_job_error(getattr(job, "error_payload", None)),
                         }
                     )
-        stale_reasons = await self._stale_reasons(session_id, state)
+
+            stage_job_fields = {
+                "plan": "background_job_id",
+                "acquire": "acquire_job_id",
+                "generate": "generation_job_id",
+                "verify": "verification_job_id",
+            }
+            coordinator_stage = str(getattr(run, "coordinator_stage", "") or "")
+            active_job_field = stage_job_fields.get(coordinator_stage)
+            active_job_id = (
+                getattr(run, active_job_field, None) if active_job_field is not None else None
+            )
+            active_job = next(
+                (job for job in jobs if job["id"] == str(active_job_id)),
+                None,
+            )
+            # These are additive fields on the existing state response; they
+            # do not introduce a second polling endpoint or alter run state.
+            payload["active_job_id"] = str(active_job_id) if active_job_id is not None else None
+            payload["active_job_kind"] = active_job["kind"] if active_job is not None else None
+            payload["retry_available"] = bool(
+                not stale_reasons
+                and str(getattr(run, "status", ""))
+                in {
+                    DevelopmentRunStatus.NEEDS_ATTENTION.value,
+                    DevelopmentRunStatus.PREVIEW_PENDING.value,
+                }
+            )
+        else:
+            payload["active_job_id"] = None
+            payload["active_job_kind"] = None
+            payload["retry_available"] = False
         payload["stale"] = bool(stale_reasons)
         payload["stale_reasons"] = stale_reasons
         return {
@@ -1098,6 +1135,29 @@ class CodeGeneratorService:
 def _session_preview_host(session_id: UUID) -> str:
     encoded = base64.b32encode(hashlib.sha256(str(session_id).encode()).digest()).decode().lower()
     return f"session-{encoded[:24].rstrip('=')}"
+
+
+def _safe_job_timestamp(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value if isinstance(value, str) else None
+
+
+def _safe_job_error(value: Any) -> dict[str, Any] | None:
+    """Project only the stable, user-safe portion of a job error."""
+
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, Any] = {}
+    code = value.get("code")
+    message = value.get("message")
+    if isinstance(code, str) and code.strip():
+        result["code"] = code.strip()[:120]
+    if isinstance(message, str) and message.strip():
+        result["message"] = message.strip()[:300]
+    if value.get("retryable") is True:
+        result["retryable"] = True
+    return result or None
 
 
 def _variant_id(run: Any) -> str:

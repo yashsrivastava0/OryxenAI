@@ -1,11 +1,13 @@
 import { useState } from "preact/hooks";
 import type { BuildPreparationViewModel } from "../../data/adapters/preparation";
+import { formatActivityStatus } from "../../data/activity-copy";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { AsyncActionButton } from "../../components/AsyncActionButton";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { SafeMarkdown } from "../../components/SafeMarkdown";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { PeekCard } from "../../components/PeekCard";
+import { WorkspaceCanvas } from "../../components/WorkspaceCanvas";
 
 export interface BuildPreparationStageProps {
   view: BuildPreparationViewModel | null;
@@ -153,16 +155,59 @@ export function BuildPreparationStage({
     );
   }
 
-  const IMAGE_CATEGORIES = new Set(["image", "photo", "editorial_photo", "portrait"]);
-  const imageEntries = view.resourceIndex.filter((entry) => IMAGE_CATEGORIES.has(entry.category.toLowerCase()));
-  const otherResourceEntries = view.resourceIndex.filter((entry) => !imageEntries.includes(entry));
-  const galleryTiles = imageEntries.flatMap((entry) =>
-    entry.candidates
-      .filter((c) => c.previewUrl)
-      .map((candidate) => ({ entry, candidate })),
+  const resourceEntries = view.resourceIndex;
+
+  // Derive the live activity line from this stage's real durable status via
+  // the shared pure formatter — same precedent as ContentStage. The generic
+  // WorkspaceCanvas shell holds no stage copy; it is composed here.
+  const rawStatus =
+    view.raw && typeof view.raw === "object" && "status" in view.raw
+      ? String((view.raw as { status?: unknown }).status ?? "")
+      : view.status;
+  const activity = formatActivityStatus("build_preparation", rawStatus, {
+    milestone: view.currentStage || null,
+    stale: view.stale,
+  });
+  const resourcesFound = view.resourceIndex.filter((entry) => entry.status === "candidates_found").length;
+  const resourcesMissing = view.resourceIndex.filter((entry) => entry.status === "no_material_found").length;
+
+  // LEFT RAIL: journey + live activity + a compact readiness summary built
+  // entirely from real adapter fields (route count, resources found vs
+  // missing, component suggestion count). This is the primary at-a-glance
+  // readiness signal.
+  const rail = (
+    <div className="content-activity-rail">
+      <p className="eyebrow">Journey · Stage 04 of 05</p>
+      <p className="workspace-journey-position">Build Preparation</p>
+      <p
+        className={`oxa-activity-line${activity.working ? " is-active" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        {activity.text}
+      </p>
+      <dl className="content-activity-facts">
+        <div>
+          <dt>Routes bound</dt>
+          <dd>{view.routes.length}</dd>
+        </div>
+        <div>
+          <dt>Resources found</dt>
+          <dd>{resourcesFound} found · {resourcesMissing} missing</dd>
+        </div>
+        <div>
+          <dt>Component suggestions</dt>
+          <dd>{view.componentIndexCount}</dd>
+        </div>
+      </dl>
+    </div>
   );
 
-  return (
+  // RIGHT ARTIFACT ZONE: readiness signals FIRST (metrics, notes, asset
+  // gallery, component deck, routes bound), then the two collapsed briefs
+  // LAST — the briefs are the authoritative handoff but deliberately the
+  // secondary, opt-in view.
+  const artifact = (
     <article className="preparation-stage-view" aria-labelledby="preparation-title">
       <header className="preparation-header">
         <p className="eyebrow">BUILD PREPARATION / HANDOFF READY</p>
@@ -197,43 +242,51 @@ export function BuildPreparationStage({
         </section>
       )}
 
-      {galleryTiles.length > 0 && (
+      {resourceEntries.length > 0 && (
         <section className="preparation-asset-gallery" aria-labelledby="preparation-gallery-title">
           <div className="preparation-section-heading">
             <div>
-              <p className="eyebrow">RESEARCHED IMAGERY</p>
-              <h2 id="preparation-gallery-title">Discovered photography</h2>
+              <p className="eyebrow">RESOURCE EVIDENCE</p>
+              <h2 id="preparation-gallery-title">References prepared for generation</h2>
             </div>
-            <span className="sec-badge">{galleryTiles.length} candidates</span>
+            <span className="sec-badge">{resourceEntries.length} intents</span>
           </div>
-          <div className="asset-gallery-grid oxa-stagger">
-            {galleryTiles.map(({ entry, candidate }, idx) => (
-              <figure key={`${entry.needId}-${idx}`} className="asset-gallery-tile">
-                <img
-                  src={candidate.previewUrl}
-                  alt={candidate.title || entry.purpose || "Discovered candidate image"}
-                  loading="lazy"
-                  width={candidate.width || undefined}
-                  height={candidate.height || undefined}
-                />
-                <figcaption>
-                  <span className="asset-gallery-title">{candidate.title || entry.roleId}</span>
-                  <span className="asset-gallery-meta">{candidate.provider}{candidate.license ? ` · ${candidate.license}` : ""}</span>
-                  {entry.routeIds.length > 0 && (
-                    <span className="asset-gallery-bound">Bound: {entry.routeIds.join(", ")}</span>
-                  )}
-                </figcaption>
-              </figure>
-            ))}
+          <div className="resource-evidence-grid oxa-stagger">
+            {resourceEntries.map((entry) => {
+              const primary = entry.primaryCandidateIndex != null
+                ? entry.candidates[entry.primaryCandidateIndex]
+                : entry.candidates[0];
+              const sourceUrl = primary?.url && /^https?:\/\//i.test(primary.url) ? primary.url : null;
+              return (
+                <article key={entry.needId} className="resource-evidence-card">
+                  <div className="resource-evidence-intent" aria-hidden="true">
+                    {entry.roleId.slice(0, 1).toUpperCase() || "R"}
+                  </div>
+                  <div className="resource-evidence-copy">
+                    <p className="metadata-label">{entry.roleId}</p>
+                    <h3>{primary?.title || entry.category || "Resource intent"}</h3>
+                    <p>{entry.purpose || "A bounded resource intent is ready for the generator."}</p>
+                    <dl className="resource-evidence-meta">
+                      <div><dt>Status</dt><dd>{entry.status === "candidates_found" ? "Candidate found" : "Safe fallback"}</dd></div>
+                      {primary?.provider && <div><dt>Provider</dt><dd>{primary.provider}</dd></div>}
+                      {primary?.license && <div><dt>License</dt><dd>{primary.license}</dd></div>}
+                      {primary && primary.width > 0 && primary.height > 0 && <div><dt>Dimensions</dt><dd>{primary.width} x {primary.height}</dd></div>}
+                    </dl>
+                    {entry.routeIds.length > 0 && <p className="resource-evidence-bound">Bound to {entry.routeIds.join(", ")}</p>}
+                    {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer">View source</a>}
+                  </div>
+              </article>
+            );
+            })}
           </div>
         </section>
       )}
 
-      {otherResourceEntries.length > 0 && (
+      {resourceEntries.some((entry) => entry.status === "no_material_found") && (
         <details className="preparation-events">
-          <summary>Other researched resources · {otherResourceEntries.length}</summary>
+          <summary>Resource fallback notes</summary>
           <ul className="preparation-resource-list">
-            {otherResourceEntries.map((entry) => (
+            {resourceEntries.filter((entry) => entry.status === "no_material_found").map((entry) => (
               <li key={entry.needId}>
                 <strong>{entry.roleId}</strong> <span className="preparation-resource-category">({entry.category || "resource"})</span>
                 <p>{entry.purpose}</p>
@@ -280,11 +333,6 @@ export function BuildPreparationStage({
         </section>
       )}
 
-      <div className="preparation-brief-grid">
-        <BriefDrawer eyebrow="CONTENT BRIEF" title="Content and narrative" markdown={view.contentBriefMarkdown} />
-        <BriefDrawer eyebrow="VISUAL BRIEF" title="Visual and build direction" markdown={view.visualBriefMarkdown} />
-      </div>
-
       {view.routes.length > 0 && (
         <section className="preparation-routes" aria-labelledby="preparation-routes-title">
           <div className="preparation-section-heading">
@@ -320,6 +368,24 @@ export function BuildPreparationStage({
           <p>Regeneration is explicit and replaces this handoff only after the new durable run succeeds.</p>
         </div>
       )}
+
+      {/* SECONDARY: the two full Markdown briefs, collapsed by default via
+          BriefDrawer, moved to the very end so readiness signals lead. */}
+      <div className="preparation-brief-grid">
+        <BriefDrawer eyebrow="CONTENT BRIEF" title="Content and narrative" markdown={view.contentBriefMarkdown} />
+        <BriefDrawer eyebrow="VISUAL BRIEF" title="Visual and build direction" markdown={view.visualBriefMarkdown} />
+      </div>
     </article>
+  );
+
+  return (
+    <div className="preparation-stage-shell">
+      <WorkspaceCanvas
+        railLabel="Stage 04 / Build Preparation"
+        ariaLabel="Build Preparation workspace"
+        rail={rail}
+        artifact={artifact}
+      />
+    </div>
   );
 }

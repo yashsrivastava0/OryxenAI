@@ -69,13 +69,17 @@ export function RevisionComposer({
   return (
     <div className="revision-composer" role="region" aria-label={`Revise ${artifactName}`}>
       <div className="revision-header">
-        <h3>Request changes to this {artifactName}</h3>
+        <h3>What should change?</h3>
         <p className="revision-explanation">
           Describe what you would like adjusted. The stage will rebuild this draft according to your instructions.
         </p>
       </div>
 
+      <label className="revision-label" htmlFor={`revision-${artifactName.replace(/\s+/g, "-")}`}>
+        What should change?
+      </label>
       <textarea
+        id={`revision-${artifactName.replace(/\s+/g, "-")}`}
         ref={textareaRef}
         className="revision-textarea"
         rows={4}
@@ -95,7 +99,7 @@ export function RevisionComposer({
           disabled={inFlight || disabled || !requestText.trim()}
           onClick={() => handleSubmit()}
         >
-          {inFlight ? "Sending revision..." : "Submit revision"}
+          {inFlight ? "Sending revision..." : "Send revision"}
         </button>
         <button
           type="button"

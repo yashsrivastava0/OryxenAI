@@ -2,6 +2,7 @@ import { useState, useMemo } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import { SafeMarkdown, extractHeadings } from "./SafeMarkdown";
 import { RevisionComposer } from "./RevisionComposer";
+import { ActionDock } from "./ActionDock";
 import { copyJson, formatJson, type CopyJsonResult } from "../data/clipboard";
 
 export interface ArtifactSectionItem {
@@ -24,13 +25,13 @@ export interface ArtifactSurfaceProps {
   warnings?: string[];
   artifactTypeName: string; // e.g. "brief", "content plan", "visual direction"
   finalJsonOutput?: unknown;
-  /** The next agent this artifact hands off to. When set, the single primary
-   * action reads "Approve & continue to {nextStageName}" and both approves
-   * and advances the pipeline in one click — no separate confirmation step
-   * and no separate "Continue" screen afterward. Omit only for a terminal
-   * artifact with no downstream agent. */
+  /** The next agent this artifact hands off to. The approved state exposes a
+   * separate destination-specific start action for this stage. */
   nextStageName?: string;
   onApproveAndContinue?: () => Promise<void>;
+  onStartNextStage?: () => Promise<void>;
+  startNextStageLabel?: string;
+  nextStageInFlight?: boolean;
   onRevise?: (revisionRequest: string) => Promise<void>;
   /** Rich custom content rendered above the markdown/structured sections —
    * a sitemap, palette swatches, a peek-card deck. Lets a stage replace
@@ -52,6 +53,9 @@ export function ArtifactSurface({
   finalJsonOutput,
   nextStageName,
   onApproveAndContinue,
+  onStartNextStage,
+  startNextStageLabel,
+  nextStageInFlight = false,
   onRevise,
   children,
 }: ArtifactSurfaceProps) {
@@ -214,45 +218,32 @@ export function ArtifactSurface({
 
           {error && <p className="artifact-error" role="alert">{error}</p>}
 
-          {/* Review actions when stage is in review and mutable: one primary
-              action fuses approval with advancing the pipeline, plus chat
-              (revise) as the only alternative — no separate confirmation
-              step and no separate "start next agent" screen afterward. */}
+          {/* Review actions commit only this artifact. Starting the next stage
+              is exposed after the approved state is rendered below. */}
           {!isApproved && canMutate && onApproveAndContinue && (
             <div className="artifact-review-actions">
-              {!showRevisionComposer && (
-                <div className="action-buttons-row">
+              <div className="action-buttons-row">
+                <button
+                  type="button"
+                  className={`btn-primary handoff-cta ${approving ? "is-approving" : ""}`}
+                  disabled={approving}
+                  onClick={() => void handleApproveAndContinue()}
+                >
+                  <span className="handoff-cta-label">
+                    {approving ? "Saving approval..." : `Approve ${artifactTypeName}`}
+                  </span>
+                </button>
+                {onRevise && (
                   <button
                     type="button"
-                    className={`btn-primary handoff-cta ${approving ? "is-approving" : ""}`}
+                    className="btn-secondary"
                     disabled={approving}
-                    onClick={() => void handleApproveAndContinue()}
+                    onClick={() => setShowRevisionComposer(true)}
                   >
-                    <span className="handoff-cta-label">
-                      {approving
-                        ? "Approving…"
-                        : nextStageName
-                          ? `Approve & continue to ${nextStageName}`
-                          : `Approve ${artifactTypeName}`}
-                    </span>
-                    {!approving && nextStageName && (
-                      <svg className="handoff-cta-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
+                    Revise
                   </button>
-                  {onRevise && (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      disabled={approving}
-                      onClick={() => setShowRevisionComposer(true)}
-                    >
-                      Chat & revise
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Revision Composer, the one alternative to approving as-is */}
               {showRevisionComposer && onRevise && (
@@ -267,6 +258,16 @@ export function ArtifactSurface({
               )}
             </div>
           )}
+
+          {isApproved && canMutate && onStartNextStage && nextStageName ? (
+            <ActionDock
+              primaryLabel={startNextStageLabel ?? `Start ${nextStageName}`}
+              onPrimary={onStartNextStage}
+              busy={nextStageInFlight}
+              busyLabel={`Starting ${nextStageName}...`}
+              note="Approval is saved. Start the next stage when you are ready."
+            />
+          ) : null}
         </div>
       </div>
     </article>
