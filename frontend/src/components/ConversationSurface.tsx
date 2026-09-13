@@ -42,10 +42,12 @@ export function ConversationSurface({
   const currentQuestion = questions[0] ?? null;
 
   const [textAnswer, setTextAnswer] = useState("");
+  const [selectedSingleOption, setSelectedSingleOption] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [inFlight, setInFlight] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusAnnouncement, setStatusAnnouncement] = useState<string>("");
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const draftKey = currentQuestion ? `oryxenai.draft.${currentQuestion.id}` : null;
@@ -74,15 +76,27 @@ export function ConversationSurface({
     return `${Math.floor(seconds / 60)} minutes`;
   };
 
+  const currentQuestionOrdinal = history.length + 1;
+  const totalQuestionsInBatch = history.length + questions.length;
+  const questionOrdinalText = `Question ${String(currentQuestionOrdinal).padStart(2, "0")}${
+    totalQuestionsInBatch > 0 ? ` of ${String(totalQuestionsInBatch).padStart(2, "0")}` : ""
+  }`;
+
   useEffect(() => {
-    if (draftKey) {
-      const saved = safeSessionStorage.getItem(draftKey);
-      if (saved) setTextAnswer(saved);
-      else setTextAnswer("");
+    if (currentQuestion) {
+      if (draftKey) {
+        const saved = safeSessionStorage.getItem(draftKey);
+        if (saved) setTextAnswer(saved);
+        else setTextAnswer("");
+      } else {
+        setTextAnswer("");
+      }
+      setSelectedSingleOption(null);
       setSelectedOptions([]);
       setError(null);
+      setStatusAnnouncement(`${questionOrdinalText}: ${currentQuestion.text}`);
     }
-  }, [draftKey]);
+  }, [currentQuestion?.id, draftKey]);
 
   const handleTextChange = (value: string) => {
     setTextAnswer(value);
@@ -94,6 +108,7 @@ export function ConversationSurface({
   const handleClearDraft = () => {
     if (draftKey) safeSessionStorage.removeItem(draftKey);
     setTextAnswer("");
+    setSelectedSingleOption(null);
     setSelectedOptions([]);
   };
 
@@ -105,6 +120,8 @@ export function ConversationSurface({
     }
   };
 
+  const isLast = questions.length <= 1;
+
   const handleTextSubmit = async () => {
     if (!currentQuestion || inFlight || disabled) return;
     const trimmed = textAnswer.trim();
@@ -113,7 +130,6 @@ export function ConversationSurface({
     setInFlight(true);
     setError(null);
     try {
-      const isLast = questions.length <= 1;
       await executeAnswer(async () => {
         await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, trimmed), isLast);
         handleClearDraft();
@@ -125,34 +141,18 @@ export function ConversationSurface({
     }
   };
 
-  const handleSingleSelect = async (optionId: string) => {
-    if (!currentQuestion || inFlight || disabled) return;
-    setInFlight(true);
-    setError(null);
-    try {
-      const isLast = questions.length <= 1;
-      await executeAnswer(async () => {
-        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, optionId), isLast);
-        handleClearDraft();
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
-    } finally {
-      setInFlight(false);
-    }
+  const handleSingleSelect = (optionId: string) => {
+    if (inFlight || disabled) return;
+    setSelectedSingleOption(optionId);
   };
 
-  const handleBooleanSelect = async (val: boolean) => {
-    if (!currentQuestion || inFlight || disabled) return;
+  const handleSingleSubmit = async () => {
+    if (!currentQuestion || inFlight || disabled || !selectedSingleOption) return;
     setInFlight(true);
     setError(null);
     try {
-      const isLast = questions.length <= 1;
       await executeAnswer(async () => {
-        await onSubmitAnswer(
-          answeredDiscoveryQuestion(currentQuestion.id, val ? "true" : "false"),
-          isLast,
-        );
+        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedSingleOption), isLast);
         handleClearDraft();
       });
     } catch (err) {
@@ -168,7 +168,6 @@ export function ConversationSurface({
     setInFlight(true);
     setError(null);
     try {
-      const isLast = questions.length <= 1;
       await executeAnswer(async () => {
         await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedOptions), isLast);
         handleClearDraft();
@@ -185,7 +184,6 @@ export function ConversationSurface({
     setInFlight(true);
     setError(null);
     try {
-      const isLast = questions.length <= 1;
       await executeAnswer(async () => {
         await onSubmitAnswer(skippedDiscoveryQuestion(currentQuestion.id), isLast);
         handleClearDraft();
@@ -197,10 +195,31 @@ export function ConversationSurface({
     }
   };
 
+  const isSubmitDisabled = (() => {
+    if (inFlight || disabled) return true;
+    if (!currentQuestion) return true;
+    if (currentQuestion.kind === "text") return !textAnswer.trim();
+    if (currentQuestion.kind === "multi_select") return selectedOptions.length === 0;
+    if (currentQuestion.kind === "single_select" || currentQuestion.kind === "boolean") {
+      return !selectedSingleOption;
+    }
+    return false;
+  })();
+
+  const handleSubmit = async () => {
+    if (currentQuestion?.kind === "text") {
+      await handleTextSubmit();
+    } else if (currentQuestion?.kind === "multi_select") {
+      await handleMultiSelectSubmit();
+    } else if (currentQuestion?.kind === "single_select" || currentQuestion?.kind === "boolean") {
+      await handleSingleSubmit();
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
-      void handleTextSubmit();
+      void handleSubmit();
     }
   };
 
@@ -217,11 +236,7 @@ export function ConversationSurface({
     }
   };
 
-  const currentQuestionOrdinal = history.length + 1;
-  const totalQuestionsInBatch = history.length + questions.length;
-  const questionNumberLabel = `QUESTION ${String(currentQuestionOrdinal).padStart(2, "0")}${
-    totalQuestionsInBatch > 0 ? ` OF ${String(totalQuestionsInBatch).padStart(2, "0")}` : ""
-  }`;
+  const submitButtonLabel = inFlight ? "Saving answer…" : isLast ? "Submit answer" : "Next question";
 
   return (
     <section className="conversation-surface" aria-label="Discovery interview">
@@ -324,15 +339,18 @@ export function ConversationSurface({
         </div>
       )}
 
-      {/* 2. Compact Prior Answers Accordion (collapsible, keeps primary focus on active question) */}
+      {/* Status announcer for accessibility (polite announcement of new questions) */}
+      <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        {statusAnnouncement}
+      </div>
+
+      {/* 2. Compact Prior Answers Accordion */}
       {!isWorking && history.length > 0 && (
         <details className="prior-answers-accordion" aria-label="Earlier answers history">
           <summary className="prior-answers-summary">
-            <span className="prior-answers-count">
-              <span className="summary-chevron" aria-hidden="true">▾</span>
-              Earlier answers ({history.length})
-            </span>
-            <span className="prior-answers-hint">Click to expand previous responses</span>
+            <span className="summary-chevron" aria-hidden="true">▶</span>
+            <span className="prior-answers-title">Earlier answers</span>
+            <span className="prior-answers-count">({history.length})</span>
           </summary>
           <div className="prior-answers-drawer">
             {history.map((turn, idx) => (
@@ -353,78 +371,110 @@ export function ConversationSurface({
 
       {/* 3. Actionable Focused Single-Question Card */}
       {!isWorking && currentQuestion && (
-        <div className="discovery-workbench-card active-question-card" aria-live="polite">
+        <div className="discovery-workbench-card active-question-card">
           <div className="workbench-top-rule" aria-hidden="true">
             <span className="workbench-sweep" />
           </div>
 
-          <div className="workbench-header">
-            <span className="eyebrow">{questionNumberLabel}</span>
-            <span className="status-chip chip-ready">
-              <span className="status-dot" aria-hidden="true" />
-              Private draft
-            </span>
-          </div>
-
           <div className="question-content">
-            <p className="question-context-tag">Based on your source material</p>
-            <h2 className="question-prompt">{currentQuestion.text}</h2>
-            {currentQuestion.helpText && (
-              <p className="question-help">{currentQuestion.helpText}</p>
-            )}
+            <div className="question-header">
+              <div className="question-eyebrow-row">
+                <span className="question-stage-tag">DISCOVERY</span>
+                <span className="question-ordinal">{questionOrdinalText}</span>
+              </div>
+              <h2 className="question-prompt">{currentQuestion.text}</h2>
+              {currentQuestion.helpText && (
+                <p className="question-help">{currentQuestion.helpText}</p>
+              )}
+            </div>
 
-            {error && <p className="start-error" role="alert">{error}</p>}
+            {error && (
+              <div className="discovery-error-callout" role="alert">
+                <span className="error-icon" aria-hidden="true">⚠</span>
+                <span>{error}</span>
+              </div>
+            )}
 
             {/* Single Select */}
             {currentQuestion.kind === "single_select" && (
-              <div className="options-grid">
-                {currentQuestion.options.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className="btn-choice"
-                    disabled={inFlight || disabled}
-                    onClick={() => void handleSingleSelect(opt.id)}
-                  >
-                    <span className="choice-indicator" aria-hidden="true">○</span>
-                    <span className="choice-text">{opt.label}</span>
-                  </button>
-                ))}
-              </div>
+              <fieldset className="choice-fieldset">
+                <legend className="choice-group-hint">SELECT ONE</legend>
+                <div className="choice-list" role="radiogroup" aria-label={currentQuestion.text}>
+                  {currentQuestion.options.map((opt) => {
+                    const isSelected = selectedSingleOption === opt.id;
+                    return (
+                      <label
+                        key={opt.id}
+                        className={`choice-tile ${isSelected ? "is-selected" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name={`discovery-q-${currentQuestion.id}`}
+                          className="visually-hidden choice-input"
+                          checked={isSelected}
+                          disabled={inFlight || disabled}
+                          onChange={() => handleSingleSelect(opt.id)}
+                        />
+                        <span className="choice-indicator choice-indicator--radio" aria-hidden="true">
+                          {isSelected && <span className="choice-radio-dot" />}
+                        </span>
+                        <span className="choice-text">{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
             )}
 
             {/* Boolean */}
             {currentQuestion.kind === "boolean" && (
-              <div className="options-grid boolean-grid">
-                <button
-                  type="button"
-                  className="btn-choice"
-                  disabled={inFlight || disabled}
-                  onClick={() => void handleBooleanSelect(true)}
-                >
-                  <span className="choice-text">Yes</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn-choice"
-                  disabled={inFlight || disabled}
-                  onClick={() => void handleBooleanSelect(false)}
-                >
-                  <span className="choice-text">No</span>
-                </button>
-              </div>
+              <fieldset className="choice-fieldset">
+                <legend className="choice-group-hint">SELECT ONE</legend>
+                <div className="choice-list boolean-choice-list" role="radiogroup" aria-label={currentQuestion.text}>
+                  {[
+                    { id: "true", label: "Yes" },
+                    { id: "false", label: "No" },
+                  ].map((opt) => {
+                    const isSelected = selectedSingleOption === opt.id;
+                    return (
+                      <label
+                        key={opt.id}
+                        className={`choice-tile ${isSelected ? "is-selected" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name={`discovery-q-${currentQuestion.id}`}
+                          className="visually-hidden choice-input"
+                          checked={isSelected}
+                          disabled={inFlight || disabled}
+                          onChange={() => handleSingleSelect(opt.id)}
+                        />
+                        <span className="choice-indicator choice-indicator--radio" aria-hidden="true">
+                          {isSelected && <span className="choice-radio-dot" />}
+                        </span>
+                        <span className="choice-text">{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
             )}
 
             {/* Multi Select */}
             {currentQuestion.kind === "multi_select" && (
-              <div className="multi-select-form">
-                <div className="checkbox-list">
+              <fieldset className="choice-fieldset">
+                <legend className="choice-group-hint">SELECT ALL THAT APPLY</legend>
+                <div className="choice-list" role="group" aria-label={currentQuestion.text}>
                   {currentQuestion.options.map((opt) => {
                     const checked = selectedOptions.includes(opt.id);
                     return (
-                      <label key={opt.id} className={`checkbox-row ${checked ? "is-selected" : ""}`}>
+                      <label
+                        key={opt.id}
+                        className={`choice-tile ${checked ? "is-selected" : ""}`}
+                      >
                         <input
                           type="checkbox"
+                          className="visually-hidden choice-input"
                           checked={checked}
                           disabled={inFlight || disabled}
                           onChange={(e) => {
@@ -434,89 +484,72 @@ export function ConversationSurface({
                             );
                           }}
                         />
-                        <span className="checkbox-label">{opt.label}</span>
+                        <span className="choice-indicator choice-indicator--checkbox" aria-hidden="true">
+                          {checked && (
+                            <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                              <path d="M1 5L4.5 8.5L11 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="choice-text">{opt.label}</span>
                       </label>
                     );
                   })}
                 </div>
-                <div className="question-actions">
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={inFlight || disabled || !selectedOptions.length}
-                    onClick={() => void handleMultiSelectSubmit()}
-                  >
-                    {inFlight ? "Saving..." : questions.length > 1 ? "Next question" : "Submit answer"}
-                  </button>
-                  {currentQuestion.allowSkip && (
-                    <button
-                      type="button"
-                      className="btn-quiet"
-                      disabled={inFlight || disabled}
-                      onClick={() => void handleSkip()}
-                    >
-                      Skip question
-                    </button>
-                  )}
-                </div>
-              </div>
+              </fieldset>
             )}
 
             {/* Text Composer */}
             {currentQuestion.kind === "text" && (
-              <div className="text-composer">
-                <label className="composer-label" htmlFor={`discovery-answer-${currentQuestion.id}`}>
-                  Your answer
+              <div className="text-composer-group">
+                <label className="choice-group-hint composer-label" htmlFor={`discovery-answer-${currentQuestion.id}`}>
+                  YOUR ANSWER
                 </label>
                 <textarea
                   id={`discovery-answer-${currentQuestion.id}`}
                   ref={composerRef}
                   className="workbench-textarea composer-textarea"
-                  rows={4}
-                  placeholder="Add the factual details or context that will make this section accurate…"
+                  rows={5}
+                  placeholder="Describe the outcome, your contribution, or the decision behind the work…"
                   value={textAnswer}
                   onInput={(e) => handleTextChange((e.target as HTMLTextAreaElement).value)}
                   onKeyDown={handleKeyDown}
                   disabled={inFlight || disabled}
                 />
-                <div className="question-actions">
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={inFlight || disabled || !textAnswer.trim()}
-                    onClick={() => void handleTextSubmit()}
-                  >
-                    {inFlight ? "Saving..." : questions.length > 1 ? "Next question" : "Submit answer"}
-                  </button>
-                  {currentQuestion.allowSkip && (
-                    <button
-                      type="button"
-                      className="btn-quiet"
-                      disabled={inFlight || disabled}
-                      onClick={() => void handleSkip()}
-                    >
-                      Skip question
-                    </button>
-                  )}
-                </div>
+                {textAnswer.trim().length > 0 && (
+                  <div className="draft-status-row" aria-live="polite">
+                    <span className="draft-status-indicator">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                      Draft saved
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Skip action for non-text/non-multiselect */}
-            {currentQuestion.kind !== "text" &&
-              currentQuestion.kind !== "multi_select" &&
-              currentQuestion.allowSkip && (
-                <div className="question-actions secondary-actions">
-                  <button
-                    type="button"
-                    className="btn-quiet"
-                    disabled={inFlight || disabled}
-                    onClick={() => void handleSkip()}
-                  >
-                    Skip question
-                  </button>
-                </div>
+            {/* Reserved Action Dock */}
+            <div className="question-actions">
+              <button
+                type="button"
+                className="btn-primary btn-next-question"
+                disabled={isSubmitDisabled}
+                onClick={() => void handleSubmit()}
+              >
+                {submitButtonLabel}
+              </button>
+              {currentQuestion.allowSkip && (
+                <button
+                  type="button"
+                  className="btn-quiet btn-skip-question"
+                  disabled={inFlight || disabled}
+                  onClick={() => void handleSkip()}
+                >
+                  Skip question
+                </button>
               )}
+            </div>
           </div>
         </div>
       )}
