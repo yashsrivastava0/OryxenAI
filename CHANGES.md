@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 15:20 +05:30 - Codex (GPT-5) - [pending commit] - frontend remediation: centered stage shell, safe handoffs, and responsive review states
+
+Implemented the Fix Frontend handoff in the existing Preact/TypeScript/Vite
+product shell. Added the centered five-stage journey/canvas composition with
+compact tablet/mobile stage selection, labeled intake/answer/revision
+composers, committed-approval then explicit destination-specific next-stage
+starts, server-driven job/retry projection, safe async attention states,
+metadata-only Build Preparation resource evidence, and a developer-only
+closed-by-default Output Inspector. Removed the creator topbar reset while
+retaining the admin account action and `/admin` access. Added Playwright
+viewport fixtures using the existing dependency; visual reference files were
+not changed.
+
 ### 2026-09-12 18:45 +05:30 — Codex (configured runtime) — [df96f4d] — frontend remediation handoff detail and admin reference
 
 Extended `docs/Fix Frontend/` with explicit input/composer and destination-specific next-agent controls, partial-approval recovery guidance, administrator console specification, screen-to-source implementation map, admin evidence routing, responsive/admin acceptance checks, deferred enhancement notes, and the new `visuals/12-admin-control-center.png` reference. The original eleven visuals remain unchanged; no application source or unrelated worktree changes were modified.

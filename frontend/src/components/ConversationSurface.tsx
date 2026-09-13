@@ -119,7 +119,7 @@ export function ConversationSurface({
         handleClearDraft();
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save your answer. Please try again.");
+      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
     } finally {
       setInFlight(false);
     }
@@ -136,7 +136,7 @@ export function ConversationSurface({
         handleClearDraft();
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save your choice.");
+      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
     } finally {
       setInFlight(false);
     }
@@ -156,7 +156,7 @@ export function ConversationSurface({
         handleClearDraft();
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save your choice.");
+      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
     } finally {
       setInFlight(false);
     }
@@ -174,7 +174,7 @@ export function ConversationSurface({
         handleClearDraft();
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save your selections.");
+      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
     } finally {
       setInFlight(false);
     }
@@ -191,7 +191,7 @@ export function ConversationSurface({
         handleClearDraft();
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not skip question.");
+      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
     } finally {
       setInFlight(false);
     }
@@ -446,7 +446,7 @@ export function ConversationSurface({
                     disabled={inFlight || disabled || !selectedOptions.length}
                     onClick={() => void handleMultiSelectSubmit()}
                   >
-                    {inFlight ? "Saving..." : "Save answer"}
+                    {inFlight ? "Saving..." : questions.length > 1 ? "Next question" : "Submit answer"}
                   </button>
                   {currentQuestion.allowSkip && (
                     <button
@@ -465,7 +465,11 @@ export function ConversationSurface({
             {/* Text Composer */}
             {currentQuestion.kind === "text" && (
               <div className="text-composer">
+                <label className="composer-label" htmlFor={`discovery-answer-${currentQuestion.id}`}>
+                  Your answer
+                </label>
                 <textarea
+                  id={`discovery-answer-${currentQuestion.id}`}
                   ref={composerRef}
                   className="workbench-textarea composer-textarea"
                   rows={4}
@@ -482,7 +486,7 @@ export function ConversationSurface({
                     disabled={inFlight || disabled || !textAnswer.trim()}
                     onClick={() => void handleTextSubmit()}
                   >
-                    {inFlight ? "Saving..." : "Save and continue"}
+                    {inFlight ? "Saving..." : questions.length > 1 ? "Next question" : "Submit answer"}
                   </button>
                   {currentQuestion.allowSkip && (
                     <button

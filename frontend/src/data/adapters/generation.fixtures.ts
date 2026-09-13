@@ -4,6 +4,8 @@ export const generationNotStarted = {
 
 export const generationWorking = {
   status: "generating",
+  active_job_id: "job-generate-1",
+  active_job_kind: "code_generator.generate",
   progress: { coordinator_stage: "generate", current_attempt: 1, plan_summary: {}, source_summary: {} },
 };
 
@@ -25,12 +27,18 @@ export const generationStale = {
 
 export const generationNeedsAttentionWithPreview = {
   status: "needs_attention",
+  active_job_id: "job-verify-failed",
+  active_job_kind: "code_generator.verify_and_preview",
+  retry_available: true,
   active_preview: generationReady.active_preview,
   latest_error: { message: "The generated portfolio failed final verification.", retryable: true },
 };
 
 export const generationNeedsAttentionNoPreview = {
   status: "needs_attention",
+  active_job_id: "job-verify-failed",
+  active_job_kind: "code_generator.verify_and_preview",
+  retry_available: false,
   latest_error: { message: "The generated portfolio failed final verification.", retryable: true },
 };
 

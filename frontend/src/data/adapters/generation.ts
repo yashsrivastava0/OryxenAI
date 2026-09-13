@@ -43,6 +43,7 @@ export interface GenerationViewModel extends StageViewModel {
   candidatePreview?: GenerationPreviewVM | null;
   warnings?: string[];
   safeError: (SafeStageError & { retryable: boolean }) | null;
+  retryAvailable?: boolean;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -50,10 +51,10 @@ const STATUS_TEXT: Record<string, string> = {
   queued: "Queued for generation",
   planning: "Planning the site",
   acquiring: "Acquiring resources",
-  generating: "Generating the portfolio",
-  verifying: "Verifying the build",
+  generating: "Building pages",
+  verifying: "Testing viewports",
   ready: "Portfolio generated and verified",
-  preview_pending: "Finishing the preview",
+  preview_pending: "Promoting preview",
   needs_attention: "Generation needs attention",
 };
 
@@ -129,11 +130,28 @@ export function adaptCodeGenerator(
       candidatePreview: null,
       warnings: [],
       safeError: null,
+      retryAvailable: false,
     };
   }
 
   const status = raw.status;
-  const job = selectStageJob(jobs, typeof raw.current_run_id === "string" ? raw.current_run_id : null);
+  const hasActiveJobProjection = "active_job_id" in raw || "active_job_kind" in raw;
+  const activeJobId = typeof raw.active_job_id === "string" ? raw.active_job_id : null;
+  const activeJobKind = typeof raw.active_job_kind === "string" ? raw.active_job_kind : null;
+  const coordinatorStage = isRecord(raw.progress) && typeof raw.progress.coordinator_stage === "string"
+    ? raw.progress.coordinator_stage
+    : "";
+  const legacyJobKind = coordinatorStage ? `code_generator.${coordinatorStage}` : null;
+  // `current_run_id` identifies the durable generation run, not a background
+  // job. Prefer the additive active-job projection from the existing state
+  // response so the UI never looks up a run UUID as if it were a job UUID.
+  const job = hasActiveJobProjection
+    ? activeJobId
+      ? selectStageJob(jobs, activeJobId)
+      : activeJobKind
+        ? selectStageJob(jobs, null, activeJobKind)
+        : null
+    : selectStageJob(jobs, null, legacyJobKind);
   const failedJob = job?.status === "failed" || job?.status === "cancelled";
   const stale = raw.stale === true;
   const preview = adaptPreview(raw.active_preview);
@@ -171,12 +189,11 @@ export function adaptCodeGenerator(
     status,
     stale,
     staleReasons: strings(raw.stale_reasons),
-    currentMilestone: isRecord(raw.progress) && typeof raw.progress.coordinator_stage === "string"
-      ? raw.progress.coordinator_stage
-      : statusText,
+    currentMilestone: STATUS_TEXT[status] ?? statusText,
     preview,
     candidatePreview,
     warnings: warningMessages(raw.warnings ?? raw.advisories),
     safeError: safeError(raw, failedJob),
+    retryAvailable: state === "attention" && !stale && raw.retry_available === true,
   };
 }

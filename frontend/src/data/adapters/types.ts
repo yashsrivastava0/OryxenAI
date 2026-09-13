@@ -23,6 +23,8 @@ export interface StageViewModel {
   job: StageJobViewModel | null;
   /** Complete persisted agent-owned output, never reconstructed from cards. */
   agentOutput: unknown | null;
+  /** Server-authorized manual retry capability, when the stage exposes one. */
+  retryAvailable?: boolean;
 }
 
 /**
