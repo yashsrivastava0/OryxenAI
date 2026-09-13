@@ -1114,6 +1114,7 @@ export function AppShell({
                 {state.sessionId && activeStage === "generate" ? (
                   <GenerationStage
                     view={state.generation}
+                    sessionId={state.sessionId}
                     canMutate={!state.readOnly && mutatingStage === null}
                     inFlight={mutatingStage === "generate"}
                     onStart={() => runGenerationMutation("start")}
