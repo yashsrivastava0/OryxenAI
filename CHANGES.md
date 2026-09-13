@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 18:14 +05:30 - Codex (GPT-5) - [pending commit] - hide completed auth bootstrap banner
+
+Fixed the successful `/app` restore path so the temporary “Restoring your
+workspace” progress banner is hidden once the authenticated workspace is
+ready, while retaining the existing accessible recovery behavior.
+
 ### 2026-09-13 18:09 +05:30 - Codex (GPT-5) - [fd127de] - auth bootstrap timeout and recovery state
 
 Bound browser session restoration so a stalled Supabase/session/API check

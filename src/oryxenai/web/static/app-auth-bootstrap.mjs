@@ -2,6 +2,12 @@ function replace(location, destination) {
   if (location?.pathname !== destination) location?.replace?.(destination);
 }
 
+function hideBootstrapProgress(documentRef) {
+  const progress = documentRef?.getElementById?.("auth-bootstrap-progress");
+  if (progress) progress.hidden = true;
+  progress?.setAttribute?.("aria-hidden", "true");
+}
+
 function showBootstrapError(documentRef, message) {
   let node = documentRef?.getElementById?.("auth-bootstrap-error");
   if (!node && documentRef?.createElement) {
@@ -13,12 +19,11 @@ function showBootstrapError(documentRef, message) {
     parent?.prepend?.(node);
   }
   if (node) node.textContent = message;
-  const progress = documentRef?.getElementById?.("auth-bootstrap-progress");
-  if (progress) progress.hidden = true;
-  progress?.setAttribute?.("aria-hidden", "true");
+  hideBootstrapProgress(documentRef);
 }
 
 function revealWorkspace(documentRef) {
+  hideBootstrapProgress(documentRef);
   documentRef?.body?.classList?.remove?.("auth-pending");
 }
 

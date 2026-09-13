@@ -99,6 +99,7 @@ test("persistent session resolves /me once before loading the product workspace"
   const page = location("/app");
   const auth = sessionAuth();
   const calls = [];
+  const documentRef = documentProbe();
   let workspaceLoads = 0;
   const result = await bootProductShell({
     auth,
@@ -120,12 +121,15 @@ test("persistent session resolves /me once before loading the product workspace"
       workspaceLoads += 1;
       return { boot() {} };
     },
+    globalRef: { document: documentRef },
   });
 
   assert.equal(result.kind, "app");
   assert.equal(auth.getSessionCalls, 1);
   assert.deepEqual(calls, [{ url: "/api/v1/me", authorization: "Bearer access-token" }]);
   assert.equal(workspaceLoads, 1);
+  assert.equal(documentRef.progress.hidden, true);
+  assert.equal(documentRef.progress.attributes["aria-hidden"], "true");
 });
 
 test("workspace bootstrap failure preserves a valid auth session and avoids a redirect loop", async () => {
