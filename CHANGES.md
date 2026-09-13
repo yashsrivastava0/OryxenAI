@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 20:50 +05:30 — Antigravity (Gemini 3.8) — [f003023] — Code Generator split control room, preview theater, and traceability drawer
+
+Implemented full editorial and functional parity with the Code Generator visual specifications (`13-code-generator-preview-workspace.png`, `14-code-generator-preview-working.png`, and `15-code-generator-preview-attention.png`):
+- Split control room layout with 420px activity and composer column on the left and full-width live preview theater on the right.
+- Vertical 5-milestone stepper (`Plan`, `Acquire`, `Build`, `Verify`, `Preview`) supporting `Available`, `Working` (with active progress bar and pulse indicator), `Attention` (with red exclamation badge and stopped milestone status), and `Complete` states.
+- Dedicated desktop-only preview viewport controls per explicit directive, omitting mobile toggle while preserving desktop fit/scale toggles and secure preview framing with status badges (`🛡️ Previous verified preview`, `⚠️ Candidate preview (unverified)`).
+- Preserved-preview Attention Card matching Image 15 with 3 status pillars (*Preview preserved*, *Polling stopped*, *Retry available*), one-click retry, and details trigger.
+- Traceability Pop-Up Drawer: Right-side slide-over drawer exposing session ID, trace ID, active job ID, failed coordinator stage, error codes, specific issue breakdowns, collapsible raw technical JSON, and a prominent one-click "📋 Copy diagnostic report" action formatting a comprehensive Markdown triage bundle for instant developer debugging and traceability.
+- Passes all 20 frontend Vitest test suites (119 tests), Vite production build, and all 410 Code Generator / API backend unit tests.
+
 ### 2026-09-13 20:05 +05:30 — Codex (GPT-5) — [ff5acf7] — Code Generator preview theater research and references
 
 Added competitor-informed preview workspace research and three new 16:10
