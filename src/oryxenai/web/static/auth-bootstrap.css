@@ -1,0 +1,8 @@
+/* The progress node is present in the HTML so the first paint is honest.
+ * Once the product is mounted or pending auth has cleared, it must not remain
+ * as a second page header. */
+#auth-bootstrap-progress[hidden],
+body:not(.auth-pending) #auth-bootstrap-progress,
+body:has(#product-root:not(:empty)) #auth-bootstrap-progress {
+  display: none !important;
+}

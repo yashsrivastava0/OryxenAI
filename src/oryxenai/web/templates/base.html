@@ -20,6 +20,9 @@
   {% endif %}
   <title>{% block title %}{{ app_name }} - Portfolio Pipeline{% endblock %}</title>
   {% block base_stylesheet %}{% endblock %}
+  {% if pipeline_mode != "detached" %}
+  <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/auth-bootstrap.css?v={{ auth_bootstrap_css_version }}">
+  {% endif %}
   {% block head %}{% endblock %}
 </head>
 <body class="{% if pipeline_mode != "detached" %}auth-pending{% endif %}">

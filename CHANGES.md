@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 18:20 +05:30 - Codex (GPT-5) - [pending commit] - stylesheet fallback for completed auth restore
+
+Added a cache-safe product-shell stylesheet that hides the temporary auth
+progress banner when the pending state clears or the Preact workspace mounts,
+covering partial/stale bootstrap paths that can otherwise leave the banner
+above a fully loaded stage.
+
 ### 2026-09-13 18:14 +05:30 - Codex (GPT-5) - [f74d145] - hide completed auth bootstrap banner
 
 Fixed the successful `/app` restore path so the temporary “Restoring your
