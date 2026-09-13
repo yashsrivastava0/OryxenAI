@@ -74,6 +74,7 @@ def _shell_context(settings: Any, *, pipeline_mode: str | None = None) -> dict[s
         "living_draft_mark_css_version": _auth_asset_version("living-draft-mark.css"),
         "auth_css_version": _auth_asset_version("auth.css"),
         "auth_client_version": _auth_asset_version("auth-client.js"),
+        "auth_bootstrap_css_version": _asset_version("auth-bootstrap.css"),
         "auth_runtime_version": _asset_version("auth-runtime.mjs"),
         "app_auth_bootstrap_version": _asset_version("app-auth-bootstrap.mjs"),
         "pipeline_bootstrap_version": _asset_version("pipeline-bootstrap.mjs"),
