@@ -78,6 +78,20 @@ Inputs and handoffs:
 - Keep visible focus indicators and sufficient text/control contrast.
 - Use animation only for short state transitions and drawer movement; do not use looping ambient motion during agent work.
 
+## Discovery question-specific rules
+
+- Use a real `<fieldset>`/`<legend>` or an equivalent native grouping for radio and checkbox questions.
+- Associate group hints and validation text with `aria-describedby`; every input has a visible label.
+- Keep the option tile's focus indicator around the whole interactive row, not only the small control.
+- For radios, Tab enters the checked radio or first radio, arrow keys move within the group, Space selects, and Tab exits the group. For checkboxes, Space toggles the focused control.
+- Selecting an option must not move focus or submit before `Next question`.
+- After a successful question transition, move focus to the new question heading/control only when needed to preserve orientation; do not reset focus on ordinary polling updates.
+- On save failure, retain the answer and expose the error beside the question. Do not clear the field or selected values.
+- A question save failure is an input-state error; a worker/provider failure is a separate attention state.
+- Replace the broad `aria-live` on the whole question card with one small transition-only status region for events such as `Question ready`, `Answer saved`, or `We couldn't save that answer. Try again.`
+- The action dock must reserve its own layout space so it cannot cover the focused control or the question's error.
+- At 390px, tiles and textarea are full width, question copy stays within the viewport, and `Next question`/`Skip question` stack without horizontal scrolling.
+
 ## Administrator responsive rules
 
 - the admin summary band changes from four columns to two and then one without hiding counts;

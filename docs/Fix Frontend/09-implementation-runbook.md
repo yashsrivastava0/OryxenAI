@@ -32,6 +32,19 @@ Exit condition: no title collisions, no permanent empty-screen scrollbar, no nar
 
 Exit condition: every stage presents its native artifact before secondary prose or developer data.
 
+### Discovery question execution detail
+
+Before moving to the later stage representations:
+
+1. Preserve `DiscoveryQuestionVM` and the existing answer endpoint.
+2. Refactor `ConversationSurface` so single-select selection is local and explicit `Next question` performs submission.
+3. Render single-select/boolean as native radio groups and multi-select as native checkbox groups inside full-row selectable tiles.
+4. Keep the existing text draft persistence, but give the textarea a visible label, bounded copy, and an action that remains above the fold.
+5. Add explicit question selectors to the frontend stylesheet; do not rely on browser-native button/checkbox presentation.
+6. Replace the broad active-card live region with a transition-only status element and preserve focus across polling.
+7. Add fixture-backed browser scenarios for selection timing, retained values after failure, keyboard operation, and the four viewport sizes.
+8. Compare the implementation against [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md), [16-discovery-mcq-question.png](visuals/16-discovery-mcq-question.png), and [17-discovery-text-question.png](visuals/17-discovery-text-question.png). Treat the Markdown behavior contract as authoritative when a mockup is ambiguous.
+
 ## Phase 4: responsive and accessibility hardening
 
 1. Validate desktop, short laptop, tablet, and mobile compositions.
