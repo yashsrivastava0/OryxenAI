@@ -1,14 +1,3 @@
-import {
-  canonicalDestination,
-  createBrowserAuth,
-  getBrowserStorage,
-  invalidateBrowserSession,
-  logoutCurrentBrowser,
-  readAuthConfig,
-  resolveAuthenticatedContext,
-  safeRelativePath,
-} from "../../auth/static/auth-runtime.mjs";
-
 function replace(location, destination) {
   if (location?.pathname !== destination) location?.replace?.(destination);
 }
@@ -25,6 +14,7 @@ function showBootstrapError(documentRef, message) {
   }
   if (node) node.textContent = message;
   const progress = documentRef?.getElementById?.("auth-bootstrap-progress");
+  if (progress) progress.hidden = true;
   progress?.setAttribute?.("aria-hidden", "true");
 }
 
@@ -68,9 +58,10 @@ export async function bootProductShell({
   auth,
   fetchImpl = globalThis.fetch,
   location = globalThis.location,
-  storage = getBrowserStorage(globalThis),
-  config = readAuthConfig(globalThis.document),
+  storage,
+  config,
   globalRef = globalThis,
+  timeoutMs,
   loadWorkspace = async () => {
     // /product_shell.html renders this meta tag only when the Preact bundle
     // (frontend/, docs/Frontend/05) has actually been built. The legacy
@@ -82,6 +73,22 @@ export async function bootProductShell({
     return import(entry);
   },
 } = {}) {
+  // Keep the bootstrap module itself loadable even if the auth runtime alias
+  // is unavailable. A static top-level import would reject before the outer
+  // catch below can reveal a recovery state, leaving the HTML progress copy
+  // visible forever.
+  const {
+    canonicalDestination,
+    createBrowserAuth,
+    getBrowserStorage,
+    invalidateBrowserSession,
+    logoutCurrentBrowser,
+    readAuthConfig,
+    resolveAuthenticatedContext,
+    safeRelativePath,
+  } = await import("../../auth/static/auth-runtime.mjs");
+  storage ??= getBrowserStorage(globalRef);
+  config ??= readAuthConfig(globalRef.document);
   const paths = config.paths || {};
   const signIn = safeRelativePath(paths.signIn || "/sign-in", "/sign-in");
   const access = safeRelativePath(paths.access || "/access-not-approved", "/access-not-approved");
@@ -152,6 +159,7 @@ export async function bootProductShell({
     location,
     storage,
     onAuthFailure,
+    timeoutMs,
   });
   if (context.kind === "signed_out" || context.kind === "storage_error") {
     if (context.kind === "storage_error") {
@@ -169,6 +177,14 @@ export async function bootProductShell({
   }
   if (context.kind === "account_unavailable") {
     replace(location, unavailable);
+    return context;
+  }
+  if (context.kind === "auth_timeout") {
+    showBootstrapError(
+      globalRef.document,
+      "Authentication is taking longer than expected. Check your connection and refresh to try again.",
+    );
+    revealWorkspace(globalRef.document);
     return context;
   }
   if (context.kind === "provider_unavailable" || context.kind === "provider_credit_exhausted") {
@@ -243,5 +259,6 @@ export async function bootProductShell({
 if (typeof document !== "undefined") {
   bootProductShell().catch(() => {
     showBootstrapError(document, "Authentication could not be initialized.");
+    revealWorkspace(document);
   });
 }

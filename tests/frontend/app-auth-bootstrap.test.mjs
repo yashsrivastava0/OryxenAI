@@ -197,6 +197,34 @@ test("exhausted generation credit keeps the session instead of signing out", asy
   assert.deepEqual(page.replacements, []);
 });
 
+test("a stalled session restore reveals a recoverable error instead of hanging", async () => {
+  const page = location("/app");
+  const documentRef = documentProbe();
+  const auth = {
+    async getSession() { return new Promise(() => {}); },
+  };
+
+  const result = await bootProductShell({
+    auth,
+    config,
+    location: page,
+    storage: { removeItem() {} },
+    timeoutMs: 5,
+    globalRef: { document: documentRef },
+    loadWorkspace: async () => { throw new Error("workspace must not load"); },
+  });
+
+  assert.equal(result.kind, "auth_timeout");
+  assert.deepEqual(page.replacements, []);
+  assert.equal(documentRef.progress.hidden, true);
+  assert.equal(documentRef.progress.attributes["aria-hidden"], "true");
+  assert.deepEqual(documentRef.body.classList.removed, ["auth-pending"]);
+  assert.equal(
+    documentRef.main.children[0].textContent,
+    "Authentication is taking longer than expected. Check your connection and refresh to try again.",
+  );
+});
+
 test("admin developer boot resolves /me before loading the protected page", async () => {
   const page = location("/code-generator-development");
   const auth = sessionAuth();
