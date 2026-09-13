@@ -35,3 +35,25 @@ The audit also recorded an administrator-safety problem that is intentionally ke
 - A source-level change is not accepted until the corresponding browser geometry/state scenario passes.
 - The audit contains no recording files; this is an evidence gap, not evidence that the behavior did not occur.
 - The current audit's exact issue language and measurements remain authoritative where this pack summarizes them.
+
+## Discovery question evidence addendum
+
+The following supplied screenshots are copied unchanged into this pack as current-state evidence:
+
+| Evidence | What it proves | Target |
+|---|---|---|
+| [discovery-question-current-01.png](evidence/discovery-question-current-01.png) | Long prompt, inline checkbox controls, weak grouping, large unused lower viewport, and an open administrator popover covering creator content | [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md), [16-discovery-mcq-question.png](visuals/16-discovery-mcq-question.png) |
+| [discovery-question-current-02.png](evidence/discovery-question-current-02.png) | Same Discovery multi-select question state reproduced in a second capture; confirms the issue is not a single-frame rendering accident | [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md), [16-discovery-mcq-question.png](visuals/16-discovery-mcq-question.png) |
+
+The canonical repository screenshot [discovery-03-question-active.png](../current-frontend-audit/evidence/screenshots/discovery/discovery-03-question-active.png) remains the audit source for FE-009 and FE-018. FE-017 remains measured by [scroll_and_layout_metrics.json](../current-frontend-audit/evidence/measurements/scroll_and_layout_metrics.json). The cross-cutting administrator-menu finding remains documented in [06-agent-state-and-action-audit.md](../current-frontend-audit/06-agent-state-and-action-audit.md) and [10-journey-and-information-architecture-findings.md](../current-frontend-audit/10-journey-and-information-architecture-findings.md).
+
+The supplied screenshots are not production assets and must not be copied into the creator UI. They are evidence of the previous state only.
+
+### Explicit issue and safety routing
+
+| Finding | Exact evidence | Implementation target |
+|---|---|---|
+| FE-009 — permanent developer utility rail | [discovery-03-question-active.png](../current-frontend-audit/evidence/screenshots/discovery/discovery-03-question-active.png), [FE-009 issue record](../current-frontend-audit/03-issue-register.md#fe-009-developer-handoff-utility-dominates-primary-right-column) | Remove the permanent raw-JSON rail from the creator question surface; use the closed-by-default developer-only Output Inspector. |
+| FE-017 — initial empty-screen scrollbar | [scroll_and_layout_metrics.json](../current-frontend-audit/evidence/measurements/scroll_and_layout_metrics.json), [FE-017 issue record](../current-frontend-audit/03-issue-register.md#fe-017-vertical-scrollbar-present-on-empty-intake-screen) | Contain shell height, remove decorative overflow, reserve only the action space needed by the question, and verify all four target viewports. |
+| FE-018 — obscured/washout stepper | [discovery-03-question-active.png](../current-frontend-audit/evidence/screenshots/discovery/discovery-03-question-active.png), [FE-018 issue record](../current-frontend-audit/03-issue-register.md#fe-018-stepper-navigation-obscured-behind-question-card) | Keep the compact stage navigator above the question canvas with stable contrast and no overlap or z-index competition. |
+| Administrator-menu obstruction / destructive reset exposure | [discovery-question-current-01.png](evidence/discovery-question-current-01.png), [discovery-question-current-02.png](evidence/discovery-question-current-02.png), [administrator action audit](../current-frontend-audit/06-agent-state-and-action-audit.md#b-reset-pipeline-dangerous-action-top-navigation-bar), [journey/IA finding](../current-frontend-audit/10-journey-and-information-architecture-findings.md#4-problem-family-d-developer-tooling-dominates-user-workspace) | Keep the creator account menu closed by default, remove destructive reset from creator navigation, and route authorized administration to the separate `/admin` surface. |
