@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-13 18:09 +05:30 - Codex (GPT-5) - [pending commit] - auth bootstrap timeout and recovery state
+### 2026-09-13 18:09 +05:30 - Codex (GPT-5) - [fd127de] - auth bootstrap timeout and recovery state
 
 Bound browser session restoration so a stalled Supabase/session/API check
 cannot leave `/app` on the initial "Restoring your workspace" progress copy
