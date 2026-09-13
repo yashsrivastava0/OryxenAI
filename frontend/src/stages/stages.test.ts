@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { VNode } from "preact";
+import { h, type VNode } from "preact";
+import { renderToString } from "preact-render-to-string";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { contentFixtureApproved, contentFixtureNotStarted, contentFixtureReview } from "../data/adapters/content.fixtures";
 import { adaptVisualDesignDirector } from "../data/adapters/design";
@@ -12,6 +13,14 @@ import { DiscoveryStage } from "./discovery/DiscoveryStage";
 import { BuildPreparationStage } from "./preparation/BuildPreparationStage";
 import { adaptBuildPreparation } from "../data/adapters/preparation";
 import { preparationNotStarted, preparationReady, preparationRunning } from "../data/adapters/preparation.fixtures";
+import { GenerationStage } from "./generation/GenerationStage";
+import { adaptCodeGenerator } from "../data/adapters/generation";
+import {
+  generationNeedsAttentionWithPreview,
+  generationNotStarted,
+  generationReady,
+  generationWorking,
+} from "../data/adapters/generation.fixtures";
 
 const className = (node: VNode<{ className?: string }>) => node.props.className;
 const discoveryProps = {
@@ -75,4 +84,73 @@ describe("authenticated product stages", () => {
     expect(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationRunning, true, true) })).toBeDefined();
     expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationReady, true, true) }))).toBe("preparation-stage-shell");
   });
+
+  it("renders GenerationStage control room across Available, Working, Attention and Complete", () => {
+    const genProps = {
+      canMutate: true,
+      sessionId: "session-test-456",
+      onStart: async () => {},
+      onRetry: async () => {},
+      onRegenerate: async () => {},
+    };
+
+    // 1. Locked when Build Preparation is not complete
+    const lockedHtml = renderToString(
+      h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationNotStarted, false) })
+    );
+    expect(lockedHtml).toContain("stage-locked-panel");
+    expect(lockedHtml).toContain("Stage Locked");
+
+    // 2. Available matching Image 13 (split control room, Desktop viewport, 5 milestones)
+    const availHtml = renderToString(
+      h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationNotStarted, true) })
+    );
+    expect(availHtml).toContain("codegen-workspace");
+    expect(availHtml).toContain("From idea to launch.");
+    expect(availHtml).toContain("BUILD WORKSPACE");
+    expect(availHtml).toContain("Desktop");
+    expect(availHtml).toContain("TELL ORYXENAI WHAT TO DO NEXT");
+    expect(availHtml).toContain("Generate Portfolio →");
+    expect(availHtml).toContain("Plan");
+    expect(availHtml).toContain("Acquire");
+    expect(availHtml).toContain("Build");
+    expect(availHtml).toContain("Verify");
+    expect(availHtml).toContain("Preview");
+
+    // 3. Working matching Image 14 (Building pages, progress bar, stop button)
+    const workingHtml = renderToString(
+      h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationWorking, true) })
+    );
+    expect(workingHtml).toContain("codegen-workspace");
+    expect(workingHtml).toContain("Building your site");
+    expect(workingHtml).toContain("Building pages...");
+    expect(workingHtml).toContain("step-progress-bar");
+    expect(workingHtml).toContain("62%");
+    expect(workingHtml).toContain("■ Stop generation");
+    expect(workingHtml).toContain("Preview updating as pages are verified");
+
+    // 4. Attention matching Image 15 (Generation needs attention, 3 pillars, preserved preview, retry, open details)
+    const attentionHtml = renderToString(
+      h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationNeedsAttentionWithPreview, true) })
+    );
+    expect(attentionHtml).toContain("codegen-attention-card");
+    expect(attentionHtml).toContain("Generation needs attention");
+    expect(attentionHtml).toContain("Preview preserved");
+    expect(attentionHtml).toContain("Polling stopped");
+    expect(attentionHtml).toContain("Retry available");
+    expect(attentionHtml).toContain("Retry generation");
+    expect(attentionHtml).toContain("Open details");
+    expect(attentionHtml).toContain("Previous verified preview");
+    expect(attentionHtml).toContain("Verification stopped.");
+    expect(attentionHtml).toContain("View technical details");
+
+    // 5. Complete / Ready
+    const readyHtml = renderToString(
+      h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationReady, true) })
+    );
+    expect(readyHtml).toContain("codegen-workspace");
+    expect(readyHtml).toContain("Publish when ready");
+    expect(readyHtml).toContain("preview.example.test");
+  });
 });
+
