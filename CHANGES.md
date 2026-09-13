@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 20:05 +05:30 — Codex (GPT-5) — [ff5acf7] — Code Generator preview theater research and references
+
+Added competitor-informed preview workspace research and three new 16:10
+implementation-reference images for the Code Generator: split activity and
+composer workspace, bounded live preview while working, and preserved-preview
+attention recovery. Existing reference images were left unchanged.
+
 ### 2026-09-13 19:56 +05:30 — Codex (GPT-5) — [15450bf] — Discovery question research handoff, evidence copies, and visual references
 
 Added the self-contained Discovery question research pack with forensic findings, official accessibility/form guidance, MCQ/free-text contracts, evidence mapping, implementation routing, two byte-for-byte screenshot copies, and two new UI references. Existing Code Generator visual files were preserved unchanged.
