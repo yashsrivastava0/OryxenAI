@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 18:09 +05:30 - Codex (GPT-5) - [pending commit] - auth bootstrap timeout and recovery state
+
+Bound browser session restoration so a stalled Supabase/session/API check
+cannot leave `/app` on the initial "Restoring your workspace" progress copy
+forever. Auth runtime-load failures and unexpected bootstrap rejections now
+reveal a safe recovery message while preserving the existing session; added a
+regression test for a never-resolving session restore.
+
 ### 2026-09-13 17:55 +05:30 — Antigravity (Gemini 3.8) — [aeb0fef] — frontend visual overhaul: full editorial parity with visual design references
 
 Overhauled the studio shell and stage components to match 100% of the 12 reference mockups (`docs/Fix Frontend/visuals/`). Removed conflicting 240px left activity rail, nested grids, and cramped columns in favor of a centered Swiss-editorial canvas (`#FBF9F5` warm paper, `#171A19` deep ink, `#1A56DB` cobalt accent, Newsreader serif headings). Centered the horizontal 5-stage stepper (`StageNavigator`) in the topbar, added in-flow `StageContextStrip`, implemented sticky glassmorphic `ActionDock` with step guidance and primary/secondary actions, and created slide-over `OutputInspector`. Fully modernized Discovery intake (`02`) with 3 starter prompt cards and live word counter, Discovery review (`03`) with 3-column key details and inline revision composer, Content review (`04`) with route tabs and section cards, Design storyboard (`05`) with 4 intent cards and SVG scene banners, Build Preparation (`06`) with 4 KPI cards and geometric evidence tiles, and Generation (`07`-`09`) with handoff summary, 5-phase pipeline, 5 semantic milestones, and preserved preview. Passes all 19 frontend Vitest test suites (114 tests) and TypeScript type checks with 0 errors.

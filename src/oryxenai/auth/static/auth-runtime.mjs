@@ -5,6 +5,9 @@
  */
 
 export const REVIEWED_DESTINATIONS = Object.freeze(["/app", "/admin"]);
+// Auth bootstrap is the first thing a user sees. A provider/storage lock or a
+// stalled local API must not leave the shell on its progress copy forever.
+export const AUTH_BOOTSTRAP_TIMEOUT_MS = 15000;
 export const PRIVATE_SESSION_KEYS = Object.freeze([
   "oryxenai.session_id",
   "oryxenai.discovery.session",
@@ -30,6 +33,30 @@ export class AuthRequestError extends Error {
     this.code = code;
     this.details = details && typeof details === "object" ? details : null;
     this.requestId = typeof requestId === "string" && requestId.length <= 200 ? requestId : null;
+  }
+}
+
+class AuthBootstrapTimeoutError extends Error {
+  constructor() {
+    super("Authentication bootstrap timed out.");
+    this.name = "AuthBootstrapTimeoutError";
+  }
+}
+
+async function withTimeout(value, timeoutMs) {
+  const delay = Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? timeoutMs
+    : AUTH_BOOTSTRAP_TIMEOUT_MS;
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve(value),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new AuthBootstrapTimeoutError()), delay);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 
@@ -386,11 +413,13 @@ export async function resolveAuthenticatedContext({
   location,
   storage,
   onAuthFailure = () => {},
+  timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS,
 }) {
   let sessionResult;
   try {
-    sessionResult = await auth.getSession();
-  } catch {
+    sessionResult = await withTimeout(auth.getSession(), timeoutMs);
+  } catch (error) {
+    if (error instanceof AuthBootstrapTimeoutError) return { kind: "auth_timeout", error };
     return { kind: "storage_error" };
   }
   if (sessionResult?.error) return { kind: "storage_error" };
@@ -407,10 +436,18 @@ export async function resolveAuthenticatedContext({
     onAuthFailure,
   });
   try {
-    const response = await authorizedFetch("/api/v1/me", { method: "GET" });
-    const me = await response.json();
+    const me = await withTimeout(
+      (async () => {
+        const response = await authorizedFetch("/api/v1/me", { method: "GET" });
+        return response.json();
+      })(),
+      timeoutMs,
+    );
     return { kind: "authenticated", me, session, authorizedFetch };
   } catch (error) {
+    if (error instanceof AuthBootstrapTimeoutError) {
+      return { kind: "auth_timeout", error };
+    }
     if (error instanceof AuthRequestError) {
       if (error.code === "ACCESS_NOT_APPROVED" || error.code === "USER_CAPACITY_REACHED") {
         return { kind: "access_not_approved", error };
