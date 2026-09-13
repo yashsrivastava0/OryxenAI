@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-13 21:40 +05:30 — Antigravity (Gemini 3.8) — [cdac290] — Discovery question experience redesign and local review refactor
+
+Refactored the Discovery interview questioning surface for full parity with design references (`16-discovery-mcq-question.png` and `17-discovery-text-question.png`) and research guidance in `12-discovery-question-experience-research.md`:
+- Replaced unstyled inline controls with full-width interactive selectable cards (`.choice-tile`) for multi-select, single-select, and boolean modes, featuring hover lift, custom indicator icons, and active cobalt selection highlighting (`#f0f5ff` fill with `#1a56db` border).
+- Enforced local selection review for single-select and boolean questions (§2.2): choices update local state and selected styling without triggering immediate network requests; submission requires explicit user activation of `Next question` / `Submit answer`.
+- Implemented editorial layout hierarchy with clean `DISCOVERY` eyebrow, question progress counter, Newsreader serif prompt headline, subtle graphite help reason, and uppercase group cues (`SELECT ALL THAT APPLY`, `SELECT ONE`, `YOUR ANSWER`).
+- Refactored the free-text answer experience into a spacious, rounded composer with focus styling, contextual placeholder, and a real-time `✓ Draft saved` indicator persisted to `safeSessionStorage`.
+- Unified the reserved action dock with high-contrast cobalt `Next question` primary action, in-flight `Saving answer…` state, quiet `Skip question` secondary action, and non-destructive inline error recovery.
+- Scoped live-region accessibility: removed broad `aria-live` from the outer card and introduced a dedicated transition announcer to eliminate repetitive screen-reader announcements during typing or polling.
+- Added browser-test fixtures (`discovery-question-mcq`, `discovery-question-text`, `discovery-question-single`), verified live browser rendering at 1536×695 (zero overflow), and added unit test suite (`ConversationSurface.test.ts`). Passes all 20 frontend Vitest test suites (119 tests) and 158 backend Discovery unit tests.
+
 ### 2026-09-13 20:50 +05:30 — Antigravity (Gemini 3.8) — [f003023] — Code Generator split control room, preview theater, and traceability drawer
 
 Implemented full editorial and functional parity with the Code Generator visual specifications (`13-code-generator-preview-workspace.png`, `14-code-generator-preview-working.png`, and `15-code-generator-preview-attention.png`):
