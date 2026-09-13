@@ -26,7 +26,7 @@ import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./u
 import { safeSessionStorage } from "../data/safe-storage";
 import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics";
 import { ClientTraceNotice } from "../components/ClientTraceNotice";
-import { AgentOutputRail } from "../components/AgentOutputRail";
+import { OutputInspector } from "../components/OutputInspector";
 
 export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
@@ -712,24 +712,8 @@ export function AppShell({
     }
   };
 
-  // Approves the current artifact and starts the next agent in one action —
-  // no separate confirmation step, no separate "start next stage" screen.
-  // The Handoff/Continue click a user used to make on a second screen is
-  // now implicit in approval itself; the journey rail's connector-sweep is
-  // the visible feedback that the pipeline moved forward.
-  const handleApproveBriefAndContinue = async () => {
-    await handleApproveBrief();
-    selectStage("content");
-    if (!state.content || state.content.state === "locked" || state.content.state === "available") {
-      await runContentMutation("start");
-    } else {
-      dispatch({ type: "announce", message: "Brief approved. Content Architect is already underway." });
-    }
-  };
-
-  // Returns the operation that actually completed so callers (notably the
-  // fused approve-and-continue handoff below) can tell a genuine approval
-  // apart from the silent safety-repair fallback without depending on a
+  // Returns the operation that actually completed so callers can tell a
+  // genuine approval apart from the silent safety-repair fallback without depending on a
   // fresh render of `state` — this function's own `state` closure is fixed
   // to the render that created it, so a post-await read of React state here
   // would still reflect pre-mutation values.
@@ -794,20 +778,14 @@ export function AppShell({
     }
   };
 
-  // Fuses "approve content plan" with "start Visual Design Director" into
-  // one user action. If the approval silently rerouted into the safety
+  // Approval is committed before the separate "start Visual Design Director"
+  // action is offered. If approval silently reroutes into the safety
   // repair path instead (public-scope validation failure), stay on Content
   // so the user can review the corrected plan — never silently advance past
   // an artifact that was not actually approved.
   const handleApproveContentAndContinue = async () => {
     const completedOperation = await runContentMutation("approve");
     if (completedOperation !== "approve") return;
-    selectStage("design");
-    if (!state.design || state.design.state === "locked" || state.design.state === "available") {
-      await runDesignMutation("start");
-    } else {
-      dispatch({ type: "announce", message: "Content plan approved. Visual Design Director is already underway." });
-    }
   };
 
   const runDesignMutation = async (
@@ -847,19 +825,13 @@ export function AppShell({
     }
   };
 
-  // Fuses "approve visual direction" with "start Build Preparation."
+  // Approval is committed before the separate "start Build Preparation" action.
   const handleApproveDesignAndContinue = async () => {
     await runDesignMutation("approve");
-    selectStage("prepare");
-    if (!state.preparation || state.preparation.state === "locked" || state.preparation.state === "available") {
-      await runPreparationMutation("start");
-    } else {
-      dispatch({ type: "announce", message: "Visual direction approved. Build Preparation is already underway." });
-    }
   };
 
   const runPreparationMutation = async (operation: "start" | "regenerate") => {
-    if (!state.sessionId || mutatingStage || state.content?.state !== "complete" || state.design?.state !== "complete") {
+    if (!state.sessionId || mutatingStage) {
       return;
     }
     const sessionId = state.sessionId;
@@ -962,6 +934,33 @@ export function AppShell({
     }
   };
 
+  const startContentAfterApproval = async () => {
+    try {
+      await runContentMutation("start");
+      selectStage("content");
+    } catch (error) {
+      dispatch({ type: "announce", message: `Content Architect could not start: ${error instanceof Error ? error.message : "try again."}` });
+    }
+  };
+
+  const startDesignAfterApproval = async () => {
+    try {
+      await runDesignMutation("start");
+      selectStage("design");
+    } catch (error) {
+      dispatch({ type: "announce", message: `Visual Design Director could not start: ${error instanceof Error ? error.message : "try again."}` });
+    }
+  };
+
+  const startPreparationAfterApproval = async () => {
+    try {
+      await runPreparationMutation("start");
+      selectStage("prepare");
+    } catch (error) {
+      dispatch({ type: "announce", message: `Build Preparation could not start: ${error instanceof Error ? error.message : "try again."}` });
+    }
+  };
+
   return (
     <AppStoreContext.Provider value={{ state, dispatch }}>
       <a className="skip-link" href="#workspace-stage">Skip to current stage</a>
@@ -980,22 +979,6 @@ export function AppShell({
             <span className="header-descriptor">portfolio editorial room</span>
           </a>
           <div className="app-topbar-actions">
-            {me.role === "admin" && state.sessionId ? (
-              <button
-                id="admin-reset-pipeline-btn"
-                type="button"
-                className="admin-reset-btn"
-                onClick={() => setShowResetModal(true)}
-                disabled={mutatingStage !== null || isResetting}
-                title="Admin only: Reset entire pipeline back to zero"
-                aria-haspopup="dialog"
-              >
-                <span className="admin-reset-badge">ADMIN</span>
-                <span className="admin-reset-label">
-                  {isResetting ? "Resetting…" : "Reset Pipeline"}
-                </span>
-              </button>
-            ) : null}
             <details className="account-menu">
               <summary aria-label="Open account menu">
                 <span className="account-monogram" aria-hidden="true">{(me.username ?? "U").slice(0, 1).toUpperCase()}</span>
@@ -1064,7 +1047,9 @@ export function AppShell({
                   onGenerateBriefNow={handleGenerateBrief}
                   onRetryDiscovery={handleRetryDiscovery}
                   onStopDiscovery={handleStopDiscovery}
-                  onApproveAndContinue={handleApproveBriefAndContinue}
+                  inFlight={mutatingStage === "discover"}
+                  onApproveAndContinue={handleApproveBrief}
+                  onStartNextStage={startContentAfterApproval}
                   onReviseBrief={handleReviseBrief}
                 />
               ) : null}
@@ -1076,6 +1061,7 @@ export function AppShell({
                   inFlight={mutatingStage === "content"}
                   onStart={async () => { await runContentMutation("start"); }}
                   onApproveAndContinue={handleApproveContentAndContinue}
+                  onStartNextStage={startDesignAfterApproval}
                   onRevise={async (request) => { await runContentMutation("revise", request); }}
                   onStop={handleStopContent}
                 />
@@ -1088,6 +1074,7 @@ export function AppShell({
                   inFlight={mutatingStage === "design"}
                   onStart={() => runDesignMutation("start")}
                   onApproveAndContinue={handleApproveDesignAndContinue}
+                  onStartNextStage={startPreparationAfterApproval}
                   onRevise={(request) => runDesignMutation("revise", request)}
                   onStop={handleStopDesign}
                 />
@@ -1099,17 +1086,7 @@ export function AppShell({
                     inFlight={mutatingStage === "prepare"}
                     onStart={() => runPreparationMutation("start")}
                     onRegenerate={() => runPreparationMutation("regenerate")}
-                    onContinueToGenerate={() => {
-                      selectStage("generate");
-                      // Mirrors onContinueToPreparation above: the explicit
-                      // handoff is the user's authorization to begin this
-                      // stage even if the generation projection is still a
-                      // stale `locked`/`available` view from before this
-                      // page's Build Preparation approval was persisted.
-                      if (!state.generation || state.generation.state === "locked" || state.generation.state === "available") {
-                        void runGenerationMutation("start");
-                      }
-                    }}
+                    onContinueToGenerate={() => selectStage("generate")}
                   />
                 ) : null}
                 {state.sessionId && activeStage === "generate" ? (
@@ -1124,7 +1101,7 @@ export function AppShell({
                 ) : null}
               </section>
             </ErrorBoundary>
-            {state.sessionId ? <AgentOutputRail entries={outputEntries} activeStage={activeStage} /> : null}
+            <OutputInspector entries={outputEntries} activeStage={activeStage} enabled={Boolean(developer && state.sessionId)} />
           </div>
         </div>
         <footer className="app-footer"><span>Private working space</span><span>Nothing advances without approval</span></footer>

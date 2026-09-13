@@ -23,7 +23,7 @@ describe("authenticated product boundary", () => {
     expect(source).toContain("/code-generator");
   });
 
-  it("fuses Discovery brief approval with starting Content Architect in one user action", async () => {
+  it("commits Discovery approval before offering the next-stage start", async () => {
     // @ts-expect-error vitest runs this contract check in Node
     const fs = await import("node:fs");
     // @ts-expect-error vitest runs this contract check in Node
@@ -34,26 +34,23 @@ describe("authenticated product boundary", () => {
       "utf8",
     );
 
-    // handleApproveBrief itself only approves; the fused handler (used by
-    // the single UI action) explicitly composes it with starting Content.
+    // handleApproveBrief only approves. The destination-specific action then
+    // starts Content in a separate awaited server operation.
     const approveOnlyHandler = appSource.slice(
       appSource.indexOf("const handleApproveBrief ="),
-      appSource.indexOf("const handleApproveBriefAndContinue"),
+      appSource.indexOf("const runContentMutation"),
     );
     expect(approveOnlyHandler).toContain("approveDiscovery");
     expect(approveOnlyHandler).not.toContain("startContentArchitect");
 
-    const fusedHandler = appSource.slice(
-      appSource.indexOf("const handleApproveBriefAndContinue"),
-      appSource.indexOf("const runContentMutation"),
-    );
-    expect(fusedHandler).toContain("handleApproveBrief()");
-    expect(fusedHandler).toContain('selectStage("content")');
-    expect(fusedHandler).toContain("runContentMutation");
+    expect(appSource).toContain("startContentAfterApproval");
+    expect(appSource).toContain("onApproveAndContinue={handleApproveBrief}");
+    expect(appSource).toContain("onStartNextStage={startContentAfterApproval}");
 
     expect(stageSource).toContain("onApproveAndContinue");
-    expect(appSource).toContain('state.content.state === "locked"');
-    // Every stage now shares one fused action (no more per-stage
+    expect(appSource).toContain('const contentState = state.content?.state ?? (discoveryApproved ? "available" : "locked")');
+    // Every stage now shares the same approval-then-explicit-start boundary
+    // (no more per-stage
     // confirm-then-continue asymmetry) — Content->Design must use the same
     // shape as Discovery->Content and Design->Prepare.
     expect(appSource).toContain("handleApproveContentAndContinue");
@@ -70,6 +67,6 @@ describe("authenticated product boundary", () => {
     expect(source).toContain('error.code !== "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"');
     expect(source).toContain("Content safety revision started");
     expect(source).toContain("Safely rewrite or omit pending or blocked exact details");
-    expect(source).toContain('state.preparation.state === "locked"');
+    expect(source).toContain('const preparationState = state.preparation?.state ?? (contentApproved && designApproved ? "available" : "locked")');
   });
 });

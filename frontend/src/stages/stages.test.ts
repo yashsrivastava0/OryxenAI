@@ -34,21 +34,18 @@ describe("authenticated product stages", () => {
     expect(unsupported.type).toBeDefined();
   });
 
-  it("keeps Content locked until Discovery approval and wires the fused approve-and-continue action", () => {
+  it("keeps Content locked until Discovery approval and wires the next-stage action", () => {
     const props = { canMutate: true, onStart: async () => {}, onApproveAndContinue: async () => {}, onRevise: async () => {} };
     expect(className(ContentStage({ ...props, view: adaptContentArchitect(contentFixtureNotStarted, false) }))).toBe("stage-locked-panel");
     expect(className(ContentStage({ ...props, view: adaptContentArchitect(contentFixtureReview, true) }))).toBe("content-stage-view");
     // ContentStage(...) is an unrendered vnode tree — assert the exact
-    // ArtifactSurface prop wiring that drives the fused single-click
-    // "Approve & continue to {nextStageName}" action, since the button's
-    // own label text is composed inside ArtifactSurface's function body
-    // and never executes without a real render pass.
+    // ArtifactSurface prop wiring for the committed approval and the
+    // separate destination-specific start action.
     const reviewNode = ContentStage({ ...props, view: adaptContentArchitect(contentFixtureReview, true) });
     expect(JSON.stringify(reviewNode)).toContain('"nextStageName":"Visual Design Director"');
     const approvedNode = ContentStage({ ...props, view: adaptContentArchitect(contentFixtureApproved, true) });
     expect(className(approvedNode)).toBe("content-stage-view");
-    // Once approved there is no next-stage action left to fuse.
-    expect(JSON.stringify(approvedNode)).not.toContain('"nextStageName"');
+    expect(JSON.stringify(approvedNode)).toContain('"nextStageName":"Visual Design Director"');
   });
 
   it("renders the approved Visual Direction without auto-starting later stages", () => {
@@ -64,7 +61,7 @@ describe("authenticated product stages", () => {
     expect(JSON.stringify(reviewNode)).toContain('"nextStageName":"Build Preparation"');
     const approvedNode = DesignStage({ ...props, view: adaptVisualDesignDirector(designFixtureApproved, true) });
     expect(className(approvedNode)).toBe("design-stage-view");
-    expect(JSON.stringify(approvedNode)).not.toContain('"nextStageName"');
+    expect(JSON.stringify(approvedNode)).toContain('"nextStageName":"Build Preparation"');
   });
 
   it("renders Build Preparation as an explicit fourth stage", () => {
@@ -76,6 +73,6 @@ describe("authenticated product stages", () => {
     expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationNotStarted, true, false) }))).toBe("stage-locked-panel");
     expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationNotStarted, true, true) }))).toBe("stage-available-panel");
     expect(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationRunning, true, true) })).toBeDefined();
-    expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationReady, true, true) }))).toBe("preparation-stage-view");
+    expect(className(BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationReady, true, true) }))).toBe("preparation-stage-shell");
   });
 });

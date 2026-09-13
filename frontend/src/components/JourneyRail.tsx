@@ -57,7 +57,24 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
   return (
     <nav className="journey-nav" aria-label="Portfolio journey">
       {/* Mobile compact progress bar */}
-      <div className="journey-mobile-summary" aria-hidden="true">
+      <div className="journey-mobile-summary">
+        <label className="journey-mobile-label" htmlFor="journey-stage-select">Current stage</label>
+        <select
+          id="journey-stage-select"
+          value={String(selectedStageId)}
+          aria-label="Current portfolio stage"
+          onChange={(event) => {
+            const next = (event.target as HTMLSelectElement).value as JourneyStageId;
+            const stage = allStages.find((item) => item.id === next);
+            if (stage?.isSelectable) onSelect(next);
+          }}
+        >
+          {allStages.map((stage) => (
+            <option key={stage.id} value={stage.id} disabled={!stage.isSelectable}>
+              {stage.ordinal}. {stage.label}{stage.isSelectable ? "" : " (locked)"}
+            </option>
+          ))}
+        </select>
         <div className="journey-mobile-badge">
           <span className="journey-mobile-count">{activeOrdinal} / {totalCount}</span>
           <span className="journey-mobile-sep">·</span>

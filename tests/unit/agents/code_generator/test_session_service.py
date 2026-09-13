@@ -193,6 +193,65 @@ async def test_retry_requeues_the_existing_run_and_preserves_its_variant() -> No
 
 
 @pytest.mark.asyncio
+async def test_get_state_projects_active_job_and_safe_retry_fields() -> None:
+    session_id = uuid4()
+    repository = _Repository(session_id, _ready_preparation())
+    jobs = _Jobs()
+    jobs.job.error_payload = {
+        "code": "PROVIDER_TIMEOUT_ERROR",
+        "message": "Provider timed out",
+        "retryable": True,
+        "provider_secret": "must-not-leak",
+    }
+    run = SimpleNamespace(
+        id=uuid4(),
+        revision=3,
+        status="needs_attention",
+        issues=[],
+        terminal_failure=None,
+        active_preview={"preview_url": "http://preview/verified"},
+        coordinator_stage="plan",
+        current_attempt=2,
+        active_attempt_id=None,
+        plan_summary={},
+        source_summary={},
+        plan=None,
+        planner_receipt=None,
+        acquire_receipt=None,
+        resource_ledger=None,
+        dependency_ledger=None,
+        source_checkpoint=None,
+        generation_projection=None,
+        creative_direction={},
+        pipeline_contract_version="code-generator-v4",
+        trace_id="trace-projection",
+        background_job_id=jobs.job.id,
+        acquire_job_id=None,
+        generation_job_id=None,
+        verification_job_id=None,
+    )
+    repository.runs.items[run.id] = run
+    repository.state = CodeGeneratorSessionState(
+        status="needs_attention",
+        current_run_id=str(run.id),
+        active_preview=run.active_preview,
+    )
+    service = CodeGeneratorService(repository, jobs, Settings())  # type: ignore[arg-type]
+
+    result = await service.get_state(session_id)
+    projection = result["code_generator"]
+
+    assert projection["active_job_id"] == str(jobs.job.id)
+    assert projection["active_job_kind"] == "code_generator.plan"
+    assert projection["retry_available"] is True
+    assert result["jobs"][0]["error"] == {
+        "code": "PROVIDER_TIMEOUT_ERROR",
+        "message": "Provider timed out",
+        "retryable": True,
+    }
+
+
+@pytest.mark.asyncio
 async def test_session_source_is_permanently_stale_pending_markdown_brief_ingestion() -> None:
     """Any run still bound to the old artifact-based source ref is stale.
 

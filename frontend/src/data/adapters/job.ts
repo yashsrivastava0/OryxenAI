@@ -46,10 +46,21 @@ function adaptJob(raw: unknown): StageJobViewModel | null {
   };
 }
 
-export function selectStageJob(rawJobs: unknown, jobId?: string | null): StageJobViewModel | null {
+export function selectStageJob(
+  rawJobs: unknown,
+  jobId?: string | null,
+  jobKind?: string | null,
+): StageJobViewModel | null {
   const jobs = Array.isArray(rawJobs)
     ? rawJobs.map(adaptJob).filter((job): job is StageJobViewModel => job !== null)
     : [];
   if (jobId) return jobs.find((job) => job.id === jobId) ?? null;
+  if (jobKind) {
+    return jobs.find((job) =>
+      job.kind === jobKind ||
+      job.kind.endsWith(`.${jobKind}`) ||
+      (jobKind === "verify" && job.kind.endsWith(".verify_and_preview")),
+    ) ?? null;
+  }
   return jobs.at(-1) ?? null;
 }
