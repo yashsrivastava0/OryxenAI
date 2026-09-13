@@ -27,6 +27,7 @@ import { safeSessionStorage } from "../data/safe-storage";
 import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics";
 import { ClientTraceNotice } from "../components/ClientTraceNotice";
 import { OutputInspector } from "../components/OutputInspector";
+import { StageContextStrip } from "../components/StageContextStrip";
 
 export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
@@ -38,6 +39,28 @@ export interface AppShellProps {
 
 function viewForStage(stage: JourneyStageId): "work" | "artifact" {
   return stage === "discover" ? "work" : "artifact";
+}
+
+function stageDisplayName(stage: JourneyStageId): string {
+  switch (stage) {
+    case "discover": return "Discover";
+    case "content": return "Content";
+    case "design": return "Design";
+    case "prepare": return "Prepare";
+    case "generate": return "Generate & Preview";
+    default: return "Studio";
+  }
+}
+
+function stagePurposeText(stage: JourneyStageId): string {
+  switch (stage) {
+    case "discover": return "Capture your goal, audience, key message and any reference material.";
+    case "content": return "Define routes, narrative positioning, and section copy.";
+    case "design": return "Establish visual language, motion, and scene storyboards.";
+    case "prepare": return "Compile immutable brief pairs and verify readiness.";
+    case "generate": return "Synthesize code, verify multi-viewport quality, and promote preview.";
+    default: return "Creative portfolio studio.";
+  }
 }
 
 function activeSessionStorageKey(userId: string): string {
@@ -976,13 +999,18 @@ export function AppShell({
             />
             <span className="brand-wordmark">OryxenAI</span>
             <span className="header-pipe" aria-hidden="true">|</span>
-            <span className="header-descriptor">portfolio editorial room</span>
+            <span className="header-descriptor">IDEAS TO IMPACT</span>
           </a>
+
+          {/* Centered horizontal 5-stage navigator matching 01-shell-overview.png */}
+          <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
+
           <div className="app-topbar-actions">
+            <span className="topbar-motto" aria-hidden="true">A MORE THOUGHTFUL CREATIVE FUTURE</span>
+            <span className="topbar-dot" aria-hidden="true">●</span>
             <details className="account-menu">
               <summary aria-label="Open account menu">
                 <span className="account-monogram" aria-hidden="true">{(me.username ?? "U").slice(0, 1).toUpperCase()}</span>
-                <span className="account-name">{me.username ?? "Account"}</span>
                 <span className="account-chevron" aria-hidden="true">▾</span>
               </summary>
               <div className="account-popover">
@@ -1012,20 +1040,14 @@ export function AppShell({
           <ClientTraceNotice traceId={getClientTraceId()} />
         ) : null}
 
-        <div className="app-work-surface">
-          {/* Ambient registration marks and margin tags */}
-          <span className="reg-mark reg-tl" aria-hidden="true">+</span>
-          <span className="reg-mark reg-tr" aria-hidden="true">+</span>
-          <span className="reg-mark reg-bl" aria-hidden="true">+</span>
-          <span className="reg-mark reg-br" aria-hidden="true">+</span>
+        {/* In-flow Stage Context Strip matching 01-shell-overview.png */}
+        <StageContextStrip
+          stageName={stageDisplayName(activeStage)}
+          stagePurpose={stagePurposeText(activeStage)}
+          tagline="A STRONG START LEADS FURTHER"
+        />
 
-          <span className="editorial-margin-label margin-tl" aria-hidden="true">PRIVATE BY DESIGN.</span>
-          <span className="editorial-margin-label margin-tr" aria-hidden="true">IDEAS IN, OPPORTUNITIES OUT.</span>
-          <span className="editorial-margin-label margin-bl" aria-hidden="true">FROM EXPERIENCE TO OPPORTUNITY.</span>
-          <span className="editorial-margin-label margin-br" aria-hidden="true">A MORE MEANINGFUL NEXT CHAPTER.</span>
-
-          <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
-
+        <main className="app-work-surface">
           <div className="app-stage-layout">
             <ErrorBoundary fallbackTitle="Unable to display this stage" onReset={refetchCurrentSession}>
               <section id="workspace-stage" className="stage-frame" data-stage={activeStage} tabIndex={-1}>
@@ -1103,7 +1125,7 @@ export function AppShell({
             </ErrorBoundary>
             <OutputInspector entries={outputEntries} activeStage={activeStage} enabled={Boolean(developer && state.sessionId)} />
           </div>
-        </div>
+        </main>
         <footer className="app-footer"><span>Private working space</span><span>Nothing advances without approval</span></footer>
         <StatusAnnouncer message={state.announcement} />
 

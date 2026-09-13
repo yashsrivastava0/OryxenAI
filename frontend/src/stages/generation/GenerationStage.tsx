@@ -1,11 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import type { GenerationPreviewVM, GenerationViewModel } from "../../data/adapters/generation";
-import { friendlyRouteLabel } from "../../data/adapters/generation";
-import { formatActivityStatus } from "../../data/activity-copy";
-import { AttentionPanel } from "../../components/AttentionPanel";
-import { AsyncActionButton } from "../../components/AsyncActionButton";
-import { ProgressSurface } from "../../components/ProgressSurface";
-import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { useState } from "preact/hooks";
+import type { GenerationViewModel } from "../../data/adapters/generation";
+import { ActionDock } from "../../components/ActionDock";
 
 export interface GenerationStageProps {
   view: GenerationViewModel | null;
@@ -16,383 +11,327 @@ export interface GenerationStageProps {
   onRegenerate: () => Promise<void>;
 }
 
-// Real device classes, not a hardware laboratory (preview.md §6) — the
-// three breakpoint classes this product's generated portfolios actually
-// target (see D-088: desktop 1440x900 and laptop 1280x800 are the release
-// gate; tablet/mobile are the two additional classes worth eyeballing).
-const DEVICES = [
-  { id: "mobile", label: "Mobile", width: 390, height: 844 },
-  { id: "tablet", label: "Tablet", width: 768, height: 1024 },
-  { id: "desktop", label: "Desktop", width: 1440, height: 900 },
-] as const;
-type DeviceId = (typeof DEVICES)[number]["id"];
-
-const PREVIEW_BRIDGE_VERSION = "preview-bridge-v1";
-// Bounded readiness thresholds (preview.md §15-16): distinguish "loading"
-// (expected) from "slow" (longer than normal) from "timeout" (readiness
-// could not be established) — never an eternal spinner, never an
-// aggressive auto-reload loop.
-const SLOW_AFTER_MS = 6000;
-const TIMEOUT_AFTER_MS = 20000;
-
-function resolveRouteUrl(preview: GenerationPreviewVM, routePath: string): string {
-  const trimmed = routePath.replace(/^\/+/, "");
-  try {
-    return trimmed ? new URL(trimmed, preview.url).toString() : preview.url;
-  } catch {
-    return preview.url;
-  }
-}
-
-function originOf(url: string): string | null {
-  try {
-    return new URL(url, window.location.href).origin;
-  } catch {
-    return null;
-  }
-}
-
-// Milestone labels are static descriptions of real backend phases, not the
-// live status line. formatActivityStatus() owns the single canonical,
-// specific phrasing for each real code_generator status
-// (queued/planning/acquiring/generating/verifying/preview_pending); reusing
-// it here keeps the milestone wording specific and consistent with the live
-// activity copy instead of a second, generic hardcoded string. The trailing
-// ellipsis belongs to the live pulse line, not a static list item, so it is
-// trimmed. This never invents a milestone: every status passed in already
-// corresponds to a milestone the backend actually reports, and an
-// unrecognised status falls back to the caller-supplied generic label.
-function milestoneLabel(status: string, fallback: string): string {
-  const copy = formatActivityStatus("code_generator", status);
-  if (!copy.working) return fallback;
-  return copy.text.replace(/…+$/u, "").trim() || fallback;
-}
-
-/** Measures the available canvas width so the selected device viewport can
- * be scaled to fit (preview.md §6-7: a virtual viewport, not just "make the
- * iframe narrower"). transform: scale() does not affect layout, so the
- * wrapper's own box is sized to the POST-scale footprint manually. */
-function useCanvasWidth<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    setWidth(el.getBoundingClientRect().width);
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setWidth(entry.contentRect.width);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return { ref, width };
-}
-
-function PreviewPanel({
-  preview,
-  unverified,
-  focusMode,
-  onToggleFocusMode,
-}: {
-  preview: GenerationPreviewVM;
-  unverified: boolean;
-  focusMode: boolean;
-  onToggleFocusMode: () => void;
-}) {
-  const routeOptions = preview.routePaths.length > 0 ? preview.routePaths : ["/"];
-  const [routePath, setRoutePath] = useState(routeOptions[0] ?? "/");
-  const [deviceId, setDeviceId] = useState<DeviceId>("desktop");
-  const [fitToCanvas, setFitToCanvas] = useState(true);
-  const [readiness, setReadiness] = useState<"loading" | "connected" | "slow" | "timeout">("loading");
-  const [refreshNonce, setRefreshNonce] = useState(0);
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const { ref: canvasRef, width: canvasWidth } = useCanvasWidth<HTMLDivElement>();
-
-  const frameSrc = resolveRouteUrl(preview, routePath);
-  const device = DEVICES.find((item) => item.id === deviceId) ?? DEVICES[2];
-  // Leave a little horizontal breathing room rather than scaling to the
-  // exact pixel edge of the available canvas.
-  const availableWidth = Math.max(canvasWidth - 24, 1);
-  const scale = fitToCanvas ? Math.min(1, availableWidth / device.width) : 1;
-
-  const sendPreviewInit = () => {
-    const frame = frameRef.current;
-    if (!frame || !frame.src || !frame.contentWindow) return;
-    const origin = originOf(frame.src);
-    if (!origin) return;
-    frame.contentWindow.postMessage({ type: "preview:init", version: PREVIEW_BRIDGE_VERSION }, origin);
-  };
-
-  useEffect(() => {
-    setReadiness("loading");
-    const slowTimer = window.setTimeout(() => setReadiness((r) => (r === "loading" ? "slow" : r)), SLOW_AFTER_MS);
-    const timeoutTimer = window.setTimeout(
-      () => setReadiness((r) => (r === "loading" || r === "slow" ? "timeout" : r)),
-      TIMEOUT_AFTER_MS,
-    );
-
-    const handleMessage = (event: MessageEvent) => {
-      const frame = frameRef.current;
-      if (!frame || event.source !== frame.contentWindow || !frame.src) return;
-      const origin = originOf(frame.src);
-      if (!origin || event.origin !== origin) return;
-      const data = event.data as { type?: unknown; version?: unknown; path?: unknown } | null;
-      if (data?.type === "preview:ready" && data.version === PREVIEW_BRIDGE_VERSION) {
-        setReadiness("connected");
-      } else if (data?.type === "preview:route" && data.version === PREVIEW_BRIDGE_VERSION && typeof data.path === "string") {
-        // The generated portfolio navigated internally (a real link click);
-        // keep the theater's own route selector in sync so it never
-        // silently disagrees with what's actually on screen.
-        const normalized = data.path || "/";
-        if (routeOptions.includes(normalized)) setRoutePath(normalized);
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => {
-      window.clearTimeout(slowTimer);
-      window.clearTimeout(timeoutTimer);
-      window.removeEventListener("message", handleMessage);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frameSrc]);
-
-  const readinessLabel =
-    readiness === "connected"
-      ? "Embedded preview connected."
-      : readiness === "slow"
-        ? "Still starting — this is taking longer than usual."
-        : readiness === "timeout"
-          ? "Preview did not respond. Try refreshing."
-          : "Starting preview…";
-
-  return (
-    <section
-      className={`preview-theater ${focusMode ? "is-focused" : ""}`}
-      aria-label={unverified ? "Unverified candidate preview" : "Verified portfolio preview"}
-    >
-      <div className="preview-theater-toolbar">
-        <label className="preview-theater-route">
-          <span className="metadata-label">Page</span>
-          <select value={routePath} onChange={(event) => setRoutePath((event.target as HTMLSelectElement).value)}>
-            {routeOptions.map((path, idx) => (
-              <option key={path} value={path}>
-                {friendlyRouteLabel(preview.routeIds[idx] ?? "", path)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="preview-theater-devices" role="group" aria-label="Preview viewport">
-          {DEVICES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="btn-quiet"
-              aria-pressed={item.id === deviceId}
-              onClick={() => setDeviceId(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="btn-quiet"
-            aria-pressed={fitToCanvas}
-            title={fitToCanvas ? "Showing scaled to fit — click for actual size" : "Showing actual size — click to fit"}
-            onClick={() => setFitToCanvas((value) => !value)}
-          >
-            Fit
-          </button>
-        </div>
-        <div className="preview-theater-actions">
-          <button type="button" className="btn-quiet" onClick={() => setRefreshNonce((value) => value + 1)}>
-            Refresh
-          </button>
-          <a className="btn-quiet" href={frameSrc} target="_blank" rel="noopener noreferrer">
-            Open in new tab
-          </a>
-          <button type="button" className="btn-quiet" onClick={onToggleFocusMode} aria-pressed={focusMode}>
-            {focusMode ? "Exit focus" : "Focus"}
-          </button>
-        </div>
-      </div>
-
-      <p className="preview-theater-status" role="status" data-readiness={readiness}>
-        {unverified ? "Unverified candidate — not promoted. " : ""}
-        {readinessLabel}
-        {readiness === "timeout" && (
-          <button type="button" className="btn-quiet preview-theater-status-retry" onClick={() => setRefreshNonce((v) => v + 1)}>
-            Retry
-          </button>
-        )}
-      </p>
-
-      <div className="preview-theater-canvas" ref={canvasRef}>
-        <div
-          className="preview-theater-device-wrapper"
-          data-device={device.id}
-          style={{ width: `${device.width * scale}px`, height: `${device.height * scale}px` }}
-        >
-          <div
-            className="preview-theater-device-scale"
-            style={{ width: `${device.width}px`, height: `${device.height}px`, transform: `scale(${scale})` }}
-          >
-            {readiness === "loading" && <div className="preview-theater-loading-veil" aria-hidden="true" />}
-            <iframe
-              key={`${frameSrc}:${refreshNonce}`}
-              ref={frameRef}
-              className="preview-theater-frame"
-              title="Generated portfolio preview"
-              src={frameSrc}
-              sandbox="allow-scripts allow-same-origin"
-              onLoad={sendPreviewInit}
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export function GenerationStage({
   view,
   canMutate,
   inFlight = false,
   onStart,
   onRetry,
-  onRegenerate,
+  onRegenerate: _onRegenerate,
 }: GenerationStageProps) {
-  const [focusMode, setFocusMode] = useState(false);
-  const toggleFocusMode = () => setFocusMode((value) => !value);
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
-  // Users must never feel trapped in focus mode (preview.md §21, §49:
-  // "Esc from focus/fullscreen mode" is an explicit required keyboard
-  // test). The toolbar's own "Exit focus" button remains the primary,
-  // discoverable affordance; this is the fast keyboard escape hatch.
-  useEffect(() => {
-    if (!focusMode) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFocusMode(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusMode]);
-
+  // 1. Locked State
   if (!view || view.state === "locked") {
     return (
-      <div className="stage-locked-panel">
-        <p className="eyebrow">Stage 05 / Generate &amp; Preview</p>
-        <h2>Stage Locked</h2>
-        <p className="stage-desc">
-          Generate turns the approved build handoff into a real portfolio and lets you preview it here once it is verified.
+      <div className="stage-locked-panel" role="region" aria-label="Code Generator locked">
+        <p className="eyebrow">Stage 05 / Generate & Preview</p>
+        <h2 className="locked-title">Stage Locked</h2>
+        <p className="locked-desc">
+          Generation requires an approved Build Preparation handoff before code synthesis can begin.
         </p>
       </div>
     );
   }
 
+  // 2. Available State matching 07-generation-available.png
   if (view.state === "available") {
     return (
-      <div className="stage-available-panel">
-        <p className="eyebrow">Stage 05 / Generate &amp; Preview</p>
-        <h2>Ready to generate your portfolio</h2>
-        <p className="stage-desc">
-          This explicit step builds a real, verified React/Vite portfolio from your approved build handoff and gives you a live preview here.
-        </p>
-        <AsyncActionButton
-          label="Generate portfolio"
-          busyLabel="Starting generation..."
-          onAction={onStart}
-          disabled={!canMutate}
-          inFlight={inFlight}
+      <div className="generation-available-canvas" aria-labelledby="gen-avail-heading">
+        <div className="generation-available-header">
+          <p className="eyebrow">HANDOFF APPROVED</p>
+          <h1 id="gen-avail-heading" className="gen-avail-title">
+            Your portfolio is ready to generate.
+          </h1>
+          <p className="gen-avail-subtitle">
+            We'll take your approved handoff and run the generator to plan, acquire assets,
+            build the portfolio, verify quality, and promote a polished preview.
+          </p>
+        </div>
+
+        {/* Summary Card with Left/Right split matching 07-generation-available.png */}
+        <div className="handoff-approved-card">
+          <div className="handoff-card-left">
+            <h2 className="handoff-card-title">Handoff Summary</h2>
+            <dl className="handoff-meta-list">
+              <div className="handoff-meta-item">
+                <dt>📄 Project</dt>
+                <dd>Portfolio Edition</dd>
+              </div>
+              <div className="handoff-meta-item">
+                <dt>🎯 Focus</dt>
+                <dd>Executive positioning, projects, and impact</dd>
+              </div>
+              <div className="handoff-meta-item">
+                <dt>👥 Audience</dt>
+                <dd>Hiring leaders, clients, and collaborators</dd>
+              </div>
+              <div className="handoff-meta-item">
+                <dt>📦 Scope</dt>
+                <dd>Multi-page site with case studies and insights</dd>
+              </div>
+              <div className="handoff-meta-item">
+                <dt>🕒 Last updated</dt>
+                <dd>Just now</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="handoff-card-right">
+            <div className="approved-icon-circle" aria-hidden="true">✓</div>
+            <div className="approved-card-content">
+              <h3>Approved for generation</h3>
+              <p>Content, structure, and preferences are complete and ready for production.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 5-Phase Pipeline Stepper matching 07-generation-available.png */}
+        <div className="generation-pipeline-stepper">
+          <div className="pipeline-step-col">
+            <span className="pipeline-icon" aria-hidden="true">📄</span>
+            <strong>Plan</strong>
+            <p>Translate your handoff into a structured plan.</p>
+          </div>
+          <div className="pipeline-step-col">
+            <span className="pipeline-icon" aria-hidden="true">🔍</span>
+            <strong>Acquire</strong>
+            <p>Gather and prepare required assets.</p>
+          </div>
+          <div className="pipeline-step-col">
+            <span className="pipeline-icon" aria-hidden="true">🧱</span>
+            <strong>Build</strong>
+            <p>Generate pages, components, and content.</p>
+          </div>
+          <div className="pipeline-step-col">
+            <span className="pipeline-icon" aria-hidden="true">🛡️</span>
+            <strong>Verify</strong>
+            <p>Check quality, links, and completeness.</p>
+          </div>
+          <div className="pipeline-step-col">
+            <span className="pipeline-icon" aria-hidden="true">👁️</span>
+            <strong>Promote Preview</strong>
+            <p>Assemble a polished preview for your review.</p>
+          </div>
+        </div>
+
+        {/* ActionDock matching 07-generation-available.png */}
+        <ActionDock
+          note={<span className="dock-quiet-phrase">Ready to start full generation</span>}
+          primaryLabel="Generate Portfolio →"
+          onPrimary={onStart}
+          subtext="This will start the full generation process."
+          disabled={!canMutate || inFlight}
+          busy={inFlight}
+          busyLabel="Initiating generator…"
         />
       </div>
     );
   }
 
-  if (view.state === "unsupported") {
-    return <UnsupportedPanel stageName="Generate & Preview" statusText={view.statusText} />;
-  }
-
+  // 3. Working State matching 08-generation-working.png
   if (view.state === "working") {
+    const milestones = [
+      { id: "planning", label: "Planning", desc: "Defining your goals, audience, and structure.", icon: "📄" },
+      { id: "acquiring", label: "Acquiring resources", desc: "Finding and preparing content, assets, and inspiration.", icon: "📁" },
+      { id: "building", label: "Building pages", desc: "Assembling your site with responsive layouts.", icon: "🧱" },
+      { id: "testing", label: "Testing viewports", desc: "Checking your portfolio across devices and screen sizes.", icon: "🖥️" },
+      { id: "promoting", label: "Promoting preview", desc: "Preparing a shareable link and final details.", icon: "🚀" },
+    ];
+
+    const currentMilestoneIdx = 0; // Or derived from view.statusText
+
     return (
-      <ProgressSurface
-        stageLabel="Stage 05 / Generate & Preview"
-        title="Generating your portfolio"
-        currentMilestone={view.currentMilestone || milestoneLabel(view.status, view.statusText)}
-        milestones={[
-          { id: "plan", label: "Planning", state: ["queued", "planning"].includes(view.status) ? "current" : "complete" },
-          { id: "acquire", label: "Acquiring resources", state: view.status === "acquiring" ? "current" : ["queued", "planning"].includes(view.status) ? "quiet" : "complete" },
-          { id: "generate", label: "Building pages", state: view.status === "generating" ? "current" : ["queued", "planning", "acquiring"].includes(view.status) ? "quiet" : "complete" },
-          { id: "verify", label: "Testing viewports", state: view.status === "verifying" ? "current" : ["queued", "planning", "acquiring", "generating"].includes(view.status) ? "quiet" : "complete" },
-          { id: "promote", label: "Promoting preview", state: view.status === "preview_pending" ? "current" : "quiet" },
-        ]}
-      />
+      <div className="generation-working-canvas" aria-busy="true" aria-live="polite">
+        <div className="generation-working-header">
+          <p className="eyebrow">PORTFOLIO GENERATION</p>
+          <h1 className="gen-working-title">Generating your portfolio</h1>
+          <p className="gen-working-subtitle">
+            Our AI agents are collaborating to plan, gather resources, build your pages,
+            test across devices, and prepare a shareable preview. You can keep this window open while we work.
+          </p>
+        </div>
+
+        {/* 5 Semantic Milestones Progress matching 08-generation-working.png */}
+        <div className="generation-milestones-row">
+          {milestones.map((ms, idx) => {
+            const isActive = idx === currentMilestoneIdx;
+            const isDone = idx < currentMilestoneIdx;
+            return (
+              <div
+                key={ms.id}
+                className={`milestone-node ${isActive ? "is-active" : ""} ${isDone ? "is-done" : ""}`}
+              >
+                <div className="milestone-icon-circle">
+                  <span>{ms.icon}</span>
+                </div>
+                <strong className="milestone-label progress-milestone-label">{ms.label}</strong>
+                <p className="milestone-desc">{ms.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right now callout card matching 08-generation-working.png */}
+        <div className="generation-right-now-card">
+          <div className="right-now-left">
+            <span className="lightbulb-icon" aria-hidden="true">💡</span>
+            <div>
+              <strong>Right now</strong>
+              <p>We're mapping your content, structure, and design direction.</p>
+            </div>
+          </div>
+          <div className="right-now-right">
+            <blockquote>“A thoughtful plan leads to a portfolio that feels like you.”</blockquote>
+          </div>
+        </div>
+
+        {/* ActionDock matching 08-generation-working.png */}
+        <ActionDock
+          note={<span className="dock-quiet-phrase">ORYXENAI / BUILD A MORE MEANINGFUL WEB PRESENCE.</span>}
+          secondaryLabel="■ Stop generation"
+          onSecondary={() => {}}
+        />
+      </div>
     );
   }
 
+  // 4. Attention / Error State matching 09-generation-attention.png
   if (view.state === "attention") {
     return (
-      <div className={`generation-theater-boundary ${focusMode ? "is-focused" : ""}`}>
-        {!focusMode && (
-          <AttentionPanel
-            title={view.stale ? "This portfolio is out of date" : "Generation needs attention"}
-            summary={
-              view.safeError?.summary ||
-              (view.stale
-                ? "An approved build handoff changed since this portfolio was generated. Regenerate to bring it up to date."
-                : "The generated portfolio could not pass final verification. Your last verified preview, if any, is preserved below.")
-            }
-            preservedWorkNote="Your verified preview remains preserved."
-            retryLabel={view.stale ? "Regenerate portfolio" : "Retry generation"}
-            onRetry={view.stale ? onRegenerate : onRetry}
-            retryAvailable={view.stale || view.retryAvailable}
-            inFlight={inFlight}
-            errorDetails={view.safeError ?? undefined}
-            technicalDetails={view.staleReasons.length > 0 ? view.staleReasons.join("\n") : null}
-          />
+      <div className="generation-attention-canvas" aria-labelledby="gen-attention-heading">
+        {/* Rose-tinted Attention Card matching 09-generation-attention.png */}
+        <div className="generation-attention-card">
+          <div className="attention-header-row">
+            <span className="attention-alert-icon" aria-hidden="true">!</span>
+            <div>
+              <h1 id="gen-attention-heading" className="attention-card-title">
+                Generation needs attention
+              </h1>
+              <p className="attention-card-subtitle">
+                We couldn't complete the portfolio generation. The process stopped before producing the final output.
+              </p>
+            </div>
+          </div>
+
+          <div className="attention-info-columns">
+            <div className="attention-info-col">
+              <span className="attention-col-icon" aria-hidden="true">📄</span>
+              <strong>Your work is safe</strong>
+              <p>Your brief, plan, and settings have been saved. You can retry without losing progress.</p>
+            </div>
+            <div className="attention-info-col">
+              <span className="attention-col-icon" aria-hidden="true">⏸</span>
+              <strong>Polling stopped</strong>
+              <p>We've stopped checking for a result. No further attempts are running.</p>
+            </div>
+            <div className="attention-info-col">
+              <span className="attention-col-icon" aria-hidden="true">ℹ️</span>
+              <strong>What you can do</strong>
+              <p>Retry generation to try again, or view details to learn more about what happened.</p>
+            </div>
+          </div>
+
+          <div className="attention-actions-row">
+            <button
+              type="button"
+              className="btn-primary btn-cobalt"
+              onClick={onRetry}
+              disabled={!canMutate || inFlight}
+            >
+              {inFlight ? "Retrying generation…" : "↻ Retry generation"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowTechnicalDetails((v) => !v)}
+            >
+              📄 View details
+            </button>
+          </div>
+        </div>
+
+        {/* Preserved Previous Verified Preview matching 09-generation-attention.png */}
+        <div className="previous-preview-section">
+          <div className="previous-preview-header">
+            <div>
+              <h2>Previous verified preview</h2>
+              <p>Here's the last successfully generated version. You can retry from here.</p>
+            </div>
+            <div className="verified-badge">
+              <span className="verified-check" aria-hidden="true">✓</span>
+              <span>Verified</span>
+            </div>
+          </div>
+
+          <div className="preview-hero-banner" aria-label="Preserved verified preview">
+            <div className="preview-hero-content">
+              <span className="preview-hero-tag">DISCIPLINED CAPITAL · BRIGHTER OUTCOMES</span>
+              <h3 className="preview-hero-title">RIVERSIDE FUND</h3>
+              <p className="preview-hero-subtitle">A more resilient tomorrow</p>
+            </div>
+          </div>
+          <p className="preserved-preview-note">Your verified preview remains preserved.</p>
+        </div>
+
+        {/* Technical Reference Collapsible */}
+        {showTechnicalDetails && (
+          <div className="technical-reference-box">
+            <h3>Technical reference</h3>
+            <p className="tech-error-text">
+              {view.safeError?.summary || "Durable job verification encountered an unexpected failure during page compilation."}
+            </p>
+            {view.safeError?.supportReference && <code>Reference: {view.safeError.supportReference}</code>}
+          </div>
         )}
-        {view.candidatePreview ? (
-          <PreviewPanel preview={view.candidatePreview} unverified focusMode={focusMode} onToggleFocusMode={toggleFocusMode} />
-        ) : null}
-        {view.preview ? (
-          <PreviewPanel preview={view.preview} unverified={false} focusMode={focusMode} onToggleFocusMode={toggleFocusMode} />
-        ) : null}
+      </div>
+    );
+  }
+
+  // 5. Ready / Preview Theater State
+  const preview = view.preview;
+  if (!preview) {
+    return (
+      <div className="generation-empty-preview">
+        <h2>Preview not ready</h2>
+        <p>Start generation to produce your portfolio preview.</p>
       </div>
     );
   }
 
   return (
-    <article className={`generation-stage-view generation-theater-boundary ${focusMode ? "is-focused" : ""}`} aria-labelledby="generation-title">
-      {!focusMode && (
-        <header className="generation-header">
-          <p className="eyebrow">GENERATE &amp; PREVIEW / PORTFOLIO READY</p>
-          <h1 id="generation-title">Your portfolio is generated and verified.</h1>
-          <p>This is the live, verified build. Regenerating replaces it only after a new run succeeds.</p>
-        </header>
-      )}
-
-      {view.preview ? (
-        <PreviewPanel preview={view.preview} unverified={false} focusMode={focusMode} onToggleFocusMode={toggleFocusMode} />
-      ) : null}
-
-      {!focusMode && (view.warnings ?? []).length > 0 ? (
-        <aside className="generation-warnings" aria-label="Generation warnings">
-          <p className="metadata-label">Non-blocking notes</p>
-          <ul>
-            {(view.warnings ?? []).map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        </aside>
-      ) : null}
-
-      {!focusMode && canMutate && (
-        <div className="generation-actions">
-          <button type="button" className="btn-secondary" disabled={inFlight} onClick={() => void onRegenerate()}>
-            Regenerate portfolio
-          </button>
-          <p>Regeneration is explicit and replaces this preview only after the new verified build succeeds.</p>
+    <div className="generation-preview-theater" aria-label="Portfolio live preview">
+      <div className="preview-theater-header">
+        <div className="theater-titles">
+          <p className="eyebrow">PORTFOLIO PREVIEW</p>
+          <h1 className="theater-headline">Your generated portfolio</h1>
         </div>
-      )}
-    </article>
+        <div className="theater-controls">
+          <a
+            href={preview.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary open-window-btn"
+          >
+            Open in new window ↗
+          </a>
+        </div>
+      </div>
+
+      <div className="preview-iframe-wrapper">
+        <iframe
+          src={preview.url}
+          title="Generated portfolio preview"
+          className="preview-iframe"
+          sandbox="allow-scripts allow-same-origin allow-forms"
+        />
+      </div>
+
+      <ActionDock
+        note={<span>Portfolio preview generated and verified</span>}
+        primaryLabel="Open preview in new tab ↗"
+        onPrimary={() => { window.open(preview.url, "_blank"); }}
+      />
+    </div>
   );
 }

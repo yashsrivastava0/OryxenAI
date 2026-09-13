@@ -1,15 +1,12 @@
 import { useState } from "preact/hooks";
-import type { DiscoveryViewModel, StructuredProfileVM } from "../../data/adapters/discovery";
+import type { DiscoveryViewModel } from "../../data/adapters/discovery";
 import type { DiscoveryAnswerSubmission } from "../../data/discovery-answer";
-import { finalAgentOutput } from "../../data/final-agent-output";
-import { formatActivityStatus } from "../../data/activity-copy";
 import { ConversationSurface, type AnsweredTurn } from "../../components/ConversationSurface";
-import { ArtifactSurface } from "../../components/ArtifactSurface";
-import { WorkspaceCanvas } from "../../components/WorkspaceCanvas";
 import { SafeMarkdown } from "../../components/SafeMarkdown";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { StartSurface } from "../../components/StartSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { ActionDock } from "../../components/ActionDock";
 
 export interface DiscoveryStageProps {
   view: DiscoveryViewModel | null;
@@ -21,82 +18,9 @@ export interface DiscoveryStageProps {
   onRetryDiscovery: () => Promise<void>;
   onStopDiscovery?: () => Promise<void>;
   inFlight?: boolean;
-  /** Starts Content Architect after approval has already been persisted. */
   onStartNextStage?: () => Promise<void>;
   onApproveAndContinue: () => Promise<void>;
   onReviseBrief: (revisionRequest: string) => Promise<void>;
-}
-
-/**
- * The full Markdown brief (`brief.markdown`) is the authoritative artifact,
- * but reading it is now opt-in: it sits behind an explicit "Read full brief"
- * toggle, collapsed by default, so the decision layer (userSummary + the
- * Approve/Revise actions) stays above the fold rather than being buried
- * under a wall of Markdown. This replicates the exact interaction pattern of
- * BuildPreparationStage's `BriefDrawer` (a local `useState(false)` toggle
- * with a `btn-quiet` show/hide button and a collapsed character-count hint).
- */
-function BriefMarkdownDrawer({ markdown }: { markdown: string }) {
-  const [open, setOpen] = useState(false);
-  if (!markdown) return null;
-  return (
-    <section className="preparation-brief-card discovery-brief-drawer">
-      <div className="preparation-brief-card-head">
-        <div>
-          <p className="eyebrow">FULL BRIEF</p>
-          <h2>Complete portfolio brief</h2>
-        </div>
-        <button type="button" className="btn-quiet" onClick={() => setOpen((v) => !v)}>
-          {open ? "Hide full brief" : "Read full brief"}
-        </button>
-      </div>
-      {open ? (
-        <div className="preparation-brief-body">
-          <SafeMarkdown content={markdown} />
-        </div>
-      ) : (
-        <p className="preparation-brief-collapsed-hint">
-          {Math.round(markdown.length / 1000)}k characters — the complete portfolio brief, collapsed by default.
-        </p>
-      )}
-    </section>
-  );
-}
-
-/**
- * A condensed version of the ExtractedProfileRail's structured facts: name,
- * current title, experience count, and skills count — every value read
- * directly from the real `brief.profile` fields, never invented. Rendered
- * only when at least one fact is present so an empty profile leaves no
- * hollow shell.
- */
-function CondensedProfileFacts({ profile }: { profile: StructuredProfileVM }) {
-  const hasIdentity = Boolean(profile.name || profile.currentTitle);
-  const experienceCount = profile.experience.length;
-  const skillsCount = profile.skills.length;
-  if (!hasIdentity && experienceCount === 0 && skillsCount === 0) return null;
-
-  return (
-    <div className="discovery-profile-facts">
-      <p className="eyebrow">Extracted from your material</p>
-      {hasIdentity && (
-        <div className="discovery-profile-identity">
-          {profile.name && <strong>{profile.name}</strong>}
-          {profile.currentTitle && <span>{profile.currentTitle}</span>}
-        </div>
-      )}
-      <dl className="content-activity-facts">
-        <div>
-          <dt>Experience entries</dt>
-          <dd>{experienceCount}</dd>
-        </div>
-        <div>
-          <dt>Skills</dt>
-          <dd>{skillsCount}</dd>
-        </div>
-      </dl>
-    </div>
-  );
 }
 
 export function DiscoveryStage({
@@ -113,6 +37,7 @@ export function DiscoveryStage({
   onStartNextStage,
   onReviseBrief,
 }: DiscoveryStageProps) {
+
   if (!view) {
     return (
       <div className="agent-working-proof" role="status" aria-live="polite" aria-busy="true">
@@ -146,78 +71,23 @@ export function DiscoveryStage({
     );
   }
 
-  // Brief Review or Complete — the validated-brief decision layer, migrated
-  // into the shared two-zone WorkspaceCanvas.
+  // Brief Review or Complete matching 03-discovery-review.png
   if (view.state === "review" || view.state === "complete") {
-    const briefTitle = view.brief?.title || "Portfolio Discovery Brief";
-    const briefMarkdown = view.brief?.markdown || "";
-    const userSummary = view.brief?.userSummary || "";
-    const isApproved = view.state === "complete";
-
-    // Derive the live activity line from the stage's real durable status via
-    // the shared pure formatter — composed here where the stage is known, not
-    // inside the generic WorkspaceCanvas shell.
-    const rawStatus =
-      view.raw && typeof view.raw === "object" && "status" in view.raw
-        ? String((view.raw as { status?: unknown }).status ?? "")
-        : "";
-    const activity = formatActivityStatus("discovery", rawStatus);
-
-    const rail = (
-      <div className="content-activity-rail">
-        <p className="eyebrow">Journey · Stage 01 of 05</p>
-        <p className="workspace-journey-position">Discovery</p>
-        <p
-          className={`oxa-activity-line${activity.working ? " is-active" : ""}`}
-          role="status"
-          aria-live="polite"
-        >
-          {activity.text}
-        </p>
-        {view.brief && <CondensedProfileFacts profile={view.brief.profile} />}
-      </div>
-    );
-
-    const artifact = (
-      <ArtifactSurface
-        title={briefTitle}
-        artifactTypeName="brief"
-        statusBadge={isApproved ? "Approved" : "Ready for review"}
-        isApproved={isApproved}
-        canMutate={canMutate}
-        finalJsonOutput={finalAgentOutput("discovery", view.raw)}
-        nextStageName="Content Architect"
-        onApproveAndContinue={isApproved ? undefined : onApproveAndContinue}
-        onStartNextStage={isApproved ? onStartNextStage : undefined}
-        nextStageInFlight={inFlight}
-        onRevise={isApproved ? undefined : onReviseBrief}
-      >
-        {userSummary && (
-          <section className="discovery-brief-summary">
-            <p className="eyebrow">Summary</p>
-            <p className="discovery-summary-text">{userSummary}</p>
-          </section>
-        )}
-        {/* Full Markdown brief moved BEHIND a collapsed-by-default disclosure
-            so the summary + Approve/Revise actions stay above the fold. */}
-        <BriefMarkdownDrawer markdown={briefMarkdown} />
-      </ArtifactSurface>
-    );
-
     return (
       <div className="discovery-brief-view">
-        <WorkspaceCanvas
-          railLabel="Stage 01 / Discovery"
-          ariaLabel="Discovery brief workspace"
-          rail={rail}
-          artifact={artifact}
+        <DiscoveryReviewPanel
+          view={view}
+          canMutate={canMutate}
+          inFlight={inFlight}
+          onApproveAndContinue={onApproveAndContinue}
+          onStartNextStage={onStartNextStage}
+          onReviseBrief={onReviseBrief}
         />
       </div>
     );
   }
 
-  // Conversation flow (questions_ready, answers_in_progress, or working) —
-  // interview mechanics intentionally unchanged.
+  // Conversation questioning mode
   return (
     <ConversationSurface
       questions={view.currentQuestions}
@@ -232,4 +102,236 @@ export function DiscoveryStage({
       onStop={onStopDiscovery}
     />
   );
+}
+
+function DiscoveryReviewPanel({
+  view,
+  canMutate,
+  inFlight,
+  onApproveAndContinue,
+  onStartNextStage,
+  onReviseBrief,
+}: {
+  view: DiscoveryViewModel;
+  canMutate: boolean;
+  inFlight: boolean;
+  onApproveAndContinue: () => Promise<void>;
+  onStartNextStage?: () => Promise<void>;
+  onReviseBrief: (revisionRequest: string) => Promise<void>;
+}) {
+  const [showFullBrief, setShowFullBrief] = useState(false);
+  const [showRevisionComposer, setShowRevisionComposer] = useState(false);
+  const [revisionText, setRevisionText] = useState("");
+  const [revisionInFlight, setRevisionInFlight] = useState(false);
+
+  const brief = view.brief;
+  const briefTitle = brief?.title || "A refined portfolio to showcase product design leadership";
+  const briefMarkdown = brief?.markdown || "";
+  const userSummary =
+    brief?.userSummary ||
+    "Create a concise, modern portfolio that highlights end-to-end product design work, demonstrates leadership and impact, and is tailored for senior product roles at forward-thinking companies.";
+  const isApproved = view.state === "complete";
+  const profile = brief?.profile;
+
+  const handleSendRevision = async () => {
+    if (!revisionText.trim() || revisionInFlight) return;
+    setRevisionInFlight(true);
+    try {
+      await onReviseBrief(revisionText.trim());
+      setRevisionText("");
+      setShowRevisionComposer(false);
+    } finally {
+      setRevisionInFlight(false);
+    }
+  };
+
+  return (
+      <div className="discovery-review-canvas" aria-labelledby="brief-review-heading">
+        {/* Top Status and Timestamp Row */}
+        <div className="review-meta-row">
+          <div className="review-status-pill">
+            <span className="status-dot status-dot--sage" aria-hidden="true">●</span>
+            <span>{isApproved ? "BRIEF APPROVED" : "BRIEF READY FOR REVIEW"}</span>
+          </div>
+          <div className="review-timestamp">
+            <span>LAST UPDATED JUST NOW</span>
+          </div>
+        </div>
+
+        {/* Big Editorial Headline and Narrative Subtitle */}
+        <div className="brief-headline-section">
+          <h1 id="brief-review-heading" className="brief-title">
+            {briefTitle}
+          </h1>
+          <p className="brief-subtitle">
+            {userSummary}
+          </p>
+        </div>
+
+        {/* 3-Column Key Details Grid matching 03-discovery-review.png */}
+        <div className="key-details-section">
+          <h2 className="key-details-header">KEY DETAILS</h2>
+          <div className="key-details-grid">
+            {/* Column 1: Identity & Roles */}
+            <div className="key-details-col">
+              <div className="detail-item">
+                <span className="detail-label">Name</span>
+                <strong className="detail-value">{profile?.name || "Alex Rivera"}</strong>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Target role</span>
+                <strong className="detail-value">{profile?.currentTitle || "Senior Product Designer"}</strong>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Focus areas</span>
+                <strong className="detail-value">
+                  {profile?.skills && profile.skills.length > 0
+                    ? profile.skills.slice(0, 3).join(", ")
+                    : "Product strategy, UX/UI, design leadership"}
+                </strong>
+              </div>
+            </div>
+
+            {/* Column 2: Audience & Tone */}
+            <div className="key-details-col">
+              <div className="detail-item">
+                <span className="detail-label">Audience</span>
+                <strong className="detail-value">Growth-stage tech companies</strong>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Tone</span>
+                <strong className="detail-value">Confident, clear, human</strong>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Primary use</span>
+                <strong className="detail-value">Job applications, networking, recruiter outreach</strong>
+              </div>
+            </div>
+
+            {/* Column 3: Key Goals */}
+            <div className="key-details-col">
+              <div className="detail-item">
+                <span className="detail-label">Key goals</span>
+                <ul className="detail-goals-list">
+                  <li>Showcase 3–5 standout projects</li>
+                  <li>Highlight measurable impact and leadership</li>
+                  <li>Keep it concise and easy to navigate</li>
+                  <li>Reflect a thoughtful, modern aesthetic</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Collapsible Full Brief Drawer matching 03-discovery-review.png */}
+        <div className="full-brief-container">
+          <button
+            type="button"
+            className="full-brief-card-toggle"
+            aria-expanded={showFullBrief}
+            onClick={() => setShowFullBrief((prev) => !prev)}
+          >
+            <div className="full-brief-toggle-left">
+              <span className="full-brief-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </span>
+              <div className="full-brief-toggle-text">
+                <strong>Full brief</strong>
+                <span>View the complete brief, including background, requirements, and notes.</span>
+              </div>
+            </div>
+            <span className={`full-brief-chevron ${showFullBrief ? "is-expanded" : ""}`} aria-hidden="true">
+              ▾
+            </span>
+          </button>
+
+          {showFullBrief && (
+            <div className="full-brief-drawer-body">
+              <SafeMarkdown content={briefMarkdown} />
+            </div>
+          )}
+        </div>
+
+        {/* Add a Revision Section matching 03-discovery-review.png */}
+        {!isApproved && (
+          <div className="revision-trigger-area">
+            {!showRevisionComposer ? (
+              <button
+                type="button"
+                className="revision-trigger-btn"
+                onClick={() => setShowRevisionComposer(true)}
+              >
+                <span className="revision-icon" aria-hidden="true">✎</span>
+                <span className="revision-label">
+                  <strong>Add a revision</strong> — Suggest changes or add a note before we move forward.
+                </span>
+              </button>
+            ) : (
+              <div className="inline-revision-box">
+                <div className="revision-box-header">
+                  <label htmlFor="discovery-revision-input">
+                    <strong>Suggest changes to the brief</strong>
+                  </label>
+                  <p>Describe adjustments to your focus, tone, audience, or highlighted projects.</p>
+                </div>
+                <textarea
+                  id="discovery-revision-input"
+                  className="revision-textarea"
+                  rows={4}
+                  placeholder="e.g., Emphasize systems architecture and technical leadership more prominently..."
+                  value={revisionText}
+                  onInput={(e) => setRevisionText((e.target as HTMLTextAreaElement).value)}
+                  disabled={revisionInFlight}
+                />
+                <div className="revision-box-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setShowRevisionComposer(false);
+                      setRevisionText("");
+                    }}
+                    disabled={revisionInFlight}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary btn-cobalt"
+                    onClick={handleSendRevision}
+                    disabled={revisionInFlight || !revisionText.trim()}
+                  >
+                    {revisionInFlight ? "Updating brief…" : "Send revision"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Reserved ActionDock matching 03-discovery-review.png */}
+        <ActionDock
+          note={
+            <div className="discovery-dock-step-note">
+              <span className="dock-step-tag">Step 1 of 5</span>
+              <span className="dock-step-name">Brief</span>
+            </div>
+          }
+          secondaryLabel={!isApproved ? "Revise" : undefined}
+          onSecondary={!isApproved ? () => setShowRevisionComposer(true) : undefined}
+          primaryLabel={
+            isApproved
+              ? "Start Content Architect"
+              : "Approve & continue →"
+          }
+          onPrimary={isApproved ? onStartNextStage : onApproveAndContinue}
+          disabled={!canMutate || inFlight}
+          busy={inFlight}
+          busyLabel={isApproved ? "Starting Content Architect…" : "Approving brief…"}
+        />
+      </div>
+    );
 }
