@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-13 15:20 +05:30 - Codex (GPT-5) - [pending commit] - frontend remediation: centered stage shell, safe handoffs, and responsive review states
+### 2026-09-13 15:20 +05:30 - Codex (GPT-5) - [bfea878] - frontend remediation: centered stage shell, safe handoffs, and responsive review states
 
 Implemented the Fix Frontend handoff in the existing Preact/TypeScript/Vite
 product shell. Added the centered five-stage journey/canvas composition with
