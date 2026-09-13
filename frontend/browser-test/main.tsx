@@ -8,7 +8,7 @@ import { DesignStage } from "../src/stages/design/DesignStage";
 import { BuildPreparationStage } from "../src/stages/preparation/BuildPreparationStage";
 import { GenerationStage } from "../src/stages/generation/GenerationStage";
 import { adaptDiscovery } from "../src/data/adapters/discovery";
-import { briefReview, questionsReady } from "../src/data/adapters/discovery.fixtures";
+import { briefReview, questionsMcqReady, questionsReady, questionsTextReady } from "../src/data/adapters/discovery.fixtures";
 import { adaptContentArchitect } from "../src/data/adapters/content";
 import { contentFixtureApproved, contentFixtureReview } from "../src/data/adapters/content.fixtures";
 import { adaptVisualDesignDirector } from "../src/data/adapters/design";
@@ -17,30 +17,59 @@ import { adaptBuildPreparation } from "../src/data/adapters/preparation";
 import { preparationReady } from "../src/data/adapters/preparation.fixtures";
 import { adaptCodeGenerator } from "../src/data/adapters/generation";
 import { generationNeedsAttentionWithPreview, generationWorking } from "../src/data/adapters/generation.fixtures";
+import { StageContextStrip } from "../src/components/StageContextStrip";
 import "../src/styles/shell.css";
 
 const noop = async () => {};
-const journey: JourneyStageVM[] = [
-  { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: "complete", isSelectable: true },
-  { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: "review", isSelectable: true },
-  { id: "design", ordinal: 3, label: "Design", sublabel: "CRAFT PRESENTATION", state: "locked", isSelectable: false },
-  { id: "prepare", ordinal: 4, label: "Prepare", sublabel: "FINALIZE DETAILS", state: "locked", isSelectable: false },
-  { id: "generate", ordinal: 5, label: "Generate & Preview", sublabel: "BUILD PORTFOLIO", state: "locked", isSelectable: false },
-];
+
+function getJourney(isDiscover: boolean): JourneyStageVM[] {
+  return [
+    { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: isDiscover ? "current" : "complete", isSelectable: true },
+    { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: isDiscover ? "locked" : "review", isSelectable: !isDiscover },
+    { id: "design", ordinal: 3, label: "Design", sublabel: "CRAFT PRESENTATION", state: "locked", isSelectable: false },
+    { id: "prepare", ordinal: 4, label: "Prepare", sublabel: "FINALIZE DETAILS", state: "locked", isSelectable: false },
+    { id: "generate", ordinal: 5, label: "Generate & Preview", sublabel: "BUILD PORTFOLIO", state: "locked", isSelectable: false },
+  ];
+}
 
 function FixtureFrame({ children }: { children: ComponentChildren }) {
+  const fixture = new URLSearchParams(window.location.search).get("fixture") ?? "discovery-input";
+  const isDiscover = fixture.startsWith("discovery-");
+  const journey = getJourney(isDiscover);
+
   return (
     <div className="app-shell">
       <header className="app-topbar">
         <a className="app-brand" href="#" aria-label="OryxenAI workspace">
           <span className="brand-wordmark">OryxenAI</span>
           <span className="header-pipe" aria-hidden="true">|</span>
-          <span className="header-descriptor">portfolio editorial room</span>
+          <span className="header-descriptor">IDEAS TO IMPACT</span>
         </a>
-        <span className="account-name">Fixture</span>
+        <JourneyRail journey={journey} selectedStageId={isDiscover ? "discover" : "content"} onSelect={() => {}} />
+        <div className="app-topbar-actions">
+          <span className="topbar-motto">A MORE THOUGHTFUL CREATIVE FUTURE</span>
+          <span className="topbar-dot" aria-hidden="true">•</span>
+          <div className="account-menu">
+            <span className="account-monogram">Y</span>
+          </div>
+        </div>
       </header>
+
+      {isDiscover ? (
+        <StageContextStrip
+          stageName="Discover"
+          stagePurpose="Capture your goal, audience, key message and any reference material."
+          tagline="A STRONG START LEADS FURTHER"
+        />
+      ) : (
+        <StageContextStrip
+          stageName="Content"
+          stagePurpose="Shape the narrative structure and page outlines."
+          tagline="A STRONG START LEADS FURTHER"
+        />
+      )}
+
       <main className="app-work-surface">
-        <JourneyRail journey={journey} selectedStageId="content" onSelect={() => {}} />
         <div className="app-stage-layout">
           <section id="workspace-stage" className="stage-frame" tabIndex={-1}>
             {children}
@@ -60,6 +89,60 @@ function StageFixture() {
   const fixture = new URLSearchParams(window.location.search).get("fixture") ?? "discovery-input";
   if (fixture === "discovery-input") {
     return <StartSurface onStart={noop} />;
+  }
+  if (fixture === "discovery-question-mcq") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery(questionsMcqReady)}
+        history={[
+          {
+            questionId: "q_prior",
+            questionText: "What was your most recent principal engineering impact?",
+            answerText: "Designed and rolled out a zero-downtime ledger engine handling $4B daily volume.",
+          },
+        ]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={noop as never}
+        onGenerateBriefNow={noop}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
+  }
+  if (fixture === "discovery-question-text") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery(questionsTextReady)}
+        history={[
+          { questionId: "q_prior_1", questionText: "What was your most recent title?", answerText: "Principal Systems Architect" },
+          { questionId: "q_prior_2", questionText: "What primary domain is this portfolio for?", answerText: "Fintech & low-latency execution" },
+        ]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={noop as never}
+        onGenerateBriefNow={noop}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
+  }
+  if (fixture === "discovery-question-single") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery(questionsReady)}
+        history={[]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={noop as never}
+        onGenerateBriefNow={noop}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
   }
   if (fixture === "discovery-review") {
     return (

@@ -89,3 +89,62 @@ export const needsAttention = {
 export const unknownFutureStatus = { status: "brief_finalizing_v2" };
 
 export const malformed = { status: "questions_ready", operation_a: { items: "not-an-array" } };
+
+export const questionsMcqReady = {
+  status: "questions_ready",
+  operation_a: {
+    items: [
+      {
+        id: "q_mcq",
+        text: "Which project stories should lead your portfolio?",
+        help_text: "A focused selection helps your strongest contribution come through.",
+        kind: "multi_select",
+        options: [
+          { id: "alphamesh", label: "AlphaMesh-Core" },
+          { id: "chronos", label: "Chronos-Tick-Fabric" },
+          { id: "nanosecure", label: "NanoSecure-Risk" },
+        ],
+        allow_skip: true,
+      },
+      {
+        id: "q_next",
+        text: "What primary audience should this portfolio address?",
+        help_text: "Targeting your primary reviewer shapes language and depth.",
+        kind: "text",
+        options: [],
+        allow_skip: true,
+      },
+    ],
+  },
+  answers: {
+    items: {
+      q_prior: {
+        question_id: "q_prior",
+        mode: "answered",
+        value: "Senior Infrastructure & Reliability Engineer",
+      },
+    },
+  },
+};
+
+export const questionsTextReady = {
+  status: "questions_ready",
+  operation_a: {
+    items: [
+      {
+        id: "q_text",
+        text: "What should someone understand after reading your portfolio?",
+        help_text: "A sentence or two is enough. Focus on the change you helped create.",
+        kind: "text",
+        options: [],
+        allow_skip: true,
+      },
+    ],
+  },
+  answers: {
+    items: {
+      q_prior_1: { question_id: "q_prior_1", mode: "answered", value: "Principal Systems Architect" },
+      q_prior_2: { question_id: "q_prior_2", mode: "answered", value: "Fintech & low-latency execution" },
+    },
+  },
+};
