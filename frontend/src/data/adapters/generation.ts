@@ -39,6 +39,15 @@ export interface GenerationViewModel extends StageViewModel {
   stale: boolean;
   staleReasons: string[];
   currentMilestone: string;
+  coordinatorStage?: string;
+  currentAttempt?: number;
+  traceId?: string;
+  activeJobId?: string | null;
+  activeJobKind?: string | null;
+  issues?: string[];
+  latestError?: Record<string, unknown> | null;
+  projectTitle?: string;
+  projectSummary?: string;
   preview: GenerationPreviewVM | null;
   candidatePreview?: GenerationPreviewVM | null;
   warnings?: string[];
@@ -126,6 +135,15 @@ export function adaptCodeGenerator(
       stale: false,
       staleReasons: [],
       currentMilestone: "",
+      coordinatorStage: "",
+      currentAttempt: 1,
+      traceId: "",
+      activeJobId: null,
+      activeJobKind: null,
+      issues: [],
+      latestError: null,
+      projectTitle: "Personal Portfolio",
+      projectSummary: "A clean, modern portfolio site for a product designer with case studies and a blog.",
       preview: null,
       candidatePreview: null,
       warnings: [],
@@ -138,9 +156,20 @@ export function adaptCodeGenerator(
   const hasActiveJobProjection = "active_job_id" in raw || "active_job_kind" in raw;
   const activeJobId = typeof raw.active_job_id === "string" ? raw.active_job_id : null;
   const activeJobKind = typeof raw.active_job_kind === "string" ? raw.active_job_kind : null;
-  const coordinatorStage = isRecord(raw.progress) && typeof raw.progress.coordinator_stage === "string"
+  const rawCoordStage = isRecord(raw.progress) && typeof raw.progress.coordinator_stage === "string"
     ? raw.progress.coordinator_stage
     : "";
+  const coordinatorStage = rawCoordStage || (
+    status === "planning" ? "plan" :
+    status === "acquiring" ? "acquire" :
+    status === "generating" ? "generate" :
+    status === "verifying" ? "verify" :
+    status === "preview_pending" || status === "ready" ? "preview" :
+    activeJobKind?.includes("verify") ? "verify" :
+    activeJobKind?.includes("generate") ? "generate" :
+    activeJobKind?.includes("acquire") ? "acquire" :
+    activeJobKind?.includes("plan") ? "plan" : ""
+  );
   const legacyJobKind = coordinatorStage ? `code_generator.${coordinatorStage}` : null;
   // `current_run_id` identifies the durable generation run, not a background
   // job. Prefer the additive active-job projection from the existing state
@@ -151,11 +180,49 @@ export function adaptCodeGenerator(
       : activeJobKind
         ? selectStageJob(jobs, null, activeJobKind)
         : null
-    : selectStageJob(jobs, null, legacyJobKind);
+  : selectStageJob(jobs, null, legacyJobKind);
   const failedJob = job?.status === "failed" || job?.status === "cancelled";
   const stale = raw.stale === true;
   const preview = adaptPreview(raw.active_preview);
   const candidatePreview = adaptPreview(raw.candidate_preview);
+
+  const creative = isRecord(raw.creative_direction) ? raw.creative_direction : null;
+  const planSummary = isRecord(raw.progress) && isRecord(raw.progress.plan_summary)
+    ? raw.progress.plan_summary
+    : isRecord(raw.plan_summary) ? raw.plan_summary : null;
+
+  let projectTitle = "Personal Portfolio";
+  let projectSummary = "A clean, modern portfolio site for a product designer with case studies and a blog.";
+
+  if (creative && typeof creative.headline === "string" && creative.headline) {
+    projectTitle = creative.headline;
+  } else if (planSummary && typeof planSummary.title === "string" && planSummary.title) {
+    projectTitle = planSummary.title;
+  }
+
+  if (creative && typeof creative.positioning === "string" && creative.positioning) {
+    projectSummary = creative.positioning;
+  } else if (planSummary && typeof planSummary.summary === "string" && planSummary.summary) {
+    projectSummary = planSummary.summary;
+  }
+
+  const issues: string[] = [];
+  if (Array.isArray(raw.issues)) {
+    for (const item of raw.issues) {
+      if (typeof item === "string") issues.push(item);
+      else if (isRecord(item)) {
+        if (typeof item.message === "string") issues.push(item.message);
+        else if (typeof item.code === "string") issues.push(item.code);
+      }
+    }
+  }
+
+  const currentAttempt = isRecord(raw.progress) && typeof raw.progress.current_attempt === "number"
+    ? raw.progress.current_attempt
+    : 1;
+
+  const traceId = typeof raw.trace_id === "string" ? raw.trace_id : "";
+  const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
 
   let state: StageState =
     WORKING_STATUSES.has(status)
@@ -190,6 +257,15 @@ export function adaptCodeGenerator(
     stale,
     staleReasons: strings(raw.stale_reasons),
     currentMilestone: STATUS_TEXT[status] ?? statusText,
+    coordinatorStage,
+    currentAttempt,
+    traceId,
+    activeJobId,
+    activeJobKind,
+    issues,
+    latestError,
+    projectTitle,
+    projectSummary,
     preview,
     candidatePreview,
     warnings: warningMessages(raw.warnings ?? raw.advisories),
