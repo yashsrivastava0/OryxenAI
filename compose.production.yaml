@@ -1,27 +1,50 @@
-# Azure VM production overlay -- matches docs/deployment/02-azure-vm-runbook.md
-# §6 exactly. Points migrate/app/worker/preview-gateway at the production
-# TOML overlay. Host ports are deliberately left published (unchanged from
-# compose.yaml): natively-installed Caddy (§2/§8 of the runbook) reaches
-# them at 127.0.0.1:8000 / 127.0.0.1:4174, and the Azure NSG -- not Docker
-# port removal -- is what keeps them unreachable from the public internet
-# (only 80, 443, and restricted SSH are allowed through).
+# Azure VM production overlay.
 #
-# Usage on the VM:
-#   docker compose -f compose.yaml -f compose.production.yaml \
-#     build migrate app worker preview-gateway
-#   docker compose -f compose.yaml -f compose.production.yaml \
-#     up -d migrate app worker preview-gateway
+# The repository's azure-deploy.sh script creates the ignored
+# config/app.production.local.toml file and sets ORYXENAI_IMAGE_TAG to the
+# exact release SHA before invoking this overlay. Caddy is part of the same
+# Compose project so the VM needs no native reverse-proxy installation.
 
 services:
   migrate:
     environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
   app:
     environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
   worker:
     environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
   preview-gateway:
     environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.toml
+      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging:
+      driver: local
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - oryxen_caddy_data:/data
+      - oryxen_caddy_config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      app:
+        condition: service_healthy
+      preview-gateway:
+        condition: service_healthy
+
+volumes:
+  oryxen_caddy_data:
+  oryxen_caddy_config:

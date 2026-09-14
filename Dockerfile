@@ -51,7 +51,7 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 # an explicitly enabled development profile does not silently fall back to a
 # fake source check.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends chromium \
+    && apt-get install -y --no-install-recommends bash chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user.

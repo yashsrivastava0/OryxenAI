@@ -1,9 +1,10 @@
 # OryxenAI deployment
 
 This is the simplest deployment path for the current repository when the
-priority is that a user can complete the pipeline and see the generated
-portfolio preview. It is designed for a very small demo, normally no more
-than two active normal users, rather than for a scalable public service.
+priority is that a first-time deployer can complete the pipeline and see the
+generated portfolio preview. It is designed for a very small demo, normally
+no more than two active normal users, rather than for a scalable public
+service.
 
 ## Recommended shape
 
@@ -17,7 +18,7 @@ artifact and preview objects.
                          | Google sign-in       |
                          +----------+-----------+
                                     |
-Browser --> app.<domain> --> Caddy --> API/UI :8000
+Browser --> app.<domain> --> Caddy (Compose) --> API/UI :8000
                               |
 Browser --> preview.<domain> ->+------> preview gateway :4174
                               |
@@ -29,9 +30,10 @@ Browser --> preview.<domain> ->+------> preview gateway :4174
               artifacts, generated sites, preview objects
 ```
 
-The VM runs PostgreSQL, the migration job, FastAPI, the durable worker, and
-the shared preview gateway. The generated portfolio remains a static
-artifact; it does not get its own container or deployment.
+The VM runs PostgreSQL, the migration job, FastAPI, the durable worker, the
+shared preview gateway, and Caddy as Compose services. The generated
+portfolio remains a static artifact; it does not get its own container or
+deployment.
 
 ## Why this is the first deployment
 
@@ -42,8 +44,9 @@ artifact; it does not get its own container or deployment.
 - Supabase remains the existing authentication provider; no auth rewrite is
   needed.
 - R2 matches the current hosted artifact-storage and preview-storage code.
-- Caddy supplies HTTPS for the exact origin required by the current auth
-  configuration.
+- Compose-managed Caddy supplies HTTPS for the exact origin required by the
+  current auth configuration, so there is no second native service to
+  configure on the VM.
 - There is no Kubernetes, Redis, Celery, per-portfolio hosting, or separate
   provider for each internal process.
 
@@ -99,10 +102,28 @@ Follow the documents in this order:
 
 1. Read [the options research](./01-deployment-options-research.md) and claim
    only the accounts actually needed.
-2. Follow [the Azure VM runbook](./02-azure-vm-runbook.md) to provision the VM,
-   configure Supabase/R2, create the production overlay, and start Compose.
+2. Follow [the easy Azure VM runbook](./02-azure-vm-runbook.md) to configure
+   Supabase/R2 and run the one-time setup wizard followed by one deploy command.
 3. Execute [the acceptance and operations checklist](./03-acceptance-and-operations.md)
    before calling the deployment usable.
+
+For routine maintenance, the only command family needed on the VM is:
+
+```bash
+./scripts/azure-deploy.sh status
+./scripts/azure-deploy.sh logs
+./scripts/azure-deploy.sh deploy
+./scripts/azure-deploy.sh verify
+```
+
+The deployment script is the operational source of truth. The checked-in
+Compose files remain the infrastructure source of truth, and the ignored
+`.env` plus `config/app.production.local.toml` hold VM-specific values.
+
+For the lowest-effort coding and incident workflow, use the
+[AI-assisted operations guide](./07-ai-assisted-operations.md) with Codex or
+Claude Code. It includes copyable prompts and the rule for sharing only
+redacted logs.
 
 The old [`docs/github-student-pack-benefits.md`](../github-student-pack-benefits.md)
 is background research, not the deployment source of truth. Offers and prices

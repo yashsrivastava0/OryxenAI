@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-096 - Use one VM, Compose-managed Caddy, and one guided deployment command
+
+- **Date & Time:** 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The existing deployment shape required a first-time operator to install and configure Caddy separately, edit several production files by hand, and coordinate independent app, worker, migration, and preview commands. The project needs to stay on the current branch, be easy to repair and redeploy, and remain simple when a future engine is added.
+- **Decision:** Keep the single Azure Ubuntu VM and PostgreSQL-backed Docker topology, run Caddy as a Compose service with persistent certificate volumes, bind application ports to VM loopback, and expose only Caddy's 80/443 ports. Make `scripts/azure-deploy.sh` the operator entry point for Docker installation, `.env` setup, production-config rendering, health checks, commit-tagged image builds, migrations, deployment, backup, logs, verification, and rollback. Deploy source from GitHub on the VM; do not add a registry, Kubernetes, or automatic GitHub-to-VM deployment in this phase.
+- **Rejected alternatives:** Native Caddy would preserve an extra manually managed service and duplicate the proxy configuration; GitHub Actions SSH deployment would add secret and remote-state setup before the first successful release; Azure Container Apps, Kubernetes, and a registry would add concepts that do not help this small single-VM deployment; exposing internal ports would make the proxy boundary ambiguous.
+- **Consequence:** A release is an exact commit SHA and the script records the last two successful SHAs locally. The ignored `.env` and `config/app.production.local.toml` remain VM-specific. Future independent engines must add a Compose service plus a healthcheck only when they need a separate process; ordinary code and profile changes use the same `deploy` command.
+
 ## D-095 — Keep Visual Design Director's frontend rendering prose-only; do not fabricate hex swatches
 
 - **Date & Time:** 2026-09-11 17:45 +05:30 — Kiro (Claude Sonnet 5 / Anthropic)

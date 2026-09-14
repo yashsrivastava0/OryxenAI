@@ -448,16 +448,20 @@ After the VM is created and the human explicitly starts the next phase, use
 the existing runbook to:
 
 1. SSH into the VM using the downloaded private key.
-2. Install Docker, Docker Compose, and Caddy.
-3. Clone one exact committed OryxenAI release SHA.
-4. Create the VM-local `.env` with secrets entered privately.
-5. Create the production TOML overlay.
-6. Create the production Compose override.
-7. Configure Supabase Google OAuth and the exact HTTPS callback.
-8. Create the Cloudflare R2 bucket and configure artifact/preview storage.
-9. Configure DNS for `app.<DOMAIN>` and `preview.<DOMAIN>`.
-10. Start PostgreSQL, migrations, API, worker, and preview gateway.
-11. Run the complete agent-to-preview acceptance flow.
+2. Configure Supabase Google OAuth, the exact HTTPS callback, Cloudflare R2,
+   and DNS for `app.<DOMAIN>` and `preview.<DOMAIN>`.
+3. Clone the current deployment branch and make the deployment script
+   executable.
+4. Run `./scripts/azure-deploy.sh setup`; it installs Docker and Docker
+   Compose, creates the VM-local `.env`, and renders the production TOML
+   overlay.
+5. Run `./scripts/azure-deploy.sh deploy`; Compose starts Caddy, PostgreSQL,
+   migrations, API, worker, and preview gateway together.
+6. Run `./scripts/azure-deploy.sh verify` and the complete agent-to-preview
+   acceptance flow.
+
+Caddy is Compose-managed; do not install or configure a second native Caddy
+service on the VM.
 
 The current Azure task ends after successful VM creation and public-IP
 recording. Do not mix application deployment into the VM wizard unless the
