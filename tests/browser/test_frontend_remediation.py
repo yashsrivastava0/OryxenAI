@@ -63,8 +63,8 @@ def test_required_viewports_keep_stage_actions_visible(browser_page: object, wid
     page = browser_page
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=content-review", wait_until="networkidle")
-    assert page.get_by_role("heading", name="Content Strategy & Route Architecture").is_visible()
-    assert page.get_by_role("button", name="Approve content plan").is_visible()
+    assert page.get_by_role("heading", name="Three routes. A stronger story ahead.").is_visible()
+    assert page.get_by_role("button", name="Approve & continue").is_visible()
     assert_no_horizontal_overflow(page)
 
 
@@ -76,6 +76,20 @@ def test_mobile_uses_compact_selector_and_locked_options(browser_page: object) -
     assert selector.is_visible()
     assert selector.locator("option", has_text="Design").is_disabled()
     assert page.locator(".journey-rail").is_hidden()
+    assert_no_horizontal_overflow(page)
+
+
+def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: object) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(f"{BASE_URL}/?fixture=discovery-input", wait_until="networkidle")
+    assert page.get_by_text("0 / 3,000 words").is_visible()
+    assert page.get_by_text("Your input is private and secure.").is_visible()
+    assert page.get_by_text("A deeper conversation for a more intentional future.").count() == 0
+    prompt_box = page.locator(".starting-points-grid").bounding_box()
+    dock_box = page.locator(".intake-dock").bounding_box()
+    assert prompt_box and dock_box
+    assert dock_box["y"] >= prompt_box["y"] + prompt_box["height"]
     assert_no_horizontal_overflow(page)
 
 
@@ -92,8 +106,8 @@ def test_preparation_is_metadata_only_and_inspector_is_closed(browser_page: obje
     page = browser_page
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=preparation-ready", wait_until="networkidle")
-    assert page.get_by_role("heading", name="References prepared for generation").is_visible()
-    assert page.locator(".resource-evidence-card").count() == 1
+    assert page.get_by_role("heading", name="Build handoff prepared").is_visible()
+    assert page.locator(".evidence-card").count() == 4
     assert page.locator(".preparation-stage-view img").count() == 0
     assert page.locator("#output-inspector-drawer").count() == 0
 
@@ -102,10 +116,10 @@ def test_generation_working_uses_human_milestones_and_attention_preserves_previe
     page = browser_page
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=generation-working", wait_until="networkidle")
-    for label in ("Planning", "Acquiring resources", "Building pages", "Testing viewports", "Promoting preview"):
-        assert page.locator(".progress-milestone-label", has_text=label).is_visible()
+    for label in ("Plan", "Acquire", "Build", "Verify", "Preview"):
+        assert page.locator(".step-label", has_text=label).is_visible()
     page.goto(f"{BASE_URL}/?fixture=generation-attention", wait_until="networkidle")
-    assert page.get_by_text("Your verified preview remains preserved.").is_visible()
+    assert page.get_by_text("Your last verified preview is still available.").is_visible()
     assert page.get_by_role("button", name="Retry generation").is_visible()
     assert_no_horizontal_overflow(page)
 

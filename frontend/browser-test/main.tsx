@@ -16,6 +16,11 @@ import { designFixtureReview } from "../src/data/adapters/design.fixtures";
 import { adaptBuildPreparation } from "../src/data/adapters/preparation";
 import { preparationReady } from "../src/data/adapters/preparation.fixtures";
 import { adaptCodeGenerator } from "../src/data/adapters/generation";
+// The product template loads these shared files before shell.css. Keep the
+// browser fixture honest so its local preview never falls back to invalid
+// var(...) declarations and browser-default typography.
+import "../../src/oryxenai/auth/static/tokens.css";
+import "../../src/oryxenai/auth/static/motion.css";
 import { generationNeedsAttentionWithPreview, generationWorking } from "../src/data/adapters/generation.fixtures";
 import { StageContextStrip } from "../src/components/StageContextStrip";
 import "../src/styles/shell.css";
