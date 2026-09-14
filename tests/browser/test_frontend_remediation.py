@@ -118,10 +118,59 @@ def test_generation_working_uses_human_milestones_and_attention_preserves_previe
     page.goto(f"{BASE_URL}/?fixture=generation-working", wait_until="networkidle")
     for label in ("Plan", "Acquire", "Build", "Verify", "Preview"):
         assert page.locator(".step-label", has_text=label).is_visible()
+    assert page.get_by_text("62%", exact=True).count() == 0
+    assert page.get_by_text("Publish", exact=False).count() == 0
+    assert page.get_by_text("Deploy", exact=False).count() == 0
     page.goto(f"{BASE_URL}/?fixture=generation-attention", wait_until="networkidle")
     assert page.get_by_text("Your last verified preview is still available.").is_visible()
     assert page.get_by_role("button", name="Retry generation").is_visible()
     assert_no_horizontal_overflow(page)
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_generation_preview_is_truthful_and_contained(browser_page: object, width: int, height: int) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
+    theater = page.locator(".codegen-preview-theater")
+    frame = page.locator(".browser-content-viewport")
+    assert theater.is_visible()
+    assert frame.is_visible()
+    assert page.get_by_role("link", name="Open verified preview").is_visible()
+    assert page.get_by_role("button", name="Regenerate portfolio").is_visible()
+    assert page.get_by_text("Publish", exact=False).count() == 0
+    assert page.get_by_text("Deploy", exact=False).count() == 0
+    theater_box = theater.bounding_box()
+    frame_box = frame.bounding_box()
+    assert theater_box and frame_box
+    assert frame_box["x"] >= theater_box["x"]
+    assert frame_box["x"] + frame_box["width"] <= theater_box["x"] + theater_box["width"] + 1
+    if width == 768:
+        left_panel = page.locator(".codegen-left-panel").bounding_box()
+        assert left_panel is not None
+        assert theater_box["y"] < left_panel["y"]
+    assert_no_horizontal_overflow(page)
+
+
+def test_generation_transition_respects_reduced_motion(browser_page: object) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
+    assert page.locator(".stage-transition-layer").count() == 1
+    page.emulate_media(reduced_motion="reduce")
+    duration = page.locator(".stage-transition-layer").evaluate(
+        "element => getComputedStyle(element).animationDuration"
+    )
+    assert duration == "0.01s"
+
+
+def test_generation_candidate_is_never_presented_as_verified(browser_page: object) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(f"{BASE_URL}/?fixture=generation-candidate", wait_until="networkidle")
+    assert page.get_by_text("Candidate preview (unverified)").is_visible()
+    assert page.get_by_role("link", name="Open candidate preview").is_visible()
+    assert page.get_by_text("Open verified preview", exact=True).count() == 0
 
 
 def test_developer_inspector_is_opt_in_and_drawer_is_accessible(browser_page: object) -> None:

@@ -426,6 +426,25 @@ button:disabled, textarea:disabled, input:disabled {
   outline: none;
 }
 
+.stage-transition-layer {
+  min-width: 0;
+}
+
+.stage-frame[data-stage="generate"] .stage-transition-layer {
+  animation: stage-arrive 180ms ease-out both;
+}
+
+@keyframes stage-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .eyebrow {
   font-size: 0.7rem;
   font-weight: 700;
@@ -1933,10 +1952,57 @@ button:disabled, textarea:disabled, input:disabled {
   padding: 1.5rem 0 3rem;
 }
 
-@media (max-width: 1024px) {
+@media (min-width: 768px) and (max-width: 1199px) {
   .codegen-workspace {
     grid-template-columns: 1fr;
     gap: 1.5rem;
+  }
+
+  .codegen-theater-column {
+    order: -1;
+  }
+
+  .browser-content-viewport {
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .codegen-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    padding-top: 1rem;
+  }
+
+  .codegen-left-panel {
+    padding: 1.25rem;
+  }
+
+  .browser-chrome {
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .window-dots {
+    display: none;
+  }
+
+  .browser-content-viewport {
+    min-height: 16rem;
+    max-height: none;
+  }
+
+  .theater-action-bar,
+  .theater-subfooter {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .theater-action-right,
+  .theater-action-right .btn-secondary {
+    width: 100%;
   }
 }
 
@@ -2024,12 +2090,6 @@ button:disabled, textarea:disabled, input:disabled {
   color: #ffffff;
   border: 1px solid #0052cc;
   box-shadow: 0 0 0 4px rgba(0, 82, 204, 0.2);
-  animation: pulse-node 2s infinite ease-in-out;
-}
-
-@keyframes pulse-node {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.2); }
-  50% { box-shadow: 0 0 0 6px rgba(0, 82, 204, 0.4); }
 }
 
 .step-node--attention {
@@ -2102,35 +2162,6 @@ button:disabled, textarea:disabled, input:disabled {
 .codegen-step-item.is-attention .step-desc {
   color: #b53526;
   font-weight: 500;
-}
-
-/* Progress bar in active Build step */
-.step-progress-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.45rem;
-}
-
-.step-progress-bar {
-  flex: 1;
-  height: 6px;
-  background: rgba(0, 82, 204, 0.15);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.step-progress-fill {
-  height: 100%;
-  background: #0052cc;
-  border-radius: 999px;
-  transition: width 0.3s ease;
-}
-
-.step-progress-percent {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #0052cc;
 }
 
 /* Instruction Composer Section */
@@ -2673,13 +2704,8 @@ button:disabled, textarea:disabled, input:disabled {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(0, 82, 204, 0.2);
-  border-top-color: #0052cc;
+  border-color: #0052cc;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .theater-subfooter {
@@ -2691,16 +2717,6 @@ button:disabled, textarea:disabled, input:disabled {
   border-top: 1px solid var(--rule-subtle);
   font-size: 0.78rem;
   color: var(--graphite);
-}
-
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #0052cc;
-  display: inline-block;
-  margin-right: 0.4rem;
-  animation: pulse-node 1.5s infinite;
 }
 
 /* Action Bar below Preview */
@@ -2746,51 +2762,6 @@ button:disabled, textarea:disabled, input:disabled {
 .preview-unready-note {
   font-size: 0.82rem;
   color: var(--graphite);
-}
-
-.btn-disabled-lock {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #edeae4;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  padding: 0.55rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #736f66;
-  cursor: not-allowed;
-}
-
-.publish-attention-lock {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.info-bubble {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--rule);
-  display: grid;
-  place-items: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--graphite);
-  cursor: help;
-}
-
-.publish-text strong {
-  display: block;
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
-.publish-text span {
-  display: block;
-  font-size: 0.72rem;
-  opacity: 0.85;
 }
 
 /* --------------------------------------------------------------------------
