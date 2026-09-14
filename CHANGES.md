@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-14 12:08 +05:30 — Codex (GPT-5) — [pending] — Turn public examples into scrollable portfolio previews
+### 2026-09-14 12:08 +05:30 — Codex (GPT-5) — [5e96a52] — Turn public examples into scrollable portfolio previews
 
 Expanded the three public sign-in examples into self-contained, fictional
 mini-portfolios: Devon Lee (software developer), Leila Ortiz (business
