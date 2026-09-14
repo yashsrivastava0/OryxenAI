@@ -295,6 +295,8 @@ export function initOutcomeShowcase() {
   const cards = [...section.querySelectorAll("[data-outcome-id]")];
   const previews = [...dialog.querySelectorAll("[data-outcome-preview]")];
   const routeLinks = [...dialog.querySelectorAll("[data-preview-route]")];
+  const screens = [...dialog.querySelectorAll("[data-preview-screen]")];
+  const sheet = dialog.querySelector(".outcome-dialog-sheet");
   const authLink = section.querySelector("[data-focus-auth]");
   let returnTrigger = null;
 
@@ -312,6 +314,33 @@ export function initOutcomeShowcase() {
     if (routeStatus instanceof HTMLElement) {
       routeStatus.textContent = `/${route.slice(route.lastIndexOf("-") + 1)}`;
     }
+  }
+
+  previews.forEach((preview) => {
+    preview.addEventListener("pointermove", (event) => {
+      const bounds = preview.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      preview.style.setProperty("--pointer-x", `${((event.clientX - bounds.left) / bounds.width) * 100}%`);
+      preview.style.setProperty("--pointer-y", `${((event.clientY - bounds.top) / bounds.height) * 100}%`);
+    });
+    preview.addEventListener("pointerleave", () => {
+      preview.style.setProperty("--pointer-x", "50%");
+      preview.style.setProperty("--pointer-y", "22%");
+    });
+  });
+
+  if (sheet instanceof HTMLElement && typeof IntersectionObserver === "function") {
+    const screenObserver = new IntersectionObserver((entries) => {
+      const visibleEntry = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((first, second) => first.boundingClientRect.top - second.boundingClientRect.top)[0];
+      if (!visibleEntry) return;
+      const preview = visibleEntry.target.closest("[data-outcome-preview]");
+      const route = visibleEntry.target.getAttribute("data-preview-screen");
+      if (preview instanceof HTMLElement && !preview.hidden && route) setRouteState(preview, route);
+      visibleEntry.target.classList.add("is-in-view");
+    }, { root: sheet, threshold: 0.55 });
+    screens.forEach((screen) => screenObserver.observe(screen));
   }
 
   function resetCardState() {
@@ -343,6 +372,7 @@ export function initOutcomeShowcase() {
       setRouteState(selected, `${id}-home`);
       returnTrigger = card;
       cards.forEach((candidate) => candidate.setAttribute("aria-expanded", String(candidate === card)));
+      if (sheet instanceof HTMLElement) sheet.scrollTop = 0;
       dialog.showModal();
       window.requestAnimationFrame(() => closeButton.focus());
     });
