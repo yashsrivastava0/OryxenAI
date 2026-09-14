@@ -12,7 +12,10 @@ from typing import Any
 from uuid import UUID
 
 from oryxenai.agents.code_generator.core.blueprint_compiler import canonicalize_generation_plan
-from oryxenai.agents.code_generator.core.build_runner import run_clean_build
+from oryxenai.agents.code_generator.core.build_runner import (
+    is_vite_windows_spawn_failure,
+    run_clean_build,
+)
 from oryxenai.agents.code_generator.core.candidate_identity import build_candidate_identity
 from oryxenai.agents.code_generator.core.checkpoint_store import CheckpointStore
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
@@ -85,6 +88,20 @@ from oryxenai.preview.server import EphemeralServer, start_ephemeral_server
 from oryxenai.storage.preview import create_preview_storage
 
 logger = get_logger("oryxenai.jobs.code_generator_verification")
+
+_NODE_SPAWN_DENIED_TERMINAL = (
+    "TOOLCHAIN_NODE_SPAWN_DENIED",
+    "The local Windows build toolchain could not start a required child process; generated "
+    "source was not judged defective.",
+    "Pause competing Node or build activity, rerun the toolchain preflight, then retry "
+    "verification.",
+)
+
+
+def _infrastructure_build_terminal(diagnostics: list[Diagnostic]) -> tuple[str, str, str] | None:
+    """Choose the safe terminal report for a build failure that cannot be source-repaired."""
+
+    return _NODE_SPAWN_DENIED_TERMINAL if is_vite_windows_spawn_failure(diagnostics) else None
 
 
 def _reconstruct_repair_unit_counts(receipts: list[RepairReceipt]) -> dict[str, int]:
@@ -710,6 +727,17 @@ async def _execute(
                 )
                 or "manifest_missing",
             )
+            infrastructure_terminal = _infrastructure_build_terminal(blocking_build_diagnostics)
+            if infrastructure_terminal is not None:
+                code, summary, next_action = infrastructure_terminal
+                return await _terminal(
+                    sessionmaker,
+                    run_id,
+                    projection,
+                    code=code,
+                    summary=summary,
+                    next_action=next_action,
+                )
             repaired = await _attempt_repair(
                 sessionmaker=sessionmaker,
                 run_id=run_id,
