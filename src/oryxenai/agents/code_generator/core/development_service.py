@@ -93,6 +93,41 @@ def _worker_payload(run_id: UUID, settings: Any, *, pipeline_version: str) -> di
     return payload
 
 
+def _reset_generation_projection_for_explicit_retry(
+    value: dict[str, Any],
+) -> dict[str, Any]:
+    """Reset transient continuation state while preserving immutable history."""
+
+    resumed_generation = dict(value)
+    reset_work_units: list[dict[str, Any]] = []
+    for raw_unit in resumed_generation.get("work_units", []):
+        unit = dict(raw_unit)
+        unit.update(
+            {
+                "request_round": 0,
+                "pending_request": None,
+                "repair_round": 0,
+                "next_operation": "",
+                "next_role_profile": "",
+                "diagnostics": [],
+                "pending_proposal": None,
+            }
+        )
+        reset_work_units.append(unit)
+    resumed_generation.update(
+        {
+            "attempt_epoch": int(resumed_generation.get("attempt_epoch", 0) or 0) + 1,
+            "work_units": reset_work_units,
+            "repair_rounds": 0,
+            "repair_budget_used": 0,
+            "repair_fingerprint_counts": {},
+            "repair_strategies": [],
+            "issues": [],
+        }
+    )
+    return resumed_generation
+
+
 class DevelopmentRunError(ValueError):
     def __init__(
         self,
@@ -867,20 +902,13 @@ class CodeGeneratorDevelopmentService:
             "issues": [],
         }
         if resume_projection:
-            resumed_generation = dict(run.generation_projection or {})
-            # Repair ceilings belong to one executable generation attempt.
-            # A same-run retry keeps accepted source checkpoints but must not
-            # inherit the exhausted repair budget from the failed attempt.
-            resumed_generation.update(
-                {
-                    "repair_rounds": 0,
-                    "repair_budget_used": 0,
-                    "repair_fingerprint_counts": {},
-                    "repair_strategies": [],
-                    "issues": [],
-                }
+            # Repair ceilings belong to one explicit executable attempt. Keep
+            # checkpoint status/hashes and immutable receipts, but reset every
+            # unit's transient candidate/request/repair intent so checkpointed
+            # integration-polish owners cannot leak rejected source forward.
+            values["generation_projection"] = _reset_generation_projection_for_explicit_retry(
+                dict(run.generation_projection or {})
             )
-            values["generation_projection"] = resumed_generation
         if not resume_projection:
             values.update(
                 {
