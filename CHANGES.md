@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 11:59 +05:30 — Codex (GPT-5) — [efb226e] — Keep intake actions and responsive shell accessible
+
+Reserved the Discovery intake action area in normal document flow, raised
+the UI guidance counter to 3,000 words while retaining the 30,000-character
+guard, added the committed-approval acknowledgement, and tightened mobile
+journey/inspector layering. The browser fixture now loads the same shared
+tokens as the product shell.
+
 ### 2026-09-14 11:54 +05:30 — Claude Sonnet 5 — [c6eaa33] — Namespace generation retries and receipts by explicit attempt epoch
 
 Committed reliability work that had been sitting reviewed-and-passed but
