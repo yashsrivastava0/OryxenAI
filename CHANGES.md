@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [pending commit] - Deployment setup preflight improvements
+
+Made the deployment wizard derive active model credentials from
+`config/models.toml`, require those keys during setup/doctor, reject example
+hostnames, and recover a stopped Docker daemon through the official install
+path. Documented the database-migration limitation of application rollback.
+
 ### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [88ba402] - Simple Azure VM deployment path
 
 Implemented the beginner-friendly Azure deployment contract: one guided
