@@ -11,6 +11,10 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 14:05 +05:30 — Codex (GPT-5) — [cf71c87] — Code Generator Windows build diagnostics
+
+Classified Vite's Windows `spawn EPERM` path-resolution failure as infrastructure rather than generated-source failure, bypassed source repair for that condition, and provided a preflight-and-retry recovery action with regression tests.
+
 ### 2026-09-14 12:24 +05:30 — Codex (GPT-5) — [250417d] — Add art-directed motion to public portfolio previews
 
 Upgraded the three public sample portfolios with distinct interaction systems:
