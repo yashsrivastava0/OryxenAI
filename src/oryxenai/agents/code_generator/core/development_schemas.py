@@ -85,6 +85,9 @@ class InputReceipt(BaseModel):
     target_id: str
     source_version: str
     schema_version: str
+    source_format: str = ""
+    dispatch_mode: str = ""
+    structural_signature: str = ""
 
 
 class ContextReceipt(BaseModel):
@@ -2682,6 +2685,40 @@ class GenerationRequests(BaseModel):
     dependency_requests: list[DependencyRequest] = Field(default_factory=list)
 
 
+class GenerationRequestReceipt(BaseModel):
+    """Durable reservation for one model-requested acquisition transition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["code-generator-request-receipt-v1"] = (
+        "code-generator-request-receipt-v1"
+    )
+    receipt_id: str = ""
+    unit_id: str
+    context_receipt_hash: str
+    request_round: int = Field(default=0, ge=0)
+    next_request_round: int = Field(ge=1)
+    requests: GenerationRequests
+
+    @model_validator(mode="after")
+    def stamp_receipt_id(self) -> GenerationRequestReceipt:
+        if self.next_request_round != self.request_round + 1:
+            raise ValueError("next_request_round must advance exactly one round")
+        payload = self.model_dump(mode="json", exclude={"receipt_id"})
+        computed = (
+            "request-"
+            + hashlib.sha256(
+                json.dumps(
+                    payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                ).encode()
+            ).hexdigest()[:20]
+        )
+        if self.receipt_id and self.receipt_id != computed:
+            raise ValueError("receipt_id does not match the generation request transition")
+        self.receipt_id = computed
+        return self
+
+
 class GenerationCannotComplete(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2872,12 +2909,14 @@ class GenerationAttemptRecord(BaseModel):
 
 
 class PendingSourceProposal(BaseModel):
-    """Metadata for a complete, not-yet-accepted unit proposal.
+    """Metadata for validated source evidence awaiting unit acceptance.
 
-    File bodies live in the run's restricted ledger file referenced by
+    ``candidate_completeness`` is explicit because this record also retains
+    partial per-file evidence from an incrementally rejected response.  File
+    bodies live in the run's restricted ledger file referenced by
     ``stored_relative_path``. The database projection carries hashes and the
-    complete inventory so a restart can resume the same proposal without
-    placing source text in the public API projection.
+    inventory so a restart can resume safely without placing source text in
+    the public API projection.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -2887,6 +2926,7 @@ class PendingSourceProposal(BaseModel):
     )
     unit_id: str
     attempt_id: str
+    candidate_completeness: Literal["partial", "complete"] = "partial"
     base_checkpoint_hash: str = ""
     owned_paths: list[str] = Field(default_factory=list)
     expected_paths: list[str] = Field(default_factory=list)
@@ -2958,7 +2998,12 @@ class GenerationWorkUnitProjection(BaseModel):
     checkpoint_after: str = ""
     call_receipt_id: str = ""
     request_round: int = 0
+    request_receipt_ids: list[str] = Field(default_factory=list)
+    pending_request: GenerationRequestReceipt | None = None
+    legacy_request_count_credit: int = Field(default=0, ge=0)
     repair_round: int = 0
+    next_operation: str = ""
+    next_role_profile: str = ""
     diagnostics: list[str] = Field(default_factory=list)
     pending_proposal: PendingSourceProposal | None = None
 
@@ -2970,6 +3015,7 @@ class GenerationProjection(BaseModel):
         "code-generator-generation-projection-v1"
     )
     generation_id: str
+    attempt_epoch: int = Field(default=0, ge=0)
     input_receipt_hash: str
     site_plan_hash: str
     resource_ledger_hash: str = ""

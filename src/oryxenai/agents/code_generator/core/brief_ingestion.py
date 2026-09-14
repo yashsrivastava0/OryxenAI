@@ -9,17 +9,135 @@ downloads a resource and never recreates the retired ZIP-pack boundary.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, NoReturn, cast
 from urllib.parse import urlsplit
 
 BRIEF_ENVELOPE_VERSION = "code-generator-brief-envelope-v1"
+# Projection schema retained for compatibility with already-admitted namespaced briefs.
 BRIEF_CONTRACT_VERSION = "build-preparation-brief-v1"
+BRIEF_RAW_SOURCE_VERSION = "build-preparation-brief-v1"
+BRIEF_NAMESPACED_SOURCE_VERSION = "build-preparation-namespaced-brief-v1"
+BRIEF_RAW_SOURCE_FORMAT: Literal["raw-producer-v1"] = "raw-producer-v1"
+BRIEF_NAMESPACED_SOURCE_FORMAT: Literal["namespaced-v1"] = "namespaced-v1"
+BRIEF_STRUCTURE_VERSION = "bp-structure-v1"
 CONTENT_FILENAME = "content-and-narrative-brief.md"
 VISUAL_FILENAME = "visual-and-build-brief.md"
+
+_VERSION_KEYS = ("contract_version", "brief_contract_version", "schema_version")
+_CONTENT_INDEX_KEYS = {
+    "kind",
+    "run_id",
+    "content_architect_content_hash",
+    "navigation_contract",
+    "routes",
+    *_VERSION_KEYS,
+}
+_VISUAL_INDEX_KEYS = {
+    "kind",
+    "run_id",
+    "visual_input_mode",
+    "target_contract",
+    "recommended_dependencies",
+    "routes",
+    "resources",
+    "components",
+    *_VERSION_KEYS,
+}
+_ROUTE_KEYS = {"route_id", "path", "title", "sections"}
+_NAVIGATION_KEYS = {"closed", "allowed_destinations"}
+_RESOURCE_KEYS = {
+    "need_id",
+    "role_id",
+    "category",
+    "route_ids",
+    "purpose",
+    "status",
+    "primary_candidate_index",
+    "guidance",
+    "candidates",
+}
+_COMPONENT_KEYS = {
+    "need_id",
+    "role_id",
+    "route_ids",
+    "purpose",
+    "primary_suggestion_index",
+    "guidance",
+    "suggestions",
+}
+_RESOURCE_CANDIDATE_KEYS = {
+    "provider",
+    "provider_asset_id",
+    "url",
+    "preview_url",
+    "license",
+    "license_reference",
+    "title",
+    "width",
+    "height",
+    "attribution",
+    "additional_urls",
+}
+_COMPONENT_SUGGESTION_KEYS = {
+    "provider",
+    "name",
+    "title",
+    "description",
+    "item_url",
+}
+_CONTENT_REQUIRED_KEYS = {
+    "kind",
+    "run_id",
+    "content_architect_content_hash",
+    "navigation_contract",
+    "routes",
+}
+_VISUAL_REQUIRED_KEYS = {
+    "kind",
+    "run_id",
+    "visual_input_mode",
+    "target_contract",
+    "recommended_dependencies",
+    "routes",
+    "resources",
+    "components",
+}
+_RESOURCE_REQUIRED_KEYS = {
+    "role_id",
+    "category",
+    "route_ids",
+    "purpose",
+    "primary_candidate_index",
+    "guidance",
+    "candidates",
+}
+_COMPONENT_REQUIRED_KEYS = {
+    "role_id",
+    "route_ids",
+    "purpose",
+    "primary_suggestion_index",
+    "guidance",
+    "suggestions",
+}
+_DECLARED_RESOURCE_REQUIRED_KEYS = _RESOURCE_REQUIRED_KEYS | {"need_id", "status"}
+_DECLARED_COMPONENT_REQUIRED_KEYS = _COMPONENT_REQUIRED_KEYS | {"need_id"}
+_SAFE_BRIEF_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+
+
+@dataclass(frozen=True)
+class BriefSourceFormat:
+    format_id: Literal["raw-producer-v1", "namespaced-v1"]
+    source_version: str
+    dispatch_mode: Literal["declared", "legacy_unversioned"]
+    raw_sections: bool
+    structural_signature: str
+
 
 _CONTENT_TAG = "build-preparation-content-index"
 _VISUAL_TAG = "build-preparation-visual-index"
@@ -61,6 +179,23 @@ def canonical_json(value: Any) -> bytes:
     )
 
 
+def _strict_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise BriefContractError(
+                "BRIEF_JSON_DUPLICATE_KEY",
+                "Brief JSON objects cannot contain duplicate keys.",
+                details={"duplicate_key": key},
+            )
+        value[key] = item
+    return value
+
+
+def _strict_json_loads(value: str) -> Any:
+    return json.loads(value, object_pairs_hook=_strict_json_object)
+
+
 def make_brief_envelope(content_markdown: str, visual_markdown: str) -> bytes:
     """Serialize both verbatim briefs into a deterministic immutable envelope."""
 
@@ -77,7 +212,7 @@ def make_brief_envelope(content_markdown: str, visual_markdown: str) -> bytes:
 
 def parse_brief_envelope(data: bytes) -> tuple[str, str]:
     try:
-        payload = json.loads(data.decode("utf-8-sig"))
+        payload = _strict_json_loads(data.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise BriefContractError(
             "BRIEF_ENVELOPE_INVALID", "The brief envelope is not valid UTF-8 JSON."
@@ -124,12 +259,19 @@ def compile_briefs(
     content_markdown = _normalize_markdown(content_markdown)
     visual_markdown = _normalize_markdown(visual_markdown)
 
-    content_index = _tagged_index(content_markdown, _CONTENT_TAG)
+    raw_content_index = _tagged_index(content_markdown, _CONTENT_TAG)
     visual_index = _tagged_index(visual_markdown, _VISUAL_TAG)
-    _validate_indexes(content_index, visual_index)
+    source_format, content_index, heading_ids = _prepare_brief_indexes(
+        raw_content_index, visual_index
+    )
 
     routes = [item for item in content_index["routes"] if isinstance(item, dict)]
-    section_content = _section_content(content_markdown, routes)
+    section_content = _section_content(
+        content_markdown,
+        routes,
+        heading_ids=heading_ids,
+        require_route_context=source_format.raw_sections,
+    )
     route_purposes = _route_purposes(content_markdown)
     navigation = _navigation_contract(content_index, routes)
     public_content: list[dict[str, Any]] = []
@@ -185,7 +327,11 @@ def compile_briefs(
     )
     target_id = str(visual_index["target_contract"])
     visual_prose = _visual_prose(visual_markdown)
-    slots, resource_needs, decisions = _resource_contracts(visual_index, routes)
+    slots, resource_needs, decisions = _resource_contracts(
+        visual_index,
+        routes,
+        source_format=source_format,
+    )
     site_contract = {
         "schema_version": BRIEF_CONTRACT_VERSION,
         "routes": site_routes,
@@ -381,11 +527,18 @@ def compile_briefs(
         "projection_hashes": projection_hashes,
         "route_ids": [str(item["route_id"]) for item in routes],
         "target_id": target_id,
-        "source_version": BRIEF_CONTRACT_VERSION,
+        "source_version": source_format.source_version,
+        "source_format": source_format.format_id,
+        "dispatch_mode": source_format.dispatch_mode,
+        "structural_signature": source_format.structural_signature,
         "schema_version": BRIEF_ENVELOPE_VERSION,
     }
     summary = {
         "run_id": str(content_index["run_id"]),
+        "source_version": source_format.source_version,
+        "source_format": source_format.format_id,
+        "dispatch_mode": source_format.dispatch_mode,
+        "structural_signature": source_format.structural_signature,
         "route_count": len(routes),
         "section_count": sum(len(item["sections"]) for item in routes),
         "resource_count": len(visual_index.get("resources", [])),
@@ -416,7 +569,7 @@ def _tagged_index(markdown: str, required_tag: str) -> dict[str, Any]:
             details={"tag": required_tag, "observed": len(matches)},
         )
     try:
-        value = json.loads(matches[0].group("body"))
+        value = _strict_json_loads(matches[0].group("body"))
     except json.JSONDecodeError as exc:
         raise BriefContractError(
             "BRIEF_INDEX_INVALID_JSON", f"The {required_tag} fence is not valid JSON."
@@ -429,24 +582,495 @@ def _tagged_index(markdown: str, required_tag: str) -> dict[str, Any]:
 
 
 def _validate_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
+    """Compatibility validator used by focused tests and external probes."""
+
+    _prepare_brief_indexes(content, visual)
+
+
+def _prepare_brief_indexes(
+    content: dict[str, Any], visual: dict[str, Any]
+) -> tuple[BriefSourceFormat, dict[str, Any], dict[str, dict[str, str]]]:
+    """Select exactly one source format and return a strict canonical index."""
+
+    _validate_wire_shape(content, visual)
+    declared_version = _declared_source_version(content, visual)
+    section_style = _section_id_style(content)
+
+    format_id: Literal["raw-producer-v1", "namespaced-v1"]
+    source_version: str
+    raw_sections: bool
+    dispatch_mode: Literal["declared", "legacy_unversioned"]
+    if declared_version is not None:
+        dispatch_mode = "declared"
+        if declared_version == BRIEF_RAW_SOURCE_VERSION:
+            # Before explicit dispatch existed, this value was accepted for
+            # namespaced briefs too. Preserve those immutable envelopes while
+            # recording their actual source format separately.
+            if section_style == "raw":
+                format_id = BRIEF_RAW_SOURCE_FORMAT
+                raw_sections = True
+            elif section_style == "namespaced":
+                format_id = BRIEF_NAMESPACED_SOURCE_FORMAT
+                raw_sections = False
+            else:
+                raise BriefContractError(
+                    "BRIEF_VERSION_STRUCTURE_MISMATCH",
+                    "The legacy v1 declaration requires uniformly raw or namespaced section IDs.",
+                    details={
+                        "declared_version": declared_version,
+                        "observed_style": section_style,
+                    },
+                )
+        elif declared_version == BRIEF_NAMESPACED_SOURCE_VERSION:
+            format_id = BRIEF_NAMESPACED_SOURCE_FORMAT
+            raw_sections = False
+            if section_style != "namespaced":
+                raise BriefContractError(
+                    "BRIEF_VERSION_STRUCTURE_MISMATCH",
+                    "The namespaced source version requires route-namespaced section IDs.",
+                    details={
+                        "declared_version": declared_version,
+                        "observed_style": section_style,
+                    },
+                )
+        else:
+            raise BriefContractError(
+                "BRIEF_VERSION_UNSUPPORTED",
+                f"The declared brief source version {declared_version[:80]!r} is unsupported.",
+            )
+        source_version = declared_version
+    elif section_style == "raw":
+        dispatch_mode = "legacy_unversioned"
+        format_id = BRIEF_RAW_SOURCE_FORMAT
+        source_version = BRIEF_RAW_SOURCE_VERSION
+        raw_sections = True
+    elif section_style == "namespaced":
+        dispatch_mode = "legacy_unversioned"
+        format_id = BRIEF_NAMESPACED_SOURCE_FORMAT
+        # Preserve the historical receipt value for already-admitted
+        # unversioned namespaced envelopes. source_format disambiguates it.
+        source_version = BRIEF_CONTRACT_VERSION
+        raw_sections = False
+    elif section_style == "mixed":
+        raise BriefContractError(
+            "BRIEF_VERSION_AMBIGUOUS",
+            "Unversioned briefs cannot mix raw and route-namespaced section IDs.",
+        )
+    else:
+        raise BriefContractError(
+            "BRIEF_STRUCTURE_UNRECOGNIZED",
+            "The unversioned brief structure does not match a supported source format.",
+        )
+
+    current_declared_shape = (
+        format_id == BRIEF_RAW_SOURCE_FORMAT and declared_version == BRIEF_RAW_SOURCE_VERSION
+    ) or declared_version == BRIEF_NAMESPACED_SOURCE_VERSION
+    if current_declared_shape:
+        _validate_current_producer_fields(visual)
+
+    if raw_sections:
+        canonical_content, heading_ids = _canonicalize_raw_content_index(content)
+    else:
+        canonical_content = copy.deepcopy(content)
+        heading_ids = _canonical_heading_ids(canonical_content)
+    _validate_canonical_indexes(canonical_content, visual)
+    signature = _brief_structural_signature(content, visual, format_id=format_id)
+    return (
+        BriefSourceFormat(
+            format_id=format_id,
+            source_version=source_version,
+            dispatch_mode=dispatch_mode,
+            raw_sections=raw_sections,
+            structural_signature=signature,
+        ),
+        canonical_content,
+        heading_ids,
+    )
+
+
+def _validate_wire_shape(content: dict[str, Any], visual: dict[str, Any]) -> None:
+    """Validate exact, non-coercing v1 wire types before format dispatch."""
+
     if content.get("kind") != "content_index" or visual.get("kind") != "visual_index":
         raise BriefContractError(
             "BRIEF_INDEX_KIND_INVALID", "The two brief indexes have invalid kind discriminators."
         )
-    for label, index in (("content", content), ("visual", visual)):
-        # The original Build Preparation index deliberately omitted a
-        # contract-version field.  Keep that format valid, but fail closed
-        # when a producer opts into an explicit version we do not understand.
-        for key in ("contract_version", "brief_contract_version", "schema_version"):
-            if key in index and str(index.get(key, "")).strip() not in {
-                "",
-                BRIEF_CONTRACT_VERSION,
-            }:
+    _reject_unknown_keys(content, _CONTENT_INDEX_KEYS, "content index")
+    _reject_unknown_keys(visual, _VISUAL_INDEX_KEYS, "visual index")
+    _require_wire_keys(content, _CONTENT_REQUIRED_KEYS, "content index")
+    _require_wire_keys(visual, _VISUAL_REQUIRED_KEYS, "visual index")
+    _wire_string(content["run_id"], "content run_id")
+    _wire_string(
+        content["content_architect_content_hash"], "content architect hash", allow_empty=True
+    )
+    _wire_string(visual["run_id"], "visual run_id")
+    _wire_string(visual["visual_input_mode"], "visual input mode")
+    _wire_string(visual["target_contract"], "target contract")
+    _wire_string_list(visual["recommended_dependencies"], "recommended dependencies")
+    _wire_string_list(visual["routes"], "visual routes")
+
+    navigation = content["navigation_contract"]
+    if not isinstance(navigation, dict):
+        _wire_shape_error("navigation contract must be an object")
+    _reject_unknown_keys(navigation, _NAVIGATION_KEYS, "navigation contract")
+    _require_wire_keys(navigation, _NAVIGATION_KEYS, "navigation contract")
+    if type(navigation["closed"]) is not bool:
+        _wire_shape_error("navigation closed must be a boolean")
+    _wire_string_list(navigation["allowed_destinations"], "navigation destinations")
+
+    routes = content["routes"]
+    if not isinstance(routes, list) or not routes:
+        _wire_shape_error("content routes must be a non-empty array")
+    for route in routes:
+        if not isinstance(route, dict):
+            _wire_shape_error("every content route must be an object")
+        _reject_unknown_keys(route, _ROUTE_KEYS, "route")
+        _require_wire_keys(route, _ROUTE_KEYS, "route")
+        _wire_string(route["route_id"], "route_id")
+        _wire_string(route["path"], "route path")
+        _wire_string(route["title"], "route title")
+        sections = _wire_string_list(route["sections"], "route sections")
+        if not sections:
+            _wire_shape_error("route sections must be a non-empty array")
+
+    for collection_name, allowed_keys, required_keys, candidates_key, primary_key in (
+        (
+            "resources",
+            _RESOURCE_KEYS,
+            _RESOURCE_REQUIRED_KEYS,
+            "candidates",
+            "primary_candidate_index",
+        ),
+        (
+            "components",
+            _COMPONENT_KEYS,
+            _COMPONENT_REQUIRED_KEYS,
+            "suggestions",
+            "primary_suggestion_index",
+        ),
+    ):
+        collection = visual[collection_name]
+        if not isinstance(collection, list):
+            _wire_shape_error(f"visual {collection_name} must be an array")
+        for item in collection:
+            if not isinstance(item, dict):
+                _wire_shape_error(f"every {collection_name[:-1]} must be an object")
+            _reject_unknown_keys(item, allowed_keys, collection_name[:-1])
+            _require_wire_keys(item, required_keys, collection_name[:-1])
+            _wire_string(item["role_id"], f"{collection_name[:-1]} role_id")
+            _wire_string(item["purpose"], f"{collection_name[:-1]} purpose", allow_empty=True)
+            _wire_string(item["guidance"], f"{collection_name[:-1]} guidance", allow_empty=True)
+            route_ids = _wire_string_list(item["route_ids"], f"{collection_name[:-1]} route_ids")
+            if not route_ids:
+                _wire_shape_error(f"{collection_name[:-1]} route_ids cannot be empty")
+            if "need_id" in item:
+                _wire_string(item["need_id"], f"{collection_name[:-1]} need_id")
+            if "status" in item:
+                _wire_string(item["status"], "resource status")
+                if item["status"] not in {"candidates_found", "no_material_found"}:
+                    _wire_shape_error("resource status is not a supported v1 value")
+            if "category" in item:
+                _wire_string(item["category"], "resource category")
+            candidates = item[candidates_key]
+            if not isinstance(candidates, list):
+                _wire_shape_error(f"{collection_name[:-1]} {candidates_key} must be an array")
+            primary = item[primary_key]
+            if primary is not None and (
+                type(primary) is not int or not 0 <= primary < len(candidates)
+            ):
+                _wire_shape_error(f"{collection_name[:-1]} primary index is invalid")
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    _wire_shape_error(f"every {collection_name[:-1]} candidate must be an object")
+                if collection_name == "resources":
+                    _validate_resource_candidate_wire(candidate)
+                else:
+                    _validate_component_suggestion_wire(candidate)
+
+
+def _validate_current_producer_fields(visual: dict[str, Any]) -> None:
+    """Require fields emitted by versioned current producers, not frozen legacy shapes."""
+
+    for item in visual["resources"]:
+        _require_wire_keys(item, _DECLARED_RESOURCE_REQUIRED_KEYS, "resource")
+    for item in visual["components"]:
+        _require_wire_keys(item, _DECLARED_COMPONENT_REQUIRED_KEYS, "component")
+
+
+def _wire_shape_error(message: str) -> NoReturn:
+    raise BriefContractError("BRIEF_STRUCTURE_UNRECOGNIZED", message)
+
+
+def _require_wire_keys(value: dict[str, Any], required: set[str], label: str) -> None:
+    missing = sorted(required - set(value))
+    if missing:
+        raise BriefContractError(
+            "BRIEF_STRUCTURE_UNRECOGNIZED",
+            f"The {label} is missing required v1 structural fields.",
+            details={"missing_fields": ",".join(missing)},
+        )
+
+
+def _wire_string(value: Any, label: str, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or (not allow_empty and not value.strip()):
+        _wire_shape_error(f"{label} must be a{' non-empty' if not allow_empty else ''} string")
+    return value
+
+
+def _wire_string_list(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        _wire_shape_error(f"{label} must be an array of strings")
+    return cast(list[str], value)
+
+
+def _validate_resource_candidate_wire(candidate: dict[str, Any]) -> None:
+    _reject_unknown_keys(candidate, _RESOURCE_CANDIDATE_KEYS, "resource candidate")
+    _require_wire_keys(candidate, _RESOURCE_CANDIDATE_KEYS, "resource candidate")
+    for key in _RESOURCE_CANDIDATE_KEYS - {"width", "height", "additional_urls"}:
+        _wire_string(candidate[key], f"resource candidate {key}", allow_empty=key != "provider")
+    for key in ("width", "height"):
+        if type(candidate[key]) is not int or candidate[key] < 0:
+            _wire_shape_error(f"resource candidate {key} must be a non-negative integer")
+    additional_urls = candidate["additional_urls"]
+    if not isinstance(additional_urls, dict) or any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in additional_urls.items()
+    ):
+        _wire_shape_error("resource candidate additional_urls must map strings to strings")
+
+
+def _validate_component_suggestion_wire(candidate: dict[str, Any]) -> None:
+    _reject_unknown_keys(candidate, _COMPONENT_SUGGESTION_KEYS, "component suggestion")
+    _require_wire_keys(candidate, _COMPONENT_SUGGESTION_KEYS, "component suggestion")
+    for key in _COMPONENT_SUGGESTION_KEYS:
+        _wire_string(candidate[key], f"component suggestion {key}", allow_empty=key != "provider")
+
+
+def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], label: str) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise BriefContractError(
+            "BRIEF_STRUCTURE_UNRECOGNIZED",
+            f"The {label} contains fields outside the supported structural signature.",
+            details={"unknown_fields": ",".join(unknown)},
+        )
+
+
+def _declared_source_version(content: dict[str, Any], visual: dict[str, Any]) -> str | None:
+    def declaration(index: dict[str, Any], label: str) -> str | None:
+        values: list[str] = []
+        for key in _VERSION_KEYS:
+            if key not in index:
+                continue
+            raw_value = index[key]
+            if not isinstance(raw_value, str) or not raw_value.strip():
                 raise BriefContractError(
-                    "BRIEF_VERSION_UNSUPPORTED",
-                    f"The {label} brief declares unsupported {key} "
-                    f"{str(index.get(key, ''))[:80]!r}; expected {BRIEF_CONTRACT_VERSION!r}.",
+                    "BRIEF_VERSION_INVALID",
+                    f"The {label} brief contains a blank or invalid {key} declaration.",
                 )
+            values.append(raw_value.strip())
+        if not values:
+            return None
+        if len(set(values)) != 1:
+            raise BriefContractError(
+                "BRIEF_VERSION_AMBIGUOUS",
+                f"The {label} brief contains conflicting source-version aliases.",
+            )
+        return values[0]
+
+    content_version = declaration(content, "content")
+    visual_version = declaration(visual, "visual")
+    if (content_version is None) != (visual_version is None):
+        raise BriefContractError(
+            "BRIEF_VERSION_AMBIGUOUS",
+            "Content and visual briefs must both declare the same source version or both omit it.",
+        )
+    if content_version != visual_version:
+        raise BriefContractError(
+            "BRIEF_VERSION_AMBIGUOUS",
+            "Content and visual briefs declare different source versions.",
+        )
+    return content_version
+
+
+def _section_id_style(content: dict[str, Any]) -> str:
+    observed: set[str] = set()
+    routes = content.get("routes")
+    if not isinstance(routes, list):
+        return "unknown"
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", "")).strip()
+        sections = route.get("sections")
+        if not isinstance(sections, list):
+            continue
+        for raw_section in sections:
+            if not isinstance(raw_section, str):
+                return "invalid"
+            section_id = raw_section.strip()
+            if _SAFE_BRIEF_ID.fullmatch(section_id):
+                observed.add("raw")
+                continue
+            prefix = f"{route_id}:"
+            if (
+                _SAFE_BRIEF_ID.fullmatch(route_id)
+                and section_id.startswith(prefix)
+                and _SAFE_BRIEF_ID.fullmatch(section_id[len(prefix) :])
+            ):
+                observed.add("namespaced")
+                continue
+            return "invalid"
+    if not observed:
+        return "unknown"
+    return next(iter(observed)) if len(observed) == 1 else "mixed"
+
+
+def _canonicalize_raw_content_index(
+    content: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
+    canonical = copy.deepcopy(content)
+    routes = canonical.get("routes")
+    if not isinstance(routes, list):
+        return canonical, {}
+    route_ids = {
+        str(route.get("route_id", "")).strip() for route in routes if isinstance(route, dict)
+    }
+    raw_to_canonical: dict[str, dict[str, str]] = {}
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", "")).strip()
+        sections = route.get("sections")
+        if not isinstance(sections, list):
+            continue
+        canonical_sections: list[str] = []
+        for raw_section in sections:
+            section_id = str(raw_section).strip()
+            if section_id in route_ids:
+                raise BriefContractError(
+                    "BRIEF_SECTION_ROUTE_COLLISION",
+                    "Raw producer section IDs must be disjoint from route IDs.",
+                )
+            route_mappings = raw_to_canonical.setdefault(section_id, {})
+            if route_id in route_mappings:
+                raise BriefContractError(
+                    "BRIEF_SECTION_DUPLICATE",
+                    "Raw producer section IDs must be unique within each route.",
+                )
+            canonical_id = f"{route_id}:{section_id}"
+            route_mappings[route_id] = canonical_id
+            canonical_sections.append(canonical_id)
+        route["sections"] = canonical_sections
+    navigation = canonical.get("navigation_contract")
+    if isinstance(navigation, dict) and isinstance(navigation.get("allowed_destinations"), list):
+        canonical_destinations: list[str] = []
+        for raw_destination in navigation["allowed_destinations"]:
+            destination = str(raw_destination)
+            destination_mappings = raw_to_canonical.get(destination)
+            if destination_mappings is None:
+                canonical_destinations.append(destination)
+            else:
+                canonical_destinations.extend(destination_mappings.values())
+        navigation["allowed_destinations"] = canonical_destinations
+    return canonical, raw_to_canonical
+
+
+def _canonical_heading_ids(content: dict[str, Any]) -> dict[str, dict[str, str]]:
+    routes = content.get("routes")
+    if not isinstance(routes, list):
+        return {}
+    return {
+        str(section): {str(route["route_id"]): str(section)}
+        for route in routes
+        if isinstance(route, dict) and isinstance(route.get("sections"), list)
+        for section in route["sections"]
+    }
+
+
+def _brief_structural_signature(
+    content: dict[str, Any],
+    visual: dict[str, Any],
+    *,
+    format_id: str,
+) -> str:
+    def keys(value: Any) -> list[str]:
+        return (
+            sorted(key for key in value if key not in _VERSION_KEYS)
+            if isinstance(value, dict)
+            else []
+        )
+
+    def entry_shapes(collection: Any, candidate_key: str, primary_key: str) -> list[dict[str, Any]]:
+        if not isinstance(collection, list):
+            return []
+        return [
+            {
+                "keys": keys(item),
+                "role_id": str(item.get("role_id", "")),
+                "route_ids": [str(value) for value in item.get("route_ids", [])]
+                if isinstance(item.get("route_ids"), list)
+                else [],
+                "candidate_count": len(item.get(candidate_key, []))
+                if isinstance(item.get(candidate_key), list)
+                else -1,
+                "primary_selected": isinstance(item.get(primary_key), int),
+            }
+            for item in collection
+            if isinstance(item, dict)
+        ]
+
+    routes = content.get("routes")
+    route_shapes = (
+        [
+            {
+                "keys": keys(route),
+                "route_id": str(route.get("route_id", "")),
+                "path": str(route.get("path", "")),
+                "sections": [str(value) for value in route.get("sections", [])]
+                if isinstance(route.get("sections"), list)
+                else [],
+            }
+            for route in routes
+            if isinstance(route, dict)
+        ]
+        if isinstance(routes, list)
+        else []
+    )
+    navigation = content.get("navigation_contract")
+    payload = {
+        "signature_version": BRIEF_STRUCTURE_VERSION,
+        "source_format": format_id,
+        "content_index_keys": keys(content),
+        "visual_index_keys": keys(visual),
+        "routes": route_shapes,
+        "navigation": {
+            "keys": keys(navigation),
+            "closed": navigation.get("closed") if isinstance(navigation, dict) else None,
+            "allowed_destinations": [
+                str(value) for value in navigation.get("allowed_destinations", [])
+            ]
+            if isinstance(navigation, dict)
+            and isinstance(navigation.get("allowed_destinations"), list)
+            else [],
+        },
+        "visual_routes": [str(value) for value in visual.get("routes", [])]
+        if isinstance(visual.get("routes"), list)
+        else [],
+        "target_contract": str(visual.get("target_contract", "")),
+        "resources": entry_shapes(visual.get("resources"), "candidates", "primary_candidate_index"),
+        "components": entry_shapes(
+            visual.get("components"), "suggestions", "primary_suggestion_index"
+        ),
+    }
+    return f"{BRIEF_STRUCTURE_VERSION}:{sha256_bytes(canonical_json(payload))}"
+
+
+def _validate_canonical_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
+    if content.get("kind") != "content_index" or visual.get("kind") != "visual_index":
+        raise BriefContractError(
+            "BRIEF_INDEX_KIND_INVALID", "The two brief indexes have invalid kind discriminators."
+        )
     run_id = str(content.get("run_id", "")).strip()
     if not run_id or run_id != str(visual.get("run_id", "")).strip():
         raise BriefContractError(
@@ -469,7 +1093,7 @@ def _validate_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
         sections = route.get("sections")
         section_values = sections if isinstance(sections, list) else []
         missing: list[str] = []
-        if not route_id:
+        if not _SAFE_BRIEF_ID.fullmatch(route_id):
             missing.append("route_id")
         if not title:
             missing.append("title")
@@ -487,10 +1111,16 @@ def _validate_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
         paths.append(path)
         for section in section_values:
             section_id = str(section).strip()
-            if not section_id or not section_id.startswith(f"{route_id}:"):
+            prefix = f"{route_id}:"
+            local_id = section_id[len(prefix) :] if section_id.startswith(prefix) else ""
+            if (
+                not section_id
+                or not section_id.startswith(prefix)
+                or not _SAFE_BRIEF_ID.fullmatch(local_id)
+            ):
                 raise BriefContractError(
                     "BRIEF_SECTION_SCOPE_INVALID",
-                    "Every section ID must be non-empty and namespaced by its route ID.",
+                    "Every section ID must be non-empty, route-namespaced, and structurally safe.",
                 )
             section_ids.append(section_id)
     if len(route_ids) != len(set(route_ids)) or len(paths) != len(set(paths)):
@@ -561,14 +1191,60 @@ def _validate_indexes(content: dict[str, Any], visual: dict[str, Any]) -> None:
                         _trusted_https_url(provider, str(extra_url))
 
 
-def _section_content(markdown: str, routes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def _section_content(
+    markdown: str,
+    routes: list[dict[str, Any]],
+    *,
+    heading_ids: dict[str, dict[str, str]] | None = None,
+    require_route_context: bool = False,
+) -> dict[str, dict[str, Any]]:
     expected = [str(section) for route in routes for section in route["sections"]]
+    source_to_canonical = heading_ids or {
+        str(section): {str(route["route_id"]): str(section)}
+        for route in routes
+        for section in route["sections"]
+    }
     matches = list(_SECTION_HEADING.finditer(markdown))
+    route_matches = list(_ROUTE_HEADING.finditer(markdown))
+    route_cursor = -1
     result: dict[str, dict[str, Any]] = {}
     for index, match in enumerate(matches):
-        section_id = match.group("section").strip()
-        if section_id not in expected:
+        while (
+            route_cursor + 1 < len(route_matches)
+            and route_matches[route_cursor + 1].start() < match.start()
+        ):
+            route_cursor += 1
+        active_route_id = (
+            route_matches[route_cursor].group("route").strip() if route_cursor >= 0 else ""
+        )
+        source_section_id = match.group("section").strip()
+        route_mappings = source_to_canonical.get(source_section_id)
+        if route_mappings is None:
             continue
+        if require_route_context:
+            canonical_section_id = route_mappings.get(active_route_id)
+            if canonical_section_id is None:
+                raise BriefContractError(
+                    "BRIEF_SECTION_HEADING_SCOPE_INVALID",
+                    "Every raw section-content heading must appear under its indexed route.",
+                    details={
+                        "route_id": active_route_id,
+                        "section_id": source_section_id,
+                    },
+                )
+        elif len(route_mappings) == 1:
+            canonical_section_id = next(iter(route_mappings.values()))
+        else:
+            raise BriefContractError(
+                "BRIEF_SECTION_HEADING_SCOPE_INVALID",
+                "A section-content heading is ambiguous without route context.",
+                details={"section_id": source_section_id},
+            )
+        if canonical_section_id in result:
+            raise BriefContractError(
+                "BRIEF_SECTION_CONTENT_CARDINALITY",
+                f"Section {source_section_id} must appear exactly once in its indexed route.",
+            )
         end = matches[index + 1].start() if index + 1 < len(matches) else len(markdown)
         fragment = markdown[match.end() : end]
         blocks = [
@@ -577,21 +1253,22 @@ def _section_content(markdown: str, routes: list[dict[str, Any]]) -> dict[str, d
         if len(blocks) != 1:
             raise BriefContractError(
                 "BRIEF_SECTION_CONTENT_CARDINALITY",
-                f"Section {section_id} must contain exactly one section-content JSON fence.",
+                f"Section {source_section_id} must contain exactly one section-content JSON fence.",
             )
         try:
-            content = json.loads(blocks[0].group("body"))
+            content = _strict_json_loads(blocks[0].group("body"))
         except json.JSONDecodeError as exc:
             raise BriefContractError(
-                "BRIEF_SECTION_CONTENT_INVALID", f"Section {section_id} contains invalid JSON."
+                "BRIEF_SECTION_CONTENT_INVALID",
+                f"Section {source_section_id} contains invalid JSON.",
             ) from exc
         if not isinstance(content, dict) or not content:
             raise BriefContractError(
                 "BRIEF_SECTION_CONTENT_INVALID",
-                f"Section {section_id} content must be a non-empty JSON object.",
+                f"Section {source_section_id} content must be a non-empty JSON object.",
             )
         purpose_match = re.search(r"\*([^*\r\n]+)\*", fragment[: blocks[0].start()])
-        result[section_id] = {
+        result[canonical_section_id] = {
             "purpose": purpose_match.group(1).strip() if purpose_match else "",
             "content": content,
         }
@@ -645,7 +1322,10 @@ def _navigation_contract(
 
 
 def _resource_contracts(
-    visual_index: dict[str, Any], routes: list[dict[str, Any]]
+    visual_index: dict[str, Any],
+    routes: list[dict[str, Any]],
+    *,
+    source_format: BriefSourceFormat,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     route_sections = {
         str(route["route_id"]): [str(item) for item in route["sections"]] for route in routes
@@ -658,21 +1338,30 @@ def _resource_contracts(
     ] + [
         (item, "component") for item in visual_index.get("components", []) if isinstance(item, dict)
     ]
-    seen: set[str] = set()
+    modern_owner_projection = (
+        source_format.format_id == BRIEF_RAW_SOURCE_FORMAT
+        or source_format.source_version == BRIEF_NAMESPACED_SOURCE_VERSION
+    )
+    seen_roles: set[str] = set()
+    seen_projected_slots: set[str] = set()
+    seen_projected_needs: set[str] = set()
     for item, entry_kind in entries:
-        slot_id = str(item["role_id"])
-        if slot_id in seen:
+        base_slot_id = str(item["role_id"])
+        if base_slot_id in seen_roles:
             raise BriefContractError(
                 "BRIEF_RESOURCE_ROLE_DUPLICATE", "Resource and component role IDs must be unique."
             )
-        seen.add(slot_id)
+        seen_roles.add(base_slot_id)
         route_ids = [str(value) for value in item.get("route_ids", [])]
         if not route_ids or any(route_id not in route_sections for route_id in route_ids):
             raise BriefContractError(
                 "BRIEF_RESOURCE_ROUTE_INVALID", "A resource role references an unknown route."
             )
-        route_id = route_ids[0]
-        section_ids = _role_sections(slot_id, route_id, route_sections[route_id])
+        if len(route_ids) != len(set(route_ids)):
+            raise BriefContractError(
+                "BRIEF_RESOURCE_ROUTE_DUPLICATE",
+                "A resource role cannot name the same route more than once.",
+            )
         candidates_key = "candidates" if entry_kind == "resource" else "suggestions"
         primary_key = (
             "primary_candidate_index" if entry_kind == "resource" else "primary_suggestion_index"
@@ -691,48 +1380,76 @@ def _resource_contracts(
         purpose = str(item.get("purpose", "")).strip()
         guidance = str(item.get("guidance", "")).strip()
         resolution = _resolution(selected, category, entry_kind, guidance)
-        slot = {
-            "resource_slot_id": slot_id,
-            "category": category,
-            "route_id": route_id,
-            "scene_ids": [],
-            "section_ids": section_ids,
-            "component_placement": purpose,
-            # Brief resources are candidates and suggestions, never mandatory
-            # evidence.  A failed fetch therefore degrades honestly instead of
-            # blocking a complete portfolio build.
-            "required": False,
-            "source_ids": [str(item.get("need_id", ""))],
-            "criterion_ids": [f"criterion:{section}" for section in section_ids],
-            "rationale": " ".join(value for value in (purpose, guidance) if value),
-            "provenance": "build_preparation_brief",
-            "resolution": resolution,
-        }
-        slots.append(slot)
-        needs.append(
-            {
-                "need_id": str(item.get("need_id", slot_id)),
-                "role_id": slot_id,
-                "category": category,
-                "purpose": purpose,
-                "guidance": guidance,
-                "route_ids": route_ids,
-                "section_ids": section_ids,
-                "required": False,
-                "fallback": resolution["fallback_behavior"],
-            }
-        )
-        decisions.append(
-            {
+        source_need_id = str(item.get("need_id", ""))
+        base_need_id = source_need_id or base_slot_id
+        expand_owners = modern_owner_projection and len(route_ids) > 1
+        owner_route_ids = route_ids if expand_owners else route_ids[:1]
+        for route_id in owner_route_ids:
+            slot_id = f"{base_slot_id}@{route_id}" if expand_owners else base_slot_id
+            need_id = f"{base_need_id}@{route_id}" if expand_owners else base_need_id
+            if modern_owner_projection and (
+                slot_id in seen_projected_slots or need_id in seen_projected_needs
+            ):
+                identifier_kind = (
+                    "resource_slot_id" if slot_id in seen_projected_slots else "need_id"
+                )
+                identifier = slot_id if identifier_kind == "resource_slot_id" else need_id
+                raise BriefContractError(
+                    "BRIEF_RESOURCE_ID_COLLISION",
+                    "Projected resource slot and need IDs must be unique after route expansion.",
+                    details={"identifier_kind": identifier_kind, "identifier": identifier},
+                )
+            if modern_owner_projection:
+                seen_projected_slots.add(slot_id)
+                seen_projected_needs.add(need_id)
+            section_ids = _role_sections(
+                base_slot_id,
+                route_id,
+                route_sections[route_id],
+                source_format=source_format.format_id,
+            )
+            slot = {
                 "resource_slot_id": slot_id,
-                "need_id": str(item.get("need_id", slot_id)),
                 "category": category,
-                "purpose": purpose,
-                "guidance": guidance,
-                "selected": selected or {},
-                "resolution_type": resolution["resolution_type"],
+                "route_id": route_id,
+                "scene_ids": [],
+                "section_ids": section_ids,
+                "component_placement": purpose,
+                # Brief resources are candidates and suggestions, never mandatory
+                # evidence. A failed fetch therefore degrades honestly instead of
+                # blocking a complete portfolio build.
+                "required": False,
+                "source_ids": [source_need_id],
+                "criterion_ids": [f"criterion:{section}" for section in section_ids],
+                "rationale": " ".join(value for value in (purpose, guidance) if value),
+                "provenance": "build_preparation_brief",
+                "resolution": resolution,
             }
-        )
+            slots.append(slot)
+            needs.append(
+                {
+                    "need_id": need_id,
+                    "role_id": slot_id,
+                    "category": category,
+                    "purpose": purpose,
+                    "guidance": guidance,
+                    "route_ids": [route_id] if modern_owner_projection else route_ids,
+                    "section_ids": section_ids,
+                    "required": False,
+                    "fallback": resolution["fallback_behavior"],
+                }
+            )
+            decisions.append(
+                {
+                    "resource_slot_id": slot_id,
+                    "need_id": need_id,
+                    "category": category,
+                    "purpose": purpose,
+                    "guidance": guidance,
+                    "selected": selected or {},
+                    "resolution_type": resolution["resolution_type"],
+                }
+            )
     return slots, needs, decisions
 
 
@@ -777,7 +1494,7 @@ def _resolution(
         font_family = str(selected.get("title") or selected.get("provider_asset_id") or "")
         font_weights = sorted({key.split("-", 1)[0] for key in direct_urls})
         # The bytes are still fetched only during Code Generator acquisition,
-        # but the workspace needs stable intended paths before planning.  The
+        # but the workspace needs stable intended paths before planning. The
         # FontAdapter's hash-prefixed download names end with these variant
         # names, so workspace materialization can safely remap them without
         # putting remote URLs or bytes in the Build Preparation brief.
@@ -795,10 +1512,6 @@ def _resolution(
         font_family = ""
         font_weights = []
         local_paths = []
-    dependencies = [str(value) for value in selected.get("dependencies", []) if str(value)]
-    registry_dependencies = [
-        str(value) for value in selected.get("registry_dependencies", []) if str(value)
-    ]
     return {
         "resolution_type": "deferred_materialized",
         "resource_id": str(selected.get("provider_asset_id") or selected.get("name") or ""),
@@ -810,8 +1523,11 @@ def _resolution(
         "license": str(selected.get("license", "")),
         "license_reference": str(selected.get("license_reference", "")),
         "release_pin": sha256_bytes(canonical_json(selected))[:16],
-        "dependencies": dependencies,
-        "registry_dependencies": registry_dependencies,
+        # Build Preparation candidate links do not carry dependency authority.
+        # Component dependencies are derived from the pinned fetched registry
+        # response at materialization time, never from uploaded brief JSON.
+        "dependencies": [],
+        "registry_dependencies": [],
         "expected_exports": [],
         "font_family": font_family,
         "font_weights": font_weights,
@@ -822,8 +1538,25 @@ def _resolution(
     }
 
 
-def _role_sections(role_id: str, route_id: str, route_sections: list[str]) -> list[str]:
-    matches = [section for section in route_sections if f":{section}:" in f":{role_id}:"]
+def _role_sections(
+    role_id: str,
+    route_id: str,
+    route_sections: list[str],
+    *,
+    source_format: Literal["raw-producer-v1", "namespaced-v1"],
+) -> list[str]:
+    matches: list[str] = []
+    for section in route_sections:
+        if source_format == BRIEF_RAW_SOURCE_FORMAT:
+            prefix = f"{route_id}:"
+            role_section = section[len(prefix) :] if section.startswith(prefix) else section
+        else:
+            # Preserve the original namespaced-v1 projection behavior. Older
+            # immutable admissions matched the complete namespaced section ID;
+            # changing that under a stable admitted identity would drift plans.
+            role_section = section
+        if f":{role_section}:" in f":{role_id}:":
+            matches.append(section)
     if matches:
         return matches
     return list(route_sections) if "font" in role_id.casefold() else []
@@ -893,6 +1626,11 @@ def _nonempty_text(value: Any, label: str) -> str:
 __all__ = [
     "BRIEF_CONTRACT_VERSION",
     "BRIEF_ENVELOPE_VERSION",
+    "BRIEF_NAMESPACED_SOURCE_FORMAT",
+    "BRIEF_NAMESPACED_SOURCE_VERSION",
+    "BRIEF_RAW_SOURCE_FORMAT",
+    "BRIEF_RAW_SOURCE_VERSION",
+    "BRIEF_STRUCTURE_VERSION",
     "CONTENT_FILENAME",
     "VISUAL_FILENAME",
     "BriefContractError",
