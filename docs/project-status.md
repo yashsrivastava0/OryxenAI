@@ -149,6 +149,8 @@ browser acceptance are separate checks.
 
 Azure infrastructure was created and SSH access was verified. The detailed
 portal and SSH record is [`docs/deployment/06-live-azure-vm-status.md`](deployment/06-live-azure-vm-status.md).
+The lossless chronological deployment record, including corrected and
+unconfirmed steps, is [`docs/deployment/08-live-azure-deployment-session-log-2026-09-14.md`](deployment/08-live-azure-deployment-session-log-2026-09-14.md).
 
 | Resource/setting | Confirmed value |
 | --- | --- |
