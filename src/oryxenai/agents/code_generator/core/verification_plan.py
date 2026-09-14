@@ -312,6 +312,7 @@ def derive_verification_plan(
             )
         )
     resources = projections.get("resources/ledger.json", {})
+    generated_resources = projections.get("generated/resource-assets.json", {})
     expected_resources = [
         str(path)
         for receipt in resources.get("receipts", [])
@@ -321,6 +322,17 @@ def derive_verification_plan(
         for path in [material.get("local_path", "")]
         if path
     ]
+    expected_resources.extend(
+        str(source.get("path", ""))
+        for asset in (
+            generated_resources.get("image_assets", [])
+            if isinstance(generated_resources, dict)
+            else []
+        )
+        if isinstance(asset, dict)
+        for source in asset.get("sources", [])
+        if isinstance(source, dict) and str(source.get("path", ""))
+    )
     realization_contracts = (
         [
             compile_design_realization(
@@ -329,6 +341,7 @@ def derive_verification_plan(
                 section_order=list(route.section_order or route.section_ids),
                 execution=projections.get("execution/contract.json"),
                 resource_ledger=resources,
+                generated_resources=generated_resources,
                 image_policy=image_policy,
             )
             for route in plan.routes

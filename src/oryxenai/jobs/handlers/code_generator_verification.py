@@ -58,7 +58,10 @@ from oryxenai.agents.code_generator.core.quality_review import (
 )
 from oryxenai.agents.code_generator.core.repair_policy import RepairBudget
 from oryxenai.agents.code_generator.core.runtime_verifier import RuntimeVerifier
-from oryxenai.agents.code_generator.core.source_manifest import digest
+from oryxenai.agents.code_generator.core.source_manifest import (
+    digest,
+    materialize_trusted_manifests,
+)
 from oryxenai.agents.code_generator.core.source_validation import SourceValidationError
 from oryxenai.agents.code_generator.core.token_compiler import (
     compile_generated_tokens,
@@ -205,6 +208,9 @@ async def _execute(
 
     run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
+    preview_first_acceptance = bool(
+        getattr(settings.code_generator_verification, "preview_first_acceptance", False)
+    )
     sessionmaker = get_sessionmaker(settings)
     await _validate_worker_payload(sessionmaker, payload)
     async with sessionmaker() as db:
@@ -359,12 +365,12 @@ async def _execute(
         checkpoint = _checkpoint(run)
         checkpoint_store = CheckpointStore(workspace, generation_id=str(run_id))
         checkpoint_store.restore(checkpoint)
-        workspace.materialize_acquisition_resources(
-            run.resource_ledger,
-            # Receipt local_paths are relative to the configured materials
-            # root (already prefixed with the run id).
-            _resolve_config_path(settings.code_generator_acquisition.materials_root),
-            projections["execution/contract.json"],
+        _materialize_effective_projections(
+            settings=settings,
+            run=run,
+            workspace=workspace,
+            plan=plan,
+            projections=projections,
         )
         workspace.synchronize_dependency_manifest(
             _resolve_config_path(settings.code_generator_dependencies.workspaces_root)
@@ -407,6 +413,7 @@ async def _execute(
         )
         realization_contracts = []
         quality_payload: dict[str, Any] | None = None
+        quality_advisories: list[SafeIssue] = []
         generation_projection_payload = (
             run.generation_projection if isinstance(run.generation_projection, dict) else {}
         )
@@ -422,6 +429,7 @@ async def _execute(
                     section_order=list(route.section_order or route.section_ids),
                     execution=projections.get("execution/contract.json"),
                     resource_ledger=projections.get("resources/ledger.json"),
+                    generated_resources=projections.get("generated/resource-assets.json"),
                     image_policy=image_policy_payload,
                 )
                 for route in plan.routes
@@ -431,50 +439,82 @@ async def _execute(
                 dict(candidate_quality) if isinstance(candidate_quality, dict) else None
             )
             if not isinstance(quality_payload, dict):
-                raise VerificationFailure(
-                    "QUALITY_REVIEW_MISSING",
-                    "The final v4 source has no host-stamped whole-site quality receipt.",
-                    owner="generator",
+                issue = SafeIssue(
+                    code="QUALITY_REVIEW_MISSING",
+                    message=(
+                        "The final source has no matching whole-site quality receipt; "
+                        "preview-first acceptance retained this as advisory evidence."
+                    ),
+                    next_action="Optionally rerun whole-site quality review before publishing.",
                 )
-            try:
-                quality_receipt = QualityReviewReceiptV2.model_validate(quality_payload)
-                context_receipts_value = generation_projection_payload.get("context_receipts", [])
-                context_receipts = (
-                    context_receipts_value if isinstance(context_receipts_value, list) else []
-                )
-                known_context_hashes = {
-                    str(item.get("context_hash", ""))
-                    for item in context_receipts
-                    if isinstance(item, dict)
-                }
-                if quality_receipt.review_context_hash not in known_context_hashes:
-                    raise QualityReviewError(
-                        "QUALITY_CONTEXT_STALE",
-                        "The quality review context receipt is not part of this generation run.",
+                if preview_first_acceptance:
+                    quality_advisories.append(issue)
+                else:
+                    raise VerificationFailure(
+                        issue.code,
+                        "The final v4 source has no host-stamped whole-site quality receipt.",
+                        owner="generator",
                     )
-                validate_quality_review_receipt(
-                    quality_receipt,
-                    source_manifest_hash=source_manifest,
-                    plan_hash=digest(plan.model_dump(mode="json")),
-                    realization_hash=digest(
-                        [item.model_dump(mode="json") for item in realization_contracts]
-                    ),
-                    quality_gate_version=str(
-                        settings.code_generator_development.quality_gate_version
-                    ),
-                )
-            except (ValueError, QualityReviewError) as exc:
-                raise VerificationFailure(
-                    str(getattr(exc, "code", "QUALITY_REVIEW_MISSING_OR_STALE")),
-                    str(
-                        getattr(
-                            exc,
-                            "message",
-                            "The whole-site quality review does not match the final source.",
+            else:
+                try:
+                    quality_receipt = QualityReviewReceiptV2.model_validate(quality_payload)
+                    context_receipts_value = generation_projection_payload.get(
+                        "context_receipts", []
+                    )
+                    context_receipts = (
+                        context_receipts_value
+                        if isinstance(context_receipts_value, list)
+                        else []
+                    )
+                    known_context_hashes = {
+                        str(item.get("context_hash", ""))
+                        for item in context_receipts
+                        if isinstance(item, dict)
+                    }
+                    if quality_receipt.review_context_hash not in known_context_hashes:
+                        raise QualityReviewError(
+                            "QUALITY_CONTEXT_STALE",
+                            "The quality review context receipt is not part of this generation run.",
                         )
-                    ),
-                    owner="generator",
-                ) from exc
+                    validate_quality_review_receipt(
+                        quality_receipt,
+                        source_manifest_hash=source_manifest,
+                        plan_hash=digest(plan.model_dump(mode="json")),
+                        realization_hash=digest(
+                            [item.model_dump(mode="json") for item in realization_contracts]
+                        ),
+                        quality_gate_version=str(
+                            settings.code_generator_development.quality_gate_version
+                        ),
+                    )
+                except (ValueError, QualityReviewError) as exc:
+                    code = str(getattr(exc, "code", "QUALITY_REVIEW_MISSING_OR_STALE"))
+                    if preview_first_acceptance:
+                        quality_advisories.append(
+                            SafeIssue(
+                                code=code,
+                                message=(
+                                    "The stored whole-site quality receipt did not match the "
+                                    "final source; preview-first acceptance retained it as "
+                                    "advisory evidence."
+                                ),
+                                next_action=(
+                                    "Optionally rerun whole-site quality review before publishing."
+                                ),
+                            )
+                        )
+                    else:
+                        raise VerificationFailure(
+                            code,
+                            str(
+                                getattr(
+                                    exc,
+                                    "message",
+                                    "The whole-site quality review does not match the final source.",
+                                )
+                            ),
+                            owner="generator",
+                        ) from exc
         verification_plan = derive_verification_plan(
             identity=identity,
             plan=plan,
@@ -510,6 +550,9 @@ async def _execute(
             projection.candidate_artifact = prior_projection.candidate_artifact
             projection.candidate_preview = prior_projection.candidate_preview
             projection.advisories = list(prior_projection.advisories)
+        for advisory in quality_advisories:
+            if advisory not in projection.advisories:
+                projection.advisories.append(advisory)
         await _persist_projection(
             sessionmaker, run_id, projection, DevelopmentRunStatus.BUILDING.value
         )
@@ -529,18 +572,33 @@ async def _execute(
         )
         if prior_source_passed:
             source_diagnostics = []
+        if preview_first_acceptance and source_diagnostics:
+            source_diagnostics = [
+                item.model_copy(update={"severity": "advisory"}) for item in source_diagnostics
+            ]
+            for diagnostic in source_diagnostics:
+                advisory = SafeIssue(
+                    code=diagnostic.code,
+                    message=diagnostic.normalized_message[:500],
+                    next_action=(
+                        "Optional generated-source correction; it does not block this preview."
+                    ),
+                )
+                if advisory not in projection.advisories:
+                    projection.advisories.append(advisory)
+        blocking_source_diagnostics = [] if preview_first_acceptance else source_diagnostics
         projection.diagnostics.extend(source_diagnostics)
         projection.gate_results.append(
             GateResult(
                 gate_id="source_contract",
-                status="failed" if source_diagnostics else "passed",
+                status="failed" if blocking_source_diagnostics else "passed",
                 candidate_identity_hash=identity.identity_hash,
                 expected_check_ids=profile.source_check_ids,
                 executed_check_ids=profile.source_check_ids,
                 diagnostics=source_diagnostics,
             )
         )
-        if source_diagnostics:
+        if blocking_source_diagnostics:
             repaired = await _attempt_repair(
                 sessionmaker=sessionmaker,
                 run_id=run_id,
@@ -552,7 +610,7 @@ async def _execute(
                 plan=plan,
                 projections=projections,
                 projection=projection,
-                diagnostics=source_diagnostics,
+                diagnostics=blocking_source_diagnostics,
                 public_text=public_text,
                 allowed_packages=allowed_packages,
                 model_factory=model_factory,
@@ -596,11 +654,46 @@ async def _execute(
                 settings=settings,
                 candidate_identity_hash=identity.identity_hash,
             )
+        runnable_build = manifest is not None and _materialized_manifest_matches(
+            workspace.repo_dir / "dist", manifest
+        )
+        if preview_first_acceptance and not runnable_build:
+            build_diagnostics.append(
+                Diagnostic(
+                    diagnostic_id="diagnostic-build-artifact-unavailable",
+                    group="type_build_artifact",
+                    code="BUILD_ARTIFACT_UNAVAILABLE",
+                    owner="infrastructure",
+                    phase="type_build_artifact",
+                    normalized_message=(
+                        "The build did not produce a complete materialized preview artifact."
+                    ),
+                    fingerprint=hashlib.sha256(b"build-artifact-unavailable").hexdigest()[:24],
+                )
+            )
+        if preview_first_acceptance and runnable_build and build_diagnostics:
+            build_diagnostics = [
+                item.model_copy(update={"severity": "advisory"}) for item in build_diagnostics
+            ]
+            for diagnostic in build_diagnostics:
+                advisory = SafeIssue(
+                    code=diagnostic.code,
+                    message=diagnostic.normalized_message[:500],
+                    next_action="Optional build cleanup; the runnable preview was retained.",
+                )
+                if advisory not in projection.advisories:
+                    projection.advisories.append(advisory)
+        blocking_build_diagnostics = (
+            []
+            if preview_first_acceptance and runnable_build
+            else build_diagnostics
+        )
+        build_failed = manifest is None or bool(blocking_build_diagnostics)
         projection.diagnostics.extend(build_diagnostics)
         projection.gate_results.append(
             GateResult(
                 gate_id="type_build_artifact",
-                status="failed" if build_diagnostics or manifest is None else "passed",
+                status="failed" if build_failed else "passed",
                 candidate_identity_hash=identity.identity_hash,
                 build_hash=manifest.build_hash if manifest else "",
                 expected_check_ids=profile.build_check_ids,
@@ -608,7 +701,7 @@ async def _execute(
                 diagnostics=build_diagnostics,
             )
         )
-        if build_diagnostics or manifest is None:
+        if build_failed:
             logger.warning(
                 "code_generator build gate failed run_id=%s diagnostics=%s",
                 run_id,
@@ -628,7 +721,7 @@ async def _execute(
                 plan=plan,
                 projections=projections,
                 projection=projection,
-                diagnostics=build_diagnostics,
+                diagnostics=blocking_build_diagnostics,
                 public_text=public_text,
                 allowed_packages=allowed_packages,
                 model_factory=model_factory,
@@ -648,6 +741,7 @@ async def _execute(
                 summary="The clean production build or artifact closure failed.",
                 next_action="Review the build diagnostics and regenerate the source checkpoint.",
             )
+        assert manifest is not None
         projection.build_manifest = manifest
         projection.build_hash = manifest.build_hash
         projection.phase = "smoke_testing"
@@ -669,6 +763,8 @@ async def _execute(
                 ),
             )
             server = await start_ephemeral_server(candidate_app)
+        except AuthorizationFenceError:
+            raise
         except Exception as exc:
             logger.warning(
                 "preview gateway could not start run_id=%s error_type=%s",
@@ -686,18 +782,45 @@ async def _execute(
             else RuntimeVerifier()
         )
         await _validate_run_fence(sessionmaker, run_id)
-        evidence, runtime_diagnostics = await verifier.verify(
-            (
-                f"{server.url}"
-                f"{settings.code_generator_verification.preview_route_prefix.rstrip('/')}/"
-                f"{host}/"
-            ),
-            plan=verification_plan,
-            profile=profile,
-            timeout_ms=int(settings.code_generator_verification.runtime_timeout_ms),
-            verification_token=token,
-            screenshot_dir=workspace.root / "verification-screenshots",
-        )
+        try:
+            evidence, runtime_diagnostics = await verifier.verify(
+                (
+                    f"{server.url}"
+                    f"{settings.code_generator_verification.preview_route_prefix.rstrip('/')}/"
+                    f"{host}/"
+                ),
+                plan=verification_plan,
+                profile=profile,
+                timeout_ms=int(settings.code_generator_verification.runtime_timeout_ms),
+                verification_token=token,
+                screenshot_dir=workspace.root / "verification-screenshots",
+            )
+        except AuthorizationFenceError:
+            raise
+        except Exception as exc:
+            if not preview_first_acceptance:
+                raise
+            logger.warning(
+                "preview-first runtime verification unavailable run_id=%s error_type=%s",
+                run_id,
+                type(exc).__name__,
+            )
+            evidence = []
+            runtime_diagnostics = [
+                Diagnostic(
+                    diagnostic_id="diagnostic-runtime-verifier-unavailable",
+                    group="dom_runtime",
+                    code="RUNTIME_VERIFIER_UNAVAILABLE",
+                    severity="advisory",
+                    owner="infrastructure",
+                    phase="dom_runtime",
+                    normalized_message=(
+                        "The runtime verifier could not complete after the built candidate "
+                        "server started; preview-first acceptance retained the runnable preview."
+                    ),
+                    fingerprint=hashlib.sha256(b"runtime-verifier-unavailable").hexdigest()[:24],
+                )
+            ]
         executed_runtime_check_ids = sorted(
             set(profile.runtime_check_ids).union(item.journey_id for item in evidence)
         )
@@ -736,18 +859,27 @@ async def _execute(
                 )
             )
         runtime_diagnostics = normalize_findings(runtime_diagnostics)
-        blocking_runtime_diagnostics = [
-            item for item in runtime_diagnostics if effective_finding_severity(item) == "blocking"
-        ]
-        for advisory in runtime_diagnostics:
-            if effective_finding_severity(advisory) == "advisory":
-                projection.advisories.append(
-                    SafeIssue(
-                        code=advisory.code,
-                        message=advisory.normalized_message[:500],
-                        next_action="Optional visual polish; it does not block this preview.",
-                    )
+        if preview_first_acceptance:
+            runtime_diagnostics = [
+                item.model_copy(update={"severity": "advisory"})
+                for item in runtime_diagnostics
+            ]
+            blocking_runtime_diagnostics: list[Diagnostic] = []
+        else:
+            blocking_runtime_diagnostics = [
+                item
+                for item in runtime_diagnostics
+                if effective_finding_severity(item) == "blocking"
+            ]
+        for diagnostic in runtime_diagnostics:
+            if preview_first_acceptance or effective_finding_severity(diagnostic) == "advisory":
+                advisory = SafeIssue(
+                    code=diagnostic.code,
+                    message=diagnostic.normalized_message[:500],
+                    next_action="Optional generated-site polish; it does not block this preview.",
                 )
+                if advisory not in projection.advisories:
+                    projection.advisories.append(advisory)
         evidence_hash = hashlib.sha256(
             _canonical([item.model_dump(mode="json") for item in evidence])
         ).hexdigest()
@@ -1261,6 +1393,41 @@ def _reference(run: Any) -> Any:
 def _resolve_config_path(value: str) -> Path:
     path = Path(value)
     return path.resolve() if path.is_absolute() else (repository_root() / path).resolve()
+
+
+def _materialize_effective_projections(
+    *,
+    settings: Any,
+    run: Any,
+    workspace: GenerationWorkspace,
+    plan: SitePlan,
+    projections: dict[str, dict[str, Any]],
+) -> None:
+    """Rebuild the mutable acquisition overlays used by source generation.
+
+    Verification re-admits the immutable brief, but image and dependency
+    acquisition are durable run state. Reconstruct the same generated asset
+    projection used during generation before any source, repair, or runtime
+    contract is evaluated.
+    """
+
+    if run.resource_ledger:
+        projections["resources/ledger.json"] = dict(run.resource_ledger)
+    if run.dependency_ledger:
+        projections["dependencies/ledger.json"] = dict(run.dependency_ledger)
+    generated_manifests = materialize_trusted_manifests(
+        workspace,
+        projections,
+        plan,
+        acquisition_ledger=run.resource_ledger,
+        acquisition_materials_root=_resolve_config_path(
+            settings.code_generator_acquisition.materials_root
+        ),
+        settings=settings,
+    )
+    projections["generated/resource-assets.json"] = {
+        "image_assets": list(generated_manifests.get("image_assets", []))
+    }
 
 
 def _checkpoint(run: Any) -> Any:
@@ -1920,7 +2087,14 @@ async def _attempt_repair(
     generation_projection_payload: dict[str, Any] | None = None
     integration_review_payload: dict[str, Any] | None = None
     quality_rejected_review: QualityReviewDraftV1 | None = None
-    if isinstance(plan.experience_blueprint, ExperienceBlueprintV4):
+    verification_settings = getattr(settings, "code_generator_verification", None)
+    preview_first_acceptance = bool(
+        getattr(verification_settings, "preview_first_acceptance", False)
+    )
+    if (
+        isinstance(plan.experience_blueprint, ExperienceBlueprintV4)
+        and not preview_first_acceptance
+    ):
         (
             generation_projection_payload,
             integration_review_payload,
