@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-14 12:24 +05:30 — Codex (GPT-5) — [pending] — Add art-directed motion to public portfolio previews
+### 2026-09-14 12:24 +05:30 — Codex (GPT-5) — [250417d] — Add art-directed motion to public portfolio previews
 
 Upgraded the three public sample portfolios with distinct interaction systems:
 Devon's telemetry grid and console scan, Leila's animated market signals and
