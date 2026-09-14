@@ -82,19 +82,22 @@ The system uses a two-level state model:
 - The executor updates both inside one transaction so a successful output and
   the updated session state cannot diverge.
 
-## 5. Why the testing UI is server-rendered
+## 5. Why the developer harness is server-rendered
 
-The developer harness is Jinja2 templates + vanilla JS + plain CSS, served by
-the same FastAPI application.
+The developer/diagnostic harness is Jinja2 templates + vanilla JS + plain CSS,
+served by the same FastAPI application. It is separate from the authenticated
+`/app` product shell, which is now compiled from `frontend/` using
+Preact/TypeScript/Vite and served as static assets by FastAPI.
 
 **Rationale:**
 - The harness verifies **application, database, state, worker, and agent
   boundaries** — it is not the final product UI.
 - A server-rendered page with `fetch` calls to the local API is sufficient,
   fast to build, and has zero build pipeline.
-- No React, Vite, npm, Tailwind, or CDN dependencies are introduced.
-- The final product frontend or generated-portfolio runtime can add a proper
-  frontend later without touching this harness.
+- The harness itself introduces no React, Vite, npm, Tailwind, or CDN
+  dependencies.
+- The product frontend can evolve independently without changing this
+  harness; the generated-portfolio runtime is also independent of both.
 - The harness escapes all dynamic JSON and never uses `innerHTML` with
   user-provided values.
 
@@ -145,11 +148,11 @@ worker container.
 - **State schema:** The `agents.<key>.{latestRunId, output}` namespacing may
   gain additional fields (e.g. `status`, `timestamp`) as real agents produce
   richer artifacts.
-- **Frontend:** The testing harness is being replaced by the real product
-  frontend. See `docs/Frontend/` for the researched direction (Preact +
-  TypeScript + Vite for the authenticated `/app` studio; Next.js was
-  considered and rejected because it would introduce a second application
-  server beside FastAPI).
+- **Frontend:** The authenticated `/app` product frontend is implemented as
+  Preact + TypeScript + Vite and is compiled into FastAPI's static bundle.
+  The developer harness remains server-rendered. Next.js was considered and
+  rejected because it would introduce a second application server beside
+  FastAPI.
 - **Configuration:** Non-secret settings may move from `config/app.toml` to
   command-line flags or a separate deployment_overlay mechanism if deployment
   requirements demand it. `.env` will remain secrets-only.

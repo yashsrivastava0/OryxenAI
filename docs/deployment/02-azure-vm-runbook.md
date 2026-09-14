@@ -19,6 +19,11 @@ Azure VM + Git checkout
         +-- ./scripts/azure-deploy.sh verify    (after DNS/HTTPS is ready)
 ```
 
+**Current checkpoint (2026-09-14):** the Azure VM exists and SSH was
+verified, but the repository has not been cloned there and Docker has not
+been installed. Complete the release gate and external-coordinate checks
+before starting the VM setup below. Do not deploy the shared dirty worktree.
+
 Never paste real credentials into this document, GitHub issues, or an AI chat.
 The script stores them only in the VM-local, ignored `.env` file.
 
@@ -115,11 +120,11 @@ sudo apt-get update
 sudo apt-get install -y ca-certificates curl git openssl
 ```
 
-Clone the current deployment branch. The current branch is
-`codex/code-generator-control-room`:
+Clone the exact branch selected during the release gate. Do not copy a branch
+name from an old handoff without checking `git log` and `git status` first:
 
 ```bash
-git clone --branch codex/code-generator-control-room \
+git clone --branch <DEPLOYMENT_BRANCH> \
   git@github.com:<GITHUB_OWNER>/<GITHUB_REPOSITORY>.git \
   ~/oryxenai
 cd ~/oryxenai
@@ -212,12 +217,15 @@ From the VM checkout:
 ```bash
 cd ~/oryxenai
 git status --short --branch
-./scripts/azure-deploy.sh deploy
+./scripts/azure-deploy.sh doctor
+./scripts/azure-deploy.sh deploy <EXACT_RELEASE_SHA>
 ./scripts/azure-deploy.sh status
 ```
 
 The VM checkout must not contain tracked edits. Make changes on the normal
-development branch, push them to GitHub, and let the VM fetch that branch.
+development branch, review and commit them, push the selected release to
+GitHub, and let the VM fetch that exact commit. Do not deploy a moving branch
+when a release SHA is available.
 
 To deploy a different branch once:
 

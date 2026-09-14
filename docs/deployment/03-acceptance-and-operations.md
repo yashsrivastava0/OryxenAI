@@ -4,6 +4,13 @@ The deployment is successful only when a real user can sign in, move through
 the explicit agent stages, and open the generated portfolio preview. A green
 container list alone is not acceptance.
 
+**Current checkpoint (2026-09-14):** no Azure application acceptance item in
+this document has been completed yet. The VM and SSH path are ready, but the
+application, Docker Compose services, production configuration, DNS, HTTPS,
+and live agent-to-preview flow are still pending. Local tests and development
+harness campaigns are useful evidence, but they do not check off the Azure
+acceptance items below.
+
 The supported operator interface is `./scripts/azure-deploy.sh`. It wraps the
 two Compose files, keeps the production overlay generated from `.env`, and
 records the last two release SHAs. Use the raw Compose commands below only

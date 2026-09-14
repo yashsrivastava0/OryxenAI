@@ -4,18 +4,24 @@
 provisioning and first SSH access. Read this file before the next deployment
 operation and update it after each meaningful server or external-service step.
 
-**Last confirmed:** 2026-09-05, from the human operator's Azure Portal and
-SSH reports.
+**Last Azure/SSH confirmation:** 2026-09-05, from the human operator's Azure
+Portal and SSH reports.
+
+**Documentation refresh:** 2026-09-14. This refresh records repository and
+deployment progress since the SSH checkpoint; it did not perform a new Azure
+Portal or SSH check. Verify the VM power state, current public IP, and credit
+balance live before the next server command.
 
 ## Current phase
 
-The Azure VM has been created successfully and is reachable over SSH. The
+The Azure VM has been created successfully and was reachable over SSH. The
 current Windows laptop is now the primary deployment machine. The Mac laptop
 was used for the initial SSH connection and early package setup, but it is no
 longer required for the deployment workflow.
 
-The current stopping point is **before Docker installation**. The application
-has not been cloned or started on the VM.
+The current deployment stopping point remains **before Docker installation**.
+The application has not been cloned or started on the VM. If the user stopped
+or deallocated the VM while idle, start it and re-check SSH before continuing.
 
 Successful SSH from the current Windows laptop confirms that:
 
@@ -242,9 +248,21 @@ the VM and enter only the required values there.
 
 ## External prerequisite readiness reported
 
+The user reports that the Supabase project is ready. The production VM still
+needs the Supabase URL, publishable key, server-only key, and the final Google
+OAuth Site URL/redirect configuration. The exact HTTPS origin must be settled
+before applying those settings:
+
+```text
+Site URL:      https://app.<DOMAIN>
+Redirect URL:  https://app.<DOMAIN>/auth/callback
+```
+
 The user reports that Cloudflare R2 artifact storage is already set up and
 that an R2 API token, access key, and secret key are available. The values
-were not displayed or recorded.
+were not displayed or recorded. This means the external account is reported
+ready; it does **not** mean the VM production configuration has been created
+or tested.
 
 Before the VM is configured, confirm only the non-secret R2 identifiers:
 
@@ -254,10 +272,30 @@ Before the VM is configured, confirm only the non-secret R2 identifiers:
 - whether the required lifecycle policy is configured.
 
 The runtime production configuration primarily needs the R2 S3-compatible
-endpoint, bucket, access key ID, and secret access key. The API token must not
-be substituted for the S3 secret key and should not be copied to the VM unless
-the selected deployment operation explicitly requires it. Enter secret values
+endpoint/account ID, bucket, access key ID, and secret access key. The API
+token must not be substituted for the S3 secret key. Enter secret values
 directly into the VM-local production `.env` when deployment begins.
+
+## Repository implementation status at the 2026-09-14 refresh
+
+Since the original Azure checkpoint, the committed branch has gained and
+recorded the following implementation work:
+
+- guided Azure VM Compose deployment with production Compose/Caddy/TOML
+  overlays, release-SHA deployment, preflight/doctor checks, health checks,
+  backup, status, logs, and rollback commands;
+- the authenticated studio flow through explicit Generate/Preview;
+- the Code Generator control room with real milestone progress, preview
+  theater, attention/retry state, and traceability diagnostics;
+- the administrator control plane;
+- public fictional portfolio examples and art-directed preview motion; and
+- Code Generator brief-ingestion, preview-first verification, retry/receipt,
+  and Windows Vite-spawn diagnostics fixes.
+
+These are repository capabilities, not evidence that the live Azure VM has
+run them. The current shared worktree also contains uncommitted and untracked
+work from another contributor. Use a clean, reviewed SHA for the first VM
+release.
 
 ## Not done yet
 
@@ -281,6 +319,10 @@ None of the following has been performed on the VM:
 - HTTPS certificate issuance.
 - Application or portfolio generation acceptance testing.
 
+The fact that the Azure VM is online and SSH works is only an infrastructure
+checkpoint. It is not a deployed application or an end-to-end acceptance
+result.
+
 Do not claim the application is deployed merely because the VM and SSH work.
 
 ## Next exact checkpoint
@@ -288,18 +330,23 @@ Do not claim the application is deployed merely because the VM and SSH work.
 Continue from the current Windows laptop and active SSH session. Prepare the
 external prerequisites, then follow the guided script in the runbook:
 
-1. Confirm the repository URL and deployment branch.
-2. Create/confirm the production Supabase project and final domain origin.
-3. Create the private Cloudflare R2 bucket and collect its identifiers without
-   placing secret values in chat.
-4. Configure DNS for `app.<DOMAIN>` and `preview.<DOMAIN>` to
+1. Reconcile the shared worktree, run the required checks, and choose one
+   exact clean release SHA.
+2. Confirm the repository URL and deployment branch/commit.
+3. Confirm the production Supabase project, Google provider, and final domain
+   origin.
+4. Confirm the private Cloudflare R2 bucket and its non-secret identifiers;
+   keep secret values out of chat.
+5. Configure DNS for `app.<DOMAIN>` and `preview.<DOMAIN>` to
    `20.235.74.81`.
-5. Clone the current branch onto the VM.
-6. Run `./scripts/azure-deploy.sh setup`; it installs Docker, creates the
+6. Start the VM if it is deallocated, then clone the selected release onto it.
+7. Run `./scripts/azure-deploy.sh setup`; it installs Docker, creates the
    VM-local `.env`, and renders the production TOML overlay.
-7. Run `./scripts/azure-deploy.sh deploy`, then `verify` and the browser
+8. Run `./scripts/azure-deploy.sh doctor`, then
+   `./scripts/azure-deploy.sh deploy <EXACT_RELEASE_SHA>`, followed by `verify`
+   and the browser
    acceptance checks. Caddy is started by Compose; do not install it natively.
-8. Run health, authentication, worker, generation, and
+9. Run health, authentication, worker, generation, and
    preview acceptance tests.
 
 Use [`02-azure-vm-runbook.md`](./02-azure-vm-runbook.md) for the command-level
