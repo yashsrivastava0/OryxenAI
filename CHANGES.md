@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 12:24 +05:30 — Codex (GPT-5) — [pending] — Add art-directed motion to public portfolio previews
+
+Upgraded the three public sample portfolios with distinct interaction systems:
+Devon's telemetry grid and console scan, Leila's animated market signals and
+offset proof layout, and Noa's layered paper/poster collage. Added subtle
+grain, pointer-responsive lighting, scroll-aware section state, staggered
+screen reveals, responsive overflow protection, and reduced-motion fallbacks.
+The preview controller now returns every newly opened sample to Home before
+showing it.
+
 ### 2026-09-14 12:14 +05:30 — Codex (GPT-5) — [e7296f8] — Separate destructive admin reset from creator shell
 
 Removed the destructive pipeline-reset control, modal, and styling from the
