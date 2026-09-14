@@ -31,6 +31,9 @@ from oryxenai.agents.code_generator.core.generation_prompt_builder import (
     FINAL_REPAIR_KEY_ORDER,
     build_instructions,
 )
+from oryxenai.agents.code_generator.core.semantic_decline import (
+    extract_semantic_source_decline,
+)
 from oryxenai.agents.code_generator.core.source_generation_adapter import (
     adapt_v4_generation_result,
 )
@@ -224,16 +227,15 @@ class FinalRepairer:
                 else None
             )
             if deterministic_changes is None:
-                if result.mode == "cannot_complete" and result.cannot_complete is not None:
-                    # An honest decline, not an unparseable or malformed
-                    # response. Surface it distinctly so the caller can stop
-                    # repeating the identical diagnostic bundle at a model
-                    # that has already declined it, instead of burning the
-                    # rest of the repair budget on the same answer.
+                decline = extract_semantic_source_decline(result)
+                if decline is not None:
+                    # Final verification deliberately keeps its separate
+                    # RepairBudget; this exception only communicates the
+                    # shared semantic decline to that caller policy.
                     raise FinalRepairDeclined(
                         "The repair model reported it could not produce a bounded "
                         "correction for this diagnostic bundle.",
-                        safe_reason=result.cannot_complete.safe_reason,
+                        safe_reason=decline.safe_reason,
                     )
                 raise FinalRepairError(
                     "REPAIR_NO_SOURCE_CHANGE",
