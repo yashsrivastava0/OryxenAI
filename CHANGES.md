@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-14 00:00 +05:30 — Codex (GPT-5) — [working-tree] — lossless Azure deployment session log
+### 2026-09-14 00:00 +05:30 — Codex (GPT-5) — [f594a11] — lossless Azure deployment session log
 
 Added an append-only deployment session record covering the Azure VM wizard,
 review corrections, VM creation, SSH evidence, bootstrap packages, repository
