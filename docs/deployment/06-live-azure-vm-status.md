@@ -99,7 +99,7 @@ The intentional custom inbound rules are:
 
 No public allow rules were added for ports `5432`, `5544`, `8000`, or `4174`.
 The application, PostgreSQL, and preview gateway are therefore expected to
-remain private behind the future Caddy reverse proxy.
+remain private behind the Compose-managed Caddy reverse proxy.
 
 The SSH source address was the public IP detected during VM creation. If the
 operator changes networks and SSH later times out, check the current public IP
@@ -265,7 +265,7 @@ None of the following has been performed on the VM:
 
 - Docker Engine installation.
 - Docker Compose plugin installation.
-- Caddy installation or configuration.
+- Compose-managed Caddy configuration.
 - Repository clone or source-code transfer.
 - Release SHA selection or deployment commit recording on the VM.
 - Production `.env` creation.
@@ -285,28 +285,21 @@ Do not claim the application is deployed merely because the VM and SSH work.
 
 ## Next exact checkpoint
 
-Continue from the current Windows laptop and active SSH session. Install Docker
-Engine and the Docker Compose plugin using Docker's current official Ubuntu
-repository instructions. Then add `oryxenaiadmin` to the Docker group, start a
-new SSH session, and verify `docker --version` and `docker compose version`.
+Continue from the current Windows laptop and active SSH session. Prepare the
+external prerequisites, then follow the guided script in the runbook:
 
-Do not clone or copy application code until the repository's local Git state
-has been inspected and one exact release commit SHA has been selected. Do not
-deploy uncommitted work or unrelated Code Generator worktree changes.
-
-After Docker is verified, prepare the external prerequisites and production
-configuration in this order:
-
-1. Confirm the repository URL and exact release SHA.
+1. Confirm the repository URL and deployment branch.
 2. Create/confirm the production Supabase project and final domain origin.
 3. Create the private Cloudflare R2 bucket and collect its identifiers without
    placing secret values in chat.
 4. Configure DNS for `app.<DOMAIN>` and `preview.<DOMAIN>` to
    `20.235.74.81`.
-5. Clone the pinned source onto the VM.
-6. Create the VM-local `.env`, production TOML overlay, and Compose overlay.
-7. Install/configure Caddy after DNS and final hostnames are known.
-8. Start Compose and run health, authentication, worker, generation, and
+5. Clone the current branch onto the VM.
+6. Run `./scripts/azure-deploy.sh setup`; it installs Docker, creates the
+   VM-local `.env`, and renders the production TOML overlay.
+7. Run `./scripts/azure-deploy.sh deploy`, then `verify` and the browser
+   acceptance checks. Caddy is started by Compose; do not install it natively.
+8. Run health, authentication, worker, generation, and
    preview acceptance tests.
 
 Use [`02-azure-vm-runbook.md`](./02-azure-vm-runbook.md) for the command-level

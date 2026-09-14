@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [pending commit] - Simple Azure VM deployment path
+
+Implemented the beginner-friendly Azure deployment contract: one guided
+`azure-deploy.sh` command installs Docker, renders VM-local production config,
+builds exact-commit images, runs migrations, starts health-checked services,
+backs up and rolls back releases, and operates Compose-managed Caddy. Updated
+Compose port binding/logging/healthchecks, production configuration,
+deployment runbooks, AI-assisted operations guidance, and CI validation.
+
 ### 2026-09-13 21:40 +05:30 — Antigravity (Gemini 3.8) — [cdac290] — Discovery question experience redesign and local review refactor
 
 Refactored the Discovery interview questioning surface for full parity with design references (`16-discovery-mcq-question.png` and `17-discovery-text-question.png`) and research guidance in `12-discovery-question-experience-research.md`:

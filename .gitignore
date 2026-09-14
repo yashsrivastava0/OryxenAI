@@ -23,6 +23,10 @@ pip-wheel-metadata/
 .env.*
 !.env.example
 
+# VM-local rendered production configuration and deployment state
+config/app.production.local.toml
+.workspace/azure-deploy/
+
 # Local state / runtime
 *.log
 *.sqlite

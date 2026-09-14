@@ -3,6 +3,9 @@
 > **Historical checkpoint:** The VM wizard was later completed successfully.
 > This file records the pre-provisioning wizard state only. For the current
 > post-creation state, read [`06-live-azure-vm-status.md`](./06-live-azure-vm-status.md).
+> The current operational strategy supersedes the older manual/native-Caddy
+> instructions in this historical file; use [`02-azure-vm-runbook.md`](./02-azure-vm-runbook.md)
+> and `scripts/azure-deploy.sh` for deployment.
 
 **Checkpoint purpose:** This file is the handoff state for the human user and
 the next step-by-step deployment assistant. Read it before touching the Azure

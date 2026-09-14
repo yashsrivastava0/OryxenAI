@@ -4,6 +4,11 @@ The deployment is successful only when a real user can sign in, move through
 the explicit agent stages, and open the generated portfolio preview. A green
 container list alone is not acceptance.
 
+The supported operator interface is `./scripts/azure-deploy.sh`. It wraps the
+two Compose files, keeps the production overlay generated from `.env`, and
+records the last two release SHAs. Use the raw Compose commands below only
+when diagnosing a problem the script output does not explain.
+
 ## A. Infrastructure smoke test
 
 - [ ] DNS resolves `app.<DOMAIN>` and `preview.<DOMAIN>` to the VM.
@@ -11,7 +16,8 @@ container list alone is not acceptance.
 - [ ] `https://app.<DOMAIN>/health/live` returns successfully.
 - [ ] `https://app.<DOMAIN>/health/ready` reports the database ready.
 - [ ] `https://preview.<DOMAIN>/health/live` returns successfully.
-- [ ] PostgreSQL, app, worker, and preview gateway are all running in Compose.
+- [ ] PostgreSQL, app, worker, preview gateway, and Compose-managed Caddy are
+  all running.
 - [ ] The migration service completed successfully.
 - [ ] The worker logs show a heartbeat after startup.
 
@@ -85,7 +91,7 @@ service. Do not bypass those rules in the browser while testing.
 
 | Symptom | First check |
 | --- | --- |
-| App does not load | Caddy status, DNS, ports `80`/`443`, `app` logs |
+| App does not load | `./scripts/azure-deploy.sh status`, DNS, ports `80`/`443`, `app` and `caddy` logs |
 | Auth callback fails | Supabase callback URL and exact production origin |
 | App is ready but jobs do not move | `worker` logs, worker heartbeat, `/health/ready`, database connectivity |
 | Build Preparation fails | R2 credentials, resource-provider keys, worker logs |
@@ -97,10 +103,10 @@ service. Do not bypass those rules in the browser while testing.
 Useful commands:
 
 ```bash
+./scripts/azure-deploy.sh status
+./scripts/azure-deploy.sh logs app worker caddy
+./scripts/azure-deploy.sh verify
 docker stats
-docker compose -f compose.yaml -f compose.production.yaml logs --tail 250 worker
-docker compose -f compose.yaml -f compose.production.yaml logs --tail 250 app
-docker compose -f compose.yaml -f compose.production.yaml logs --tail 250 preview-gateway
 ```
 
 ## G. Restart and recovery checks
@@ -115,6 +121,7 @@ Perform these after the first successful generation:
 - [ ] Confirm the PostgreSQL named volume remains present.
 - [ ] Confirm preview objects remain available in R2.
 
+For a normal restart or a code fix, use `./scripts/azure-deploy.sh deploy`.
 Never use `docker compose down -v` for ordinary maintenance.
 
 ## H. Minimal backup routine
@@ -123,10 +130,7 @@ The demo can use a simple manual backup rather than a full backup platform.
 Run a PostgreSQL dump before repository or migration changes:
 
 ```bash
-mkdir -p ~/oryxenai-backups
-docker compose -f compose.yaml -f compose.production.yaml \
-  exec -T postgres pg_dump -U oryxen -d oryxenai \
-  | gzip > ~/oryxenai-backups/oryxenai-$(date +%Y%m%d-%H%M%S).sql.gz
+./scripts/azure-deploy.sh backup
 ```
 
 Keep the dump outside the repository and periodically copy one known-good dump

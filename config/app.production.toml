@@ -1,22 +1,17 @@
-# Azure VM production overlay -- matches docs/deployment/02-azure-vm-runbook.md
-# §5 exactly. Loaded via OryxenAI_CONFIG_OVERLAY=config/app.production.toml.
+# Azure VM production overlay template.
 #
-# Caddy runs natively on the VM (see the runbook §2/§8), not as a Docker
-# service -- it reverse-proxies to the app/preview-gateway containers'
-# published host ports (127.0.0.1:8000 / 127.0.0.1:4174), so those ports
-# stay published in compose.production.yaml. Only the Azure NSG (80/443/SSH
-# only) makes that safe; do not remove the host port publishes to "harden"
-# this without also moving Caddy into the Compose network.
-#
-# Before using this file, replace <APP_HOST>, <PREVIEW_HOST>, <ACCOUNT_ID>,
-# and <R2_BUCKET> with the real values. Secrets still come only from the
-# VM-local .env -- never from this file.
+# azure-deploy.sh renders this file to the ignored
+# config/app.production.local.toml file. Replace the placeholders only in the
+# VM-local rendered copy. Secrets still come only from .env.
 
 [app]
 env = "production"
 host = "0.0.0.0"
 enable_dev_ui = false
 enable_product_preact_shell = true
+
+[client_diagnostics]
+enabled = false
 
 [auth]
 required = true
@@ -29,6 +24,9 @@ allowed_origins = ["https://<APP_HOST>"]
 [worker]
 concurrency = 1
 
+[image_retrieval]
+cache_root = "/app/.workspace/image-search-cache"
+
 [artifact_storage]
 provider = "r2_s3"
 endpoint_url = "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
@@ -40,6 +38,7 @@ require_lifecycle = true
 [build_preparation]
 fixture_enabled = false
 debug_mirror_enabled = false
+session_staging_root = "/app/.workspace/build-preparation-staging"
 
 [code_generator_development]
 enabled = false
