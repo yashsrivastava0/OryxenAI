@@ -247,8 +247,6 @@ button:disabled, textarea:disabled, input:disabled {
   background: var(--signal-subtle);
   color: var(--signal);
 }
-.account-popover-reset-btn { color: var(--rose) !important; }
-.account-popover-reset-btn:hover { background: var(--rose-bg) !important; }
 .read-only-tag { margin: 0 0.4rem 0.5rem; color: var(--amber); font-size: 0.75rem; }
 
 /* ==========================================================================
@@ -3588,77 +3586,6 @@ button:disabled, textarea:disabled, input:disabled {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Admin Reset Modal */
-.admin-reset-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 1.25rem;
-  background: rgba(18, 19, 22, 0.55);
-  backdrop-filter: blur(4px);
-}
-.admin-reset-modal {
-  width: min(32rem, 100%);
-  background: #ffffff;
-  border: 1px solid var(--ink);
-  border-radius: 8px;
-  padding: 1.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
-}
-.admin-reset-badge {
-  padding: 0.15rem 0.4rem;
-  background: var(--rose);
-  color: #fff;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 700;
-  border-radius: 3px;
-}
-.admin-reset-modal-title-row {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-.admin-reset-modal-title-row h2 {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  margin: 0;
-}
-.admin-reset-warning-box {
-  background: var(--rose-bg);
-  border-left: 3px solid var(--rose);
-  padding: 1rem;
-  font-size: 0.85rem;
-}
-.admin-reset-warning-box ul {
-  margin: 0.5rem 0 0;
-  padding-left: 1.2rem;
-}
-.admin-reset-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-.admin-reset-cancel-btn {
-  background: #fff;
-  border: 1px solid var(--rule);
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-}
-.admin-reset-confirm-btn {
-  background: var(--rose);
-  color: #fff;
-  border: 0;
-  padding: 0.5rem 1.25rem;
-  border-radius: 4px;
-  font-weight: 600;
 }
 
 /* This follows the shared sticky dock rules intentionally: the intake dock
