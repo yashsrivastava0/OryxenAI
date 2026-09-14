@@ -28,6 +28,34 @@ test("administrator actions use reviewed server endpoints", () => {
     adminEndpoint("resume", "operations", "operation-1"),
     "/api/v1/admin/operations/operation-1/resume",
   );
+  assert.equal(
+    adminEndpoint("suspend", "users", "user-1"),
+    "/api/v1/admin/users/user-1/suspend",
+  );
+  assert.equal(
+    adminEndpoint("restore", "users", "user-1"),
+    "/api/v1/admin/users/user-1/restore",
+  );
+  assert.equal(
+    adminEndpoint("promote", "users", "user-1"),
+    "/api/v1/admin/users/user-1/promote",
+  );
+  assert.equal(
+    adminEndpoint("demote", "users", "user-1"),
+    "/api/v1/admin/users/user-1/demote",
+  );
+  assert.equal(
+    adminEndpoint("delete", "users", "user-1"),
+    "/api/v1/admin/users/user-1/delete",
+  );
+  assert.equal(
+    adminEndpoint("delete", "projects", "project-1"),
+    "/api/v1/admin/projects/project-1/delete",
+  );
+  assert.equal(
+    adminEndpoint("code-generator-retry", "projects", "project-1"),
+    "/api/v1/admin/projects/project-1/code-generator/retry",
+  );
   assert.throws(() => adminEndpoint("unknown", "projects", "project-1"));
 });
 
