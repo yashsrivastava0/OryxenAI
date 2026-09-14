@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 11:40 +05:30 — Codex (GPT-5) — [pending commit] — Public portfolio examples before sign-in
+
+Added a public, fictional three-example showcase to the sign-in landing page.
+Each example opens a local native-dialog portfolio preview without authentication,
+with an explicit path back to creating a portfolio. Added responsive styling,
+keyboard dismissal/focus restoration, and API coverage for the public markup.
+
 ### 2026-09-14 11:15 +05:30 — Antigravity (Gemini 3.8) — [e53ebfb] — Administrator control plane matching reference specifications 12 and 18–24
 
 Implemented the role-gated administrator control plane at `/admin` matching `17-admin-screen-reference-spec.md` and 8 visual references (`12-admin-control-center.png` and `18-admin-users-ledger.png` through `24-admin-action-confirmation.png`):
