@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-14 11:40 +05:30 — Codex (GPT-5) — [pending commit] — Public portfolio examples before sign-in
+### 2026-09-14 11:40 +05:30 — Codex (GPT-5) — [7e503f0] — Public portfolio examples before sign-in
 
 Added a public, fictional three-example showcase to the sign-in landing page.
 Each example opens a local native-dialog portfolio preview without authentication,
