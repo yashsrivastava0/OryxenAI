@@ -134,13 +134,13 @@ export function GenerationStage({
 
   // Headline and subtitle for left panel
   const projectTitle = isAvailable
-    ? "From idea to launch."
+    ? "Ready to build your portfolio."
     : isWorking
       ? "Building your site"
       : view.projectTitle || "Personal Portfolio";
 
   const projectSubtitle = isAvailable
-    ? "OryxenAI turns your ideas into working software, step by step. Follow the plan, refine as you go, and preview in real time."
+    ? "Your approved briefs are ready. Start generation when you are ready to create a reviewable preview."
     : isWorking
       ? "Turning your idea into a working, production-ready site."
       : view.projectSummary || "A clean, modern portfolio site for a product designer with case studies and a blog.";
@@ -229,7 +229,7 @@ export function GenerationStage({
             } else if (isWorking) {
               if (idx < activeIndex) {
                 stepStatus = "complete";
-                timeText = idx === 0 ? "1m ago" : "1m ago";
+                timeText = "Complete";
                 descText = milestone.completeDesc;
               } else if (idx === activeIndex) {
                 stepStatus = "active";
@@ -243,11 +243,11 @@ export function GenerationStage({
             } else if (isAttention) {
               if (idx < failedIndex) {
                 stepStatus = "complete";
-                timeText = `${idx + 2}m`;
+                timeText = "Complete";
                 descText = milestone.completeDesc;
               } else if (idx === failedIndex) {
                 stepStatus = "attention";
-                timeText = "1m";
+                timeText = "Needs attention";
                 descText = milestone.stoppedDesc;
               } else {
                 stepStatus = "pending";
@@ -279,15 +279,6 @@ export function GenerationStage({
                   </div>
                   <p className="step-desc">{descText}</p>
 
-                  {/* Progress Bar on Active Build step matching image 14 */}
-                  {stepStatus === "active" && milestone.id === "build" && (
-                    <div className="step-progress-row">
-                      <div className="step-progress-bar">
-                        <div className="step-progress-fill" style={{ width: "62%" }} />
-                      </div>
-                      <span className="step-progress-percent">62%</span>
-                    </div>
-                  )}
                 </div>
               </div>
             );
@@ -578,7 +569,7 @@ export function GenerationStage({
                     <span>Previous verified preview</span>
                   </span>
                 )}
-                {!isAttention && view.candidatePreview && !view.preview && (
+                {!hasVerifiedPreview && view.candidatePreview && (
                   <span className="address-badge badge-candidate">
                     <span>⚠️ Candidate preview (unverified)</span>
                   </span>
@@ -633,9 +624,9 @@ export function GenerationStage({
             {isWorking && (
               <div className="theater-subfooter">
                 <span className="theater-subfooter-left">
-                  <span className="pulse-dot" /> Preview updating as pages are verified
+                  Preview updates after each verified backend milestone
                 </span>
-                <span className="theater-subfooter-right">Last update moments ago</span>
+                <span className="theater-subfooter-right">Current attempt {view.currentAttempt || 1}</span>
               </div>
             )}
           </div>
@@ -652,8 +643,8 @@ export function GenerationStage({
                 >
                   <span className="open-icon">↗</span>
                   <div className="open-text">
-                    <strong>Open preview</strong>
-                    <span>View in a new tab</span>
+                    <strong>{hasVerifiedPreview ? "Open verified preview" : "Open candidate preview"}</strong>
+                    <span>{hasVerifiedPreview ? "View in a new tab" : "Unverified — review in a new tab"}</span>
                   </div>
                 </a>
               ) : (
@@ -673,41 +664,18 @@ export function GenerationStage({
                 </button>
               )}
 
-              {isWorking && (
-                <button type="button" className="btn-disabled-lock" disabled>
-                  <span className="lock-icon">🔒</span>
-                  <span>Publish unavailable until verification completes</span>
-                </button>
-              )}
+              {isWorking && <span className="preview-unready-note">Verification is in progress</span>}
 
-              {isAttention && (
-                <div className="publish-attention-lock">
-                  <button type="button" className="btn-disabled-lock" disabled>
-                    <span className="upload-icon">⬆</span>
-                    <span>Publish after verification</span>
-                  </button>
-                  <span
-                    className="info-bubble"
-                    title="Publishing requires complete and verified portfolio checks."
-                  >
-                    ⓘ
-                  </span>
-                </div>
-              )}
+              {isAttention && <span className="preview-unready-note">Use the recovery action above to continue.</span>}
 
               {isComplete && (
                 <button
                   type="button"
-                  className="btn-primary btn-cobalt btn-lg"
-                  onClick={() => {
-                    if (previewUrl) window.open(previewUrl, "_blank");
-                  }}
+                  className="btn-secondary"
+                  onClick={onRegenerate}
+                  disabled={!canMutate || inFlight}
                 >
-                  <span className="publish-icon">🚀</span>
-                  <div className="publish-text">
-                    <strong>Publish when ready</strong>
-                    <span>Deploy your project</span>
-                  </div>
+                  Regenerate portfolio
                 </button>
               )}
             </div>
