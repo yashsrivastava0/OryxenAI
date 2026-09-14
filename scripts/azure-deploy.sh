@@ -179,6 +179,34 @@ sed_escape() {
   printf '%s' "$1" | sed 's/[&|]/\\&/g'
 }
 
+active_model_keys() {
+  local fallback profile key
+  local -a profiles=()
+  local -a routed_profiles=()
+
+  fallback="$(awk -F'"' '/^[[:space:]]*fallback_profile[[:space:]]*=/ { print $2; exit }' \
+    "$REPO_ROOT/config/models.toml")"
+  [[ -n "$fallback" ]] && profiles+=("$fallback")
+
+  mapfile -t routed_profiles < <(
+    awk -F'"' '
+      /^\[routing\.engine_profiles\]$/ { in_section = 1; next }
+      in_section && /^\[/ { exit }
+      in_section && /^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=/ { print $2 }
+    ' "$REPO_ROOT/config/models.toml"
+  )
+  profiles+=("${routed_profiles[@]}")
+
+  for profile in "${profiles[@]}"; do
+    key="$(awk -F'"' -v section="[profiles.$profile]" '
+      $0 == section { in_profile = 1; next }
+      in_profile && /^\[/ { exit }
+      in_profile && /^[[:space:]]*api_key_env[[:space:]]*=/ { print $2; exit }
+    ' "$REPO_ROOT/config/models.toml")"
+    [[ -n "$key" ]] && printf '%s\n' "$key"
+  done | sort -u
+}
+
 render_production_config() {
   [[ -f "$PRODUCTION_TEMPLATE" ]] || die "Missing $PRODUCTION_TEMPLATE"
   [[ -f "$ENV_FILE" ]] || die "Missing $ENV_FILE; run setup first."
@@ -206,7 +234,9 @@ render_production_config() {
 }
 
 install_docker() {
-  if command -v docker >/dev/null 2>&1 && docker_cmd compose version >/dev/null 2>&1; then
+  if command -v docker >/dev/null 2>&1 \
+    && docker_cmd compose version >/dev/null 2>&1 \
+    && docker_cmd info >/dev/null 2>&1; then
     info "Docker Engine and Compose are already available."
     return
   fi
@@ -286,8 +316,17 @@ write_initial_env() {
     awk -F'"' '/^[[:space:]]*api_key_env[[:space:]]*=/ && $2 != "" { print $2 }' \
       "$REPO_ROOT/config/models.toml" | sort -u
   )
+  mapfile -t active_keys < <(active_model_keys)
+  declare -A required_model_keys=()
+  for key in "${active_keys[@]}"; do
+    required_model_keys["$key"]=1
+  done
   for key in "${model_keys[@]}"; do
-    ask_optional_secret "Optional model/provider key $key"
+    if [[ "${required_model_keys[$key]:-0}" == 1 ]]; then
+      ask_required_secret "Required active model/provider key $key"
+    else
+      ask_optional_secret "Optional model/provider key $key"
+    fi
     if [[ -n "$REPLY" ]]; then
       set_env_value "$key" "$REPLY"
     fi
@@ -300,6 +339,7 @@ write_initial_env() {
 doctor() {
   local failures=0
   local key value host free_kib
+  local -a active_keys=()
 
   info "Checking deployment prerequisites."
   if ! command -v docker >/dev/null 2>&1; then
@@ -339,8 +379,18 @@ doctor() {
       ORYXENAI_ADMIN_BOOTSTRAP_EMAILS \
       ORYXENAI_ALLOWED_USER_EMAILS; do
       value="$(env_value "$key" 2>/dev/null || true)"
-      if [[ -z "$value" || "$value" == *"<"* || "$value" == *">"* ]]; then
+      if [[ -z "$value" || "$value" == *"<"* || "$value" == *">"* \
+        || "$value" == "app.example.com" || "$value" == "preview.example.com" ]]; then
         warn "$key is missing or still contains a placeholder."
+        failures=$((failures + 1))
+      fi
+    done
+
+    mapfile -t active_keys < <(active_model_keys)
+    for key in "${active_keys[@]}"; do
+      value="$(env_value "$key" 2>/dev/null || true)"
+      if [[ -z "$value" || "$value" == *"<"* || "$value" == *">"* ]]; then
+        warn "$key is required by the active model routing but is missing."
         failures=$((failures + 1))
       fi
     done

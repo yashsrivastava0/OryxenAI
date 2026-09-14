@@ -144,13 +144,15 @@ The wizard will:
 2. copy `.env.example` to the ignored `.env` file;
 3. ask for the two hostnames, Supabase values, R2 values, administrator emails,
    normal-user allowlist, and a PostgreSQL password;
-4. offer prompts for every provider key named in `config/models.toml`; and
+4. require keys used by the active routing profiles and offer optional prompts
+   for the other provider keys named in `config/models.toml`; and
 5. render the ignored `config/app.production.local.toml` file with the host,
    R2 account, and bucket values.
 
-Paste provider keys only when the corresponding model profile will be used.
-The model/profile mapping remains in [`config/models.toml`](../../config/models.toml)
-so adding an engine later does not require changing the deployment script.
+The active keys are derived from the model configuration rather than
+hardcoded in the deployment script. The model/profile mapping remains in
+[`config/models.toml`](../../config/models.toml), so adding an engine later
+does not require changing the deployment script.
 
 The setup wizard finishes by running `doctor`. Fix every error it reports.
 Warnings about DNS can be ignored until the DNS A records have propagated.
@@ -258,6 +260,11 @@ PostgreSQL volume and can erase sessions and durable jobs.
 If a release fails, first run `status` and `logs`. If the failure is caused by
 the new application code, use `rollback`; if it is a configuration problem,
 use `configure`, then `doctor`, then `deploy` again.
+
+The rollback command rebuilds the previous application image; it does not
+downgrade PostgreSQL migrations. Before rolling back across a release that
+changed the database schema, check the migration history and keep the backup
+created by the deployment script.
 
 ## 8. Adding a future engine
 
