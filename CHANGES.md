@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 12:14 +05:30 — Codex (GPT-5) — [e7296f8] — Separate destructive admin reset from creator shell
+
+Removed the destructive pipeline-reset control, modal, and styling from the
+creator workspace. Administrator access remains available through the
+authenticated `/admin` surface and the admin account entry point.
+
 ### 2026-09-14 12:08 +05:30 — Codex (GPT-5) — [5e96a52] — Turn public examples into scrollable portfolio previews
 
 Expanded the three public sign-in examples into self-contained, fictional
