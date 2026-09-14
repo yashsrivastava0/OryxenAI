@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 12:08 +05:30 — Codex (GPT-5) — [pending] — Turn public examples into scrollable portfolio previews
+
+Expanded the three public sign-in examples into self-contained, fictional
+mini-portfolios: Devon Lee (software developer), Leila Ortiz (business
+developer), and Noa Park (creative director). Each preview now has a distinct
+palette, visual motif, four scrollable screens, sticky section navigation,
+hero-to-work jump links, hover/motion treatments, responsive layout, and
+reduced-motion support. Added route/content assertions to the public-shell API
+test and kept the preview entirely local and unauthenticated.
+
 ### 2026-09-14 11:59 +05:30 — Codex (GPT-5) — [efb226e] — Keep intake actions and responsive shell accessible
 
 Reserved the Discovery intake action area in normal document flow, raised

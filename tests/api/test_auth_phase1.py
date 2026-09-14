@@ -172,6 +172,12 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     assert sign_in.text.count('class="outcome-card"') == 3
     assert 'id="outcome-preview-dialog"' in sign_in.text
     assert sign_in.text.count('data-outcome-preview=') == 3
+    assert sign_in.text.count('class="sample-site-nav') == 3
+    assert sign_in.text.count('data-preview-screen=') == 12
+    assert sign_in.text.count('data-preview-route=') == 15
+    assert "Software developer" in sign_in.text
+    assert "Business developer" in sign_in.text
+    assert "Creative director" in sign_in.text
     assert "Example generated from a test brief." in sign_in.text
     assert "sign-in-showcase.mjs" in sign_in.text
     product = responses[6]
