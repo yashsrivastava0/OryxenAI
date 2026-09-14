@@ -114,6 +114,9 @@ After the VM is created, use the [live Azure VM status checkpoint](./06-live-azu
 as the current source of truth. The older [`04-current-azure-deployment-status.md`](./04-current-azure-deployment-status.md)
 file is retained as historical pre-provisioning context. For the whole
 implemented/pending/next-state picture, use [`docs/project-status.md`](../project-status.md).
+For the lossless chronological record of the portal work, SSH session,
+bootstrap commands, corrections, and unconfirmed steps, use the
+[live Azure deployment session log](./08-live-azure-deployment-session-log-2026-09-14.md).
 
 Follow the documents in this order:
 
