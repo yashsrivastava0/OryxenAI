@@ -54,38 +54,76 @@ def _policy_image_obligations(
     return route_placements[:required_count]
 
 
-def _admitted_resource_slot_ids(
-    execution: dict[str, Any] | None, resource_ledger: dict[str, Any] | None
-) -> set[str] | None:
-    """Return the resource_slot_ids the runtime image checks should apply to.
+def _acquired_local_paths_by_slot(
+    resource_ledger: dict[str, Any] | None,
+) -> dict[str, list[str]]:
+    """Resolve every acquisition request namespace back to its execution slot."""
 
-    Returns None when execution/resource_ledger projections are unavailable,
-    meaning "check every placement" (the prior, acquisition-blind behavior)
-    rather than silently excluding everything. A placement is included when
-    its execution slot marks it `required`, or when acquisition actually
-    materialized real local files for it -- resolved the same way
-    `final_source_validation.py` already resolves a slot's real local paths
-    (a `delegated-{resource_slot_id}` request lookup into the resource
-    ledger's active bindings, since acquisition only links a binding back to
-    a request/purpose string, not directly to a resource_slot_id). A
-    placement that is optional and never got a real local file is an honest,
-    approved fallback (route_batch.md/repair_source.md/integration_review.md
-    all instruct the model to render a decorative composition there instead
-    of a real image) and must not be held to the real-image runtime checks.
-    """
-
-    if not isinstance(execution, dict) or not isinstance(resource_ledger, dict):
-        return None
-    requests_by_id = {
-        str(item.get("request_id", "")): item
-        for item in resource_ledger.get("requests", [])
-        if isinstance(item, dict)
-    }
+    if not isinstance(resource_ledger, dict):
+        return {}
     bindings_by_request_hash = {
         str(item.get("request_id_or_pack_need_id", "")): item
         for item in resource_ledger.get("active_bindings", [])
         if isinstance(item, dict)
     }
+    result: dict[str, set[str]] = {}
+    for request in resource_ledger.get("requests", []):
+        if not isinstance(request, dict):
+            continue
+        slot_id = str(request.get("request_id", "")).strip()
+        for prefix in ("request-", "deferred-", "delegated-"):
+            if slot_id.startswith(prefix):
+                slot_id = slot_id.removeprefix(prefix)
+                break
+        request_hash = str(request.get("request_hash", ""))
+        binding = bindings_by_request_hash.get(request_hash, {})
+        paths = {str(value) for value in binding.get("local_paths", []) if str(value)}
+        if slot_id and paths:
+            result.setdefault(slot_id, set()).update(paths)
+    return {slot_id: sorted(paths) for slot_id, paths in result.items()}
+
+
+def _generated_local_paths_by_slot(
+    generated_resources: dict[str, Any] | None,
+) -> dict[str, list[str]]:
+    """Return browser-facing paths from the trusted generated image manifest."""
+
+    if not isinstance(generated_resources, dict):
+        return {}
+    result: dict[str, set[str]] = {}
+    for asset in generated_resources.get("image_assets", []):
+        if not isinstance(asset, dict):
+            continue
+        slot_id = str(asset.get("resource_slot_id") or asset.get("resource_id") or "").strip()
+        paths = {
+            str(source.get("path", ""))
+            for source in asset.get("sources", [])
+            if isinstance(source, dict) and str(source.get("path", ""))
+        }
+        if slot_id and paths:
+            result.setdefault(slot_id, set()).update(paths)
+    return {slot_id: sorted(paths) for slot_id, paths in result.items()}
+
+
+def _admitted_resource_slot_ids(
+    execution: dict[str, Any] | None,
+    resource_ledger: dict[str, Any] | None,
+    generated_resources: dict[str, Any] | None,
+) -> set[str] | None:
+    """Return resource slots with a required or materialized runtime binding.
+
+    Acquisition requests may be namespaced as ``request-``, ``deferred-``,
+    or ``delegated-`` independently of an immutable execution slot's original
+    resolution type. Generated image assets are the browser-facing authority;
+    durable acquisition paths remain useful evidence for other resource types.
+    """
+
+    if not isinstance(execution, dict) or (
+        not isinstance(resource_ledger, dict) and not isinstance(generated_resources, dict)
+    ):
+        return None
+    acquired_paths = _acquired_local_paths_by_slot(resource_ledger)
+    generated_paths = _generated_local_paths_by_slot(generated_resources)
     admitted: set[str] = set()
     for slot in execution.get("slots", []):
         if not isinstance(slot, dict):
@@ -93,38 +131,31 @@ def _admitted_resource_slot_ids(
         slot_id = str(slot.get("resource_slot_id", ""))
         if not slot_id:
             continue
-        if slot.get("required"):
-            admitted.add(slot_id)
-            continue
         resolution = slot.get("resolution", {})
-        resolution_type = (
-            str(resolution.get("resolution_type", "")) if isinstance(resolution, dict) else ""
+        local_paths = (
+            [str(value) for value in resolution.get("local_paths", []) if str(value)]
+            if isinstance(resolution, dict)
+            else []
         )
-        local_paths = resolution.get("local_paths", []) if isinstance(resolution, dict) else []
-        if resolution_type == "delegated_acquisition":
-            delegated_request = requests_by_id.get(f"delegated-{slot_id}", {})
-            request_hash = str(delegated_request.get("request_hash", ""))
-            local_paths = bindings_by_request_hash.get(request_hash, {}).get("local_paths", [])
-        if local_paths:
+        if (
+            slot.get("required")
+            or local_paths
+            or acquired_paths.get(slot_id)
+            or generated_paths.get(slot_id)
+        ):
             admitted.add(slot_id)
     return admitted
 
 
 def _local_paths_by_slot(
-    execution: dict[str, Any] | None, resource_ledger: dict[str, Any] | None
+    execution: dict[str, Any] | None,
+    resource_ledger: dict[str, Any] | None,
+    generated_resources: dict[str, Any] | None,
 ) -> dict[str, list[str]]:
     if not isinstance(execution, dict):
         return {}
-    requests_by_id = {
-        str(item.get("request_id", "")): item
-        for item in (resource_ledger or {}).get("requests", [])
-        if isinstance(item, dict)
-    }
-    bindings_by_request_hash = {
-        str(item.get("request_id_or_pack_need_id", "")): item
-        for item in (resource_ledger or {}).get("active_bindings", [])
-        if isinstance(item, dict)
-    }
+    acquired_paths = _acquired_local_paths_by_slot(resource_ledger)
+    generated_paths = _generated_local_paths_by_slot(generated_resources)
     result: dict[str, list[str]] = {}
     for raw_slot in execution.get("slots", []):
         if not isinstance(raw_slot, dict):
@@ -133,14 +164,11 @@ def _local_paths_by_slot(
         resolution = raw_slot.get("resolution", {})
         if not slot_id or not isinstance(resolution, dict):
             continue
-        paths = [str(value) for value in resolution.get("local_paths", []) if str(value)]
-        if resolution.get("resolution_type") == "delegated_acquisition":
-            request = requests_by_id.get(f"delegated-{slot_id}", {})
-            request_hash = str(request.get("request_hash", ""))
-            binding = bindings_by_request_hash.get(request_hash, {})
-            paths = [str(value) for value in binding.get("local_paths", []) if str(value)]
+        paths = {str(value) for value in resolution.get("local_paths", []) if str(value)}
+        paths.update(acquired_paths.get(slot_id, []))
+        paths.update(generated_paths.get(slot_id, []))
         if paths:
-            result[slot_id] = sorted(set(paths))
+            result[slot_id] = sorted(paths)
     return result
 
 
@@ -151,6 +179,7 @@ def compile_design_realization(
     section_order: list[str],
     execution: dict[str, Any] | None = None,
     resource_ledger: dict[str, Any] | None = None,
+    generated_resources: dict[str, Any] | None = None,
     image_policy: ImagePolicySnapshotV1 | dict[str, Any] | None = None,
 ) -> DesignRealizationContract:
     shells = [item for item in blueprint.route_shells if item.route_id == route_id]
@@ -161,8 +190,10 @@ def compile_design_realization(
         raise ValueError("design realization section order does not match the trusted route")
     moves = [item for item in blueprint.distinctive_moves if item.route_id == route_id]
     regions = [item for item in blueprint.section_regions if item.route_id == route_id]
-    admitted_resource_slot_ids = _admitted_resource_slot_ids(execution, resource_ledger)
-    local_paths_by_slot = _local_paths_by_slot(execution, resource_ledger)
+    admitted_resource_slot_ids = _admitted_resource_slot_ids(
+        execution, resource_ledger, generated_resources
+    )
+    local_paths_by_slot = _local_paths_by_slot(execution, resource_ledger, generated_resources)
     return DesignRealizationContract(
         route_id=route_id,
         section_order=list(section_order),

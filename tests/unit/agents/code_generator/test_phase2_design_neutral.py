@@ -54,6 +54,7 @@ from oryxenai.agents.code_generator.core.token_compiler import (
 from oryxenai.agents.code_generator.core.typescript_ast_audit import audit_typescript_source
 from oryxenai.agents.code_generator.core.work_graph_compiler import compile_site_plan
 from oryxenai.agents.code_generator.core.workspace import GenerationWorkspace
+from oryxenai.auth.worker_fence import AuthorizationFenceError
 
 
 def _blueprint() -> ExperienceBlueprintV3:
@@ -1765,3 +1766,76 @@ async def test_wave_scheduler_caps_concurrency_and_orders_results() -> None:
     results = await execute_waves(units, execute, max_concurrency=2)
     assert maximum <= 2
     assert [item.unit_id for item in results] == [f"u-{index}" for index in range(5)]
+
+
+def _preview_first_settings() -> SimpleNamespace:
+    return SimpleNamespace(
+        code_generator_verification=SimpleNamespace(preview_first_acceptance=True)
+    )
+
+
+@pytest.mark.asyncio
+async def test_review_and_polish_tolerates_generic_failure_under_preview_first(
+    monkeypatch,
+) -> None:
+    """A non-authorization failure in integration review must not block a
+    preview-first run: _review_and_polish should log and return instead of
+    raising, exactly like the equivalent verifier-side carve-out in
+    code_generator_verification.py."""
+
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def failing_review(**_kwargs: object) -> IntegrationReviewV1:
+        raise RuntimeError("model call failed")
+
+    monkeypatch.setattr(orchestrator, "_integration_review", failing_review)
+
+    await orchestrator._review_and_polish(
+        sessionmaker=None,
+        run_id=uuid4(),
+        settings=_preview_first_settings(),
+        run=SimpleNamespace(),
+        plan=None,
+        projections={},
+        workspace=None,
+        projection=None,
+        checkpoint_store=None,
+        checkpoint=None,
+        allowed_packages=set(),
+        public_text=set(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_review_and_polish_reraises_authorization_fence_under_preview_first(
+    monkeypatch,
+) -> None:
+    """An AuthorizationFenceError must always propagate, even under
+    preview-first acceptance -- a run whose authorization was fenced off
+    must not be silently tolerated as if it were an ordinary review
+    failure."""
+
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def fenced_review(**_kwargs: object) -> IntegrationReviewV1:
+        raise AuthorizationFenceError(
+            "CODE_GENERATOR_RUN_NOT_FOUND", "The Code Generator run was not found."
+        )
+
+    monkeypatch.setattr(orchestrator, "_integration_review", fenced_review)
+
+    with pytest.raises(AuthorizationFenceError):
+        await orchestrator._review_and_polish(
+            sessionmaker=None,
+            run_id=uuid4(),
+            settings=_preview_first_settings(),
+            run=SimpleNamespace(),
+            plan=None,
+            projections={},
+            workspace=None,
+            projection=None,
+            checkpoint_store=None,
+            checkpoint=None,
+            allowed_packages=set(),
+            public_text=set(),
+        )
