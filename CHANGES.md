@@ -11,6 +11,20 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 11:15 +05:30 — Antigravity (Gemini 3.8) — [e53ebfb] — Administrator control plane matching reference specifications 12 and 18–24
+
+Implemented the role-gated administrator control plane at `/admin` matching `17-admin-screen-reference-spec.md` and 8 visual references (`12-admin-control-center.png` and `18-admin-users-ledger.png` through `24-admin-action-confirmation.png`):
+- Pinned topbar with live session indicator, workspace link, refresh, sign-out, and monogram administrator badge.
+- Editorial header with live announcement region and safe account details card.
+- Six-tab navigation strip (`Users`, `Projects`, `Legacy`, `Deleted`, `Operations`, `Audit`) with active indicators.
+- Four summary metric cards (`Active users`, `Projects`, `Running jobs`, `Pending operations`) populated via `GET /api/v1/admin/summary`.
+- High-fidelity ledgers with status pills (`● Active`, `● Running`, `● Paused`, `● Complete`, `● Failed`), role badges, safe date formatting, and legal action clusters.
+- Prominent Deletion Boundary warning banner for deleted identity tombstones with authorized readmission gating.
+- Operations ledger exposing `Resume safely` strictly when `resumable: true`.
+- Strictly read-only Audit Trail ledger with zero mutation affordances.
+- Accessible typed confirmation modal (`<dialog>`) with backdrop blur, dynamic action badge/title, exact target verification, optional reason field, and idempotency key safety.
+- Passes all 20 auth frontend unit tests and all 76 backend auth unit and API tests.
+
 ### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [e37e302] - Deployment setup preflight improvements
 
 Made the deployment wizard derive active model credentials from
