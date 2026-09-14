@@ -22,6 +22,30 @@ from oryxenai.agents.build_preparation.schemas import (
 
 CONTENT_INDEX_TAG = "build-preparation-content-index"
 VISUAL_INDEX_TAG = "build-preparation-visual-index"
+BRIEF_SOURCE_VERSION = "build-preparation-brief-v1"
+BRIEF_NAMESPACED_SOURCE_VERSION = "build-preparation-namespaced-brief-v1"
+
+
+def _brief_source_version(routes: list[RouteScope]) -> str:
+    styles: set[str] = set()
+    for route in routes:
+        for section_id in route.section_ids:
+            if not section_id:
+                raise ValueError("Build Preparation section IDs cannot be empty.")
+            prefix = f"{route.route_id}:"
+            if ":" not in section_id:
+                styles.add("raw")
+            elif section_id.startswith(prefix) and ":" not in section_id[len(prefix) :]:
+                styles.add("namespaced")
+            else:
+                raise ValueError(
+                    "Build Preparation section IDs must be uniformly raw or route-namespaced."
+                )
+    if len(styles) > 1:
+        raise ValueError(
+            "Build Preparation cannot emit a brief with mixed raw and namespaced section IDs."
+        )
+    return BRIEF_NAMESPACED_SOURCE_VERSION if styles == {"namespaced"} else BRIEF_SOURCE_VERSION
 
 
 def _json_block(tag: str, payload: dict[str, Any]) -> str:
@@ -53,6 +77,7 @@ def build_content_brief(
 
     index_payload = {
         "kind": "content_index",
+        "brief_contract_version": _brief_source_version(routes),
         "run_id": run_id,
         "content_architect_content_hash": str(
             (content_architect.get("approved") or {}).get("content_hash", "")
@@ -189,6 +214,7 @@ def build_visual_brief(
 ) -> str:
     index_payload = {
         "kind": "visual_index",
+        "brief_contract_version": _brief_source_version(routes),
         "run_id": run_id,
         "visual_input_mode": visual_input_mode,
         "target_contract": target_contract,

@@ -173,6 +173,38 @@ def test_identity_validator_prefers_explicit_owner_over_repeated_employer_name()
     validate_content_visual_identity_consistency(content, visual)
 
 
+def test_identity_validator_accepts_grounded_technical_title_case_phrases() -> None:
+    content = {
+        "public_content_manifest": {
+            "site_title": "Maya Bennett - Endpoint Engineering",
+        },
+        "visual_director_handoff": {
+            "must_preserve_facts": (
+                "Microsoft Certified Endpoint Administrator Associate (2024)."
+            ),
+            "diagram_process_visual_opportunities": (
+                "Intune Autopilot -> Entra ID Join -> PowerShell Remediation "
+                "& App Packaging -> Compliance Validation"
+            ),
+        },
+    }
+    visual = {
+        "must_preserve": [
+            "Microsoft Certified Endpoint Administrator Associate (2024).",
+            (
+                "Intune Autopilot -> Entra ID Join -> PowerShell Remediation "
+                "& App Packaging -> Compliance Validation"
+            ),
+        ],
+        "visual_language": {
+            "diagram": "Use Intune Autopilot for the endpoint flow.",
+            "density": "Keep endpoint, app, and compliance labels readable.",
+        },
+    }
+
+    validate_content_visual_identity_consistency(content, visual)
+
+
 class _DownloadRepository:
     def __init__(self, state: BuildPreparationState) -> None:
         self.state = state

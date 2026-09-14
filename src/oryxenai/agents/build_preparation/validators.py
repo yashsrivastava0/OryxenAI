@@ -165,6 +165,27 @@ def _visual_identity_texts(visual_design_director: dict[str, Any]) -> list[str]:
     ]
 
 
+def _approved_visual_handoff_candidate_keys(
+    content_architect: dict[str, Any],
+) -> set[str]:
+    """Return name-like phrases inherited from the approved visual handoff.
+
+    The conservative identity regex also matches Title Case product,
+    certification, and process phrases.  A phrase copied from Content
+    Architect's approved Visual Director handoff is grounded input rather
+    than evidence that Visual Design Director introduced another owner.
+    """
+
+    handoff = content_architect.get("visual_director_handoff")
+    if not isinstance(handoff, dict):
+        return set()
+    return {
+        candidate.casefold()
+        for text in _walk_text(handoff)
+        for candidate in _person_name_candidates(text)
+    }
+
+
 def _count_person_names(values: list[str]) -> tuple[Counter[str], dict[str, str]]:
     counts: Counter[str] = Counter()
     display_names: dict[str, str] = {}
@@ -192,10 +213,10 @@ def validate_content_visual_identity_consistency(
     """Reject repeated visual-direction names that contradict approved content.
 
     The check is intentionally narrow: it needs an owner name from approved
-    facts and a repeated, two-word proper-name candidate in the visual
-    handoff.  A single incidental capitalized phrase is not enough to reject
-    a pack, while the common failure mode of copying a different person's
-    name into multiple visual constraints is hard-failed.
+    facts and a repeated, ungrounded two-word proper-name candidate in the
+    visual handoff.  A single incidental capitalized phrase is not enough to
+    reject a pack, and a Title Case phrase inherited from Content Architect's
+    approved Visual Director handoff is not a newly introduced identity.
     """
 
     if not isinstance(content_architect, dict) or not isinstance(visual_design_director, dict):
@@ -216,13 +237,16 @@ def validate_content_visual_identity_consistency(
         approved_key_for_error = next(iter(approved_keys), "")
     if not approved_keys:
         return
+    grounded_handoff_keys = _approved_visual_handoff_candidate_keys(content_architect)
     visual_texts = _visual_identity_texts(visual_design_director)
     visual_counts, visual_display_names = _count_person_names(visual_texts)
     visual_first_token_counts = _count_name_first_tokens(visual_texts, visual_display_names)
     mismatches = sorted(
         visual_display_names[key]
         for key, count in visual_counts.items()
-        if key not in approved_keys and (count > 1 or visual_first_token_counts.get(key, 0) > 1)
+        if key not in approved_keys
+        and key not in grounded_handoff_keys
+        and (count > 1 or visual_first_token_counts.get(key, 0) > 1)
     )
     if mismatches:
         approved_name = content_display_names[approved_key_for_error]
