@@ -1,6 +1,7 @@
 # Deployment options research
 
-Research basis: September 5, 2026. This document is intentionally focused on
+Research basis: September 5, 2026, with the deployment decision and current
+status refreshed on September 14, 2026. This document is intentionally focused on
 a first deployment for a very small demo where the main success criterion is
 that the complete agent-to-preview flow works.
 
@@ -111,6 +112,35 @@ R2 currently advertises a free Standard storage/operation allowance and free
 internet egress; see [R2 pricing](https://developers.cloudflare.com/r2/pricing/).
 R2 is still usage-metered and may require a payment method. Configure a budget
 alert and a short lifecycle for temporary objects; see [R2 billing policy](https://developers.cloudflare.com/billing/understand/billing-policy/).
+
+### Why R2 instead of Azure Blob for the first release?
+
+This is not only a price decision. The current repository already stores
+artifacts and previews through an S3-compatible adapter using `boto3` and a
+configurable endpoint. Cloudflare R2 exposes that S3-compatible API, so the
+existing code can be used with an endpoint, bucket, access key ID, and secret
+access key. See the repository adapters in
+[`src/oryxenai/storage/artifacts.py`](../../src/oryxenai/storage/artifacts.py)
+and [`src/oryxenai/storage/preview.py`](../../src/oryxenai/storage/preview.py).
+
+Azure Blob Storage is a valid alternative, but its native integration uses
+Azure Blob REST/SDK interfaces and Azure authorization choices. It is not a
+drop-in replacement for the current `boto3` S3 endpoint configuration. Moving
+would require an Azure Blob adapter, settings and credential changes, URL or
+readback adjustments, tests, and another production acceptance pass.
+
+For this two-user demo, R2's current Standard allowance includes 10 GB-month
+of storage, 1 million Class A operations, and 10 million Class B operations,
+with no R2 egress charge; usage is still metered. See the current
+[R2 pricing](https://developers.cloudflare.com/r2/pricing/). Azure Blob is
+also usage-priced by storage, operations, redundancy, and transfer; see
+[Azure Blob pricing](https://azure.microsoft.com/en-us/pricing/details/storage/blobs/).
+Using R2 leaves the Azure student credit primarily for the VM and avoids
+adding another Azure storage resource and provider-specific deployment path.
+
+Therefore the first deployment keeps R2. Azure Blob can be introduced later
+if an all-Azure requirement becomes more important than preserving the
+already-tested adapter boundary and the simplest initial release.
 
 ## What remains outside host credits
 

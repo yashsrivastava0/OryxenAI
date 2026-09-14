@@ -18,7 +18,8 @@ each responsible for one phase of the transformation.
 
 **Discovery is implemented end to end**, in its simplified/v2 form. The
 platform includes durable jobs, worker lifecycle, session-state persistence,
-5 API endpoints, and the vanilla-JS Discovery chat UI. Discovery stops after
+5 API endpoints, and the Discovery experience in the authenticated product
+frontend. Discovery stops after
 explicit brief approval; later agents are invoked only by an explicit,
 separate call. Discovery intentionally does NOT include: a separate immutable
 source-documents table (raw intake is stored directly as JSONB on the
@@ -108,6 +109,20 @@ cleanup, entitlement reset, bounded role transitions, and the local admin
 console. Owner-completed multi-account browser acceptance and production
 deployment remain separate gates; this is not a complete deployment claim.
 
+**The committed product shell now includes the explicit Generate/Preview
+stage, real Code Generator milestone progress, preview theater, traceability
+diagnostics, public fictional sample previews, and the administrator control
+plane.** These are repository capabilities and still require live browser
+acceptance after deployment.
+
+**The first deployment path is implemented but not executed.** The checked-in
+`compose.production.yaml`, `config/app.production.toml`, Caddy configuration,
+and `scripts/azure-deploy.sh` describe a one-VM Azure Compose release with
+PostgreSQL, migrations, API, worker, preview gateway, and HTTPS. The Azure VM
+itself has been provisioned and SSH-tested, but Docker, the repository,
+production `.env`, migrations, containers, DNS, and end-to-end acceptance are
+still pending. See `docs/project-status.md` and `docs/deployment/`.
+
 To verify current status rather than trusting this document: run
 `uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
 **plus** a `service.py`/`state.py` — an agent directory with only
@@ -133,8 +148,10 @@ deterministic mock, not a live implementation.
   endpoint.
 - No agent supervisor or cross-agent sequencing exists — every stage is
   started by an explicit caller.
-- Production deployment, billing, and published-portfolio deployment
-  automation remain excluded. Phase 4 administrator lifecycle, audit,
+- Executing a production deployment, billing automation, and published-
+  portfolio deployment automation remain outside the completed implementation.
+  A guided one-VM Azure Compose deployment path is implemented, but it has not
+  been run against the live VM. Phase 4 administrator lifecycle, audit,
   destructive cleanup/reset, local admin UI, and worker fencing are implemented
   locally; owner-completed multi-account browser acceptance is still an
   acceptance gate. Preview artifact storage may use the configured
@@ -175,10 +192,11 @@ src/oryxenai/
   jobs/                      durable PostgreSQL job queue, worker, heartbeat
   agents/shared/             contracts, registry, executor, model_client
   auth/                      identity, ownership, entitlements/fencing, admin lifecycle
-  agents/{discovery, content_architect, visual_design_director, code_generator}/
+  agents/{discovery, content_architect, visual_design_director, build_preparation, code_generator}/
   runtime/                   state_service, mock_runner
   api/routes/                stage/session APIs including build-preparation and code-generator
-  web/                       Jinja2 templates + static assets
+  web/                       Jinja2 templates + FastAPI-served static assets
+frontend/                    Preact/TypeScript/Vite authenticated product shell
 config/                      committed non-secret TOML configuration
 migrations/                  Alembic (async, settings-driven)
 tests/                       unit, api, integration, worker
@@ -329,10 +347,12 @@ The Discovery Agent is implemented end-to-end with the following architecture:
 - **API:** 5 REST endpoints — GET state, POST start, PUT answers, POST
   revise (natural-language brief revision), POST approve. See
   `agents/discovery/README.md` for the authoritative route table.
-- **Frontend:** Jinja2 + vanilla-JS chat composer → adaptive one-at-a-time
-  questions → brief review/edit/revise → approval flow, with refresh-safe
-  state recovery and a collapsed developer-tools panel for diagnostics. See
-  `docs/frontend-behavior-spec.md` for the full conversational/UX contract.
+- **Frontend:** The authenticated `/app` experience is a compiled
+  Preact/TypeScript/Vite product shell with adaptive one-at-a-time questions,
+  brief review/edit/revise, explicit stage handoffs, refresh-safe state
+  recovery, and diagnostics. The separate developer fixture harness remains
+  Jinja2 + vanilla JS. See `docs/frontend-behavior-spec.md` for the
+  conversational/UX contract.
 - **Tests:** unit (schemas, state machine, prompt builder, validators,
   adapter, service), API (HTTP flow, route contract), integration
   (persistence, worker) — run `uv run pytest -k discovery` for current
@@ -385,11 +405,17 @@ Content Architect's architecture one stage down the pipeline:
 - **Authentication follow-up:** the bounded local implementation is complete
   through Phase 4. Remaining work is the owner-completed Google browser
   acceptance gate and a separately authorized production deployment handoff.
-- **Refine and evaluate the Discovery, Content Architect, and Visual Design
-  Director agents** using real but privacy-safe examples.
-- **Evaluate Code Generator production generations** with privacy-safe packs;
-  the explicit session integration is implemented, while Build Preparation
-  deliberately does not auto-chain into it.
+- **Release follow-up:** reconcile the dirty multi-agent worktree, run the
+  relevant checks, select one exact clean SHA, and complete the Azure VM
+  Compose deployment documented in `docs/deployment/`.
+- **Production acceptance follow-up:** configure final DNS/Supabase/R2
+  coordinates, then prove Google login, all explicit stages, worker jobs,
+  artifact upload/readback, embedded preview, direct preview URL, and the
+  two-user ownership boundary on Azure.
+- **Evaluation follow-up:** continue refining Discovery, Content Architect,
+  Visual Design Director, and Code Generator using the existing campaign
+  ledgers and privacy-safe inputs. A successful local or harness run is not a
+  substitute for the live Azure acceptance gate.
 
 ## Multi-agent collaboration protocol
 
@@ -462,6 +488,10 @@ consistent:
 - [`docs/frontend-behavior-spec.md`](docs/frontend-behavior-spec.md) — the
   conversational/UX contract for the Discovery/Content Architect chat flow.
 - [`CHANGES.md`](CHANGES.md) — change history (who/what/where/when/why).
+- [`docs/project-status.md`](docs/project-status.md) — current implemented,
+  pending, Azure, and next-step handoff.
+- [`docs/deployment/README.md`](docs/deployment/README.md) — deployment index
+  and one-VM operational path.
 - [`DECISIONS.md`](DECISIONS.md) — decisions, rejected alternatives, and
   open/deferred items.
 - [`CODEX.md`](CODEX.md) and [`CLAUDE.md`](CLAUDE.md) — short redirects to

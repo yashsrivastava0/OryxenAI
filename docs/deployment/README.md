@@ -6,6 +6,20 @@ generated portfolio preview. It is designed for a very small demo, normally
 no more than two active normal users, rather than for a scalable public
 service.
 
+## Current status — 2026-09-14
+
+The Azure VM and its network were provisioned, and SSH access was verified.
+The application has **not** been deployed to Azure: Docker, the repository,
+PostgreSQL, migrations, Caddy, the worker, and the preview gateway have not
+yet been started on the VM.
+
+The repository now contains the guided production Compose path and
+`scripts/azure-deploy.sh`, but the shared development worktree is not clean.
+Select and record an exact reviewed Git commit before deploying. Read the
+[current project status](../project-status.md) first, then use the
+[live Azure checkpoint](./06-live-azure-vm-status.md) and
+[easy VM runbook](./02-azure-vm-runbook.md).
+
 ## Recommended shape
 
 Run the repository's existing Docker topology on one Azure Linux VM. Keep the
@@ -85,9 +99,11 @@ offer normally covers the first year; renewal is not assumed to be free.
 
 ## Deployment order
 
-For the live human/AI handoff, read the [current Azure deployment status](./04-current-azure-deployment-status.md)
-before continuing the VM wizard. It is a checkpoint, not a replacement for
-this general deployment plan.
+For a new Azure VM wizard, use the historical
+[pre-provisioning checkpoint](./04-current-azure-deployment-status.md) and the
+[Chrome browser-agent setup prompt](./05-chrome-browser-agent-azure-setup-prompt.md).
+The wizard is already complete for the current VM, so do not restart it or
+create a duplicate resource group.
 
 If the browser session has been lost or restarted, use the detailed [Chrome
 browser-agent Azure setup prompt](./05-chrome-browser-agent-azure-setup-prompt.md)
@@ -96,7 +112,8 @@ exact portal values, and the post-creation stopping point.
 
 After the VM is created, use the [live Azure VM status checkpoint](./06-live-azure-vm-status.md)
 as the current source of truth. The older [`04-current-azure-deployment-status.md`](./04-current-azure-deployment-status.md)
-file is retained as historical pre-provisioning context.
+file is retained as historical pre-provisioning context. For the whole
+implemented/pending/next-state picture, use [`docs/project-status.md`](../project-status.md).
 
 Follow the documents in this order:
 
@@ -112,7 +129,7 @@ For routine maintenance, the only command family needed on the VM is:
 ```bash
 ./scripts/azure-deploy.sh status
 ./scripts/azure-deploy.sh logs
-./scripts/azure-deploy.sh deploy
+./scripts/azure-deploy.sh deploy <EXACT_RELEASE_SHA>
 ./scripts/azure-deploy.sh verify
 ```
 
