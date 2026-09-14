@@ -364,6 +364,12 @@ function ContentReviewPanel({
         </div>
       )}
 
+      {isApproved && (
+        <p className="approval-committed-note" role="status">
+          Approval is saved. Start the next stage when you are ready.
+        </p>
+      )}
+
       {/* ActionDock matching 04-content-route-review.png */}
       <ActionDock
         note={

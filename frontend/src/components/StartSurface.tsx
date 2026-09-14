@@ -27,7 +27,9 @@ const STARTER_PROMPTS: StarterPrompt[] = [
   },
 ];
 
-const MAX_INTAKE_WORDS = 1000;
+// This is guidance for a thorough source packet, not the transport safety
+// limit. The backend contract remains bounded by the 30,000-character guard.
+const MAX_INTAKE_WORDS = 3000;
 const MAX_INTAKE_CHARACTERS = 30000;
 
 export function StartSurface({ onStart, disabled = false, disabledReason }: StartSurfaceProps) {
@@ -150,12 +152,14 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
         </div>
       )}
 
-      {/* Sticky Bottom ActionDock matching 02-discovery-intake.png */}
+      <p className="intake-supporting-note">
+        Start with what you have. You can refine the brief before moving to Content.
+      </p>
+
+      {/* Reserved action area matching 02-discovery-intake.png; intake keeps
+          this dock in normal flow so the prompt deck is never obscured. */}
       <div className="action-dock intake-dock">
         <div className="action-dock-content">
-          <div className="action-dock-left">
-            <span className="dock-quiet-phrase">A deeper conversation for a more intentional future.</span>
-          </div>
           <div className="action-dock-right">
             <div className="dock-button-wrapper">
               <button
