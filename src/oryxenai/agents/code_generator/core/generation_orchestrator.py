@@ -137,7 +137,7 @@ from oryxenai.agents.shared.providers.errors import (
     ProviderError,
     stable_provider_failure,
 )
-from oryxenai.auth.worker_fence import WorkerAuthorizationFence
+from oryxenai.auth.worker_fence import AuthorizationFenceError, WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
@@ -1871,17 +1871,37 @@ class CodeGeneratorGenerationOrchestrator:
         allowed_packages: set[str],
         public_text: set[str],
     ) -> None:
-        review = await self._integration_review(
-            sessionmaker=sessionmaker,
-            run_id=run_id,
-            settings=settings,
-            run=run,
-            plan=plan,
-            projections=projections,
-            workspace=workspace,
-            projection=projection,
-            round_number=0,
+        verification_settings = getattr(settings, "code_generator_verification", None)
+        preview_first_acceptance = bool(
+            getattr(verification_settings, "preview_first_acceptance", False)
         )
+        try:
+            review = await self._integration_review(
+                sessionmaker=sessionmaker,
+                run_id=run_id,
+                settings=settings,
+                run=run,
+                plan=plan,
+                projections=projections,
+                workspace=workspace,
+                projection=projection,
+                round_number=0,
+            )
+        except AuthorizationFenceError:
+            raise
+        except Exception as exc:
+            if not preview_first_acceptance:
+                raise
+            logger.warning(
+                "preview-first integration review unavailable run_id=%s error_type=%s",
+                run_id,
+                type(exc).__name__,
+            )
+            return
+        if preview_first_acceptance:
+            # The review receipt remains durable evidence, but its generated
+            # output cannot consume polish calls or block a buildable preview.
+            return
         owners = {item.unit_id: item for item in plan.work_graph.units if not item.terminal}
         maximum_rounds = int(
             getattr(settings.code_generator_generation, "max_integration_polish_rounds", 2)
