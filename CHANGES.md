@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-14 15:09 +05:30 — Codex (GPT-5) — [d0894d6] — Make Generation previews truthful
+
+Removed invented build progress, timestamps, and Publish/Deploy UI from the
+Generation workspace. Added explicit verified-versus-candidate preview labels,
+a regeneration action, preview-first tablet layout, reduced-motion-safe stage
+transition, and fixture/browser coverage for those states.
+
 ### 2026-09-14 14:52 +05:30 — Codex (GPT-5) — [62c4ac7] — Refresh project and deployment status documentation
 
 Added the canonical `docs/project-status.md` handoff and aligned `AGENTS.md`,
