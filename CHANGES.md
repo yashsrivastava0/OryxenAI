@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [pending commit] - Simple Azure VM deployment path
+### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [88ba402] - Simple Azure VM deployment path
 
 Implemented the beginner-friendly Azure deployment contract: one guided
 `azure-deploy.sh` command installs Docker, renders VM-local production config,
