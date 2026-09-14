@@ -13,6 +13,10 @@ ownership/admin foundation, and a developer testing harness.
 > multi-account browser acceptance gate remain separate, not-yet-done steps
 > — see `AGENTS.md` for the exact boundary.
 
+> **Current handoff:** Read [docs/project-status.md](docs/project-status.md)
+> for the current implemented/pending/next-state summary. Azure infrastructure
+> exists, but the application has not yet been deployed to the VM.
+
 > **AI agents working on this repo:** start with
 > [`AGENTS.md`](AGENTS.md), not this file — it's the canonical, current
 > project context. See also [`CHANGES.md`](CHANGES.md) (change history) and
@@ -43,9 +47,10 @@ source, clean build, and multi-viewport verification screenshots
 - LangChain/LangGraph or any other agent framework
 - Redis, Celery, Temporal, Kafka, or any external queue — jobs are durable
   PostgreSQL rows (see `src/oryxenai/jobs/`)
-- Production deployment, billing automation, and published-portfolio hosting
-  automation; the owner-completed multi-account browser acceptance gate for
-  authentication is also still open (see `AGENTS.md`)
+- Executing the production deployment, billing automation, and
+  published-portfolio hosting automation; the guided one-VM Azure deployment
+  path is implemented and documented, but the owner-completed multi-account
+  browser acceptance gate is still open (see `AGENTS.md`)
 - A separate frontend framework, visual editor, SEO/analytics for the
   *generated* portfolios themselves
 - Vector database, embeddings, prompt-management platform, observability SaaS
@@ -57,12 +62,16 @@ source, clean build, and multi-viewport verification screenshots
 - **Database:** PostgreSQL (JSONB for state and payloads)
 - **Preparation artifacts:** private S3-compatible object storage (Cloudflare
   R2 by default); PostgreSQL stores metadata and hashes only
-- **Frontend:** Jinja2 templates + vanilla JS/CSS (no framework, no CDN)
+- **Product frontend:** Preact + TypeScript + Vite, compiled into the static
+  bundle served by FastAPI; it does not run a separate production server
+- **Developer harness:** Jinja2 templates + vanilla JS/CSS, served by FastAPI
 - **Agents:** Ordinary Python protocols + Pydantic models (no agent framework)
-- **Model:** Provider-neutral `ModelClient` protocol with config-driven Anthropic Messages API defaults and extensible provider adapters
+- **Model:** Provider-neutral `ModelClient` protocol with profiles and
+  credential names controlled by `config/models.toml`
 - **Config:** Secrets in `.env`; non-secret config in committed `config/app.toml` + `config/models.toml`
 - **Docker:** One app image (API/UI, worker, and preview gateway all run
-  from it as separate services) + one PostgreSQL container
+  from it as separate services) + one PostgreSQL container; production adds
+  Compose-managed Caddy
 
 ## Folder structure
 
@@ -86,11 +95,12 @@ OryxenAI/
 ├── config/                        # committed non-secret TOML config
 ├── migrations/                    # Alembic
 ├── tests/                         # unit, api, integration, worker
-├── docs/                          # architecture.md, frontend-behavior-spec.md,
-│                                   # run/run.md, code-generator-architecture/
+├── frontend/                      # authenticated Preact/TypeScript product shell
+├── docs/                          # architecture, frontend, deployment, and
+│                                   # Code Generator documentation
 ├── scripts/                       # cross-platform launcher scripts — see docs/run/run.md
 ├── .github/workflows/ci.yml
-├── Dockerfile, compose.yaml, alembic.ini, pyproject.toml, uv.lock
+├── Dockerfile, compose*.yaml, Caddyfile, alembic.ini, pyproject.toml, uv.lock
 └── README.md
 ```
 
