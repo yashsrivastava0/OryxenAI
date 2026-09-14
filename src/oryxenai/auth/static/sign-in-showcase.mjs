@@ -294,8 +294,25 @@ export function initOutcomeShowcase() {
 
   const cards = [...section.querySelectorAll("[data-outcome-id]")];
   const previews = [...dialog.querySelectorAll("[data-outcome-preview]")];
+  const routeLinks = [...dialog.querySelectorAll("[data-preview-route]")];
   const authLink = section.querySelector("[data-focus-auth]");
   let returnTrigger = null;
+
+  function setRouteState(preview, route) {
+    routeLinks.forEach((link) => {
+      if (link.closest("[data-outcome-preview]") !== preview) return;
+      if (link.getAttribute("data-preview-route") === route) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+
+    const routeStatus = preview.querySelector("[data-preview-route-status]");
+    if (routeStatus instanceof HTMLElement) {
+      routeStatus.textContent = `/${route.slice(route.lastIndexOf("-") + 1)}`;
+    }
+  }
 
   function resetCardState() {
     cards.forEach((card) => card.setAttribute("aria-expanded", "false"));
@@ -323,10 +340,24 @@ export function initOutcomeShowcase() {
       const selected = previews.find((preview) => preview.getAttribute("data-outcome-preview") === id);
       if (!selected) return;
       previews.forEach((preview) => { preview.hidden = preview !== selected; });
+      setRouteState(selected, `${id}-home`);
       returnTrigger = card;
       cards.forEach((candidate) => candidate.setAttribute("aria-expanded", String(candidate === card)));
       dialog.showModal();
       window.requestAnimationFrame(() => closeButton.focus());
+    });
+  });
+
+  routeLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const preview = link.closest("[data-outcome-preview]");
+      const route = link.getAttribute("data-preview-route");
+      if (!(preview instanceof HTMLElement) || preview.hidden || !route) return;
+      const target = preview.querySelector(`[data-preview-screen="${route}"]`);
+      if (!target) return;
+      event.preventDefault();
+      setRouteState(preview, route);
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
