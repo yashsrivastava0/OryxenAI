@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [pending commit] - Deployment setup preflight improvements
+### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [e37e302] - Deployment setup preflight improvements
 
 Made the deployment wizard derive active model credentials from
 `config/models.toml`, require those keys during setup/doctor, reject example
