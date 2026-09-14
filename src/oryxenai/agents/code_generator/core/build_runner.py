@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ class BuildRunnerError(ValueError):
 # the expensive package-manager section single-flight while allowing the
 # subsequent typecheck/build/runtime work to remain concurrent.
 _PACKAGE_INSTALL_LOCK = asyncio.Lock()
+_VITE_WINDOWS_SPAWN_DENIED = "VITE_NODE_SPAWN_EPERM"
 
 
 def _normalize(value: str) -> str:
@@ -70,6 +72,17 @@ def diagnostic(
         file=file,
         fingerprint=fingerprint,
     )
+
+
+def is_vite_windows_spawn_failure(diagnostics: Iterable[Diagnostic]) -> bool:
+    """Identify Vite's host-level Windows child-process denial.
+
+    This occurs while Vite configures path resolution, before it evaluates the
+    generated application. It must not consume source-repair budget.
+    """
+
+    values = list(diagnostics)
+    return bool(values) and all(item.code == _VITE_WINDOWS_SPAWN_DENIED for item in values)
 
 
 def _command(settings: Any, name: str, default: list[str]) -> list[str]:
@@ -142,9 +155,30 @@ async def _run(
             owner="infrastructure",
         )
     if result.returncode != 0:
+        output = result.combined_output
+        normalized_output = output.casefold()
+        if (
+            phase == "build"
+            and "spawn eperm" in normalized_output
+            and (
+                "windowssaferealpathsync" in normalized_output
+                or "optimizesaferealpathsync" in normalized_output
+            )
+        ):
+            return result, diagnostic(
+                _VITE_WINDOWS_SPAWN_DENIED,
+                (
+                    "The local Windows Node toolchain could not start Vite's required "
+                    "path-resolution helper (spawn EPERM). Pause competing Node or build "
+                    "activity, rerun the toolchain preflight, then retry verification."
+                ),
+                phase=phase,
+                command=" ".join(command),
+                owner="infrastructure",
+            )
         return result, diagnostic(
             f"{phase.upper()}_FAILED",
-            result.combined_output or "The trusted command failed.",
+            output or "The trusted command failed.",
             phase=phase,
             command=" ".join(command),
         )
