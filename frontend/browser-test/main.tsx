@@ -21,7 +21,12 @@ import { adaptCodeGenerator } from "../src/data/adapters/generation";
 // var(...) declarations and browser-default typography.
 import "../../src/oryxenai/auth/static/tokens.css";
 import "../../src/oryxenai/auth/static/motion.css";
-import { generationNeedsAttentionWithPreview, generationWorking } from "../src/data/adapters/generation.fixtures";
+import {
+  generationNeedsAttentionWithCandidate,
+  generationNeedsAttentionWithPreview,
+  generationReady,
+  generationWorking,
+} from "../src/data/adapters/generation.fixtures";
 import { StageContextStrip } from "../src/components/StageContextStrip";
 import "../src/styles/shell.css";
 
@@ -40,6 +45,7 @@ function getJourney(isDiscover: boolean): JourneyStageVM[] {
 function FixtureFrame({ children }: { children: ComponentChildren }) {
   const fixture = new URLSearchParams(window.location.search).get("fixture") ?? "discovery-input";
   const isDiscover = fixture.startsWith("discovery-");
+  const isGeneration = fixture.startsWith("generation-");
   const journey = getJourney(isDiscover);
 
   return (
@@ -76,8 +82,8 @@ function FixtureFrame({ children }: { children: ComponentChildren }) {
 
       <main className="app-work-surface">
         <div className="app-stage-layout">
-          <section id="workspace-stage" className="stage-frame" tabIndex={-1}>
-            {children}
+          <section id="workspace-stage" className="stage-frame" data-stage={isGeneration ? "generate" : "content"} tabIndex={-1}>
+            <div className="stage-transition-layer">{children}</div>
           </section>
           <OutputInspector
             entries={[{ id: "content", label: "Content Architect", state: "review", agentOutput: null }]}
@@ -182,6 +188,12 @@ function StageFixture() {
   if (fixture === "generation-attention") {
     const jobs = [{ id: "job-verify-failed", kind: "code_generator.verify_and_preview", status: "failed", attempt: 1, max_attempts: 3 }];
     return <GenerationStage view={adaptCodeGenerator(generationNeedsAttentionWithPreview, true, jobs)} canMutate onStart={noop} onRetry={noop} onRegenerate={noop} />;
+  }
+  if (fixture === "generation-ready") {
+    return <GenerationStage view={adaptCodeGenerator(generationReady, true, [])} canMutate onStart={noop} onRetry={noop} onRegenerate={noop} />;
+  }
+  if (fixture === "generation-candidate") {
+    return <GenerationStage view={adaptCodeGenerator(generationNeedsAttentionWithCandidate, true, [])} canMutate onStart={noop} onRetry={noop} onRegenerate={noop} />;
   }
   return <p>Unknown fixture</p>;
 }

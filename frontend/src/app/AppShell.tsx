@@ -1006,6 +1006,7 @@ export function AppShell({
           <div className="app-stage-layout">
             <ErrorBoundary fallbackTitle="Unable to display this stage" onReset={refetchCurrentSession}>
               <section id="workspace-stage" className="stage-frame" data-stage={activeStage} tabIndex={-1}>
+              <div key={activeStage} className="stage-transition-layer">
               {!state.sessionId ? (
                 <StartSurface
                   onStart={handleStartPortfolio}
@@ -1077,6 +1078,7 @@ export function AppShell({
                     onRegenerate={() => runGenerationMutation("regenerate")}
                   />
                 ) : null}
+              </div>
               </section>
             </ErrorBoundary>
             <OutputInspector entries={outputEntries} activeStage={activeStage} enabled={Boolean(developer && state.sessionId)} />

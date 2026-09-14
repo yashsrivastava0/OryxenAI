@@ -106,7 +106,7 @@ describe("authenticated product stages", () => {
       h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationNotStarted, true) })
     );
     expect(availHtml).toContain("codegen-workspace");
-    expect(availHtml).toContain("From idea to launch.");
+    expect(availHtml).toContain("Ready to build your portfolio.");
     expect(availHtml).toContain("BUILD WORKSPACE");
     expect(availHtml).toContain("Desktop");
     expect(availHtml).toContain("TELL ORYXENAI WHAT TO DO NEXT");
@@ -117,17 +117,17 @@ describe("authenticated product stages", () => {
     expect(availHtml).toContain("Verify");
     expect(availHtml).toContain("Preview");
 
-    // 3. Working matching Image 14 (Building pages, progress bar, stop button)
+    // 3. Working matching Image 14 (Building pages, real milestone state, stop button)
     const workingHtml = renderToString(
       h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationWorking, true) })
     );
     expect(workingHtml).toContain("codegen-workspace");
     expect(workingHtml).toContain("Building your site");
     expect(workingHtml).toContain("Building pages...");
-    expect(workingHtml).toContain("step-progress-bar");
-    expect(workingHtml).toContain("62%");
     expect(workingHtml).toContain("■ Stop generation");
-    expect(workingHtml).toContain("Preview updating as pages are verified");
+    expect(workingHtml).toContain("Preview updates after each verified backend milestone");
+    expect(workingHtml).not.toContain("62%");
+    expect(workingHtml).not.toContain("1m ago");
 
     // 4. Attention matching Image 15 (Generation needs attention, 3 pillars, preserved preview, retry, open details)
     const attentionHtml = renderToString(
@@ -149,8 +149,10 @@ describe("authenticated product stages", () => {
       h(GenerationStage, { ...genProps, view: adaptCodeGenerator(generationReady, true) })
     );
     expect(readyHtml).toContain("codegen-workspace");
-    expect(readyHtml).toContain("Publish when ready");
+    expect(readyHtml).toContain("Open verified preview");
+    expect(readyHtml).toContain("Regenerate portfolio");
+    expect(readyHtml).not.toContain("Publish");
+    expect(readyHtml).not.toContain("Deploy");
     expect(readyHtml).toContain("preview.example.test");
   });
 });
-
