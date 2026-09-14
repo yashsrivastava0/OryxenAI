@@ -168,6 +168,12 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     assert all(response.status_code == 404 for response in dev_pages)
     sign_in = responses[1]
     assert sign_in.text.index("auth-client.js") < sign_in.text.index("auth-page.mjs")
+    assert 'class="sign-in-showcase"' in sign_in.text
+    assert sign_in.text.count('class="outcome-card"') == 3
+    assert 'id="outcome-preview-dialog"' in sign_in.text
+    assert sign_in.text.count('data-outcome-preview=') == 3
+    assert "Example generated from a test brief." in sign_in.text
+    assert "sign-in-showcase.mjs" in sign_in.text
     product = responses[6]
     assert "auth-client.js" in product.text
     assert "app-auth-bootstrap.mjs" in product.text

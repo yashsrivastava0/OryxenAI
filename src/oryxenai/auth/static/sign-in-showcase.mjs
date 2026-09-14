@@ -281,6 +281,67 @@ export function initSignInShowcase() {
   startAutoplay();
 }
 
+/**
+ * Opens the three fictional outcome examples in one native modal dialog.
+ * The preview content is already in the trusted template; this controller
+ * only toggles visibility and restores focus to the card that opened it.
+ */
+export function initOutcomeShowcase() {
+  const section = document.querySelector(".outcome-showcase");
+  const dialog = document.querySelector("#outcome-preview-dialog");
+  const closeButton = dialog?.querySelector("[data-outcome-close]");
+  if (!section || !(dialog instanceof HTMLDialogElement) || !(closeButton instanceof HTMLElement)) return;
+
+  const cards = [...section.querySelectorAll("[data-outcome-id]")];
+  const previews = [...dialog.querySelectorAll("[data-outcome-preview]")];
+  const authLink = section.querySelector("[data-focus-auth]");
+  let returnTrigger = null;
+
+  function resetCardState() {
+    cards.forEach((card) => card.setAttribute("aria-expanded", "false"));
+  }
+
+  function restoreFocus() {
+    resetCardState();
+    if (returnTrigger instanceof HTMLElement) returnTrigger.focus();
+    returnTrigger = null;
+  }
+
+  function closePreview() {
+    if (dialog.open) {
+      resetCardState();
+      dialog.close();
+    } else {
+      restoreFocus();
+    }
+  }
+
+  cards.forEach((card) => {
+    card.addEventListener("click", () => {
+      const id = card.getAttribute("data-outcome-id");
+      if (!id) return;
+      const selected = previews.find((preview) => preview.getAttribute("data-outcome-preview") === id);
+      if (!selected) return;
+      previews.forEach((preview) => { preview.hidden = preview !== selected; });
+      returnTrigger = card;
+      cards.forEach((candidate) => candidate.setAttribute("aria-expanded", String(candidate === card)));
+      dialog.showModal();
+      window.requestAnimationFrame(() => closeButton.focus());
+    });
+  });
+
+  closeButton.addEventListener("click", closePreview);
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) closePreview();
+  });
+  dialog.addEventListener("cancel", restoreFocus);
+  dialog.addEventListener("close", restoreFocus);
+
+  authLink?.addEventListener("click", () => {
+    window.requestAnimationFrame(() => document.getElementById("google-sign-in")?.focus());
+  });
+}
+
 export function resetGoogleCta() {
   const googleBtn = document.getElementById("google-sign-in");
   if (!googleBtn) return;
@@ -295,8 +356,12 @@ export function resetGoogleCta() {
 // Auto-run if loaded in browser
 if (typeof document !== "undefined") {
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initSignInShowcase);
+    document.addEventListener("DOMContentLoaded", () => {
+      initSignInShowcase();
+      initOutcomeShowcase();
+    });
   } else {
     initSignInShowcase();
+    initOutcomeShowcase();
   }
 }

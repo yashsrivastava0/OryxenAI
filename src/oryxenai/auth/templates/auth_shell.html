@@ -435,6 +435,129 @@
       </ol>
     </section>
 
+    <!-- Public, fictional examples: previewable before authentication. -->
+    <section class="outcome-showcase" aria-labelledby="outcome-showcase-title">
+      <div class="outcome-showcase-header">
+        <div>
+          <p class="eyebrow">OUTCOME SHOWCASE</p>
+          <h2 id="outcome-showcase-title">See what the studio makes.</h2>
+        </div>
+        <p>Finished examples, before you sign in.</p>
+      </div>
+
+      <div class="outcome-showcase-grid">
+        <button class="outcome-card" type="button" data-outcome-id="product" aria-haspopup="dialog" aria-controls="outcome-preview-dialog" aria-expanded="false">
+          <span class="outcome-thumbnail outcome-thumbnail-product" aria-hidden="true">
+            <span class="thumb-browser-bar"><i></i><i></i><i></i><b>maya.chen / selected work</b></span>
+            <span class="thumb-product-canvas">
+              <span class="thumb-product-copy"><b>Tools for<br>clearer work.</b><i>Product design / 2025</i></span>
+              <span class="thumb-product-shape"></span>
+            </span>
+          </span>
+          <span class="outcome-card-copy">
+            <span class="outcome-card-kicker">PRODUCT DESIGN · SAMPLE</span>
+            <span class="outcome-card-name">Maya Chen</span>
+            <span class="outcome-card-role">Product designer</span>
+            <span class="outcome-card-description">A product practice grounded in clear decisions and humane systems.</span>
+            <span class="outcome-card-action">View sample <span aria-hidden="true">→</span></span>
+          </span>
+        </button>
+
+        <button class="outcome-card" type="button" data-outcome-id="systems" aria-haspopup="dialog" aria-controls="outcome-preview-dialog" aria-expanded="false">
+          <span class="outcome-thumbnail outcome-thumbnail-systems" aria-hidden="true">
+            <span class="thumb-browser-bar"><i></i><i></i><i></i><b>arjun.mehta / systems</b></span>
+            <span class="thumb-systems-canvas">
+              <span class="thumb-systems-label">RELIABILITY / AT SCALE</span>
+              <span class="thumb-systems-line line-one"></span>
+              <span class="thumb-systems-line line-two"></span>
+              <span class="thumb-systems-node node-one">99.98</span>
+              <span class="thumb-systems-node node-two">42ms</span>
+              <span class="thumb-systems-node node-three">3 regions</span>
+            </span>
+          </span>
+          <span class="outcome-card-copy">
+            <span class="outcome-card-kicker">SYSTEMS ENGINEERING · SAMPLE</span>
+            <span class="outcome-card-name">Arjun Mehta</span>
+            <span class="outcome-card-role">Systems engineer</span>
+            <span class="outcome-card-description">Infrastructure work explained through reliability, scale, and outcomes.</span>
+            <span class="outcome-card-action">View sample <span aria-hidden="true">→</span></span>
+          </span>
+        </button>
+
+        <button class="outcome-card" type="button" data-outcome-id="creative" aria-haspopup="dialog" aria-controls="outcome-preview-dialog" aria-expanded="false">
+          <span class="outcome-thumbnail outcome-thumbnail-creative" aria-hidden="true">
+            <span class="thumb-browser-bar"><i></i><i></i><i></i><b>noor.alvarez / practice</b></span>
+            <span class="thumb-creative-canvas">
+              <span class="thumb-creative-word">MAKE<br>ROOM<br>FOR<br>THE<br>IDEA.</span>
+              <span class="thumb-creative-orbit orbit-one"></span>
+              <span class="thumb-creative-orbit orbit-two"></span>
+              <span class="thumb-creative-caption">Creative direction / 2024—25</span>
+            </span>
+          </span>
+          <span class="outcome-card-copy">
+            <span class="outcome-card-kicker">CREATIVE DIRECTION · SAMPLE</span>
+            <span class="outcome-card-name">Noor Alvarez</span>
+            <span class="outcome-card-role">Creative director</span>
+            <span class="outcome-card-description">A visual practice that gives ambitious ideas a sharper public shape.</span>
+            <span class="outcome-card-action">View sample <span aria-hidden="true">→</span></span>
+          </span>
+        </button>
+      </div>
+
+      <div class="outcome-showcase-footer">
+        <p>Fictional examples built from test briefs. The studio keeps your work private until you decide otherwise.</p>
+        <a class="outcome-create-cta" href="#sign-in-panel" data-focus-auth>Make yours <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <dialog id="outcome-preview-dialog" class="outcome-preview-dialog" aria-labelledby="outcome-dialog-title" aria-describedby="outcome-dialog-note">
+      <div class="outcome-dialog-sheet">
+        <header class="outcome-dialog-header">
+          <div>
+            <p class="eyebrow">LOCAL SAMPLE PREVIEW</p>
+            <h2 id="outcome-dialog-title">Sample portfolio preview</h2>
+          </div>
+          <button class="outcome-dialog-close" type="button" data-outcome-close aria-label="Close sample preview" autofocus>×</button>
+        </header>
+        <p id="outcome-dialog-note" class="outcome-dialog-note">Example generated from a test brief. No customer data is used in this preview.</p>
+
+        <div id="outcome-dialog-content">
+          <article class="outcome-preview outcome-preview-product" data-outcome-preview="product" hidden>
+            <div class="outcome-preview-topline"><span>PRODUCT DESIGN / MAYA CHEN</span><span>01—04</span></div>
+            <h3>Tools for clearer work.</h3>
+            <p class="outcome-preview-lede">I design calm, useful software for teams doing complex work. This fictional sample shows the kind of story OryxenAI can help shape.</p>
+            <section class="outcome-preview-feature">
+              <div><span class="outcome-preview-label">FEATURED CASE STUDY</span><h4>Making the operational picture legible.</h4><p>A case study structure that moves from the messy starting point to the decision, the shipped system, and the result.</p></div>
+              <div class="preview-diagram preview-diagram-product" aria-hidden="true"><span></span><span></span><span></span><i></i></div>
+            </section>
+            <div class="outcome-preview-columns"><section><span class="outcome-preview-label">SELECTED WORK</span><div class="preview-list-item"><b>Signal room</b><span>Product strategy · 2025</span></div><div class="preview-list-item"><b>Shared ground</b><span>Service design · 2024</span></div></section><aside><span class="outcome-preview-label">WORKING PRINCIPLE</span><p>Good tools make the next decision easier to see.</p></aside></div>
+          </article>
+
+          <article class="outcome-preview outcome-preview-systems" data-outcome-preview="systems" hidden>
+            <div class="outcome-preview-topline"><span>SYSTEMS ENGINEERING / ARJUN MEHTA</span><span>01—04</span></div>
+            <h3>Reliability you can explain.</h3>
+            <p class="outcome-preview-lede">I build resilient systems and make their trade-offs visible. This fictional sample shows an evidence-first portfolio for an infrastructure practice.</p>
+            <section class="outcome-preview-feature">
+              <div><span class="outcome-preview-label">FEATURED CASE STUDY</span><h4>Reducing the cost of a hard failure.</h4><p>Architecture, constraints, and measurable outcomes arranged as a readable technical narrative.</p></div>
+              <div class="preview-diagram preview-diagram-systems" aria-hidden="true"><span>EDGE</span><i></i><span>CORE</span><i></i><span>DATA</span></div>
+            </section>
+            <div class="outcome-preview-columns"><section><span class="outcome-preview-label">SELECTED WORK</span><div class="preview-list-item"><b>QueueGuard</b><span>Distributed systems · 2025</span></div><div class="preview-list-item"><b>Northstar</b><span>Platform reliability · 2023</span></div></section><aside><span class="outcome-preview-label">WORKING PRINCIPLE</span><p>Reliability is a product promise, not a back-office metric.</p></aside></div>
+          </article>
+
+          <article class="outcome-preview outcome-preview-creative" data-outcome-preview="creative" hidden>
+            <div class="outcome-preview-topline"><span>CREATIVE DIRECTION / NOOR ALVAREZ</span><span>01—04</span></div>
+            <h3>Make room for the idea.</h3>
+            <p class="outcome-preview-lede">I help ambitious teams find the clearest expression of what they mean. This fictional sample pairs a strong point of view with the work behind it.</p>
+            <section class="outcome-preview-feature">
+              <div><span class="outcome-preview-label">FEATURED CAMPAIGN</span><h4>A visual system with a point of view.</h4><p>From first provocation to final language: an editorial case study built to show judgment, not just artifacts.</p></div>
+              <div class="preview-diagram preview-diagram-creative" aria-hidden="true"><b>IDEA</b><i></i><b>FORM</b><i></i><b>FEELING</b></div>
+            </section>
+            <div class="outcome-preview-columns"><section><span class="outcome-preview-label">SELECTED WORK</span><div class="preview-list-item"><b>Common language</b><span>Brand direction · 2025</span></div><div class="preview-list-item"><b>After the signal</b><span>Campaign system · 2024</span></div></section><aside><span class="outcome-preview-label">WORKING PRINCIPLE</span><p>Clarity is not the opposite of imagination.</p></aside></div>
+          </article>
+        </div>
+      </div>
+    </dialog>
+
     <p id="global-error" class="error-text" role="alert" hidden></p>
   </main>
 
