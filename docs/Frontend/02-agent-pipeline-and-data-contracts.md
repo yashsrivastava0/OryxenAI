@@ -1,20 +1,20 @@
 # Agent Pipeline and Data Contracts
 
 > **Target Audience:** AI Coding Agents, LLM Architects, and Backend/Frontend Integrators.
-> **Purpose:** Exhaustive, authoritative technical specification of all five specialized agent pipeline stages in OryxenAI (Discovery, Content Architect, Visual Design Director, Build Preparation, and Code Generator). Covers state machine definitions, exact Pydantic domain schemas, persistence payloads, HTTP endpoint contracts, request/response bodies, and downstream gating rules.
+> **Purpose:** Exhaustive, authoritative technical specification of all five specialized agent pipeline stages in OryxenAI (Discovery, Content Architect, Visual Design Director, Build Preparation, and Code Generator & Live Preview). Covers state machine definitions, exact Pydantic domain schemas, persistence payloads, emitted event streams, HTTP endpoint contracts, request/response bodies, and downstream gating rules.
 
 ---
 
 ## 1. Global Pipeline Architecture & Invariants
 
-OryxenAI coordinates five autonomous, specialized agent stages. Each stage is executed as a separate, durable background job on PostgreSQL (`background_jobs` table) claimed via `FOR UPDATE SKIP LOCKED`.
+OryxenAI coordinates five autonomous, specialized agent stages. Each stage is executed as a separate, durable background job on PostgreSQL (`background_jobs` table) claimed via `SELECT ... FOR UPDATE SKIP LOCKED`.
 
 ```mermaid
 flowchart LR
-    S1[Stage 1: Discovery] -->|Approved Brief| S2[Stage 2: Content Architect]
-    S2 -->|Approved Content Architecture| S3[Stage 3: Visual Design Director]
-    S3 -->|Approved Visual Systems| S4[Stage 4: Build Preparation]
-    S4 -->|Brief Pair & JSON Index| S5[Stage 5: Code Generator & Preview]
+    S1[Stage 1: Discovery] -->|Approved Brief Hash| S2[Stage 2: Content Architect]
+    S2 -->|Approved Content Hash| S3[Stage 3: Visual Design Director]
+    S3 -->|Approved Direction Hash| S4[Stage 4: Build Preparation]
+    S4 -->|Brief Pair & Hashes| S5[Stage 5: Code Generator & Preview]
 ```
 
 ### 1.1 Non-Negotiable Pipeline Invariants
@@ -28,6 +28,7 @@ flowchart LR
 3. **No Revise-After-Approve:** Once a stage reaches `approved`, that stage's state machine is permanently locked for that session revision. Revisions occur **only** during the review phase.
 4. **State Persistence in JSONB:** All agent inputs, intermediate states, memory updates, errors, and finalized outputs are persisted directly under `portfolio_sessions.current_state[stage_key]`.
 5. **Optimistic Concurrency Control:** Every session modification requires matching `session_revision`. Conflicts return `409 CONFLICT`.
+6. **Provider-Neutral Model Execution:** All model operations call logical profiles defined in `config/models.toml` via the `ModelClient` boundary. Agent code never references provider names, endpoints, or raw secrets.
 
 ---
 
@@ -53,14 +54,14 @@ The Discovery Agent transforms raw, unstructured user experience (resumes, Linke
 [brief_review] ◄──► (POST /revise with natural-language edits)
       │  (POST /approve)
       ▼
-[approved] (Terminal state)
+[approved] (Terminal state — brief_hash stamped)
       │
       └─► [needs_attention] (Reachable from any active state on failure)
 ```
 
 ### 2.2 Data Schemas (`src/oryxenai/agents/discovery/schemas.py`)
 
-#### Status Enum:
+#### Status & Mode Enums:
 ```python
 class DiscoveryStatus(StrEnum):
     NOT_STARTED = "not_started"
@@ -72,56 +73,86 @@ class DiscoveryStatus(StrEnum):
     BRIEF_REVIEW = "brief_review"
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
-```
 
-#### Question & Option Schemas:
-```python
 class QuestionKind(StrEnum):
     TEXT = "text"
     SINGLE_SELECT = "single_select"
     MULTI_SELECT = "multi_select"
     BOOLEAN = "boolean"
 
+class AnswerMode(StrEnum):
+    ANSWERED = "answered"
+    SKIPPED = "skipped"
+
+class OperationMode(StrEnum):
+    NEEDS_DETAILS = "NEEDS_DETAILS"
+    ASK_QUESTIONS = "ASK_QUESTIONS"
+    READY_FOR_BRIEF = "READY_FOR_BRIEF"
+    BRIEF_READY = "BRIEF_READY"
+```
+
+#### Intake & Question Schemas:
+```python
+class DiscoveryIntake(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    message: str = ""
+    document_text: str = ""
+    goal: str = ""
+
 class QuestionOption(BaseModel):
-    id: str
-    label: str
+    model_config = ConfigDict(extra="forbid")
+    id: str = ""
+    label: str = ""
 
 class DiscoveryQuestion(BaseModel):
-    id: str
-    text: str
+    model_config = ConfigDict(extra="forbid")
+    id: str = ""
+    text: str = ""
     help_text: str | None = None
     kind: QuestionKind = QuestionKind.TEXT
     options: list[QuestionOption] = Field(default_factory=list)
     reason: str | None = None
     allow_skip: bool = True
     allow_auto: bool = False
+
+class QuestionSetOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: OperationMode
+    assistant_message: str
+    questions: list[DiscoveryQuestion] = Field(default_factory=list)
+    memory_update: dict[str, Any] = Field(default_factory=dict)
 ```
 
-#### Structured Profile Schema:
+#### Structured Profile & Brief Output:
 ```python
 class ProfileLink(BaseModel):
-    label: str
-    url: str
+    model_config = ConfigDict(extra="forbid")
+    label: str = ""
+    url: str = ""
 
 class ExperienceEntry(BaseModel):
-    organization: str
-    role: str
-    dates: str
+    model_config = ConfigDict(extra="forbid")
+    organization: str = ""
+    role: str = ""
+    dates: str = ""
     highlights: list[str] = Field(default_factory=list)
 
 class EducationEntry(BaseModel):
-    institution: str
-    credential: str
-    dates: str
+    model_config = ConfigDict(extra="forbid")
+    institution: str = ""
+    credential: str = ""
+    dates: str = ""
 
 class ProjectEntry(BaseModel):
-    name: str
-    summary: str
-    contribution: str
+    model_config = ConfigDict(extra="forbid")
+    name: str = ""
+    summary: str = ""
+    contribution: str = ""
     tech: list[str] = Field(default_factory=list)
     link: str = ""
 
 class StructuredProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = ""
     current_title: str = ""
     location: str = ""
@@ -132,30 +163,76 @@ class StructuredProfile(BaseModel):
     skills: list[str] = Field(default_factory=list)
     spoken_languages: list[str] = Field(default_factory=list)
     private_omitted: list[str] = Field(default_factory=list)
-```
 
-#### Brief Output Schema:
-```python
 class BriefOutput(BaseModel):
-    mode: str = "BRIEF_READY"
+    model_config = ConfigDict(extra="forbid")
+    mode: OperationMode
     assistant_message: str
     brief_title: str
     brief_markdown: str
-    user_summary: str
-    profile: StructuredProfile
+    user_summary: str = ""
+    profile: StructuredProfile = Field(default_factory=StructuredProfile)
     open_items: list[str] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
 ```
 
-### 2.3 API Route Contracts (`src/oryxenai/api/routes/discovery.py`)
+#### Persisted State (`DiscoveryState`):
+```python
+class OperationAState(BaseModel):
+    version: str = ""
+    run_id: str = ""
+    job_id: str = ""
+    mode: OperationMode | None = None
+    assistant_message: str = ""
+    items: list[DiscoveryQuestion] = Field(default_factory=list)
+    memory_update: dict[str, Any] = Field(default_factory=dict)
+
+class AnswersState(BaseModel):
+    revision: int = 0
+    items: dict[str, DiscoveryAnswer] = Field(default_factory=dict)
+
+class BriefState(BaseModel):
+    version: str = ""
+    run_id: str = ""
+    job_id: str = ""
+    title: str = ""
+    markdown: str = ""
+    user_summary: str = ""
+    profile: StructuredProfile = Field(default_factory=StructuredProfile)
+    open_items: list[str] = Field(default_factory=list)
+    memory_update: dict[str, Any] = Field(default_factory=dict)
+    revision_request: str = ""
+    approved: DiscoveryApproval | None = None
+
+class DiscoveryState(BaseModel):
+    status: DiscoveryStatus = DiscoveryStatus.NOT_STARTED
+    model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
+    intake: DiscoveryIntake = Field(default_factory=DiscoveryIntake)
+    operation_a: OperationAState = Field(default_factory=OperationAState)
+    answers: AnswersState = Field(default_factory=AnswersState)
+    brief: BriefState = Field(default_factory=BriefState)
+    memory: dict[str, Any] = Field(default_factory=dict)
+    latest_error: dict[str, Any] | None = None
+    attempt: int = 0
+    max_attempts: int = 3
+    started_at: str | None = None
+```
+
+### 2.3 Emitted Events & API Route Contracts
+
+Discovery emits two distinct background operations:
+- `discovery.understand_and_question`: Generates 1-4 targeted questions based on user intake.
+- `discovery.build_or_revise_brief`: Generates or refines the Markdown brief and structured profile.
 
 | Method | Path | Request Body | Response (Status Code) | Purpose |
 |---|---|---|---|---|
 | `GET` | `/api/v1/sessions/{id}/discovery` | *None* | `DiscoveryStateResponse` (200) | Polls current Discovery state |
 | `POST` | `/api/v1/sessions/{id}/discovery/start` | `{ message, document_text, goal, model_profile? }` | `DiscoveryStateResponse` (202) | Submits intake & triggers question generation |
-| `PUT` | `/api/v1/sessions/{id}/discovery/answers` | `{ complete: bool, answers: [{ question_id, mode, value }] }` | `DiscoveryStateResponse` (200) | Saves an answer; if `complete=true`, triggers brief synthesis |
-| `POST` | `/api/v1/sessions/{id}/discovery/revise` | `{ revision_request: string }` | `DiscoveryStateResponse` (202) | Submits natural-language brief revision request |
-| `POST` | `/api/v1/sessions/{id}/discovery/approve` | `{}` | `DiscoveryStateResponse` (200) | Formally locks brief with SHA-256 hash |
+| `PUT` | `/api/v1/sessions/{id}/discovery/answers` | `{ complete: bool, answers: [{ question_id, mode, value }] }` | `DiscoveryStateResponse` (200) | Saves an answer; triggers brief synthesis if complete |
+| `POST` | `/api/v1/sessions/{id}/discovery/revise` | `{ revision_request: string }` | `DiscoveryStateResponse` (202) | Submits natural-language brief revision |
+| `POST` | `/api/v1/sessions/{id}/discovery/approve` | `{}` | `DiscoveryStateResponse` (200) | Stamps `brief_hash` (SHA-256) and locks stage |
 | `POST` | `/api/v1/sessions/{id}/discovery/stop` | `{}` | `DiscoveryStateResponse` (200) | Cancels in-flight job safely |
 
 ---
@@ -171,19 +248,19 @@ The Content Architect consumes **only** the compact approved Discovery snapshot 
       │  (POST /content-architect/start)
       ▼
 [build_running] (Durable job: content_architect.build)
-      │
+      │  (1-3 sequential model calls)
       ▼
 [content_review] ◄──► (POST /revise with revision_request)
       │  (POST /approve)
       ▼
-[approved] (Terminal state)
+[approved] (Terminal state — content_hash stamped)
       │
       └─► [needs_attention] (On unrecoverable model or validation error)
 ```
 
 ### 3.2 Data Schemas (`src/oryxenai/agents/content_architect/schemas.py`)
 
-#### Status Enum:
+#### Status & Mode Enums:
 ```python
 class ContentArchitectStatus(StrEnum):
     NOT_STARTED = "not_started"
@@ -191,46 +268,18 @@ class ContentArchitectStatus(StrEnum):
     CONTENT_REVIEW = "content_review"
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
-```
 
-#### Route Plan & Section Schemas:
-```python
-class PublicationStatus(StrEnum):
-    APPROVED = "approved"
-    PENDING = "pending"
-    BLOCKED = "blocked"
+class ContentPlanMode(StrEnum):
+    STRATEGY_ONLY = "STRATEGY_ONLY"
+    STRATEGY_AND_CONTENT = "STRATEGY_AND_CONTENT"
+    PAGES_READY = "PAGES_READY"
+    INTEGRATED = "INTEGRATED"
 
-class RoutePlanEntry(BaseModel):
-    route_id: str                      # e.g. "home", "work", "about"
-    path: str                          # e.g. "/", "/work", "/about"
-    title: str
-    purpose: str
-    audience_takeaway: str
-    priority: str                      # "primary" | "secondary"
-    content_density: str               # "compact" | "moderate" | "dense"
-    section_sequence: list[str]        # Ordered section IDs, e.g. ["home:hero", "home:positioning"]
-    mobile_notes: str = ""
-    source_refs: list[str] = Field(default_factory=list)
-    publication_status: PublicationStatus = PublicationStatus.APPROVED
+class PresentationMode(StrEnum):
+    SINGLE_PAGE = "single_page"
+    HYBRID = "hybrid"
+    MULTI_PAGE = "multi_page"
 
-class ContentSection(BaseModel):
-    section_id: str                    # Unique namespaced ID, e.g. "home:hero"
-    purpose: str
-    content: dict[str, Any]            # Flexible dict: headline, subheadline, body, items, etc.
-    claim_ids: list[str] = Field(default_factory=list)
-    priority: str = "standard"
-    optional: bool = False
-    mobile_condensation: str = ""
-    link_targets: list[dict[str, Any]] = Field(default_factory=list)
-
-class PageContentPack(BaseModel):
-    route_id: str
-    sections: list[ContentSection]
-    internal_notes: dict[str, Any] = Field(default_factory=dict)
-```
-
-#### Claim Grounding & Decisions:
-```python
 class EvidenceStatus(StrEnum):
     VERIFIED = "verified"
     UNVERIFIED = "unverified"
@@ -241,20 +290,66 @@ class Ownership(StrEnum):
     TEAM = "team"
     UNCLEAR = "unclear"
 
+class PublicationStatus(StrEnum):
+    APPROVED = "approved"
+    PENDING = "pending"
+    BLOCKED = "blocked"
+
+class DecisionBasis(StrEnum):
+    USER_CONFIRMED = "user_confirmed"
+    SOURCE_DERIVED = "source_derived"
+    SAFE_DEFAULT = "safe_default"
+```
+
+#### Route Plan, Sections & Evidence Schemas:
+```python
+class RoutePlanEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    route_id: str = ""
+    path: str = ""
+    title: str = ""
+    purpose: str = ""
+    audience_takeaway: str = ""
+    priority: str = ""
+    content_density: str = ""
+    section_sequence: list[str] = Field(default_factory=list)
+    mobile_notes: str = ""
+    source_refs: list[str] = Field(default_factory=list)
+    publication_status: PublicationStatus = PublicationStatus.APPROVED
+
 class ClaimGrounding(BaseModel):
-    claim_id: str
-    statement: str
-    source_reference: str
-    source_entity_id: str
-    evidence_status: EvidenceStatus
-    ownership: Ownership
-    publication_status: PublicationStatus
+    model_config = ConfigDict(extra="forbid")
+    claim_id: str = ""
+    statement: str = ""
+    source_reference: str = ""
+    source_entity_id: str = ""
+    evidence_status: EvidenceStatus = EvidenceStatus.UNRESOLVED
+    ownership: Ownership = Ownership.UNCLEAR
+    publication_status: PublicationStatus = PublicationStatus.PENDING
     confidence_or_warning: str = ""
 
+class ContentSection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section_id: str = ""
+    purpose: str = ""
+    content: dict[str, Any] = Field(default_factory=dict)
+    claim_ids: list[str] = Field(default_factory=list)
+    priority: str = ""
+    optional: bool = False
+    mobile_condensation: str = ""
+    link_targets: list[dict[str, Any]] = Field(default_factory=list)
+
+class PageContentPack(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    route_id: str = ""
+    sections: list[ContentSection] = Field(default_factory=list)
+    internal_notes: dict[str, Any] = Field(default_factory=dict)
+
 class DecisionRecord(BaseModel):
-    decision: str                      # e.g. "presentation_mode", "primary_audience"
-    value: str                         # e.g. "single_page", "Engineering Directors"
-    basis: str                         # "user_confirmed" | "source_derived" | "safe_default"
+    model_config = ConfigDict(extra="forbid")
+    decision: str = ""
+    value: str = ""
+    basis: DecisionBasis = DecisionBasis.SAFE_DEFAULT
     confidence: str = ""
     rationale: str = ""
 ```
@@ -262,7 +357,17 @@ class DecisionRecord(BaseModel):
 #### Persisted State (`ContentArchitectState`):
 ```python
 class ContentArchitectState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: ContentArchitectStatus = ContentArchitectStatus.NOT_STARTED
+    model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
+    source_ref: ContentArchitectSourceRef = Field(default_factory=ContentArchitectSourceRef)
+    intake: ContentArchitectIntake = Field(default_factory=ContentArchitectIntake)
+    preferences: ContentArchitectPreferences = Field(default_factory=ContentArchitectPreferences)
+    version: str = ""
+    run_id: str = ""
+    job_id: str = ""
     user_summary: str = ""
     site_story_strategy: dict[str, Any] = Field(default_factory=dict)
     decision_basis: list[DecisionRecord] = Field(default_factory=list)
@@ -277,17 +382,20 @@ class ContentArchitectState(BaseModel):
     visual_director_handoff: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     stages_run: list[str] = Field(default_factory=list)
-    approved: dict[str, Any] | None = None
+    memory: dict[str, Any] = Field(default_factory=dict)
+    revision_request: str = ""
+    approved: ContentArchitectApproval | None = None
+    latest_error: dict[str, Any] | None = None
 ```
 
-### 3.3 API Route Contracts (`src/oryxenai/api/routes/content_architect.py`)
+### 3.3 Emitted Payload & API Route Contracts
 
 | Method | Path | Request Body | Response | Purpose |
 |---|---|---|---|---|
 | `GET` | `/api/v1/sessions/{id}/content-architect` | *None* | `ContentArchitectStateResponse` | Returns active content state |
 | `POST` | `/api/v1/sessions/{id}/content-architect/start` | `{ preferences?, model_profile? }` | `ContentArchitectStateResponse` (202) | Enqueues `content_architect.build` |
 | `POST` | `/api/v1/sessions/{id}/content-architect/revise` | `{ revision_request: string }` | `ContentArchitectStateResponse` (202) | Re-runs synthesis with user feedback |
-| `POST` | `/api/v1/sessions/{id}/content-architect/approve` | `{}` | `ContentArchitectStateResponse` (200) | Stamps `content_hash` and finalizes stage |
+| `POST` | `/api/v1/sessions/{id}/content-architect/approve` | `{}` | `ContentArchitectStateResponse` (200) | Stamps `content_hash` and finalizes |
 | `POST` | `/api/v1/sessions/{id}/content-architect/stop` | `{}` | `ContentArchitectStateResponse` (200) | Terminates active job |
 
 ---
@@ -296,26 +404,26 @@ class ContentArchitectState(BaseModel):
 
 ### 4.1 Mission & Lifecycle
 
-The Visual Design Director consumes the approved Content Architect output. It directs the aesthetic thesis, typography hierarchy, color intent, layout choreography, motion systems, and scene-by-scene compositions. It also consults a local deterministic component catalogue (`resources/catalogue.json`) via tag overlap without external tool-calling loops.
+The Visual Design Director consumes the approved Content Architect output. It directs the aesthetic thesis, typography hierarchy, color intent, layout choreography, motion systems, and scene-by-scene compositions. It also consults a local deterministic component catalogue (`resources/catalogue.json`) via plain Python tag-overlap lookup without external tool-calling loops.
 
 ```
 [not_started]  <-- Locked until content_architect.status == "approved"
       │  (POST /visual-design-director/start)
       ▼
 [build_running] (Durable job: visual_design_director.build)
-      │
+      │  (1-3 sequential model calls)
       ▼
 [design_review] ◄──► (POST /revise with revision_request)
       │  (POST /approve)
       ▼
-[approved] (Terminal state)
+[approved] (Terminal state — visual_direction_hash stamped)
       │
       └─► [needs_attention] (On unrecoverable error)
 ```
 
 ### 4.2 Data Schemas (`src/oryxenai/agents/visual_design_director/schemas.py`)
 
-#### Status Enum:
+#### Status & Mode Enums:
 ```python
 class VisualDesignDirectorStatus(StrEnum):
     NOT_STARTED = "not_started"
@@ -323,23 +431,48 @@ class VisualDesignDirectorStatus(StrEnum):
     DESIGN_REVIEW = "design_review"
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
+
+class VisualPlanMode(StrEnum):
+    VISUAL_LANGUAGE_ONLY = "VISUAL_LANGUAGE_ONLY"
+    VISUAL_LANGUAGE_AND_PAGES = "VISUAL_LANGUAGE_AND_PAGES"
+    PAGES_READY = "PAGES_READY"
+    INTEGRATED = "INTEGRATED"
+
+class AssetImportance(StrEnum):
+    CRITICAL = "critical"
+    IMPORTANT = "important"
+    OPTIONAL = "optional"
+
+class AssetSourceStatus(StrEnum):
+    APPROVED_EXISTING = "approved_existing"
+    LOCAL_LIBRARY_CANDIDATE = "local_library_candidate"
+    NEEDS_ACQUISITION = "needs_acquisition"
+    OPTIONAL = "optional"
+    UNAVAILABLE = "unavailable"
+
+class AssetSourcePolicy(StrEnum):
+    APPROVED_USER_MEDIA = "approved_user_media"
+    CURATED_LOCAL = "curated_local"
+    GENERATED_LOCAL_VISUAL = "generated_local_visual"
+    OPTIONAL_EXTERNAL_ACQUISITION = "optional_external_acquisition"
 ```
 
-#### Scene & Visual Direction Schemas:
+#### Scene Direction, Asset Briefs & Resource Candidates:
 ```python
 class SceneDirection(BaseModel):
-    scene_id: str                      # Unique ID, e.g. "home-introduction"
-    route_id: str                      # Matching Content Architect route_id
-    narrative_goal: str
-    viewport_role: str                 # e.g. "Opening orientation scene"
-    content_refs: list[str]            # Bound ContentSection IDs, e.g. ["home:hero"]
-    layout_intent: str                 # Asymmetry, grid structure, whitespace
-    alignment_relationships: str
-    relative_proportions: str          # e.g. "2/3 text, 1/3 visual cue"
-    layer_stack: str                   # Z-index ordering and depth planes
-    background_intent: str
+    model_config = ConfigDict(extra="forbid")
+    scene_id: str = ""
+    route_id: str = ""
+    narrative_goal: str = ""
+    viewport_role: str = ""
+    content_refs: list[str] = Field(default_factory=list)
+    layout_intent: str = ""
+    alignment_relationships: str = ""
+    relative_proportions: str = ""
+    layer_stack: str = ""
+    background_intent: str = ""
     asset_requirements: list[str] = Field(default_factory=list)
-    resource_candidates: list[str] = Field(default_factory=list) # Catalogue IDs
+    resource_candidates: list[str] = Field(default_factory=list)
     motion_intent: dict[str, Any] = Field(default_factory=dict)
     interaction_states: dict[str, Any] = Field(default_factory=dict)
     transition_in: str = ""
@@ -351,56 +484,99 @@ class SceneDirection(BaseModel):
     failure_safe_static_state: str = ""
     acceptance_criteria: list[str] = Field(default_factory=list)
 
-class PageVisualDirection(BaseModel):
-    route_id: str
-    publication_status: str = "approved"
-    compilable: bool = True
-    path: str
-    purpose: str
-    visitor_takeaway: str
-    first_impression: str = ""
-    storyboard: str = ""
-    section_rhythm: str = ""
-    scenes: list[SceneDirection] = Field(default_factory=list)
+class AssetBrief(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    asset_id: str = ""
+    purpose: str = ""
+    content_ref: str = ""
+    asset_type: str = ""
+    source_status: AssetSourceStatus = AssetSourceStatus.UNAVAILABLE
+    source_policy: AssetSourcePolicy = AssetSourcePolicy.CURATED_LOCAL
+    importance: AssetImportance = AssetImportance.OPTIONAL
+    orientation: str = ""
+    focal_point: str = ""
+    safe_crop_region: str = ""
+    text_safe_region: str = ""
+    composition_role: str = ""
+    desktop_treatment: str = ""
+    mobile_treatment: str = ""
+    fit_intent: str = ""
+    cropping_tolerance: str = ""
+    visual_treatment: str = ""
+    quality_requirement: str = ""
+    fallback_strategy: str = ""
+    decorative_vs_informative: str = ""
+    alt_text_intent: str = ""
+    attribution_requirement: str = ""
+    expected_exports: list[str] = Field(default_factory=list)
+    subject: str = ""
+    mood: str = ""
+    aspect_ratio_need: str = ""
+    color_relationship: str = ""
+    negative_concepts: list[str] = Field(default_factory=list)
 
 class ResourceCandidate(BaseModel):
-    resource_id: str                   # Checked-in catalogue ID
-    category: str
-    why_it_matches: str
-    where_it_may_help: str
-    priority: str
-    adaptation_notes: str
-    fallback: str
+    model_config = ConfigDict(extra="forbid")
+    resource_id: str = ""
+    category: str = ""
+    why_it_matches: str = ""
+    where_it_may_help: str = ""
+    priority: str = ""
+    possible_use: str = ""
+    adaptation_notes: str = ""
+    fallback: str = ""
+    confidence: str = ""
+    resource_library_version: str = ""
+    lookup_status: str = ""
 ```
 
 #### Persisted State (`VisualDesignDirectorState`):
 ```python
 class VisualDesignDirectorState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: VisualDesignDirectorStatus = VisualDesignDirectorStatus.NOT_STARTED
+    model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
+    source_ref: VisualDesignDirectorSourceRef = Field(default_factory=VisualDesignDirectorSourceRef)
+    intake: VisualDesignDirectorIntake = Field(default_factory=VisualDesignDirectorIntake)
+    preferences: VisualDesignDirectorPreferences = Field(default_factory=VisualDesignDirectorPreferences)
+    version: str = ""
+    run_id: str = ""
+    job_id: str = ""
     user_summary: str = ""
+    meta: dict[str, Any] = Field(default_factory=dict)
+    source_refs: dict[str, Any] = Field(default_factory=dict)
     visual_language: dict[str, Any] = Field(default_factory=dict)
-    # visual_language contains: creative_thesis, design_keywords, color_intent,
-    # typography_intent, motion_intent, layout_principles, palette_tokens
     shared_visual_systems: dict[str, Any] = Field(default_factory=dict)
     navigation_direction: dict[str, Any] = Field(default_factory=dict)
     motion_system: dict[str, Any] = Field(default_factory=dict)
     interaction_system: dict[str, Any] = Field(default_factory=dict)
     pages: list[PageVisualDirection] = Field(default_factory=list)
+    asset_briefs: list[AssetBrief] = Field(default_factory=list)
     resource_candidates: list[ResourceCandidate] = Field(default_factory=list)
-    asset_briefs: list[dict[str, Any]] = Field(default_factory=list)
-    compiler_handoff: dict[str, Any] = Field(default_factory=dict)
+    accessibility_and_performance: dict[str, Any] = Field(default_factory=dict)
+    must_preserve: list[str] = Field(default_factory=list)
+    must_not_fabricate: list[str] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    approved: dict[str, Any] | None = None
+    compiler_handoff: dict[str, Any] = Field(default_factory=dict)
+    resource_policy: dict[str, Any] = Field(default_factory=dict)
+    stages_run: list[str] = Field(default_factory=list)
+    memory: dict[str, Any] = Field(default_factory=dict)
+    revision_request: str = ""
+    approved: VisualDesignDirectorApproval | None = None
+    latest_error: dict[str, Any] | None = None
 ```
 
-### 4.3 API Route Contracts (`src/oryxenai/api/routes/visual_design_director.py`)
+### 4.3 API Route Contracts
 
 | Method | Path | Request Body | Response | Purpose |
 |---|---|---|---|---|
 | `GET` | `/api/v1/sessions/{id}/visual-design-director` | *None* | `VisualDesignDirectorStateResponse` | Returns active visual state |
 | `POST` | `/api/v1/sessions/{id}/visual-design-director/start` | `{ preferences?, model_profile? }` | `VisualDesignDirectorStateResponse` (202) | Enqueues `visual_design_director.build` |
 | `POST` | `/api/v1/sessions/{id}/visual-design-director/revise` | `{ revision_request: string }` | `VisualDesignDirectorStateResponse` (202) | Re-evaluates visual direction |
-| `POST` | `/api/v1/sessions/{id}/visual-design-director/approve` | `{}` | `VisualDesignDirectorStateResponse` (200) | Stamps `direction_hash` and finalizes |
+| `POST` | `/api/v1/sessions/{id}/visual-design-director/approve` | `{}` | `VisualDesignDirectorStateResponse` (200) | Stamps `visual_direction_hash` and finalizes |
 | `POST` | `/api/v1/sessions/{id}/visual-design-director/stop` | `{}` | `VisualDesignDirectorStateResponse` (200) | Terminates active job |
 
 ---
@@ -419,8 +595,11 @@ Build Preparation is a **hidden compiler stage**. It requires both Content Archi
       ▼
 [running] (Durable job: build_preparation.prepare)
       ├─► Stage 0: Pure deterministic scope compilation
+      │     └─► Emits: "scope_compiled" event
       ├─► Resource Research: External provider candidate discovery
-      └─► Compose Visual Brief: Model synthesis of brief pair
+      │     └─► Emits: "resource_research:..." event
+      └─► Compose Visual Brief: Single bounded model call
+            └─► Emits: "compose_visual_brief:..." event
       ▼
 [ready] (Artifacts assembled and hashes stamped)
       │
@@ -429,56 +608,128 @@ Build Preparation is a **hidden compiler stage**. It requires both Content Archi
 
 ### 5.2 Data Schemas (`src/oryxenai/agents/build_preparation/schemas.py`)
 
-#### Status Enum:
+#### Status & Event Schemas:
 ```python
 class BuildPreparationStatus(StrEnum):
     NOT_STARTED = "not_started"
     RUNNING = "running"
     READY = "ready"
     NEEDS_ATTENTION = "needs_attention"
+
+class StageEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: str
+    stage: str
+    level: Literal["info", "warning", "error"] = "info"
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str
+
+class RouteScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    route_id: str
+    path: str = ""
+    title: str = ""
+    purpose: str = ""
+    publication_status: str = "approved"
+    section_ids: list[str] = Field(default_factory=list)
+    scene_ids: list[str] = Field(default_factory=list)
+    asset_ids: list[str] = Field(default_factory=list)
+    resource_ids: list[str] = Field(default_factory=list)
 ```
 
-#### Compiled Scope & Index Schemas:
+#### Resource Needs, Indexes & Guidance:
 ```python
-class RouteScope(BaseModel):
-    route_id: str
-    path: str
-    title: str
-    purpose: str
-    publication_status: str
-    section_ids: list[str]
-    scene_ids: list[str]
-    asset_ids: list[str]
-    resource_ids: list[str]
+class ResourceNeed(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    need_id: str
+    kind: Literal["asset", "resource"]
+    source_id: str
+    category: str = ""
+    purpose: str = ""
+    route_ids: list[str] = Field(default_factory=list)
+    scene_ids: list[str] = Field(default_factory=list)
+    section_ids: list[str] = Field(default_factory=list)
+    source_status: str = ""
+    source_policy: str = ""
+    importance: str = ""
+    required_for_handoff: bool = False
+    query_terms: list[str] = Field(default_factory=list)
+    fallback: str = ""
+    details: dict[str, Any] = Field(default_factory=dict)
+
+class ResourceCandidateLink(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider: str
+    provider_asset_id: str = ""
+    url: str = ""
+    preview_url: str = ""
+    license: str = ""
+    license_reference: str = ""
+    title: str = ""
+    width: int = 0
+    height: int = 0
+    attribution: str = ""
+    additional_urls: dict[str, str] = Field(default_factory=dict)
+
+class ComponentSuggestion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider: str
+    name: str = ""
+    title: str = ""
+    description: str = ""
+    item_url: str = ""
 
 class ResourceBriefEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     need_id: str
     role_id: str
     category: str
-    route_ids: list[str]
-    purpose: str
-    status: str                        # "candidates_found" | "no_material_found"
-    candidates: list[dict[str, Any]]   # Provider links, preview URLs, licenses
-    primary_candidate_index: int | None
+    route_ids: list[str] = Field(default_factory=list)
+    purpose: str = ""
+    status: Literal["candidates_found", "no_material_found"] = "no_material_found"
+    candidates: list[ResourceCandidateLink] = Field(default_factory=list)
+    primary_candidate_index: int | None = None
     guidance: str = ""
 
 class ComponentBriefEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     need_id: str
     role_id: str
-    route_ids: list[str]
-    purpose: str
-    suggestions: list[dict[str, Any]]
-    primary_suggestion_index: int | None
+    route_ids: list[str] = Field(default_factory=list)
+    purpose: str = ""
+    suggestions: list[ComponentSuggestion] = Field(default_factory=list)
+    primary_suggestion_index: int | None = None
     guidance: str = ""
+
+class VisualBriefOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    stage: Literal["compose_visual_brief"] = "compose_visual_brief"
+    status: Literal["ready"] = "ready"
+    visual_brief_prose: str
+    resource_guidance: list[ResourceGuidance] = Field(default_factory=list)
+    component_guidance: list[ComponentGuidance] = Field(default_factory=list)
+    seo_suggestions: dict[str, str] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    assistant_summary: str = ""
 ```
 
 #### Persisted State (`BuildPreparationState`):
 ```python
 class BuildPreparationState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: BuildPreparationStatus = BuildPreparationStatus.NOT_STARTED
+    model_profile: str = ""
+    routing_policy_version: str = ""
+    routing_policy_fingerprint: str = ""
+    source_ref: BuildPreparationSourceRef = Field(default_factory=BuildPreparationSourceRef)
+    version: str = "build-preparation-brief-v1"
+    current_stage: str = "not_started"
+    run_id: str = ""
+    job_id: str = ""
     scope_hash: str = ""
     routes: list[RouteScope] = Field(default_factory=list)
-    resource_needs: list[dict[str, Any]] = Field(default_factory=list)
+    resource_needs: list[ResourceNeed] = Field(default_factory=list)
     resource_index: list[ResourceBriefEntry] = Field(default_factory=list)
     component_index: list[ComponentBriefEntry] = Field(default_factory=list)
     content_brief_markdown: str = ""
@@ -487,20 +738,31 @@ class BuildPreparationState(BaseModel):
     visual_brief_hash: str = ""
     target_contract: str = "react-vite-v1"
     recommended_dependencies: list[str] = Field(default_factory=list)
+    debug_mirror_path: str = ""
+    model_calls: int = 0
+    provider_calls: int = 0
     warnings: list[str] = Field(default_factory=list)
-    events: list[dict[str, Any]] = Field(default_factory=list)
-    stale: bool = False
-    stale_reasons: list[str] = Field(default_factory=list)
+    events: list[StageEvent] = Field(default_factory=list)
+    latest_error: dict[str, Any] | None = None
+    attempt: int = 0
+    max_attempts: int = 3
+    started_at: str | None = None
+    completed_at: str | None = None
 ```
 
-### 5.3 API Route Contracts (`src/oryxenai/api/routes/build_preparation.py`)
+### 5.3 Emitted Events & API Route Contracts
+
+Build Preparation records each compilation event into `state.events`:
+1. `scope_compiled`: Detail breakdown of routes, assumptions, target image count, and resource needs.
+2. `resource_research:<hash>`: Provider call count and discovered candidate counts.
+3. `compose_visual_brief:<hash>`: Visual model call execution and prose composition.
 
 | Method | Path | Request Body | Response | Purpose |
 |---|---|---|---|---|
 | `GET` | `/api/v1/sessions/{id}/build-preparation` | *None* | `BuildPreparationStateResponse` | Returns prepared build handoff |
 | `POST` | `/api/v1/sessions/{id}/build-preparation/start` | `{ model_profile? }` | `BuildPreparationStateResponse` (202) | Enqueues `build_preparation.prepare` |
 | `POST` | `/api/v1/sessions/{id}/build-preparation/regenerate` | `{ model_profile? }` | `BuildPreparationStateResponse` (202) | Re-compiles briefs if upstream changed |
-| `GET` | `/api/v1/sessions/{id}/build-preparation/download?doc=content\|visual` | *None* | File Download (200) | Downloads the raw Markdown brief |
+| `GET` | `/api/v1/sessions/{id}/build-preparation/download?doc=content\|visual` | *None* | Raw File (200) | Downloads the raw Markdown brief |
 
 ---
 
@@ -515,7 +777,7 @@ Code Generator transforms the immutable Build Preparation Markdown brief pair in
       │  (POST /code-generator/start)
       ▼
 [queued] ──► [planning] ──► [acquiring] ──► [generating] ──► [verifying]
-                                                                  │
+                                                                   │
       ┌───────────────────────────────────────────────────────────┴──────┐
       ▼                                                                  ▼
 [preview_pending] ──► [ready]                                  [needs_attention]
@@ -538,8 +800,18 @@ class CodeGeneratorSessionStatus(StrEnum):
     NEEDS_ATTENTION = "needs_attention"
 ```
 
-#### Active Preview Schema:
+#### Active Preview & Source Reference:
 ```python
+class CodeGeneratorSourceRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    build_preparation_run_id: str
+    build_preparation_scope_hash: str
+    build_preparation_source_ref: dict[str, Any]
+    content_brief_sha256: str
+    visual_brief_sha256: str
+    brief_contract_hash: str
+    bound_session_revision: int
+
 class ActivePreview(BaseModel):
     run_id: str
     host: str                          # Preview gateway host
@@ -555,20 +827,43 @@ class ActivePreview(BaseModel):
 #### Persisted Session State (`CodeGeneratorSessionState`):
 ```python
 class CodeGeneratorSessionState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: CodeGeneratorSessionStatus = CodeGeneratorSessionStatus.NOT_STARTED
     current_run_id: str = ""
-    active_preview: ActivePreview | None = None
-    candidate_preview: ActivePreview | None = None # Unverified preview on failure
+    model_profile: str = ""
+    source_ref: CodeGeneratorSourceRef | None = None
+    active_preview: dict[str, Any] | None = None
+    candidate_preview: dict[str, Any] | None = None
+    latest_error: dict[str, Any] | None = None
     stale: bool = False
     stale_reasons: list[str] = Field(default_factory=list)
     started_at: str | None = None
     completed_at: str | None = None
     pipeline_contract_version: str = "code-generator-v4"
-    latest_error: dict[str, Any] | None = None
+    trace_id: str = ""
+    current_stage_attempt: dict[str, Any] | None = None
+    retry_status: str = ""
+    stage_durations_ms: dict[str, float] = Field(default_factory=dict)
+    worker_storage_readiness: dict[str, str | bool] = Field(default_factory=dict)
     advisories: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
 ```
 
-### 6.3 API Route Contracts (`src/oryxenai/api/routes/code_generator.py`)
+### 6.3 Multi-Viewport Verification & Repair Engine
+
+Code Generator performs rigorous headless browser verification across three viewports before any preview promotion:
+- **Desktop:** 1440 × 900
+- **Tablet:** 768 × 1024
+- **Mobile:** 375 × 812
+
+#### Verification Checks:
+1. **Clean Build Audit:** Runs `npm run build` in the sandbox; captures compiler diagnostics.
+2. **DOM Geometry Audit:** Detects layout shift, overlapping text nodes, horizontal overflow, and clipped buttons.
+3. **Asset Verification:** Confirms all image references resolve locally without broken links or CORS failures.
+4. **Touch & Click Targets:** Validates touch target minimums (44px) on mobile and visible focus indicators.
+5. **Self-Repair Loop:** If defects are flagged, the agent enters bounded repair passes (`final_repair.py`) targeting the specific code files without discarding verified work.
+
+### 6.4 API Route Contracts & Sandbox Bridge
 
 | Method | Path | Request Body | Response | Purpose |
 |---|---|---|---|---|
@@ -577,20 +872,18 @@ class CodeGeneratorSessionState(BaseModel):
 | `POST` | `/api/v1/sessions/{id}/code-generator/regenerate` | `{}` | `CodeGeneratorStateResponse` (202) | Starts fresh variant run |
 | `POST` | `/api/v1/sessions/{id}/code-generator/retry` | `{}` | `CodeGeneratorStateResponse` (202) | Resumes an interrupted run |
 
-### 6.4 Preview Sandbox Bridge (`postMessage` Protocol)
-
-The embedded iframe preview communicates with the studio shell via a versioned protocol:
-
+#### Preview Sandbox Bridge (`postMessage` Protocol):
 ```typescript
-// Shell sends handshake to iframe:
+// Studio shell sends handshake to preview iframe:
 iframe.contentWindow.postMessage({
   type: "preview:init",
   version: "preview-bridge-v1"
-}, targetOrigin);
+}, previewOrigin);
 
-// Iframe announces ready status:
+// Iframe announces ready status to studio:
 window.parent.postMessage({
   type: "preview:ready",
-  version: "preview-bridge-v1"
+  version: "preview-bridge-v1",
+  route: window.location.pathname
 }, studioOrigin);
 ```

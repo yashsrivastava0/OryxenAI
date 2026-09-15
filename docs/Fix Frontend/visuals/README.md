@@ -16,9 +16,19 @@ These images are high-level UI references for the implementation AI. They are no
 | `10-mobile-review.png` | Mobile condensed review screen |
 | `11-output-inspector.png` | Developer-only output drawer |
 | `12-admin-control-center.png` | Administrator-only control center with summary, tabs, and row actions |
+| `13-code-generator-preview-workspace.png` | Code Generator split workspace with activity, composer, and live preview theater |
+| `14-code-generator-preview-working.png` | Code Generator working state with semantic milestones and bounded preview |
+| `15-code-generator-preview-attention.png` | Code Generator attention state with preserved preview and retry recovery |
+| `16-discovery-mcq-question.png` | Discovery multi-select question with grouped checkbox tiles and explicit Next action |
+| `17-discovery-text-question.png` | Discovery free-text question with labeled answer composer and explicit Next action |
+| `20-generation-ready-preview.png` | Verified Generation ready/preview theater with review-first actions |
 
 Every reference should use the cream/paper, ink, and restrained cobalt direction, readable sans-serif utility text, editorial display typography, hairline rules, and restrained geometry. Avoid gradients, glassmorphism, fake metrics, robot imagery, stock photography, and decorative elements that compete with the artifact.
 
 Exact copy, statuses, fields, and responsive rules are defined in the parent Markdown documents.
 
 The generated mockups may contain illustrative names, counts, or timestamps to make the composition legible. Treat those values as placeholders; never hardcode them into the product.
+
+The Discovery question references are separate horizontal UI references at an intended `1536×695` application viewport. The current-state screenshots in `../evidence/` are forensic evidence only. Existing visuals `13`–`15` were already present in the shared dirty worktree and were not regenerated or overwritten.
+
+`20-generation-ready-preview.png` is a horizontal 16:10 desktop reference intended to be compared at the `1536×695` application viewport. It is intentionally the only new asset for the ready/preview task. Tablet is specified as responsive host-shell behavior in [17-generation-ready-preview-research.md](../17-generation-ready-preview-research.md), not as a dedicated image.

@@ -13,7 +13,7 @@
 Instead of a generic site builder or a chatbot wrapped around an LLM, OryxenAI functions as a **structured creative studio pipeline**. Specialized AI agents collaborate with the user through six distinct transformation stages:
 1. **Discovery Agent (`discovery`):** Clarifies goals, narrative positioning, and achievements through a focused conversational interview.
 2. **Content Architect Agent (`content_architect`):** Designs the site architecture, page routes (`/`, `/work`, `/about`, `/contact`), sections, and full copy.
-3. **Visual Design Director Agent (`visual_design_director`):** Establishes aesthetic language, color tokens, typography scales, layout directives, and curated component patterns.
+3. **Visual Design Director Agent (`visual_design_director`):** Establishes the creative thesis and prose color/typography/motion **intent** (never literal colors, hex codes, or font names) and produces a per-page scene storyboard plus asset briefs, referencing curated component patterns.
 4. **Build Preparation Agent (`build_preparation`):** Compiles build briefs, researches licensed assets (fonts, imagery), and packages verified generation briefs.
 5. **Code Generator Agent (`code_generator`):** Progressively authors source code, runs multi-viewport DOM geometry checks, and self-repairs runtime issues.
 6. **Live Preview Gateway (`preview`):** Serves the verified, promoted build inside an isolated, secure interactive sandbox.
@@ -133,20 +133,20 @@ flowchart TD
 
 ### Stage 3: Visual Design Director Agent (`visual_design_director`)
 
-* **Primary Purpose:** Direct aesthetic style, establish color tokens, select typography pairings, prescribe layout geometry, and recommend curated component patterns.
+* **Primary Purpose:** Direct the aesthetic *intent* — a creative thesis plus prose color/typography/motion intent — and produce the structured, ID-bearing scene storyboard and asset briefs for each page, referencing curated component candidates. It never emits literal colors, hex codes, font names, or CSS values; those are resolved downstream.
 * **Lifecycle Events & Flow:**
   1. **Start Event:** User clicks *"Start Visual Design"*. Backend enqueues `visual_design_director.build`.
   2. **Catalogue Lookup:** Plain Python tag-overlap lookup over `resources/catalogue.json` matches component candidates.
   3. **Three-Pass Workflow:**
-     * Pass 1: `establish_visual_language` (mood, palette tokens, typography rules, motion curves).
-     * Pass 2: `direct_page_experience` (page-specific layout directives, hero treatment).
-     * Pass 3: `integrate_site_experience` (global navigation style, card patterns, footer rules).
-  4. **Review Event:** Status becomes `AWAITING_APPROVAL`. User reviews mood, color swatches, type specimen, and directives.
+     * Pass 1: `establish_visual_language` (creative thesis, prose color/typography/motion intent — no literal tokens).
+     * Pass 2: `direct_page_experience` (per-page scene storyboard, layout intent, asset briefs).
+     * Pass 3: `integrate_site_experience` (global navigation intent, shared visual systems, motion character).
+  4. **Review Event:** Status becomes `design_review`. User reviews the creative thesis, the prose color/typography/motion intent, and the per-page scene storyboard with its asset-brief treatment cards.
   5. **Revision Event:** User submits natural-language styling adjustments; direction rebuilds.
   6. **Approval Event:** User clicks *"Approve Visual Direction"*. Visual state snapshot frozen; stage permanently locked.
 
 * **What the User Sees vs. What is Hidden:**
-  * **Visible to User:** Visual language summary, interactive color swatch cards (with role & contrast ratings), typography specimen preview, spacing & motion directives, page layout descriptions.
+  * **Visible to User:** Creative thesis one-liner and design keywords, prose color/typography/motion **intent** (never swatches, hex values, or font specimens — the backend produces none), the per-page scene storyboard (each scene's narrative goal, viewport role, layout intent, motion intent, responsive behavior) with paired asset-brief treatment cards (desktop/mobile treatment, decorative-vs-informative), and adapted layout candidates.
   * **Deliberately Hidden:** Raw catalogue candidate scores, internal tagging mechanics, model prompt traces, and downstream compilation flags.
 
 ---
@@ -281,7 +281,7 @@ The studio at `/app` uses browser `history.pushState` to deep-link into specific
 * `/app` — Default view (opens active stage or completed preview).
 * `/app?stage=discovery` — Discovery interview or approved brief.
 * `/app?stage=content` — Content Architect page reviewer.
-* `/app?stage=design` — Visual Design Director mood & tokens.
+* `/app?stage=design` — Visual Design Director creative thesis & scene storyboard.
 * `/app?stage=prepare` — Build Preparation checklist.
 * `/app?stage=generate` — Code Generator progress.
 * `/app?view=preview` — Live Preview theater (`&route=/work&viewport=mobile`).
@@ -440,11 +440,15 @@ Below are the 14 key screens cataloged for design mockups and AI image generatio
 
 ---
 
-### Screen 9: Visual Design Director — Visual System & Specimen Review
-* **Route:** `/app?stage=design` | **Posture:** Art director's mood board.
-* **Layout:** 
-  * Left pane: Palette token cards (Obsidian, Warm Chalk, International Klein Blue, Muted Sage), typography specimen scale (`Newsreader` serif paired with `Inter`), and motion timing rules.
-  * Right pane: Route-by-route styling directives (e.g. *"Asymmetric hero grid with high-contrast text"*).
+### Screen 9: Visual Design Director — Creative Thesis & Scene Storyboard Review
+* **Route:** `/app?stage=design` | **Posture:** Art director's storyboard, in a two-zone workspace canvas.
+* **Layout:**
+  * Left rail: journey position, the live activity line (from `formatActivityStatus("visual_design_director", status)`), the creative-thesis one-liner, and at-a-glance counts (styled routes, scenes, asset briefs).
+  * Right artifact zone:
+    * Creative thesis + design keywords, and prose **color / typography / motion intent** cards. These are free-text intent, never swatches, hex values, contrast ratings, or font specimens — the backend produces no literal color or type values, so none are rendered.
+    * **Primary artifact — the per-page scene storyboard:** an ordered sequence of numbered scene cards representing what a visitor experiences while scrolling each page. Each card shows the scene's narrative goal, viewport role, layout intent, motion intent, responsive behavior, and accessibility/reduced-motion intent, with the asset briefs that scene references shown as compact treatment cards (desktop treatment, mobile treatment, decorative-vs-informative tag).
+    * Supporting detail (collapsible): per-route page-direction cards (storyboard prose, primary/secondary emphasis, desktop/mobile treatment) and adapted layout candidates.
+    * When a run is `VISUAL_LANGUAGE_ONLY` (`pages_included: false`), only the thesis and prose intent are shown, with an explicit note that scene direction is produced in the next pass — never an empty or broken storyboard.
   * Bottom bar: Revision input and CTA *"Approve Design Direction & Prepare Build →"*.
 
 ---

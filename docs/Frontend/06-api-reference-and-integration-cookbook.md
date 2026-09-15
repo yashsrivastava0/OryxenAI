@@ -390,9 +390,38 @@ Authorization: Bearer <jwt>
 
 ---
 
-## 3. Integration Cookbook (Copy-Paste Recipes)
+## 3. Standardized Error Responses
 
-### 3.1 Recipe: Visibility-Aware Poller
+All API errors return a uniform envelope with machine-readable codes and human-friendly messages:
+
+```json
+{
+  "error": {
+    "code": "PORTFOLIO_READ_ONLY",
+    "message": "This portfolio has completed generation and verified preview promotion. Editing is locked.",
+    "status_code": 403,
+    "details": {
+      "portfolio_session_id": "7b8e1a2c-9d3f-4a1e-8e7c-5a6b7c8d9e0f",
+      "read_only": true
+    }
+  }
+}
+```
+
+### Common Error Codes:
+- `401 UNAUTHORIZED`: Missing, invalid, or expired Supabase Bearer token.
+- `403 FORBIDDEN`: Attempt to access another user's session without admin rights.
+- `403 PORTFOLIO_READ_ONLY`: Mutation attempted on a verified, finalized portfolio.
+- `409 STAGE_LOCKED`: Starting stage $N$ before stage $N-1$ is approved/ready.
+- `409 CONFLICT`: Optimistic concurrency check failed; session revision changed.
+- `409 STALE_SOURCE`: Upstream stage re-approved after downstream started; restart required.
+- `429 TOO_MANY_REQUESTS`: Rate limit or concurrency lane full.
+
+---
+
+## 4. Integration Cookbook (Copy-Paste Recipes)
+
+### 4.1 Recipe: Visibility-Aware Poller
 ```typescript
 import { PollCoordinator } from "./data/polling";
 
@@ -408,7 +437,7 @@ poller.subscribe("build_preparation", async () => {
 });
 ```
 
-### 3.2 Recipe: Safe Cross-Origin Iframe Reload
+### 4.2 Recipe: Safe Cross-Origin Iframe Reload
 ```typescript
 // NEVER use contentWindow.location.reload()
 function reloadPreviewFrame(iframe: HTMLIFrameElement) {
@@ -419,7 +448,7 @@ function reloadPreviewFrame(iframe: HTMLIFrameElement) {
 }
 ```
 
-### 3.3 Recipe: Multi-Tab Broadcast Invalidation
+### 4.3 Recipe: Multi-Tab Broadcast Invalidation
 ```typescript
 import { createInvalidationChannel } from "./data/invalidation";
 
@@ -438,7 +467,7 @@ function notifyOtherTabs(sessionId: string) {
 
 ---
 
-## 4. Refactoring Step-by-Step Execution Checklist
+## 5. Refactoring Step-by-Step Execution Checklist
 
 AI coding agents refactoring the frontend must execute in this exact sequence:
 

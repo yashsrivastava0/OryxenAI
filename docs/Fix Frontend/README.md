@@ -16,6 +16,9 @@ This folder is the implementation handoff for the OryxenAI frontend remediation.
 10. [09-implementation-runbook.md](09-implementation-runbook.md) — ordered implementation and verification sequence.
 11. [10-admin-console-specification.md](10-admin-console-specification.md) — administrator-only screen, controls, confirmations, and safety boundary.
 12. [11-implementation-file-map.md](11-implementation-file-map.md) — screen-to-source map and implementation checklist for the next AI.
+13. [16-code-generator-preview-research.md](16-code-generator-preview-research.md) — competitor-informed preview theater contract, edge cases, and Code Generator implementation checklist.
+14. [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md) — forensic, research-backed handoff for MCQ and free-text Discovery questions.
+15. [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) — code-grounded ready/preview research and responsive tablet behavior. There is no dedicated tablet image by design.
 
 ## Visual references
 
@@ -33,6 +36,16 @@ The [visuals/](visuals/) folder contains generated UI reference images, not prod
 - [10-mobile-review.png](visuals/10-mobile-review.png)
 - [11-output-inspector.png](visuals/11-output-inspector.png)
 - [12-admin-control-center.png](visuals/12-admin-control-center.png)
+- [13-code-generator-preview-workspace.png](visuals/13-code-generator-preview-workspace.png)
+- [14-code-generator-preview-working.png](visuals/14-code-generator-preview-working.png)
+- [15-code-generator-preview-attention.png](visuals/15-code-generator-preview-attention.png)
+- [16-discovery-mcq-question.png](visuals/16-discovery-mcq-question.png)
+- [17-discovery-text-question.png](visuals/17-discovery-text-question.png)
+- [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png)
+
+The copied current-state screenshots used by the Discovery question research are in [evidence/](evidence/). Existing sibling visuals `13`–`15` are preserved and are not part of this Discovery asset change.
+
+The ready/preview reference is a new desktop-only implementation aid. Tablet behavior is specified as responsive reflow in [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md); no separate tablet composition is supplied.
 
 ## Baseline
 

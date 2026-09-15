@@ -173,15 +173,17 @@ The UI must stop polling, retain existing preview artifacts, and never display a
 
 ## Generation: ready/preview
 
-Primary: isolated preview theater with Desktop, Tablet, Mobile, Fit, route selection, focus mode, and open-in-new-window action.
+Primary: an isolated verified-preview theater with a truthful verification label, route selection only when route data exists, Fit to view, focus mode when supported, and an open-in-new-window action. The preview is the dominant artifact; the milestone history and instruction composer remain secondary.
 
-Secondary: non-blocking warnings and explicit regeneration action only when server policy permits it. Clearly label verified versus candidate/unverified previews.
+Secondary: non-blocking warnings and explicit regeneration only when server policy permits it. Clearly label verified versus candidate/unverified previews. Do not render `Publish` or `Deploy` copy without a server-authoritative publishing contract; the current generation callback opens the preview and does not publish it.
+
+The current implementation source is `frontend/src/stages/generation/GenerationStage.tsx`, and its data authority is `frontend/src/data/adapters/generation.ts`. Use [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) and [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png) for the ready-state hierarchy.
 
 If the prior preparation approval succeeded but Generation start did not, show the approved preparation context and a separate `Start generation` action. Never replace this partial-success state with `Stage Locked`.
 
 ## Tablet and mobile
 
-Tablet uses one column with a compact stage selector, in-flow context strip, route tabs, and reserved actions. Mobile uses a single readable stream, full-width controls, no permanent rails, and a full-screen/slide-over inspector. No content may require horizontal page scrolling.
+Tablet uses one responsive column with a compact stage selector, in-flow context strip, preview theater before long activity/composer content, contained route controls, and reserved actions. This is a host-shell reflow requirement, not a dedicated tablet visual or a new preview-device API. Mobile uses a single readable stream, full-width controls, no permanent rails, and a full-screen/slide-over inspector. No content may require horizontal page scrolling.
 
 ## Administrator screen
 

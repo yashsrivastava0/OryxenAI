@@ -21,7 +21,7 @@ This is the routing sheet for the implementing AI. It identifies where each scre
 | Content review | `frontend/src/stages/content/ContentStage.tsx` | narrative thesis, route map, contained route tabs, one expanded route, non-duplicated section cards, revision/approval dock |
 | Visual Design review | `frontend/src/stages/design/DesignStage.tsx` | intent-driven thesis/cards, route selector, visible scene storyboard, no invented hex colors/swatches/font names, revision/approval dock |
 | Build Preparation | `frontend/src/stages/preparation/BuildPreparationStage.tsx` | semantic working milestones, readiness summary, metadata-only evidence cards, two brief readers, explicit Continue to Generate |
-| Generation | `frontend/src/stages/generation/GenerationStage.tsx` | available/working/attention/ready states, semantic milestones, preview theater, preserved preview on failure, valid retry/recovery |
+| Generation | `frontend/src/stages/generation/GenerationStage.tsx` | available/working/attention/ready states, semantic milestones, preview theater, preserved preview on failure, valid retry/recovery, truthful verified-preview actions, preview-first tablet reflow |
 
 ## Existing reusable components to audit
 
@@ -47,6 +47,17 @@ The target abstractions are documented in [06-component-and-view-model-contracts
 | Question tests | `frontend/src/data/adapters/discovery.test.ts`, `frontend/src/stages/stages.test.ts`, and fixture-backed browser tests under the existing frontend test location | cover selection timing, native semantics, retained values after failure, status announcements, and target viewport geometry |
 
 Read [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md) before making visual or interaction decisions. The two new images are visual references only; backend state and the existing authenticated API boundary remain authoritative.
+
+## Generation ready/preview routing addendum
+
+| Concern | Current source | Required work |
+|---|---|---|
+| Ready-state composition | `frontend/src/stages/generation/GenerationStage.tsx` | make the verified preview dominant; keep milestone history and composer secondary; remove publish/deploy implication from the preview-only callback |
+| Preview normalization | `frontend/src/data/adapters/generation.ts` | preserve the pure `preview`/`candidatePreview` split, stale-to-attention mapping, active job identity, and server-controlled retry eligibility |
+| Generation fixtures | `frontend/src/data/adapters/generation.fixtures.ts`, `frontend/src/data/adapters/generation.test.ts` | add/retain verified-ready, candidate-only, stale-ready, preserved-preview-attention, and partial-start fixtures without inventing backend fields |
+| Preview geometry | `frontend/src/styles/shell.css` | keep iframe inside a bounded responsive wrapper; use `min-width: 0`; preview-first single flow at 768–1199px; avoid fixed desktop minimum height at tablet/mobile |
+| Preview isolation | `frontend/src/stages/generation/GenerationStage.tsx` plus preview gateway boundary | preserve the existing sandbox/isolation contract; do not add external media or construct public URLs in the browser |
+| Reference and acceptance | `docs/Fix Frontend/17-generation-ready-preview-research.md`, `docs/Fix Frontend/visuals/20-generation-ready-preview.png`, `docs/Fix Frontend/08-acceptance-matrix.md` | use the image for hierarchy only; validate real DOM geometry at all four target viewports, with no separate tablet image |
 
 ## Admin surface
 
