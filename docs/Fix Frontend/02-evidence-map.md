@@ -25,6 +25,24 @@ All references below point to the evidence-only audit in `../current-frontend-au
 | FE-019 | Generation | [generation-02-progress.png](../current-frontend-audit/evidence/screenshots/generation/generation-02-progress.png) | Raw coordinator label leaks into user copy | Human-readable milestone copy and consistent spacing |
 | FE-020 | Global/Generation | [generation-02-progress.png](../current-frontend-audit/evidence/screenshots/generation/generation-02-progress.png); output rail observation | Output rail selection falls back to stale earlier output | Inspector selection keyed by active stage and cleared safely when unavailable |
 
+## Generation ready/preview follow-up
+
+This focused follow-up does not create a new FE number. It ties the missing
+ready-state and responsive-preview work to the existing audit findings and
+current source:
+
+| Concern | Existing evidence | Source-level observation | Remediation target |
+|---|---|---|---|
+| Ready/preview is not represented in the audit baseline | [generation-01-start.png](../current-frontend-audit/evidence/screenshots/generation/generation-01-start.png), [generation-02-progress.png](../current-frontend-audit/evidence/screenshots/generation/generation-02-progress.png), [16-code-generator-preview-research.md](16-code-generator-preview-research.md) | The audit reaches a locked/start or progress surface; the current ready branch now renders a browser iframe but does not have a focused ready-state contract | Make the verified preview the primary artifact and document status, route, fit, open, and recovery behavior in [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) |
+| Preview action implies unsupported publishing | Current `GenerationStage.tsx` ready branch and [03-runtime-state-and-api-contract.md](03-runtime-state-and-api-contract.md) | The `Publish when ready` button currently opens the preview URL; no public publishing endpoint is in scope | Rename to a truthful preview/review action and keep any future publishing work separately authorized |
+| Tablet behavior is under-specified | [scroll_and_layout_metrics.json](../current-frontend-audit/evidence/measurements/scroll_and_layout_metrics.json), current `.codegen-workspace`/`.browser-content-viewport` rules in `frontend/src/styles/shell.css` | The desktop grid collapses to one column at `1024px`, but the ordering, preview minimum height, and action reservation are not defined for 768×1024 | Reflow preview-first with bounded iframe geometry, contained route controls, and reserved actions; no separate tablet asset |
+| Verified/candidate distinction can be lost in the surface | [generation-02-progress.png](../current-frontend-audit/evidence/screenshots/generation/generation-02-progress.png); adapter tests under `frontend/src/data/adapters/generation.test.ts` | The adapter preserves `preview` and `candidatePreview`, but the visual target must make the distinction visible | Label verified versus candidate and preserve an existing preview during attention |
+
+The new desktop visual [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png)
+is a hierarchy reference only. It is not runtime evidence and does not prove a
+layout check passed. Tablet acceptance must be recorded from the browser at
+768×1024, not inferred from the image.
+
 ## Related cross-cutting observation without a new FE ID
 
 The audit also recorded an administrator-safety problem that is intentionally kept separate from the FE-001–FE-020 register: an admin-only `Reset Pipeline` control was visible in the ordinary creator topbar. The exact audit evidence is [06-agent-state-and-action-audit.md](../current-frontend-audit/06-agent-state-and-action-audit.md), [09-accessibility-interaction-findings.md](../current-frontend-audit/09-accessibility-interaction-findings.md), and [10-journey-and-information-architecture-findings.md](../current-frontend-audit/10-journey-and-information-architecture-findings.md). The remediation target is `frontend/src/app/AppShell.tsx`: keep the quiet account-menu link to `/admin`, remove the destructive topbar control, and preserve the server-authorized administrator confirmation flow documented in [10-admin-console-specification.md](10-admin-console-specification.md).

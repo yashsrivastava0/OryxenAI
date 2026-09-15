@@ -16,6 +16,9 @@ The implementation is complete only when the following checks pass against the a
 | Desktop body measure | Main prose region is at least 36rem at desktop and never collapses to a one/two-word column |
 | CTA rendering | Desktop labels do not wrap into four lines and arrow/icon is not clipped |
 | Empty intake | No permanent scrollbar is created by shell decoration/padding alone |
+| Ready preview height | Verified preview, status, and primary open/review action are reachable without a hidden or covering action area |
+| Tablet preview order | At 768×1024 the preview theater appears before long activity/composer content, with no page-level horizontal scroll |
+| Preview frame bounds | The iframe remains inside the theater bounds at 1536×695, 1366×768, 768×1024, and 390×844 |
 
 ## Representation and data
 
@@ -39,6 +42,9 @@ The implementation is complete only when the following checks pass against the a
 | Polling stop | Poll coordinator unsubscribes after `attention`, `review`, `complete`, `locked`, or `unsupported` |
 | Retry validity | Retry button is shown only when `retry_available` is true and the endpoint accepts it |
 | Preview preservation | Existing verified/candidate preview remains visible after attention |
+| Ready verification | `preview.url` is visibly labelled verified; a candidate URL is never presented as verified |
+| Preview action truthfulness | Ready state contains an open/review action, not a publish/deploy claim unsupported by the server contract |
+| Candidate/verified split | `preview` and `candidatePreview` remain distinct in the rendered view model and in the theater |
 | Generation entry | Approved Build Preparation shows an actionable Generate state, not a dead-end lock |
 | Partial approval | Approval success and next-stage start failure are represented separately |
 | Input composer | Intake, answer, and revision fields have labels, inline validation, preserved values on failure, and visible submit actions |
@@ -72,6 +78,14 @@ Discovery intake → questions → brief review → approval
 ```
 
 Record screenshots and geometry results for the four target viewport classes on every remediation pass.
+
+For Generation ready/preview, use the fixture-backed `ready` view with a
+verified preview URL, a candidate-only view, a stale-ready view, and an
+attention view with a preserved preview. Compare hierarchy to
+[20-generation-ready-preview.png](visuals/20-generation-ready-preview.png),
+but treat the view model and server response as authoritative. Tablet has no
+separate image: record the 768×1024 geometry and focus results as the
+responsive acceptance evidence.
 
 For the separate administrator pass, record `/admin` at desktop and mobile widths, including the Users tab, a project/operations tab, and one confirmation dialog. Use [12-admin-control-center.png](visuals/12-admin-control-center.png) as composition reference only; use live API data and safe masked values in validation.
 

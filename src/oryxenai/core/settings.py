@@ -748,6 +748,10 @@ class CodeGeneratorVerificationConfig(BaseModel):
     """Final build, browser, artifact, and repair policy."""
 
     enabled: bool = True
+    # When enabled, generated-output quality/source/runtime findings remain
+    # visible as advisories while build and preview-service viability alone
+    # determine whether a candidate can be promoted.
+    preview_first_acceptance: bool = False
     profile_id: str = "code-generator-verification-v1"
     browser_name: str = "chromium"
     browser_executable: str = ""
@@ -804,9 +808,7 @@ class CodeGeneratorVerificationConfig(BaseModel):
     )
     # The preview UI may expose additional device presets, but release
     # verification is deliberately bounded to desktop web viewports.
-    release_viewport_profiles: list[str] = Field(
-        default_factory=lambda: ["desktop", "laptop"]
-    )
+    release_viewport_profiles: list[str] = Field(default_factory=lambda: ["desktop", "laptop"])
     geometry_thresholds: dict[str, float] = Field(
         default_factory=lambda: {
             "min_text_px": 12.0,
@@ -845,7 +847,13 @@ class CodeGeneratorVerificationConfig(BaseModel):
     export_root: str = "output/code-gen-output"
     export_timezone: str = "Asia/Kolkata"
 
-    @field_validator("enabled", "browser_headless", "reject_source_maps", mode="before")
+    @field_validator(
+        "enabled",
+        "browser_headless",
+        "reject_source_maps",
+        "preview_first_acceptance",
+        mode="before",
+    )
     @classmethod
     def _coerce_bool(cls, value: Any) -> Any:
         if isinstance(value, str):
