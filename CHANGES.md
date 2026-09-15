@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-15 00:00 +05:30 — Codex (GPT-5) — [93cc34e] — Add beginner Azure deployment strategy
+
+Added the requested `doc/deployment strategy/` operator pack covering the
+current implementation and deployment gaps, VM-local setup, exact-SHA release
+workflow, deferred `deploy.me` activation, owner prerequisites, maintenance,
+AI-assisted troubleshooting, backups, cost controls, and first-party research.
+Recorded the dedicated `deployment` release pointer and the two-phase
+server/public-domain rollout decisions without changing application code.
+
 ### 2026-09-14 00:00 +05:30 — Codex (GPT-5) — [f594a11] — lossless Azure deployment session log
 
 Added an append-only deployment session record covering the Azure VM wizard,
