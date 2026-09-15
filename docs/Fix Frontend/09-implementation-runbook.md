@@ -32,6 +32,20 @@ Exit condition: no title collisions, no permanent empty-screen scrollbar, no nar
 
 Exit condition: every stage presents its native artifact before secondary prose or developer data.
 
+### Generation ready/preview execution detail
+
+Before changing the ready screen, read [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) and inspect `frontend/src/stages/generation/GenerationStage.tsx`, `frontend/src/data/adapters/generation.ts`, and the Code Generator fixtures. Then:
+
+1. Preserve the server-authoritative `preview`, `candidatePreview`, `active_job_id`, `active_job_kind`, `safe_error`, and `retry_available` projection.
+2. Keep verified and candidate preview URLs visibly distinct; never infer verification from an arbitrary URL.
+3. Make the preview theater the dominant ready-state artifact and keep diagnostics closed by default.
+4. Replace misleading `Publish when ready`/`Deploy your project` copy with the truthful preview/review action supported by the current callback and backend contract.
+5. Render route controls only when route paths are present and keep them inside a contained strip.
+6. At 768–1199px reflow to a preview-first single flow; do not create a dedicated tablet mockup or a new preview-device API.
+7. Ensure the responsive iframe wrapper has `min-width: 0`, a bounded aspect ratio, and no tablet/mobile minimum height that obscures the action area.
+8. Add browser assertions for ready, candidate-only, stale-ready, attention-with-preview, and partial approval/start failure.
+9. Use [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png) as hierarchy reference only; Markdown and server state remain authoritative.
+
 ### Discovery question execution detail
 
 Before moving to the later stage representations:

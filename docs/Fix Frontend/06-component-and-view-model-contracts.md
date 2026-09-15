@@ -72,7 +72,20 @@ Rules: no “Oops!” copy; never show a retry button that the backend will reje
 
 Inputs: verified/candidate preview, route list, viewport controls, focus mode, and external-open action.
 
-Rules: preserve cross-origin isolation; label candidate versus verified; keep existing preview when a later run fails; respect reduced motion.
+Rules: preserve cross-origin isolation; label candidate versus verified; keep existing preview when a later run fails; respect reduced motion. The ready state is a review theater, not a publishing console: do not render `Publish` or `Deploy` actions unless the server contract supplies them. Route controls are conditional on route data, and the iframe stays inside a bounded aspect-ratio wrapper with `min-width: 0`.
+
+Ready-state contract:
+
+- `preview.url` is the only source for a `Verified preview` label;
+- `candidatePreview.url` is explicitly labelled candidate/unverified;
+- `Open verified preview`/`Review preview` uses the existing server-supplied URL and does not construct a public URL;
+- a previous preview remains visible during `attention` when the adapter supplies it;
+- desktop may use the current two-column composition, while 768–1199px reflows to preview-first single flow; tablet is not a separate device mockup;
+- at tablet/mobile widths the preview height is responsive and must not be forced by the desktop `min-height: 480px` when that would obscure actions;
+- route selection, fit controls, and focus mode are rendered only when their data/callbacks exist; and
+- diagnostics remain in the closed developer-only inspector.
+
+See [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) for the code-grounded rationale and [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png) for hierarchy only.
 
 ## Stage-specific components
 

@@ -1,0 +1,81 @@
+{
+  "viewport_primary": "1536x695 (approx 1440x900 desktop class)",
+  "stages": [
+    {
+      "stage": "Discovery Intake (Empty)",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 808,
+      "ratio_scroll_to_inner": 1.1626,
+      "vertical_scrollbar": true,
+      "excess_vertical_px": 113,
+      "primary_action_y_px": 680,
+      "primary_action_distance_vh": 0.98
+    },
+    {
+      "stage": "Discovery Questions (Active Question 01)",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 808,
+      "ratio_scroll_to_inner": 1.1626,
+      "vertical_scrollbar": true,
+      "primary_action_y_px": 680,
+      "primary_action_distance_vh": 0.98
+    },
+    {
+      "stage": "Discovery Brief Review",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 3032,
+      "ratio_scroll_to_inner": 4.3626,
+      "vertical_scrollbar": true,
+      "primary_action_y_px": 2850,
+      "primary_action_distance_vh": 4.10,
+      "notes": "User must scroll over 4 viewport heights through collapsed cards and raw JSON toggles to find the primary 'Approve & continue to Content Architect' CTA."
+    },
+    {
+      "stage": "Content Architect Review",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 8026,
+      "ratio_scroll_to_inner": 11.548,
+      "vertical_scrollbar": true,
+      "primary_action_y_px": 7994,
+      "primary_action_distance_vh": 11.50,
+      "notes": "Extreme vertical expansion. The primary 'Approve & continue to Visual Design Director' CTA is located 7,994px down (11.5 viewport heights). Heading text wrapped to 1-2 words per line in a narrow 160px column while 400px of space is wasted. Status pill collides with H1 title."
+    },
+    {
+      "stage": "Visual Design Director Review",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 3539,
+      "ratio_scroll_to_inner": 5.092,
+      "vertical_scrollbar": true,
+      "primary_action_y_px": 3244,
+      "primary_action_distance_vh": 4.67,
+      "notes": "Primary CTA is 4.67 viewport heights below fold. Status pill collides with H1 title. Scene details collapsed by default in disclosure accordions."
+    },
+    {
+      "stage": "Build Preparation Review",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 2180,
+      "ratio_scroll_to_inner": 3.136,
+      "vertical_scrollbar": true,
+      "primary_action_y_px": 741,
+      "primary_action_distance_vh": 1.06,
+      "notes": "Primary CTA placed near top (y=741px). Stat metrics duplicated between left rail and central banner. 2 broken images rendered with 20+ keyword alt text blocks."
+    },
+    {
+      "stage": "Generate & Preview (Active Generation)",
+      "window_innerWidth": 1536,
+      "window_innerHeight": 695,
+      "document_scrollHeight": 950,
+      "ratio_scroll_to_inner": 1.366,
+      "vertical_scrollbar": true,
+      "primary_action_y_px": null,
+      "primary_action_distance_vh": null,
+      "notes": "Initial state showed 'Stage Locked' with zero buttons despite coming from Prepare. Transitioned to 'Generating your portfolio' with unstyled 'plan' ordered list. Job failed in background with HANDOFF_ERROR / handler failure, but frontend permanently polls and never shows error or retry button."
+    }
+  ]
+}

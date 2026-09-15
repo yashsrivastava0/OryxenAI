@@ -1,0 +1,19 @@
+[CONSOLE LOGS & CLIENT-SIDE LOG CAPTURE]
+Session URL: http://localhost:8000/app?stage=generate&view=artifact
+User: yashxbbdtest (UUID: 6a630f57-0f19-4480-8425-8b66a60eb2a8)
+Timestamp: 2026-09-12T16:37:00Z to 2026-09-12T17:03:00Z
+
+[LOG] [auth-runtime] Session active for user yashxbbdtest. Bearer token injected.
+[LOG] [pipeline] Active session resolved: 5822e80f-83d8-4606-b25d-05e09e92d8b8 (stage=generate)
+[LOG] [polling] GET /api/v1/sessions/5822e80f-83d8-4606-b25d-05e09e92d8b8 -> 200 OK (every ~2000ms)
+[LOG] [polling] Session state: stage=generate, status=working, active_agent=code_generator
+[WARN] [HandoffUtility] Agent output rail showing Discovery Agent response instead of active Code Generator stage output.
+[WARN] [ImageLoader] Failed to load researched image candidates for Build Preparation: 404 / broken external URLs.
+[LOG] [polling] GET /api/v1/sessions/5822e80f-83d8-4606-b25d-05e09e92d8b8 -> 200 OK (continuous loop)
+[CRITICAL RUNTIME GAP] Background job 5db62977-0bed-41ef-84ec-3f8e14491f6e (code_generator.v5.plan) transitioned to status='failed' with error_payload={'code': 'HANDLER_ERROR', 'message': 'The background job handler failed.'}.
+However, the session endpoint returned:
+{
+  "session": { "current_stage": "generate", "session_status": "active", ... }
+}
+The frontend received no failure event, no error payload, and continued to poll GET /api/v1/sessions indefinitely.
+No error toast, error boundary, retry CTA, or diagnostic message was emitted to the user.

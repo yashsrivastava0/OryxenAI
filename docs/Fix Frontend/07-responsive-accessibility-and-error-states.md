@@ -30,6 +30,15 @@
 - preview theater fits the viewport and exposes device controls without overflow;
 - no decorative label or registration mark may create page overflow.
 
+### Generation preview reflow
+
+- At 768–1199px, place the Generation preview theater before the long milestone/composer details so the primary artifact is reachable first.
+- Keep the preview iframe inside a bounded responsive frame; remove or relax any desktop-only minimum height that would push the action dock below an obscuring layer.
+- The tablet requirement is responsive host-shell behavior, not a dedicated tablet image or a new preview-device contract.
+- Keep route controls in a contained local strip and keep the document itself one-dimensional.
+- Do not show `Publish` or `Deploy` copy in the ready state without a server-authoritative endpoint. Use truthful preview/review actions.
+- On a verified ready state, expose the verification label and open-preview action without requiring a long scroll. On candidate or attention states, preserve and label the existing preview.
+
 ## Keyboard and focus
 
 - The skip link targets the current stage.

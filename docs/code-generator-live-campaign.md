@@ -328,3 +328,614 @@ paths, navigation/interactions, resolved blocking review findings, promoted
 preview reachability, iframe reconnect after refresh/route change, and a real
 `dist/index.html`. Mobile is not a release gate under D-088. No sixth run or
 automatic follow-on campaign is permitted.
+## Post-67d5a75 variable-input campaign — absolute four-run cap (2026-09-11)
+
+This is a new, separately authorized campaign. Historical tables above remain
+closed and unchanged. The budget applies only to a new full Code Generator
+plan/acquire/generate pipeline; upstream first-four work and offline compiler,
+test, build, or browser checks do not consume a slot. Verification-only
+redelivery of an already accepted source checkpoint also does not consume a
+slot.
+
+- Absolute maximum full Code Generator pipelines: **4**.
+- Used: **2/4**. Slot 1 created full pipeline run
+  `580b382b-8df2-4eb0-a0ea-966320782d9c`; Slot 2 created full pipeline run
+  `09e10d36-c692-4d3f-a01b-6449420418be`; slots 3-4 remain unreserved.
+- Priya Vasudevan input is prohibited for every live slot.
+- Reserve one slot at a time. Diagnose and fix a failure before reserving the
+  next slot. Never create a fifth slot or pipeline.
+- Adaptive stop: stop after the first browser-verified success when its
+  content and resource/component topology materially differs from Priya; seek
+  one complementary success only if needed and only within the same four-slot
+  ceiling.
+- Acceptance requires durable `ready`, promoted `active_preview`, and a real
+  authenticated `/app` browser check with zero generation, runtime, console,
+  or failed-network errors. A clean build/export alone is insufficient.
+
+### Post-change compatibility input and offline baseline
+
+- Source session: non-Priya Maya compatibility session
+  `033eb7de-9c13-41d6-8bec-cd806a3776b3`.
+- Current upstream provenance: Content Architect prompt
+  `content_architect.plan_content.v5`; VDD prompt
+  `visual_design_director.establish_visual_language.v6` with system v4; Build
+  Preparation prompt `build_preparation.compose_visual_brief.v3`; routing
+  policy `precode_fallback_v2`.
+- Build Preparation run `4b5e206a-1974-4851-a274-01c74901b03a` reached
+  `ready` on the same durable job after one same-job cache-backed redelivery.
+  The redelivery made zero provider calls and did not create a Code Generator
+  pipeline.
+- Privacy-safe regression fixture:
+  `tests/fixtures/code_generator_build_preparation_post_67d5a75_v1/`.
+  It preserves the current producer topology—1 route, 7 ordered unnamespaced
+  sections, 9 resource roles, and 3 component roles—while replacing identity,
+  organization, link, metric, provider-candidate, and runtime metadata.
+- Immutable fixture hashes: content
+  `40f9bc8b1e50ef7249a9569107004318e1037299b37fb2e78242bd7dd41f8a0a`;
+  visual
+  `be310a99769978e26372e94f1d6f59b7f4c28da61a4e253ed07662ec31c4cca1`.
+- Compiler-defined structural signature:
+  `bp-structure-v1:9e6cdb32b0ba7eaea1954eef35e8ae45fceb9a454116b6fc303af146c039d7a3`.
+- Pre-fix pure-compiler probe: rejected before any Code Generator model call
+  with `BRIEF_SECTION_SCOPE_INVALID`, because the current producer emits
+  route-owned section IDs such as `hero` while the consumer hard-required
+  `home:hero`. This is retained as the fail-closed compatibility regression;
+  it must pass through explicit v1 dispatch before slot 1 can be reserved.
+
+### Full Code Generator slots
+
+| Slot | Reserved at | Input / structural signature | Run ID | Terminal outcome | Browser acceptance | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `2026-09-11 13:07 +05:30` | Maya BP `4b5e206a`; `bp-structure-v1:b20e9207...`; content `e6d4588c...`; visual `f095a836...`; revision `39b401d+scoped-working-tree`; key `206d62b8...` | `580b382b-8df2-4eb0-a0ea-966320782d9c` | `needs_attention` — `GENERATION_CONTEXT_LIMIT` (`179274 > 170000`) | not reached | failed; root-cause fix required |
+| 2 | `2026-09-11 14:23 +05:30` | Maya BP `4b5e206a`; `bp-structure-v1:b20e9207...`; content `e6d4588c...`; visual `f095a836...`; revision `39b401d+context-scope-fix-working-tree`; key `2dc1d1aa...` | `09e10d36-c692-4d3f-a01b-6449420418be` | `needs_attention` — `SOURCE_CONTRACT_FAILED` after three verification rounds | not reached | failed; image-binding contract diagnosis required |
+| 3 | — | — | — | — | — | unreserved |
+| 4 | — | — | — | — | — | unreserved |
+
+### Slot 1 result — Maya
+
+- Durable run `580b382b-8df2-4eb0-a0ea-966320782d9c` and initial job
+  `839f80df-609c-4661-9669-b1251d2ed85b` consumed full-pipeline slot 1/4.
+- Terminal outcome: `needs_attention`, code `GENERATION_CONTEXT_LIMIT`, during
+  `generating_routes` at work unit `route-home-4ea14058-batch-1`.
+- The bounded generation context measured 179,274 characters against the
+  configured 170,000-character ceiling. The largest fields were `plan=49666`,
+  `visual_direction=46586`, `shared_source=32836`,
+  `generation_contract=20771`, and `site_contract=14370`.
+- Admission, creative direction, planning, resource acquisition, and the
+  deterministic foundation completed. The foundation checkpoint is
+  `d8adc9b47e3b43a4d96f063d07bfef616006e4758e71a08ef17107132dcafab5`
+  (60 files; 1,759,538 bytes). No route-generation model call occurred before
+  rejection.
+- Site-plan hash: `e169b912adee10c157f1c8dd4e6ae44dce48819e53f786ba24933295fffdb63d`;
+  resource-ledger hash:
+  `4671f94c381ff9c2134a882316227ab9623bdf50918b5b98d41e00ab356ea131`;
+  dependency-ledger hash:
+  `176a295f7d63602386fc3d8723406f50c90fd6fcd831f844bc88baf62e5aa902`.
+- Build/runtime verification, preview promotion, and browser acceptance were
+  not reached. Slot 2 was reserved only after deterministic context scoping
+  passed exact-artifact replay, broad offline tests, focused semantic review,
+  and fresh provider/toolchain/worker readiness checks.
+### Slot 2 result — Maya
+
+- Durable run `09e10d36-c692-4d3f-a01b-6449420418be`, initial job
+  `3e1c627e-6da7-457b-988d-a876b295e1f9`, generation job
+  `5c469125-3765-46f5-a0ed-19bd789726b5`, and verification job
+  `7c34ef52-89d6-4ef3-a769-35191a187cf1` consumed slot 2/4.
+- The Run 1 context-ceiling fix succeeded live: foundation, all three route
+  batches, composition, and integration completed. Integration quality was
+  accepted with only advisory findings.
+- Terminal outcome: `needs_attention`, code `SOURCE_CONTRACT_FAILED`, after
+  three bounded verification rounds. The remaining blocking diagnostics were
+  `SOURCE_ROUTE_IMAGE_MINIMUM_MISSING` and
+  `SOURCE_PRIMARY_ROUTE_IMAGE_MISSING`; no runtime/browser journey ran and no
+  preview was promoted.
+- Final accepted source checkpoint:
+  `64f9ff0427c74601948d9061519193d165f3bf895566f2bd1b91e9a9156f653d`;
+  source manifest:
+  `31c45802959315124e552c3bd6d4df810255072fe779283342968f3e9425c727`;
+  74 files and 1,836,584 bytes. Quality receipt:
+  `84b125d6884e9babbd6aa06753796e3c979a687b0a744a73d442d6d5cb0a2e5f`.
+- The failure is internally contradictory: generated route source contains
+  admitted `LocalImage` usages and acquisition downloaded image resources,
+  while the host-owned source-contract projection counted no materialized
+  primary-route image. Diagnose the resource-ID/local-path projection and
+  verifier matching offline before Slot 3 is reserved.
+
+### Campaign closure — preview-first Run 2 ready (2026-09-11)
+
+This closure supersedes the interim Slot 2 outcome and strict acceptance wording
+above. The owner explicitly prioritized the first buildable, serveable preview
+and directed that generated content, quality, image, geometry, console, and
+runtime findings must not fail such a preview. No additional full pipeline was
+created after Slot 2.
+
+#### Preview-first policy
+
+- `preview_first_acceptance` remains configuration-owned and defaults to
+  `false`; `config/app.native.toml` enables it for this native campaign. Strict
+  hosted profiles retain their existing release policy.
+- Under the native override, integration review, generated source-contract
+  findings, and runtime-verifier findings are retained as advisories. The
+  workflow still blocks when immutable input, authorization/fencing,
+  checkpoint/source integrity, dependency installation, the clean production
+  build, candidate-server startup, storage readback, or atomic promotion fails.
+- The verifier reconstructs effective resource projections from the immutable
+  acquisition ledger before source checks. This resolved the contradiction
+  between admitted local resources and an empty verifier-side resource view.
+- The focused lint, compile, type, unit, and verification-worker checks passed.
+  The one isolated integration failure before cache recovery was the expected
+  offline npm install failure, which correctly remained blocking because no
+  build artifact existed.
+- D-094 records the policy decision and rejected unconditional global
+  fail-open behavior.
+
+#### Verification-only recovery chronology
+
+Every row below reused run `09e10d36-c692-4d3f-a01b-6449420418be` and its
+accepted source. These are verification-only deliveries, not new
+plan/acquire/generate pipelines, so the full-run count remained **2/4**.
+
+| Idempotency key | Verification job | Result | Exact recovery before the next delivery |
+| --- | --- | --- | --- |
+| `4322626e-f629-4d89-b92d-eb8cc424e232` | `013827cb-00b6-4d03-a4ae-993b7ef5d0c7` | `INPUT_COPY_MISSING` | Replayed the original create-run key `2dc1d1aa-68d3-4d05-a7ae-faaaaa6e8213`, which returned the same run and restored input SHA-256 `b2bb4bc6b84d4b35beb1ed13075a45af7d1711f7fe5ccc1ef8698645b01dfa82` without reserving a slot. |
+| `d2d80a69-cf1e-4490-a785-e869913a6a3d` | `c0f2bcf3-175c-45aa-8d01-e2ead02681f1` | `CHECKPOINT_MISSING` | Reaccepted the exact 74-file export through `CheckpointStore.accept`; checkpoint `64f9ff0427c74601948d9061519193d165f3bf895566f2bd1b91e9a9156f653d` and source manifest `31c45802959315124e552c3bd6d4df810255072fe779283342968f3e9425c727` matched the durable receipt. |
+| `7db32c1e-4736-4c1d-903d-ad1e52dd1f18` | `63efdec5-ba7f-40a9-bf30-3661019e252f` | `ACQUIRED_RESOURCE_MISSING` | Restored only the 26 receipt-bound files: four local font files and 22 image renditions. Every source and dist copy matched its receipt SHA-256 and byte size; the second restore pass found all 26 already present. No licence records were fabricated. |
+| `d7d91308-3f24-4048-944c-1bc800039aec` | `c34f9ffa-3efc-4677-8b1b-77780219259f` | `INSTALL_FAILED` on the absent pinned `yallist` tarball | Restored that exact public package to the configured offline npm cache. |
+| `bc4224e1-6326-4e86-a5af-b07615d3e5e6` | `e7058d67-68cd-4021-91df-26e9c4616188` | `INSTALL_FAILED` on the next absent pinned package | Warmed the configured cache once from Run 2's exact `package-lock.json` in an isolated directory with install scripts disabled; the source package manifests remained byte-identical and the temporary directory was removed. |
+| `087d0a6f-0999-47a8-ab0d-7b7dfb8b1f26` | `780117e3-7112-478c-af2f-e227b28669e9` | **`ready`** at revision 85 | Clean install, typecheck, production build, artifact closure, candidate serving, browser verification, storage readback, and promotion completed. |
+
+Recovery integrity anchors:
+
+- Restored immutable input:
+  `.workspace/code-generator-development/inputs/b2/b2bb4bc6b84d4b35beb1ed13075a45af7d1711f7fe5ccc1ef8698645b01dfa82.json`.
+- Restored admitted envelope:
+  `.workspace/code-generator-development/admitted/7cffd7a9d6ca2860514ad634894fd368cf3dd27fcce2a54496d8350fe4db46fb/brief-envelope.json`.
+- Restored checkpoint root:
+  `.workspace/code-generator-checkpoints/09e10d36-c692-4d3f-a01b-6449420418be/64f9ff0427c74601948d9061519193d165f3bf895566f2bd1b91e9a9156f653d`.
+- Resource projection source:
+  `output/code-gen-output/14-36-11-09-2026-09e10d36/source/src/generated/resource-manifest.ts`, file SHA-256
+  `14c0895db27ca29702d1a70ec46194a731341431c8227c7cf2c2ee2184e1c34c`,
+  embedded ledger hash
+  `149ab762562a1ea2fc401040ef3c470c84d3fe4fb6529027a1cdba4d81a82d21`.
+- Restored material root:
+  `.workspace/code-generator-materials/09e10d36-c692-4d3f-a01b-6449420418be/`.
+
+#### Ready, promotion, and browser evidence
+
+- All three verification gates report `passed`: `source_contract`,
+  `type_build_artifact`, and `dom_runtime`. The resulting build manifest has
+  31 entries, entry point `index.html`, total bytes 1,704,235, and build hash
+  `686f734e7f40b796d5778401925331f0bf1de6672046f18f2e7a55200ac36fe5`.
+- Candidate `candidate-fb13414d2c6cf195780ef8bf` was stored with candidate
+  identity
+  `fb13414d2c6cf195780ef8bf9de5d9f4a03ae72d8c008551bbafaff3a8139dfa`
+  and artifact SHA-256
+  `c1ab0ff035860a8a65e5910d1d14c694a32146f35ce819fdaac6a483e5d864f9`.
+- Promoted preview:
+  `http://127.0.0.1:4174/preview/preview-ra6izeqxllwudvgpixbh3ifwpgecfycde2schxxursnzaq5p/`.
+  Promotion receipt hash:
+  `c09c45018e4754cb86a0eb8d5f480ab5b2b01f9efe7abcebeb3084a04dccb310`;
+  pointer ETag:
+  `2c02210cdcc200b8e28b25c9964d1827a407de51066ddab5a9017c8228a707d9`.
+- A separate real Chromium load of the promoted URL returned HTTP 200 and
+  `document.readyState=complete`, rendered one main landmark, 26 headings, 17
+  links, and 8,533 body-text characters, reached network idle, and produced no
+  console errors, page errors, failed requests, or HTTP error responses.
+- Preserved advisory codes are `QUALITY_REALIZATION_STALE`,
+  `SOURCE_ROUTE_IMAGE_MINIMUM_MISSING`, `SOURCE_PRIMARY_ROUTE_IMAGE_MISSING`,
+  `RUNTIME_ASSERTION_FAILED`, and `RUNTIME_ANCHOR_TARGET_MISSING`. Per the
+  owner-approved preview-first rule, these do not invalidate the running
+  preview.
+- Final verified export:
+  `output/code-gen-output/16-23-11-09-2026-09e10d36/` with both `source/` and
+  runnable `dist/`.
+
+#### Artifact locations and final accounting
+
+- Run 1 recorded export:
+  `output/code-gen-output/13-12-11-09-2026-580b382b/`. The folder is currently
+  absent and Run 1 never produced a runnable `dist/`.
+- Run 2 original generated source:
+  `output/code-gen-output/14-36-11-09-2026-09e10d36/source/`.
+- Run 2 original runnable build:
+  `output/code-gen-output/14-36-11-09-2026-09e10d36/dist/`.
+- Campaign outcome: **one promoted, browser-verified ready preview; 2/4 full
+  runs consumed**. Slots 3 and 4 were never reserved. The adaptive stop rule
+  is satisfied and this campaign is closed.
+
+## Complete Kiro session handoff — Run 1/Run 2 preview campaign
+
+### Handoff metadata
+
+- **Author:** Kiro (configured runtime)
+- **Finalized:** 2026-09-11 16:48:56 +05:30
+- **Workspace:** `C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI`
+- **Branch snapshot:** `codex/code-generator-control-room`, 131 commits ahead of
+  its tracked remote at handoff time.
+- **Commit status:** no commit was created. This is a shared, heavily dirty
+  worktree; only task-owned documentation was added during this final handoff
+  pass, and no files were staged, reset, cleaned, or reverted.
+- **Canonical decision:** D-094 in `DECISIONS.md`.
+- **Canonical issue summary:** `code generator issues.md`.
+- **Campaign cap:** four full Code Generator plan/acquire/generate pipelines.
+  Exactly two were consumed. Verification-only deliveries never reserved a
+  new run. Slots 3 and 4 remain unused and this campaign is closed.
+
+### User goal and non-negotiable acceptance rule
+
+The owner authorized at most four full runs and required the campaign to stop
+as soon as one generated portfolio produced a running preview. Generated
+content, visual-quality, image, geometry, console, and runtime findings were
+not allowed to fail a buildable and serveable preview. Integrity and viability
+were still required: immutable input admission, authorization/fencing,
+checkpoint consistency, a materialized production build, candidate-server
+startup, storage readback, and atomic promotion could not be bypassed.
+
+The implementation therefore did **not** delete verification or force a false
+`ready`. It separated generated-output observations from the smaller set of
+conditions required to truthfully claim that a preview exists and runs.
+
+### Final outcome
+
+| Full slot | Run | Result | Evidence | Accounting |
+| --- | --- | --- | --- | --- |
+| 1 | `580b382b-8df2-4eb0-a0ea-966320782d9c` | `needs_attention`, `GENERATION_CONTEXT_LIMIT` | Rejected before the first route model call because the deterministic context was 179,274 characters against a 170,000-character ceiling. No runnable `dist` was produced. | Slot 1/4 consumed. |
+| 2 | `09e10d36-c692-4d3f-a01b-6449420418be` | **`ready`**, revision 85 | Complete source, clean production build, all three verification gates recorded, candidate stored, preview promoted, and promoted URL loaded in real Chromium. | Slot 2/4 consumed; campaign stopped. |
+| 3 | — | not reserved | Stop condition already satisfied. | Unused. |
+| 4 | — | not reserved | Stop condition already satisfied. | Unused. |
+
+At handoff time the API still returned Run 2 as `ready`, its verification
+projection as `ready`, and its promoted preview returned HTTP 200.
+
+### Chronology, findings, and fixes
+
+#### 1. Run 1 exposed prompt-context duplication, not a provider failure
+
+Run 1 completed admission, creative direction, planning, acquisition, and the
+trusted foundation. The first route batch then failed in
+`_enforce_context_ceiling()` before any route-generation provider call. The
+largest duplicated model-facing fields were:
+
+- `plan`: 49,666 characters
+- `visual_direction`: 46,586 characters
+- `shared_source`: 32,836 characters
+- `generation_contract`: 20,771 characters
+- `site_contract`: 14,370 characters
+
+The chosen fix kept the 170,000-character fail-closed ceiling unchanged. It
+reduced only prompt input; complete immutable plans and projections still drive
+host validators.
+
+`generation_orchestrator.py::_operation_context()` now derives one trusted
+`_unit_context_scope()` from work-unit ownership and builds deterministic,
+operation-specific prompt projections:
+
+- `_scoped_site_contract()` keeps only the assigned route, sections, facts,
+  criteria, and approved public content.
+- `_scoped_operation_plan()` filters routes, sections, content/fact/criterion
+  IDs, interactions, resource bindings, V4 blueprint records, and the work
+  graph to the current unit and direct dependencies.
+- `_scoped_visual_direction()` retains global visual authority but removes
+  out-of-scope route/section/resource records and repeated raw approved-brief
+  Markdown.
+- `_scoped_resource_ledger()` and `_scoped_execution_contract()` retain only
+  usable metadata and current-unit resource slots.
+- `_shared_source_for_unit()` changed from a broad repository walk to an
+  operation-specific allowlist of trusted APIs, generated tokens/shared
+  systems, direct dependency modules, and current resource interfaces.
+- `_compact_generated_content_interface()` retains API signatures and only the
+  current batch's `ApprovedContentId` union instead of repeating all approved
+  prose.
+- Route create/replace inventory is restricted to paths the unit can actually
+  own.
+
+Exact persisted replay after this change measured the three initial route
+contexts at 114,653, 128,795, and 74,246 characters; corresponding bounded
+repair contexts measured 131,556, 141,142, and 70,292 characters. All remained
+below the unchanged ceiling. Run 2 then proved the change live by completing
+all three route batches, composition, and integration.
+
+Rejected approaches: raise/remove the ceiling, truncate arbitrary serialized
+JSON, discard host validation data, or spend another full run before exact
+replay. Those alternatives would hide growth, remove determinism, or waste the
+four-run budget.
+
+#### 2. Run 2 exposed a verifier-side effective-resource projection gap
+
+Run 2 generated a complete accepted source checkpoint, but strict verification
+reported `SOURCE_ROUTE_IMAGE_MINIMUM_MISSING` and
+`SOURCE_PRIMARY_ROUTE_IMAGE_MISSING`. This contradicted the durable evidence:
+acquisition had admitted local files and generated source contained resource
+references.
+
+Root cause: verification re-admitted the immutable Build Preparation envelope,
+which reconstructs pre-acquisition projections. It restored source bytes but
+did not rebuild the mutable durable overlays (`resources/ledger.json`,
+`dependencies/ledger.json`, and `generated/resource-assets.json`) before final
+source and runtime contracts were compiled. The existing validators therefore
+saw an incomplete effective resource view.
+
+The chosen fix reconstructs the same effective projections used during
+source generation:
+
+- `code_generator_verification.py::_materialize_effective_projections()`
+  overlays durable resource/dependency ledgers, calls the existing trusted
+  manifest materializer with the configured materials root, and stores the
+  browser-facing image assets in `generated/resource-assets.json` before
+  source identity, validation, repair, or runtime planning.
+- `design_realization.py::_acquired_local_paths_by_slot()` maps
+  `request-`, `deferred-`, and `delegated-` acquisition namespaces back to
+  immutable execution slot IDs through request hashes and active bindings.
+- `_generated_local_paths_by_slot()` adds browser-facing generated paths.
+- `_admitted_resource_slot_ids()` and `_local_paths_by_slot()` union immutable
+  execution paths, receipt-bound acquisition paths, and generated paths.
+- `compile_design_realization()` and `verification_plan.py` now receive the
+  reconstructed generated-resource projection.
+
+This is projection reconstruction, not validator weakening. Existing source
+manifest comparison still rejects `SOURCE_CHECKPOINT_DRIFT`; missing
+receipt-bound bytes still reject `ACQUIRED_RESOURCE_MISSING`; source validators
+still inspect actual executable references.
+
+Rejected approaches: edit the database, mutate generated source to satisfy the
+checker, disable image validators globally, fabricate licence files, or ignore
+checkpoint hashes.
+
+#### 3. Strict release policy conflicted with the owner's preview-first goal
+
+The original strict pipeline could spend repair calls and finish
+`needs_attention` even when the source already had a valid buildable export.
+D-094 introduced a configuration-owned policy instead of an unconditional
+fail-open change:
+
+- `CodeGeneratorVerificationConfig.preview_first_acceptance` defaults to
+  `false` in `settings.py`.
+- Only `config/app.native.toml` enables it for this native campaign.
+- `generation_orchestrator.py::_review_and_polish()` keeps the integration
+  review receipt but does not spend owner-polish calls or block on generated
+  review output in preview-first mode.
+- Missing/stale quality receipts, final-source diagnostics, and runtime
+  findings are retained in the durable projection as advisories.
+- Build diagnostics are advisory only when a complete build manifest exists
+  and every materialized `dist` file matches it. No artifact remains blocking.
+- Runtime-verifier failures after candidate-server startup become advisory;
+  authorization-fence failures are explicitly re-raised in verification.
+- `_attempt_repair()` skips strict post-repair quality re-review in
+  preview-first mode. The required repair-helper image-policy threading and
+  the contradictory post-repair hard final-source guard were removed.
+- Candidate-server startup, artifact storage/readback, pending-promotion
+  reconciliation, and atomic promotion still follow the normal blocking path.
+
+Rejected approaches: remove verification entirely, enable fail-open globally,
+mark a run ready without a real `dist`, or treat a failed candidate server as a
+preview.
+
+**Review caveat:** `_review_and_polish()` currently catches `Exception`
+broadly before its preview-first return and does not locally carve out
+`AuthorizationFenceError` as the runtime-verification branch does. Outer worker
+fences remain in place and this was not observed in the live run, but a future
+hardening pass should make this local boundary explicitly match D-094's
+invariant that authorization/fencing failures remain blocking.
+
+#### 4. Verification redelivery exposed missing ignored durable artifacts
+
+No third full run was created. Every recovery reused Run 2 and verified exact
+hashes before writing anything:
+
+1. Verification job `013827cb-00b6-4d03-a4ae-993b7ef5d0c7` failed
+   `INPUT_COPY_MISSING`. Replaying the original create-run idempotency key
+   `2dc1d1aa-68d3-4d05-a7ae-faaaaa6e8213` returned the same Run 2 and restored
+   the immutable 71,571-byte input copy with SHA-256
+   `b2bb4bc6b84d4b35beb1ed13075a45af7d1711f7fe5ccc1ef8698645b01dfa82`.
+2. Job `c0f2bcf3-175c-45aa-8d01-e2ead02681f1` failed
+   `CHECKPOINT_MISSING`. The exact exported source was reaccepted through
+   `CheckpointStore.accept`; the durable checkpoint, source-manifest hash,
+   file count, byte count, parent, and work-unit identity all matched.
+3. Job `63efdec5-ba7f-40a9-bf30-3661019e252f` failed
+   `ACQUIRED_RESOURCE_MISSING`. The resource manifest itself first matched
+   SHA-256
+   `14c0895db27ca29702d1a70ec46194a731341431c8227c7cf2c2ee2184e1c34c`
+   and embedded ledger hash
+   `149ab762562a1ea2fc401040ef3c470c84d3fe4fb6529027a1cdba4d81a82d21`.
+   Four font files and 22 responsive image renditions were copied only from
+   exact source-export paths into their receipt-declared material paths. All
+   26 source copies and all 26 optional dist copies matched receipt SHA-256
+   and size. Staging used temporary siblings plus atomic moves and readback;
+   a second execution reported all 26 already present. Licence JSON files were
+   intentionally not fabricated because they were not receipt
+   `materialized_files`.
+4. Job `c34f9ffa-3efc-4677-8b1b-77780219259f` reached the clean build and failed
+   `INSTALL_FAILED`: the configured offline npm cache lacked the lockfile-pinned
+   `yallist@3.1.1` tarball.
+5. After restoring that exact package, job
+   `e7058d67-68cd-4021-91df-26e9c4616188` exposed the next absent locked
+   package (`vite@6.4.1`), proving the cache—not source or lockfile—was
+   incomplete.
+6. The cache was then warmed once from Run 2's exact `package-lock.json` in an
+   isolated temporary directory, with install scripts disabled. The source
+   package manifests remained byte-identical; the temporary install directory
+   was removed.
+7. Final job `780117e3-7112-478c-af2f-e227b28669e9`, idempotency key
+   `087d0a6f-0999-47a8-ab0d-7b7dfb8b1f26`, completed the clean build,
+   candidate server, browser verification, storage readback, and promotion.
+
+These ignored local artifacts are required for redelivery on this machine. If
+`.workspace` is cleaned, recover them only from immutable, hash-matching
+exports or rerun the supported admission/acquisition paths; do not patch run
+rows or relax integrity checks.
+
+### Final Run 2 evidence
+
+- Run ID: `09e10d36-c692-4d3f-a01b-6449420418be`
+- Status/revision: `ready` / `85`
+- Accepted source checkpoint:
+  `64f9ff0427c74601948d9061519193d165f3bf895566f2bd1b91e9a9156f653d`
+- Source manifest:
+  `31c45802959315124e552c3bd6d4df810255072fe779283342968f3e9425c727`
+- Source size: 74 files, 1,836,584 bytes
+- Candidate identity:
+  `fb13414d2c6cf195780ef8bf9de5d9f4a03ae72d8c008551bbafaff3a8139dfa`
+- Build hash:
+  `686f734e7f40b796d5778401925331f0bf1de6672046f18f2e7a55200ac36fe5`
+- Candidate artifact SHA-256:
+  `c1ab0ff035860a8a65e5910d1d14c694a32146f35ce819fdaac6a483e5d864f9`
+- Promotion receipt hash:
+  `c09c45018e4754cb86a0eb8d5f480ab5b2b01f9efe7abcebeb3084a04dccb310`
+- Preview pointer ETag:
+  `2c02210cdcc200b8e28b25c9964d1827a407de51066ddab5a9017c8228a707d9`
+- Promoted URL:
+  `http://127.0.0.1:4174/preview/preview-ra6izeqxllwudvgpixbh3ifwpgecfycde2schxxursnzaq5p/`
+- Final verified export:
+  `output/code-gen-output/16-23-11-09-2026-09e10d36/`
+
+All three gate receipts (`source_contract`, `type_build_artifact`, and
+`dom_runtime`) recorded `passed` under the configured policy. Preserved
+advisories are:
+
+- `QUALITY_REALIZATION_STALE`
+- `SOURCE_ROUTE_IMAGE_MINIMUM_MISSING`
+- `SOURCE_PRIMARY_ROUTE_IMAGE_MISSING`
+- `RUNTIME_ASSERTION_FAILED` for one expected public sentence
+- `RUNTIME_ANCHOR_TARGET_MISSING` for `#flagship_projects`
+
+These are visible for later polish and were deliberately not hidden. They are
+not build/serve failures.
+
+A separate real Chromium load of the promoted URL returned HTTP 200,
+`document.readyState=complete`, one `<main>`, 26 headings, 17 links, one mounted
+root child, and 8,533 rendered text characters. It reached network idle with no
+console errors, page errors, failed requests, or HTTP error responses.
+
+### Artifact and recovery paths
+
+Run 1 recorded path (currently absent; never contained runnable `dist`):
+
+```text
+C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\output\code-gen-output\13-12-11-09-2026-580b382b
+```
+
+Run 2 original source:
+
+```text
+C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\output\code-gen-output\14-36-11-09-2026-09e10d36\source
+```
+
+Run 2 original runnable build:
+
+```text
+C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\output\code-gen-output\14-36-11-09-2026-09e10d36\dist
+```
+
+Run 2 final verified export:
+
+```text
+C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\output\code-gen-output\16-23-11-09-2026-09e10d36
+```
+
+Restored input and envelope:
+
+```text
+.workspace/code-generator-development/inputs/b2/b2bb4bc6b84d4b35beb1ed13075a45af7d1711f7fe5ccc1ef8698645b01dfa82.json
+.workspace/code-generator-development/admitted/7cffd7a9d6ca2860514ad634894fd368cf3dd27fcce2a54496d8350fe4db46fb/brief-envelope.json
+```
+
+Restored checkpoint and materials:
+
+```text
+.workspace/code-generator-checkpoints/09e10d36-c692-4d3f-a01b-6449420418be/64f9ff0427c74601948d9061519193d165f3bf895566f2bd1b91e9a9156f653d
+.workspace/code-generator-materials/09e10d36-c692-4d3f-a01b-6449420418be
+```
+
+### Operator commands
+
+The promoted preview is available while the native preview gateway remains
+running:
+
+```text
+http://127.0.0.1:4174/preview/preview-ra6izeqxllwudvgpixbh3ifwpgecfycde2schxxursnzaq5p/
+```
+
+To serve the already-built Run 2 output directly on port 4175:
+
+```powershell
+& "C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\.workspace\venv\Scripts\python.exe" -m http.server 4175 --bind 127.0.0.1 --directory "C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\output\code-gen-output\14-36-11-09-2026-09e10d36\dist"
+```
+
+Then open `http://127.0.0.1:4175/`; stop the server with `Ctrl+C`.
+
+To reinstall from the exact lockfile, rebuild, and run the generated source:
+
+```powershell
+Set-Location "C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\output\code-gen-output\14-36-11-09-2026-09e10d36\source"
+$env:npm_config_cache = "C:\Users\Yash Srivastava\Desktop\01_Projects\OryxenAI\.workspace\npm-cache"
+npm.cmd ci --ignore-scripts --offline --no-audit --no-fund
+if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+npm.cmd run build
+if ($LASTEXITCODE -ne 0) { throw "production build failed" }
+npm.cmd run preview -- --host 127.0.0.1 --port 4175
+```
+
+### Validation performed
+
+The following checks were completed before declaring the campaign closed:
+
+- Ruff lint on the campaign-owned Python files.
+- Python compile checks on the changed modules.
+- Targeted mypy checks for verification, design realization, and verification
+  planning.
+- Focused tests for context scoping, effective resource projection, advisory
+  policy, repair behavior, and verification flow.
+- The full Code Generator unit suite.
+- `uv run pytest tests/integration/test_code_generator_verification_worker.py -q`.
+  Before cache recovery, its clean-candidate case alone failed at offline npm
+  installation because no build artifact could be created; this was correctly
+  blocking. The exact-lock cache warm subsequently allowed the real Run 2
+  clean build and promotion to complete.
+- Focused semantic review of the deterministic context projection approved the
+  Run 1 fix.
+- Real Chromium smoke of the promoted URL.
+- Task-scoped `git diff --check` on implementation and documentation files.
+
+No test count is frozen here; rerun the commands for current coverage.
+
+### Worktree attribution and unrelated active work
+
+The campaign does not have a clean commit boundary. Its implementation hunks
+coexist with other contributors' edits in the same files. Attribute only these
+campaign changes:
+
+- deterministic prompt-context scoping helpers and their call from
+  `_operation_context()`;
+- `_review_and_polish()`'s config-scoped preview-first return;
+- effective acquisition/generated-resource projection reconstruction in final
+  verification;
+- generated/acquired path mapping in design realization and verification plan;
+- preview-first quality/source/build/runtime behavior and its repair guard;
+- the default-off setting, native opt-in, D-094, campaign ledger, issue summary,
+  and change-log entry.
+
+Do **not** attribute the new semantic-decline module, generation attempt epochs,
+content-addressed pending proposals, request-transition receipts, explicit
+retry reset behavior, or broader at-least-once redelivery changes to this
+campaign. They are separate in-flight work. The review at
+`semantic-review/2026-09-11-102120-pr-2.md` concerns that separate work and has
+a `NEEDS_CHANGES` verdict with confirmed retry/crash-safety findings; this
+campaign did not resolve or approve those findings.
+
+The remaining worktree also contains unrelated tracked modifications,
+deletions, and untracked files. Future agents must inspect `git status` and
+stage exact files or hunks only. Never use `git add .`, `git add -A`, reset,
+clean, or broad restore in this worktree.
+
+### Current operational state and resume rule
+
+At the handoff snapshot, one API, one worker, and one preview gateway were
+running with `config/app.native.toml`; API readiness and the preview endpoint
+were healthy. The running preview is local only—no public deployment is
+claimed.
+
+The requested campaign is complete. Do not reserve Slot 3 or Slot 4 merely to
+polish the current advisories. If the local services stop, use the direct
+`dist` command above or restart the normal native services. If a future owner
+explicitly authorizes a new campaign, start from fresh readiness and accounting
+rather than silently extending this closed 2/4 campaign.
