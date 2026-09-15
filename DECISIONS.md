@@ -24,6 +24,24 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-097 - Use a dedicated deployment branch as the release pointer
+
+- **Date & Time:** 2026-09-15 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-not-yet-implemented
+- **Context:** The first Azure release must be easy for a beginner to identify and update, while the repository currently contains uncommitted work from another contributor. D-096 requires exact commit releases but does not require the release pointer to remain the development branch.
+- **Decision:** Create a `deployment` branch only from one clean, reviewed release SHA. Push that branch after the worktree is reconciled, but deploy exact SHAs with `scripts/azure-deploy.sh deploy <commit-sha>`. Keep development changes on working branches and merge them into `deployment` only after verification.
+- **Rejected alternatives:** Deploying the current dirty worktree would mix contributors' changes; deploying an unpinned moving branch would make incident diagnosis and rollback ambiguous; GitHub Actions, a registry, or a second environment would add operational complexity that is unnecessary for two or three users.
+- **Consequence:** The deployment branch is a human-readable release pointer, not an automatic deployment trigger. The first branch push and SHA selection remain gated on a clean, tested release.
+
+## D-098 - Separate server deployment from public-domain activation
+
+- **Date & Time:** 2026-09-15 00:00 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-not-yet-implemented
+- **Context:** The owner wants the Azure server and Compose stack deployed before registering or configuring `deploy.me`, but production authentication and public preview acceptance require a real HTTPS origin.
+- **Decision:** Deploy the server with the future `app.deploy.me` and `preview.deploy.me` values rendered into the VM-local production configuration, validate migrations and service health through loopback checks, and defer DNS, Caddy certificate issuance, Supabase production redirects, and public browser acceptance until the domain is controlled.
+- **Rejected alternatives:** Treating a public IP or self-signed certificate as production would not provide a reliable Google OAuth/HTTPS experience; blocking all server work until DNS would unnecessarily delay infrastructure validation; inventing a different hostname would diverge from the owner's selected domain.
+- **Consequence:** Phase A is explicitly labeled infrastructure-ready, not publicly accepted. Phase B begins after `deploy.me` is available and ends only after external verification and multi-account browser acceptance.
+
 ## D-096 - Use one VM, Compose-managed Caddy, and one guided deployment command
 
 - **Date & Time:** 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI)
