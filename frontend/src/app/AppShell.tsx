@@ -67,6 +67,55 @@ function activeSessionStorageKey(userId: string): string {
   return `oryxenai.active_session_id:${userId}`;
 }
 
+// Reconciles the stage requested by the URL (or the "discover" default)
+// against what the server just confirmed is actually approved, on the very
+// first load. Two independent corrections can be needed, in either
+// direction:
+//   - backward: the URL asked for a stage ahead of approved progress (e.g.
+//     a stale bookmark, or a direct link to a stage that got locked again).
+//   - forward: the URL asked for "discover" (or nothing) but the server
+//     shows later stages are already approved, so "discover" is stale and
+//     the user should land on the furthest stage that is actually
+//     actionable right now.
+// Pure and exported so it can be unit tested the same way url-state.ts's
+// parse/serialize helpers are, without needing to render AppShell itself.
+export function resolveInitialStage(
+  requested: JourneyStageId | null,
+  discoveryApproved: boolean,
+  contentApproved: boolean,
+  designApproved: boolean,
+  preparationApproved: boolean,
+): { stage: JourneyStageId | null; corrected: boolean } {
+  let fallback: JourneyStageId | null = null;
+  if (requested === "content" && !discoveryApproved) fallback = "discover";
+  if (requested === "design" && !contentApproved) {
+    fallback = discoveryApproved ? "content" : "discover";
+  }
+  if (requested === "prepare" && !designApproved) {
+    fallback = contentApproved ? "design" : discoveryApproved ? "content" : "discover";
+  }
+  if (requested === "generate" && !preparationApproved) {
+    fallback = designApproved ? "prepare" : contentApproved ? "design" : discoveryApproved ? "content" : "discover";
+  }
+  if (fallback) return { stage: fallback, corrected: true };
+
+  // None of the backward branches fired, so the requested stage was never
+  // ahead of approved progress. Now check the opposite: the requested/
+  // default stage sitting on "discover" while later stages are already
+  // approved, which otherwise leaves the user stranded on stale Discovery
+  // content even though real progress exists.
+  if (requested === null || requested === "discover") {
+    let furthest: JourneyStageId = "discover";
+    if (discoveryApproved) furthest = "content";
+    if (discoveryApproved && contentApproved) furthest = "design";
+    if (discoveryApproved && contentApproved && designApproved) furthest = "prepare";
+    if (discoveryApproved && contentApproved && designApproved && preparationApproved) furthest = "generate";
+    if (furthest !== "discover") return { stage: furthest, corrected: true };
+  }
+
+  return { stage: null, corrected: false };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -237,22 +286,22 @@ export function AppShell({
       if (!initialNormalizationDone.current) {
         initialNormalizationDone.current = true;
         const requested = initialUrl.stage;
-        let fallback: JourneyStageId | null = null;
-        if (requested === "content" && !discoveryApproved) fallback = "discover";
-        if (requested === "design" && !contentApproved) {
-          fallback = discoveryApproved ? "content" : "discover";
-        }
-        if (requested === "prepare" && !designApproved) {
-          fallback = contentApproved ? "design" : discoveryApproved ? "content" : "discover";
-        }
-        if (requested === "generate" && !preparationApproved) {
-          fallback = designApproved ? "prepare" : contentApproved ? "design" : discoveryApproved ? "content" : "discover";
-        }
-        if (fallback) {
-          selectStage(fallback, true);
+        const resolved = resolveInitialStage(
+          requested,
+          discoveryApproved,
+          contentApproved,
+          designApproved,
+          preparationApproved,
+        );
+        if (resolved.corrected && resolved.stage) {
+          const target = resolved.stage;
+          selectStage(target, true);
           dispatch({
             type: "announce",
-            message: `That stage is locked. Showing ${fallback} instead.`,
+            message:
+              requested === null || requested === "discover"
+                ? "Continuing from where you left off."
+                : `That stage is locked. Showing ${target} instead.`,
           });
         } else if (!requested && window.location.search) {
           selectStage("discover", true);

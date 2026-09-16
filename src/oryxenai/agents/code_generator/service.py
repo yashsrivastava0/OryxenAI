@@ -800,6 +800,20 @@ class CodeGeneratorService:
                 "plan_summary": run.plan_summary or {},
                 "source_summary": run.source_summary or {},
             }
+            # Additive-only: `stage_estimate` is a new sub-object under the
+            # existing `progress` key. No existing key above is read or
+            # changed by this block. Local import mirrors `coordinator.py`'s
+            # own precedent (settings are resolved lazily, not at module
+            # scope, so lightweight test fixtures that omit unrelated
+            # settings attributes stay compatible).
+            from oryxenai.core.settings import get_settings
+
+            payload["progress"]["stage_estimate"] = _compute_stage_estimate(
+                stage_durations_ms=getattr(run, "stage_durations_ms", None),
+                created_at=getattr(run, "created_at", None),
+                now=datetime.now(UTC),
+                timeout_for=get_settings().worker_job.timeout_for,
+            )
             active_attempt_loader = getattr(self._repo.runs, "active_stage_attempt", None)
             if active_attempt_loader is not None:
                 active_attempt = await active_attempt_loader(run.id)
@@ -1141,6 +1155,83 @@ def _safe_job_timestamp(value: Any) -> str | None:
     if isinstance(value, datetime):
         return value.isoformat()
     return value if isinstance(value, str) else None
+
+
+# Pipeline order matters only for readability here; the summation itself is
+# order-independent. This is the exact `stage_durations_ms` key vocabulary
+# written by `coordinator.py`/`code_generator_verification.py` (task 2) --
+# "plan", "acquire", "generate", "verify" -- which is deliberately NOT the
+# same string vocabulary as `config/app.toml`'s dotted `kind_timeouts` keys
+# below. The two are mapped explicitly rather than assumed identical.
+_STAGE_ORDER: tuple[str, ...] = ("plan", "acquire", "generate", "verify")
+
+# Maps a `stage_durations_ms` stage name to its `worker.job.kind_timeouts`
+# config key. Confirmed against `config/app.toml`: the verify stage's
+# configured budget key is `"code_generator.verify_and_preview"`, not
+# `"code_generator.verify"` -- the two vocabularies diverge on that one
+# stage, which is exactly why this mapping exists instead of a `f"code_
+# generator.{stage}"` string-concat shortcut.
+_STAGE_TIMEOUT_KIND: dict[str, str] = {
+    "plan": "code_generator.plan",
+    "acquire": "code_generator.acquire",
+    "generate": "code_generator.generate",
+    "verify": "code_generator.verify_and_preview",
+}
+
+
+def _compute_stage_estimate(
+    *,
+    stage_durations_ms: Any,
+    created_at: datetime | None,
+    now: datetime,
+    timeout_for: Callable[[str], float],
+) -> dict[str, Any]:
+    """Backend-only, non-fabricated estimated-time-remaining computation.
+
+    Correctness Property 3 (design.md): every millisecond in the returned
+    ``estimated_total_ms`` must trace back to either (a) an observed
+    ``stage_durations_ms`` entry for a stage already completed in this run,
+    or (b) `config/app.toml`'s `worker.job.kind_timeouts` budget for a stage
+    not yet completed -- never an arbitrary constant. This function is a
+    pure, DB-free, service-free computation specifically so that invariant
+    is directly unit- and property-testable without a service instance or a
+    database session.
+
+    ``timeout_for`` is passed in as a plain callable (rather than a
+    ``WorkerJobConfig`` instance) so tests can supply a trivial fake without
+    constructing real settings.
+    """
+
+    durations = stage_durations_ms if isinstance(stage_durations_ms, dict) else {}
+    has_observed_entry = False
+    estimated_total_ms = 0.0
+    for stage in _STAGE_ORDER:
+        observed = durations.get(stage)
+        if isinstance(observed, (int, float)) and not isinstance(observed, bool):
+            has_observed_entry = True
+            estimated_total_ms += max(0.0, float(observed))
+        else:
+            budget_seconds = timeout_for(_STAGE_TIMEOUT_KIND[stage])
+            estimated_total_ms += max(0.0, float(budget_seconds) * 1000.0)
+
+    # `CodeGeneratorDevelopmentRun`/`CodeGeneratorRun` rows have no
+    # `started_at` of their own -- only `created_at` (see
+    # `db/models/code_generator_development.py`). This mirrors task 2's own
+    # `coordinator.py` precedent of falling back to an honest, already-
+    # persisted timestamp rather than a fabricated one when the more
+    # semantically precise field does not exist on this row.
+    if created_at is not None:
+        elapsed_ms = max(0.0, (now - created_at).total_seconds() * 1000.0)
+    else:
+        elapsed_ms = 0.0
+
+    estimated_remaining_ms = max(0.0, estimated_total_ms - elapsed_ms)
+    return {
+        "elapsed_ms": int(elapsed_ms),
+        "estimated_total_ms": int(estimated_total_ms),
+        "estimated_remaining_ms": int(estimated_remaining_ms),
+        "source": "observed_and_budget" if has_observed_entry else "configured_budget",
+    }
 
 
 def _safe_job_error(value: Any) -> dict[str, Any] | None:
